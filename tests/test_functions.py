@@ -3,33 +3,33 @@ import pytest
 from deprecate.deprecation import deprecated
 
 
-def base_sum_kwargs(a=0, b=3):
+def base_sum_kwargs(a: int = 0, b: int = 3) -> int:
     return a + b
 
 
-def base_pow_args(a, b):
-    return a ** b
+def base_pow_args(a: float, b: int) -> float:
+    return a**b
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
-def depr_sum(a, b=5):
+def depr_sum(a: int, b: int = 5) -> int:
     pass
 
 
 @deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3")
-def depr_pow_args(a, b):
+def depr_pow_args(a: float, b: float) -> float:
     pass
 
 
 @deprecated(target=base_pow_args, deprecated_in="0.1", remove_in="0.5")
-def depr_pow_mix(a, b=4):
+def depr_pow_mix(a: int, b: float = 4) -> float:
     pass
 
 
-def test_deprecated_func():
+def test_deprecated_func() -> None:
     with pytest.deprecated_call(
         match='The `depr_sum` was deprecated since v0.1 in favor of `test_functions.base_sum_kwargs`.'
-              ' It will be removed in v0.5.'
+        ' It will be removed in v0.5.'
     ):
         assert depr_sum(2) == 7
 
@@ -41,12 +41,12 @@ def test_deprecated_func():
     # and does not affect other functions
     with pytest.deprecated_call(
         match='The `depr_pow_mix` was deprecated since v0.1 in favor of `test_functions.base_pow_args`.'
-              ' It will be removed in v0.5.'
+        ' It will be removed in v0.5.'
     ):
         assert depr_pow_mix(2, 1) == 2
 
 
-def test_deprecated_func_incomplete():
+def test_deprecated_func_incomplete() -> None:
 
     # missing required argument
     with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
@@ -62,6 +62,6 @@ def test_deprecated_func_incomplete():
     # does not affect other functions
     with pytest.deprecated_call(
         match='The `depr_pow_args` was deprecated since v1.0 in favor of `test_functions.base_pow_args`.'
-              ' It will be removed in v1.3.'
+        ' It will be removed in v1.3.'
     ):
         assert depr_pow_args(b=2, a=1) == 1

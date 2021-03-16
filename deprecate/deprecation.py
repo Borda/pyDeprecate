@@ -1,8 +1,7 @@
 import inspect
 from functools import wraps
-from typing import Any, Callable, List, Tuple, Optional
+from typing import Any, Callable, List, Tuple
 from warnings import warn
-
 
 TEMPLATE_WARNING = "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`." \
                    " It will be removed in v%(remove_in)s."
@@ -34,12 +33,13 @@ def _update_kwargs(func: Callable, f_args: tuple, f_kwargs: dict) -> dict:
     # convert args to kwargs
     f_kwargs.update({k: v for k, v in zip(arg_names, f_args)})
     # fill by source defaults
-    f_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}
+    f_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}  # type: ignore
     f_kwargs = dict(list(f_defaults.items()) + list(f_kwargs.items()))
     return f_kwargs
 
 
 def _raise_warn(source: Callable, target: Callable, remove_in: str, deprecated_in: str, is_class: bool) -> None:
+    """raise deprecation warning"""
     target_path = f'{target.__module__}.{target.__name__}'
     source_name = source.__qualname__.split('.')[-2] if is_class else source.__name__
     warn(
@@ -52,21 +52,22 @@ def _raise_warn(source: Callable, target: Callable, remove_in: str, deprecated_i
     )
 
 
-def deprecated(target: Callable = None, deprecated_in: Optional[str] = "", remove_in: Optional[str] = "") -> Callable:
+def deprecated(target: Callable, deprecated_in: str = "", remove_in: str = "") -> Callable:
     """
-    Decorate a function or class ``__init__`` with warning message and pass all arguments directly to the target class/method.
+    Decorate a function or class ``__init__`` with warning message
+     and pass all arguments directly to the target class/method.
     """
 
-    def packing(source):
+    def packing(source: Callable) -> Callable:
 
         @wraps(source)
-        def wrapped_fn(*args, **kwargs):
+        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
             is_class = inspect.isclass(target)
-            target_func = target.__init__ if is_class else target
+            target_func = target.__init__ if is_class else target  # type: ignore
             # warn user only once in lifetime
             if not getattr(wrapped_fn, 'warned', False):
                 _raise_warn(source, target, remove_in, deprecated_in, is_class)
-                wrapped_fn.warned = True
+                setattr(wrapped_fn, "warned", True)
 
             kwargs = _update_kwargs(source, args, kwargs)
 

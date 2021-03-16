@@ -13,7 +13,7 @@ import deprecate
 _PATH_ROOT = os.path.dirname(__file__)
 
 
-def _load_long_description():
+def _load_long_description() -> str:
     url = os.path.join(deprecate.__homepage__, 'raw', deprecate.__version__, 'docs')
     text = open('README.md', encoding='utf-8').read()
     # replace relative repository path to absolute link to the release

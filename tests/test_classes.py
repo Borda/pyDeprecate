@@ -5,19 +5,19 @@ from deprecate.deprecation import deprecated
 
 class NewCls:
 
-    def __init__(self, c, d="abc"):
+    def __init__(self, c: float, d: str = "abc"):
         self.my_c = c
         self.my_d = d
 
 
-class PastCls:
+class PastCls(NewCls):
 
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
-    def __init__(self, c, d="efg"):
+    def __init__(self, c: int, d: str = "efg"):
         pass
 
 
-def test_deprecated_class():
+def test_deprecated_class() -> None:
     with pytest.deprecated_call(
         match='The `PastCls` was deprecated since v0.2 in favor of `test_classes.NewCls`. It will be removed in v0.4.'
     ):
