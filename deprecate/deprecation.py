@@ -72,8 +72,8 @@ def deprecated(target: Callable, deprecated_in: str = "", remove_in: str = "") -
             kwargs = _update_kwargs(source, args, kwargs)
 
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
-            assert all(arg in target_args for arg in kwargs), \
-                "Failed mapping, arguments missing in target source: %s" % [arg not in target_args for arg in kwargs]
+            missed = [arg for arg in kwargs if arg not in target_args]
+            assert not missed, "Failed mapping, arguments missing in target source: %s" % missed
             # all args were already moved to kwargs
             return target_func(**kwargs)
 
