@@ -24,13 +24,16 @@ pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 
 ### Functions
 
-It is very straight forward, you forward your function call to new function and all arguments are mapped.
+It is very straight forward, you forward your function call to new function and all arguments are mapped:
 
 ```python
 def base_sum(a: int = 0, b: int = 3) -> int:
     """My new function anywhere in codebase or even other package."""
     return a + b
 
+# ---------------------------
+
+from deprecate import deprecated
 
 @deprecated(target=base_sum, deprecated_in="0.1", remove_in="0.5")
 def depr_sum(a: int, b: int = 5) -> int:
@@ -39,21 +42,33 @@ def depr_sum(a: int, b: int = 5) -> int:
      as all calls are routed to the new function.
     """
     pass  # or you can just place docstring as one above
+
+# call this function will raise deprecation warning
+depr_sum(1, 2)
+# returns: 3
 ```
 
 ### Classes
 
+This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
+
 ```python
 class NewCls:
-    """My ne class anywhere in the codebase."""
+    """My new class anywhere in the codebase or other package."""
 
     def __init__(self, c: float, d: str = "abc"):
         self.my_c = c
         self.my_d = d
 
+# ---------------------------
+
+from deprecate import deprecated
 
 class PastCls(NewCls):
-    """The deprecated class shall be inherited from the successor to hold all methods."""
+    """
+    The deprecated class shall be inherited from the successor class
+     to hold all methods.
+    """
 
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
     def __init__(self, c: int, d: str = "efg"):
@@ -62,4 +77,13 @@ class PastCls(NewCls):
          to warn user just at the time of creating object.
         """
         pass  # or you can just place docstring as one above
+
+# call this function will raise deprecation warning
+inst = PastCls(7)
+inst.my_c  # returns: 7
+inst.my_d  # returns: "efg"
 ```
+
+## Contribution
+
+Have you faced this in past or even now, do you have good ideas for improvement, all is welcome! 

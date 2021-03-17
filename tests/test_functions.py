@@ -47,7 +47,6 @@ def test_deprecated_func() -> None:
 
 
 def test_deprecated_func_incomplete() -> None:
-
     # missing required argument
     with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
         depr_pow_args(2)
