@@ -57,7 +57,7 @@ def test_deprecated_func_incomplete() -> None:
     assert len(record) == 0
 
     # reset the warning
-    depr_pow_args.warned = False
+    depr_pow_args._warned = False
     # does not affect other functions
     with pytest.deprecated_call(
         match='The `depr_pow_args` was deprecated since v1.0 in favor of `test_functions.base_pow_args`.'

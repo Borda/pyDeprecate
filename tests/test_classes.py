@@ -31,3 +31,7 @@ def test_deprecated_class() -> None:
     with pytest.warns(None) as record:
         assert PastCls(c=2, d="")
     assert len(record) == 0
+
+    PastCls.__init__._warned = False
+    with pytest.deprecated_call(match='It will be removed in v0.4.'):
+        PastCls(2)

@@ -65,9 +65,9 @@ def deprecated(target: Callable, deprecated_in: str = "", remove_in: str = "") -
             is_class = inspect.isclass(target)
             target_func = target.__init__ if is_class else target  # type: ignore
             # warn user only once in lifetime
-            if not getattr(wrapped_fn, 'warned', False):
+            if not getattr(wrapped_fn, '_warned', False):
                 _raise_warn(source, target, remove_in, deprecated_in, is_class)
-                setattr(wrapped_fn, "warned", True)
+                setattr(wrapped_fn, "_warned", True)
 
             kwargs = _update_kwargs(source, args, kwargs)
 
