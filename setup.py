@@ -29,7 +29,7 @@ def _load_long_description() -> str:
 # the goal of the project is simplicity for researchers, don't want to add too much
 # engineer specific practices
 setup(
-    name='deprecate',
+    name='pyDeprecate',
     version=deprecate.__version__,
     description=deprecate.__docs__,
     author=deprecate.__author__,
@@ -46,7 +46,7 @@ setup(
     setup_requires=[],
     install_requires=[],
     project_urls={
-        "Source Code": deprecate.__homepage__,
+        "Source Code": deprecate.__source_code__,
     },
     classifiers=[
         'Environment :: Console',
