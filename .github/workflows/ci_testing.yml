@@ -48,3 +48,13 @@ jobs:
       run: |
         coverage report
         coverage xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      if: success()
+      continue-on-error: true
+      with:
+        # token: ${{ secrets.CODECOV_TOKEN }}
+        file: coverage.xml
+        flags: pytest,python${{ matrix.python-version }}
+        fail_ci_if_error: false
