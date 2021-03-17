@@ -1,10 +1,13 @@
 # pyDeprecate
 
+**Simple tooling for marking deprecated functions or classes and re-routing to the new successors' instance.**
+
 [![CI testing](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml/badge.svg?event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml)
 [![Code formatting](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml/badge.svg?event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml)
 [![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
-
-Simple tooling for marking deprecated function or classes and re-routing to the new successors instance.
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
+[![PyPI Status](https://badge.fury.io/py/pyDeprecate.svg)](https://badge.fury.io/py/pyDeprecate)
+[![PyPI Status](https://pepy.tech/badge/pyDeprecate)](https://pepy.tech/project/pyDeprecate)
 
 The common use-case is moving your functions across codebase or outsourcing some functionalities to new packages.
 For most of these cases you want to hold some compatibility, so you cannot simply remove past function,
