@@ -2,12 +2,16 @@
 
 **Simple tooling for marking deprecated functions or classes and re-routing to the new successors' instance.**
 
-[![CI testing](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml/badge.svg?event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml)
-[![Code formatting](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml/badge.svg?event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml)
-[![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![PyPI Status](https://badge.fury.io/py/pyDeprecate.svg)](https://badge.fury.io/py/pyDeprecate)
 [![PyPI Status](https://pepy.tech/badge/pyDeprecate)](https://pepy.tech/project/pyDeprecate)
+[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Borda/pyDeprecate/blob/master/LICENSE)
+
+[![CI testing](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml/badge.svg?branch=main&event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml)
+[![Code formatting](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml/badge.svg?branch=main&event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml)
+[![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
+
+---
 
 The common use-case is moving your functions across codebase or outsourcing some functionalities to new packages.
 For most of these cases you want to hold some compatibility, so you cannot simply remove past function,
@@ -26,10 +30,10 @@ pip install pyDeprecate
 <details>
   <summary>Other installations</summary>
 
-Simply install with pip from source:
-```bash
-pip install https://github.com/Borda/pyDeprecate/archive/main.zip
-```
+  Simply install with pip from source:
+  ```bash
+  pip install https://github.com/Borda/pyDeprecate/archive/main.zip
+  ```
 
 </details>
 

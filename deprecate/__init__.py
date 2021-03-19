@@ -1,6 +1,6 @@
 import os
 
-__version__ = "0.1.0rc1"
+__version__ = "0.1.0rc2"
 __docs__ = "Deprecation tooling"
 __author__ = "Jiri Borovec"
 __author_email__ = "jiri.borovec@fel.cvut.cz"

@@ -13,15 +13,17 @@ import deprecate
 _PATH_ROOT = os.path.dirname(__file__)
 
 
-def _load_long_description() -> str:
-    url = os.path.join(deprecate.__homepage__, 'raw', deprecate.__version__, 'docs')
-    text = open('README.md', encoding='utf-8').read()
-    # replace relative repository path to absolute link to the release
-    text = text.replace('](docs', f']({url}')
-    # SVG images are not readable on PyPI, so replace them  with PNG
-    text = text.replace('.svg', '.png')
+def _load_long_description(path_dir: str, homepage: str, version: str) -> str:
+    path_readme = os.path.join(path_dir, "README.md")
+    text = open(path_readme, encoding="utf-8").read()
+    # codecov badge
+    text = text.replace('/branch/main/graph/badge.svg', f'/release/{version}/graph/badge.svg')
+    # replace github badges for release ones
+    text = text.replace('badge.svg?branch=main&event=push', f'badge.svg?tag={version}')
     return text
 
+
+long_description = _load_long_description(_PATH_ROOT, homepage=deprecate.__homepage__, version=deprecate.__version__)
 
 # https://packaging.python.org/discussions/install-requires-vs-requirements /
 # keep the meta-data here for simplicity in reading this file... it's not obvious
@@ -37,7 +39,7 @@ setup(
     url=deprecate.__homepage__,
     license=deprecate.__license__,
     packages=find_packages(exclude=['tests', 'docs']),
-    long_description=_load_long_description(),
+    long_description=long_description,
     long_description_content_type='text/markdown',
     include_package_data=True,
     zip_safe=False,
