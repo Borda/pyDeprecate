@@ -18,12 +18,27 @@ Another good aspect is to do not overwhelm user with to many warning, so per fun
 
 ## Installation
 
+Simple installation from PyPI:
+```bash
+pip install pyDeprecate
+```
+
+<details>
+  <summary>Other installations</summary>
+
 Simply install with pip from source:
 ```bash
 pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 ```
 
+</details>
+
 ## Use-cases
+
+The functionality is kept simple and all default shall be reasonable, but still you can do extra customization such as:
+
+* define user warning message and preferable stream
+* extended argument mapping to target function/method
 
 ### Functions
 
