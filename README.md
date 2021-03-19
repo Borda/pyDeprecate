@@ -23,7 +23,7 @@ For most of these cases you want to hold some compatibility, so you cannot simpl
  and also for some time you want to warn users that functionality they have been using is moved
  and not it in deprecated in favour of another function (which shall be used instead) and soon it will be removed completely.
 
-Another good aspect is to do not overwhelm user with to many warning, so per function/class this warning is raised only once.
+Another good aspect is to do not overwhelm user with to many warning, so per function/class this warning is raised only N times in the preferable stream.
 
 ## Installation
 
@@ -49,7 +49,7 @@ The functionality is kept simple and all default shall be reasonable, but still 
 * define user warning message and preferable stream
 * extended argument mapping to target function/method
 
-### Functions
+### Simple function forwarding
 
 It is very straight forward, you forward your function call to new function and all arguments are mapped:
 
@@ -74,6 +74,8 @@ def depr_sum(a: int, b: int = 5) -> int:
 depr_sum(1, 2)
 # returns: 3
 ```
+
+### Advanced argument mapping
 
 Another more complex example is using argument mapping is:
 ```python
@@ -103,8 +105,27 @@ depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23)
 # returns: 0.5
 ```
 
+### Deprecation warning only
 
-### Classes
+Base use-case with no forwarding and just raising warning :
+
+```python
+from deprecate import deprecated
+
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
+def my_sum(a: int, b: int = 5) -> int:
+    """
+    My deprecated function which still has to have implementation.
+    """
+    return a + b
+
+# call this function will raise deprecation warning
+my_sum(1, 2)
+# returns: 3
+```
+
+
+### Class deprecation
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 

@@ -12,17 +12,22 @@ def base_pow_args(a: float, b: int) -> float:
     return a**b
 
 
+@deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+def depr_sum_warn_only(a: int, b: int = 5) -> int:
+    pass
+
+
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
 def depr_sum(a: int, b: int = 5) -> int:
     pass
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5", stream=None)
+@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)
 def depr_sum_no_stream(a: int, b: int = 5) -> int:
     pass
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5", num_warns=2)
+@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)
 def depr_sum_calls_2(a: int, b: int = 5) -> int:
     pass
 
@@ -52,7 +57,14 @@ def depr_pow_wrong(a: int, c: float = 4) -> float:
     pass
 
 
-def test_deprecated_func() -> None:
+def test_deprecated_func_warn_only() -> None:
+    with pytest.deprecated_call(
+        match='The `depr_sum_warn_only` was deprecated since v0.2 in favor of ``. It will be removed in v0.3.'
+    ):
+        assert depr_sum_warn_only(2) is None
+
+
+def test_deprecated_func_default() -> None:
     with pytest.deprecated_call(
         match='The `depr_sum` was deprecated since v0.1 in favor of `test_functions.base_sum_kwargs`.'
         ' It will be removed in v0.5.'

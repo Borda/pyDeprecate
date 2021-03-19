@@ -65,7 +65,7 @@ def update_kwargs(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
 def _raise_warn(
     stream: Callable,
     source: Callable,
-    target: Callable,
+    target: Optional[Callable],
     deprecated_in: str,
     remove_in: str,
     template_mgs: str = TEMPLATE_WARNING,
@@ -89,8 +89,11 @@ def _raise_warn(
             - ``remove_in`` version passed to wrapper
 
     """
-    target_name = target.__name__
-    target_path = f'{target.__module__}.{target_name}'
+    if target:
+        target_name = target.__name__
+        target_path = f'{target.__module__}.{target_name}'
+    else:
+        target_name, target_path = "", ""
     source_name = source.__qualname__.split('.')[-2] if source.__name__ == "__init__" else source.__name__
     source_path = f'{source.__module__}.{source_name}'
     msg_args = dict(
@@ -105,7 +108,7 @@ def _raise_warn(
 
 
 def deprecated(
-    target: Callable,
+    target: Optional[Callable],
     deprecated_in: str = "",
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
@@ -119,7 +122,7 @@ def deprecated(
      and pass all arguments directly to the target class/method.
 
     Args:
-        target: Function or method to forward the call.
+        target: Function or method to forward the call. If set ``None``, no forwarding is applied and only warn.
         deprecated_in: Define version when the wrapped function is deprecated.
         remove_in: Define version when the wrapped function will be removed.
         stream: Set stream for printing warning messages, by default is deprecation warning.
@@ -163,6 +166,9 @@ def deprecated(
             setattr(wrapped_fn, "_called", nb_called + 1)
 
             kwargs = update_kwargs(source, args, kwargs)
+            # short cycle with no target function
+            if not target:
+                return source(**kwargs)
 
             target_is_class = inspect.isclass(target)
             target_func = target.__init__ if target_is_class else target  # type: ignore
