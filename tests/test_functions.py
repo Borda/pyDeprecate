@@ -26,6 +26,16 @@ def depr_sum_calls_2(a: int, b: int = 5) -> int:
     pass
 
 
+@deprecated(
+    target=base_sum_kwargs,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_path)s`"
+)
+def depr_sum_msg(a: int, b: int = 5) -> int:
+    pass
+
+
 @deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3")
 def depr_pow_args(a: float, b: float) -> float:
     pass
@@ -67,6 +77,9 @@ def test_deprecated_func_stream_calls() -> None:
         for _ in range(5):
             assert depr_sum_calls_2(3) == 8
     assert len(record) == 2
+
+    with pytest.deprecated_call(match='v0.1: `depr_sum_msg` was deprecated, use `test_functions.base_sum_kwargs`'):
+        assert depr_sum_msg(3) == 8
 
 
 def test_deprecated_func_incomplete() -> None:

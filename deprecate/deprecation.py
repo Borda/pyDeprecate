@@ -3,8 +3,11 @@ from functools import partial, wraps
 from typing import Any, Callable, List, Optional, Tuple
 from warnings import warn
 
-TEMPLATE_WARNING = "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`." \
-                   " It will be removed in v%(remove_in)s."
+#: Template warning message
+TEMPLATE_WARNING = (
+    "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
+    " It will be removed in v%(remove_in)s."
+)
 
 deprecation_warning = partial(warn, category=DeprecationWarning)
 
@@ -59,7 +62,14 @@ def update_kwargs(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
     return fn_kwargs
 
 
-def _raise_warn(stream: Callable, source: Callable, target: Callable, deprecated_in: str, remove_in: str) -> None:
+def _raise_warn(
+    stream: Callable,
+    source: Callable,
+    target: Callable,
+    deprecated_in: str,
+    remove_in: str,
+    template_mgs: str = TEMPLATE_WARNING,
+) -> None:
     """
     Raise deprecation warning with in given stream,
 
@@ -69,19 +79,29 @@ def _raise_warn(stream: Callable, source: Callable, target: Callable, deprecated
         target: function/methods which is mapping target
         deprecated_in: set version when source is deprecated
         remove_in: set version when source will be removed
+        template_mgs: python formatted string message which has build-ins arguments:
+
+            - ``source_name`` just the functions name such as "my_source_func"
+            - ``source_path`` pythonic path to the function such as "my_package.with_module.my_source_func"
+            - ``target_name`` just the functions name such as "my_target_func"
+            - ``target_path`` pythonic path to the function such as "any_package.with_module.my_target_func"
+            - ``deprecated_in`` version passed to wrapper
+            - ``remove_in`` version passed to wrapper
 
     """
-    target_is_class = inspect.isclass(target)
-    target_path = f'{target.__module__}.{target.__name__}'
-    source_name = source.__qualname__.split('.')[-2] if target_is_class else source.__name__
-    stream(
-        TEMPLATE_WARNING % dict(
-            source_name=source_name,
-            target_path=target_path,
-            remove_in=remove_in,
-            deprecated_in=deprecated_in,
-        )
+    target_name = target.__name__
+    target_path = f'{target.__module__}.{target_name}'
+    source_name = source.__qualname__.split('.')[-2] if source.__name__ == "__init__" else source.__name__
+    source_path = f'{source.__module__}.{source_name}'
+    msg_args = dict(
+        source_name=source_name,
+        source_path=source_path,
+        target_name=target_name,
+        target_path=target_path,
+        deprecated_in=deprecated_in,
+        remove_in=remove_in,
     )
+    stream(template_mgs % msg_args)
 
 
 def deprecated(
@@ -90,6 +110,7 @@ def deprecated(
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
+    template_mgs: str = TEMPLATE_WARNING,
 ) -> Callable:
     """
     Decorate a function or class ``__init__`` with warning message
@@ -102,6 +123,10 @@ def deprecated(
         stream: Set stream for printing warning messages, by default is deprecation warning.
             Setting ``None``, no warning is shown to user.
         num_warns: Custom define number or warning raised.
+        template_mgs: python formatted string message which has build-ins arguments:
+            ``source_name``, ``source_path``, ``target_name``, ``target_path``, ``deprecated_in``, ``remove_in``
+            Example of a custom message is
+            ``"v%(deprecated_in)s: `%(source_name)s` was deprecated in favor of `%(target_path)s`."``
 
     Returns:
         wrapped function pointing to the target implementation with source arguments
@@ -119,7 +144,14 @@ def deprecated(
             nb_called = getattr(wrapped_fn, '_called', 0)
             # warn user only once in lifetime
             if stream and nb_warned < num_warns:
-                _raise_warn(stream, source, target, deprecated_in, remove_in)
+                _raise_warn(
+                    stream,
+                    source=source,
+                    target=target,
+                    deprecated_in=deprecated_in,
+                    remove_in=remove_in,
+                    template_mgs=template_mgs,
+                )
                 setattr(wrapped_fn, "_warned", nb_warned + 1)
             setattr(wrapped_fn, "_called", nb_called + 1)
 
