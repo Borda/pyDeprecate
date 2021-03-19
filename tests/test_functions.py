@@ -47,6 +47,11 @@ def depr_pow_mix(a: int, b: float = 4) -> float:
     pass
 
 
+@deprecated(target=base_pow_args, deprecated_in="0.1", remove_in="0.5")
+def depr_pow_wrong(a: int, c: float = 4) -> float:
+    pass
+
+
 def test_deprecated_func() -> None:
     with pytest.deprecated_call(
         match='The `depr_sum` was deprecated since v0.1 in favor of `test_functions.base_sum_kwargs`.'
@@ -87,6 +92,10 @@ def test_deprecated_func_incomplete() -> None:
     # missing required argument
     with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
         depr_pow_args(2)
+
+    # missing argument in target
+    with pytest.raises(TypeError, match=r"Failed mapping, arguments missing in target source: \['c'\]"):
+        depr_pow_wrong(2)
 
     # check that the warning is raised only once per function
     with pytest.warns(None) as record:
