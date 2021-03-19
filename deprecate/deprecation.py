@@ -1,6 +1,6 @@
 import inspect
 from functools import partial, wraps
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from warnings import warn
 
 #: Template warning message
@@ -111,6 +111,8 @@ def deprecated(
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
     template_mgs: str = TEMPLATE_WARNING,
+    args_mapping: Optional[Dict[str, str]] = None,
+    args_extra: Optional[Dict[str, Any]] = None,
 ) -> Callable:
     """
     Decorate a function or class ``__init__`` with warning message
@@ -127,6 +129,11 @@ def deprecated(
             ``source_name``, ``source_path``, ``target_name``, ``target_path``, ``deprecated_in``, ``remove_in``
             Example of a custom message is
             ``"v%(deprecated_in)s: `%(source_name)s` was deprecated in favor of `%(target_path)s`."``
+        args_mapping: Custom argument mapping argument between source and target and options to suppress some,
+            for example ``{'my_arg': 'their_arg`}`` passes "my_arg" from source as "their_arg" in target
+            or ``{'my_arg': None}`` ignores the "my_arg" from source function.
+        args_extra: Custom filling extra argument in target function, mostly if they are required
+            or your needed default is different from target one, for example ``{'their_arg': 42}``
 
     Returns:
         wrapped function pointing to the target implementation with source arguments
@@ -160,6 +167,17 @@ def deprecated(
             target_is_class = inspect.isclass(target)
             target_func = target.__init__ if target_is_class else target  # type: ignore
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
+
+            if args_mapping:
+                # filter args which shall be skipped
+                args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
+                # Look-Up-table mapping
+                kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
+
+            if args_extra:
+                # update target argument by extra arguments
+                kwargs.update(args_extra)
+
             missed = [arg for arg in kwargs if arg not in target_args]
             if missed:
                 raise TypeError("Failed mapping, arguments missing in target source: %s" % missed)

@@ -1,4 +1,5 @@
 import pytest
+from sklearn.metrics import accuracy_score
 
 from deprecate.deprecation import deprecated
 
@@ -100,3 +101,26 @@ def test_deprecated_func_incomplete() -> None:
         ' It will be removed in v1.3.'
     ):
         assert depr_pow_args(b=2, a=1) == 1
+
+
+@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'truth': 'y_true'})
+def depr_accuracy_map(preds: list, truth=(0, 1, 1, 2)) -> float:
+    pass
+
+
+@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'any': None})
+def depr_accuracy_skip(preds: list, y_true=(0, 1, 1, 2), any: float = 1.23) -> float:
+    pass
+
+
+@deprecated(target=accuracy_score, args_extra={'y_pred': (0, 1, 1, 1)})
+def depr_accuracy_extra(y_pred: list, y_true=(0, 1, 1, 2)) -> float:
+    pass
+
+
+def test_deprecated_func_mapping() -> None:
+    assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
+
+    assert depr_accuracy_skip([1, 0, 1, 2]) == 0.5
+
+    assert depr_accuracy_extra([1, 0, 1, 2]) == 0.75

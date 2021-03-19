@@ -51,6 +51,35 @@ depr_sum(1, 2)
 # returns: 3
 ```
 
+Another more complex example is using argument mapping is:
+```python
+import logging
+from sklearn.metrics import accuracy_score
+from deprecate import deprecated
+
+@deprecated(
+  # use standard sklearn accuracy implementation
+  target=accuracy_score,
+  # custom warning stream
+  stream=logging.warning,
+  # custom message template
+  template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
+  # as target args are different, define mapping
+  args_mapping={'preds': 'y_pred', 'target': 'y_true', 'blabla': None}
+)
+def depr_accuracy(preds: list, target: list, blabla: float) -> float:
+    """
+    My deprecated function which is mapping to sklearn accuracy.
+    """
+    pass  # or you can just place docstring as one above
+
+# call this function will raise deprecation warning:
+# WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
+depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23)
+# returns: 0.5
+```
+
+
 ### Classes
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
