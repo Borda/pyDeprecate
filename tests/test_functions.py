@@ -16,6 +16,16 @@ def depr_sum(a: int, b: int = 5) -> int:
     pass
 
 
+@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5", stream=None)
+def depr_sum_no_stream(a: int, b: int = 5) -> int:
+    pass
+
+
+@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5", num_warns=2)
+def depr_sum_calls_2(a: int, b: int = 5) -> int:
+    pass
+
+
 @deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3")
 def depr_pow_args(a: float, b: float) -> float:
     pass
@@ -44,6 +54,19 @@ def test_deprecated_func() -> None:
         ' It will be removed in v0.5.'
     ):
         assert depr_pow_mix(2, 1) == 2
+
+
+def test_deprecated_func_stream_calls() -> None:
+    # check that the warning is raised only once per function
+    with pytest.warns(None) as record:
+        assert depr_sum_no_stream(3) == 8
+    assert len(record) == 0
+
+    # check that the warning is raised only once per function
+    with pytest.warns(DeprecationWarning) as record:
+        for _ in range(5):
+            assert depr_sum_calls_2(3) == 8
+    assert len(record) == 2
 
 
 def test_deprecated_func_incomplete() -> None:

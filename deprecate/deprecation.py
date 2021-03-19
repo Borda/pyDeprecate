@@ -89,17 +89,19 @@ def deprecated(
     deprecated_in: str = "",
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
+    num_warns: int = 1,
 ) -> Callable:
     """
     Decorate a function or class ``__init__`` with warning message
      and pass all arguments directly to the target class/method.
 
     Args:
-        target: function or method to forward the call
-        deprecated_in: define version when the wrapped function is deprecated
-        remove_in: define version when the wrapped function will be removed
-        stream: set stream for printing warning messages, by default is deprecation warning.
+        target: Function or method to forward the call.
+        deprecated_in: Define version when the wrapped function is deprecated.
+        remove_in: Define version when the wrapped function will be removed.
+        stream: Set stream for printing warning messages, by default is deprecation warning.
             Setting ``None``, no warning is shown to user.
+        num_warns: Custom define number or warning raised.
 
     Returns:
         wrapped function pointing to the target implementation with source arguments
@@ -116,9 +118,9 @@ def deprecated(
             is_class = inspect.isclass(target)
             target_func = target.__init__ if is_class else target  # type: ignore
             # warn user only once in lifetime
-            if stream and not getattr(wrapped_fn, '_warned', False):
+            if stream and getattr(wrapped_fn, '_warned', 0) < num_warns:
                 _raise_warn(stream, source, target, deprecated_in, remove_in)
-                setattr(wrapped_fn, "_warned", True)
+            setattr(wrapped_fn, "_warned", getattr(wrapped_fn, '_warned', 0) + 1)
 
             kwargs = update_kwargs(source, args, kwargs)
 
