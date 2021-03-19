@@ -71,9 +71,9 @@ def _raise_warn(stream: Callable, source: Callable, target: Callable, deprecated
         remove_in: set version when source will be removed
 
     """
-    is_class = inspect.isclass(target)
+    target_is_class = inspect.isclass(target)
     target_path = f'{target.__module__}.{target.__name__}'
-    source_name = source.__qualname__.split('.')[-2] if is_class else source.__name__
+    source_name = source.__qualname__.split('.')[-2] if target_is_class else source.__name__
     stream(
         TEMPLATE_WARNING % dict(
             source_name=source_name,
@@ -115,15 +115,18 @@ def deprecated(
 
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
-            is_class = inspect.isclass(target)
-            target_func = target.__init__ if is_class else target  # type: ignore
+            nb_warned = getattr(wrapped_fn, '_warned', 0)
+            nb_called = getattr(wrapped_fn, '_called', 0)
             # warn user only once in lifetime
-            if stream and getattr(wrapped_fn, '_warned', 0) < num_warns:
+            if stream and nb_warned < num_warns:
                 _raise_warn(stream, source, target, deprecated_in, remove_in)
-            setattr(wrapped_fn, "_warned", getattr(wrapped_fn, '_warned', 0) + 1)
+                setattr(wrapped_fn, "_warned", nb_warned + 1)
+            setattr(wrapped_fn, "_called", nb_called + 1)
 
             kwargs = update_kwargs(source, args, kwargs)
 
+            target_is_class = inspect.isclass(target)
+            target_func = target.__init__ if target_is_class else target  # type: ignore
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
             missed = [arg for arg in kwargs if arg not in target_args]
             if missed:
