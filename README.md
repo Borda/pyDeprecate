@@ -19,11 +19,9 @@
 ---
 
 The common use-case is moving your functions across codebase or outsourcing some functionalities to new packages.
-For most of these cases you want to hold some compatibility, so you cannot simply remove past function,
- and also for some time you want to warn users that functionality they have been using is moved
- and not it in deprecated in favour of another function (which shall be used instead) and soon it will be removed completely.
+For most of these cases, you want to hold some compatibility, so you cannot simply remove past function, and also for some time you want to warn users that functionality they have been using is moved and not it is deprecated in favor of another function (which shall be used instead) and soon it will be removed completely.
 
-Another good aspect is to do not overwhelm user with to many warning, so per function/class this warning is raised only N times in the preferable stream.
+Another good aspect is to do not overwhelm a user with too many warnings, so per function/class, this warning is raised only N times in the preferable stream (warning, logger, etc.).
 
 ## Installation
 

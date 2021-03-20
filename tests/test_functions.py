@@ -129,8 +129,8 @@ def depr_accuracy_map(preds: list, truth=(0, 1, 1, 2)) -> float:
     pass
 
 
-@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'any': None})
-def depr_accuracy_skip(preds: list, y_true=(0, 1, 1, 2), any: float = 1.23) -> float:
+@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'yeah_arg': None})
+def depr_accuracy_skip(preds: list, y_true=(0, 1, 1, 2), yeah_arg: float = 1.23) -> float:
     pass
 
 
