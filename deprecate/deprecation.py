@@ -127,7 +127,7 @@ def deprecated(
         remove_in: Define version when the wrapped function will be removed.
         stream: Set stream for printing warning messages, by default is deprecation warning.
             Setting ``None``, no warning is shown to user.
-        num_warns: Custom define number or warning raised.
+        num_warns: Custom define number or warning raised. Negative value (-1) means no limit.
         template_mgs: python formatted string message which has build-ins arguments:
             ``source_name``, ``source_path``, ``target_name``, ``target_path``, ``deprecated_in``, ``remove_in``
             Example of a custom message is
@@ -153,7 +153,7 @@ def deprecated(
             nb_warned = getattr(wrapped_fn, '_warned', 0)
             nb_called = getattr(wrapped_fn, '_called', 0)
             # warn user only once in lifetime
-            if stream and nb_warned < num_warns:
+            if stream and (num_warns < 0 or nb_warned < num_warns):
                 _raise_warn(
                     stream,
                     source=source,

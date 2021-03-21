@@ -32,6 +32,11 @@ def depr_sum_calls_2(a: int, b: int = 5) -> int:
     pass
 
 
+@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)
+def depr_sum_calls_inf(a: int, b: int = 5) -> int:
+    pass
+
+
 @deprecated(
     target=base_sum_kwargs,
     deprecated_in="0.1",
@@ -95,6 +100,12 @@ def test_deprecated_func_stream_calls() -> None:
         for _ in range(5):
             assert depr_sum_calls_2(3) == 8
     assert len(record) == 2
+
+    # check that the warning is raised only once per function
+    with pytest.warns(DeprecationWarning) as record:
+        for _ in range(5):
+            assert depr_sum_calls_inf(3) == 8
+    assert len(record) == 5
 
     with pytest.deprecated_call(match='v0.1: `depr_sum_msg` was deprecated, use `test_functions.base_sum_kwargs`'):
         assert depr_sum_msg(3) == 8
