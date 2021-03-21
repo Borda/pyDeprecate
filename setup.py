@@ -13,7 +13,7 @@ import deprecate
 _PATH_ROOT = os.path.dirname(__file__)
 
 
-def _load_long_description(path_dir: str, homepage: str, version: str) -> str:
+def _load_long_description(path_dir: str, version: str) -> str:
     path_readme = os.path.join(path_dir, "README.md")
     text = open(path_readme, encoding="utf-8").read()
     # codecov badge
@@ -22,8 +22,6 @@ def _load_long_description(path_dir: str, homepage: str, version: str) -> str:
     text = text.replace('badge.svg?branch=main&event=push', f'badge.svg?tag={version}')
     return text
 
-
-long_description = _load_long_description(_PATH_ROOT, homepage=deprecate.__homepage__, version=deprecate.__version__)
 
 # https://packaging.python.org/discussions/install-requires-vs-requirements /
 # keep the meta-data here for simplicity in reading this file... it's not obvious
@@ -39,7 +37,7 @@ setup(
     url=deprecate.__homepage__,
     license=deprecate.__license__,
     packages=find_packages(exclude=['tests', 'docs']),
-    long_description=long_description,
+    long_description=_load_long_description(_PATH_ROOT, version=deprecate.__version__),
     long_description_content_type='text/markdown',
     include_package_data=True,
     zip_safe=False,

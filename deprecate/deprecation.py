@@ -55,10 +55,10 @@ def update_kwargs(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
     # parse only the argument names
     arg_names = [arg[0] for arg in func_arg_type_val]
     # convert args to kwargs
-    fn_kwargs.update({k: v for k, v in zip(arg_names, fn_args)})
+    fn_kwargs.update(dict(zip(arg_names, fn_args)))
     # fill by source defaults
-    f_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}  # type: ignore
-    fn_kwargs = dict(list(f_defaults.items()) + list(fn_kwargs.items()))
+    fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}  # type: ignore
+    fn_kwargs = dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
     return fn_kwargs
 
 
