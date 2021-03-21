@@ -8,13 +8,12 @@ on:  # Trigger the workflow on push or pull request, but only for the main branc
 
 jobs:
   pytest:
-
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, macOS-10.15, windows-2019]
-        python-version: [3.6, 3.9]
+        python-version: [2.7, 3.6, 3.9]
 
     # Timeout: https://stackoverflow.com/a/59076067/4521646
     timeout-minutes: 25
@@ -28,7 +27,7 @@ jobs:
 
     - name: Install requirements
       run: |
-        pip install "pytest>6.0" "pytest-cov>2.10" "scikit-learn>=0.21"
+        pip install -r tests/requirements.txt
         pip list
       shell: bash
 
