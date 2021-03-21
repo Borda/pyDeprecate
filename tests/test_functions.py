@@ -64,7 +64,7 @@ def depr_pow_wrong(a: int, c: float = 4) -> float:
 
 def test_deprecated_func_warn_only() -> None:
     with pytest.deprecated_call(
-        match='The `depr_sum_warn_only` was deprecated since v0.2 in favor of ``. It will be removed in v0.3.'
+        match='The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3.'
     ):
         assert depr_sum_warn_only(2) is None
 

@@ -3,10 +3,14 @@ from functools import partial, wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from warnings import warn
 
-#: Template warning message
+#: Default template warning message
 TEMPLATE_WARNING = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
     " It will be removed in v%(remove_in)s."
+)
+#: Default template warning message for no target func/method
+TEMPLATE_WARNING_NO_TARGET = (
+    "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
 
 deprecation_warning = partial(warn, category=DeprecationWarning)
@@ -68,7 +72,7 @@ def _raise_warn(
     target: Optional[Callable],
     deprecated_in: str,
     remove_in: str,
-    template_mgs: str = TEMPLATE_WARNING,
+    template_mgs: Optional[str] = None,
 ) -> None:
     """
     Raise deprecation warning with in given stream,
@@ -92,8 +96,10 @@ def _raise_warn(
     if target:
         target_name = target.__name__
         target_path = f'{target.__module__}.{target_name}'
+        template_mgs = TEMPLATE_WARNING if template_mgs is None else template_mgs
     else:
         target_name, target_path = "", ""
+        template_mgs = TEMPLATE_WARNING_NO_TARGET if template_mgs is None else template_mgs
     source_name = source.__qualname__.split('.')[-2] if source.__name__ == "__init__" else source.__name__
     source_path = f'{source.__module__}.{source_name}'
     msg_args = dict(
@@ -113,7 +119,7 @@ def deprecated(
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
-    template_mgs: str = TEMPLATE_WARNING,
+    template_mgs: Optional[str] = None,
     args_mapping: Optional[Dict[str, str]] = None,
     args_extra: Optional[Dict[str, Any]] = None,
 ) -> Callable:
