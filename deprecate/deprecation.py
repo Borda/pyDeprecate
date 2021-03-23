@@ -174,14 +174,8 @@ def deprecated(
                 setattr(wrapped_fn, "_warned", nb_warned + 1)
             setattr(wrapped_fn, "_called", nb_called + 1)
 
+            # convert args to kwargs
             kwargs = update_kwargs(source, args, kwargs)
-            # short cycle with no target function
-            if not target:
-                return source(**kwargs)
-
-            target_is_class = inspect.isclass(target)
-            target_func = target.__init__ if target_is_class else target  # type: ignore
-            target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             if args_mapping:
                 # filter args which shall be skipped
@@ -192,6 +186,14 @@ def deprecated(
             if args_extra:
                 # update target argument by extra arguments
                 kwargs.update(args_extra)
+
+            # short cycle with no target function
+            if not target:
+                return source(**kwargs)
+
+            target_is_class = inspect.isclass(target)
+            target_func = target.__init__ if target_is_class else target  # type: ignore
+            target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             missed = [arg for arg in kwargs if arg not in target_args]
             if missed:

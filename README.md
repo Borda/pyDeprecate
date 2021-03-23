@@ -46,6 +46,7 @@ The functionality is kept simple and all default shall be reasonable, but still 
 
 * define user warning message and preferable stream
 * extended argument mapping to target function/method
+* define deprecation logic for self arguments
 
 ### Simple function forwarding
 
@@ -73,9 +74,14 @@ depr_sum(1, 2)
 # returns: 3
 ```
 
-### Advanced argument mapping
+### Advanced target argument mapping
 
 Another more complex example is using argument mapping is:
+
+
+<details>
+  <summary>Advanced example</summary>
+
 ```python
 import logging
 from sklearn.metrics import accuracy_score
@@ -103,6 +109,9 @@ depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23)
 # returns: 0.5
 ```
 
+</details>
+
+
 ### Deprecation warning only
 
 Base use-case with no forwarding and just raising warning :
@@ -120,6 +129,25 @@ def my_sum(a: int, b: int = 5) -> int:
 # call this function will raise deprecation warning
 my_sum(1, 2)
 # returns: 3
+```
+
+### Self argument mapping
+
+We aso support deprecation and argument mapping for the function itself:
+
+```python
+from deprecate import deprecated
+
+@deprecated(target=None, args_mapping={'pow': 'super_pow'})
+def any_pow(base: float, pow: float, super_pow: float) -> float:
+    """
+    My deprecated function which is mapping to sklearn accuracy.
+    """
+    return base ** super_pow
+
+# call this function will raise deprecation warning
+any_pow(2, 3)
+# returns: 8
 ```
 
 

@@ -16,7 +16,7 @@ from tests.collection_deprecate import (
     depr_sum_calls_inf,
     depr_sum_msg,
     depr_sum_no_stream,
-    depr_sum_warn_only,
+    depr_sum_warn_only, depr_pow_self,
 )
 
 
@@ -25,6 +25,13 @@ def test_deprecated_func_warn_only() -> None:
         match='The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3.'
     ):
         assert depr_sum_warn_only(2) is None
+
+
+def test_deprecated_func_arguments() -> None:
+    with pytest.deprecated_call(
+        match='The `depr_sum_warn_only` has deprecated following arguments {} since v0.2. It will be removed in v0.3.'
+    ):
+        assert depr_pow_self(2, 3) == 8
 
 
 def test_deprecated_func_default() -> None:
@@ -83,16 +90,16 @@ def test_deprecated_func_incomplete() -> None:
     # reset the warning
     depr_pow_args._warned = False
     # does not affect other functions
-    with pytest.deprecated_call(
-        match='The `depr_pow_args` was deprecated since v1.0 in favor of `tests.collection_targets.base_pow_args`.'
-        ' It will be removed in v1.3.'
-    ):
+    with pytest.deprecated_call(match='`depr_pow_args` >> `test_functions.base_pow_args` in v1.0 rm v1.3.'):
         assert depr_pow_args(b=2, a=1) == 1
 
 
 def test_deprecated_func_mapping() -> None:
-    assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
+    with pytest.deprecated_call():
+        assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
 
-    assert depr_accuracy_skip([1, 0, 1, 2]) == 0.5
+    with pytest.deprecated_call():
+        assert depr_accuracy_skip([1, 0, 1, 2]) == 0.5
 
-    assert depr_accuracy_extra([1, 0, 1, 2]) == 0.75
+    with pytest.deprecated_call():
+        assert depr_accuracy_extra([1, 0, 1, 2]) == 0.75
