@@ -24,6 +24,8 @@ def test_deprecated_class() -> None:
         past = PastCls(2)
     assert past.my_c == 2
     assert past.my_d == "efg"
+    assert isinstance(past, NewCls)
+    assert isinstance(past, PastCls)
 
     # check that the warning is raised only once per function
     with pytest.warns(None) as record:
