@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-
+"""
+Copyright (C) 2020-2021 Jiri Borovec <...>
+"""
 import os
 
 # Always prefer setuptools over distutils

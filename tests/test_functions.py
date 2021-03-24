@@ -1,3 +1,6 @@
+"""
+Copyright (C) 2020-2021 Jiri Borovec <...>
+"""
 import pytest
 from sklearn.metrics import accuracy_score
 
