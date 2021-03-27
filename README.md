@@ -70,7 +70,7 @@ def depr_sum(a: int, b: int = 5) -> int:
     pass  # or you can just place docstring as one above
 
 # call this function will raise deprecation warning
-depr_sum(1, 2)
+print(depr_sum(1, 2))
 # returns: 3
 ```
 
@@ -105,7 +105,7 @@ def depr_accuracy(preds: list, target: list, blabla: float) -> float:
 
 # call this function will raise deprecation warning:
 # WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
-depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23)
+print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 # returns: 0.5
 ```
 
@@ -127,7 +127,7 @@ def my_sum(a: int, b: int = 5) -> int:
     return a + b
 
 # call this function will raise deprecation warning
-my_sum(1, 2)
+print(my_sum(1, 2))
 # returns: 3
 ```
 
@@ -139,14 +139,14 @@ We aso support deprecation and argument mapping for the function itself:
 from deprecate import deprecated
 
 @deprecated(target=True, args_mapping={'coef': 'new_coef'})
-def any_pow(base: float, pow: float = 0, new_pow: float = 0) -> float:
+def any_pow(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """
     My deprecated function which is mapping to sklearn accuracy.
     """
-    return base ** new_pow
+    return base ** new_coef
 
 # call this function will raise deprecation warning
-any_pow(2, 3)
+print(any_pow(2, 3))
 # returns: 8
 ```
 

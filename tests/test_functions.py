@@ -11,6 +11,7 @@ from tests.collection_deprecate import (
     depr_pow_args,
     depr_pow_mix,
     depr_pow_self,
+    depr_pow_self_double,
     depr_pow_wrong,
     depr_sum,
     depr_sum_calls_2,
@@ -33,10 +34,22 @@ def test_deprecated_func_arguments() -> None:
         assert depr_pow_self(2, new_coef=3) == 8
 
     with pytest.deprecated_call(
-        match='The `depr_pow_self` uses deprecated arguments: `"coef" -> "new_coef"`.'
+        match='The `depr_pow_self` uses deprecated arguments: `coef` -> `new_coef`.'
         ' They were deprecated since v0.1 and will be removed in v0.5.'
     ):
         assert depr_pow_self(2, 3) == 8
+
+    with pytest.deprecated_call(match='The `depr_pow_self_double` uses depr. args: `c1` -> `nc1`.'):
+        assert depr_pow_self_double(2, c1=3) == 32
+
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3) == 32
+
+    with pytest.deprecated_call(match='The `depr_pow_self_double` uses depr. args: `c2` -> `nc2`.'):
+        assert depr_pow_self_double(2, c2=2) == 8
+
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3, c2=4) == 128
 
 
 def test_deprecated_func_default() -> None:
