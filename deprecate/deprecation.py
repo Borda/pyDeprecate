@@ -67,6 +67,21 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     arg_names = [arg[0] for arg in func_arg_type_val]
     # convert args to kwargs
     fn_kwargs.update(dict(zip(arg_names, fn_args)))
+    return fn_kwargs
+
+
+def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
+    """ Update in case any args passed move them to kwargs and add defaults
+
+    Args:
+        func: particular function
+        fn_kwargs: function keyword arguments
+
+    Returns:
+        extended dictionary with all args as keyword arguments
+
+    """
+    func_arg_type_val = get_func_arguments_types_defaults(func)
     # fill by source defaults
     fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}  # type: ignore
     fn_kwargs = dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
@@ -239,6 +254,8 @@ def deprecated(
                     _raise_warn_arguments(stream, source, reason_argument, deprecated_in, remove_in, template_mgs)
                 setattr(wrapped_fn, "_warned", nb_warned + 1)
 
+            if reason_callable:
+                kwargs = _update_kwargs_with_defaults(source, kwargs)
             if args_mapping:
                 # filter args which shall be skipped
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]

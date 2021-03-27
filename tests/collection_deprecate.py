@@ -77,4 +77,4 @@ def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={'pow': 'new_pow'})
 def depr_pow_self(base: float, pow: float = 0, new_pow: float = 0) -> float:
-    return base ** new_pow
+    return base**new_pow

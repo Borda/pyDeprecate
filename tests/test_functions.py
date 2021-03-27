@@ -10,6 +10,7 @@ from tests.collection_deprecate import (
     depr_accuracy_skip,
     depr_pow_args,
     depr_pow_mix,
+    depr_pow_self,
     depr_pow_wrong,
     depr_sum,
     depr_sum_calls_2,
@@ -17,7 +18,6 @@ from tests.collection_deprecate import (
     depr_sum_msg,
     depr_sum_no_stream,
     depr_sum_warn_only,
-    depr_pow_self,
 )
 
 
@@ -33,7 +33,8 @@ def test_deprecated_func_arguments() -> None:
         assert depr_pow_self(2, new_pow=3) == 8
 
     with pytest.deprecated_call(
-        match='The `depr_sum_warn_only` has deprecated following arguments {} since v0.2. It will be removed in v0.3.'
+        match='The `depr_pow_self` uses deprecated arguments: `"pow" -> "new_pow"`.'
+        ' They were deprecated since v0.1 and will be removed in v0.5.'
     ):
         assert depr_pow_self(2, 3) == 8
 
