@@ -3,6 +3,7 @@ Copyright (C) 2020-2021 Jiri Borovec <...>
 """
 import pytest
 
+from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
@@ -34,9 +35,8 @@ def test_deprecated_func_default() -> None:
         assert depr_sum(2) == 7
 
     # check that the warning is raised only once per function
-    with pytest.warns(None) as record:
+    with no_warning_call(DeprecationWarning):
         assert depr_sum(3) == 8
-    assert len(record) == 0
 
     # and does not affect other functions
     with pytest.deprecated_call(
@@ -48,9 +48,8 @@ def test_deprecated_func_default() -> None:
 
 def test_deprecated_func_stream_calls() -> None:
     # check that the warning is raised only once per function
-    with pytest.warns(None) as record:
+    with no_warning_call(DeprecationWarning):
         assert depr_sum_no_stream(3) == 8
-    assert len(record) == 0
 
     # check that the warning is raised only once per function
     with pytest.warns(DeprecationWarning) as record:
@@ -78,9 +77,8 @@ def test_deprecated_func_incomplete() -> None:
         depr_pow_wrong(2)
 
     # check that the warning is raised only once per function
-    with pytest.warns(None) as record:
+    with no_warning_call(DeprecationWarning):
         assert depr_pow_args(2, 1) == 2
-    assert len(record) == 0
 
     # reset the warning
     depr_pow_args._warned = False
