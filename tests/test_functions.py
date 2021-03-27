@@ -30,10 +30,10 @@ def test_deprecated_func_warn_only() -> None:
 
 def test_deprecated_func_arguments() -> None:
     with no_warning_call():
-        assert depr_pow_self(2, new_pow=3) == 8
+        assert depr_pow_self(2, new_coef=3) == 8
 
     with pytest.deprecated_call(
-        match='The `depr_pow_self` uses deprecated arguments: `"pow" -> "new_pow"`.'
+        match='The `depr_pow_self` uses deprecated arguments: `"coef" -> "new_coef"`.'
         ' They were deprecated since v0.1 and will be removed in v0.5.'
     ):
         assert depr_pow_self(2, 3) == 8

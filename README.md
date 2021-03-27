@@ -138,8 +138,8 @@ We aso support deprecation and argument mapping for the function itself:
 ```python
 from deprecate import deprecated
 
-@deprecated(target=None, args_mapping={'pow': 'new_pow'})
-def any_pow(base: float, pow: float, new_pow: float) -> float:
+@deprecated(target=True, args_mapping={'coef': 'new_coef'})
+def any_pow(base: float, pow: float = 0, new_pow: float = 0) -> float:
     """
     My deprecated function which is mapping to sklearn accuracy.
     """

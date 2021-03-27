@@ -115,7 +115,7 @@ def _raise_warn(
 def _raise_warn_callable(
     stream: Callable,
     source: Callable,
-    target: Optional[Callable],
+    target: Union[None, bool, Callable],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -139,7 +139,7 @@ def _raise_warn_callable(
             - ``remove_in`` version passed to wrapper
 
     """
-    if target:
+    if callable(target):
         target_name = target.__name__
         target_path = f'{target.__module__}.{target_name}'
         template_mgs = template_mgs or TEMPLATE_WARNING_CALLABLE
@@ -236,8 +236,10 @@ def deprecated(
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
-            reason_callable = target is None or isinstance(target, Callable)
-            reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs} if target is True else {}
+            reason_callable = target is None or callable(target)
+            reason_argument = {}
+            if args_mapping and target:
+                reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
             # short cycle with no reason for redirect
             if not (reason_callable or reason_argument):
                 # todo: eventually warn that there is no reason to use wrapper, e.g. mapping args does not exist
@@ -246,7 +248,7 @@ def deprecated(
             # todo: warning per argument
             nb_warned = getattr(wrapped_fn, '_warned', 0)
 
-            # warn user only N times in lifetime...
+            # warn user only N times in lifetime or infinitely...
             if stream and (num_warns < 0 or nb_warned < num_warns):
                 if reason_callable:
                     _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs)
@@ -266,7 +268,7 @@ def deprecated(
                 # update target argument by extra arguments
                 kwargs.update(args_extra)
 
-            if not isinstance(target, Callable):
+            if not callable(target):
                 return source(**kwargs)
 
             target_is_class = inspect.isclass(target)
