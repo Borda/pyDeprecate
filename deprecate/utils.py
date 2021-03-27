@@ -15,11 +15,11 @@ def no_warning_call(warning_type: Optional[Warning] = None, match: Optional[str]
     """
 
     Args:
-        warning_type: specify catching warning
-        match: match message, containing following string
+        warning_type: specify catching warning, if None catching all
+        match: match message, containing following string, if None catches all
 
-    Returns:
-
+    Raises:
+        AssertionError: if specified warning was called
     """
     with warnings.catch_warnings(record=True) as called:
         # Cause all warnings to always be triggered.
