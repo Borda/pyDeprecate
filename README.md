@@ -138,12 +138,12 @@ We aso support deprecation and argument mapping for the function itself:
 ```python
 from deprecate import deprecated
 
-@deprecated(target=None, args_mapping={'pow': 'super_pow'})
-def any_pow(base: float, pow: float, super_pow: float) -> float:
+@deprecated(target=None, args_mapping={'pow': 'new_pow'})
+def any_pow(base: float, pow: float, new_pow: float) -> float:
     """
     My deprecated function which is mapping to sklearn accuracy.
     """
-    return base ** super_pow
+    return base ** new_pow
 
 # call this function will raise deprecation warning
 any_pow(2, 3)

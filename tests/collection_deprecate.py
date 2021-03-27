@@ -7,7 +7,8 @@ from sklearn.metrics import accuracy_score
 from deprecate import deprecated
 from tests.collection_targets import base_pow_args, base_sum_kwargs
 
-_SHORT_MSG = "`%(source_name)s` >> `%(target_path)s` in v%(deprecated_in)s rm v%(remove_in)s."
+_SHORT_MSG = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
+
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
 def depr_sum_warn_only(a: int, b: int = 5) -> int:
@@ -44,7 +45,7 @@ def depr_sum_msg(a: int, b: int = 5) -> int:
     pass
 
 
-@deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3")
+@deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3", template_mgs=_SHORT_MSG)
 def depr_pow_args(a: float, b: float) -> float:
     pass
 
@@ -74,6 +75,6 @@ def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
     pass
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.5", args_mapping={'pow': 'super_pow'})
-def depr_pow_self(base: float, pow: float, super_pow: float) -> float:
-    return base**super_pow
+@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={'pow': 'new_pow'})
+def depr_pow_self(base: float, pow: float = 0, new_pow: float = 0) -> float:
+    return base ** new_pow
