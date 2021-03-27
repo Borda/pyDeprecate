@@ -3,7 +3,7 @@ Copyright (C) 2020-2021 Jiri Borovec <...>
 """
 import os
 
-__version__ = "0.2.0dev"
+__version__ = "0.2.0rc"
 __docs__ = "Deprecation tooling"
 __author__ = "Jiri Borovec"
 __author_email__ = "jiri.borovec@fel.cvut.cz"
