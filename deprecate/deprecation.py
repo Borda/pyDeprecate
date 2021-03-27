@@ -17,10 +17,11 @@ TEMPLATE_WARNING_ARGUMENTS = (
     " They were deprecated since v%(deprecated_in)s and will be removed in v%(remove_in)s."
 )
 #: Tempalte for mapping from old to new examples
-TEMPLATE_ARGUMENT_MAPPING = ("`%(old_arg)s` -> `%(new_arg)s`")
+TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 #: Default template warning message for no target func/method
 TEMPLATE_WARNING_NO_TARGET = (
-    "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
+    "The `%(source_name)s` was deprecated since v%(deprecated_in)s."
+    " It will be removed in v%(remove_in)s."
 )
 
 deprecation_warning = partial(warn, category=DeprecationWarning)
@@ -213,8 +214,10 @@ def deprecated(
         num_warns: Custom define number or warning raised. Negative value (-1) means no limit.
         template_mgs: python formatted string message which has build-ins arguments:
             ``source_name``, ``source_path``, ``target_name``, ``target_path``, ``deprecated_in``, ``remove_in``
-            Example of a custom message is
-            ``"v%(deprecated_in)s: `%(source_name)s` was deprecated in favor of `%(target_path)s`."``
+            Example of a custom message is::
+
+                "v%(deprecated_in)s: `%(source_name)s` was deprecated in favor of `%(target_path)s`."
+
         args_mapping: Custom argument mapping argument between source and target and options to suppress some,
             for example ``{'my_arg': 'their_arg`}`` passes "my_arg" from source as "their_arg" in target
             or ``{'my_arg': None}`` ignores the "my_arg" from source function.

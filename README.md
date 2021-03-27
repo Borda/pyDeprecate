@@ -69,9 +69,14 @@ def depr_sum(a: int, b: int = 5) -> int:
     """
     pass  # or you can just place docstring as one above
 
-# call this function will raise deprecation warning
+# call this function will raise deprecation warning:
+#   The `depr_sum` was deprecated since v0.1 in favor of `__main__.base_sum`.
+#   It will be removed in v0.5.
 print(depr_sum(1, 2))
-# returns: 3
+```
+sample output:
+```
+3
 ```
 
 ### Advanced target argument mapping
@@ -104,9 +109,12 @@ def depr_accuracy(preds: list, target: list, blabla: float) -> float:
     pass  # or you can just place docstring as one above
 
 # call this function will raise deprecation warning:
-# WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
+#   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
 print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
-# returns: 0.5
+```
+sample output:
+```
+0.5
 ```
 
 </details>
@@ -126,9 +134,13 @@ def my_sum(a: int, b: int = 5) -> int:
     """
     return a + b
 
-# call this function will raise deprecation warning
+# call this function will raise deprecation warning:
+#   The `my_sum` was deprecated since v0.1. It will be removed in v0.5.
 print(my_sum(1, 2))
-# returns: 3
+```
+sample output:
+```
+3
 ```
 
 ### Self argument mapping
@@ -138,16 +150,24 @@ We aso support deprecation and argument mapping for the function itself:
 ```python
 from deprecate import deprecated
 
-@deprecated(target=True, args_mapping={'coef': 'new_coef'})
+@deprecated(
+    target=True, args_mapping={'coef': 'new_coef'},
+    deprecated_in="0.2", remove_in="0.4",
+)
 def any_pow(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """
     My deprecated function which is mapping to sklearn accuracy.
     """
     return base ** new_coef
 
-# call this function will raise deprecation warning
+# call this function will raise deprecation warning:
+#   The `any_pow` uses deprecated arguments: `coef` -> `new_coef`.
+#   They were deprecated since v0.2 and will be removed in v0.4.
 print(any_pow(2, 3))
-# returns: 8
+```
+sample output:
+```
+8
 ```
 
 
@@ -181,10 +201,17 @@ class PastCls(NewCls):
         """
         pass  # or you can just place docstring as one above
 
-# call this function will raise deprecation warning
+# call this function will raise deprecation warning:
+#   The `PastCls` was deprecated since v0.2 in favor of `__main__.NewCls`.
+#   It will be removed in v0.4.
 inst = PastCls(7)
-inst.my_c  # returns: 7
-inst.my_d  # returns: "efg"
+print(inst.my_c)  # returns: 7
+print(inst.my_d)  # returns: "efg"
+```
+sample output:
+```
+7
+efg
 ```
 
 ## Contribution
