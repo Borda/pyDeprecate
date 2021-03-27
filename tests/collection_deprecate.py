@@ -59,15 +59,15 @@ def depr_pow_wrong(a: int, c: float = 4) -> float:
 
 
 @deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'yeah_arg': None})
-def depr_accuracy_skip(preds: list, y_true=(0, 1, 1, 2), yeah_arg: float = 1.23) -> float:
+def depr_accuracy_skip(preds: list, y_true: tuple = (0, 1, 1, 2), yeah_arg: float = 1.23) -> float:
     pass
 
 
 @deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'truth': 'y_true'})
-def depr_accuracy_map(preds: list, truth=(0, 1, 1, 2)) -> float:
+def depr_accuracy_map(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
     pass
 
 
 @deprecated(target=accuracy_score, args_extra={'y_pred': (0, 1, 1, 1)})
-def depr_accuracy_extra(y_pred: list, y_true=(0, 1, 1, 2)) -> float:
+def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
     pass

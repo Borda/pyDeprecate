@@ -3,15 +3,15 @@ Copyright (C) 2020-2021 Jiri Borovec <...>
 """
 import warnings
 from contextlib import contextmanager
-from typing import Optional
+from typing import Generator, List, Optional, Type, Union
 
 
-def _warns_repr(warns) -> list:
+def _warns_repr(warns: List[warnings.WarningMessage]) -> List[Union[Warning, str]]:
     return [w.message for w in warns]
 
 
 @contextmanager
-def no_warning_call(warning_type: Optional[Warning] = None, match: Optional[str] = None):
+def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optional[str] = None) -> Generator:
     """
 
     Args:
