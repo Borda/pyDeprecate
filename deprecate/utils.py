@@ -29,14 +29,14 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
         # no warning raised
         if not called:
             return
-        elif not warning_type:
+        if not warning_type:
             raise AssertionError(f'While catching all warnings, these were found: {_warns_repr(called)}')
         # filter warnings by type
         warns = [w for w in called if issubclass(w.category, warning_type)]
         # Verify some things
         if not warns:
             return
-        elif not match:
+        if not match:
             raise AssertionError(
                 f'While catching `{warning_type.__name__}` warnings, these were found: {_warns_repr(warns)}'
             )
