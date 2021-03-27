@@ -4,13 +4,7 @@ Copyright (C) 2020-2021 Jiri Borovec <...>
 import pytest
 
 from deprecate.deprecation import deprecated
-
-
-class NewCls:
-
-    def __init__(self, c: float, d: str = "abc"):
-        self.my_c = c
-        self.my_d = d
+from tests.collection_targets import NewCls
 
 
 class PastCls(NewCls):
@@ -22,7 +16,8 @@ class PastCls(NewCls):
 
 def test_deprecated_class() -> None:
     with pytest.deprecated_call(
-        match='The `PastCls` was deprecated since v0.2 in favor of `test_classes.NewCls`. It will be removed in v0.4.'
+        match='The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`.'
+        ' It will be removed in v0.4.'
     ):
         past = PastCls(2)
     assert past.my_c == 2
