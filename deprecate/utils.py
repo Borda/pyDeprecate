@@ -3,7 +3,7 @@ Copyright (C) 2020-2021 Jiri Borovec <...>
 """
 import warnings
 from contextlib import contextmanager
-from typing import Generator, List, Optional, Type, Union
+from typing import Any, Generator, List, Optional, Type, Union
 
 
 def _warns_repr(warns: List[warnings.WarningMessage]) -> List[Union[Warning, str]]:
@@ -46,3 +46,9 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
                 f'While catching `{warning_type.__name__}` warnings with "{match}",'
                 f' these were found: {_warns_repr(found)}'
             )
+
+
+def void(*args: Any, **kwrgs: Any) -> None:
+    """Empty function which does nothing, just let your IDE stop complaining about unused arguments."""
+    _ = args
+    _ = kwrgs

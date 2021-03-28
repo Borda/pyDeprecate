@@ -99,7 +99,7 @@ Another more complex example is using argument mapping is:
 ```python
 import logging
 from sklearn.metrics import accuracy_score
-from deprecate import deprecated
+from deprecate import deprecated, void
 
 @deprecated(
   # use standard sklearn accuracy implementation
@@ -115,7 +115,8 @@ def depr_accuracy(preds: list, target: list, blabla: float) -> float:
     """
     My deprecated function which is mapping to sklearn accuracy.
     """
-    pass  # or you can just place docstring as one above
+    # to stop complain your IDE about unused argument you can use void/empty function
+    void(preds, target, blabla)
 
 # call this function will raise deprecation warning:
 #   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
@@ -196,7 +197,7 @@ class NewCls:
 
 # ---------------------------
 
-from deprecate import deprecated
+from deprecate import deprecated, void
 
 class PastCls(NewCls):
     """
@@ -210,7 +211,7 @@ class PastCls(NewCls):
         You place the decorator around __init__ as you want
          to warn user just at the time of creating object.
         """
-        pass  # or you can just place docstring as one above
+        void(c, d)
 
 # call this function will raise deprecation warning:
 #   The `PastCls` was deprecated since v0.2 in favor of `__main__.NewCls`.
