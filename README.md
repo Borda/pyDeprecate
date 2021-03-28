@@ -47,6 +47,15 @@ The functionality is kept simple and all default shall be reasonable, but still 
 * define user warning message and preferable stream
 * extended argument mapping to target function/method
 * define deprecation logic for self arguments
+* specify warning count per:
+    - called function (for func deprecation)
+    - used arguments (for argument deprecation)
+
+In particular the target values (cases):
+
+- _None_ - raise only warning message (ignore all argument mapping)
+- _True_ - deprecation some argument of itself (argument mapping shall be specified)
+- _Callable_ - forward call to new methods (optional also argument mapping or extras)
 
 ### Simple function forwarding
 
@@ -151,8 +160,10 @@ We aso support deprecation and argument mapping for the function itself:
 from deprecate import deprecated
 
 @deprecated(
-    target=True, args_mapping={'coef': 'new_coef'},
-    deprecated_in="0.2", remove_in="0.4",
+  # define as depreaction some self argument - mapping
+  target=True, args_mapping={'coef': 'new_coef'},
+  # common version info
+  deprecated_in="0.2", remove_in="0.4",
 )
 def any_pow(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """

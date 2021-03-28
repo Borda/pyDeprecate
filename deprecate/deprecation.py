@@ -270,13 +270,13 @@ def deprecated(
 
             if reason_callable:
                 kwargs = _update_kwargs_with_defaults(source, kwargs)
-            if args_mapping:
+            if args_mapping and target:  # covers target as True and callable
                 # filter args which shall be skipped
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
                 # Look-Up-table mapping
                 kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
-            if args_extra:
+            if args_extra and target:  # covers target as True and callable
                 # update target argument by extra arguments
                 kwargs.update(args_extra)
 
