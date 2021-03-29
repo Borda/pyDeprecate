@@ -4,13 +4,13 @@ name: Code formatting
 on:  # Trigger the workflow on push or pull request, but only for the main branch
   push: {}
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   pep8-flake8:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
           python-version: 3.7
@@ -26,7 +26,7 @@ jobs:
   imports-isort:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
           python-version: 3.8
@@ -41,7 +41,7 @@ jobs:
   typing-mypy:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
           python-version: 3.8
@@ -56,7 +56,7 @@ jobs:
   format-yapf:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
           python-version: 3.8
