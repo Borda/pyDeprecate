@@ -106,15 +106,15 @@ from deprecate import deprecated, void
   target=accuracy_score,
   # custom warning stream
   stream=logging.warning,
+  # number or warnings per lifetime (with -1 for always_
+  num_warns=5,
   # custom message template
   template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
-  # as target args are different, define mapping
+  # as target args are different, define mapping from source to target func
   args_mapping={'preds': 'y_pred', 'target': 'y_true', 'blabla': None}
 )
 def depr_accuracy(preds: list, target: list, blabla: float) -> float:
-    """
-    My deprecated function which is mapping to sklearn accuracy.
-    """
+    """My deprecated function which is mapping to sklearn accuracy."""
     # to stop complain your IDE about unused argument you can use void/empty function
     void(preds, target, blabla)
 
@@ -139,9 +139,7 @@ from deprecate import deprecated
 
 @deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
-    """
-    My deprecated function which still has to have implementation.
-    """
+    """My deprecated function which still has to have implementation."""
     return a + b
 
 # call this function will raise deprecation warning:
@@ -155,7 +153,7 @@ sample output:
 
 ### Self argument mapping
 
-We aso support deprecation and argument mapping for the function itself:
+We also support deprecation and argument mapping for the function itself:
 
 ```python
 from deprecate import deprecated
@@ -167,9 +165,7 @@ from deprecate import deprecated
   deprecated_in="0.2", remove_in="0.4",
 )
 def any_pow(base: float, coef: float = 0, new_coef: float = 0) -> float:
-    """
-    My deprecated function which is mapping to sklearn accuracy.
-    """
+    """My function with deprecated argument `coef` mapped to `new_coef`."""
     return base ** new_coef
 
 # call this function will raise deprecation warning:
@@ -182,6 +178,31 @@ sample output:
 8
 ```
 
+Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
+
+```python
+from deprecate import deprecated
+
+@deprecated(
+  True, "0.3", "0.6", args_mapping=dict(c1='nc1'),
+  template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
+)
+@deprecated(
+  True, "0.4", "0.7", args_mapping=dict(nc1='nc2'),
+  template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
+)
+def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
+    return base**nc2
+
+# call this function will raise deprecation warning:
+#   DeprecationWarning('Depr: v0.3 rm v0.6 for args: `c1` -> `nc1`.')
+#   DeprecationWarning('Depr: v0.4 rm v0.7 for args: `nc1` -> `nc2`.')
+print(any_pow(2, 3))
+```
+sample output:
+```
+8
+```
 
 ### Class deprecation
 

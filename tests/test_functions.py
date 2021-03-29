@@ -12,6 +12,7 @@ from tests.collection_deprecate import (
     depr_pow_mix,
     depr_pow_self,
     depr_pow_self_double,
+    depr_pow_self_twice,
     depr_pow_wrong,
     depr_sum,
     depr_sum_calls_2,
@@ -30,6 +31,7 @@ def test_deprecated_func_warn_only() -> None:
 
 
 def test_deprecated_func_arguments() -> None:
+    """Test deprecation function arguments"""
     with no_warning_call():
         assert depr_pow_self(2, new_coef=3) == 8
 
@@ -52,7 +54,18 @@ def test_deprecated_func_arguments() -> None:
         assert depr_pow_self_double(2, c1=3, c2=4) == 128
 
 
+def test_deprecated_func_chain() -> None:
+    """Test chaining deprecation wrappers."""
+    with pytest.warns(DeprecationWarning) as warns:
+        assert depr_pow_self_twice(2, 3) == 8
+    assert len(warns) == 2
+
+    with no_warning_call():
+        assert depr_pow_self_twice(2, c1=3) == 8
+
+
 def test_deprecated_func_default() -> None:
+    """Testing some base/default configurations."""
     with pytest.deprecated_call(
         match='The `depr_sum` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`.'
         ' It will be removed in v0.5.'
@@ -113,6 +126,7 @@ def test_deprecated_func_incomplete() -> None:
 
 
 def test_deprecated_func_mapping() -> None:
+    """Test mapping to external functions"""
     with pytest.deprecated_call():
         assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
 
