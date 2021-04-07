@@ -53,6 +53,13 @@ def test_deprecated_func_arguments() -> None:
     with no_warning_call():
         assert depr_pow_self_double(2, c1=3, c2=4) == 128
 
+    # testing that preferable use the new arguments
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3, c2=4, nc1=1, nc2=2) == 8
+
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
+
 
 def test_deprecated_func_chain() -> None:
     """Test chaining deprecation wrappers."""
