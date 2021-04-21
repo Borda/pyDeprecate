@@ -13,6 +13,10 @@ from tests.collection_deprecate import (
     depr_pow_self,
     depr_pow_self_double,
     depr_pow_self_twice,
+    depr_pow_skip_if_false_true,
+    depr_pow_skip_if_func,
+    depr_pow_skip_if_true,
+    depr_pow_skip_if_true_false,
     depr_pow_wrong,
     depr_sum,
     depr_sum_calls_2,
@@ -130,6 +134,21 @@ def test_deprecated_func_incomplete() -> None:
     # does not affect other functions
     with pytest.deprecated_call(match='`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3.'):
         assert depr_pow_args(b=2, a=1) == 1
+
+
+def test_deprecated_func_skip_if() -> None:
+    """Test conditional wrapper skip."""
+    with no_warning_call():
+        assert depr_pow_skip_if_true(2, c1=2) == 2
+
+    with no_warning_call():
+        assert depr_pow_skip_if_func(2, c1=2) == 2
+
+    with pytest.deprecated_call(match='Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`.'):
+        assert depr_pow_skip_if_true_false(2, c1=2) == 0.5
+
+    with pytest.deprecated_call(match='Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`.'):
+        assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
 
 
 def test_deprecated_func_mapping() -> None:
