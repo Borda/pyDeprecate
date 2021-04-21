@@ -204,6 +204,39 @@ sample output:
 8
 ```
 
+### Conditional skip
+
+Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
+
+```python
+from deprecate import deprecated
+
+FAKE_VERSION = 1
+
+def compare_fake_version():
+    return FAKE_VERSION > 1
+
+@deprecated(
+  True, "0.3", "0.6", args_mapping=dict(c1='nc1'), skip_if=compare_fake_version
+)
+def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
+    return base**(c1 - nc1)
+
+# call this function will raise deprecation warning
+print(skip_pow(2, 3))
+
+# change the fake versions
+FAKE_VERSION = 2
+
+# Will not raise any warning
+print(skip_pow(2, 3))
+```
+sample output:
+```
+0.25
+4
+```
+
 ### Class deprecation
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
