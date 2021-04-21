@@ -239,7 +239,7 @@ def deprecated(
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
             # check if user requested a skip
-            if (callable(skip_if) and skip_if()) or bool(skip_if):
+            if (callable(skip_if) and skip_if()) or (not callable(skip_if) and bool(skip_if)):
                 return source(*args, **kwargs)
 
             nb_called = getattr(wrapped_fn, '_called', 0)
