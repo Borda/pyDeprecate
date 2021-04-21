@@ -213,11 +213,11 @@ from deprecate import deprecated
 
 FAKE_VERSION = 1
 
-def compare_fake_version():
+def version_greater_1():
     return FAKE_VERSION > 1
 
 @deprecated(
-  True, "0.3", "0.6", args_mapping=dict(c1='nc1'), skip_if=compare_fake_version
+  True, "0.3", "0.6", args_mapping=dict(c1='nc1'), skip_if=version_greater_1
 )
 def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
     return base**(c1 - nc1)
