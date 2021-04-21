@@ -200,6 +200,7 @@ def deprecated(
     template_mgs: Optional[str] = None,
     args_mapping: Optional[Dict[str, str]] = None,
     args_extra: Optional[Dict[str, Any]] = None,
+    skip_if: Union[bool, Callable] = False,
 ) -> Callable:
     """
     Decorate a function or class ``__init__`` with warning message
@@ -223,6 +224,7 @@ def deprecated(
             or ``{'my_arg': None}`` ignores the "my_arg" from source function.
         args_extra: Custom filling extra argument in target function, mostly if they are required
             or your needed default is different from target one, for example ``{'their_arg': 42}``
+        skip_if: Conditional skip for this wrapper, e.g. in case of versions
 
     Returns:
         wrapped function pointing to the target implementation with source arguments
@@ -236,6 +238,12 @@ def deprecated(
 
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
+            # check if user requested a skip
+            shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
+            assert isinstance(shall_skip, bool), "function shall return bool"
+            if shall_skip:
+                return source(*args, **kwargs)
+
             nb_called = getattr(wrapped_fn, '_called', 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
             # convert args to kwargs
