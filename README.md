@@ -50,6 +50,7 @@ The functionality is kept simple and all default shall be reasonable, but still 
 * specify warning count per:
     - called function (for func deprecation)
     - used arguments (for argument deprecation)
+* define conditional skip (e.g. depending on some package version)
 
 In particular the target values (cases):
 
@@ -178,6 +179,9 @@ sample output:
 8
 ```
 
+<details>
+  <summary>Multiple deprecation levels</summary>
+
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
 
 ```python
@@ -203,6 +207,8 @@ sample output:
 ```
 8
 ```
+
+</details>
 
 ### Conditional skip
 
@@ -236,6 +242,8 @@ sample output:
 0.25
 4
 ```
+
+This can be beneficial with multiple deprecation levels shown above...
 
 ### Class deprecation
 
