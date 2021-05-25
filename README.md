@@ -86,10 +86,12 @@ def depr_sum(a: int, b: int = 5) -> int:
 #   It will be removed in v0.5.
 print(depr_sum(1, 2))
 ```
-sample output:
-```
-3
-```
+<details>
+  <summary>sample output:</summary>
+  ```
+  3
+  ```
+</details>
 
 ### Advanced target argument mapping
 
@@ -99,36 +101,36 @@ Another more complex example is using argument mapping is:
 <details>
   <summary>Advanced example</summary>
 
-```python
-import logging
-from sklearn.metrics import accuracy_score
-from deprecate import deprecated, void
-
-@deprecated(
-  # use standard sklearn accuracy implementation
-  target=accuracy_score,
-  # custom warning stream
-  stream=logging.warning,
-  # number or warnings per lifetime (with -1 for always_
-  num_warns=5,
-  # custom message template
-  template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
-  # as target args are different, define mapping from source to target func
-  args_mapping={'preds': 'y_pred', 'target': 'y_true', 'blabla': None}
-)
-def depr_accuracy(preds: list, target: list, blabla: float) -> float:
-    """My deprecated function which is mapping to sklearn accuracy."""
-    # to stop complain your IDE about unused argument you can use void/empty function
-    void(preds, target, blabla)
-
-# call this function will raise deprecation warning:
-#   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
-print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
-```
-sample output:
-```
-0.5
-```
+  ```python
+  import logging
+  from sklearn.metrics import accuracy_score
+  from deprecate import deprecated, void
+  
+  @deprecated(
+    # use standard sklearn accuracy implementation
+    target=accuracy_score,
+    # custom warning stream
+    stream=logging.warning,
+    # number or warnings per lifetime (with -1 for always_
+    num_warns=5,
+    # custom message template
+    template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
+    # as target args are different, define mapping from source to target func
+    args_mapping={'preds': 'y_pred', 'target': 'y_true', 'blabla': None}
+  )
+  def depr_accuracy(preds: list, target: list, blabla: float) -> float:
+      """My deprecated function which is mapping to sklearn accuracy."""
+      # to stop complain your IDE about unused argument you can use void/empty function
+      void(preds, target, blabla)
+  
+  # call this function will raise deprecation warning:
+  #   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
+  print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
+  ```
+  sample output:
+  ```
+  0.5
+  ```
 
 </details>
 
@@ -149,10 +151,12 @@ def my_sum(a: int, b: int = 5) -> int:
 #   The `my_sum` was deprecated since v0.1. It will be removed in v0.5.
 print(my_sum(1, 2))
 ```
-sample output:
-```
-3
-```
+<details>
+  <summary>sample output:</summary>
+  ```
+  3
+  ```
+</details>
 
 ### Self argument mapping
 
@@ -176,39 +180,43 @@ def any_pow(base: float, coef: float = 0, new_coef: float = 0) -> float:
 #   They were deprecated since v0.2 and will be removed in v0.4.
 print(any_pow(2, 3))
 ```
-sample output:
-```
-8
-```
-
 <details>
-  <summary>Multiple deprecation levels</summary>
+  <summary>sample output:</summary>
+  ```
+  8
+  ```
+</details>
+
+### Multiple deprecation levels
 
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
 
-```python
-from deprecate import deprecated
-
-@deprecated(
-  True, "0.3", "0.6", args_mapping=dict(c1='nc1'),
-  template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
-)
-@deprecated(
-  True, "0.4", "0.7", args_mapping=dict(nc1='nc2'),
-  template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
-)
-def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
-    return base**nc2
-
-# call this function will raise deprecation warning:
-#   DeprecationWarning('Depr: v0.3 rm v0.6 for args: `c1` -> `nc1`.')
-#   DeprecationWarning('Depr: v0.4 rm v0.7 for args: `nc1` -> `nc2`.')
-print(any_pow(2, 3))
-```
-sample output:
-```
-8
-```
+<details>
+  <summary>Multiple deprecation levels</summary>
+  
+  ```python
+  from deprecate import deprecated
+  
+  @deprecated(
+    True, "0.3", "0.6", args_mapping=dict(c1='nc1'),
+    template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
+  )
+  @deprecated(
+    True, "0.4", "0.7", args_mapping=dict(nc1='nc2'),
+    template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
+  )
+  def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
+      return base**nc2
+  
+  # call this function will raise deprecation warning:
+  #   DeprecationWarning('Depr: v0.3 rm v0.6 for args: `c1` -> `nc1`.')
+  #   DeprecationWarning('Depr: v0.4 rm v0.7 for args: `nc1` -> `nc2`.')
+  print(any_pow(2, 3))
+  ```
+  sample output:
+  ```
+  8
+  ```
 
 </details>
 
@@ -239,11 +247,13 @@ FAKE_VERSION = 2
 # Will not raise any warning
 print(skip_pow(2, 3))
 ```
-sample output:
-```
-0.25
-4
-```
+<details>
+  <summary>sample output:</summary>
+  ```
+  0.25
+  4
+  ```
+</details>
 
 This can be beneficial with multiple deprecation levels shown above...
 
@@ -284,11 +294,13 @@ inst = PastCls(7)
 print(inst.my_c)  # returns: 7
 print(inst.my_d)  # returns: "efg"
 ```
-sample output:
-```
-7
-efg
-```
+<details>
+  <summary>sample output:</summary>
+  ```
+  7
+  efg
+  ```
+</details>
 
 ## Contribution
 
