@@ -48,7 +48,6 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
             )
 
 
-def void(*args: Any, **kwrgs: Any) -> None:
+def void(*args: Any, **kwrgs: Any) -> Any:
     """Empty function which does nothing, just let your IDE stop complaining about unused arguments."""
-    _ = args
-    _ = kwrgs
+    _, _ = args, kwrgs
