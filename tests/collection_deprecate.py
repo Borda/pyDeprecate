@@ -13,27 +13,27 @@ _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argume
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
 def depr_sum_warn_only(a: int, b: int = 5) -> int:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
 def depr_sum(a: int, b: int = 5) -> int:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)
 def depr_sum_no_stream(a: int, b: int = 5) -> int:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)
 def depr_sum_calls_2(a: int, b: int = 5) -> int:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)
 def depr_sum_calls_inf(a: int, b: int = 5) -> int:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(
@@ -43,37 +43,37 @@ def depr_sum_calls_inf(a: int, b: int = 5) -> int:
     template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`"
 )
 def depr_sum_msg(a: int, b: int = 5) -> int:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3", template_mgs=_SHORT_MSG_FUNC)
 def depr_pow_args(a: float, b: float) -> float:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(target=base_pow_args, deprecated_in="0.1", remove_in="0.5")
 def depr_pow_mix(a: int, b: float = 4) -> float:
-    void(a, b)
+    return void(a, b)
 
 
 @deprecated(target=base_pow_args, deprecated_in="0.1", remove_in="0.5")
 def depr_pow_wrong(a: int, c: float = 4) -> float:
-    void(a, c)
+    return void(a, c)
 
 
-@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'yeah_arg': None})
+@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'yeah_arg': None})  # type: ignore
 def depr_accuracy_skip(preds: list, y_true: tuple = (0, 1, 1, 2), yeah_arg: float = 1.23) -> float:
-    void(preds, y_true, yeah_arg)
+    return void(preds, y_true, yeah_arg)
 
 
 @deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'truth': 'y_true'})
 def depr_accuracy_map(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
-    void(preds, truth)
+    return void(preds, truth)
 
 
 @deprecated(target=accuracy_score, args_extra={'y_pred': (0, 1, 1, 1)})
 def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
-    void(y_pred, y_true)
+    return void(y_pred, y_true)
 
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={'coef': 'new_coef'})

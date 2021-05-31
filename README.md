@@ -105,7 +105,7 @@ Another more complex example is using argument mapping is:
   import logging
   from sklearn.metrics import accuracy_score
   from deprecate import deprecated, void
-  
+
   @deprecated(
     # use standard sklearn accuracy implementation
     target=accuracy_score,
@@ -122,7 +122,7 @@ Another more complex example is using argument mapping is:
       """My deprecated function which is mapping to sklearn accuracy."""
       # to stop complain your IDE about unused argument you can use void/empty function
       return void(preds, target, blabla)
-  
+
   # call this function will raise deprecation warning:
   #   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`
   print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
@@ -193,10 +193,10 @@ Eventually you can set multiple deprecation levels via chaining deprecation argu
 
 <details>
   <summary>Multiple deprecation levels</summary>
-  
+
   ```python
   from deprecate import deprecated
-  
+
   @deprecated(
     True, "0.3", "0.6", args_mapping=dict(c1='nc1'),
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
@@ -207,7 +207,7 @@ Eventually you can set multiple deprecation levels via chaining deprecation argu
   )
   def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
       return base**nc2
-  
+
   # call this function will raise deprecation warning:
   #   DeprecationWarning('Depr: v0.3 rm v0.6 for args: `c1` -> `nc1`.')
   #   DeprecationWarning('Depr: v0.4 rm v0.7 for args: `nc1` -> `nc2`.')
@@ -304,4 +304,4 @@ print(inst.my_d)  # returns: "efg"
 
 ## Contribution
 
-Have you faced this in past or even now, do you have good ideas for improvement, all is welcome! 
+Have you faced this in past or even now, do you have good ideas for improvement, all is welcome!
