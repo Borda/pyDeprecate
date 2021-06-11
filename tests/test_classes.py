@@ -1,6 +1,8 @@
 """
 Copyright (C) 2020-2021 Jiri Borovec <...>
 """
+from typing import Any
+
 import pytest
 
 from deprecate.deprecation import deprecated
@@ -11,7 +13,7 @@ from tests.collection_targets import NewCls
 class PastCls(NewCls):
 
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
-    def __init__(self, c: int, d: str = "efg", **kwargs):
+    def __init__(self, c: int, d: str = "efg", **kwargs: Any):
         pass
 
 
@@ -36,7 +38,7 @@ def test_deprecated_class_forward() -> None:
 
     # check that the warning is raised only once per function
     with no_warning_call():
-        assert PastCls(c=2, d="")
+        assert PastCls(c=2, d="", e=0.9999)
 
     PastCls.__init__._warned = False
     with pytest.deprecated_call(match='It will be removed in v0.4.'):
