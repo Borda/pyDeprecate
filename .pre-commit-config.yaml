@@ -12,8 +12,13 @@ repos:
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      - id: check-case-conflict
       - id: check-yaml
-      - id: pretty-format-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb 250"]
+      - id: check-docstring-first
+      - id: detect-private-key
 
   - repo: https://github.com/pre-commit/mirrors-autopep8
     rev: v1.5.7
@@ -26,7 +31,6 @@ repos:
     hooks:
       - id: isort
         name: imports
-        require_serial: false
 
   - repo: https://github.com/pre-commit/mirrors-yapf
     rev: v0.31.0
@@ -34,7 +38,6 @@ repos:
       - id: yapf
         name: formatting
         language: python
-        require_serial: false
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v0.812
