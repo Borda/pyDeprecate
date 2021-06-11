@@ -240,7 +240,8 @@ def deprecated(
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
             # check if user requested a skip
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
-            assert isinstance(shall_skip, bool), "function shall return bool"
+            if not isinstance(shall_skip, bool):
+                raise AssertionError("function shall return bool")
             if shall_skip:
                 return source(*args, **kwargs)
 
