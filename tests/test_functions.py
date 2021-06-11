@@ -15,6 +15,7 @@ from tests.collection_deprecate import (
     depr_pow_self_twice,
     depr_pow_skip_if_false_true,
     depr_pow_skip_if_func,
+    depr_pow_skip_if_func_int,
     depr_pow_skip_if_true,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
@@ -23,7 +24,7 @@ from tests.collection_deprecate import (
     depr_sum_calls_inf,
     depr_sum_msg,
     depr_sum_no_stream,
-    depr_sum_warn_only, depr_pow_skip_if_func_int,
+    depr_sum_warn_only,
 )
 
 
