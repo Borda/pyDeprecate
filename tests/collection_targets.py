@@ -13,6 +13,7 @@ def base_pow_args(a: float, b: int) -> float:
 
 class NewCls:
 
-    def __init__(self, c: float, d: str = "abc"):
+    def __init__(self, c: float, d: str = "abc", **kwargs):
         self.my_c = c
         self.my_d = d
+        self.my_e = kwargs.get("e", 0.2)

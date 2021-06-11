@@ -11,7 +11,7 @@ from tests.collection_targets import NewCls
 class PastCls(NewCls):
 
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
-    def __init__(self, c: int, d: str = "efg"):
+    def __init__(self, c: int, d: str = "efg", **kwargs):
         pass
 
 
@@ -27,9 +27,10 @@ def test_deprecated_class_forward() -> None:
         match='The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`.'
         ' It will be removed in v0.4.'
     ):
-        past = PastCls(2)
+        past = PastCls(2, e=0.1)
     assert past.my_c == 2
     assert past.my_d == "efg"
+    assert past.my_e == 0.1
     assert isinstance(past, NewCls)
     assert isinstance(past, PastCls)
 
