@@ -241,7 +241,7 @@ def deprecated(
             # check if user requested a skip
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
-                raise AssertionError("function shall return bool")
+                raise TypeError("User function `shall_skip` shall return bool, but got %r" % type(shall_skip))
             if shall_skip:
                 return source(*args, **kwargs)
 
