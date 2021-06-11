@@ -295,8 +295,12 @@ def deprecated(
             target_func = target.__init__ if target_is_class else target  # type: ignore
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
+            # get full args & name of varkw
+            target_full_arg_spec = inspect.getfullargspec(target_func)
+            varkw = target_full_arg_spec.varkw
+
             missed = [arg for arg in kwargs if arg not in target_args]
-            if missed and ("kwargs" not in target_args):
+            if missed and varkw is None:
                 # if kwargs in target_args, skip it.
                 raise TypeError("Failed mapping, arguments missing in target source: %s" % missed)
             # all args were already moved to kwargs
