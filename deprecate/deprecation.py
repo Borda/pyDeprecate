@@ -296,7 +296,7 @@ def deprecated(
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             missed = [arg for arg in kwargs if arg not in target_args]
-            if missed:
+            if missed and ("kwargs" not in target_args or "args" not in target_args):
                 raise TypeError("Failed mapping, arguments missing in target source: %s" % missed)
             # all args were already moved to kwargs
             return target_func(**kwargs)
