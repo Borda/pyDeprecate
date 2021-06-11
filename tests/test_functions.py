@@ -23,7 +23,7 @@ from tests.collection_deprecate import (
     depr_sum_calls_inf,
     depr_sum_msg,
     depr_sum_no_stream,
-    depr_sum_warn_only,
+    depr_sum_warn_only, depr_pow_skip_if_func_int,
 )
 
 
@@ -149,6 +149,9 @@ def test_deprecated_func_skip_if() -> None:
 
     with pytest.deprecated_call(match='Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`.'):
         assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
+
+    with pytest.raises(TypeError, match="User function `shall_skip` shall return bool, but got: <class 'int'>"):
+        assert depr_pow_skip_if_func_int(2, c1=2)
 
 
 def test_deprecated_func_mapping() -> None:
