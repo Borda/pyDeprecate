@@ -124,8 +124,7 @@ def test_deprecated_func_incomplete() -> None:
 
     # missing argument in target
     with pytest.raises(
-        TypeError,
-        match=r"Failed mapping of `depr_pow_wrong`, arguments missing in target source: \['c'\]"
+        TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments missing in target source: \['c'\]"
     ):
         depr_pow_wrong(2)
 
