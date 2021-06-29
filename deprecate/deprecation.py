@@ -303,7 +303,7 @@ def deprecated(
             missed = [arg for arg in kwargs if arg not in target_args]
             if missed and varkw is None:
                 # if kwargs in target_args, skip it.
-                raise TypeError("Failed mapping, arguments missing in target source: %s" % missed)
+                raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
             # all args were already moved to kwargs
             return target_func(**kwargs)
 
