@@ -123,7 +123,10 @@ def test_deprecated_func_incomplete() -> None:
         depr_pow_args(2)
 
     # missing argument in target
-    with pytest.raises(TypeError, match=r"Failed mapping, arguments missing in target source: \['c'\]"):
+    with pytest.raises(
+        TypeError,
+        match=r"Failed mapping of `depr_pow_wrong`, arguments missing in target source: \['c'\]"
+    ):
         depr_pow_wrong(2)
 
     # check that the warning is raised only once per function
