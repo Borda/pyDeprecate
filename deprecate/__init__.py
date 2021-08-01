@@ -1,6 +1,4 @@
-"""
-Copyright (C) 2020-2021 Jiri Borovec <...>
-"""
+"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
 import os
 
 __version__ = "0.3.2"

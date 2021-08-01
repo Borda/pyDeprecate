@@ -1,6 +1,4 @@
-"""
-Copyright (C) 2020-2021 Jiri Borovec <...>
-"""
+"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
 import inspect
 from functools import partial, wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -28,8 +26,7 @@ deprecation_warning = partial(warn, category=DeprecationWarning)
 
 
 def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, Any]]:
-    """
-    Parse function arguments, types and default values
+    """Parse function arguments, types and default values.
 
     Args:
         func: a function to be xeamined
@@ -40,7 +37,6 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
     Example:
         >>> get_func_arguments_types_defaults(get_func_arguments_types_defaults)
         [('func', typing.Callable, <class 'inspect._empty'>)]
-
     """
     func_default_params = inspect.signature(func).parameters
     func_arg_type_val = []
@@ -52,7 +48,7 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
-    """ Update in case any args passed move them to kwargs and add defaults
+    """Update in case any args passed move them to kwargs and add defaults.
 
     Args:
         func: particular function
@@ -61,7 +57,6 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
 
     Returns:
         extended dictionary with all args as keyword arguments
-
     """
     if not fn_args:
         return fn_kwargs
@@ -74,7 +69,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
 
 
 def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
-    """ Update in case any args passed move them to kwargs and add defaults
+    """Update in case any args passed move them to kwargs and add defaults.
 
     Args:
         func: particular function
@@ -82,7 +77,6 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
 
     Returns:
         extended dictionary with all args as keyword arguments
-
     """
     func_arg_type_val = get_func_arguments_types_defaults(func)
     # fill by source defaults
@@ -123,8 +117,7 @@ def _raise_warn_callable(
     remove_in: str,
     template_mgs: Optional[str] = None,
 ) -> None:
-    """
-    Raise deprecation warning with in given stream, redirecting callables
+    """Raise deprecation warning with in given stream, redirecting callables.
 
     Args:
         stream: a function which takes message as the only position argument
@@ -140,7 +133,6 @@ def _raise_warn_callable(
             - ``target_path`` pythonic path to the function such as "any_package.with_module.my_target_func"
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
-
     """
     if callable(target):
         target_name = target.__name__
@@ -168,8 +160,7 @@ def _raise_warn_arguments(
     remove_in: str,
     template_mgs: Optional[str] = None,
 ) -> None:
-    """
-    Raise deprecation warning with in given stream, note about arguments
+    """Raise deprecation warning with in given stream, note about arguments.
 
     Args:
         stream: a function which takes message as the only position argument
@@ -184,7 +175,6 @@ def _raise_warn_arguments(
             - ``argument_map`` mapping from deprecated to new argument "old_arg -> new_arg"
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
-
     """
     args_map = ', '.join([TEMPLATE_ARGUMENT_MAPPING % dict(old_arg=a, new_arg=b) for a, b in arguments.items()])
     template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
@@ -202,9 +192,8 @@ def deprecated(
     args_extra: Optional[Dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
 ) -> Callable:
-    """
-    Decorate a function or class ``__init__`` with warning message
-     and pass all arguments directly to the target class/method.
+    """Decorate a function or class ``__init__`` with warning message and pass
+    all arguments directly to the target class/method.
 
     Args:
         target: Function or method to forward the call. If set ``None``, no forwarding is applied and only warn.
@@ -231,7 +220,6 @@ def deprecated(
 
     Raises:
         TypeError: if there are some argument in source function which are missing in target function
-
     """
 
     def packing(source: Callable) -> Callable:

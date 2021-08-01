@@ -1,6 +1,4 @@
-"""
-Copyright (C) 2020-2021 Jiri Borovec <...>
-"""
+"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
 import pytest
 
 from deprecate.utils import no_warning_call
@@ -36,7 +34,7 @@ def test_deprecated_func_warn_only() -> None:
 
 
 def test_deprecated_func_arguments() -> None:
-    """Test deprecation function arguments"""
+    """Test deprecation function arguments."""
     with no_warning_call():
         assert depr_pow_self(2, new_coef=3) == 8
 
@@ -158,7 +156,7 @@ def test_deprecated_func_skip_if() -> None:
 
 
 def test_deprecated_func_mapping() -> None:
-    """Test mapping to external functions"""
+    """Test mapping to external functions."""
     with pytest.deprecated_call():
         assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
 
