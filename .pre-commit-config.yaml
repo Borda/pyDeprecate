@@ -59,6 +59,19 @@ repos:
       - id: mypy
         name: typing
 
+  - repo: https://github.com/asottile/yesqa
+    rev: v1.2.3
+    hooks:
+      - id: yesqa
+
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.7
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-black
+
   - repo: https://github.com/PyCQA/flake8
     rev: 3.9.2
     hooks:

@@ -167,7 +167,7 @@ We also support deprecation and argument mapping for the function itself:
 from deprecate import deprecated
 
 @deprecated(
-  # define as depreaction some self argument - mapping
+  # define as deprecation some self argument - mapping
   target=True, args_mapping={'coef': 'new_coef'},
   # common version info
   deprecated_in="0.2", remove_in="0.4",
@@ -199,11 +199,11 @@ Eventually you can set multiple deprecation levels via chaining deprecation argu
   from deprecate import deprecated
 
   @deprecated(
-    True, "0.3", "0.6", args_mapping=dict(c1='nc1'),
+    True, deprecated_in="0.3", remove_in="0.6", args_mapping=dict(c1='nc1'),
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
   )
   @deprecated(
-    True, "0.4", "0.7", args_mapping=dict(nc1='nc2'),
+    True, deprecated_in="0.4", remove_in="0.7", args_mapping=dict(nc1='nc2'),
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
   )
   def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
