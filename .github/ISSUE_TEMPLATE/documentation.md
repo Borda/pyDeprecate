@@ -1,18 +1,19 @@
----
+______________________________________________________________________
+
 name: Typos and doc fixes
 about: Typos and doc fixes
 title: ''
 labels: documentation
 assignees: ''
 
----
+______________________________________________________________________
 
 ## 📚 Documentation
 
 For typos and doc fixes, please go ahead and:
 
 1. Create an issue.
-2. Fix the typo.
-3. Submit a PR.
+1. Fix the typo.
+1. Submit a PR.
 
 Thanks!

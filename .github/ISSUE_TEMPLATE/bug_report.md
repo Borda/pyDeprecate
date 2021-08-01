@@ -1,11 +1,12 @@
----
+______________________________________________________________________
+
 name: Bug report
 about: Create a report to help us improve
 title: ''
 labels: bug / fix, help wanted
 assignees: ''
 
----
+______________________________________________________________________
 
 ## 🐛 Bug
 
@@ -16,9 +17,9 @@ assignees: ''
 Steps to reproduce the behavior:
 
 1. Go to '...'
-2. Run '....'
-3. Scroll down to '....'
-4. See error
+1. Run '....'
+1. Scroll down to '....'
+1. See error
 
 <!-- If you have a code sample, error messages, stack traces, please provide it here as well -->
 
