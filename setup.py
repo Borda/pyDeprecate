@@ -17,9 +17,9 @@ def _load_long_description(path_dir: str, version: str) -> str:
     path_readme = os.path.join(path_dir, "README.md")
     text = open(path_readme, encoding="utf-8").read()
     # codecov badge
-    text = text.replace('/branch/main/graph/badge.svg', f'/release/{version}/graph/badge.svg')
+    text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
     # replace github badges for release ones
-    text = text.replace('badge.svg?branch=main&event=push', f'badge.svg?tag={version}')
+    text = text.replace("badge.svg?branch=main&event=push", f"badge.svg?tag={version}")
     return text
 
 
@@ -29,43 +29,40 @@ def _load_long_description(path_dir: str, version: str) -> str:
 # the goal of the project is simplicity for researchers, don't want to add too much
 # engineer specific practices
 setup(
-    name='pyDeprecate',
+    name="pyDeprecate",
     version=deprecate.__version__,
     description=deprecate.__docs__,
     author=deprecate.__author__,
     author_email=deprecate.__author_email__,
     url=deprecate.__homepage__,
     license=deprecate.__license__,
-    packages=find_packages(exclude=['tests', 'docs']),
+    packages=find_packages(exclude=["tests", "docs"]),
     long_description=_load_long_description(_PATH_ROOT, version=deprecate.__version__),
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     include_package_data=True,
     zip_safe=False,
-    keywords=['python', 'development', 'deprecation'],
-    python_requires='>=3.6',
+    keywords=["python", "development", "deprecation"],
+    python_requires=">=3.6",
     setup_requires=[],
     install_requires=[],
-    project_urls={
-        "Source Code": deprecate.__source_code__,
-        "Home page": deprecate.__homepage__,
-    },
+    project_urls={"Source Code": deprecate.__source_code__, "Home page": deprecate.__homepage__},
     classifiers=[
-        'Environment :: Console',
-        'Natural Language :: English',
+        "Environment :: Console",
+        "Natural Language :: English",
         # How mature is this project? Common values are
         #   3 - Alpha, 4 - Beta, 5 - Production/Stable
-        'Development Status :: 4 - Beta',
+        "Development Status :: 4 - Beta",
         # Indicate who your project is intended for
-        'Intended Audience :: Developers',
+        "Intended Audience :: Developers",
         # Pick your license as you wish
         # 'License :: OSI Approved :: BSD License',
-        'Operating System :: OS Independent',
+        "Operating System :: OS Independent",
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
 )

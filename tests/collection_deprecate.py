@@ -38,7 +38,7 @@ def depr_sum_calls_inf(a: int, b: int = 5) -> int:
     target=base_sum_kwargs,
     deprecated_in="0.1",
     remove_in="0.5",
-    template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`"
+    template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`",
 )
 def depr_sum_msg(a: int, b: int = 5) -> int:
     return void(a, b)
@@ -59,63 +59,63 @@ def depr_pow_wrong(a: int, c: float = 4) -> float:
     return void(a, c)
 
 
-@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'yeah_arg': None})  # type: ignore
+@deprecated(target=accuracy_score, args_mapping={"preds": "y_pred", "yeah_arg": None})  # type: ignore
 def depr_accuracy_skip(preds: list, y_true: tuple = (0, 1, 1, 2), yeah_arg: float = 1.23) -> float:
     return void(preds, y_true, yeah_arg)
 
 
-@deprecated(target=accuracy_score, args_mapping={'preds': 'y_pred', 'truth': 'y_true'})
+@deprecated(target=accuracy_score, args_mapping={"preds": "y_pred", "truth": "y_true"})
 def depr_accuracy_map(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
     return void(preds, truth)
 
 
-@deprecated(target=accuracy_score, args_extra={'y_pred': (0, 1, 1, 1)})
+@deprecated(target=accuracy_score, args_extra={"y_pred": (0, 1, 1, 1)})
 def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
     return void(y_pred, y_true)
 
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={'coef': 'new_coef'})
+@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
 def depr_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
-    return base**new_coef
+    return base ** new_coef
 
 
 @deprecated(
     target=True,
     template_mgs="The `%(source_name)s` uses depr. args: %(argument_map)s.",
-    args_mapping=dict(c1='nc1', c2='nc2')
+    args_mapping=dict(c1="nc1", c2="nc2"),
 )
 def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float = 1, nc2: float = 2) -> float:
-    return base**(c1 + c2 + nc1 + nc2)
+    return base ** (c1 + c2 + nc1 + nc2)
 
 
-@deprecated(True, "0.3", "0.6", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS)
-@deprecated(True, "0.4", "0.7", args_mapping=dict(nc1='nc2'), template_mgs=_SHORT_MSG_ARGS)
+@deprecated(True, "0.3", "0.6", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS)
+@deprecated(True, "0.4", "0.7", args_mapping=dict(nc1="nc2"), template_mgs=_SHORT_MSG_ARGS)
 def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
-    return base**(c1 + nc1 + nc2)
+    return base ** (c1 + nc1 + nc2)
 
 
-@deprecated(True, "0.3", "0.4", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS, skip_if=False)
+@deprecated(True, "0.3", "0.4", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=False)
 def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> float:
-    return base**(c1 - nc1)
+    return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS, skip_if=False)
-@deprecated(True, "0.3", "0.4", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=False)
+@deprecated(True, "0.3", "0.4", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
 def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> float:
-    return base**(c1 - nc1)
+    return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
 def depr_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> float:
-    return base**(c1 - nc1)
+    return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True)
+@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True)
 def depr_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> float:
-    return base**(c1 - nc1)
+    return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.3", args_mapping=dict(c1='nc1'), template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42)
+@deprecated(True, "0.1", "0.3", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42)
 def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> float:
-    return base**(c1 - nc1)
+    return base ** (c1 - nc1)

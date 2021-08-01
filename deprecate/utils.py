@@ -28,7 +28,7 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
         if not called:
             return
         if not warning_type:
-            raise AssertionError(f'While catching all warnings, these were found: {_warns_repr(called)}')
+            raise AssertionError(f"While catching all warnings, these were found: {_warns_repr(called)}")
         # filter warnings by type
         warns = [w for w in called if issubclass(w.category, warning_type)]
         # Verify some things
@@ -36,13 +36,13 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
             return
         if not match:
             raise AssertionError(
-                f'While catching `{warning_type.__name__}` warnings, these were found: {_warns_repr(warns)}'
+                f"While catching `{warning_type.__name__}` warnings, these were found: {_warns_repr(warns)}"
             )
         found = [w for w in warns if match in w.message.__str__()]
         if found:
             raise AssertionError(
                 f'While catching `{warning_type.__name__}` warnings with "{match}",'
-                f' these were found: {_warns_repr(found)}'
+                f" these were found: {_warns_repr(found)}"
             )
 
 

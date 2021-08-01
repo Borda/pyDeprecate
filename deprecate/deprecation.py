@@ -18,8 +18,7 @@ TEMPLATE_WARNING_ARGUMENTS = (
 TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 #: Default template warning message for no target func/method
 TEMPLATE_WARNING_NO_TARGET = (
-    "The `%(source_name)s` was deprecated since v%(deprecated_in)s."
-    " It will be removed in v%(remove_in)s."
+    "The `%(source_name)s` was deprecated since v%(deprecated_in)s." " It will be removed in v%(remove_in)s."
 )
 
 deprecation_warning = partial(warn, category=DeprecationWarning)
@@ -85,12 +84,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
     return fn_kwargs
 
 
-def _raise_warn(
-    stream: Callable,
-    source: Callable,
-    template_mgs: str,
-    **extras: str,
-) -> None:
+def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras: str) -> None:
     """Raise deprecation warning with in given stream ...
 
     Args:
@@ -99,13 +93,9 @@ def _raise_warn(
         template_mgs: python formatted string message which has build-ins arguments
         extras: string arguments used in the template message
     """
-    source_name = source.__qualname__.split('.')[-2] if source.__name__ == "__init__" else source.__name__
-    source_path = f'{source.__module__}.{source_name}'
-    msg_args = dict(
-        source_name=source_name,
-        source_path=source_path,
-        **extras,
-    )
+    source_name = source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
+    source_path = f"{source.__module__}.{source_name}"
+    msg_args = dict(source_name=source_name, source_path=source_path, **extras)
     stream(template_mgs % msg_args)
 
 
@@ -136,7 +126,7 @@ def _raise_warn_callable(
     """
     if callable(target):
         target_name = target.__name__
-        target_path = f'{target.__module__}.{target_name}'
+        target_path = f"{target.__module__}.{target_name}"
         template_mgs = template_mgs or TEMPLATE_WARNING_CALLABLE
     else:
         target_name, target_path = "", ""
@@ -148,7 +138,7 @@ def _raise_warn_callable(
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
-        target_path=target_path
+        target_path=target_path,
     )
 
 
@@ -176,7 +166,7 @@ def _raise_warn_arguments(
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
     """
-    args_map = ', '.join([TEMPLATE_ARGUMENT_MAPPING % dict(old_arg=a, new_arg=b) for a, b in arguments.items()])
+    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % dict(old_arg=a, new_arg=b) for a, b in arguments.items()])
     template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
 
@@ -223,7 +213,6 @@ def deprecated(
     """
 
     def packing(source: Callable) -> Callable:
-
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
             # check if user requested a skip
@@ -233,7 +222,7 @@ def deprecated(
             if shall_skip:
                 return source(*args, **kwargs)
 
-            nb_called = getattr(wrapped_fn, '_called', 0)
+            nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
@@ -249,10 +238,10 @@ def deprecated(
 
             # warning per argument
             if reason_argument:
-                arg_warns = [getattr(wrapped_fn, f'_warned_{arg}', 0) for arg in reason_argument]
+                arg_warns = [getattr(wrapped_fn, f"_warned_{arg}", 0) for arg in reason_argument]
                 nb_warned = min(arg_warns)
             else:
-                nb_warned = getattr(wrapped_fn, '_warned', 0)
+                nb_warned = getattr(wrapped_fn, "_warned", 0)
 
             # warn user only N times in lifetime or infinitely...
             if stream and (num_warns < 0 or nb_warned < num_warns):
@@ -261,7 +250,7 @@ def deprecated(
                     setattr(wrapped_fn, "_warned", nb_warned + 1)
                 elif reason_argument:
                     _raise_warn_arguments(stream, source, reason_argument, deprecated_in, remove_in, template_mgs)
-                    attrib_names = [f'_warned_{arg}' for arg in reason_argument]
+                    attrib_names = [f"_warned_{arg}" for arg in reason_argument]
                     for n in attrib_names:
                         setattr(wrapped_fn, n, getattr(wrapped_fn, n, 0) + 1)
 
