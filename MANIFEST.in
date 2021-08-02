@@ -10,11 +10,11 @@ include *.md
 include LICENSE
 
 exclude *.sh
-exclude *.toml
 
 # Exclude build configs
 exclude *.yml
 exclude *.yaml
+exclude *.toml
 
 prune .git
 prune .github

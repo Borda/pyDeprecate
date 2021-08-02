@@ -28,7 +28,7 @@ from tests.collection_deprecate import (
 
 def test_deprecated_func_warn_only() -> None:
     with pytest.deprecated_call(
-        match='The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3.'
+        match="The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3."
     ):
         assert depr_sum_warn_only(2) is None
 
@@ -39,18 +39,18 @@ def test_deprecated_func_arguments() -> None:
         assert depr_pow_self(2, new_coef=3) == 8
 
     with pytest.deprecated_call(
-        match='The `depr_pow_self` uses deprecated arguments: `coef` -> `new_coef`.'
-        ' They were deprecated since v0.1 and will be removed in v0.5.'
+        match="The `depr_pow_self` uses deprecated arguments: `coef` -> `new_coef`."
+        " They were deprecated since v0.1 and will be removed in v0.5."
     ):
         assert depr_pow_self(2, 3) == 8
 
-    with pytest.deprecated_call(match='The `depr_pow_self_double` uses depr. args: `c1` -> `nc1`.'):
+    with pytest.deprecated_call(match="The `depr_pow_self_double` uses depr. args: `c1` -> `nc1`."):
         assert depr_pow_self_double(2, c1=3) == 32
 
     with no_warning_call():
         assert depr_pow_self_double(2, c1=3) == 32
 
-    with pytest.deprecated_call(match='The `depr_pow_self_double` uses depr. args: `c2` -> `nc2`.'):
+    with pytest.deprecated_call(match="The `depr_pow_self_double` uses depr. args: `c2` -> `nc2`."):
         assert depr_pow_self_double(2, c2=2) == 8
 
     with no_warning_call():
@@ -77,8 +77,8 @@ def test_deprecated_func_chain() -> None:
 def test_deprecated_func_default() -> None:
     """Testing some base/default configurations."""
     with pytest.deprecated_call(
-        match='The `depr_sum` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`.'
-        ' It will be removed in v0.5.'
+        match="The `depr_sum` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
+        " It will be removed in v0.5."
     ):
         assert depr_sum(2) == 7
 
@@ -88,8 +88,8 @@ def test_deprecated_func_default() -> None:
 
     # and does not affect other functions
     with pytest.deprecated_call(
-        match='The `depr_pow_mix` was deprecated since v0.1 in favor of `tests.collection_targets.base_pow_args`.'
-        ' It will be removed in v0.5.'
+        match="The `depr_pow_mix` was deprecated since v0.1 in favor of `tests.collection_targets.base_pow_args`."
+        " It will be removed in v0.5."
     ):
         assert depr_pow_mix(2, 1) == 2
 
@@ -111,7 +111,7 @@ def test_deprecated_func_stream_calls() -> None:
             assert depr_sum_calls_inf(3) == 8
     assert len(record) == 5
 
-    with pytest.deprecated_call(match='v0.1: `depr_sum_msg` was deprecated, use `base_sum_kwargs`'):
+    with pytest.deprecated_call(match="v0.1: `depr_sum_msg` was deprecated, use `base_sum_kwargs`"):
         assert depr_sum_msg(3) == 8
 
 
@@ -133,7 +133,7 @@ def test_deprecated_func_incomplete() -> None:
     # reset the warning
     depr_pow_args._warned = False
     # does not affect other functions
-    with pytest.deprecated_call(match='`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3.'):
+    with pytest.deprecated_call(match="`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3."):
         assert depr_pow_args(b=2, a=1) == 1
 
 
@@ -145,10 +145,10 @@ def test_deprecated_func_skip_if() -> None:
     with no_warning_call():
         assert depr_pow_skip_if_func(2, c1=2) == 2
 
-    with pytest.deprecated_call(match='Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`.'):
+    with pytest.deprecated_call(match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
         assert depr_pow_skip_if_true_false(2, c1=2) == 0.5
 
-    with pytest.deprecated_call(match='Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`.'):
+    with pytest.deprecated_call(match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
         assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
 
     with pytest.raises(TypeError, match="User function `shall_skip` shall return bool, but got: <class 'int'>"):

@@ -9,23 +9,21 @@ from tests.collection_targets import NewCls
 
 
 class PastCls(NewCls):
-
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
     def __init__(self, c: int, d: str = "efg", **kwargs: Any):
         pass
 
 
 class ThisCls(NewCls):
-
-    @deprecated(target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={'c': 'nc'})
+    @deprecated(target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"})
     def __init__(self, c: int = 3, nc: int = 5):
         self.my_c = nc
 
 
 def test_deprecated_class_forward() -> None:
     with pytest.deprecated_call(
-        match='The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`.'
-        ' It will be removed in v0.4.'
+        match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
+        " It will be removed in v0.4."
     ):
         past = PastCls(2, e=0.1)
     assert past.my_c == 2
@@ -39,7 +37,7 @@ def test_deprecated_class_forward() -> None:
         assert PastCls(c=2, d="", e=0.9999)
 
     PastCls.__init__._warned = False
-    with pytest.deprecated_call(match='It will be removed in v0.4.'):
+    with pytest.deprecated_call(match="It will be removed in v0.4."):
         PastCls(2)
 
 
@@ -50,8 +48,8 @@ def test_deprecated_class_self() -> None:
     assert isinstance(this, ThisCls)
 
     with pytest.deprecated_call(
-        match='The `ThisCls` uses deprecated arguments: `c` -> `nc`.'
-        ' They were deprecated since v0.3 and will be removed in v0.5.'
+        match="The `ThisCls` uses deprecated arguments: `c` -> `nc`."
+        " They were deprecated since v0.3 and will be removed in v0.5."
     ):
         this = ThisCls(2)
     assert this.my_c == 2
