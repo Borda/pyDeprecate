@@ -79,7 +79,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
     """
     func_arg_type_val = get_func_arguments_types_defaults(func)
     # fill by source defaults
-    fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}  # type: ignore
+    fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}
     fn_kwargs = dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
     return fn_kwargs
 
