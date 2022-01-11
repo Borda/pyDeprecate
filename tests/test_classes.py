@@ -21,9 +21,10 @@ class ThisCls(NewCls):
 
 
 def test_deprecated_class_forward() -> None:
-    with pytest.deprecated_call(
+    with pytest.warns(
+        FutureWarning,
         match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
-        " It will be removed in v0.4."
+        " It will be removed in v0.4.",
     ):
         past = PastCls(2, e=0.1)
     assert past.my_c == 2
@@ -37,7 +38,7 @@ def test_deprecated_class_forward() -> None:
         assert PastCls(c=2, d="", e=0.9999)
 
     PastCls.__init__._warned = False
-    with pytest.deprecated_call(match="It will be removed in v0.4."):
+    with pytest.warns(FutureWarning, match="It will be removed in v0.4."):
         PastCls(2)
 
 
@@ -47,9 +48,10 @@ def test_deprecated_class_self() -> None:
     assert this.my_c == 1
     assert isinstance(this, ThisCls)
 
-    with pytest.deprecated_call(
+    with pytest.warns(
+        FutureWarning,
         match="The `ThisCls` uses deprecated arguments: `c` -> `nc`."
-        " They were deprecated since v0.3 and will be removed in v0.5."
+        " They were deprecated since v0.3 and will be removed in v0.5.",
     ):
         this = ThisCls(2)
     assert this.my_c == 2

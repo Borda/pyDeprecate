@@ -21,7 +21,7 @@ TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
 
-deprecation_warning = partial(warn, category=DeprecationWarning)
+deprecation_warning = partial(warn, category=FutureWarning)
 
 
 def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, Any]]:
