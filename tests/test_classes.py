@@ -1,5 +1,7 @@
 """Copyright (C) 2020-2021 Jiri Borovec <...>"""
+from functools import partial
 from typing import Any
+from warnings import warn
 
 import pytest
 
@@ -7,22 +9,26 @@ from deprecate.deprecation import deprecated
 from deprecate.utils import no_warning_call
 from tests.collection_targets import NewCls
 
+_deprecation_warning = partial(warn, category=DeprecationWarning)
+
 
 class PastCls(NewCls):
-    @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
+    @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
     def __init__(self, c: int, d: str = "efg", **kwargs: Any):
         pass
 
 
 class ThisCls(NewCls):
-    @deprecated(target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"})
+    @deprecated(
+        target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"}, stream=_deprecation_warning
+    )
     def __init__(self, c: int = 3, nc: int = 5):
         self.my_c = nc
 
 
 def test_deprecated_class_forward() -> None:
     with pytest.warns(
-        FutureWarning,
+        DeprecationWarning,
         match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
         " It will be removed in v0.4.",
     ):
@@ -38,7 +44,7 @@ def test_deprecated_class_forward() -> None:
         assert PastCls(c=2, d="", e=0.9999)
 
     PastCls.__init__._warned = False
-    with pytest.warns(FutureWarning, match="It will be removed in v0.4."):
+    with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
         PastCls(2)
 
 
@@ -49,7 +55,7 @@ def test_deprecated_class_self() -> None:
     assert isinstance(this, ThisCls)
 
     with pytest.warns(
-        FutureWarning,
+        DeprecationWarning,
         match="The `ThisCls` uses deprecated arguments: `c` -> `nc`."
         " They were deprecated since v0.3 and will be removed in v0.5.",
     ):
