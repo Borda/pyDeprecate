@@ -316,7 +316,7 @@ class PastCls(NewCls):
         You place the decorator around __init__ as you want
          to warn user just at the time of creating object.
         """
-        return void(c, d)
+        void(c, d)
 
 
 # call this function will raise deprecation warning:
