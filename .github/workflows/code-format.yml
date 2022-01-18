@@ -2,26 +2,11 @@ name: Code formatting
 
 # see: https://help.github.com/en/actions/reference/events-that-trigger-workflows
 on:  # Trigger the workflow on push or pull request, but only for the main branch
-  push:
+  push: {}
+  pull_request:
     branches: [ main ]
-  pull_request: {}
 
 jobs:
-  pep8-flake8:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.7
-      - name: Install dependencies
-        run: |
-          pip install flake8
-          pip list
-        shell: bash
-      - name: PEP8
-        run: |
-          flake8 .
 
   typing-mypy:
     runs-on: ubuntu-20.04
@@ -54,5 +39,5 @@ jobs:
       - uses: pre-commit/action@v2.0.2
         # this action also provides an additional behaviour when used in private repositories
         # when configured with a github token, the action will push back fixes to the pull request branch
-        # with:
-        #   token: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

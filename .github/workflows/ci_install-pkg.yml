@@ -2,9 +2,9 @@ name: Install pkg
 
 # see: https://help.github.com/en/actions/reference/events-that-trigger-workflows
 on:  # Trigger the workflow on push or pull request, but only for the main branch
-  push:
+  push: {}
+  pull_request:
     branches: [ main ]
-  pull_request: {}
 
 jobs:
   pkg-check:
@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Check package
         run: |
@@ -32,3 +32,7 @@ jobs:
           pip install twine==3.2
           twine check dist/*
           python setup.py clean
+
+      - name: Dry run
+        run: |
+          python setup.py install --dry-run --user
