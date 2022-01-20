@@ -234,8 +234,8 @@ def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
 
 
 # call this function will raise deprecation warning:
-#   DeprecationWarning('Depr: v0.3 rm v0.6 for args: `c1` -> `nc1`.')
-#   DeprecationWarning('Depr: v0.4 rm v0.7 for args: `nc1` -> `nc2`.')
+#   FutureWarning('Depr: v0.3 rm v0.6 for args: `c1` -> `nc1`.')
+#   FutureWarning('Depr: v0.4 rm v0.7 for args: `nc1` -> `nc2`.')
 print(any_pow(2, 3))
 ```
 
@@ -316,7 +316,7 @@ class PastCls(NewCls):
         You place the decorator around __init__ as you want
          to warn user just at the time of creating object.
         """
-        return void(c, d)
+        void(c, d)
 
 
 # call this function will raise deprecation warning:
