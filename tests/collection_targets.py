@@ -7,7 +7,7 @@ def base_sum_kwargs(a: int = 0, b: int = 3) -> int:
 
 
 def base_pow_args(a: float, b: int) -> float:
-    return a ** b
+    return a**b
 
 
 class NewCls:

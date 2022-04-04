@@ -7,7 +7,7 @@ from deprecate.utils import no_warning_call
 
 def raise_pow(base: float, coef: float) -> float:
     warn("warning you!", UserWarning)
-    return base ** coef
+    return base**coef
 
 
 def test_warning_raised() -> None:
