@@ -188,7 +188,7 @@ from deprecate import deprecated
 )
 def any_pow(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """My function with deprecated argument `coef` mapped to `new_coef`."""
-    return base ** new_coef
+    return base**new_coef
 
 
 # call this function will raise deprecation warning:
@@ -230,7 +230,7 @@ from deprecate import deprecated
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
-    return base ** nc2
+    return base**nc2
 
 
 # call this function will raise deprecation warning:

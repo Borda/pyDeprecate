@@ -76,7 +76,7 @@ def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
 def depr_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
-    return base ** new_coef
+    return base**new_coef
 
 
 @deprecated(
