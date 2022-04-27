@@ -2,6 +2,7 @@ pytest>6.0
 pytest-cov>2.10
 scikit-learn>=0.17
 phmdoctest>1.0
+dataclasses  # needed for phmdoctest
 
 flake8
 check-manifest
