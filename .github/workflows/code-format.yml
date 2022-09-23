@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.8
       - name: Install mypy
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
 
       - name: set PY
         run: echo "PY=$(python -VV | sha256sum | cut -d' ' -f1)" >> $GITHUB_ENV
