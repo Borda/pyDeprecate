@@ -11,7 +11,6 @@ def raise_pow(base: float, coef: float) -> float:
 
 
 def test_warning_raised() -> None:
-
     with pytest.raises(AssertionError, match="While catching all warnings, these were found:"):
         with no_warning_call():
             assert raise_pow(3, 2) == 9
@@ -26,7 +25,6 @@ def test_warning_raised() -> None:
 
 
 def test_warning_others() -> None:
-
     with no_warning_call(UserWarning):
         assert pow(3, 2) == 9
 
