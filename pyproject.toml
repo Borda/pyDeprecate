@@ -55,18 +55,6 @@ line-length = 120
 exclude = "(.eggs|.git|.hg|.mypy_cache|.venv|_build|buck-out|build|dist)"
 
 
-[tool.mypy]
-files = ["deprecate"]
-disallow_untyped_defs = "True"
-ignore_missing_imports = "True"
-show_error_codes = "True"
-warn_redundant_casts = "True"
-warn_unused_configs = "True"
-warn_unused_ignores = "True"
-allow_redefinition = "True"
-warn_no_return = "False"
-
-
 [tool.isort]
 known_first_party = [
     "deprecate",
@@ -77,3 +65,72 @@ line_length = 120
 force_sort_within_sections = "False"
 multi_line_output = 3
 order_by_type = "False"
+
+
+[tool.ruff]
+line-length = 120
+# Enable Pyflakes `E` and `F` codes by default.
+select = [
+    "E", "W",  # see: https://pypi.org/project/pycodestyle
+    "F",  # see: https://pypi.org/project/pyflakes
+    "D",  # see: https://pypi.org/project/pydocstyle
+    "N",  # see: https://pypi.org/project/pep8-naming
+    "S",  # see: https://pypi.org/project/flake8-bandit
+]
+extend-select = [
+    "C4",  # see: https://pypi.org/project/flake8-comprehensions
+    "PT",  # see: https://pypi.org/project/flake8-pytest-style
+    "RET",  # see: https://pypi.org/project/flake8-return
+    "SIM",  # see: https://pypi.org/project/flake8-simplify
+    "YTT",  # see: https://pypi.org/project/flake8-2020
+    "ANN",  # see: https://pypi.org/project/flake8-annotations
+]
+ignore = [
+    "E731",  # Do not assign a lambda expression, use a def
+    "F401",  # Imports of __all__
+    "D100",  # Missing docstring in public module
+    "D104",  # Missing docstring in public package
+    "D107",  # Missing docstring in `__init__`
+    "ANN101",  # Missing type annotation for `self` in method
+    "ANN102",  # Missing type annotation for `cls` in classmethod
+]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".eggs",
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    "__pypackages__",
+    "_build",
+    "build",
+    "dist",
+    "docs"
+]
+ignore-init-module-imports = true
+unfixable = ["F401"]
+
+[tool.ruff.per-file-ignores]
+"setup.py" = ["ANN202", "ANN401"]
+
+[tool.ruff.pydocstyle]
+# Use Google-style docstrings.
+convention = "google"
+
+#[tool.ruff.pycodestyle]
+ignore-overlong-task-comments = true
+
+[tool.ruff.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+
+[tool.mypy]
+files = ["deprecate"]
+disallow_untyped_defs = "True"
+ignore_missing_imports = "True"
+show_error_codes = "True"
+warn_redundant_casts = "True"
+warn_unused_configs = "True"
+warn_unused_ignores = "True"
+allow_redefinition = "True"
+warn_no_return = "False"

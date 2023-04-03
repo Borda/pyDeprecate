@@ -22,17 +22,11 @@ repos:
       - id: check-docstring-first
       - id: detect-private-key
 
-  - repo: https://github.com/pre-commit/mirrors-autopep8
-    rev: v2.0.1
-    hooks:
-      - id: autopep8
-        name: fixing PEP8
-
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.3.1
     hooks:
       - id: pyupgrade
-        args: [--py36-plus]
+        args: [--py37-plus]
         name: Upgrade code
 
   - repo: https://github.com/PyCQA/docformatter
@@ -59,11 +53,6 @@ repos:
     #    - id: mypy
     #      name: typing
 
-  - repo: https://github.com/asottile/yesqa
-    rev: v1.4.0
-    hooks:
-      - id: yesqa
-
   - repo: https://github.com/executablebooks/mdformat
     rev: 0.7.16
     hooks:
@@ -73,8 +62,17 @@ repos:
           - mdformat-black
           - mdformat_frontmatter
 
-  - repo: https://github.com/PyCQA/flake8
-    rev: 6.0.0
+  - repo: https://github.com/asottile/yesqa
+    rev: v1.4.0
     hooks:
-      - id: flake8
-        name: PEP8
+      - id: yesqa
+        additional_dependencies:
+          - pep8-naming
+          - flake8-pytest-style
+          - flake8-bandit
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.255
+    hooks:
+      - id: ruff
+        args: ["--fix"]
