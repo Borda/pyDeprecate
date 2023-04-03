@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
+"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
 from functools import partial
 from typing import Any
 from warnings import warn
@@ -14,7 +14,7 @@ _deprecation_warning = partial(warn, category=DeprecationWarning)
 
 class PastCls(NewCls):
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
-    def __init__(self, c: int, d: str = "efg", **kwargs: Any):
+    def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:
         pass
 
 
@@ -22,7 +22,7 @@ class ThisCls(NewCls):
     @deprecated(
         target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"}, stream=_deprecation_warning
     )
-    def __init__(self, c: int = 3, nc: int = 5):
+    def __init__(self, c: int = 3, nc: int = 5) -> None:
         self.my_c = nc
 
 

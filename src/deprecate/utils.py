@@ -1,4 +1,7 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
+"""Handy tools for deprecations.
+
+Copyright (C) 2020-2021 Jiri Borovec <...>
+"""
 import warnings
 from contextlib import contextmanager
 from typing import Any, Generator, List, Optional, Type, Union
@@ -10,11 +13,11 @@ def _warns_repr(warns: List[warnings.WarningMessage]) -> List[Union[Warning, str
 
 @contextmanager
 def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optional[str] = None) -> Generator:
-    """
+    """Check that no warning was raised.
 
     Args:
         warning_type: specify catching warning, if None catching all
-        match: match message, containing following string, if None catches all
+        match: match message, containing following string, if None catches all.
 
     Raises:
         AssertionError: if specified warning was called
@@ -47,6 +50,5 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
 
 
 def void(*args: Any, **kwrgs: Any) -> Any:
-    """Empty function which does nothing, just let your IDE stop complaining
-    about unused arguments."""
+    """Empty function which does nothing, just let your IDE stop complaining about unused arguments."""
     _, _ = args, kwrgs

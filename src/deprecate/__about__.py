@@ -1,3 +1,5 @@
+"""Package details."""
+
 __version__ = "0.3.2"
 __docs__ = "Deprecation tooling"
 __author__ = "Jiri Borovec"
