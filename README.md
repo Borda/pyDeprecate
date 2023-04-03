@@ -1,6 +1,6 @@
 # pyDeprecate
 
-**Simple tooling for marking deprecated functions or classes and re-routing to the new successors' instance.**
+**Simple tooling for marking deprecated functions or classes and re-routing to the successors' one.**
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![PyPI Status](https://badge.fury.io/py/pyDeprecate.svg)](https://badge.fury.io/py/pyDeprecate)
