@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Copyright (C) 2020-2021 Jiri Borovec <...>"""
 import os
-from importlib.util import spec_from_file_location, module_from_spec
+from importlib.util import module_from_spec, spec_from_file_location
 
 # Always prefer setuptools over distutils
 from setuptools import find_packages, setup
