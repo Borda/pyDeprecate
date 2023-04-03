@@ -16,12 +16,9 @@ jobs:
         with:
           python-version: 3.8
       - name: Install mypy
-        run: |
-          pip install "mypy>=0.790"
-          pip list
+        run: pip install "mypy>=1.1.1"
       - name: mypy
-        run: |
-          mypy
+        run: mypy src/
 
   pre-commit:
     runs-on: ubuntu-latest
@@ -39,5 +36,5 @@ jobs:
       - uses: pre-commit/action@v3.0.0
         # this action also provides an additional behaviour when used in private repositories
         # when configured with a github token, the action will push back fixes to the pull request branch
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        #with:
+        #  token: ${{ secrets.GITHUB_TOKEN }}
