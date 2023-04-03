@@ -36,7 +36,8 @@ setup(
     author_email=deprecate.__author_email__,
     url=deprecate.__homepage__,
     license=deprecate.__license__,
-    packages=find_packages(exclude=["tests", "docs"]),
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
     long_description=_load_long_description(_PATH_ROOT, version=deprecate.__version__),
     long_description_content_type="text/markdown",
     include_package_data=True,
@@ -60,10 +61,10 @@ setup(
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
 )
