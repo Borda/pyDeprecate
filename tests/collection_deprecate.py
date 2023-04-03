@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
+"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
 
 from sklearn.metrics import accuracy_score
 
@@ -82,40 +82,40 @@ def depr_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
 @deprecated(
     target=True,
     template_mgs="The `%(source_name)s` uses depr. args: %(argument_map)s.",
-    args_mapping=dict(c1="nc1", c2="nc2"),
+    args_mapping={"c1": "nc1", "c2": "nc2"},
 )
 def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float = 1, nc2: float = 2) -> float:
     return base ** (c1 + c2 + nc1 + nc2)
 
 
-@deprecated(True, "0.3", "0.6", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS)
-@deprecated(True, "0.4", "0.7", args_mapping=dict(nc1="nc2"), template_mgs=_SHORT_MSG_ARGS)
+@deprecated(True, "0.3", "0.6", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS)
+@deprecated(True, "0.4", "0.7", args_mapping={"nc1": "nc2"}, template_mgs=_SHORT_MSG_ARGS)
 def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
     return base ** (c1 + nc1 + nc2)
 
 
-@deprecated(True, "0.3", "0.4", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=False)
+@deprecated(True, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False)
 def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=False)
-@deprecated(True, "0.3", "0.4", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False)
+@deprecated(True, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
 def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
 def depr_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True)
+@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True)
 def depr_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.3", args_mapping=dict(c1="nc1"), template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42)
+@deprecated(True, "0.1", "0.3", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42)
 def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)

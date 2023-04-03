@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
+"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
 import inspect
 from functools import partial, wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -80,8 +80,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
     func_arg_type_val = get_func_arguments_types_defaults(func)
     # fill by source defaults
     fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}
-    fn_kwargs = dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
-    return fn_kwargs
+    return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
 def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras: str) -> None:
@@ -166,7 +165,7 @@ def _raise_warn_arguments(
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
     """
-    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % dict(old_arg=a, new_arg=b) for a, b in arguments.items()])
+    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": b} for a, b in arguments.items()])
     template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
 
@@ -182,8 +181,7 @@ def deprecated(
     args_extra: Optional[Dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
 ) -> Callable:
-    """Decorate a function or class ``__init__`` with warning message and pass
-    all arguments directly to the target class/method.
+    """Decorate a function or class with warning message and pass all arguments directly to the target class/method.
 
     Args:
         target: Function or method to forward the call. If set ``None``, no forwarding is applied and only warn.

@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>"""
+"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
 import os
 
 _PATH_PACKAGE = os.path.realpath(os.path.dirname(__file__))
