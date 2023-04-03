@@ -1,4 +1,7 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
+"""Deprecated wrapper.
+
+Copyright (C) 2020-2021 Jiri Borovec <...>
+"""
 import inspect
 from functools import partial, wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union

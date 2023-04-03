@@ -1,4 +1,7 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
+"""Handy tools for deprecations.
+
+Copyright (C) 2020-2021 Jiri Borovec <...>
+"""
 import warnings
 from contextlib import contextmanager
 from typing import Any, Generator, List, Optional, Type, Union
