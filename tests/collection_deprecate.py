@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
+"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
 
 from sklearn.metrics import accuracy_score
 

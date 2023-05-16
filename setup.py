@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
+"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
 import os
 from importlib.util import module_from_spec, spec_from_file_location
 

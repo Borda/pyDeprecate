@@ -1,6 +1,6 @@
 """Handy tools for deprecations.
 
-Copyright (C) 2020-2021 Jiri Borovec <...>
+Copyright (C) 2020-2023 Jiri Borovec <...>
 """
 import warnings
 from contextlib import contextmanager

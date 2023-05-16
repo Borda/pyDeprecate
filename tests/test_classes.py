@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2021 Jiri Borovec <...>."""
+"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
 from functools import partial
 from typing import Any
 from warnings import warn
