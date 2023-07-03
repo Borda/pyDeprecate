@@ -27,8 +27,7 @@ def _load_long_description(path_dir: str, version: str) -> str:
     # codecov badge
     text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
     # replace github badges for release ones
-    text = text.replace("badge.svg?branch=main&event=push", f"badge.svg?tag={version}")
-    return text
+    return text.replace("badge.svg?branch=main&event=push", f"badge.svg?tag={version}")
 
 
 # https://packaging.python.org/discussions/install-requires-vs-requirements /
