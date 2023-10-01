@@ -1,6 +1,7 @@
 """Handy tools for deprecations.
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
+
 """
 import inspect
 import warnings
@@ -20,6 +21,7 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
     Example:
         >>> get_func_arguments_types_defaults(get_func_arguments_types_defaults)
         [('func', typing.Callable, <class 'inspect._empty'>)]
+
     """
     func_default_params = inspect.signature(func).parameters
     func_arg_type_val = []
@@ -44,6 +46,7 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
 
     Raises:
         AssertionError: if specified warning was called
+
     """
     with warnings.catch_warnings(record=True) as called:
         # Cause all warnings to always be triggered.

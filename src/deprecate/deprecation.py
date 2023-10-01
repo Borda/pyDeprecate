@@ -1,6 +1,7 @@
 """Deprecated wrapper.
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
+
 """
 import inspect
 from functools import partial, wraps
@@ -39,6 +40,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
 
     Returns:
         extended dictionary with all args as keyword arguments
+
     """
     if not fn_args:
         return fn_kwargs
@@ -59,6 +61,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
 
     Returns:
         extended dictionary with all args as keyword arguments
+
     """
     func_arg_type_val = get_func_arguments_types_defaults(func)
     # fill by source defaults
@@ -74,6 +77,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         source: function/methods which is wrapped
         template_mgs: python formatted string message which has build-ins arguments
         extras: string arguments used in the template message
+
     """
     source_name = source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
     source_path = f"{source.__module__}.{source_name}"
@@ -105,6 +109,7 @@ def _raise_warn_callable(
             - ``target_path`` pythonic path to the function such as "any_package.with_module.my_target_func"
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
+
     """
     if callable(target):
         target_name = target.__name__
@@ -147,6 +152,7 @@ def _raise_warn_arguments(
             - ``argument_map`` mapping from deprecated to new argument "old_arg -> new_arg"
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
+
     """
     args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": b} for a, b in arguments.items()])
     template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
@@ -191,6 +197,7 @@ def deprecated(
 
     Raises:
         TypeError: if there are some argument in source function which are missing in target function
+
     """
 
     def packing(source: Callable) -> Callable:
