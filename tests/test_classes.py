@@ -4,9 +4,9 @@ from typing import Any
 from warnings import warn
 
 import pytest
-
 from deprecate.deprecation import deprecated
 from deprecate.utils import no_warning_call
+
 from tests.collection_targets import NewCls
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
