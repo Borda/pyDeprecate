@@ -164,7 +164,8 @@ def deprecated(
     args_extra: Optional[Dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
 ) -> Callable:
-    """Decorate a function or class with warning message and pass all arguments directly to the target class/method.
+    """Decorate a function or class with warning message and pass all arguments
+    directly to the target class/method.
 
     Args:
         target: Function or method to forward the call. If set ``None``, no forwarding is applied and only warn.
