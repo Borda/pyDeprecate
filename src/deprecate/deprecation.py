@@ -4,8 +4,10 @@ Copyright (C) 2020-2023 Jiri Borovec <...>
 """
 import inspect
 from functools import partial, wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Union
 from warnings import warn
+
+from deprecate.utils import get_func_arguments_types_defaults
 
 #: Default template warning message fot redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -25,28 +27,6 @@ TEMPLATE_WARNING_NO_TARGET = (
 )
 
 deprecation_warning = partial(warn, category=FutureWarning)
-
-
-def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, Any]]:
-    """Parse function arguments, types and default values.
-
-    Args:
-        func: a function to be xeamined
-
-    Returns:
-        sequence of details for each position/keyward argument
-
-    Example:
-        >>> get_func_arguments_types_defaults(get_func_arguments_types_defaults)
-        [('func', typing.Callable, <class 'inspect._empty'>)]
-    """
-    func_default_params = inspect.signature(func).parameters
-    func_arg_type_val = []
-    for arg in func_default_params:
-        arg_type = func_default_params[arg].annotation
-        arg_default = func_default_params[arg].default
-        func_arg_type_val.append((arg, arg_type, arg_default))
-    return func_arg_type_val
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:

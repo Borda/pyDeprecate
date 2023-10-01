@@ -1,7 +1,7 @@
 """Copyright (C) 2020-2023 Jiri Borovec <...>."""
 import pytest
-
 from deprecate.utils import no_warning_call
+
 from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,

@@ -1,6 +1,6 @@
 """Package details."""
 
-__version__ = "0.3.2"
+__version__ = "0.4.0dev"
 __docs__ = "Deprecation tooling"
 __author__ = "Jiri Borovec"
 __author_email__ = "j.borovec+github[at]gmail.com"
