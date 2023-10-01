@@ -35,12 +35,6 @@ repos:
   #    - id: docformatter
   #      args: [--in-place]
 
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        name: imports
-
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
