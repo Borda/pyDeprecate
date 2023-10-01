@@ -22,8 +22,8 @@ ABOUT = _load_py_module("__about__.py")
 
 def _load_long_description(path_dir: str, version: str) -> str:
     path_readme = os.path.join(path_dir, "README.md")
-    with open(path_readme, encoding="utf-8") as fo:
-        text = fo.read()
+    with open(path_readme, encoding="utf-8") as fopen:
+        text = fopen.read()
     # codecov badge
     text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
     # replace github badges for release ones
