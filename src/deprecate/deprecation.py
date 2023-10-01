@@ -7,7 +7,7 @@ from functools import partial, wraps
 from typing import Any, Callable, Dict, Optional, Union
 from warnings import warn
 
-from deprecate.deprecation import get_func_arguments_types_defaults
+from deprecate.utils import get_func_arguments_types_defaults
 
 #: Default template warning message fot redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
