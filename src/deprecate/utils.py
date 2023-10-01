@@ -15,7 +15,7 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
         func: a function to be xeamined
 
     Returns:
-        sequence of details for each position/keyward argument
+        sequence of details for each position/keyword argument
 
     Example:
         >>> get_func_arguments_types_defaults(get_func_arguments_types_defaults)

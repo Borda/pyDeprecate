@@ -14,12 +14,12 @@ TEMPLATE_WARNING_CALLABLE = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
     " It will be removed in v%(remove_in)s."
 )
-#: Default template warning message for chnaging argument mapping
+#: Default template warning message for changing argument mapping
 TEMPLATE_WARNING_ARGUMENTS = (
     "The `%(source_name)s` uses deprecated arguments: %(argument_map)s."
     " They were deprecated since v%(deprecated_in)s and will be removed in v%(remove_in)s."
 )
-#: Tempalte for mapping from old to new examples
+#: Template for mapping from old to new examples
 TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 #: Default template warning message for no target func/method
 TEMPLATE_WARNING_NO_TARGET = (
