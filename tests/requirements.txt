@@ -1,11 +1,9 @@
-pytest>6.0
-pytest-cov>2.10
-scikit-learn>=0.17
-phmdoctest>1.0
+pytest >6.0
+pytest-cov >2.10
+scikit-learn >=0.17
+phmdoctest >1.0
 dataclasses  # needed for phmdoctest
 
-flake8
 check-manifest
-twine>=3.2
-isort>=5.0
-mypy>=0.790
+twine >=3.2
+mypy >=1.0
