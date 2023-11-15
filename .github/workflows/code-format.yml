@@ -1,13 +1,12 @@
 name: Code formatting
 
 # see: https://help.github.com/en/actions/reference/events-that-trigger-workflows
-on:  # Trigger the workflow on push or pull request, but only for the main branch
+on: # Trigger the workflow on push or pull request, but only for the main branch
   push: {}
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-
   typing-mypy:
     runs-on: ubuntu-20.04
     steps:
