@@ -1,4 +1,5 @@
 """Copyright (C) 2020-2023 Jiri Borovec <...>."""
+
 import pytest
 from deprecate.utils import no_warning_call
 

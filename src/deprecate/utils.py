@@ -3,6 +3,7 @@
 Copyright (C) 2020-2023 Jiri Borovec <...>
 
 """
+
 import inspect
 import warnings
 from contextlib import contextmanager
