@@ -3,6 +3,7 @@
 Copyright (C) 2020-2023 Jiri Borovec <...>
 
 """
+
 import inspect
 from functools import partial, wraps
 from typing import Any, Callable, Dict, Optional, Union
