@@ -50,7 +50,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     keywords=["python", "development", "deprecation"],
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     setup_requires=[],
     install_requires=[],
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
