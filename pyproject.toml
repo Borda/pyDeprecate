@@ -4,70 +4,14 @@ description-file = "README.md"
 
 [build-system]
 requires = [
-    "setuptools",
-    "wheel",
+  "setuptools",
+  "wheel",
 ]
-
-
-[tool.check-manifest]
-ignore = [
-    "*.yml",
-    ".github",
-    ".github/*"
-]
-
-
-[tool.pytest.ini_options]
-norecursedirs = [
-    ".git",
-    ".github",
-    "dist",
-    "build",
-    "docs",
-]
-addopts = [
-    "--strict-markers",
-    "--doctest-modules",
-    "--color=yes",
-    "--disable-pytest-warnings",
-]
-#filterwarnings = ["error::FutureWarning"]
-xfail_strict = true
-junit_duration_report = "call"
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "pass",
-]
-[tool.coverage.run]
-parallel = true
-relative_files = true
-
-
-[tool.codespell]
-#skip = '*.py'
-quiet-level = 3
-# comma separated list of words; waiting for:
-#  https://github.com/codespell-project/codespell/issues/2839#issuecomment-1731601603
-# also adding links until they ignored by its: nature
-#  https://github.com/codespell-project/codespell/issues/2243#issuecomment-1732019960
-#ignore-words-list = ""
-
-
-[tool.docformatter]
-recursive = true
-# this need to be shorter as some docstings are r"""...
-wrap-summaries = 119
-wrap-descriptions = 120
-blank = true
-
 
 [tool.black]
 # https://github.com/psf/black
 line-length = 120
 exclude = "(.eggs|.git|.hg|.mypy_cache|.venv|_build|buck-out|build|dist)"
-
 
 [tool.ruff]
 target-version = "py38"
@@ -113,6 +57,55 @@ convention = "google"
 # Unlike Flake8, default to a complexity level of 10.
 max-complexity = 10
 
+[tool.codespell]
+#skip = '*.py'
+quiet-level = 3
+# comma separated list of words; waiting for:
+#  https://github.com/codespell-project/codespell/issues/2839#issuecomment-1731601603
+# also adding links until they ignored by its: nature
+#  https://github.com/codespell-project/codespell/issues/2243#issuecomment-1732019960
+#ignore-words-list = ""
+
+[tool.docformatter]
+recursive = true
+# this need to be shorter as some docstings are r"""...
+wrap-summaries = 119
+wrap-descriptions = 120
+blank = true
+
+[tool.check-manifest]
+ignore = [
+    "*.yml",
+    ".github",
+    ".github/*"
+]
+
+[tool.pytest.ini_options]
+norecursedirs = [
+    ".git",
+    ".github",
+    "dist",
+    "build",
+    "docs",
+]
+addopts = [
+    "--strict-markers",
+    "--doctest-modules",
+    "--color=yes",
+    "--disable-pytest-warnings",
+]
+#filterwarnings = ["error::FutureWarning"]
+xfail_strict = true
+junit_duration_report = "call"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "pass",
+]
+[tool.coverage.run]
+parallel = true
+relative_files = true
 
 [tool.mypy]
 files = ["deprecate"]
