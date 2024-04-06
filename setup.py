@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Copyright (C) 2020-2023 Jiri Borovec <...>."""
+
 import os
 from importlib.util import module_from_spec, spec_from_file_location
 
@@ -50,7 +51,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     keywords=["python", "development", "deprecation"],
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     setup_requires=[],
     install_requires=[],
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
@@ -68,7 +69,6 @@ setup(
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
