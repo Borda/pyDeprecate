@@ -1,8 +1,8 @@
 """Copyright (C) 2020-2023 Jiri Borovec <...>."""
 
-from deprecate import deprecated, void
 from sklearn.metrics import accuracy_score
 
+from deprecate import deprecated, void
 from tests.collection_targets import base_pow_args, base_sum_kwargs
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."

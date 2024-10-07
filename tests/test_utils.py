@@ -3,6 +3,7 @@
 from warnings import warn
 
 import pytest
+
 from deprecate.utils import no_warning_call
 
 
