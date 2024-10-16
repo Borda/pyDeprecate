@@ -1,10 +1,36 @@
 """Handy tools for deprecations.
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
+
 """
+
+import inspect
 import warnings
 from contextlib import contextmanager
-from typing import Any, Generator, List, Optional, Type, Union
+from typing import Any, Callable, Generator, List, Optional, Tuple, Type, Union
+
+
+def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, Any]]:
+    """Parse function arguments, types and default values.
+
+    Args:
+        func: a function to be xeamined
+
+    Returns:
+        sequence of details for each position/keyword argument
+
+    Example:
+        >>> get_func_arguments_types_defaults(get_func_arguments_types_defaults)
+        [('func', typing.Callable, <class 'inspect._empty'>)]
+
+    """
+    func_default_params = inspect.signature(func).parameters
+    func_arg_type_val = []
+    for arg in func_default_params:
+        arg_type = func_default_params[arg].annotation
+        arg_default = func_default_params[arg].default
+        func_arg_type_val.append((arg, arg_type, arg_default))
+    return func_arg_type_val
 
 
 def _warns_repr(warns: List[warnings.WarningMessage]) -> List[Union[Warning, str]]:
@@ -21,6 +47,7 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
 
     Raises:
         AssertionError: if specified warning was called
+
     """
     with warnings.catch_warnings(record=True) as called:
         # Cause all warnings to always be triggered.

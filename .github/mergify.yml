@@ -1,5 +1,4 @@
 pull_request_rules:
-
   - name: warn on conflicts
     conditions:
       - conflict
@@ -9,7 +8,7 @@ pull_request_rules:
       # comment:
       #   message: This pull request is now in conflict... :(
       label:
-        add: [ "has conflicts" ]
+        add: ["has conflicts"]
 
   - name: resolved conflicts
     conditions:
@@ -20,13 +19,13 @@ pull_request_rules:
       - -closed
     actions:
       label:
-        remove: [ "has conflicts" ]
+        remove: ["has conflicts"]
 
   - name: update PR
     conditions:
       - -conflict
       - -draft # filter-out GH draft PRs
-      - base=master  # apply only on master
+      - base=master # apply only on master
       - -title~=(?i)wip # skip all PR that title contains “WIP” (ignoring case)
       - "#approved-reviews-by>=1" # number of review approvals
     actions:

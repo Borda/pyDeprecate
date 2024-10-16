@@ -1,23 +1,27 @@
 """Deprecated wrapper.
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
+
 """
+
 import inspect
 from functools import partial, wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Union
 from warnings import warn
 
-#: Default template warning message fot redirecting callable
+from deprecate.utils import get_func_arguments_types_defaults
+
+#: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
     " It will be removed in v%(remove_in)s."
 )
-#: Default template warning message for chnaging argument mapping
+#: Default template warning message for changing argument mapping
 TEMPLATE_WARNING_ARGUMENTS = (
     "The `%(source_name)s` uses deprecated arguments: %(argument_map)s."
     " They were deprecated since v%(deprecated_in)s and will be removed in v%(remove_in)s."
 )
-#: Tempalte for mapping from old to new examples
+#: Template for mapping from old to new examples
 TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 #: Default template warning message for no target func/method
 TEMPLATE_WARNING_NO_TARGET = (
@@ -25,28 +29,6 @@ TEMPLATE_WARNING_NO_TARGET = (
 )
 
 deprecation_warning = partial(warn, category=FutureWarning)
-
-
-def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, Any]]:
-    """Parse function arguments, types and default values.
-
-    Args:
-        func: a function to be xeamined
-
-    Returns:
-        sequence of details for each position/keyward argument
-
-    Example:
-        >>> get_func_arguments_types_defaults(get_func_arguments_types_defaults)
-        [('func', typing.Callable, <class 'inspect._empty'>)]
-    """
-    func_default_params = inspect.signature(func).parameters
-    func_arg_type_val = []
-    for arg in func_default_params:
-        arg_type = func_default_params[arg].annotation
-        arg_default = func_default_params[arg].default
-        func_arg_type_val.append((arg, arg_type, arg_default))
-    return func_arg_type_val
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -59,6 +41,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
 
     Returns:
         extended dictionary with all args as keyword arguments
+
     """
     if not fn_args:
         return fn_kwargs
@@ -79,6 +62,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
 
     Returns:
         extended dictionary with all args as keyword arguments
+
     """
     func_arg_type_val = get_func_arguments_types_defaults(func)
     # fill by source defaults
@@ -94,6 +78,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         source: function/methods which is wrapped
         template_mgs: python formatted string message which has build-ins arguments
         extras: string arguments used in the template message
+
     """
     source_name = source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
     source_path = f"{source.__module__}.{source_name}"
@@ -125,6 +110,7 @@ def _raise_warn_callable(
             - ``target_path`` pythonic path to the function such as "any_package.with_module.my_target_func"
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
+
     """
     if callable(target):
         target_name = target.__name__
@@ -167,6 +153,7 @@ def _raise_warn_arguments(
             - ``argument_map`` mapping from deprecated to new argument "old_arg -> new_arg"
             - ``deprecated_in`` version passed to wrapper
             - ``remove_in`` version passed to wrapper
+
     """
     args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": b} for a, b in arguments.items()])
     template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
@@ -211,6 +198,7 @@ def deprecated(
 
     Raises:
         TypeError: if there are some argument in source function which are missing in target function
+
     """
 
     def packing(source: Callable) -> Callable:
@@ -219,7 +207,7 @@ def deprecated(
             # check if user requested a skip
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
-                raise TypeError("User function `shall_skip` shall return bool, but got: %r" % type(shall_skip))
+                raise TypeError(f"User function `shall_skip` shall return bool, but got: {type(shall_skip)}")
             if shall_skip:
                 return source(*args, **kwargs)
 

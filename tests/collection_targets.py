@@ -1,4 +1,5 @@
 """Copyright (C) 2020-2023 Jiri Borovec <...>."""
+
 from typing import Any
 
 

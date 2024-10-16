@@ -10,6 +10,7 @@ include *.md
 include LICENSE
 
 exclude *.sh
+exclude .prettierignore
 
 # Exclude build configs
 exclude *.yml
