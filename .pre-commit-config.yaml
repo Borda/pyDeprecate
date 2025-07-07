@@ -53,7 +53,7 @@ repos:
           - mdformat_frontmatter
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.4
+    rev: v0.12.2
     hooks:
       # try to fix what is possible
       - id: ruff
@@ -64,7 +64,7 @@ repos:
       - id: ruff
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: v2.5.1
+    rev: v2.6.0
     hooks:
       - id: pyproject-fmt
         additional_dependencies: [tox]
