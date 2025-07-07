@@ -50,6 +50,7 @@ lint.per-file-ignores."tests/**" = [
   "D101",
   "D103",
   "D107",
+  "PT031",  # todo: `pytest.warns()` block should contain a single simple statement
   "S101",
 ]
 lint.unfixable = [
