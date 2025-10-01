@@ -2,19 +2,20 @@ name: Install pkg
 
 # see: https://help.github.com/en/actions/reference/events-that-trigger-workflows
 on: # Trigger the workflow on push or pull request, but only for the main branch
-  push: {}
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
   pkg-check:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.9
+          python-version: "3.9"
 
       - name: Check package
         run: |
@@ -34,5 +35,4 @@ jobs:
           python setup.py clean
 
       - name: Dry run
-        run: |
-          python setup.py install --dry-run --user
+        run: python setup.py install --dry-run --user
