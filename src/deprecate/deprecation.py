@@ -259,7 +259,7 @@ def deprecated(
                 return source(**kwargs)
 
             target_is_class = inspect.isclass(target)
-            target_func = target.__init__ if target_is_class else target  # type: ignore
+            target_func = target.__init__ if target_is_class else target
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             # get full args & name of varkw
