@@ -112,9 +112,9 @@ print(depr_sum(1, 2))
 <details>
   <summary>sample output:</summary>
 
-  ```
-  3
-  ```
+```
+3
+```
 
 </details>
 
@@ -183,10 +183,10 @@ print(my_sum(1, 2))
 
 <details>
   <summary>sample output:</summary>
-  
-  ```
-  3
-  ```
+
+```
+3
+```
 
 </details>
 
@@ -219,10 +219,10 @@ print(any_pow(2, 3))
 
 <details>
   <summary>sample output:</summary>
-  
-  ```
-  8
-  ```
+
+```
+8
+```
 
 </details>
 
@@ -300,11 +300,11 @@ print(skip_pow(2, 3))
 
 <details>
   <summary>sample output:</summary>
-  
-  ```
-  0.25
-  4
-  ```
+
+```
+0.25
+4
+```
 
 </details>
 
@@ -353,11 +353,11 @@ print(inst.my_d)  # returns: "efg"
 
 <details>
   <summary>sample output:</summary>
-  
-  ```
-  7
-  efg
-  ```
+
+```
+7
+efg
+```
 
 </details>
 
