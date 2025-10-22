@@ -111,9 +111,11 @@ print(depr_sum(1, 2))
 
 <details>
   <summary>sample output:</summary>
+
   ```
   3
   ```
+
 </details>
 
 ### Advanced target argument mapping
@@ -181,9 +183,11 @@ print(my_sum(1, 2))
 
 <details>
   <summary>sample output:</summary>
+  
   ```
   3
   ```
+
 </details>
 
 ### Self argument mapping
@@ -215,9 +219,11 @@ print(any_pow(2, 3))
 
 <details>
   <summary>sample output:</summary>
+  
   ```
   8
   ```
+
 </details>
 
 ### Multiple deprecation levels
@@ -294,10 +300,12 @@ print(skip_pow(2, 3))
 
 <details>
   <summary>sample output:</summary>
+  
   ```
   0.25
   4
   ```
+
 </details>
 
 This can be beneficial with multiple deprecation levels shown above...
@@ -345,10 +353,12 @@ print(inst.my_d)  # returns: "efg"
 
 <details>
   <summary>sample output:</summary>
+  
   ```
   7
   efg
   ```
+
 </details>
 
 ## Contributing
