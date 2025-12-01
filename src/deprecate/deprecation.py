@@ -190,6 +190,7 @@ def deprecated(
     args_mapping: Optional[Dict[str, str]] = None,
     args_extra: Optional[Dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
+    update_docstring: bool = False,
 ) -> Callable:
     """Decorate a function or class with warning message and pass all arguments directly to the target class/method.
 
@@ -212,6 +213,7 @@ def deprecated(
         args_extra: Custom filling extra argument in target function, mostly if they are required
             or your needed default is different from target one, for example ``{'their_arg': 42}``
         skip_if: Conditional skip for this wrapper, e.g. in case of versions
+        update_docstring: Whether to update the function's docstring with the deprecation warning.
 
     Returns:
         wrapped function pointing to the target implementation with source arguments
@@ -301,7 +303,7 @@ def deprecated(
             "args_mapping": args_mapping,
         }
 
-        if hasattr(wrapped_fn, "__doc__") and wrapped_fn.__doc__ is not None:
+        if update_docstring and hasattr(wrapped_fn, "__doc__") and wrapped_fn.__doc__ is not None:
             _update_docstring_with_deprecation(wrapped_fn)
 
         return wrapped_fn

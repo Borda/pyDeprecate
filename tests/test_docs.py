@@ -15,17 +15,17 @@ def new_function(a: int, b: str = "default") -> str:
 class NewClass:
     """A new class."""
 
-    def __init__(self, x: int):
+    def __init__(self, x: int) -> None:
         self.x = x
 
 
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3")
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
 def old_function(a: int, b: str = "old") -> str:
     """An old function that is deprecated."""
     return f"old {a} {b}"
 
 
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3")
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
 def old_function_plain(a: int, b: str = "old") -> str:
     return f"old {a} {b}"
 
@@ -33,15 +33,15 @@ def old_function_plain(a: int, b: str = "old") -> str:
 class OldClass:
     """An old class that is deprecated."""
 
-    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4")
-    def __init__(self, x: int):
+    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
+    def __init__(self, x: int) -> None:
         """Initialize the old class."""
         self.x = x
 
 
 class OldClassPlain:
-    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4")
-    def __init__(self, x: int):
+    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
+    def __init__(self, x: int) -> None:
         self.x = x
 
 

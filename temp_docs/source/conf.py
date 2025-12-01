@@ -1,3 +1,4 @@
+"""Configuration file for demo docs."""
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -11,7 +12,6 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-import inspect
 import os
 import sys
 
@@ -20,7 +20,7 @@ PATH_HERE = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "src")))
 sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "tests")))
 
-from deprecate import __about__ as about
+from deprecate import __about__ as about  # noqa: E402
 
 # -- Project information -----------------------------------------------------
 
