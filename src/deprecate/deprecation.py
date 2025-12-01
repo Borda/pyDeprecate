@@ -160,6 +160,26 @@ def _raise_warn_arguments(
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
 
 
+def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
+    """Update the docstring of the wrapped function with deprecation information."""
+    lines = wrapped_fn.__doc__.splitlines()
+    dep_info = wrapped_fn.__deprecated__
+    deprecated_in_val = dep_info.get('deprecated_in', '')
+    remove_in_val = dep_info.get('remove_in', '')
+    target_val = dep_info.get('target')
+    msg = f".. deprecated:: {deprecated_in_val}"
+    if remove_in_val:
+        msg += f" Will be removed in {remove_in_val}."
+    if callable(target_val):
+        msg += f" Use {target_val.__module__}.{target_val.__name__} instead."
+    elif target_val is None:
+        msg += " This function is deprecated."
+    lines.append('')
+    lines.append(msg)
+    lines.append('')
+    wrapped_fn.__doc__ = '\n'.join(lines)
+
+
 def deprecated(
     target: Union[bool, None, Callable],
     deprecated_in: str = "",
@@ -272,6 +292,17 @@ def deprecated(
                 raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
             # all args were already moved to kwargs
             return target_func(**kwargs)
+
+        # Set deprecation info for documentation
+        wrapped_fn.__deprecated__ = {
+            'deprecated_in': deprecated_in,
+            'remove_in': remove_in,
+            'target': target,
+            'args_mapping': args_mapping,
+        }
+
+        if hasattr(wrapped_fn, '__doc__') and wrapped_fn.__doc__ is not None:
+            _update_docstring_with_deprecation(wrapped_fn)
 
         return wrapped_fn
 

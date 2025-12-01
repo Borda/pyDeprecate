@@ -17,7 +17,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join("..", "..")))
 
-from src import sandbox
+from tests import test_docs as sandbox
+from deprecate import __about__ as about
 
 # -- Project information -----------------------------------------------------
 
@@ -26,9 +27,9 @@ copyright = "2019, JB"
 author = "JB"
 
 # The short X.Y version
-version = sandbox.__version__
+version = about.__version__
 # The full version, including alpha/beta/rc tags
-release = sandbox.__version__
+release = about.__version__
 
 # export the documentation
 with open("intro.md", "w") as fp:
