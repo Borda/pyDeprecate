@@ -22,6 +22,8 @@ jobs:
         working-directory: temp_docs
         run: pip install -r requirements.txt
 
+      - name: Install package
+        run: pip install -e .
       - name: Build documentation
         working-directory: temp_docs
         run: make html

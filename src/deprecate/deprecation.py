@@ -162,6 +162,8 @@ def _raise_warn_arguments(
 
 def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     """Update the docstring of the wrapped function with deprecation information."""
+    if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
+        return
     lines = wrapped_fn.__doc__.splitlines()
     dep_info = wrapped_fn.__deprecated__
     deprecated_in_val = dep_info.get("deprecated_in", "")

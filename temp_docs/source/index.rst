@@ -15,4 +15,4 @@ Indices and tables
 * :ref:`search`
 
 
-.. include:: intro.md
+

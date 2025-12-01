@@ -202,10 +202,11 @@ todo_include_todos = True
 
 autodoc_member_order = "groupwise"
 autoclass_content = "both"
-autodoc_default_flags = [
-    "members",
-    "undoc-members",
-    "show-inheritance",
-    "private-members",
-    # 'special-members', 'inherited-members'
-]
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "show-inheritance": True,
+    "private-members": True,
+    # "special-members": True, # Uncomment if needed
+    # "inherited-members": True, # Uncomment if needed
+}

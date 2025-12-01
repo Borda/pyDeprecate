@@ -56,7 +56,7 @@ def test_deprecated_func_docstring() -> None:
 
 def test_deprecated_func_docstring_plain() -> None:
     """Test that deprecated functions without docstrings do not have docstrings added."""
-    assert getattr(old_function_plain, "__doc__") is None
+    assert old_function_plain.__doc__ is None
 
 
 def test_deprecated_class_docstring() -> None:
@@ -70,4 +70,4 @@ def test_deprecated_class_docstring() -> None:
 
 def test_deprecated_class_docstring_plain() -> None:
     """Test that deprecated classes without docstrings do not have docstrings added."""
-    assert getattr(OldClassPlain, "__doc__") is None
+    assert getattr(OldClassPlain.__init__, "__doc__") is None
