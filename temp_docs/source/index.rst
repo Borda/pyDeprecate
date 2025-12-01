@@ -5,9 +5,7 @@ Welcome to Sandbox's documentation!
    :maxdepth: 3
    :caption: Contents
 
-   readme
    sandbox
-   examples
 
 Indices and tables
 ==================

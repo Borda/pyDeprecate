@@ -1,3 +1,9 @@
+"""Sample module for testing deprecation documentation.
+
+This module contains example functions and classes to demonstrate
+deprecation warnings in generated documentation.
+"""
+
 from deprecate import deprecated
 
 
