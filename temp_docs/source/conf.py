@@ -15,33 +15,30 @@ import inspect
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join("..", "..")))
+PATH_HERE = os.path.abspath(os.path.dirname(__file__))
 
-from tests import test_docs as sandbox
+sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "src")))
+sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "tests")))
+
 from deprecate import __about__ as about
 
 # -- Project information -----------------------------------------------------
 
-project = sandbox.__name__
-copyright = "2019, JB"
-author = "JB"
+project = "sandbox"
+copyright = about.__copyright__
+author = about.__author__
 
 # The short X.Y version
 version = about.__version__
 # The full version, including alpha/beta/rc tags
 release = about.__version__
 
-# export the documentation
-with open("intro.md", "w") as fp:
-    # fp.write(sandbox.__doc__.replace(os.linesep + ' ', ''))
-    fp.write(sandbox.__doc__)
-
 
 # -- General configuration ---------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
 
-needs_sphinx = "1.8"
+needs_sphinx = "4.0"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -53,7 +50,7 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
     # 'sphinx.ext.viewcode',
-    "sphinx.ext.linkcode",
+    # "sphinx.ext.linkcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     # "recommonmark",
@@ -92,7 +89,7 @@ pygments_style = None
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 # http://www.sphinx-doc.org/en/master/usage/theming.html#builtin-themes
-html_theme = "classic"
+html_theme = "haiku"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -201,47 +198,6 @@ intersphinx_mapping = {"https://docs.python.org/": None}
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
-
-# Options for the linkcode extension
-# ----------------------------------
-github_user = "Borda"
-github_repo = "py_sample-project"
-
-
-# Resolve function
-# This function is used to populate the (source) links in the API
-def linkcode_resolve(domain, info):
-    def find_source():
-        # try to find the file and line number, based on code from numpy:
-        # https://github.com/numpy/numpy/blob/master/doc/source/conf.py#L286
-        obj = sys.modules[info["module"]]
-        for part in info["fullname"].split("."):
-            obj = getattr(obj, part)
-        fname = inspect.getsourcefile(obj)
-        # https://github.com/rtfd/readthedocs.org/issues/5735
-        if any([s in fname for s in ("readthedocs", "rtfd", "checkouts")]):
-            path_top = os.path.abspath(os.path.join("..", "..", ".."))
-            fname = os.path.relpath(fname, start=path_top)
-        else:
-            # Local build, imitate master
-            fname = "master/" + os.path.relpath(fname, start=os.path.abspath(".."))
-        source, lineno = inspect.getsourcelines(obj)
-        return fname, lineno, lineno + len(source) - 1
-
-    if domain != "py" or not info["module"]:
-        return None
-    try:
-        filename = "%s#L%d-L%d" % find_source()
-    except Exception:
-        filename = info["module"].replace(".", "/") + ".py"
-    # import subprocess
-    # tag = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE,
-    #                        universal_newlines=True).communicate()[0][:-1]
-    branch = filename.split("/")[0]
-    # do mapping from latest tags to master
-    branch = {"latest": "master", "stable": "master"}.get(branch, branch)
-    filename = "/".join([branch] + filename.split("/")[1:])
-    return "https://github.com/%s/%s/blob/%s" % (github_user, github_repo, filename)
 
 
 autodoc_member_order = "groupwise"

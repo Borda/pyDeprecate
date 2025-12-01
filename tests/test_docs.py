@@ -40,7 +40,6 @@ class OldClass:
 
 
 class OldClassPlain:
-
     @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4")
     def __init__(self, x: int):
         self.x = x
@@ -48,7 +47,12 @@ class OldClassPlain:
 
 def test_deprecated_func_docstring() -> None:
     """Test that deprecated functions have deprecation warning in their docstring."""
-    assert old_function.__doc__ == "An old function that is deprecated.\n\n.. deprecated:: 0.1 Will be removed in 0.3. Use tests.test_docs.new_function instead.\n"
+    assert old_function.__doc__ == (
+        "An old function that is deprecated."
+        "\n\n.. deprecated:: 0.1 Will be removed in 0.3."
+        " Use tests.test_docs.new_function instead.\n"
+    )
+
 
 def test_deprecated_func_docstring_plain() -> None:
     """Test that deprecated functions without docstrings do not have docstrings added."""
@@ -57,7 +61,11 @@ def test_deprecated_func_docstring_plain() -> None:
 
 def test_deprecated_class_docstring() -> None:
     """Test that deprecated classes have deprecation warning in their __init__ docstring."""
-    assert OldClass.__init__.__doc__ == "Initialize the old class.\n\n.. deprecated:: 0.2 Will be removed in 0.4. Use tests.test_docs.NewClass instead.\n"
+    assert OldClass.__init__.__doc__ == (
+        "Initialize the old class."
+        "\n\n.. deprecated:: 0.2 Will be removed in 0.4."
+        " Use tests.test_docs.NewClass instead.\n"
+    )
 
 
 def test_deprecated_class_docstring_plain() -> None:
