@@ -36,8 +36,8 @@ TEMPLATE_WARNING_NO_TARGET = (
 )
 #: Template warning message for ineffective wrapper (no valid arg mappings exist)
 TEMPLATE_WARNING_INEFFECTIVE_WRAPPER = (
-    "The `%(source_name)s` has a deprecated wrapper, but no args from `args_mapping` (%(mapping_keys)s) are present in"
-    " the function's signature (%(source_args)s). The wrapper has no effect."
+    "The `%(source_name)s` has a deprecated wrapper, but no args from `args_mapping` (%(mapping_keys)s) "
+    "are present in the function's signature (%(source_args)s). The wrapper has no effect."
 )
 #: Default template for documentation with deprecated callable
 TEMPLATE_DOC_DEPRECATED = """
@@ -417,7 +417,7 @@ def deprecated(
 
     def packing(source: Callable) -> Callable:
         # Warn at decoration time if args_mapping has no valid mappings (no effect)
-        if args_mapping and target and not callable(target):
+        if args_mapping and target is True:
             # Self-deprecation mode with args_mapping
             source_args = [arg[0] for arg in get_func_arguments_types_defaults(source)]
             valid_mappings = [arg for arg in args_mapping if arg in source_args]
