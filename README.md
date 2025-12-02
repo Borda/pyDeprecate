@@ -487,10 +487,10 @@ During development, you may want to verify that your deprecated wrappers are con
 
 ### Validating a Single Function
 
-The `validate_wrapper_args()` utility helps you identify configurations that would make your deprecation wrapper have zero impact:
+The `validate_deprecated_wrapper()` utility helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
-from deprecate import validate_wrapper_args, deprecated
+from deprecate import validate_deprecated_wrapper, deprecated
 
 
 # Define your deprecated function
@@ -500,23 +500,23 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
 
 
 # Validate the configuration - returns a dict with validation results
-result = validate_wrapper_args(my_func, {"old_arg": "new_arg"})
+result = validate_deprecated_wrapper(my_func, {"old_arg": "new_arg"})
 # {'invalid_args': [], 'empty_mapping': False, 'identity_mapping': [], 'self_reference': False, 'no_effect': False}
 
 # Detect invalid argument mappings
-result = validate_wrapper_args(my_func, {"nonexistent": "new_arg"})
+result = validate_deprecated_wrapper(my_func, {"nonexistent": "new_arg"})
 # {'invalid_args': ['nonexistent'], ...}
 
 # Detect empty mappings (wrapper has no effect)
-result = validate_wrapper_args(my_func, {})
+result = validate_deprecated_wrapper(my_func, {})
 # {'empty_mapping': True, 'no_effect': True, ...}
 
 # Detect identity mappings (arg mapped to itself - no effect)
-result = validate_wrapper_args(my_func, {"old_arg": "old_arg"})
+result = validate_deprecated_wrapper(my_func, {"old_arg": "old_arg"})
 # {'identity_mapping': ['old_arg'], 'no_effect': True, ...}
 
 # Detect self-referencing target (wrapper forwards to itself)
-result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func)
+result = validate_deprecated_wrapper(my_func, {"old_arg": "new_arg"}, target=my_func)
 # {'self_reference': True, 'no_effect': True, ...}
 
 # Quick check if wrapper has any effect
@@ -557,7 +557,7 @@ if ineffective:
 - **During development:** Catch configuration mistakes early before they reach production
 - **In CI/CD:** Add validation checks to ensure no ineffective wrappers slip through
 
-The `validate_wrapper_args()` function returns a dictionary with:
+The `validate_deprecated_wrapper()` function returns a dictionary with:
 
 - `invalid_args`: List of args_mapping keys that don't exist in the function signature
 - `empty_mapping`: True if args_mapping is None or empty (no argument remapping)

@@ -10,7 +10,7 @@ Key Functions:
     - get_func_arguments_types_defaults(): Extract function signature details
     - no_warning_call(): Context manager for testing code without warnings
     - void(): Helper to silence IDE warnings about unused parameters
-    - validate_wrapper_args(): Validate args_mapping configuration
+    - validate_deprecated_wrapper(): Validate wrapper configuration
     - find_deprecated_wrappers(): Scan a package for deprecated wrappers
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
@@ -179,7 +179,7 @@ def void(*args: Any, **kwrgs: Any) -> Any:
     _, _ = args, kwrgs
 
 
-def validate_wrapper_args(
+def validate_deprecated_wrapper(
     func: Callable,
     args_mapping: Optional[dict] = None,
     target: Optional[Callable] = None,
@@ -213,15 +213,15 @@ def validate_wrapper_args(
         >>> def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
         ...     return new_arg
         >>> # Valid mapping - has effect
-        >>> result = validate_wrapper_args(my_func, {'old_arg': 'new_arg'})
+        >>> result = validate_deprecated_wrapper(my_func, {'old_arg': 'new_arg'})
         >>> result['no_effect']
         False
         >>> # Identity mapping - no effect
-        >>> result = validate_wrapper_args(my_func, {'old_arg': 'old_arg'})
+        >>> result = validate_deprecated_wrapper(my_func, {'old_arg': 'old_arg'})
         >>> result['identity_mapping'], result['no_effect']
         (['old_arg'], True)
         >>> # Self-reference - no effect
-        >>> result = validate_wrapper_args(my_func, {'old_arg': 'new_arg'}, target=my_func)
+        >>> result = validate_deprecated_wrapper(my_func, {'old_arg': 'new_arg'}, target=my_func)
         >>> result['self_reference'], result['no_effect']
         (True, True)
 
@@ -276,7 +276,7 @@ def find_deprecated_wrappers(
             - 'module': Module name where the function is defined
             - 'function': Function name
             - 'deprecated_info': The __deprecated__ attribute dict if present
-            - 'validation': Result from validate_wrapper_args() if applicable
+            - 'validation': Result from validate_deprecated_wrapper() if applicable
             - 'has_effect': True if the wrapper has a meaningful effect
 
     Example:
@@ -316,7 +316,7 @@ def find_deprecated_wrappers(
                     args_mapping = dep_info.get("args_mapping")
 
                     # Validate the wrapper
-                    validation = validate_wrapper_args(obj, args_mapping, target)
+                    validation = validate_deprecated_wrapper(obj, args_mapping, target)
 
                     results.append(
                         {
