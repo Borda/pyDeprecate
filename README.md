@@ -442,7 +442,7 @@ print(old_function.__doc__)
 
 This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
 
-## 🔇 Understanding the void() Helper
+## 🔇 Understanding the `void()` Helper
 
 When using `@deprecated` with a `target` function, the deprecated function's body is never executed—all calls are automatically forwarded. However, your IDE might complain about "unused parameters". The `void()` helper function silences these warnings:
 
@@ -456,7 +456,7 @@ def new_add(a: int, b: int) -> int:
 
 @deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
 def old_add(a: int, b: int) -> int:
-    void(a, b)  # Tells IDE: "Yes, I know these parameters aren't used"
+    return void(a, b)  # Tells IDE: "Yes, I know these parameters aren't used"
     # This line is never reached - call is forwarded to new_add
 
 
@@ -540,15 +540,9 @@ def old_func_warn_5_times(x: int) -> int:
 
 ## 🔧 Troubleshooting
 
-### ❌ Common Errors
+### ❗ TypeError: `Failed mapping`
 
-#### `TypeError: Failed mapping`
-
-**Error Message:**
-
-```
-TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']
-```
+**Error Message:** `TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']`
 
 **Cause:** Your deprecated function has arguments that the target function doesn't accept.
 
@@ -602,43 +596,9 @@ TypeError: Failed mapping of 'my_func', arguments missing in target source: ['ol
 
 </details>
 
-#### `Warning Not Showing`
+### ❗ TypeError: `User function 'should_ship' shall return bool`
 
-**Problem:** You don't see the deprecation warning.
-
-**Cause:** By default, warnings are shown **only once per function** to prevent log spam.
-
-<details>
-<summary>Solutions</summary>
-
-```python
-from deprecate import deprecated
-
-
-# Minimal replacement function for examples
-def new_func(x: int) -> int:
-    return x * 2
-
-
-# Show warning every time
-@deprecated(target=new_func, num_warns=-1)  # -1 means unlimited
-def old_func():
-    pass
-
-
-# Show warning N times
-@deprecated(target=new_func, num_warns=5)  # Show 5 times
-def old_func():
-    pass
-```
-
-</details>
-
-#### `TypeError: User function 'shall_skip' shall return bool`
-
-**Error Message:**
-
-`TypeError: User function 'shall_skip' shall return bool, but got: <type>`
+**Error Message:** `TypeError: User function 'should_ship' shall return bool, but got: <type>`
 
 **Cause:** When using `skip_if` with a callable, the function must return a boolean value.
 
@@ -667,6 +627,38 @@ def old_func1():
 # Also correct: use a lambda
 @deprecated(target=new_func, skip_if=lambda: False)
 def old_func2():
+    pass
+```
+
+</details>
+
+### ⚠️ Warning Not Showing
+
+**Problem:** You don't see the deprecation warning.
+
+**Cause:** By default, warnings are shown **only once per function** to prevent log spam.
+
+<details>
+<summary>Solutions</summary>
+
+```python
+from deprecate import deprecated
+
+
+# Minimal replacement function for examples
+def new_func(x: int) -> int:
+    return x * 2
+
+
+# Show warning every time
+@deprecated(target=new_func, num_warns=-1)  # -1 means unlimited
+def old_func():
+    pass
+
+
+# Show warning N times
+@deprecated(target=new_func, num_warns=5)  # Show 5 times
+def old_func():
     pass
 ```
 
