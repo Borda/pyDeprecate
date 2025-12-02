@@ -22,9 +22,10 @@ ______________________________________________________________________
 ## 📋 Table of Contents
 
 - [📖 Overview](#overview)
+- [✨ Key Points](#key-points)
 - [💾 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
-- [📚 Use-cases](#use-cases)
+- [📚 Use-cases and Applications](#use-cases-and-applications)
   - [Simple function forwarding](#simple-function-forwarding)
   - [Advanced target argument mapping](#advanced-target-argument-mapping)
   - [Deprecation warning only](#deprecation-warning-only)
@@ -44,6 +45,20 @@ The common use-case is moving your functions across a codebase or outsourcing so
 For most of these cases, you want to maintain some compatibility, so you cannot simply remove the past function. You also want to warn users for some time that the functionality they have been using has moved and is now deprecated in favor of another function (which should be used instead) and will soon be removed completely.
 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
+
+## ✨ Key Points
+
+- ⚠️ Deprecation warnings are shown once per function by default (prevents log spam)
+- 🔄 Arguments are automatically mapped to the target function
+- 🚫 The deprecated function body is never executed when using `target`
+- ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
+- 🛠️ Supports deprecating functions, methods, and classes
+- 📝 Optionally, docstrings can be updated automatically to reflect deprecation
+- 🔍 Preserves original function signature, annotations and metadata for introspection
+- ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
+- 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
+- 🧪 Includes testing helpers (e.g., `no_warning_call`) for deterministic tests
+- 🔗 Compatible with methods, class constructors and cross‑module moves
 
 ## 💾 Installation
 
@@ -91,25 +106,7 @@ result = old_sum(1, 2)  # Returns 3
 
 That's it! All calls to `old_sum()` are automatically forwarded to `new_sum()` with a deprecation warning.
 
-### ✨ Key Points
-
-- ⚠️ Deprecation warnings are shown once per function by default (prevents log spam)
-- 🔄 Arguments are automatically mapped to the target function
-- 🚫 The deprecated function body is never executed when using `target`
-- ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
-- 🛠️ Supports deprecating functions, methods, and classes
-- 📝 Optionally, docstrings can be updated automatically to reflect deprecation
-- 🔍 Preserves original function signature, annotations and metadata for introspection
-- ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
-- 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
-- 🧪 Includes testing helpers (e.g., `no_warning_call`) for deterministic tests
-- 🔗 Compatible with methods, class constructors and cross‑module moves
-
-### 📸 Example Output
-
-![Documentation Sample](.assets/docs-sample.png)
-
-## 📚 Use-cases
+## 📚 Use-cases and Applications
 
 The functionality is kept simple and all defaults should be reasonable, but you can still do extra customization such as:
 
@@ -489,7 +486,7 @@ pyDeprecate provides utilities to help you test deprecated code properly:
 
 ```python
 from deprecate import deprecated
-from deprecate.utils import no_warning_call
+from deprecate.utils import no_warning_call, void
 import pytest
 
 
@@ -500,6 +497,11 @@ def new_func(x: int) -> int:
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
 def old_func(x: int) -> int:
     pass
+
+
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+def old_func2(x: int) -> int:
+    return void(x)
 
 
 def test_deprecated_function_shows_warning():
@@ -520,11 +522,17 @@ def test_no_warning_after_first_call():
     """By default, warnings are shown only once."""
     # First call shows warning
     with pytest.warns(FutureWarning):
-        old_func(1)
+        old_func2(1)
 
     # Subsequent calls don't show warning
     with no_warning_call(FutureWarning):
-        old_func(2)
+        old_func2(2)
+
+
+# call the tests for CI demonstration/validation
+test_deprecated_function_shows_warning()
+test_new_function_no_warning()
+test_no_warning_after_first_call()
 ```
 
 The `no_warning_call()` context manager will fail your test if any warnings of the specified type are raised, ensuring your code is clean.
