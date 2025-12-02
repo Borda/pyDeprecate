@@ -551,11 +551,61 @@ if ineffective:
     print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
 ```
 
+### Generating Reports by Issue Type
+
+Group validation results by issue type for better reporting:
+
+```python
+from deprecate import find_deprecated_wrappers
+
+results = find_deprecated_wrappers(my_package)
+
+# Group by issue type
+wrong_args = [r for r in results if r["validation"]["invalid_args"]]
+identity_mappings = [r for r in results if r["validation"]["identity_mapping"]]
+self_refs = [r for r in results if r["validation"]["self_reference"]]
+
+print(f"=== Deprecation Validation Report ===")
+print(f"Wrong arguments: {len(wrong_args)}")
+print(f"Identity mappings: {len(identity_mappings)}")
+print(f"Self-references: {len(self_refs)}")
+```
+
+### CI/pytest Integration
+
+Use in pytest to validate your package's deprecation wrappers:
+
+```python
+import pytest
+from deprecate import find_deprecated_wrappers
+import my_package
+
+
+def test_deprecated_wrappers_are_valid():
+    """Validate all deprecated wrappers have proper configuration."""
+    results = find_deprecated_wrappers(my_package)
+
+    # Collect issues - errors for wrong args, warnings for identity mappings
+    wrong_args = [r for r in results if r["validation"]["invalid_args"]]
+    identity_mappings = [r for r in results if r["validation"]["identity_mapping"]]
+
+    # Raise errors for wrong arguments (critical issues)
+    if wrong_args:
+        for r in wrong_args:
+            print(f"ERROR: {r['module']}.{r['function']} has invalid args: {r['validation']['invalid_args']}")
+        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid arguments")
+
+    # Warn for identity mappings (less severe)
+    for r in identity_mappings:
+        pytest.warns(UserWarning, match=f"{r['function']} has identity mapping")
+```
+
 **Use cases:**
 
 - **In tests:** Validate that all deprecation decorators in your codebase are properly configured
 - **During development:** Catch configuration mistakes early before they reach production
 - **In CI/CD:** Add validation checks to ensure no ineffective wrappers slip through
+- **Reporting:** Generate grouped reports by issue type for code reviews
 
 The `validate_deprecated_callable()` function returns a dictionary with:
 
