@@ -22,7 +22,7 @@ ______________________________________________________________________
 ## 📋 Table of Contents
 
 - [📖 Overview](#overview)
-- [✨ Key Features](#key-features)
+- [✨ Features](#features)
 - [💾 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
 - [📚 Use-cases and Applications](#use-cases-and-applications)
@@ -46,7 +46,7 @@ For most of these cases, you want to maintain some compatibility, so you cannot 
 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
 
-## ✨ Key Features
+## ✨ Features
 
 - ⚠️ Deprecation warnings are shown once per function by default (prevents log spam)
 - 🔄 Arguments are automatically mapped to the target function
