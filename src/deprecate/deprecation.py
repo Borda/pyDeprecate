@@ -28,11 +28,7 @@ TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
 #: Default template for documentation with deprecated callable
-TEMPLATE_DOC_DEPRECATED = (
-    ".. deprecated:: %(deprecated_in)s"
-    "%(remove_part)s"
-    "%(target_part)s"
-)
+TEMPLATE_DOC_DEPRECATED = ".. deprecated:: %(deprecated_in)s%(remove_part)s%(target_part)s"
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
