@@ -684,13 +684,13 @@ from deprecate import deprecated
 
 # Show warning every time
 @deprecated(target=new_func, num_warns=-1)  # -1 means unlimited
-def old_func():
+def old_func_always_warn():
     pass
 
 
 # Show warning N times
 @deprecated(target=new_func, num_warns=5)  # Show 5 times
-def old_func():
+def old_func_warn_n_times():
     pass
 ```
 
