@@ -335,12 +335,12 @@ def test_validate_deprecated_callable_no_effect() -> None:
     assert result["no_effect"] is True
 
 
-def test_find_deprecated_wrappers() -> None:
-    """Test find_deprecated_wrappers scans a module for deprecated functions."""
+def test_find_deprecated_callables() -> None:
+    """Test find_deprecated_callables scans a module for deprecated functions."""
     import tests.collection_deprecate as test_module
-    from deprecate import find_deprecated_wrappers
+    from deprecate import find_deprecated_callables
 
-    results = find_deprecated_wrappers(test_module, recursive=False)
+    results = find_deprecated_callables(test_module, recursive=False)
 
     # Should find deprecated functions
     assert len(results) > 0
@@ -358,11 +358,11 @@ def test_find_deprecated_wrappers() -> None:
     assert "depr_sum" in func_names or "depr_pow_self" in func_names
 
 
-def test_find_deprecated_wrappers_with_string_module() -> None:
-    """Test find_deprecated_wrappers accepts string module path."""
-    from deprecate import find_deprecated_wrappers
+def test_find_deprecated_callables_with_string_module() -> None:
+    """Test find_deprecated_callables accepts string module path."""
+    from deprecate import find_deprecated_callables
 
-    results = find_deprecated_wrappers("tests.collection_deprecate", recursive=False)
+    results = find_deprecated_callables("tests.collection_deprecate", recursive=False)
 
     # Should find deprecated functions
     assert len(results) > 0

@@ -11,7 +11,7 @@ Key Functions:
     - no_warning_call(): Context manager for testing code without warnings
     - void(): Helper to silence IDE warnings about unused parameters
     - validate_deprecated_callable(): Validate wrapper configuration
-    - find_deprecated_wrappers(): Scan a package for deprecated wrappers
+    - find_deprecated_callables(): Scan a package for deprecated wrappers
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
 """
@@ -256,7 +256,7 @@ def validate_deprecated_callable(
     return result
 
 
-def find_deprecated_wrappers(
+def find_deprecated_callables(
     module: Any,
     recursive: bool = True,
 ) -> List[dict]:
@@ -281,7 +281,7 @@ def find_deprecated_wrappers(
 
     Example:
         >>> import my_package
-        >>> results = find_deprecated_wrappers(my_package)
+        >>> results = find_deprecated_callables(my_package)
         >>> for r in results:
         ...     if not r['has_effect']:
         ...         print(f"Warning: {r['module']}.{r['function']} has no effect!")

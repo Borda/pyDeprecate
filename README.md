@@ -526,17 +526,17 @@ if result["no_effect"]:
 
 ### Scanning a Package for Deprecated Wrappers
 
-The `find_deprecated_wrappers()` utility scans an entire package or module for all `@deprecated` decorator usages and validates each one:
+The `find_deprecated_callables()` utility scans an entire package or module for all `@deprecated` decorator usages and validates each one:
 
 ```python
-from deprecate import find_deprecated_wrappers
+from deprecate import find_deprecated_callables
 import my_package
 
 # Scan an entire package for deprecated wrappers
-results = find_deprecated_wrappers(my_package)
+results = find_deprecated_callables(my_package)
 
 # Or scan using a string module path
-results = find_deprecated_wrappers("my_package.submodule")
+results = find_deprecated_callables("my_package.submodule")
 
 # Check results
 for r in results:
@@ -556,9 +556,9 @@ if ineffective:
 Group validation results by issue type for better reporting:
 
 ```python
-from deprecate import find_deprecated_wrappers
+from deprecate import find_deprecated_callables
 
-results = find_deprecated_wrappers(my_package)
+results = find_deprecated_callables(my_package)
 
 # Group by issue type
 wrong_args = [r for r in results if r["validation"]["invalid_args"]]
@@ -577,13 +577,13 @@ Use in pytest to validate your package's deprecation wrappers:
 
 ```python
 import pytest
-from deprecate import find_deprecated_wrappers
+from deprecate import find_deprecated_callables
 import my_package
 
 
 def test_deprecated_wrappers_are_valid():
     """Validate all deprecated wrappers have proper configuration."""
-    results = find_deprecated_wrappers(my_package)
+    results = find_deprecated_callables(my_package)
 
     # Collect issues - errors for wrong args, warnings for identity mappings
     wrong_args = [r for r in results if r["validation"]["invalid_args"]]
