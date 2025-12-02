@@ -26,7 +26,7 @@ Quick Example:
 Exported Functions:
     deprecated: Main decorator for marking functions/classes as deprecated
     void: Helper function to silence IDE warnings about unused parameters
-    validate_deprecated_wrapper: Development tool to validate wrapper configuration
+    validate_deprecated_callable: Development tool to validate wrapper configuration
     find_deprecated_wrappers: Scan a package for deprecated wrappers and validate them
 
 For detailed examples and use cases, see: https://borda.github.io/pyDeprecate
@@ -38,4 +38,4 @@ _PATH_PACKAGE = os.path.realpath(os.path.dirname(__file__))
 _PATH_PROJECT = os.path.dirname(_PATH_PACKAGE)
 
 from deprecate.deprecation import deprecated  # noqa: E402, F401
-from deprecate.utils import find_deprecated_wrappers, validate_deprecated_wrapper, void  # noqa: E402, F401
+from deprecate.utils import find_deprecated_wrappers, validate_deprecated_callable, void  # noqa: E402, F401

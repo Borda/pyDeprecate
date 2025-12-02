@@ -189,14 +189,14 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     }
 
 
-def test_validate_deprecated_wrapper_valid_mapping() -> None:
-    """Test validate_deprecated_wrapper with valid args_mapping."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_valid_mapping() -> None:
+    """Test validate_deprecated_callable with valid args_mapping."""
+    from deprecate import validate_deprecated_callable
 
     def valid_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
-    result = validate_deprecated_wrapper(valid_func, {"old_arg": "new_arg"})
+    result = validate_deprecated_callable(valid_func, {"old_arg": "new_arg"})
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
@@ -204,43 +204,43 @@ def test_validate_deprecated_wrapper_valid_mapping() -> None:
     assert result["no_effect"] is False
 
 
-def test_validate_deprecated_wrapper_invalid_mapping() -> None:
-    """Test validate_deprecated_wrapper with invalid args_mapping keys."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_invalid_mapping() -> None:
+    """Test validate_deprecated_callable with invalid args_mapping keys."""
+    from deprecate import validate_deprecated_callable
 
     def my_func(real_arg: int = 1) -> int:
         return real_arg
 
-    result = validate_deprecated_wrapper(my_func, {"nonexistent_arg": "new_arg"})
+    result = validate_deprecated_callable(my_func, {"nonexistent_arg": "new_arg"})
     assert result["invalid_args"] == ["nonexistent_arg"]
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
     assert result["self_reference"] is False
 
 
-def test_validate_deprecated_wrapper_mixed_mapping() -> None:
-    """Test validate_deprecated_wrapper with mixed valid and invalid mappings."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_mixed_mapping() -> None:
+    """Test validate_deprecated_callable with mixed valid and invalid mappings."""
+    from deprecate import validate_deprecated_callable
 
     def mixed_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
-    result = validate_deprecated_wrapper(mixed_func, {"old_arg": "new_arg", "missing": "other"})
+    result = validate_deprecated_callable(mixed_func, {"old_arg": "new_arg", "missing": "other"})
     assert result["invalid_args"] == ["missing"]
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
     assert result["self_reference"] is False
 
 
-def test_validate_deprecated_wrapper_empty_mapping() -> None:
-    """Test validate_deprecated_wrapper with None or empty args_mapping."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_empty_mapping() -> None:
+    """Test validate_deprecated_callable with None or empty args_mapping."""
+    from deprecate import validate_deprecated_callable
 
     def my_func(real_arg: int = 1) -> int:
         return real_arg
 
     # Test with None args_mapping - has no effect
-    result = validate_deprecated_wrapper(my_func, None)
+    result = validate_deprecated_callable(my_func, None)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is True
     assert result["identity_mapping"] == []
@@ -248,7 +248,7 @@ def test_validate_deprecated_wrapper_empty_mapping() -> None:
     assert result["no_effect"] is True
 
     # Test with empty args_mapping - has no effect
-    result = validate_deprecated_wrapper(my_func, {})
+    result = validate_deprecated_callable(my_func, {})
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is True
     assert result["identity_mapping"] == []
@@ -256,15 +256,15 @@ def test_validate_deprecated_wrapper_empty_mapping() -> None:
     assert result["no_effect"] is True
 
 
-def test_validate_deprecated_wrapper_self_reference() -> None:
-    """Test validate_deprecated_wrapper detects self-referencing target."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_self_reference() -> None:
+    """Test validate_deprecated_callable detects self-referencing target."""
+    from deprecate import validate_deprecated_callable
 
     def my_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
     # Self-reference with valid mapping - has no effect
-    result = validate_deprecated_wrapper(my_func, {"old_arg": "new_arg"}, target=my_func)
+    result = validate_deprecated_callable(my_func, {"old_arg": "new_arg"}, target=my_func)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
@@ -272,9 +272,9 @@ def test_validate_deprecated_wrapper_self_reference() -> None:
     assert result["no_effect"] is True
 
 
-def test_validate_deprecated_wrapper_different_target() -> None:
-    """Test validate_deprecated_wrapper with a different target function."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_different_target() -> None:
+    """Test validate_deprecated_callable with a different target function."""
+    from deprecate import validate_deprecated_callable
 
     def source_func(old_arg: int = 1) -> int:
         return old_arg
@@ -282,7 +282,7 @@ def test_validate_deprecated_wrapper_different_target() -> None:
     def target_func(new_arg: int = 1) -> int:
         return new_arg
 
-    result = validate_deprecated_wrapper(source_func, {"old_arg": "new_arg"}, target=target_func)
+    result = validate_deprecated_callable(source_func, {"old_arg": "new_arg"}, target=target_func)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
@@ -290,15 +290,15 @@ def test_validate_deprecated_wrapper_different_target() -> None:
     assert result["no_effect"] is False
 
 
-def test_validate_deprecated_wrapper_identity_mapping() -> None:
-    """Test validate_deprecated_wrapper detects identity mappings (arg mapped to itself)."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_identity_mapping() -> None:
+    """Test validate_deprecated_callable detects identity mappings (arg mapped to itself)."""
+    from deprecate import validate_deprecated_callable
 
     def my_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
     # Identity mapping - arg mapped to itself has no effect
-    result = validate_deprecated_wrapper(my_func, {"old_arg": "old_arg"})
+    result = validate_deprecated_callable(my_func, {"old_arg": "old_arg"})
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == ["old_arg"]
@@ -306,32 +306,32 @@ def test_validate_deprecated_wrapper_identity_mapping() -> None:
     assert result["no_effect"] is True  # All mappings are identity
 
     # Mixed identity and valid mappings - still has some effect
-    result = validate_deprecated_wrapper(my_func, {"old_arg": "old_arg", "new_arg": "other"})
+    result = validate_deprecated_callable(my_func, {"old_arg": "old_arg", "new_arg": "other"})
     assert result["identity_mapping"] == ["old_arg"]
     assert result["no_effect"] is False  # Not all mappings are identity
 
 
-def test_validate_deprecated_wrapper_no_effect() -> None:
-    """Test validate_deprecated_wrapper correctly detects zero-impact configurations."""
-    from deprecate import validate_deprecated_wrapper
+def test_validate_deprecated_callable_no_effect() -> None:
+    """Test validate_deprecated_callable correctly detects zero-impact configurations."""
+    from deprecate import validate_deprecated_callable
 
     def my_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
     # Valid mapping - has effect
-    result = validate_deprecated_wrapper(my_func, {"old_arg": "new_arg"})
+    result = validate_deprecated_callable(my_func, {"old_arg": "new_arg"})
     assert result["no_effect"] is False
 
     # Empty mapping - no effect
-    result = validate_deprecated_wrapper(my_func, {})
+    result = validate_deprecated_callable(my_func, {})
     assert result["no_effect"] is True
 
     # All identity mappings - no effect
-    result = validate_deprecated_wrapper(my_func, {"old_arg": "old_arg", "new_arg": "new_arg"})
+    result = validate_deprecated_callable(my_func, {"old_arg": "old_arg", "new_arg": "new_arg"})
     assert result["no_effect"] is True
 
     # Self-reference - no effect
-    result = validate_deprecated_wrapper(my_func, {"old_arg": "new_arg"}, target=my_func)
+    result = validate_deprecated_callable(my_func, {"old_arg": "new_arg"}, target=my_func)
     assert result["no_effect"] is True
 
 
