@@ -108,7 +108,7 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
         >>> with no_warning_call():
         ...     clean_function()
 
-    Note:
+    .. note:
         This is the inverse of ``pytest.warns()`` - it ensures warnings are NOT raised.
         Useful for testing that refactored code properly uses new APIs.
 
@@ -168,7 +168,7 @@ def void(*args: Any, **kwrgs: Any) -> Any:
         >>> old_func(5)  # Returns 10
         10
 
-    Note:
+    .. note:
         This function has no runtime effect - it's purely for developer convenience
         to avoid IDE warnings. You can also use ``pass`` or just a docstring instead.
 

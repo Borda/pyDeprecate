@@ -98,7 +98,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
         >>> pprint(_update_kwargs_with_defaults(example_func, {'b': 20}))
         {'a': 1, 'b': 20, 'c': 3}
 
-    Note:
+    .. note:
         Parameters without defaults (inspect._empty) are not included in the result.
 
     """
@@ -122,7 +122,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         **extras: Additional string values to substitute into the template
             (e.g., deprecated_in="1.0", remove_in="2.0")
 
-    Note:
+    .. note:
         Automatically extracts source_name and source_path from the source callable:
         - For regular functions: uses __name__
         - For __init__ methods: extracts class name from __qualname__
@@ -304,7 +304,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
            Will be removed in 2.0.
            Use `deprecate.deprecation.new_func` instead.
 
-    Note:
+    .. note:
         Does nothing if the function has no docstring or no __deprecated__ attribute.
 
     """
