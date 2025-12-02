@@ -17,6 +17,7 @@ exclude *.yml
 exclude *.yaml
 exclude *.toml
 
+prune .assets
 prune .git
 prune .github
 prune temp*

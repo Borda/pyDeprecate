@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.9", "3.12"]
+        python-version: ["3.9", "3.11", "3.13"]
     # Timeout: https://stackoverflow.com/a/59076067/4521646
     timeout-minutes: 10
     steps:
@@ -33,14 +33,7 @@ jobs:
       - name: Tests
         run: |
           phmdoctest README.md --outfile tests/test_readme.py
-          python -m pytest . -vv --cov=deprecate --junitxml=junit/test-results-${{ runner.os }}-${{ matrix.python-version }}.xml
-
-      - name: Upload pytest test results
-        uses: actions/upload-artifact@v5
-        with:
-          name: pytest-results-${{ runner.os }}-${{ matrix.python-version }}
-          path: junit/test-results-${{ runner.os }}-${{ matrix.python-version }}.xml
-        if: failure()
+          python -m pytest . -vv --cov=deprecate
 
       - name: Statistics
         if: success()
