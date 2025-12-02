@@ -4,6 +4,8 @@ This module contains example functions and classes to demonstrate
 deprecation warnings in generated documentation.
 """
 
+from os import linesep as _n
+
 from deprecate import deprecated
 
 
@@ -56,10 +58,15 @@ __all__ = [
 def test_deprecated_func_docstring() -> None:
     """Test that deprecated functions have deprecation warning in their docstring."""
     assert old_function.__doc__ == (
-        "An old function that is deprecated.\n\n"
-        ".. deprecated:: 0.1\n"
-        "   Will be removed in 0.3.\n"
-        "   Use `tests.test_docs.new_function` instead.\n"
+        "An old function that is deprecated."
+        + _n
+        + _n
+        + ".. deprecated:: 0.1"
+        + _n
+        + "   Will be removed in 0.3."
+        + _n
+        + "   Use `tests.test_docs.new_function` instead."
+        + _n
     )
 
 
@@ -71,10 +78,15 @@ def test_deprecated_func_docstring_plain() -> None:
 def test_deprecated_class_docstring() -> None:
     """Test that deprecated classes have deprecation warning in their __init__ docstring."""
     assert OldClass.__init__.__doc__ == (
-        "Initialize the old class.\n\n"
-        ".. deprecated:: 0.2\n"
-        "   Will be removed in 0.4.\n"
-        "   Use `tests.test_docs.NewClass` instead.\n"
+        "Initialize the old class."
+        + _n
+        + _n
+        + ".. deprecated:: 0.2"
+        + _n
+        + "   Will be removed in 0.4."
+        + _n
+        + "   Use `tests.test_docs.NewClass` instead."
+        + _n
     )
 
 
