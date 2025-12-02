@@ -35,6 +35,7 @@ ______________________________________________________________________
   - [Class deprecation](#class-deprecation)
   - [Automatic docstring updates](#automatic-docstring-updates)
 - [🔇 Understanding the void() Helper](#understanding-the-void-helper)
+- [🔍 Validating Wrapper Configuration](#validating-wrapper-configuration)
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
 - [🔧 Troubleshooting](#troubleshooting)
 - [🤝 Contributing](#contributing)
@@ -479,6 +480,49 @@ def old_add_v2(a: int, b: int) -> int:
 ```
 
 **💡 Note:** `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
+
+## 🔍 Validating Wrapper Configuration
+
+During development, you may want to verify that your deprecated wrappers are configured correctly. The `validate_wrapper_args()` utility helps you identify issues that would make your deprecation wrapper ineffective:
+
+```python
+from deprecate import validate_wrapper_args, deprecated
+
+
+# Define your deprecated function
+@deprecated(target=True, args_mapping={"old_arg": "new_arg"})
+def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
+    return new_arg
+
+
+# Validate the configuration - returns a dict with validation results
+result = validate_wrapper_args(my_func, {"old_arg": "new_arg"})
+# {'invalid_args': [], 'empty_mapping': False, 'self_reference': False}
+
+# Detect invalid argument mappings
+result = validate_wrapper_args(my_func, {"nonexistent": "new_arg"})
+# {'invalid_args': ['nonexistent'], 'empty_mapping': False, 'self_reference': False}
+
+# Detect empty mappings (wrapper has no effect)
+result = validate_wrapper_args(my_func, {})
+# {'invalid_args': [], 'empty_mapping': True, 'self_reference': False}
+
+# Detect self-referencing target (wrapper forwards to itself)
+result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func)
+# {'invalid_args': [], 'empty_mapping': False, 'self_reference': True}
+```
+
+**Use cases:**
+
+- **In tests:** Validate that all deprecation decorators in your codebase are properly configured
+- **During development:** Catch configuration mistakes early before they reach production
+- **In CI/CD:** Add validation checks to ensure no ineffective wrappers slip through
+
+The function returns a dictionary with:
+
+- `invalid_args`: List of args_mapping keys that don't exist in the function signature
+- `empty_mapping`: True if args_mapping is None or empty (no argument remapping)
+- `self_reference`: True if target points to the same function (self-reference)
 
 ## 🧪 Testing Deprecated Code
 

@@ -180,40 +180,59 @@ def void(*args: Any, **kwrgs: Any) -> Any:
 def validate_wrapper_args(
     func: Callable,
     args_mapping: Optional[dict] = None,
-) -> List[str]:
-    """Validate that args_mapping references valid arguments in the function signature.
+    target: Optional[Callable] = None,
+) -> dict:
+    """Validate if a deprecated wrapper has any effect.
 
     This is a development tool to check if deprecated wrappers are configured correctly.
-    It identifies any keys in args_mapping that don't exist in the function's signature,
-    which would make the deprecation wrapper ineffective for those arguments.
+    It identifies issues that would make the deprecation wrapper ineffective:
+    - args_mapping keys that don't exist in the function's signature
+    - Empty or None args_mapping (no argument remapping)
+    - Target pointing to the same function (self-reference)
 
     Args:
         func: The decorated function to validate
         args_mapping: Dictionary mapping old argument names to new ones.
             Keys should be argument names that exist in the function's signature.
+        target: The target function that calls are forwarded to.
+            Used to check for self-reference.
 
     Returns:
-        List of argument names from args_mapping that are NOT present in the
-        function's signature. An empty list means all mappings are valid.
+        Dictionary with validation results:
+            - 'invalid_args': List of args_mapping keys not in function signature
+            - 'empty_mapping': True if args_mapping is None or empty
+            - 'self_reference': True if target is the same as func
 
     Example:
         >>> def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
         ...     return new_arg
-        >>> # Valid mapping - returns empty list
+        >>> # Valid mapping
         >>> validate_wrapper_args(my_func, {'old_arg': 'new_arg'})
-        []
+        {'invalid_args': [], 'empty_mapping': False, 'self_reference': False}
         >>> # Invalid mapping - 'nonexistent' is not in signature
         >>> validate_wrapper_args(my_func, {'nonexistent': 'new_arg'})
-        ['nonexistent']
+        {'invalid_args': ['nonexistent'], 'empty_mapping': False, 'self_reference': False}
+        >>> # Empty mapping - wrapper has no effect
+        >>> validate_wrapper_args(my_func, {})
+        {'invalid_args': [], 'empty_mapping': True, 'self_reference': False}
+        >>> # Self-reference - wrapper forwards to itself
+        >>> validate_wrapper_args(my_func, {'old_arg': 'new_arg'}, target=my_func)
+        {'invalid_args': [], 'empty_mapping': False, 'self_reference': True}
 
     .. note::
         Use this function during development or testing to ensure your deprecation
-        decorators are configured correctly. Invalid mappings won't cause runtime
-        errors but will silently have no effect.
+        decorators are configured correctly. Invalid configurations won't cause
+        runtime errors but will silently have no effect.
 
     """
-    if not args_mapping:
-        return []
+    result = {
+        "invalid_args": [],
+        "empty_mapping": not args_mapping,
+        "self_reference": target is func if target is not None and func is not None else False,
+    }
 
-    func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
-    return [arg for arg in args_mapping if arg not in func_args]
+    if args_mapping:
+        func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
+        result["invalid_args"] = [arg for arg in args_mapping if arg not in func_args]
+
+    return result

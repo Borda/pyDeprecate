@@ -189,34 +189,90 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     }
 
 
-def test_validate_wrapper_args() -> None:
-    """Test validate_wrapper_args utility for checking args_mapping validity.
-
-    This verifies that the development tool correctly identifies invalid
-    args_mapping configurations.
-    """
+def test_validate_wrapper_args_valid_mapping() -> None:
+    """Test validate_wrapper_args with valid args_mapping."""
     from deprecate import validate_wrapper_args
 
-    # Test with valid args_mapping - should return empty list
     def valid_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
-    assert validate_wrapper_args(valid_func, {"old_arg": "new_arg"}) == []
+    result = validate_wrapper_args(valid_func, {"old_arg": "new_arg"})
+    assert result["invalid_args"] == []
+    assert result["empty_mapping"] is False
+    assert result["self_reference"] is False
 
-    # Test with invalid args_mapping - should return the invalid args
+
+def test_validate_wrapper_args_invalid_mapping() -> None:
+    """Test validate_wrapper_args with invalid args_mapping keys."""
+    from deprecate import validate_wrapper_args
+
     def my_func(real_arg: int = 1) -> int:
         return real_arg
 
-    assert validate_wrapper_args(my_func, {"nonexistent_arg": "new_arg"}) == ["nonexistent_arg"]
+    result = validate_wrapper_args(my_func, {"nonexistent_arg": "new_arg"})
+    assert result["invalid_args"] == ["nonexistent_arg"]
+    assert result["empty_mapping"] is False
+    assert result["self_reference"] is False
 
-    # Test with mixed valid and invalid mappings
+
+def test_validate_wrapper_args_mixed_mapping() -> None:
+    """Test validate_wrapper_args with mixed valid and invalid mappings."""
+    from deprecate import validate_wrapper_args
+
     def mixed_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
-    assert validate_wrapper_args(mixed_func, {"old_arg": "new_arg", "missing": "other"}) == ["missing"]
+    result = validate_wrapper_args(mixed_func, {"old_arg": "new_arg", "missing": "other"})
+    assert result["invalid_args"] == ["missing"]
+    assert result["empty_mapping"] is False
+    assert result["self_reference"] is False
 
-    # Test with None args_mapping - should return empty list
-    assert validate_wrapper_args(my_func, None) == []
 
-    # Test with empty args_mapping - should return empty list
-    assert validate_wrapper_args(my_func, {}) == []
+def test_validate_wrapper_args_empty_mapping() -> None:
+    """Test validate_wrapper_args with None or empty args_mapping."""
+    from deprecate import validate_wrapper_args
+
+    def my_func(real_arg: int = 1) -> int:
+        return real_arg
+
+    # Test with None args_mapping
+    result = validate_wrapper_args(my_func, None)
+    assert result["invalid_args"] == []
+    assert result["empty_mapping"] is True
+    assert result["self_reference"] is False
+
+    # Test with empty args_mapping
+    result = validate_wrapper_args(my_func, {})
+    assert result["invalid_args"] == []
+    assert result["empty_mapping"] is True
+    assert result["self_reference"] is False
+
+
+def test_validate_wrapper_args_self_reference() -> None:
+    """Test validate_wrapper_args detects self-referencing target."""
+    from deprecate import validate_wrapper_args
+
+    def my_func(old_arg: int = 1, new_arg: int = 2) -> int:
+        return new_arg
+
+    # Self-reference with valid mapping
+    result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func)
+    assert result["invalid_args"] == []
+    assert result["empty_mapping"] is False
+    assert result["self_reference"] is True
+
+
+def test_validate_wrapper_args_different_target() -> None:
+    """Test validate_wrapper_args with a different target function."""
+    from deprecate import validate_wrapper_args
+
+    def source_func(old_arg: int = 1) -> int:
+        return old_arg
+
+    def target_func(new_arg: int = 1) -> int:
+        return new_arg
+
+    result = validate_wrapper_args(source_func, {"old_arg": "new_arg"}, target=target_func)
+    assert result["invalid_args"] == []
+    assert result["empty_mapping"] is False
+    assert result["self_reference"] is False
