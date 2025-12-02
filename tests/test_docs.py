@@ -71,3 +71,26 @@ def test_deprecated_class_docstring() -> None:
 def test_deprecated_class_docstring_plain() -> None:
     """Test that deprecated classes without docstrings do not have docstrings added."""
     assert getattr(OldClassPlain.__init__, "__doc__") is None
+
+
+def test_deprecated_attribute_set_at_decoration_time() -> None:
+    """Test that __deprecated__ attribute is set at decoration time, not call time.
+
+    This verifies that the __deprecated__ attribute is available immediately
+    after the decorator is applied, without needing to call the function first.
+    """
+
+    # Define a new function to ensure it's never been called
+    @deprecated(target=new_function, deprecated_in="1.0", remove_in="2.0")
+    def never_called_function(a: int) -> int:
+        """A function that will never be called in this test."""
+        return a
+
+    # Verify __deprecated__ is set WITHOUT calling the function
+    assert hasattr(never_called_function, "__deprecated__")
+    assert never_called_function.__deprecated__ == {
+        "deprecated_in": "1.0",
+        "remove_in": "2.0",
+        "target": new_function,
+        "args_mapping": None,
+    }
