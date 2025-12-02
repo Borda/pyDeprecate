@@ -542,7 +542,7 @@ def old_func_warn_5_times(x: int) -> int:
 
 ### ❗ TypeError: `Failed mapping`
 
-**Error Message:** `TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']`
+**Problem:** `TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']`
 
 **Cause:** Your deprecated function has arguments that the target function doesn't accept.
 
@@ -598,7 +598,7 @@ def old_func_warn_5_times(x: int) -> int:
 
 ### ❗ TypeError: `User function 'should_ship' shall return bool`
 
-**Error Message:** `TypeError: User function 'should_ship' shall return bool, but got: <type>`
+**Problem:** `TypeError: User function 'should_ship' shall return bool, but got: <type>`
 
 **Cause:** When using `skip_if` with a callable, the function must return a boolean value.
 
