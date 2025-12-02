@@ -1,4 +1,4 @@
-# pyDeprecate
+# pyDeprecate ⚠️
 
 **Simple tooling for marking deprecated functions or classes and re-routing to their successors.**
 
@@ -19,11 +19,12 @@
 
 ______________________________________________________________________
 
-## Table of Contents
+## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Installation](#installation)
-- [Use-cases](#use-cases)
+- [📖 Overview](#overview)
+- [💾 Installation](#installation)
+- [🚀 Quick Start](#quick-start)
+- [📚 Use-cases](#use-cases)
   - [Simple function forwarding](#simple-function-forwarding)
   - [Advanced target argument mapping](#advanced-target-argument-mapping)
   - [Deprecation warning only](#deprecation-warning-only)
@@ -31,16 +32,20 @@ ______________________________________________________________________
   - [Multiple deprecation levels](#multiple-deprecation-levels)
   - [Conditional skip](#conditional-skip)
   - [Class deprecation](#class-deprecation)
-- [Contributing](#contributing)
+  - [Automatic docstring updates](#automatic-docstring-updates)
+- [🔇 Understanding the void() Helper](#understanding-the-void-helper)
+- [🧪 Testing Deprecated Code](#testing-deprecated-code)
+- [🔧 Troubleshooting](#troubleshooting)
+- [🤝 Contributing](#contributing)
 
-## Overview
+## 📖 Overview
 
 The common use-case is moving your functions across a codebase or outsourcing some functionalities to new packages.
 For most of these cases, you want to maintain some compatibility, so you cannot simply remove the past function. You also want to warn users for some time that the functionality they have been using has moved and is now deprecated in favor of another function (which should be used instead) and will soon be removed completely.
 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
 
-## Installation
+## 💾 Installation
 
 Simple installation from PyPI:
 
@@ -59,17 +64,50 @@ pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 
 </details>
 
-## Use-cases
+## 🚀 Quick Start
+
+Here's the simplest way to get started with deprecating a function:
+
+```python
+from deprecate import deprecated
+
+# Your new function
+def new_sum(a: int = 0, b: int = 3) -> int:
+    return a + b
+
+# Mark the old one as deprecated and forward calls automatically
+@deprecated(target=new_sum, deprecated_in="1.0", remove_in="2.0")
+def old_sum(a: int, b: int = 5) -> int:
+    pass  # Implementation not needed - calls are forwarded to new_sum
+
+# Using the old function works but shows a warning
+result = old_sum(1, 2)  # Returns 3
+# Warning: The `old_sum` was deprecated since v1.0 in favor of `__main__.new_sum`.
+#          It will be removed in v2.0.
+```
+
+That's it! All calls to `old_sum()` are automatically forwarded to `new_sum()` with a deprecation warning.
+
+**✨ Key Points:**
+- ⚠️ Deprecation warnings are shown **once per function** by default (prevents log spam)
+- 🔄 Arguments are automatically mapped to the target function
+- 🚫 The deprecated function body is never executed when using `target`
+
+### 📸 Example Output
+
+![Documentation Sample](.assets/docs-sample.png)
+
+## 📚 Use-cases
 
 The functionality is kept simple and all defaults should be reasonable, but you can still do extra customization such as:
 
-- define user warning message and preferred stream
-- extended argument mapping to target function/method
-- define deprecation logic for self arguments
-- specify warning count per:
+- 💬 define user warning message and preferred stream
+- 🔀 extended argument mapping to target function/method
+- 🎯 define deprecation logic for self arguments
+- 📊 specify warning count per:
   - called function (for func deprecation)
   - used arguments (for argument deprecation)
-- define conditional skip (e.g. depending on some package version)
+- ⚙️ define conditional skip (e.g. depending on some package version)
 
 In particular the target values (cases):
 
@@ -77,7 +115,7 @@ In particular the target values (cases):
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
-### Simple function forwarding
+### ➡️ Simple function forwarding
 
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
 
@@ -116,7 +154,7 @@ print(depr_sum(1, 2))
 
 </details>
 
-### Advanced target argument mapping
+### 🔀 Advanced target argument mapping
 
 Another more complex example is using argument mapping is:
 
@@ -160,7 +198,7 @@ sample output:
 
 </details>
 
-### Deprecation warning only
+### ⚠️ Deprecation warning only
 
 Base use-case with no forwarding and just raising a warning:
 
@@ -188,7 +226,7 @@ print(my_sum(1, 2))
 
 </details>
 
-### Self argument mapping
+### 🔄 Self argument mapping
 
 We also support deprecation and argument mapping for the function itself:
 
@@ -224,7 +262,7 @@ print(any_pow(2, 3))
 
 </details>
 
-### Multiple deprecation levels
+### 🔗 Multiple deprecation levels
 
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
 
@@ -267,7 +305,7 @@ sample output:
 
 </details>
 
-### Conditional skip
+### ⚙️ Conditional skip
 
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
 
@@ -308,7 +346,7 @@ print(skip_pow(2, 3))
 
 This can be beneficial with multiple deprecation levels shown above...
 
-### Class deprecation
+### 🏗️ Class deprecation
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 
@@ -359,6 +397,250 @@ efg
 
 </details>
 
-## Contributing
+### 📝 Automatic docstring updates
+
+You can automatically append deprecation information to your function's docstring:
+
+```python
+from deprecate import deprecated
+
+
+def new_function(x: int) -> int:
+    """New implementation of the function."""
+    return x * 2
+
+
+@deprecated(
+    target=new_function,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    update_docstring=True,  # Enable automatic docstring updates
+)
+def old_function(x: int) -> int:
+    """Old implementation that will be removed.
+    
+    Args:
+        x: Input value
+        
+    Returns:
+        Result of computation
+    """
+    pass
+
+
+# The docstring now includes deprecation information
+print(old_function.__doc__)
+# Output includes:
+# .. deprecated:: 1.0
+#    Will be removed in 2.0.
+#    Use `__main__.new_function` instead.
+```
+
+This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
+
+## 🔇 Understanding the void() Helper
+
+When using `@deprecated` with a `target` function, the deprecated function's body is never executed—all calls are automatically forwarded. However, your IDE might complain about "unused parameters". The `void()` helper function silences these warnings:
+
+```python
+from deprecate import deprecated, void
+
+
+def new_add(a: int, b: int) -> int:
+    return a + b
+
+
+@deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
+def old_add(a: int, b: int) -> int:
+    void(a, b)  # Tells IDE: "Yes, I know these parameters aren't used"
+    # This line is never reached - call is forwarded to new_add
+
+
+# Alternative: You can also use pass or just a docstring
+@deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
+def old_add_v2(a: int, b: int) -> int:
+    """Just a docstring works too."""
+    pass  # This also works
+```
+
+**💡 Note:** `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
+
+## 🧪 Testing Deprecated Code
+
+pyDeprecate provides utilities to help you test deprecated code properly:
+
+```python
+from deprecate import deprecated
+from deprecate.utils import no_warning_call
+import pytest
+
+
+def new_func(x: int) -> int:
+    return x * 2
+
+
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+def old_func(x: int) -> int:
+    pass
+
+
+def test_deprecated_function_shows_warning():
+    """Verify the deprecation warning is shown."""
+    with pytest.warns(FutureWarning, match="old_func.*deprecated"):
+        result = old_func(42)
+    assert result == 84
+
+
+def test_new_function_no_warning():
+    """Verify new function doesn't trigger warnings."""
+    with no_warning_call(FutureWarning):
+        result = new_func(42)
+    assert result == 84
+
+
+def test_no_warning_after_first_call():
+    """By default, warnings are shown only once."""
+    # First call shows warning
+    with pytest.warns(FutureWarning):
+        old_func(1)
+    
+    # Subsequent calls don't show warning
+    with no_warning_call(FutureWarning):
+        old_func(2)
+```
+
+The `no_warning_call()` context manager will fail your test if any warnings of the specified type are raised, ensuring your code is clean.
+
+**⚙️ Advanced: Control warning frequency**
+
+```python
+# Show warning every time (useful for critical deprecations)
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+def old_func_always_warn(x: int) -> int:
+    pass
+
+# Show warning N times
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
+def old_func_warn_5_times(x: int) -> int:
+    pass
+```
+
+## 🔧 Troubleshooting
+
+### ❌ Common Errors
+
+#### TypeError: Failed mapping
+
+**Error Message:**
+```
+TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']
+```
+
+**Cause:** Your deprecated function has arguments that the target function doesn't accept.
+
+**Solutions:**
+
+1. **Skip the argument** (if it's no longer needed):
+```python
+@deprecated(
+    target=new_func,
+    args_mapping={'old_arg': None}  # None means skip this argument
+)
+def old_func(old_arg: int, new_arg: int) -> int:
+    pass
+```
+
+2. **Rename the argument** (if target uses different name):
+```python
+def new_func(new_name: int) -> int:
+    return new_name * 2
+
+@deprecated(
+    target=new_func,
+    args_mapping={'old_name': 'new_name'}  # Map old to new
+)
+def old_func(old_name: int) -> int:
+    pass
+```
+
+3. **Use target=True for self-deprecation** (deprecate argument of same function):
+```python
+@deprecated(
+    target=True,  # Deprecate within same function
+    args_mapping={'old_arg': 'new_arg'}
+)
+def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
+    return new_arg * 2
+```
+
+4. **Make target accept **kwargs**:
+```python
+def new_func(required_arg: int, **kwargs) -> int:
+    # Now accepts any additional arguments
+    return required_arg * 2
+```
+
+#### ⚠️ Warning Not Showing
+
+**Problem:** You don't see the deprecation warning.
+
+**Cause:** By default, warnings are shown **only once per function** to prevent log spam.
+
+**Solutions:**
+
+```python
+# Show warning every time
+@deprecated(target=new_func, num_warns=-1)  # -1 means unlimited
+def old_func():
+    pass
+
+# Show warning N times
+@deprecated(target=new_func, num_warns=5)  # Show 5 times
+def old_func():
+    pass
+```
+
+#### ❗ TypeError: User function 'shall_skip' shall return bool
+
+**Error Message:**
+```
+TypeError: User function 'shall_skip' shall return bool, but got: <type>
+```
+
+**Cause:** When using `skip_if` with a callable, the function must return a boolean value.
+
+**Solution:**
+```python
+# Correct: function returns bool
+def should_skip() -> bool:
+    return some_condition
+
+@deprecated(target=new_func, skip_if=should_skip)
+def old_func():
+    pass
+
+# Also correct: use a lambda
+@deprecated(target=new_func, skip_if=lambda: version > 2.0)
+def old_func():
+    pass
+```
+
+### 📦 Deprecation Not Working Across Modules
+
+If you're moving functions to a different module or package:
+
+```python
+# old_module.py
+from new_package.new_module import new_function
+from deprecate import deprecated
+
+@deprecated(target=new_function, deprecated_in="1.0", remove_in="2.0")
+def old_function(x):
+    pass
+```
+
+The warning will correctly show the full path: `new_package.new_module.new_function`.
+
+## 🤝 Contributing
 
 Have you faced this issue in the past or are you facing it now? Do you have good ideas for improvement? All contributions are welcome!
