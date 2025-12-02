@@ -169,3 +169,21 @@ def test_deprecated_func_mapping() -> None:
 
     with pytest.warns(FutureWarning):
         assert depr_accuracy_extra([1, 0, 1, 2]) == 0.75
+
+
+def test_deprecated_func_attribute_set_at_decoration_time() -> None:
+    """Test that __deprecated__ attribute is set at decoration time, not call time.
+
+    This verifies that the __deprecated__ attribute is available immediately
+    after the decorator is applied, without needing to call the function first.
+    """
+    from tests.collection_targets import base_sum_kwargs
+
+    # Verify __deprecated__ is set WITHOUT calling the function (using depr_sum from collection_deprecate)
+    assert hasattr(depr_sum, "__deprecated__")
+    assert depr_sum.__deprecated__ == {
+        "deprecated_in": "0.1",
+        "remove_in": "0.5",
+        "target": base_sum_kwargs,
+        "args_mapping": None,
+    }
