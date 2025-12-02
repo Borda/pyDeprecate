@@ -189,28 +189,34 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     }
 
 
-def test_deprecated_func_ineffective_wrapper_warning() -> None:
-    """Test that a warning is raised when args_mapping has no valid mappings.
+def test_validate_wrapper_args() -> None:
+    """Test validate_wrapper_args utility for checking args_mapping validity.
 
-    This verifies that a UserWarning is raised at decoration time when using
-    target=True with args_mapping that references non-existent arguments.
+    This verifies that the development tool correctly identifies invalid
+    args_mapping configurations.
     """
-    from deprecate import deprecated
+    from deprecate import validate_wrapper_args
 
-    # Test that warning is raised when args_mapping references non-existent args
-    with pytest.warns(
-        UserWarning,
-        match=r"The `my_func` has a deprecated wrapper, but no args from `args_mapping` \(nonexistent_arg\) "
-        r"are present in the function's signature \(real_arg\). The wrapper has no effect.",
-    ):
+    # Test with valid args_mapping - should return empty list
+    def valid_func(old_arg: int = 1, new_arg: int = 2) -> int:
+        return new_arg
 
-        @deprecated(target=True, args_mapping={"nonexistent_arg": "new_arg"})
-        def my_func(real_arg: int = 1) -> int:
-            return real_arg
+    assert validate_wrapper_args(valid_func, {"old_arg": "new_arg"}) == []
 
-    # Test that no warning is raised when args_mapping has valid mappings
-    with no_warning_call(UserWarning):
+    # Test with invalid args_mapping - should return the invalid args
+    def my_func(real_arg: int = 1) -> int:
+        return real_arg
 
-        @deprecated(target=True, args_mapping={"old_arg": "new_arg"})
-        def my_func2(old_arg: int = 1, new_arg: int = 2) -> int:
-            return new_arg
+    assert validate_wrapper_args(my_func, {"nonexistent_arg": "new_arg"}) == ["nonexistent_arg"]
+
+    # Test with mixed valid and invalid mappings
+    def mixed_func(old_arg: int = 1, new_arg: int = 2) -> int:
+        return new_arg
+
+    assert validate_wrapper_args(mixed_func, {"old_arg": "new_arg", "missing": "other"}) == ["missing"]
+
+    # Test with None args_mapping - should return empty list
+    assert validate_wrapper_args(my_func, None) == []
+
+    # Test with empty args_mapping - should return empty list
+    assert validate_wrapper_args(my_func, {}) == []
