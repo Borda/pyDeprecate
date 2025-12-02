@@ -9,6 +9,7 @@ Key Functions:
     - get_func_arguments_types_defaults(): Extract function signature details
     - no_warning_call(): Context manager for testing code without warnings
     - void(): Helper to silence IDE warnings about unused parameters
+    - validate_wrapper_args(): Validate args_mapping configuration
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
 """
@@ -205,7 +206,7 @@ def validate_wrapper_args(
         >>> validate_wrapper_args(my_func, {'nonexistent': 'new_arg'})
         ['nonexistent']
 
-    .. note:
+    .. note::
         Use this function during development or testing to ensure your deprecation
         decorators are configured correctly. Invalid mappings won't cause runtime
         errors but will silently have no effect.

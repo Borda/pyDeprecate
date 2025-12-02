@@ -26,6 +26,7 @@ Quick Example:
 Exported Functions:
     deprecated: Main decorator for marking functions/classes as deprecated
     void: Helper function to silence IDE warnings about unused parameters
+    validate_wrapper_args: Development tool to validate args_mapping configuration
 
 For detailed examples and use cases, see: https://borda.github.io/pyDeprecate
 """
