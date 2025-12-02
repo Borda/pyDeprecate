@@ -18,7 +18,7 @@ Copyright (C) 2020-2023 Jiri Borovec <...>
 
 import inspect
 import warnings
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from typing import Any, Callable, Generator, List, Optional, Tuple, Type, Union
 
 
@@ -303,7 +303,7 @@ def find_deprecated_callables(
 
     def _scan_module(mod: Any) -> None:
         """Scan a single module for deprecated functions."""
-        try:
+        with suppress(AttributeError, TypeError, ImportError):
             for name, obj in inspect.getmembers(mod):
                 # Skip private/magic attributes and imports from other modules
                 if name.startswith("_"):
@@ -327,26 +327,18 @@ def find_deprecated_callables(
                             "has_effect": not validation["no_effect"],
                         }
                     )
-        except (AttributeError, TypeError, ImportError):
-            # Skip modules that can't be inspected
-            pass
 
     # Scan the main module
     _scan_module(module)
 
     # Recursively scan submodules if requested
     if recursive and hasattr(module, "__path__"):
-        try:
+        with suppress(OSError, ImportError):
             for _importer, modname, _ispkg in pkgutil.walk_packages(
                 path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None
             ):
-                try:
+                with suppress(ImportError, ModuleNotFoundError):
                     submod = importlib.import_module(modname)
                     _scan_module(submod)
-                except (ImportError, ModuleNotFoundError):
-                    # Skip modules that can't be imported
-                    pass
-        except (OSError, ImportError):
-            pass
 
     return results
