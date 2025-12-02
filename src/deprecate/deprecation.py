@@ -52,9 +52,9 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     This enables consistent argument handling in the deprecation wrapper.
 
     Args:
-        func: Function whose signature provides parameter names
-        fn_args: Tuple of positional arguments passed to the function
-        fn_kwargs: Dictionary of keyword arguments already passed
+        func: Function whose signature provides parameter names.
+        fn_args: Tuple of positional arguments passed to the function.
+        fn_kwargs: Dictionary of keyword arguments already passed.
 
     Returns:
         Dictionary combining converted positional arguments and existing kwargs,
