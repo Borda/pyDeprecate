@@ -1,7 +1,16 @@
-"""Handy tools for deprecations.
+"""Utility functions and helpers for deprecation management.
+
+This module provides supporting utilities for the deprecation system, including:
+    - Function introspection helpers
+    - Testing utilities for deprecated code
+    - Warning management tools
+
+Key Functions:
+    - get_func_arguments_types_defaults(): Extract function signature details
+    - no_warning_call(): Context manager for testing code without warnings
+    - void(): Helper to silence IDE warnings about unused parameters
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
-
 """
 
 import inspect
@@ -14,12 +23,25 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
     """Parse function arguments, types and default values.
 
     Args:
-        func: a function to be xeamined
+        func: A function to be examined
 
     Returns:
-        sequence of details for each position/keyword argument
+        List of tuples, one per argument, each containing:
+            - str: argument name
+            - type: argument type annotation (or inspect._empty if no annotation)
+            - Any: default value (or inspect._empty if no default)
 
     Example:
+        >>> def example_func(x: int, y: str = "hello", z=42) -> None:
+        ...     pass
+        >>> result = get_func_arguments_types_defaults(example_func)
+        >>> for name, type_hint, default in result:
+        ...     print(f"{name}: type={type_hint}, default={default}")
+        x: type=<class 'int'>, default=<class 'inspect._empty'>
+        y: type=<class 'str'>, default=hello
+        z: type=<class 'inspect._empty'>, default=42
+
+        >>> # Example with the function itself
         >>> get_func_arguments_types_defaults(get_func_arguments_types_defaults)
         [('func', typing.Callable, <class 'inspect._empty'>)]
 
@@ -34,19 +56,67 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
 
 
 def _warns_repr(warns: List[warnings.WarningMessage]) -> List[Union[Warning, str]]:
+    """Convert list of warning messages to their string representations.
+
+    Args:
+        warns: List of warning message objects captured during execution
+
+    Returns:
+        List of warning messages as strings or Warning objects
+
+    """
     return [w.message for w in warns]
 
 
 @contextmanager
 def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optional[str] = None) -> Generator:
-    """Check that no warning was raised.
+    """Context manager to assert that no warnings are raised.
+
+    This is useful for testing that new/replacement functions don't trigger
+    deprecation warnings, or that code paths properly avoid deprecated functionality.
 
     Args:
-        warning_type: specify catching warning, if None catching all
-        match: match message, containing following string, if None catches all.
+        warning_type: Type of warning to catch (e.g., FutureWarning, DeprecationWarning).
+            If None, catches all warning types.
+        match: If specified, only fail if warning message contains this string.
+            If None, fails on any warning of the specified type.
 
     Raises:
-        AssertionError: if specified warning was called
+        AssertionError: If a warning of the specified type (and optionally matching
+            the message pattern) was raised during the context.
+
+    Example:
+        Basic usage::
+
+            from deprecate.utils import no_warning_call
+            import pytest
+
+            def new_func(x: int) -> int:
+                return x * 2
+
+            def test_new_function():
+                # Test passes only if no FutureWarning is raised
+                with no_warning_call(FutureWarning):
+                    result = new_func(42)
+                assert result == 84
+
+        Catch specific warnings::
+
+            def test_no_specific_warning():
+                # Only fails if warning contains "deprecated"
+                with no_warning_call(FutureWarning, match="deprecated"):
+                    some_function()
+
+        Catch all warnings::
+
+            def test_no_warnings_at_all():
+                # Fails if ANY warning is raised
+                with no_warning_call():
+                    clean_function()
+
+    Note:
+        This is the inverse of ``pytest.warns()`` - it ensures warnings are NOT raised.
+        Useful for testing that refactored code properly uses new APIs.
 
     """
     with warnings.catch_warnings(record=True) as called:
@@ -77,5 +147,36 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
 
 
 def void(*args: Any, **kwrgs: Any) -> Any:
-    """Empty function which does nothing, just let your IDE stop complaining about unused arguments."""
+    """Empty function that accepts any arguments and returns None.
+
+    This helper function is used to silence IDE warnings about unused parameters
+    in deprecated functions where the body is never executed (calls are forwarded
+    to a target function).
+
+    Args:
+        *args: Any positional arguments (ignored)
+        **kwrgs: Any keyword arguments (ignored)
+
+    Returns:
+        None
+
+    Example:
+        >>> from deprecate import deprecated, void
+        >>>
+        >>> def new_func(x: int) -> int:
+        ...     return x * 2
+        >>>
+        >>> @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+        ... def old_func(x: int) -> int:
+        ...     void(x)  # Silences IDE warning about unused 'x'
+        ...     # This line is never reached - call forwarded to new_func
+        >>>
+        >>> old_func(5)  # Returns 10
+        10
+
+    Note:
+        This function has no runtime effect - it's purely for developer convenience
+        to avoid IDE warnings. You can also use ``pass`` or just a docstring instead.
+
+    """
     _, _ = args, kwrgs

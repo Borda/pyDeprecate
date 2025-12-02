@@ -1,4 +1,8 @@
-"""Package details."""
+"""Package metadata and version information.
+
+This module contains all package metadata including version, author information,
+and links to documentation and source code.
+"""
 
 __version__ = "0.4.0dev"
 __docs__ = "Deprecation tooling"
