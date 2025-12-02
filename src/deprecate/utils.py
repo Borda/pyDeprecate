@@ -249,9 +249,15 @@ def validate_deprecated_callable(
 
     # Wrapper has no effect if:
     # - Self-reference (forwards to itself)
-    # - Empty mapping (no argument remapping at all)
-    # - All mappings are identity (all args map to themselves)
-    result["no_effect"] = result["self_reference"] or result["empty_mapping"] or all_identity
+    # - target is None AND no args_mapping (just warns, no forwarding or remapping)
+    # - target is True (self-deprecation) AND (empty mapping OR all identity mappings)
+    # Note: When target is a different function, there's ALWAYS an effect (forwarding)
+    is_self_deprecation = target is True or result["self_reference"]
+    result["no_effect"] = (
+        result["self_reference"]
+        or (target is None and result["empty_mapping"])
+        or (is_self_deprecation and (result["empty_mapping"] or all_identity))
+    )
 
     return result
 
