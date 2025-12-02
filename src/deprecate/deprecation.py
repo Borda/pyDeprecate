@@ -5,7 +5,6 @@ Copyright (C) 2020-2023 Jiri Borovec <...>
 """
 
 import inspect
-import os
 from functools import partial, wraps
 from typing import Any, Callable, Dict, Optional, Union
 from warnings import warn
@@ -185,7 +184,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             "target_text": target_text,
         }
     )
-    wrapped_fn.__doc__ = os.linesep.join(lines)
+    wrapped_fn.__doc__ = "\n".join(lines)
 
 
 def deprecated(
