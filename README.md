@@ -483,7 +483,11 @@ def old_add_v2(a: int, b: int) -> int:
 
 ## 🔍 Validating Wrapper Configuration
 
-During development, you may want to verify that your deprecated wrappers are configured correctly. The `validate_wrapper_args()` utility helps you identify configurations that would make your deprecation wrapper have zero impact:
+During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this:
+
+### Validating a Single Function
+
+The `validate_wrapper_args()` utility helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
 from deprecate import validate_wrapper_args, deprecated
@@ -520,13 +524,40 @@ if result["no_effect"]:
     print("Warning: This wrapper configuration has zero impact!")
 ```
 
+### Scanning a Package for Deprecated Wrappers
+
+The `find_deprecated_wrappers()` utility scans an entire package or module for all `@deprecated` decorator usages and validates each one:
+
+```python
+from deprecate import find_deprecated_wrappers
+import my_package
+
+# Scan an entire package for deprecated wrappers
+results = find_deprecated_wrappers(my_package)
+
+# Or scan using a string module path
+results = find_deprecated_wrappers("my_package.submodule")
+
+# Check results
+for r in results:
+    print(f"{r['module']}.{r['function']}: has_effect={r['has_effect']}")
+    if not r["has_effect"]:
+        print(f"  Warning: This wrapper has zero impact!")
+        print(f"  Validation: {r['validation']}")
+
+# Filter to only ineffective wrappers
+ineffective = [r for r in results if not r["has_effect"]]
+if ineffective:
+    print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
+```
+
 **Use cases:**
 
 - **In tests:** Validate that all deprecation decorators in your codebase are properly configured
 - **During development:** Catch configuration mistakes early before they reach production
 - **In CI/CD:** Add validation checks to ensure no ineffective wrappers slip through
 
-The function returns a dictionary with:
+The `validate_wrapper_args()` function returns a dictionary with:
 
 - `invalid_args`: List of args_mapping keys that don't exist in the function signature
 - `empty_mapping`: True if args_mapping is None or empty (no argument remapping)

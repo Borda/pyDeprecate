@@ -333,3 +333,41 @@ def test_validate_wrapper_args_no_effect() -> None:
     # Self-reference - no effect
     result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func)
     assert result["no_effect"] is True
+
+
+def test_find_deprecated_wrappers() -> None:
+    """Test find_deprecated_wrappers scans a module for deprecated functions."""
+    import tests.collection_deprecate as test_module
+    from deprecate import find_deprecated_wrappers
+
+    results = find_deprecated_wrappers(test_module, recursive=False)
+
+    # Should find deprecated functions
+    assert len(results) > 0
+
+    # All results should have required keys
+    for r in results:
+        assert "module" in r
+        assert "function" in r
+        assert "deprecated_info" in r
+        assert "validation" in r
+        assert "has_effect" in r
+
+    # Check that known deprecated functions are found
+    func_names = [r["function"] for r in results]
+    assert "depr_sum" in func_names or "depr_pow_self" in func_names
+
+
+def test_find_deprecated_wrappers_with_string_module() -> None:
+    """Test find_deprecated_wrappers accepts string module path."""
+    from deprecate import find_deprecated_wrappers
+
+    results = find_deprecated_wrappers("tests.collection_deprecate", recursive=False)
+
+    # Should find deprecated functions
+    assert len(results) > 0
+
+    # All results should have required keys
+    for r in results:
+        assert "has_effect" in r
+        assert isinstance(r["has_effect"], bool)

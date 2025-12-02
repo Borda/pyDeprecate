@@ -4,12 +4,14 @@ This module provides supporting utilities for the deprecation system, including:
     - Function introspection helpers
     - Testing utilities for deprecated code
     - Warning management tools
+    - Package scanning for deprecated wrappers
 
 Key Functions:
     - get_func_arguments_types_defaults(): Extract function signature details
     - no_warning_call(): Context manager for testing code without warnings
     - void(): Helper to silence IDE warnings about unused parameters
     - validate_wrapper_args(): Validate args_mapping configuration
+    - find_deprecated_wrappers(): Scan a package for deprecated wrappers
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
 """
@@ -252,3 +254,99 @@ def validate_wrapper_args(
     result["no_effect"] = result["self_reference"] or result["empty_mapping"] or all_identity
 
     return result
+
+
+def find_deprecated_wrappers(
+    module: Any,
+    recursive: bool = True,
+) -> List[dict]:
+    """Scan a module or package for deprecated wrapper usages and validate them.
+
+    This is a development tool to scan a codebase for all functions decorated with
+    `@deprecated` and validate that each wrapper configuration is meaningful
+    (has an effect).
+
+    Args:
+        module: A Python module or package to scan for deprecated decorators.
+            Can be imported module object or a string module path.
+        recursive: If True, recursively scan submodules. Default is True.
+
+    Returns:
+        List of dictionaries, one per deprecated function found, each containing:
+            - 'module': Module name where the function is defined
+            - 'function': Function name
+            - 'deprecated_info': The __deprecated__ attribute dict if present
+            - 'validation': Result from validate_wrapper_args() if applicable
+            - 'has_effect': True if the wrapper has a meaningful effect
+
+    Example:
+        >>> import my_package
+        >>> results = find_deprecated_wrappers(my_package)
+        >>> for r in results:
+        ...     if not r['has_effect']:
+        ...         print(f"Warning: {r['module']}.{r['function']} has no effect!")
+
+    .. note::
+        This function requires that the module be importable. It inspects
+        the `__deprecated__` attribute set by the @deprecated decorator
+        at decoration time.
+
+    """
+    import importlib
+    import pkgutil
+
+    results = []
+
+    # Handle string module path
+    if isinstance(module, str):
+        module = importlib.import_module(module)
+
+    def _scan_module(mod: Any) -> None:
+        """Scan a single module for deprecated functions."""
+        try:
+            for name, obj in inspect.getmembers(mod):
+                # Skip private/magic attributes and imports from other modules
+                if name.startswith("_"):
+                    continue
+
+                # Check if it's a function or method with __deprecated__ attribute
+                if callable(obj) and hasattr(obj, "__deprecated__"):
+                    dep_info = getattr(obj, "__deprecated__", {})
+                    target = dep_info.get("target")
+                    args_mapping = dep_info.get("args_mapping")
+
+                    # Validate the wrapper
+                    validation = validate_wrapper_args(obj, args_mapping, target)
+
+                    results.append(
+                        {
+                            "module": mod.__name__ if hasattr(mod, "__name__") else str(mod),
+                            "function": name,
+                            "deprecated_info": dep_info,
+                            "validation": validation,
+                            "has_effect": not validation["no_effect"],
+                        }
+                    )
+        except Exception:  # noqa: S110
+            # Skip modules that can't be inspected
+            pass
+
+    # Scan the main module
+    _scan_module(module)
+
+    # Recursively scan submodules if requested
+    if recursive and hasattr(module, "__path__"):
+        try:
+            for _importer, modname, _ispkg in pkgutil.walk_packages(
+                path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None
+            ):
+                try:
+                    submod = importlib.import_module(modname)
+                    _scan_module(submod)
+                except Exception:  # noqa: S110
+                    # Skip modules that can't be imported
+                    pass
+        except Exception:  # noqa: S110
+            pass
+
+    return results
