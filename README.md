@@ -490,26 +490,34 @@ from deprecate import validate_wrapper_args, deprecated
 
 
 # Define your deprecated function
-@deprecated(target=True, args_mapping={"old_arg": "new_arg"})
+@deprecated(target=True, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
 
 # Validate the configuration - returns a dict with validation results
-result = validate_wrapper_args(my_func, {"old_arg": "new_arg"})
-# {'invalid_args': [], 'empty_mapping': False, 'self_reference': False}
+result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, deprecated_in="1.0")
+# {'invalid_args': [], 'empty_mapping': False, 'identity_mapping': [], 'self_reference': False, 'missing_version': False}
 
 # Detect invalid argument mappings
-result = validate_wrapper_args(my_func, {"nonexistent": "new_arg"})
-# {'invalid_args': ['nonexistent'], 'empty_mapping': False, 'self_reference': False}
+result = validate_wrapper_args(my_func, {"nonexistent": "new_arg"}, deprecated_in="1.0")
+# {'invalid_args': ['nonexistent'], ...}
 
 # Detect empty mappings (wrapper has no effect)
-result = validate_wrapper_args(my_func, {})
-# {'invalid_args': [], 'empty_mapping': True, 'self_reference': False}
+result = validate_wrapper_args(my_func, {}, deprecated_in="1.0")
+# {'empty_mapping': True, ...}
+
+# Detect identity mappings (arg mapped to itself - no effect)
+result = validate_wrapper_args(my_func, {"old_arg": "old_arg"}, deprecated_in="1.0")
+# {'identity_mapping': ['old_arg'], ...}
 
 # Detect self-referencing target (wrapper forwards to itself)
-result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func)
-# {'invalid_args': [], 'empty_mapping': False, 'self_reference': True}
+result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func, deprecated_in="1.0")
+# {'self_reference': True, ...}
+
+# Detect missing version information
+result = validate_wrapper_args(my_func, {"old_arg": "new_arg"})
+# {'missing_version': True, ...}
 ```
 
 **Use cases:**
@@ -522,7 +530,9 @@ The function returns a dictionary with:
 
 - `invalid_args`: List of args_mapping keys that don't exist in the function signature
 - `empty_mapping`: True if args_mapping is None or empty (no argument remapping)
+- `identity_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
 - `self_reference`: True if target points to the same function (self-reference)
+- `missing_version`: True if both `deprecated_in` and `remove_in` are empty
 
 ## 🧪 Testing Deprecated Code
 
