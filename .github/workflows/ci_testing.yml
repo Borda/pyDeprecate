@@ -33,7 +33,7 @@ jobs:
       - name: Tests
         run: |
           phmdoctest README.md --outfile tests/test_readme.py
-          python -m pytest . -v --cov=deprecate --junitxml=junit/test-results-${{ runner.os }}-${{ matrix.python-version }}.xml
+          python -m pytest . -vv --cov=deprecate --junitxml=junit/test-results-${{ runner.os }}-${{ matrix.python-version }}.xml
 
       - name: Upload pytest test results
         uses: actions/upload-artifact@v5

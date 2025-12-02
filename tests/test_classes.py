@@ -63,3 +63,19 @@ def test_deprecated_class_self() -> None:
         this = ThisCls(2)
     assert this.my_c == 2
     assert isinstance(this, ThisCls)
+
+
+def test_deprecated_class_attribute_set_at_decoration_time() -> None:
+    """Test that __deprecated__ attribute is set at decoration time, not call time.
+
+    This verifies that the __deprecated__ attribute is available immediately
+    after the decorator is applied, without needing to call the class first.
+    """
+    # Verify __deprecated__ is set on the __init__ WITHOUT instantiating the class
+    assert hasattr(PastCls.__init__, "__deprecated__")
+    assert PastCls.__init__.__deprecated__ == {
+        "deprecated_in": "0.2",
+        "remove_in": "0.4",
+        "target": NewCls,
+        "args_mapping": None,
+    }

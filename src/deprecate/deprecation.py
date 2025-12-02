@@ -27,6 +27,12 @@ TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
+#: Default template for documentation with deprecated callable
+TEMPLATE_DOC_DEPRECATED = """
+.. deprecated:: %(deprecated_in)s
+   %(remove_text)s
+   %(target_text)s
+"""
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
@@ -160,6 +166,27 @@ def _raise_warn_arguments(
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
 
 
+def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
+    """Update the docstring of the wrapped function with deprecation information."""
+    if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
+        return
+    lines = wrapped_fn.__doc__.splitlines()
+    dep_info = getattr(wrapped_fn, "__deprecated__", {})
+    remove_in_val = dep_info.get("remove_in", "")
+    target_val = dep_info.get("target")
+    remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
+    target_text = f"Use `{target_val.__module__}.{target_val.__name__}` instead." if callable(target_val) else ""
+    lines.append(
+        TEMPLATE_DOC_DEPRECATED
+        % {
+            "deprecated_in": dep_info.get("deprecated_in", ""),
+            "remove_text": remove_text,
+            "target_text": target_text,
+        }
+    )
+    wrapped_fn.__doc__ = "\n".join(lines)
+
+
 def deprecated(
     target: Union[bool, None, Callable],
     deprecated_in: str = "",
@@ -170,6 +197,7 @@ def deprecated(
     args_mapping: Optional[Dict[str, str]] = None,
     args_extra: Optional[Dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
+    update_docstring: bool = False,
 ) -> Callable:
     """Decorate a function or class with warning message and pass all arguments directly to the target class/method.
 
@@ -192,6 +220,7 @@ def deprecated(
         args_extra: Custom filling extra argument in target function, mostly if they are required
             or your needed default is different from target one, for example ``{'their_arg': 42}``
         skip_if: Conditional skip for this wrapper, e.g. in case of versions
+        update_docstring: Whether to update the function's docstring with the deprecation warning.
 
     Returns:
         wrapped function pointing to the target implementation with source arguments
@@ -258,8 +287,7 @@ def deprecated(
             if not callable(target):
                 return source(**kwargs)
 
-            target_is_class = inspect.isclass(target)
-            target_func = target.__init__ if target_is_class else target
+            target_func = target.__init__ if inspect.isclass(target) else target
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             # get full args & name of varkw
@@ -272,6 +300,21 @@ def deprecated(
                 raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
             # all args were already moved to kwargs
             return target_func(**kwargs)
+
+        # Set deprecation info for documentation
+        setattr(
+            wrapped_fn,
+            "__deprecated__",
+            {
+                "deprecated_in": deprecated_in,
+                "remove_in": remove_in,
+                "target": target,
+                "args_mapping": args_mapping,
+            },
+        )
+
+        if update_docstring:
+            _update_docstring_with_deprecation(wrapped_fn)
 
         return wrapped_fn
 
