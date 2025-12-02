@@ -165,7 +165,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
         return
     lines = wrapped_fn.__doc__.splitlines()
-    dep_info = wrapped_fn.__deprecated__
+    dep_info = getattr(wrapped_fn, "__deprecated__", {})
     deprecated_in_val = dep_info.get("deprecated_in", "")
     remove_in_val = dep_info.get("remove_in", "")
     target_val = dep_info.get("target")
@@ -282,8 +282,7 @@ def deprecated(
             if not callable(target):
                 return source(**kwargs)
 
-            target_is_class = inspect.isclass(target)
-            target_func = target.__init__ if target_is_class else target
+            target_func = target.__init__ if inspect.isclass(target) else target
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             # get full args & name of varkw
@@ -298,12 +297,16 @@ def deprecated(
             return target_func(**kwargs)
 
         # Set deprecation info for documentation
-        wrapped_fn.__deprecated__ = {
-            "deprecated_in": deprecated_in,
-            "remove_in": remove_in,
-            "target": target,
-            "args_mapping": args_mapping,
-        }
+        setattr(
+            wrapped_fn,
+            "__deprecated__",
+            {
+                "deprecated_in": deprecated_in,
+                "remove_in": remove_in,
+                "target": target,
+                "args_mapping": args_mapping,
+            },
+        )
 
         if update_docstring and hasattr(wrapped_fn, "__doc__") and wrapped_fn.__doc__ is not None:
             _update_docstring_with_deprecation(wrapped_fn)
