@@ -23,7 +23,7 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
     """Parse function arguments, types and default values.
 
     Args:
-        func: A function to be examined
+        func: a function to be examined
 
     Returns:
         List of tuples, one per argument, each containing:
@@ -76,7 +76,7 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
     deprecation warnings, or that code paths properly avoid deprecated functionality.
 
     Args:
-        warning_type: Type of warning to catch (e.g., FutureWarning, DeprecationWarning).
+        warning_type: The type of warning to catch (e.g., FutureWarning, DeprecationWarning).
             If None, catches all warning types.
         match: If specified, only fail if warning message contains this string.
             If None, fails on any warning of the specified type.
