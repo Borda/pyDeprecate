@@ -91,11 +91,19 @@ result = old_sum(1, 2)  # Returns 3
 
 That's it! All calls to `old_sum()` are automatically forwarded to `new_sum()` with a deprecation warning.
 
-**✨ Key Points:**
+### ✨ Key Points
 
-- ⚠️ Deprecation warnings are shown **once per function** by default (prevents log spam)
+- ⚠️ Deprecation warnings are shown once per function by default (prevents log spam)
 - 🔄 Arguments are automatically mapped to the target function
 - 🚫 The deprecated function body is never executed when using `target`
+- ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
+- 🛠️ Supports deprecating functions, methods, and classes
+- 📝 Optionally, docstrings can be updated automatically to reflect deprecation
+- 🔍 Preserves original function signature, annotations and metadata for introspection
+- ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
+- 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
+- 🧪 Includes testing helpers (e.g., `no_warning_call`) for deterministic tests
+- 🔗 Compatible with methods, class constructors and cross‑module moves
 
 ### 📸 Example Output
 
@@ -406,12 +414,14 @@ efg
 You can automatically append deprecation information to your function's docstring:
 
 ```python
-from deprecate import deprecated
-
-
 def new_function(x: int) -> int:
     """New implementation of the function."""
     return x * 2
+
+
+# ---------------------------
+
+from deprecate import deprecated
 
 
 @deprecated(
@@ -442,16 +452,20 @@ print(old_function.__doc__)
 
 This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
 
+![Documentation Sample](.assets/docs-sample.png)
+
 ## 🔇 Understanding the `void()` Helper
 
 When using `@deprecated` with a `target` function, the deprecated function's body is never executed—all calls are automatically forwarded. However, your IDE might complain about "unused parameters". The `void()` helper function silences these warnings:
 
 ```python
-from deprecate import deprecated, void
-
-
 def new_add(a: int, b: int) -> int:
     return a + b
+
+
+# ---------------------------
+
+from deprecate import deprecated, void
 
 
 @deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
@@ -518,12 +532,14 @@ The `no_warning_call()` context manager will fail your test if any warnings of t
 **⚙️ Advanced: Control warning frequency**
 
 ```python
-from deprecate import deprecated
-
-
 # Minimal replacement implementation used in examples
 def new_func(x: int) -> int:
     return x * 2
+
+
+# ---------------------------
+
+from deprecate import deprecated
 
 
 # Show warning every time (useful for critical deprecations)
@@ -552,12 +568,14 @@ def old_func_warn_5_times(x: int) -> int:
 1. **Skip the argument** (if it's no longer needed):
 
    ```python
-   from deprecate import deprecated
-
-
    # define a target that ignores the extra arg
    def new_func(required_arg: int, **kwargs) -> int:
        return required_arg * 2
+
+
+   # ---------------------------
+
+   from deprecate import deprecated
 
 
    # None means skip this argument
@@ -569,11 +587,13 @@ def old_func_warn_5_times(x: int) -> int:
 2. **Rename the argument** (if target uses different name):
 
    ```python
-   from deprecate import deprecated
-
-
    def new_func(new_name: int) -> int:
        return new_name * 2
+
+
+   # ---------------------------
+
+   from deprecate import deprecated
 
 
    # Map old to new
@@ -606,17 +626,19 @@ def old_func_warn_5_times(x: int) -> int:
 <summary>Solution</summary>
 
 ```python
+# Minimal replacement function for examples
+def new_func() -> str:
+    return "Hi!"
+
+
+# ---------------------------
+
 from deprecate import deprecated
 
 
 # Correct: function returns bool
 def should_skip() -> bool:
     return False  # replace with your condition
-
-
-# Minimal replacement function for examples
-def new_func() -> str:
-    return "Hi!"
 
 
 @deprecated(target=new_func, skip_if=should_skip)
@@ -642,12 +664,14 @@ def old_func2():
 <summary>Solutions</summary>
 
 ```python
-from deprecate import deprecated
-
-
 # Minimal replacement function for examples
 def new_func(x: int) -> int:
     return x * 2
+
+
+# ---------------------------
+
+from deprecate import deprecated
 
 
 # Show warning every time
