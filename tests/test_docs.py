@@ -45,6 +45,16 @@ class OldClassPlain:
         self.x = x
 
 
+__all__ = [
+    "new_function",
+    "NewClass",
+    "old_function",
+    "old_function_plain",
+    "OldClass",
+    "OldClassPlain",
+]
+
+
 def test_deprecated_func_docstring() -> None:
     """Test that deprecated functions have deprecation warning in their docstring."""
     assert old_function.__doc__ == (

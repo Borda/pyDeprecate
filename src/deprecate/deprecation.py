@@ -5,6 +5,7 @@ Copyright (C) 2020-2023 Jiri Borovec <...>
 """
 
 import inspect
+import os
 from functools import partial, wraps
 from typing import Any, Callable, Dict, Optional, Union
 from warnings import warn
@@ -28,7 +29,11 @@ TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
 #: Default template for documentation with deprecated callable
-TEMPLATE_DOC_DEPRECATED = ".. deprecated:: %(deprecated_in)s%(remove_part)s%(target_part)s"
+TEMPLATE_DOC_DEPRECATED = """
+.. deprecated:: %(deprecated_in)s
+   %(remove_text)s
+   %(target_text)s
+"""
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
@@ -168,25 +173,17 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         return
     lines = wrapped_fn.__doc__.splitlines()
     dep_info = getattr(wrapped_fn, "__deprecated__", {})
-    deprecated_in_val = dep_info.get("deprecated_in", "")
     remove_in_val = dep_info.get("remove_in", "")
     target_val = dep_info.get("target")
-    remove_part = f" Will be removed in {remove_in_val}." if remove_in_val else ""
-    if callable(target_val):
-        target_part = f" Use {target_val.__module__}.{target_val.__name__} instead."
-    elif target_val is None:
-        target_part = " This function is deprecated."
-    else:
-        target_part = ""
+    remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
+    target_text = f"Use `{target_val.__module__}.{target_val.__name__}` instead." if callable(target_val) else ""
     msg = TEMPLATE_DOC_DEPRECATED % {
-        "deprecated_in": deprecated_in_val,
-        "remove_part": remove_part,
-        "target_part": target_part,
+        "deprecated_in": dep_info.get("deprecated_in", ""),
+        "remove_text": remove_text,
+        "target_text": target_text,
     }
-    lines.append("")
     lines.append(msg)
-    lines.append("")
-    wrapped_fn.__doc__ = "\n".join(lines)
+    wrapped_fn.__doc__ = os.linesep.join(lines)
 
 
 def deprecated(
