@@ -327,7 +327,7 @@ def find_deprecated_callables(
                             "has_effect": not validation["no_effect"],
                         }
                     )
-        except Exception:  # noqa: S110
+        except (AttributeError, TypeError, ImportError):
             # Skip modules that can't be inspected
             pass
 
@@ -343,10 +343,10 @@ def find_deprecated_callables(
                 try:
                     submod = importlib.import_module(modname)
                     _scan_module(submod)
-                except Exception:  # noqa: S110
+                except (ImportError, ModuleNotFoundError):
                     # Skip modules that can't be imported
                     pass
-        except Exception:  # noqa: S110
+        except (OSError, ImportError):
             pass
 
     return results
