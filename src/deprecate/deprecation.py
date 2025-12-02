@@ -34,6 +34,11 @@ TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
+#: Template warning message for ineffective wrapper (no valid arg mappings exist)
+TEMPLATE_WARNING_INEFFECTIVE_WRAPPER = (
+    "The `%(source_name)s` has a deprecated wrapper, but no args from `args_mapping` (%(mapping_keys)s) are present in"
+    " the function's signature (%(source_args)s). The wrapper has no effect."
+)
 #: Default template for documentation with deprecated callable
 TEMPLATE_DOC_DEPRECATED = """
 .. deprecated:: %(deprecated_in)s
@@ -411,6 +416,24 @@ def deprecated(
     """
 
     def packing(source: Callable) -> Callable:
+        # Warn at decoration time if args_mapping has no valid mappings (no effect)
+        if args_mapping and target and not callable(target):
+            # Self-deprecation mode with args_mapping
+            source_args = [arg[0] for arg in get_func_arguments_types_defaults(source)]
+            valid_mappings = [arg for arg in args_mapping if arg in source_args]
+            if not valid_mappings:
+                source_name = source.__name__
+                warn(
+                    TEMPLATE_WARNING_INEFFECTIVE_WRAPPER
+                    % {
+                        "source_name": source_name,
+                        "mapping_keys": ", ".join(args_mapping.keys()),
+                        "source_args": ", ".join(source_args),
+                    },
+                    category=UserWarning,
+                    stacklevel=2,
+                )
+
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
             # check if user requested a skip
@@ -433,7 +456,6 @@ def deprecated(
             # short cycle with no reason for redirect
             if not (reason_callable or reason_argument):
                 # No forwarding needed: no target to forward to, and no deprecated args used
-                # TODO: Consider warning that decorator has no effect in this case
                 return source(**kwargs)
 
             # warning per argument

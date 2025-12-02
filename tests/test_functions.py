@@ -187,3 +187,30 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
         "target": base_sum_kwargs,
         "args_mapping": None,
     }
+
+
+def test_deprecated_func_ineffective_wrapper_warning() -> None:
+    """Test that a warning is raised when args_mapping has no valid mappings.
+
+    This verifies that a UserWarning is raised at decoration time when using
+    target=True with args_mapping that references non-existent arguments.
+    """
+    from deprecate import deprecated
+
+    # Test that warning is raised when args_mapping references non-existent args
+    with pytest.warns(
+        UserWarning,
+        match=r"The `my_func` has a deprecated wrapper, but no args from `args_mapping` \(nonexistent_arg\) "
+        r"are present in the function's signature \(real_arg\). The wrapper has no effect.",
+    ):
+
+        @deprecated(target=True, args_mapping={"nonexistent_arg": "new_arg"})
+        def my_func(real_arg: int = 1) -> int:
+            return real_arg
+
+    # Test that no warning is raised when args_mapping has valid mappings
+    with no_warning_call(UserWarning):
+
+        @deprecated(target=True, args_mapping={"old_arg": "new_arg"})
+        def my_func2(old_arg: int = 1, new_arg: int = 2) -> int:
+            return new_arg
