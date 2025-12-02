@@ -228,7 +228,7 @@ def validate_wrapper_args(
     result = {
         "invalid_args": [],
         "empty_mapping": not args_mapping,
-        "self_reference": target is func if target is not None and func is not None else False,
+        "self_reference": target is func if target is not None else False,
     }
 
     if args_mapping:
