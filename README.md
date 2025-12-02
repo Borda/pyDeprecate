@@ -572,7 +572,7 @@ TypeError: Failed mapping of 'my_func', arguments missing in target source: ['ol
        pass
    ```
 
-1. **Rename the argument** (if target uses different name):
+2. **Rename the argument** (if target uses different name):
 
    ```python
    from deprecate import deprecated
@@ -588,7 +588,7 @@ TypeError: Failed mapping of 'my_func', arguments missing in target source: ['ol
        pass
    ```
 
-1. **Use target=True for self-deprecation** (deprecate argument of same function):
+3. **Use target=True for self-deprecation** (deprecate argument of same function):
 
    ```python
    from deprecate import deprecated
