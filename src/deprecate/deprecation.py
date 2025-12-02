@@ -177,12 +177,14 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     target_val = dep_info.get("target")
     remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
     target_text = f"Use `{target_val.__module__}.{target_val.__name__}` instead." if callable(target_val) else ""
-    msg = TEMPLATE_DOC_DEPRECATED % {
-        "deprecated_in": dep_info.get("deprecated_in", ""),
-        "remove_text": remove_text,
-        "target_text": target_text,
-    }
-    lines.append(msg)
+    lines.append(
+        TEMPLATE_DOC_DEPRECATED
+        % {
+            "deprecated_in": dep_info.get("deprecated_in", ""),
+            "remove_text": remove_text,
+            "target_text": target_text,
+        }
+    )
     wrapped_fn.__doc__ = os.linesep.join(lines)
 
 
@@ -312,7 +314,7 @@ def deprecated(
             },
         )
 
-        if update_docstring and hasattr(wrapped_fn, "__doc__") and wrapped_fn.__doc__ is not None:
+        if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)
 
         return wrapped_fn
