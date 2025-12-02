@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install package
-        run: pip install -e .  -r requirements.txt
+        run: pip install -e .  -r temp_docs/requirements.txt
 
       - name: Build documentation
         working-directory: temp_docs
