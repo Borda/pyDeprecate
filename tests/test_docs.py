@@ -49,9 +49,7 @@ __all__ = [
     "new_function",
     "NewClass",
     "old_function",
-    "old_function_plain",
     "OldClass",
-    "OldClassPlain",
 ]
 
 
