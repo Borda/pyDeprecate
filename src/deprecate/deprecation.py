@@ -61,9 +61,10 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
         where positional args are now mapped to their parameter names
 
     Example:
+        >>> from pprint import pprint
         >>> def example_func(a, b, c=3): pass
-        >>> _update_kwargs_with_args(example_func, (1, 2), {'c': 5})
-        {'c': 5, 'a': 1, 'b': 2}
+        >>> pprint(_update_kwargs_with_args(example_func, (1, 2), {'c': 5}))
+        {'a': 1, 'b': 2, 'c': 5}
 
     """
     if not fn_args:
@@ -92,9 +93,10 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
         values override defaults
 
     Example:
+        >>> from pprint import pprint
         >>> def example_func(a=1, b=2, c=3): pass
-        >>> _update_kwargs_with_defaults(example_func, {'b': 20})
-        {'a': 1, 'c': 3, 'b': 20}
+        >>> pprint(_update_kwargs_with_defaults(example_func, {'b': 20}))
+        {'a': 1, 'b': 20, 'c': 3}
 
     Note:
         Parameters without defaults (inspect._empty) are not included in the result.
@@ -126,6 +128,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         - For __init__ methods: extracts class name from __qualname__
 
     Example:
+        >>> import warnings
         >>> def old_func(): pass
         >>> _raise_warn(
         ...     warnings.warn,
@@ -177,17 +180,18 @@ def _raise_warn_callable(
         - remove_in: Version parameter value
 
     Example:
+        >>> import warnings
         >>> def new_func(): pass
         >>> def old_func(): pass
         >>> _raise_warn_callable(
-        ...     warnings.warn,
-        ...     old_func,
-        ...     new_func,
-        ...     "1.0",
-        ...     "2.0"
+        ...     stream=warnings.warn,
+        ...     source=old_func,
+        ...     target=new_func,
+        ...     deprecated_in="1.0",
+        ...     remove_in="2.0"
         ... )
-        # Outputs: "The `old_func` was deprecated since v1.0 in favor of
-        #           `__main__.new_func`. It will be removed in v2.0."
+        >>> # Outputs: "The `old_func` was deprecated since v1.0 in favor of
+        >>> #           `__main__.new_func`. It will be removed in v2.0."
 
     """
     if callable(target):
@@ -198,9 +202,9 @@ def _raise_warn_callable(
         target_name, target_path = "", ""
         template_mgs = template_mgs or TEMPLATE_WARNING_NO_TARGET
     _raise_warn(
-        stream,
-        source,
-        template_mgs,
+        stream=stream,
+        source=source,
+        template_mgs=template_mgs,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
@@ -239,6 +243,7 @@ def _raise_warn_arguments(
         - remove_in: Version parameter value
 
     Example:
+        >>> import warnings
         >>> def my_func(old_arg=1, new_arg=1): pass
         >>> _raise_warn_arguments(
         ...     warnings.warn,
@@ -247,8 +252,8 @@ def _raise_warn_arguments(
         ...     "1.0",
         ...     "2.0"
         ... )
-        # Outputs: "The `my_func` uses deprecated arguments: `old_arg` -> `new_arg`.
-        #           They were deprecated since v1.0 and will be removed in v2.0."
+        >>> # Outputs: "The `my_func` uses deprecated arguments: `old_arg` -> `new_arg`.
+        >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
     args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": b} for a, b in arguments.items()])
@@ -292,12 +297,12 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         ...     'target': new_func
         ... }
         >>> _update_docstring_with_deprecation(old_func)
-        >>> print(old_func.__doc__)
+        >>> print(old_func.__doc__) # doctest: +ELLIPSIS
         Original docstring.
         <BLANKLINE>
         .. deprecated:: 1.0
            Will be removed in 2.0.
-           Use `__main__.new_func` instead.
+           Use `....new_func` instead.
 
     Note:
         Does nothing if the function has no docstring or no __deprecated__ attribute.
@@ -383,29 +388,25 @@ def deprecated(
             and target doesn't accept **kwargs.
 
     Example:
-        Basic forwarding::
+        >>> # Basic forwarding
+        >>> def new_func(x: int) -> int:
+        ...     return x * 2
+        >>> @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+        ... def old_func(x: int) -> int:
+        ...     pass
 
-            def new_func(x: int) -> int:
-                return x * 2
+        >>> # Argument mapping::
+        >>> @deprecated(
+        ...     target=new_func,
+        ...     args_mapping={'old_name': 'new_name', 'unused': None}
+        ... )
+        ... def old_func(old_name: int, unused: str) -> int:
+        ...     pass
 
-            @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-            def old_func(x: int) -> int:
-                pass
-
-        Argument mapping::
-
-            @deprecated(
-                target=new_func,
-                args_mapping={'old_name': 'new_name', 'unused': None}
-            )
-            def old_func(old_name: int, unused: str) -> int:
-                pass
-
-        Self-deprecation::
-
-            @deprecated(target=True, args_mapping={'old_arg': 'new_arg'})
-            def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
-                return new_arg * 2
+        >>> # Self-deprecation::
+        >>> @deprecated(target=True, args_mapping={'old_arg': 'new_arg'})
+        ... def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
+        ...     return new_arg * 2
 
     """
 
