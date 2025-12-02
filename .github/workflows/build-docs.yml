@@ -18,12 +18,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        working-directory: temp_docs
-        run: pip install -r requirements.txt
-
       - name: Install package
-        run: pip install -e .
+        run: pip install -e .  -r requirements.txt
+
       - name: Build documentation
         working-directory: temp_docs
         run: make html

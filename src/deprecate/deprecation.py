@@ -27,6 +27,12 @@ TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
+#: Default template for documentation with deprecated callable
+TEMPLATE_DOC_DEPRECATED = (
+    ".. deprecated:: %(deprecated_in)s"
+    "%(remove_part)s"
+    "%(target_part)s"
+)
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
@@ -169,13 +175,18 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     deprecated_in_val = dep_info.get("deprecated_in", "")
     remove_in_val = dep_info.get("remove_in", "")
     target_val = dep_info.get("target")
-    msg = f".. deprecated:: {deprecated_in_val}"
-    if remove_in_val:
-        msg += f" Will be removed in {remove_in_val}."
+    remove_part = f" Will be removed in {remove_in_val}." if remove_in_val else ""
     if callable(target_val):
-        msg += f" Use {target_val.__module__}.{target_val.__name__} instead."
+        target_part = f" Use {target_val.__module__}.{target_val.__name__} instead."
     elif target_val is None:
-        msg += " This function is deprecated."
+        target_part = " This function is deprecated."
+    else:
+        target_part = ""
+    msg = TEMPLATE_DOC_DEPRECATED % {
+        "deprecated_in": deprecated_in_val,
+        "remove_part": remove_part,
+        "target_part": target_part,
+    }
     lines.append("")
     lines.append(msg)
     lines.append("")
