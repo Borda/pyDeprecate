@@ -181,18 +181,16 @@ def validate_wrapper_args(
     func: Callable,
     args_mapping: Optional[dict] = None,
     target: Optional[Callable] = None,
-    deprecated_in: str = "",
-    remove_in: str = "",
 ) -> dict:
     """Validate if a deprecated wrapper has any effect.
 
     This is a development tool to check if deprecated wrappers are configured correctly.
-    It identifies issues that would make the deprecation wrapper ineffective:
+    It identifies configurations that would make the deprecation wrapper have zero impact:
     - args_mapping keys that don't exist in the function's signature
     - Empty or None args_mapping (no argument remapping)
     - Identity mappings where key equals value (e.g., {'arg': 'arg'})
     - Target pointing to the same function (self-reference)
-    - Missing version information (deprecated_in or remove_in)
+    - All identity: True if ALL mappings are identity (complete no-op)
 
     Args:
         func: The decorated function to validate
@@ -200,8 +198,6 @@ def validate_wrapper_args(
             Keys should be argument names that exist in the function's signature.
         target: The target function that calls are forwarded to.
             Used to check for self-reference.
-        deprecated_in: Version string when the function was deprecated.
-        remove_in: Version string when the function will be removed.
 
     Returns:
         Dictionary with validation results:
@@ -209,19 +205,23 @@ def validate_wrapper_args(
             - 'empty_mapping': True if args_mapping is None or empty
             - 'identity_mapping': List of args where key equals value (no effect)
             - 'self_reference': True if target is the same as func
-            - 'missing_version': True if both deprecated_in and remove_in are empty
+            - 'no_effect': True if wrapper has zero impact (all checks combined)
 
     Example:
         >>> def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
         ...     return new_arg
-        >>> # Valid mapping
-        >>> result = validate_wrapper_args(my_func, {'old_arg': 'new_arg'}, deprecated_in="1.0")
-        >>> result['invalid_args'], result['identity_mapping'], result['missing_version']
-        ([], [], False)
+        >>> # Valid mapping - has effect
+        >>> result = validate_wrapper_args(my_func, {'old_arg': 'new_arg'})
+        >>> result['no_effect']
+        False
         >>> # Identity mapping - no effect
         >>> result = validate_wrapper_args(my_func, {'old_arg': 'old_arg'})
-        >>> result['identity_mapping'], result['missing_version']
+        >>> result['identity_mapping'], result['no_effect']
         (['old_arg'], True)
+        >>> # Self-reference - no effect
+        >>> result = validate_wrapper_args(my_func, {'old_arg': 'new_arg'}, target=my_func)
+        >>> result['self_reference'], result['no_effect']
+        (True, True)
 
     .. note::
         Use this function during development or testing to ensure your deprecation
@@ -234,12 +234,21 @@ def validate_wrapper_args(
         "empty_mapping": not args_mapping,
         "identity_mapping": [],
         "self_reference": target is func if target is not None else False,
-        "missing_version": not deprecated_in and not remove_in,
+        "no_effect": False,
     }
 
+    all_identity = False
     if args_mapping:
         func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
         result["invalid_args"] = [arg for arg in args_mapping if arg not in func_args]
         result["identity_mapping"] = [arg for arg, val in args_mapping.items() if arg == val]
+        # Check if ALL mappings are identity (complete no-op)
+        all_identity = len(result["identity_mapping"]) == len(args_mapping) and len(args_mapping) > 0
+
+    # Wrapper has no effect if:
+    # - Self-reference (forwards to itself)
+    # - Empty mapping (no argument remapping at all)
+    # - All mappings are identity (all args map to themselves)
+    result["no_effect"] = result["self_reference"] or result["empty_mapping"] or all_identity
 
     return result

@@ -196,12 +196,12 @@ def test_validate_wrapper_args_valid_mapping() -> None:
     def valid_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
-    result = validate_wrapper_args(valid_func, {"old_arg": "new_arg"}, deprecated_in="1.0")
+    result = validate_wrapper_args(valid_func, {"old_arg": "new_arg"})
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
     assert result["self_reference"] is False
-    assert result["missing_version"] is False
+    assert result["no_effect"] is False
 
 
 def test_validate_wrapper_args_invalid_mapping() -> None:
@@ -211,7 +211,7 @@ def test_validate_wrapper_args_invalid_mapping() -> None:
     def my_func(real_arg: int = 1) -> int:
         return real_arg
 
-    result = validate_wrapper_args(my_func, {"nonexistent_arg": "new_arg"}, deprecated_in="1.0")
+    result = validate_wrapper_args(my_func, {"nonexistent_arg": "new_arg"})
     assert result["invalid_args"] == ["nonexistent_arg"]
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
@@ -225,7 +225,7 @@ def test_validate_wrapper_args_mixed_mapping() -> None:
     def mixed_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
-    result = validate_wrapper_args(mixed_func, {"old_arg": "new_arg", "missing": "other"}, deprecated_in="1.0")
+    result = validate_wrapper_args(mixed_func, {"old_arg": "new_arg", "missing": "other"})
     assert result["invalid_args"] == ["missing"]
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
@@ -239,19 +239,21 @@ def test_validate_wrapper_args_empty_mapping() -> None:
     def my_func(real_arg: int = 1) -> int:
         return real_arg
 
-    # Test with None args_mapping
-    result = validate_wrapper_args(my_func, None, deprecated_in="1.0")
+    # Test with None args_mapping - has no effect
+    result = validate_wrapper_args(my_func, None)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is True
     assert result["identity_mapping"] == []
     assert result["self_reference"] is False
+    assert result["no_effect"] is True
 
-    # Test with empty args_mapping
-    result = validate_wrapper_args(my_func, {}, deprecated_in="1.0")
+    # Test with empty args_mapping - has no effect
+    result = validate_wrapper_args(my_func, {})
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is True
     assert result["identity_mapping"] == []
     assert result["self_reference"] is False
+    assert result["no_effect"] is True
 
 
 def test_validate_wrapper_args_self_reference() -> None:
@@ -261,12 +263,13 @@ def test_validate_wrapper_args_self_reference() -> None:
     def my_func(old_arg: int = 1, new_arg: int = 2) -> int:
         return new_arg
 
-    # Self-reference with valid mapping
-    result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func, deprecated_in="1.0")
+    # Self-reference with valid mapping - has no effect
+    result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
     assert result["self_reference"] is True
+    assert result["no_effect"] is True
 
 
 def test_validate_wrapper_args_different_target() -> None:
@@ -279,11 +282,12 @@ def test_validate_wrapper_args_different_target() -> None:
     def target_func(new_arg: int = 1) -> int:
         return new_arg
 
-    result = validate_wrapper_args(source_func, {"old_arg": "new_arg"}, target=target_func, deprecated_in="1.0")
+    result = validate_wrapper_args(source_func, {"old_arg": "new_arg"}, target=target_func)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
     assert result["self_reference"] is False
+    assert result["no_effect"] is False
 
 
 def test_validate_wrapper_args_identity_mapping() -> None:
@@ -294,36 +298,38 @@ def test_validate_wrapper_args_identity_mapping() -> None:
         return new_arg
 
     # Identity mapping - arg mapped to itself has no effect
-    result = validate_wrapper_args(my_func, {"old_arg": "old_arg"}, deprecated_in="1.0")
+    result = validate_wrapper_args(my_func, {"old_arg": "old_arg"})
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == ["old_arg"]
     assert result["self_reference"] is False
+    assert result["no_effect"] is True  # All mappings are identity
 
-    # Mixed identity and valid mappings
-    result = validate_wrapper_args(my_func, {"old_arg": "old_arg", "new_arg": "other"}, deprecated_in="1.0")
+    # Mixed identity and valid mappings - still has some effect
+    result = validate_wrapper_args(my_func, {"old_arg": "old_arg", "new_arg": "other"})
     assert result["identity_mapping"] == ["old_arg"]
+    assert result["no_effect"] is False  # Not all mappings are identity
 
 
-def test_validate_wrapper_args_missing_version() -> None:
-    """Test validate_wrapper_args detects missing version information."""
+def test_validate_wrapper_args_no_effect() -> None:
+    """Test validate_wrapper_args correctly detects zero-impact configurations."""
     from deprecate import validate_wrapper_args
 
-    def my_func(old_arg: int = 1) -> int:
-        return old_arg
+    def my_func(old_arg: int = 1, new_arg: int = 2) -> int:
+        return new_arg
 
-    # No version info provided
+    # Valid mapping - has effect
     result = validate_wrapper_args(my_func, {"old_arg": "new_arg"})
-    assert result["missing_version"] is True
+    assert result["no_effect"] is False
 
-    # Only deprecated_in provided
-    result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, deprecated_in="1.0")
-    assert result["missing_version"] is False
+    # Empty mapping - no effect
+    result = validate_wrapper_args(my_func, {})
+    assert result["no_effect"] is True
 
-    # Only remove_in provided
-    result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, remove_in="2.0")
-    assert result["missing_version"] is False
+    # All identity mappings - no effect
+    result = validate_wrapper_args(my_func, {"old_arg": "old_arg", "new_arg": "new_arg"})
+    assert result["no_effect"] is True
 
-    # Both provided
-    result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
-    assert result["missing_version"] is False
+    # Self-reference - no effect
+    result = validate_wrapper_args(my_func, {"old_arg": "new_arg"}, target=my_func)
+    assert result["no_effect"] is True
