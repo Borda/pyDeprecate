@@ -1,4 +1,4 @@
-# pyDeprecate ⚠️
+# pyDeprecate
 
 **Simple tooling for marking deprecated functions or classes and re-routing to their successors.**
 
@@ -518,6 +518,14 @@ The `no_warning_call()` context manager will fail your test if any warnings of t
 **⚙️ Advanced: Control warning frequency**
 
 ```python
+from deprecate import deprecated
+
+
+# Minimal replacement implementation used in examples
+def new_func(x: int) -> int:
+    return x * 2
+
+
 # Show warning every time (useful for critical deprecations)
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 def old_func_always_warn(x: int) -> int:
@@ -534,7 +542,7 @@ def old_func_warn_5_times(x: int) -> int:
 
 ### ❌ Common Errors
 
-#### TypeError: Failed mapping
+#### `TypeError: Failed mapping`
 
 **Error Message:**
 
@@ -544,57 +552,74 @@ TypeError: Failed mapping of 'my_func', arguments missing in target source: ['ol
 
 **Cause:** Your deprecated function has arguments that the target function doesn't accept.
 
-**Solutions:**
+<details>
+<summary>Solutions</summary>
 
 1. **Skip the argument** (if it's no longer needed):
 
-```python
-@deprecated(
-    target=new_func, args_mapping={"old_arg": None}  # None means skip this argument
-)
-def old_func(old_arg: int, new_arg: int) -> int:
-    pass
-```
-
-2. **Rename the argument** (if target uses different name):
-
-```python
-def new_func(new_name: int) -> int:
-    return new_name * 2
+   ```python
+   from deprecate import deprecated
 
 
-@deprecated(target=new_func, args_mapping={"old_name": "new_name"})  # Map old to new
-def old_func(old_name: int) -> int:
-    pass
-```
+   # define a target that ignores the extra arg
+   def new_func(required_arg: int, **kwargs) -> int:
+       return required_arg * 2
 
-3. **Use target=True for self-deprecation** (deprecate argument of same function):
 
-```python
-@deprecated(
-    target=True, args_mapping={"old_arg": "new_arg"}  # Deprecate within same function
-)
-def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
-    return new_arg * 2
-```
+   # None means skip this argument
+   @deprecated(target=new_func, args_mapping={"old_arg": None})
+   def old_func(old_arg: int, new_arg: int) -> int:
+       pass
+   ```
 
-4. \*\*Make target accept **kwargs**:
+1. **Rename the argument** (if target uses different name):
 
-```python
-def new_func(required_arg: int, **kwargs) -> int:
-    # Now accepts any additional arguments
-    return required_arg * 2
-```
+   ```python
+   from deprecate import deprecated
 
-#### ⚠️ Warning Not Showing
+
+   def new_func(new_name: int) -> int:
+       return new_name * 2
+
+
+   # Map old to new
+   @deprecated(target=new_func, args_mapping={"old_name": "new_name"})
+   def old_func(old_name: int) -> int:
+       pass
+   ```
+
+1. **Use target=True for self-deprecation** (deprecate argument of same function):
+
+   ```python
+   from deprecate import deprecated
+
+
+   # Deprecate within same function
+   @deprecated(target=True, args_mapping={"old_arg": "new_arg"})
+   def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
+       return new_arg * 2
+   ```
+
+</details>
+
+#### `Warning Not Showing`
 
 **Problem:** You don't see the deprecation warning.
 
 **Cause:** By default, warnings are shown **only once per function** to prevent log spam.
 
-**Solutions:**
+<details>
+<summary>Solutions</summary>
 
 ```python
+from deprecate import deprecated
+
+
+# Minimal replacement function for examples
+def new_func(x: int) -> int:
+    return x * 2
+
+
 # Show warning every time
 @deprecated(target=new_func, num_warns=-1)  # -1 means unlimited
 def old_func():
@@ -607,51 +632,51 @@ def old_func():
     pass
 ```
 
-#### ❗ TypeError: User function 'shall_skip' shall return bool
+</details>
+
+#### `TypeError: User function 'shall_skip' shall return bool`
 
 **Error Message:**
 
-```
-TypeError: User function 'shall_skip' shall return bool, but got: <type>
-```
+`TypeError: User function 'shall_skip' shall return bool, but got: <type>`
 
 **Cause:** When using `skip_if` with a callable, the function must return a boolean value.
 
-**Solution:**
+<details>
+<summary>Solution</summary>
 
 ```python
+from deprecate import deprecated
+
+
 # Correct: function returns bool
 def should_skip() -> bool:
-    return some_condition
+    return False  # replace with your condition
+
+
+# Minimal replacement function for examples
+def new_func() -> str:
+    return "Hi!"
 
 
 @deprecated(target=new_func, skip_if=should_skip)
-def old_func():
+def old_func1():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=new_func, skip_if=lambda: version > 2.0)
-def old_func():
+@deprecated(target=new_func, skip_if=lambda: False)
+def old_func2():
     pass
 ```
+
+</details>
 
 ### 📦 Deprecation Not Working Across Modules
 
-If you're moving functions to a different module or package:
+If you're moving functions to a different module or package, show the pattern rather than importing a non-existent package in the docs.
 
-```python
-# old_module.py
-from new_package.new_module import new_function
-from deprecate import deprecated
-
-
-@deprecated(target=new_function, deprecated_in="1.0", remove_in="2.0")
-def old_function(x):
-    pass
-```
-
-The warning will correctly show the full path: `new_package.new_module.new_function`.
+The warning will correctly show the full path for real imports when used in your package.
 
 ## 🤝 Contributing
 
