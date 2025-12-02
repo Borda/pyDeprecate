@@ -40,6 +40,7 @@ pyDeprecate/
 ### Main Components
 
 1. **`@deprecated` decorator** (`src/deprecate/deprecation.py:190-321`)
+
    - Primary functionality for deprecating functions, methods, and classes
    - Supports multiple deprecation patterns:
      - `target=None`: Deprecation warning only
@@ -55,11 +56,13 @@ pyDeprecate/
      - `template_mgs`: Custom warning message template
 
 2. **Utility functions** (`src/deprecate/utils.py`)
+
    - `void(*args, **kwargs)`: Empty function to suppress IDE unused argument warnings
    - `get_func_arguments_types_defaults(func)`: Parse function signature
    - `no_warning_call(warning_type, match)`: Context manager for testing
 
 3. **Warning templates** (`src/deprecate/deprecation.py:14-35`)
+
    - `TEMPLATE_WARNING_CALLABLE`: For function/class deprecation
    - `TEMPLATE_WARNING_ARGUMENTS`: For argument deprecation
    - `TEMPLATE_WARNING_NO_TARGET`: For warning-only deprecation
@@ -101,17 +104,20 @@ python -m pytest tests/test_readme.py
 The project uses several automated code quality tools:
 
 1. **Ruff** (linting and formatting)
+
    - Configuration: `pyproject.toml:12-63`
    - Line length: 120 characters
    - Target: Python 3.8+
    - Run: `ruff check src/ tests/` and `ruff format src/ tests/`
 
 2. **MyPy** (type checking)
+
    - Configuration: `pyproject.toml:115-127`
    - Requires typed definitions
    - Run: `mypy src/`
 
 3. **Pre-commit hooks** (`.pre-commit-config.yaml`)
+
    - end-of-file-fixer, trailing-whitespace
    - check-yaml, check-json, check-toml
    - prettier (for yaml/toml/html)
@@ -120,6 +126,7 @@ The project uses several automated code quality tools:
    - pyproject-fmt (pyproject.toml formatting)
 
 4. **Codespell** (spell checking)
+
    - Configuration: `pyproject.toml:65-72`
    - Quiet level: 3
 
@@ -147,6 +154,7 @@ The project uses several automated code quality tools:
 ### Documentation Standards
 
 1. **Function/Method Documentation**:
+
    ```python
    def function_name(param: type) -> return_type:
        """Brief one-line summary.
@@ -190,8 +198,10 @@ The project uses several automated code quality tools:
 import pytest
 from deprecate import deprecated
 
+
 def test_simple_deprecation():
     """Test basic deprecation warning."""
+
     @deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
     def old_func():
         return 42
@@ -214,15 +224,15 @@ def test_simple_deprecation():
 
 ### Adding a New Feature
 
-1. Read relevant source files in `src/deprecate/`
-2. Understand how existing similar features work
-3. Write tests first (TDD approach recommended)
-4. Implement the feature
-5. Update docstrings with type hints
-6. Run tests: `pytest tests/ -v`
-7. Run type checking: `mypy src/`
-8. Run pre-commit: `pre-commit run --all-files`
-9. Update README.md if adding user-facing feature
+01. Read relevant source files in `src/deprecate/`
+02. Understand how existing similar features work
+03. Write tests first (TDD approach recommended)
+04. Implement the feature
+05. Update docstrings with type hints
+06. Run tests: `pytest tests/ -v`
+07. Run type checking: `mypy src/`
+08. Run pre-commit: `pre-commit run --all-files`
+09. Update README.md if adding user-facing feature
 10. Commit changes with descriptive message
 
 ### Fixing a Bug
@@ -284,6 +294,7 @@ def test_simple_deprecation():
 ### Understanding the Deprecation Flow
 
 The decorator works in this sequence:
+
 1. **Wrapper creation**: `@deprecated` wraps the source function
 2. **Call interception**: When called, wrapper intercepts arguments
 3. **Argument mapping**: Maps old arguments to new ones via `args_mapping`
@@ -324,6 +335,6 @@ The decorator works in this sequence:
 - **Author**: Jiri Borovec
 - **Email**: j.borovec+github[at]gmail.com
 
----
+______________________________________________________________________
 
 *This document was generated to help AI assistants understand and work effectively with the pyDeprecate codebase. Keep it updated as the project evolves.*
