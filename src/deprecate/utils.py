@@ -86,33 +86,27 @@ def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optiona
             the message pattern) was raised during the context.
 
     Example:
-        Basic usage::
+        >>> # Basic usage
+        >>> import warnings
+        >>> def new_func(x: int) -> int:
+        ...     return x * 2
+        >>> # Test passes only if no FutureWarning is raised
+        >>> with no_warning_call(FutureWarning):
+        ...     result = new_func(42)
+        >>> result
+        84
 
-            from deprecate.utils import no_warning_call
-            import pytest
+        >>> # Only fails if warning contains "deprecated"
+        >>> def some_function():
+        ...     warnings.warn("deprecated feature", FutureWarning)
+        >>> with no_warning_call(FutureWarning, match="other"):  # doesn't match, so passes
+        ...     some_function()
 
-            def new_func(x: int) -> int:
-                return x * 2
-
-            def test_new_function():
-                # Test passes only if no FutureWarning is raised
-                with no_warning_call(FutureWarning):
-                    result = new_func(42)
-                assert result == 84
-
-        Catch specific warnings::
-
-            def test_no_specific_warning():
-                # Only fails if warning contains "deprecated"
-                with no_warning_call(FutureWarning, match="deprecated"):
-                    some_function()
-
-        Catch all warnings::
-
-            def test_no_warnings_at_all():
-                # Fails if ANY warning is raised
-                with no_warning_call():
-                    clean_function()
+        >>> # Fails if ANY warning is raised
+        >>> def clean_function():
+        ...     pass
+        >>> with no_warning_call():
+        ...     clean_function()
 
     Note:
         This is the inverse of ``pytest.warns()`` - it ensures warnings are NOT raised.
