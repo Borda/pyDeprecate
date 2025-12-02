@@ -297,12 +297,12 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         ...     'target': new_func
         ... }
         >>> _update_docstring_with_deprecation(old_func)
-        >>> print(old_func.__doc__) # doctest: +ELLIPSIS
+        >>> print(old_func.__doc__) # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
         Original docstring.
         <BLANKLINE>
         .. deprecated:: 1.0
            Will be removed in 2.0.
-           Use `....new_func` instead.
+           Use `deprecate.deprecation.new_func` instead.
 
     Note:
         Does nothing if the function has no docstring or no __deprecated__ attribute.
