@@ -211,20 +211,23 @@ def validate_deprecated_callable(
             - 'no_effect': True if wrapper has zero impact (all checks combined)
 
     Example:
-        >>> def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
-        ...     return new_arg
-        >>> # Valid mapping - has effect
-        >>> result = validate_deprecated_callable(my_func, {'old_arg': 'new_arg'})
-        >>> result['no_effect']
+        >>> from deprecate import deprecated, validate_deprecated_callable
+        >>> def new_implementation(value: int) -> int:
+        ...     return value * 2
+        >>> @deprecated(target=new_implementation, deprecated_in="1.0", args_mapping={"old_val": "value"})
+        ... def old_func(old_val: int) -> int:
+        ...     pass
+        >>> # Valid mapping to different function - has effect
+        >>> result = validate_deprecated_callable(old_func, {"old_val": "value"}, target=new_implementation)
+        >>> result["no_effect"]
         False
-        >>> # Identity mapping - no effect
-        >>> result = validate_deprecated_callable(my_func, {'old_arg': 'old_arg'})
-        >>> result['identity_mapping'], result['no_effect']
-        (['old_arg'], True)
-        >>> # Self-reference - no effect
-        >>> result = validate_deprecated_callable(my_func, {'old_arg': 'new_arg'}, target=my_func)
-        >>> result['self_reference'], result['no_effect']
-        (True, True)
+        >>> @deprecated(target=True, deprecated_in="1.0", args_mapping={"arg": "arg"})
+        ... def identity_func(arg: int) -> int:
+        ...     return arg
+        >>> # Identity mapping with self-deprecation - no effect
+        >>> result = validate_deprecated_callable(identity_func, {"arg": "arg"}, target=True)
+        >>> result["identity_mapping"], result["no_effect"]
+        (['arg'], True)
 
     .. note::
         Use this function during development or testing to ensure your deprecation
