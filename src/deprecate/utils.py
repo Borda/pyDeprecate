@@ -7,14 +7,14 @@ This module provides supporting utilities for the deprecation system, including:
     - Package scanning for deprecated wrappers
 
 Key Functions:
-    - get_func_arguments_types_defaults(): Extract function signature details
-    - no_warning_call(): Context manager for testing code without warnings
-    - void(): Helper to silence IDE warnings about unused parameters
-    - validate_deprecated_callable(): Validate wrapper configuration
-    - find_deprecated_callables(): Scan a package for deprecated wrappers
+    - :func:`get_func_arguments_types_defaults`: Extract function signature details
+    - :func:`no_warning_call`: Context manager for testing code without warnings
+    - :func:`void`: Helper to silence IDE warnings about unused parameters
+    - :func:`validate_deprecated_callable`: Validate wrapper configuration
+    - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
 
 Key Classes:
-    - DeprecatedCallableInfo: Dataclass for deprecated callable information and validation
+    - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
 """
@@ -38,10 +38,10 @@ class DeprecatedCallableInfo:
     Attributes:
         module: Module name where the function is defined (empty for direct validation).
         function: Function name.
-        deprecated_info: The __deprecated__ attribute dict from the decorator.
-        invalid_args: List of args_mapping keys that don't exist in the function signature.
-        empty_mapping: True if args_mapping is None or empty (no argument remapping).
-        identity_mapping: List of args where key equals value (e.g., {'arg': 'arg'}).
+        deprecated_info: The ``__deprecated__`` attribute dict from the decorator.
+        invalid_args: List of ``args_mapping`` keys that don't exist in the function signature.
+        empty_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
+        identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
         self_reference: True if target points to the same function.
         no_effect: True if wrapper has zero impact (combines all checks).
 
@@ -127,7 +127,7 @@ def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optiona
     deprecation warnings, or that code paths properly avoid deprecated functionality.
 
     Args:
-        warning_type: The type of warning to catch (e.g., FutureWarning, DeprecationWarning).
+        warning_type: The type of warning to catch (e.g., :class:`FutureWarning`, :class:`DeprecationWarning`).
             If None, catches all warning types.
         match: If specified, only fail if warning message contains this string.
             If None, fails on any warning of the specified type.
@@ -352,13 +352,6 @@ def find_deprecated_callables(
             - function: Function name
             - deprecated_info: The __deprecated__ attribute dict if present
             - invalid_args, empty_mapping, identity_mapping, self_reference, no_effect
-
-    Example:
-        >>> import my_package
-        >>> results = find_deprecated_callables(my_package)
-        >>> for r in results:
-        ...     if not r.no_effect:
-        ...         print(f"Warning: {r.module}.{r.function} has no effect!")
 
     .. note::
         This function requires that the module be importable. It inspects

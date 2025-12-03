@@ -579,6 +579,7 @@ The `find_deprecated_callables()` utility scans an entire package or module and 
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
+
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
@@ -593,7 +594,9 @@ for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if not r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
+        print(
+            f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}"
+        )
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if not r.no_effect]
@@ -612,6 +615,7 @@ Group validation results by issue type for better reporting:
 
 ```python
 from deprecate import find_deprecated_callables
+
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
@@ -640,6 +644,7 @@ Use in pytest to validate your package's deprecation wrappers:
 ```python
 import pytest
 from deprecate import find_deprecated_callables
+
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
