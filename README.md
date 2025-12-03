@@ -266,7 +266,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>code output:</summary>
 
 ```
 8
@@ -309,7 +309,7 @@ def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
 print(any_pow(2, 3))
 ```
 
-sample output:
+code output:
 
 ```
 8
@@ -320,6 +320,9 @@ sample output:
 ### ⚙️ Conditional skip
 
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
+
+<details>
+<summary>Code example</summary>
 
 ```python
 from deprecate import deprecated
@@ -346,8 +349,10 @@ FAKE_VERSION = 2
 print(skip_pow(2, 3))
 ```
 
+</details>
+
 <details>
-  <summary>sample output:</summary>
+  <summary>code output:</summary>
 
 ```
 0.25
@@ -361,6 +366,9 @@ This can be beneficial with multiple deprecation levels shown above...
 ### 🏗️ Class deprecation
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
+
+<details>
+<summary>Code example</summary>
 
 ```python
 class NewCls:
@@ -399,8 +407,10 @@ print(inst.my_c)  # returns: 7
 print(inst.my_d)  # returns: "efg"
 ```
 
+</details>
+
 <details>
-  <summary>sample output:</summary>
+  <summary>code output:</summary>
 
 ```
 7
@@ -412,6 +422,9 @@ efg
 ### 📝 Automatic docstring updates
 
 You can automatically append deprecation information to your function's docstring:
+
+<details>
+<summary>Code example</summary>
 
 ```python
 def new_function(x: int) -> int:
@@ -449,6 +462,8 @@ print(old_function.__doc__)
 #    Will be removed in 2.0.
 #    Use `__main__.new_function` instead.
 ```
+
+</details>
 
 This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
 
