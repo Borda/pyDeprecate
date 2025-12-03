@@ -9,17 +9,31 @@ on: # Trigger the workflow on push or pull request, but only for the main branch
 
 jobs:
   pkg-check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.14"]
     uses: ./.github/workflows/_create-pkg.yml
     with:
-      python-version: "3.9"
+      python-version: ${{ matrix.python-version }}
+      os: ${{ matrix.os }}
+      artifact-name: ci-packages-${{ matrix.os }}-${{ matrix.python-version }}-${{ github.sha }}
 
-  dry-run:
+  pkg-install:
     needs: pkg-check
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.14"]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.9"
-      - name: Dry run
-        run: python setup.py install --dry-run --user
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v5
+        with:
+          name: ci-packages-${{ matrix.os }}-${{ matrix.python-version }}-${{ github.sha }}
+          path: dist
+      - name: Install from build packages
+        run: pip install dist/*.whl
