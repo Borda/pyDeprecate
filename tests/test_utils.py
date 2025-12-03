@@ -115,7 +115,9 @@ def test_validate_deprecated_callable_identity_mapping() -> None:
 def test_validate_deprecated_callable_self_reference() -> None:
     """Test validate_deprecated_callable detects self-referencing target."""
     # Self-reference - no effect
-    result = validate_deprecated_callable(test_module.valid_self_deprecation, {"old_arg": "new_arg"}, target=test_module.valid_self_deprecation)
+    result = validate_deprecated_callable(
+        test_module.valid_self_deprecation, {"old_arg": "new_arg"}, target=test_module.valid_self_deprecation
+    )
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
