@@ -592,8 +592,12 @@ def test_deprecated_wrappers_are_valid():
     # Raise errors for wrong arguments (critical issues)
     if wrong_args:
         for r in wrong_args:
-            print(f"ERROR: {r['module']}.{r['function']} has invalid args: {r['validation']['invalid_args']}")
-        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid arguments")
+            print(
+                f"ERROR: {r['module']}.{r['function']} has invalid args: {r['validation']['invalid_args']}"
+            )
+        pytest.fail(
+            f"Found {len(wrong_args)} deprecated wrappers with invalid arguments"
+        )
 
     # Warn for identity mappings (less severe)
     for r in identity_mappings:

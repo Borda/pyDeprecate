@@ -18,9 +18,9 @@ Copyright (C) 2020-2023 Jiri Borovec <...>
 
 import inspect
 import warnings
-from contextlib import contextmanager, suppress
-from typing import Any, Callable, Generator, List, Optional, Tuple, Type, Union
 from collections.abc import Generator
+from contextlib import contextmanager, suppress
+from typing import Any, Callable, List, Optional, Tuple, Type, Union
 
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, tuple, Any]]:

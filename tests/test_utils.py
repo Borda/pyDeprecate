@@ -126,9 +126,7 @@ def test_validate_deprecated_callable_self_reference() -> None:
     from tests.collection_degenerate import valid_self_deprecation
 
     # Self-reference - no effect
-    result = validate_deprecated_callable(
-        valid_self_deprecation, {"old_arg": "new_arg"}, target=valid_self_deprecation
-    )
+    result = validate_deprecated_callable(valid_self_deprecation, {"old_arg": "new_arg"}, target=valid_self_deprecation)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
