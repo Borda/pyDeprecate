@@ -9,11 +9,11 @@ on:
       artifact-name:
         required: false
         type: string
-        default: ''
+        default: ""
       os:
         required: false
         type: string
-        default: 'ubuntu-latest'
+        default: "ubuntu-latest"
 
 jobs:
   package:
