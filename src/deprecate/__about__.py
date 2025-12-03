@@ -19,3 +19,15 @@ The pyDeprecate is a lightweight Python library for managing function and class 
  conditional deprecation logic, automatic docstring updates, and testing utilities. Perfect for library maintainers
  who need to evolve their APIs while maintaining backward compatibility and providing clear migration paths for users.
 """
+
+__all__ = [
+    "__version__",
+    "__docs__",
+    "__author__",
+    "__author_email__",
+    "__homepage__",
+    "__source_code__",
+    "__license__",
+    "__copyright__",
+    "__long_doc__",
+]
