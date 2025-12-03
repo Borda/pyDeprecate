@@ -23,7 +23,7 @@ ABOUT = _load_py_module("__about__.py")
 
 
 def _load_readme_description(path_dir: str, homepage: str, version: str) -> str:
-    """Load readme as decribtion.
+    """Load readme as description.
 
     >>> _load_readme_description(_PATH_ROOT, "",  "")
     '# pyDeprecate...'
