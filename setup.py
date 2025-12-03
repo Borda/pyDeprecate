@@ -33,31 +33,21 @@ def _load_readme_description(path_dir: str, homepage: str, version: str) -> str:
     with open(path_readme, encoding="utf-8") as fp:
         text = fp.read()
 
-    # https://github.com/Lightning-AI/torchmetrics/raw/master/docs/source/_static/images/lightning_module/pt_to_pl.png
+    # https://github.com/Borda/pyDeprecate/raw/main/docs/source/_static/images/...png
     github_source_url = os.path.join(homepage, "raw", version)
     # replace relative repository path to absolute link to the release
     #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs
     text = text.replace(".assets/", f"{os.path.join(github_source_url, '.assets/')}")
 
     # codecov badge
-    text = text.replace("/branch/master/graph/badge.svg", f"/release/{version}/graph/badge.svg")
+    text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
     # replace github badges for release ones
-    text = text.replace("badge.svg?branch=master&event=push", f"badge.svg?tag={version}")
+    text = text.replace("badge.svg?branch=main&event=push", f"badge.svg?tag={version}")
 
     skip_begin = r"<!-- following section will be skipped from PyPI description -->"
     skip_end = r"<!-- end skipping PyPI description -->"
     # todo: wrap content as commented description
     return re.sub(rf"{skip_begin}.+?{skip_end}", "<!--  -->", text, flags=re.IGNORECASE + re.DOTALL)
-
-
-def _load_long_description(path_dir: str, version: str) -> str:
-    path_readme = os.path.join(path_dir, "README.md")
-    with open(path_readme, encoding="utf-8") as fopen:
-        text = fopen.read()
-    # codecov badge
-    text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
-    # replace github badges for release ones
-    return text.replace("badge.svg?branch=main&event=push", f"badge.svg?tag={version}")
 
 
 # https://packaging.python.org/discussions/install-requires-vs-requirements /
