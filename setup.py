@@ -22,7 +22,7 @@ def _load_py_module(fname: str, pkg: str = "deprecate"):
 ABOUT = _load_py_module("__about__.py")
 
 
-def _load_readme_description(path_dir: str, homepage: str, version: str) -> str:
+def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> str:
     """Load readme as description.
 
     >>> _load_readme_description(_PATH_ROOT, "",  "")
@@ -34,10 +34,11 @@ def _load_readme_description(path_dir: str, homepage: str, version: str) -> str:
         text = fp.read()
 
     # https://github.com/Borda/pyDeprecate/raw/main/docs/source/_static/images/...png
-    github_source_url = os.path.join(homepage, "raw", version)
+    github_source_url = os.path.join(codebase_url, "raw", version)
     # replace relative repository path to absolute link to the release
     #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs
     text = text.replace(".assets/", f"{os.path.join(github_source_url, '.assets/')}")
+    text = text.replace(".github/", f"{os.path.join(github_source_url, '.github/')}")
 
     # codecov badge
     text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
@@ -66,7 +67,7 @@ setup(
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     long_description=_load_readme_description(
-        _PATH_ROOT, homepage=ABOUT.__source_code__, version=f"v{ABOUT.__version__}"
+        _PATH_ROOT, codebase_url=ABOUT.__source_code__, version=f"v{ABOUT.__version__}"
     ),
     long_description_content_type="text/markdown",
     include_package_data=True,
