@@ -25,8 +25,8 @@ jobs:
 
       - name: Create package
         run: |
-          pip install --upgrade setuptools wheel
-          python setup.py sdist bdist_wheel
+          pip install build
+          python -m build
 
       - name: Verify package
         run: |

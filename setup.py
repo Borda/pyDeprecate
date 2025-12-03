@@ -2,6 +2,7 @@
 """Copyright (C) 2020-2023 Jiri Borovec <...>."""
 
 import os
+import re
 from importlib.util import module_from_spec, spec_from_file_location
 
 # Always prefer setuptools over distutils
@@ -19,6 +20,33 @@ def _load_py_module(fname: str, pkg: str = "deprecate"):
 
 
 ABOUT = _load_py_module("__about__.py")
+
+def _load_readme_description(path_dir: str, homepage: str, version: str) -> str:
+    """Load readme as decribtion.
+
+    >>> _load_readme_description(_PATH_ROOT, "",  "")
+    '# pyDeprecate...'
+
+    """
+    path_readme = os.path.join(path_dir, "README.md")
+    with open(path_readme, encoding="utf-8") as fp:
+        text = fp.read()
+
+    # https://github.com/Lightning-AI/torchmetrics/raw/master/docs/source/_static/images/lightning_module/pt_to_pl.png
+    github_source_url = os.path.join(homepage, "raw", version)
+    # replace relative repository path to absolute link to the release
+    #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs
+    text = text.replace(".assets/", f"{os.path.join(github_source_url, '.assets/')}")
+
+    # codecov badge
+    text = text.replace("/branch/master/graph/badge.svg", f"/release/{version}/graph/badge.svg")
+    # replace github badges for release ones
+    text = text.replace("badge.svg?branch=master&event=push", f"badge.svg?tag={version}")
+
+    skip_begin = r"<!-- following section will be skipped from PyPI description -->"
+    skip_end = r"<!-- end skipping PyPI description -->"
+    # todo: wrap content as commented description
+    return re.sub(rf"{skip_begin}.+?{skip_end}", "<!--  -->", text, flags=re.IGNORECASE + re.DOTALL)
 
 
 def _load_long_description(path_dir: str, version: str) -> str:
@@ -46,12 +74,12 @@ setup(
     license=ABOUT.__license__,
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    long_description=_load_long_description(_PATH_ROOT, version=ABOUT.__version__),
+    long_description=_load_readme_description(_PATH_ROOT, homepage=ABOUT.__source_code__, version=ABOUT.__version__),
     long_description_content_type="text/markdown",
     include_package_data=True,
     zip_safe=False,
     keywords=["python", "development", "deprecation"],
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     setup_requires=[],
     install_requires=[],
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
