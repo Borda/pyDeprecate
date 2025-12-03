@@ -13,7 +13,7 @@ Copyright (C) 2020-2023 Jiri Borovec <...>
 
 import inspect
 from functools import partial, wraps
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Optional, Union
 from warnings import warn
 
 from deprecate.utils import get_func_arguments_types_defaults
@@ -215,7 +215,7 @@ def _raise_warn_callable(
 def _raise_warn_arguments(
     stream: Callable,
     source: Callable,
-    arguments: Dict[str, str],
+    arguments: dict[str, str],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -334,8 +334,8 @@ def deprecated(
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
     template_mgs: Optional[str] = None,
-    args_mapping: Optional[Dict[str, str]] = None,
-    args_extra: Optional[Dict[str, Any]] = None,
+    args_mapping: Optional[dict[str, str]] = None,
+    args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
 ) -> Callable:

@@ -10,7 +10,7 @@ line-length = 120
 exclude = "(.eggs|.git|.hg|.mypy_cache|.venv|_build|buck-out|build|dist)"
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py39"
 line-length = 120
 # Exclude a variety of commonly ignored directories.
 exclude = [
@@ -60,7 +60,6 @@ lint.unfixable = [
 lint.mccabe.max-complexity = 10
 # Use Google-style docstrings.
 lint.pydocstyle.convention = "google"
-lint.ignore-init-module-imports = true
 
 [tool.codespell]
 #skip = '*.py'

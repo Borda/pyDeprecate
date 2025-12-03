@@ -840,3 +840,5 @@ The warning will correctly show the full path for real imports when used in your
 ## 🤝 Contributing
 
 Have you faced this issue in the past or are you facing it now? Do you have good ideas for improvement? All contributions are welcome!
+
+Please read our [Contributing Guide](.github/CONTRIBUTING.md) for details on how to contribute, and our [Code of Conduct](.github/CODE_OF_CONDUCT.md) for community guidelines.
