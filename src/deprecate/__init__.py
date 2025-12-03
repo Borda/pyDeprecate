@@ -30,8 +30,7 @@ Exported Functions:
     find_deprecated_callables: Scan a package for deprecated wrappers and validate them
 
 Exported Classes:
-    ValidationResult: Dataclass for validation results from validate_deprecated_callable
-    DeprecatedCallableInfo: Dataclass for deprecated callable info from find_deprecated_callables
+    DeprecatedCallableInfo: Dataclass for deprecated callable info and validation results
 
 For detailed examples and use cases, see: https://borda.github.io/pyDeprecate
 """
@@ -40,7 +39,6 @@ from deprecate.__about__ import *  # noqa: F403
 from deprecate.deprecation import deprecated  # noqa: E402, F401
 from deprecate.utils import (  # noqa: E402, F401
     DeprecatedCallableInfo,
-    ValidationResult,
     find_deprecated_callables,
     validate_deprecated_callable,
     void,

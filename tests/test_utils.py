@@ -7,7 +7,6 @@ import pytest
 import tests.collection_degenerate as test_module
 from deprecate.utils import (
     DeprecatedCallableInfo,
-    ValidationResult,
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
@@ -62,12 +61,13 @@ def test_warning_others() -> None:
 def test_validate_deprecated_callable_valid_deprecation() -> None:
     """Test validate_deprecated_callable with a properly configured deprecated function."""
     result = validate_deprecated_callable(test_module.valid_self_deprecation, {"old_arg": "new_arg"})
-    assert isinstance(result, ValidationResult)
+    assert isinstance(result, DeprecatedCallableInfo)
     assert result.invalid_args == []
     assert result.empty_mapping is False
     assert result.identity_mapping == []
     assert result.self_reference is False
     assert result.no_effect is False
+    assert result.has_effect is True
 
 
 def test_validate_deprecated_callable_invalid_args() -> None:
@@ -90,6 +90,7 @@ def test_validate_deprecated_callable_empty_mapping() -> None:
     assert result.identity_mapping == []
     assert result.self_reference is False
     assert result.no_effect is True
+    assert result.has_effect is False
 
     # Test with None args_mapping (self-deprecation)
     result = validate_deprecated_callable(test_module.none_mapping_deprecation, None, target=True)
@@ -98,6 +99,7 @@ def test_validate_deprecated_callable_empty_mapping() -> None:
     assert result.identity_mapping == []
     assert result.self_reference is False
     assert result.no_effect is True
+    assert result.has_effect is False
 
 
 def test_validate_deprecated_callable_identity_mapping() -> None:
@@ -110,6 +112,7 @@ def test_validate_deprecated_callable_identity_mapping() -> None:
     assert result.identity_mapping == ["arg1"]
     assert result.self_reference is False
     assert result.no_effect is True
+    assert result.has_effect is False
 
     # All identity mappings - no effect
     result = validate_deprecated_callable(
@@ -117,6 +120,7 @@ def test_validate_deprecated_callable_identity_mapping() -> None:
     )
     assert result.identity_mapping == ["arg1", "arg2"]
     assert result.no_effect is True
+    assert result.has_effect is False
 
     # Partial identity - still has effect (one valid mapping)
     result = validate_deprecated_callable(
@@ -124,6 +128,7 @@ def test_validate_deprecated_callable_identity_mapping() -> None:
     )
     assert result.identity_mapping == ["arg1"]
     assert result.no_effect is False
+    assert result.has_effect is True
 
 
 def test_validate_deprecated_callable_self_reference() -> None:
@@ -137,6 +142,7 @@ def test_validate_deprecated_callable_self_reference() -> None:
     assert result.identity_mapping == []
     assert result.self_reference is True
     assert result.no_effect is True
+    assert result.has_effect is False
 
 
 def test_validate_deprecated_callable_different_target() -> None:
@@ -148,6 +154,7 @@ def test_validate_deprecated_callable_different_target() -> None:
     assert result.identity_mapping == []
     assert result.self_reference is False
     assert result.no_effect is False
+    assert result.has_effect is True
 
 
 # =============================================================================
@@ -162,13 +169,17 @@ def test_find_deprecated_callables() -> None:
     # Should find deprecated functions
     assert len(results) > 0
 
-    # All results should be DeprecatedCallableInfo dataclasses
+    # All results should be DeprecatedCallableInfo dataclasses with merged fields
     for r in results:
         assert isinstance(r, DeprecatedCallableInfo)
         assert hasattr(r, "module")
         assert hasattr(r, "function")
         assert hasattr(r, "deprecated_info")
-        assert hasattr(r, "validation")
+        assert hasattr(r, "invalid_args")
+        assert hasattr(r, "empty_mapping")
+        assert hasattr(r, "identity_mapping")
+        assert hasattr(r, "self_reference")
+        assert hasattr(r, "no_effect")
         assert hasattr(r, "has_effect")
 
     # Check that known deprecated functions are found
@@ -192,10 +203,10 @@ def test_find_deprecated_callables_detects_no_effect() -> None:
 
     # Degenerated deprecations should have no effect or detect issues
     if "empty_mapping_deprecation" in by_name:
-        assert by_name["empty_mapping_deprecation"].validation.empty_mapping is True
+        assert by_name["empty_mapping_deprecation"].empty_mapping is True
 
     if "identity_mapping_deprecation" in by_name:
-        assert "arg1" in by_name["identity_mapping_deprecation"].validation.identity_mapping
+        assert "arg1" in by_name["identity_mapping_deprecation"].identity_mapping
 
 
 def test_find_deprecated_callables_with_string_module() -> None:
@@ -205,13 +216,16 @@ def test_find_deprecated_callables_with_string_module() -> None:
     # Should find deprecated functions
     assert len(results) > 0
 
-    # All results should be DeprecatedCallableInfo dataclasses
+    # All results should be DeprecatedCallableInfo dataclasses with merged fields
     for r in results:
         assert isinstance(r, DeprecatedCallableInfo)
         assert hasattr(r, "module")
         assert hasattr(r, "function")
         assert hasattr(r, "deprecated_info")
-        assert hasattr(r, "validation")
+        assert hasattr(r, "invalid_args")
+        assert hasattr(r, "empty_mapping")
+        assert hasattr(r, "identity_mapping")
+        assert hasattr(r, "no_effect")
         assert hasattr(r, "has_effect")
 
 
@@ -219,10 +233,10 @@ def test_find_deprecated_callables_report_grouping() -> None:
     """Test that results can be grouped by issue type for reporting."""
     results = find_deprecated_callables(test_module, recursive=False)
 
-    # Group by issue type
-    invalid_args = [r for r in results if r.validation.invalid_args]
-    empty_mappings = [r for r in results if r.validation.empty_mapping]
-    identity_mappings = [r for r in results if r.validation.identity_mapping]
+    # Group by issue type - now directly on DeprecatedCallableInfo
+    invalid_args = [r for r in results if r.invalid_args]
+    empty_mappings = [r for r in results if r.empty_mapping]
+    identity_mappings = [r for r in results if r.identity_mapping]
     no_effect = [r for r in results if not r.has_effect]
 
     # Should be able to group results

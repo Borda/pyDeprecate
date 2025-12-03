@@ -14,8 +14,7 @@ Key Functions:
     - find_deprecated_callables(): Scan a package for deprecated wrappers
 
 Key Classes:
-    - ValidationResult: Dataclass for validation results
-    - DeprecatedCallableInfo: Dataclass for deprecated callable information
+    - DeprecatedCallableInfo: Dataclass for deprecated callable information and validation
 
 Copyright (C) 2020-2023 Jiri Borovec <...>
 """
@@ -29,71 +28,47 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 
 @dataclass
-class ValidationResult:
-    """Result of validating a deprecated wrapper configuration.
+class DeprecatedCallableInfo:
+    """Information about a deprecated callable and its validation results.
 
-    This dataclass contains the results of validating a deprecated callable's
-    configuration, identifying potential issues that may cause the deprecation
-    wrapper to have no effect.
+    This dataclass represents a deprecated function or method, containing both
+    identification info and validation results from validate_deprecated_callable()
+    or find_deprecated_callables().
 
     Attributes:
+        module: Module name where the function is defined (empty for direct validation).
+        function: Function name.
+        deprecated_info: The __deprecated__ attribute dict from the decorator.
         invalid_args: List of args_mapping keys that don't exist in the function signature.
         empty_mapping: True if args_mapping is None or empty (no argument remapping).
         identity_mapping: List of args where key equals value (e.g., {'arg': 'arg'}).
         self_reference: True if target points to the same function.
         no_effect: True if wrapper has zero impact (combines all checks).
-
-    Example:
-        >>> result = ValidationResult(
-        ...     invalid_args=["nonexistent"],
-        ...     empty_mapping=False,
-        ...     identity_mapping=[],
-        ...     self_reference=False,
-        ...     no_effect=False,
-        ... )
-        >>> result.invalid_args
-        ['nonexistent']
-
-    """
-
-    invalid_args: List[str] = field(default_factory=list)
-    empty_mapping: bool = False
-    identity_mapping: List[str] = field(default_factory=list)
-    self_reference: bool = False
-    no_effect: bool = False
-
-
-@dataclass
-class DeprecatedCallableInfo:
-    """Information about a deprecated callable found during package scanning.
-
-    This dataclass represents a single deprecated function or method found
-    when scanning a package with find_deprecated_callables().
-
-    Attributes:
-        module: Module name where the function is defined.
-        function: Function name.
-        deprecated_info: The __deprecated__ attribute dict from the decorator.
-        validation: ValidationResult from validate_deprecated_callable().
-        has_effect: True if the wrapper has a meaningful effect.
+        has_effect: True if the wrapper has a meaningful effect (inverse of no_effect).
 
     Example:
         >>> info = DeprecatedCallableInfo(
         ...     module="my_package.module",
         ...     function="old_function",
         ...     deprecated_info={"deprecated_in": "1.0", "remove_in": "2.0"},
-        ...     validation=ValidationResult(),
-        ...     has_effect=True,
+        ...     invalid_args=["nonexistent"],
+        ...     has_effect=False,
         ... )
         >>> info.function
         'old_function'
+        >>> info.invalid_args
+        ['nonexistent']
 
     """
 
-    module: str
-    function: str
+    module: str = ""
+    function: str = ""
     deprecated_info: Dict[str, Any] = field(default_factory=dict)
-    validation: ValidationResult = field(default_factory=ValidationResult)
+    invalid_args: List[str] = field(default_factory=list)
+    empty_mapping: bool = False
+    identity_mapping: List[str] = field(default_factory=list)
+    self_reference: bool = False
+    no_effect: bool = False
     has_effect: bool = True
 
 
@@ -258,7 +233,7 @@ def validate_deprecated_callable(
     func: Callable,
     args_mapping: Optional[dict] = None,
     target: Optional[Callable] = None,
-) -> ValidationResult:
+) -> DeprecatedCallableInfo:
     """Validate if a deprecated wrapper has any effect.
 
     This is a development tool to check if deprecated wrappers are configured correctly.
@@ -277,12 +252,14 @@ def validate_deprecated_callable(
             Used to check for self-reference.
 
     Returns:
-        ValidationResult: Dataclass with validation results:
+        DeprecatedCallableInfo: Dataclass with validation results:
+            - function: Name of the function being validated
             - invalid_args: List of args_mapping keys not in function signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of args where key equals value (no effect)
             - self_reference: True if target is the same as func
             - no_effect: True if wrapper has zero impact (all checks combined)
+            - has_effect: True if wrapper has a meaningful effect
 
     Example:
         >>> from deprecate import deprecated, validate_deprecated_callable
@@ -334,12 +311,14 @@ def validate_deprecated_callable(
         or (is_self_deprecation and (empty_mapping or all_identity))
     )
 
-    return ValidationResult(
+    return DeprecatedCallableInfo(
+        function=getattr(func, "__name__", str(func)),
         invalid_args=invalid_args,
         empty_mapping=empty_mapping,
         identity_mapping=identity_mapping,
         self_reference=self_reference,
         no_effect=no_effect,
+        has_effect=not no_effect,
     )
 
 
@@ -364,7 +343,7 @@ def find_deprecated_callables(
             - module: Module name where the function is defined
             - function: Function name
             - deprecated_info: The __deprecated__ attribute dict if present
-            - validation: ValidationResult from validate_deprecated_callable()
+            - invalid_args, empty_mapping, identity_mapping, self_reference, no_effect
             - has_effect: True if the wrapper has a meaningful effect
 
     Example:
@@ -407,18 +386,14 @@ def find_deprecated_callables(
                 target = dep_info.get("target")
                 args_mapping = dep_info.get("args_mapping")
 
-                # Validate the wrapper
-                validation = validate_deprecated_callable(obj, args_mapping, target)
+                # Validate the wrapper - returns DeprecatedCallableInfo
+                info = validate_deprecated_callable(obj, args_mapping, target)
+                # Update with module-level info
+                info.module = mod.__name__ if hasattr(mod, "__name__") else str(mod)
+                info.function = name
+                info.deprecated_info = dep_info
 
-                results.append(
-                    DeprecatedCallableInfo(
-                        module=mod.__name__ if hasattr(mod, "__name__") else str(mod),
-                        function=name,
-                        deprecated_info=dep_info,
-                        validation=validation,
-                        has_effect=not validation.no_effect,
-                    )
-                )
+                results.append(info)
 
     # Scan the main module
     _scan_module(module)

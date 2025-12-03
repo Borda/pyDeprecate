@@ -487,10 +487,10 @@ During development, you may want to verify that your deprecated wrappers are con
 
 ### Validating a Single Function
 
-The `validate_deprecated_callable()` utility returns a `ValidationResult` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
+The `validate_deprecated_callable()` utility returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
-from deprecate import validate_deprecated_callable, deprecated, ValidationResult
+from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
 
 
 # Define your deprecated function
@@ -499,13 +499,14 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
 
-# Validate the configuration - returns a ValidationResult dataclass
+# Validate the configuration - returns a DeprecatedCallableInfo dataclass
 result = validate_deprecated_callable(my_func, {"old_arg": "new_arg"})
-# ValidationResult(invalid_args=[], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False)
+# DeprecatedCallableInfo(function='my_func', invalid_args=[], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, has_effect=True)
 
 # Access validation fields as attributes
 print(result.invalid_args)  # []
 print(result.no_effect)     # False
+print(result.has_effect)    # True
 
 # Detect invalid argument mappings
 result = validate_deprecated_callable(my_func, {"nonexistent": "new_arg"})
@@ -513,18 +514,18 @@ result = validate_deprecated_callable(my_func, {"nonexistent": "new_arg"})
 
 # Detect empty mappings (wrapper has no effect)
 result = validate_deprecated_callable(my_func, {})
-# result.empty_mapping == True, result.no_effect == True
+# result.empty_mapping == True, result.no_effect == True, result.has_effect == False
 
 # Detect identity mappings (arg mapped to itself - no effect)
 result = validate_deprecated_callable(my_func, {"old_arg": "old_arg"})
-# result.identity_mapping == ['old_arg'], result.no_effect == True
+# result.identity_mapping == ['old_arg'], result.no_effect == True, result.has_effect == False
 
 # Detect self-referencing target (wrapper forwards to itself)
 result = validate_deprecated_callable(my_func, {"old_arg": "new_arg"}, target=my_func)
-# result.self_reference == True, result.no_effect == True
+# result.self_reference == True, result.no_effect == True, result.has_effect == False
 
 # Quick check if wrapper has any effect
-if result.no_effect:
+if not result.has_effect:
     print("Warning: This wrapper configuration has zero impact!")
 ```
 
@@ -547,7 +548,7 @@ for r in results:
     print(f"{r.module}.{r.function}: has_effect={r.has_effect}")
     if not r.has_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(f"  Validation: {r.validation}")
+        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if not r.has_effect]
@@ -565,9 +566,9 @@ from deprecate import find_deprecated_callables
 results = find_deprecated_callables(my_package)
 
 # Group by issue type (using dataclass attribute access)
-wrong_args = [r for r in results if r.validation.invalid_args]
-identity_mappings = [r for r in results if r.validation.identity_mapping]
-self_refs = [r for r in results if r.validation.self_reference]
+wrong_args = [r for r in results if r.invalid_args]
+identity_mappings = [r for r in results if r.identity_mapping]
+self_refs = [r for r in results if r.self_reference]
 
 print(f"=== Deprecation Validation Report ===")
 print(f"Wrong arguments: {len(wrong_args)}")
@@ -590,14 +591,14 @@ def test_deprecated_wrappers_are_valid():
     results = find_deprecated_callables(my_package)
 
     # Collect issues - errors for wrong args, warnings for identity mappings
-    wrong_args = [r for r in results if r.validation.invalid_args]
-    identity_mappings = [r for r in results if r.validation.identity_mapping]
+    wrong_args = [r for r in results if r.invalid_args]
+    identity_mappings = [r for r in results if r.identity_mapping]
 
     # Raise errors for wrong arguments (critical issues)
     if wrong_args:
         for r in wrong_args:
             print(
-                f"ERROR: {r.module}.{r.function} has invalid args: {r.validation.invalid_args}"
+                f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}"
             )
         pytest.fail(
             f"Found {len(wrong_args)} deprecated wrappers with invalid arguments"
@@ -615,21 +616,17 @@ def test_deprecated_wrappers_are_valid():
 - **In CI/CD:** Add validation checks to ensure no ineffective wrappers slip through
 - **Reporting:** Generate grouped reports by issue type for code reviews
 
-The `ValidationResult` dataclass contains:
+The `DeprecatedCallableInfo` dataclass contains:
 
+- `module`: Module name where the function is defined (empty for direct validation)
+- `function`: Function name
+- `deprecated_info`: The `__deprecated__` attribute dict from the decorator
 - `invalid_args`: List of args_mapping keys that don't exist in the function signature
 - `empty_mapping`: True if args_mapping is None or empty (no argument remapping)
 - `identity_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
-
-The `DeprecatedCallableInfo` dataclass contains:
-
-- `module`: Module name where the function is defined
-- `function`: Function name
-- `deprecated_info`: The `__deprecated__` attribute dict from the decorator
-- `validation`: ValidationResult from validate_deprecated_callable()
-- `has_effect`: True if the wrapper has a meaningful effect
+- `has_effect`: True if the wrapper has a meaningful effect (inverse of no_effect)
 
 ## 🧪 Testing Deprecated Code
 
