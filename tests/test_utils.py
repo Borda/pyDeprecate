@@ -6,13 +6,6 @@ import pytest
 
 import tests.collection_degenerate as test_module
 from deprecate.utils import find_deprecated_callables, no_warning_call, validate_deprecated_callable
-from tests.collection_degenerate import (
-    _self_ref_target,
-    all_identity_mapping_deprecation,
-    identity_mapping_deprecation,
-    partial_identity_mapping_deprecation,
-    valid_self_deprecation,
-)
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -122,7 +115,7 @@ def test_validate_deprecated_callable_identity_mapping() -> None:
 def test_validate_deprecated_callable_self_reference() -> None:
     """Test validate_deprecated_callable detects self-referencing target."""
     # Self-reference - no effect
-    result = validate_deprecated_callable(valid_self_deprecation, {"old_arg": "new_arg"}, target=valid_self_deprecation)
+    result = validate_deprecated_callable(test_module.valid_self_deprecation, {"old_arg": "new_arg"}, target=test_module.valid_self_deprecation)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
