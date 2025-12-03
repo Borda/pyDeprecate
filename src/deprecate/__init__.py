@@ -30,10 +30,6 @@ Exported Functions:
 For detailed examples and use cases, see: https://borda.github.io/pyDeprecate
 """
 
-import os
-
-_PATH_PACKAGE = os.path.realpath(os.path.dirname(__file__))
-_PATH_PROJECT = os.path.dirname(_PATH_PACKAGE)
-
+from deprecate.__about__ import *  # noqa: F403
 from deprecate.deprecation import deprecated  # noqa: E402, F401
 from deprecate.utils import void  # noqa: E402, F401

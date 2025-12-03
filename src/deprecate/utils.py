@@ -15,11 +15,12 @@ Copyright (C) 2020-2023 Jiri Borovec <...>
 
 import inspect
 import warnings
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Optional, Union
 
 
-def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, Any]]:
+def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, tuple, Any]]:
     """Parse function arguments, types and default values.
 
     Args:
@@ -55,7 +56,7 @@ def get_func_arguments_types_defaults(func: Callable) -> List[Tuple[str, Tuple, 
     return func_arg_type_val
 
 
-def _warns_repr(warns: List[warnings.WarningMessage]) -> List[Union[Warning, str]]:
+def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
     """Convert list of warning messages to their string representations.
 
     Args:
@@ -69,7 +70,7 @@ def _warns_repr(warns: List[warnings.WarningMessage]) -> List[Union[Warning, str
 
 
 @contextmanager
-def no_warning_call(warning_type: Optional[Type[Warning]] = None, match: Optional[str] = None) -> Generator:
+def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
     """Context manager to assert that no warnings are raised.
 
     This is useful for testing that new/replacement functions don't trigger
