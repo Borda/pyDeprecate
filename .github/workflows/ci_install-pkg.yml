@@ -7,6 +7,10 @@ on: # Trigger the workflow on push or pull request, but only for the main branch
   pull_request:
     branches: [main]
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   pkg-check:
     strategy:
@@ -40,7 +44,7 @@ jobs:
       - name: show packages
         working-directory: dist
         run: |
-          ls -lh
+          ls
           pip -V
           echo "PKG_WHEEL=$(ls *.whl | head -n1)" >> $GITHUB_ENV
           echo "PKG_SOURCE=$(ls *.tar.gz | head -n1)" >> $GITHUB_ENV
