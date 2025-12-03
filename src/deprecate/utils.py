@@ -20,7 +20,7 @@ import inspect
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
-from typing import Any, Callable, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, List, Optional, Union
 
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, tuple, Any]]:
