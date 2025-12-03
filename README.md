@@ -501,13 +501,16 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
 
-# Validate the configuration - automatically extracts args_mapping and target from the decorator
+# Validate the configuration - automatically extracts `args_mapping` and target from the decorator
 result = validate_deprecated_callable(my_func)
-# DeprecatedCallableInfo(function='my_func', invalid_args=[], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False)
-
-# Access validation fields as attributes
-print(result.invalid_args)  # []
-print(result.no_effect)  # False
+# DeprecatedCallableInfo(
+#   function='my_func',
+#   invalid_args=[],
+#   empty_mapping=False,
+#   identity_mapping=[],
+#   self_reference=False,
+#   no_effect=False
+# )
 
 
 # Example: Function with invalid args_mapping
@@ -518,6 +521,7 @@ def bad_func(real_arg: int = 0) -> int:
 
 result = validate_deprecated_callable(bad_func)
 # result.invalid_args == ['nonexistent']
+print(result)
 
 
 # Example: Function with empty mapping (no effect)
@@ -528,6 +532,7 @@ def empty_func(arg: int = 0) -> int:
 
 result = validate_deprecated_callable(empty_func)
 # result.empty_mapping == True, result.no_effect == True
+print(result)
 
 # Quick check if wrapper has any effect
 if result.no_effect:
@@ -540,6 +545,7 @@ The `find_deprecated_callables()` utility scans an entire package or module and 
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
+# For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
 # Scan an entire package for deprecated wrappers
@@ -553,9 +559,7 @@ for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if not r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(
-            f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}"
-        )
+        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if not r.no_effect]
@@ -569,6 +573,7 @@ Group validation results by issue type for better reporting:
 
 ```python
 from deprecate import find_deprecated_callables
+# For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
 results = find_deprecated_callables(my_package)
@@ -591,6 +596,7 @@ Use in pytest to validate your package's deprecation wrappers:
 ```python
 import pytest
 from deprecate import find_deprecated_callables
+# For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
 
@@ -614,13 +620,6 @@ def test_deprecated_wrappers_are_valid():
     for r in identity_mappings:
         pytest.warns(UserWarning, match=f"{r.function} has identity mapping")
 ```
-
-**Use cases:**
-
-- **In tests:** Validate that all deprecation decorators in your codebase are properly configured
-- **During development:** Catch configuration mistakes early before they reach production
-- **In CI/CD:** Add validation checks to ensure no ineffective wrappers slip through
-- **Reporting:** Generate grouped reports by issue type for code reviews
 
 The `DeprecatedCallableInfo` dataclass contains:
 
