@@ -9,30 +9,17 @@ on: # Trigger the workflow on push or pull request, but only for the main branch
 
 jobs:
   pkg-check:
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/_create-pkg.yml
+    with:
+      python-version: "3.9"
 
+  dry-run:
+    needs: pkg-check
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.9"
-
-      - name: Check package
-        run: |
-          pip install check-manifest
-          check-manifest
-          python setup.py check --metadata --strict
-
-      - name: Create package
-        run: |
-          pip install build
-          python -m build
-
-      - name: Verify package
-        run: |
-          pip install -r tests/requirements.txt
-          twine check dist/*
-          python setup.py clean
-
       - name: Dry run
         run: python setup.py install --dry-run --user
