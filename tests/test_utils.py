@@ -4,7 +4,15 @@ from warnings import warn
 
 import pytest
 
+import tests.collection_degenerate as test_module
 from deprecate.utils import find_deprecated_callables, no_warning_call, validate_deprecated_callable
+from tests.collection_degenerate import (
+    _self_ref_target,
+    all_identity_mapping_deprecation,
+    identity_mapping_deprecation,
+    partial_identity_mapping_deprecation,
+    valid_self_deprecation,
+)
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -47,8 +55,6 @@ def test_warning_others() -> None:
 
 def test_validate_deprecated_callable_valid_deprecation() -> None:
     """Test validate_deprecated_callable with a properly configured deprecated function."""
-    import tests.collection_degenerate as test_module
-
     result = validate_deprecated_callable(test_module.valid_self_deprecation, {"old_arg": "new_arg"})
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is False
@@ -59,8 +65,6 @@ def test_validate_deprecated_callable_valid_deprecation() -> None:
 
 def test_validate_deprecated_callable_invalid_args() -> None:
     """Test validate_deprecated_callable detects invalid args_mapping keys."""
-    import tests.collection_degenerate as test_module
-
     result = validate_deprecated_callable(
         test_module.invalid_args_deprecation, {"nonexistent_arg": "new_arg"}, target=True
     )
@@ -72,10 +76,8 @@ def test_validate_deprecated_callable_invalid_args() -> None:
 
 def test_validate_deprecated_callable_empty_mapping() -> None:
     """Test validate_deprecated_callable detects empty args_mapping."""
-    import tests.collection_degenerate as test_module
-
     # Test with empty args_mapping (self-deprecation)
-    result = validate_deprecated_callable(empty_mapping_deprecation, {}, target=True)
+    result = validate_deprecated_callable(test_module.empty_mapping_deprecation, {}, target=True)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is True
     assert result["identity_mapping"] == []
@@ -83,7 +85,7 @@ def test_validate_deprecated_callable_empty_mapping() -> None:
     assert result["no_effect"] is True
 
     # Test with None args_mapping (self-deprecation)
-    result = validate_deprecated_callable(none_mapping_deprecation, None, target=True)
+    result = validate_deprecated_callable(test_module.none_mapping_deprecation, None, target=True)
     assert result["invalid_args"] == []
     assert result["empty_mapping"] is True
     assert result["identity_mapping"] == []
@@ -93,12 +95,6 @@ def test_validate_deprecated_callable_empty_mapping() -> None:
 
 def test_validate_deprecated_callable_identity_mapping() -> None:
     """Test validate_deprecated_callable detects identity mappings."""
-    from tests.collection_degenerate import (
-        all_identity_mapping_deprecation,
-        identity_mapping_deprecation,
-        partial_identity_mapping_deprecation,
-    )
-
     # Single identity mapping - no effect (all mappings are identity)
     # target=True because the function uses self-deprecation
     result = validate_deprecated_callable(identity_mapping_deprecation, {"arg1": "arg1"}, target=True)
@@ -125,8 +121,6 @@ def test_validate_deprecated_callable_identity_mapping() -> None:
 
 def test_validate_deprecated_callable_self_reference() -> None:
     """Test validate_deprecated_callable detects self-referencing target."""
-    from tests.collection_degenerate import valid_self_deprecation
-
     # Self-reference - no effect
     result = validate_deprecated_callable(valid_self_deprecation, {"old_arg": "new_arg"}, target=valid_self_deprecation)
     assert result["invalid_args"] == []
@@ -138,8 +132,6 @@ def test_validate_deprecated_callable_self_reference() -> None:
 
 def test_validate_deprecated_callable_different_target() -> None:
     """Test validate_deprecated_callable with a different target function."""
-    from tests.collection_degenerate import _self_ref_target, valid_self_deprecation
-
     # Different target - has effect
     result = validate_deprecated_callable(valid_self_deprecation, {"old_arg": "new_arg"}, target=_self_ref_target)
     assert result["invalid_args"] == []
@@ -156,8 +148,6 @@ def test_validate_deprecated_callable_different_target() -> None:
 
 def test_find_deprecated_callables() -> None:
     """Test find_deprecated_callables scans a module for deprecated functions."""
-    import tests.collection_degenerate as test_module
-
     results = find_deprecated_callables(test_module, recursive=False)
 
     # Should find deprecated functions
@@ -181,8 +171,6 @@ def test_find_deprecated_callables() -> None:
 
 def test_find_deprecated_callables_detects_no_effect() -> None:
     """Test find_deprecated_callables correctly identifies zero-impact wrappers."""
-    import tests.collection_degenerate as test_module
-
     results = find_deprecated_callables(test_module, recursive=False)
 
     # Group by function name for easier testing
@@ -218,8 +206,6 @@ def test_find_deprecated_callables_with_string_module() -> None:
 
 def test_find_deprecated_callables_report_grouping() -> None:
     """Test that results can be grouped by issue type for reporting."""
-    import tests.collection_degenerate as test_module
-
     results = find_deprecated_callables(test_module, recursive=False)
 
     # Group by issue type
