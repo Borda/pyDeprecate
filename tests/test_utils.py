@@ -12,6 +12,7 @@ from deprecate.utils import (
     validate_deprecated_callable,
 )
 from tests.collection_deprecate import depr_accuracy_target, depr_pow_self
+
 # Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
 
 
