@@ -13,6 +13,10 @@ Key Functions:
     - validate_deprecated_callable(): Validate wrapper configuration
     - find_deprecated_callables(): Scan a package for deprecated wrappers
 
+Key Classes:
+    - ValidationResult: Dataclass for validation results
+    - DeprecatedCallableInfo: Dataclass for deprecated callable information
+
 Copyright (C) 2020-2023 Jiri Borovec <...>
 """
 
@@ -20,7 +24,77 @@ import inspect
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
-from typing import Any, Callable, List, Optional, Union
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Union
+
+
+@dataclass
+class ValidationResult:
+    """Result of validating a deprecated wrapper configuration.
+
+    This dataclass contains the results of validating a deprecated callable's
+    configuration, identifying potential issues that may cause the deprecation
+    wrapper to have no effect.
+
+    Attributes:
+        invalid_args: List of args_mapping keys that don't exist in the function signature.
+        empty_mapping: True if args_mapping is None or empty (no argument remapping).
+        identity_mapping: List of args where key equals value (e.g., {'arg': 'arg'}).
+        self_reference: True if target points to the same function.
+        no_effect: True if wrapper has zero impact (combines all checks).
+
+    Example:
+        >>> result = ValidationResult(
+        ...     invalid_args=["nonexistent"],
+        ...     empty_mapping=False,
+        ...     identity_mapping=[],
+        ...     self_reference=False,
+        ...     no_effect=False,
+        ... )
+        >>> result.invalid_args
+        ['nonexistent']
+
+    """
+
+    invalid_args: List[str] = field(default_factory=list)
+    empty_mapping: bool = False
+    identity_mapping: List[str] = field(default_factory=list)
+    self_reference: bool = False
+    no_effect: bool = False
+
+
+@dataclass
+class DeprecatedCallableInfo:
+    """Information about a deprecated callable found during package scanning.
+
+    This dataclass represents a single deprecated function or method found
+    when scanning a package with find_deprecated_callables().
+
+    Attributes:
+        module: Module name where the function is defined.
+        function: Function name.
+        deprecated_info: The __deprecated__ attribute dict from the decorator.
+        validation: ValidationResult from validate_deprecated_callable().
+        has_effect: True if the wrapper has a meaningful effect.
+
+    Example:
+        >>> info = DeprecatedCallableInfo(
+        ...     module="my_package.module",
+        ...     function="old_function",
+        ...     deprecated_info={"deprecated_in": "1.0", "remove_in": "2.0"},
+        ...     validation=ValidationResult(),
+        ...     has_effect=True,
+        ... )
+        >>> info.function
+        'old_function'
+
+    """
+
+    module: str
+    function: str
+    deprecated_info: Dict[str, Any] = field(default_factory=dict)
+    validation: ValidationResult = field(default_factory=ValidationResult)
+    has_effect: bool = True
 
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, tuple, Any]]:
@@ -184,7 +258,7 @@ def validate_deprecated_callable(
     func: Callable,
     args_mapping: Optional[dict] = None,
     target: Optional[Callable] = None,
-) -> dict:
+) -> ValidationResult:
     """Validate if a deprecated wrapper has any effect.
 
     This is a development tool to check if deprecated wrappers are configured correctly.
@@ -203,12 +277,12 @@ def validate_deprecated_callable(
             Used to check for self-reference.
 
     Returns:
-        Dictionary with validation results:
-            - 'invalid_args': List of args_mapping keys not in function signature
-            - 'empty_mapping': True if args_mapping is None or empty
-            - 'identity_mapping': List of args where key equals value (no effect)
-            - 'self_reference': True if target is the same as func
-            - 'no_effect': True if wrapper has zero impact (all checks combined)
+        ValidationResult: Dataclass with validation results:
+            - invalid_args: List of args_mapping keys not in function signature
+            - empty_mapping: True if args_mapping is None or empty
+            - identity_mapping: List of args where key equals value (no effect)
+            - self_reference: True if target is the same as func
+            - no_effect: True if wrapper has zero impact (all checks combined)
 
     Example:
         >>> from deprecate import deprecated, validate_deprecated_callable
@@ -219,14 +293,14 @@ def validate_deprecated_callable(
         ...     pass
         >>> # Valid mapping to different function - has effect
         >>> result = validate_deprecated_callable(old_func, {"old_val": "value"}, target=new_implementation)
-        >>> result["no_effect"]
+        >>> result.no_effect
         False
         >>> @deprecated(target=True, deprecated_in="1.0", args_mapping={"arg": "arg"})
         ... def identity_func(arg: int) -> int:
         ...     return arg
         >>> # Identity mapping with self-deprecation - no effect
         >>> result = validate_deprecated_callable(identity_func, {"arg": "arg"}, target=True)
-        >>> result["identity_mapping"], result["no_effect"]
+        >>> result.identity_mapping, result.no_effect
         (['arg'], True)
 
     .. note::
@@ -235,41 +309,44 @@ def validate_deprecated_callable(
         runtime errors but will silently have no effect.
 
     """
-    result = {
-        "invalid_args": [],
-        "empty_mapping": not args_mapping,
-        "identity_mapping": [],
-        "self_reference": target is func if target is not None else False,
-        "no_effect": False,
-    }
+    invalid_args: List[str] = []
+    empty_mapping = not args_mapping
+    identity_mapping: List[str] = []
+    self_reference = target is func if target is not None else False
 
     all_identity = False
     if args_mapping:
         func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
-        result["invalid_args"] = [arg for arg in args_mapping if arg not in func_args]
-        result["identity_mapping"] = [arg for arg, val in args_mapping.items() if arg == val]
+        invalid_args = [arg for arg in args_mapping if arg not in func_args]
+        identity_mapping = [arg for arg, val in args_mapping.items() if arg == val]
         # Check if ALL mappings are identity (complete no-op)
-        all_identity = len(result["identity_mapping"]) == len(args_mapping) and len(args_mapping) > 0
+        all_identity = len(identity_mapping) == len(args_mapping) and len(args_mapping) > 0
 
     # Wrapper has no effect if:
     # - Self-reference (forwards to itself)
     # - target is None AND no args_mapping (just warns, no forwarding or remapping)
     # - target is True (self-deprecation) AND (empty mapping OR all identity mappings)
     # Note: When target is a different function, there's ALWAYS an effect (forwarding)
-    is_self_deprecation = target is True or result["self_reference"]
-    result["no_effect"] = (
-        result["self_reference"]
-        or (target is None and result["empty_mapping"])
-        or (is_self_deprecation and (result["empty_mapping"] or all_identity))
+    is_self_deprecation = target is True or self_reference
+    no_effect = (
+        self_reference
+        or (target is None and empty_mapping)
+        or (is_self_deprecation and (empty_mapping or all_identity))
     )
 
-    return result
+    return ValidationResult(
+        invalid_args=invalid_args,
+        empty_mapping=empty_mapping,
+        identity_mapping=identity_mapping,
+        self_reference=self_reference,
+        no_effect=no_effect,
+    )
 
 
 def find_deprecated_callables(
     module: Any,
     recursive: bool = True,
-) -> List[dict]:
+) -> List[DeprecatedCallableInfo]:
     """Scan a module or package for deprecated wrapper usages and validate them.
 
     This is a development tool to scan a codebase for all functions decorated with
@@ -282,19 +359,20 @@ def find_deprecated_callables(
         recursive: If True, recursively scan submodules. Default is True.
 
     Returns:
-        List of dictionaries, one per deprecated function found, each containing:
-            - 'module': Module name where the function is defined
-            - 'function': Function name
-            - 'deprecated_info': The __deprecated__ attribute dict if present
-            - 'validation': Result from validate_deprecated_callable() if applicable
-            - 'has_effect': True if the wrapper has a meaningful effect
+        List of DeprecatedCallableInfo dataclasses, one per deprecated function found,
+        each containing:
+            - module: Module name where the function is defined
+            - function: Function name
+            - deprecated_info: The __deprecated__ attribute dict if present
+            - validation: ValidationResult from validate_deprecated_callable()
+            - has_effect: True if the wrapper has a meaningful effect
 
     Example:
         >>> import my_package
         >>> results = find_deprecated_callables(my_package)
         >>> for r in results:
-        ...     if not r['has_effect']:
-        ...         print(f"Warning: {r['module']}.{r['function']} has no effect!")
+        ...     if not r.has_effect:
+        ...         print(f"Warning: {r.module}.{r.function} has no effect!")
 
     .. note::
         This function requires that the module be importable. It inspects
@@ -305,7 +383,7 @@ def find_deprecated_callables(
     import importlib
     import pkgutil
 
-    results = []
+    results: List[DeprecatedCallableInfo] = []
 
     # Handle string module path
     if isinstance(module, str):
@@ -313,42 +391,50 @@ def find_deprecated_callables(
 
     def _scan_module(mod: Any) -> None:
         """Scan a single module for deprecated functions."""
-        with suppress(AttributeError, TypeError, ImportError):
-            for name, obj in inspect.getmembers(mod):
-                # Skip private/magic attributes and imports from other modules
-                if name.startswith("_"):
-                    continue
+        try:
+            members = inspect.getmembers(mod)
+        except (AttributeError, TypeError, ImportError):
+            return
 
-                # Check if it's a function or method with __deprecated__ attribute
-                if callable(obj) and hasattr(obj, "__deprecated__"):
-                    dep_info = getattr(obj, "__deprecated__", {})
-                    target = dep_info.get("target")
-                    args_mapping = dep_info.get("args_mapping")
+        for name, obj in members:
+            # Skip private/magic attributes and imports from other modules
+            if name.startswith("_"):
+                continue
 
-                    # Validate the wrapper
-                    validation = validate_deprecated_callable(obj, args_mapping, target)
+            # Check if it's a function or method with __deprecated__ attribute
+            if callable(obj) and hasattr(obj, "__deprecated__"):
+                dep_info = getattr(obj, "__deprecated__", {})
+                target = dep_info.get("target")
+                args_mapping = dep_info.get("args_mapping")
 
-                    results.append(
-                        {
-                            "module": mod.__name__ if hasattr(mod, "__name__") else str(mod),
-                            "function": name,
-                            "deprecated_info": dep_info,
-                            "validation": validation,
-                            "has_effect": not validation["no_effect"],
-                        }
+                # Validate the wrapper
+                validation = validate_deprecated_callable(obj, args_mapping, target)
+
+                results.append(
+                    DeprecatedCallableInfo(
+                        module=mod.__name__ if hasattr(mod, "__name__") else str(mod),
+                        function=name,
+                        deprecated_info=dep_info,
+                        validation=validation,
+                        has_effect=not validation.no_effect,
                     )
+                )
 
     # Scan the main module
     _scan_module(module)
 
     # Recursively scan submodules if requested
     if recursive and hasattr(module, "__path__"):
-        with suppress(OSError, ImportError):
-            for _importer, modname, _ispkg in pkgutil.walk_packages(
+        try:
+            packages = list(pkgutil.walk_packages(
                 path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None
-            ):
-                with suppress(ImportError, ModuleNotFoundError):
-                    submod = importlib.import_module(modname)
-                    _scan_module(submod)
+            ))
+        except (OSError, ImportError):
+            packages = []
+
+        for _importer, modname, _ispkg in packages:
+            with suppress(ImportError, ModuleNotFoundError):
+                submod = importlib.import_module(modname)
+                _scan_module(submod)
 
     return results
