@@ -65,7 +65,9 @@ setup(
     license=ABOUT.__license__,
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    long_description=_load_readme_description(_PATH_ROOT, homepage=ABOUT.__source_code__, version=ABOUT.__version__),
+    long_description=_load_readme_description(
+        _PATH_ROOT, homepage=ABOUT.__source_code__, version=f"v{ABOUT.__version__}"
+    ),
     long_description_content_type="text/markdown",
     include_package_data=True,
     zip_safe=False,
