@@ -1,10 +1,12 @@
 name: PyPI Release
 
 # https://help.github.com/en/actions/reference/events-that-trigger-workflows
-on: # Trigger the workflow on push to main branch, tag push, or release published
+on: # Trigger the workflow on push or pull request for the main branch, tag push, or release published
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
+    branches: [main]
   release:
     types: [published]
 
