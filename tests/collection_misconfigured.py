@@ -10,34 +10,6 @@ from deprecate import deprecated, void
 from tests.collection_targets import base_sum_kwargs
 
 # =============================================================================
-# Valid deprecations (have effect)
-# =============================================================================
-
-
-@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
-def valid_deprecation(a: int, b: int = 5) -> int:
-    """A properly configured deprecated function - has effect."""
-    return void(a, b)
-
-
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_arg": "new_arg"})
-def valid_self_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
-    """A properly configured self-deprecation with arg mapping - has effect."""
-    return new_arg
-
-
-def _different_target(old_arg: int = 1, new_arg: int = 2) -> int:
-    """Target function for valid target deprecation test."""
-    return new_arg * 2
-
-
-@deprecated(target=_different_target, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_arg": "new_arg"})
-def valid_target_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
-    """A properly configured deprecation with a different target - has effect."""
-    return void(old_arg, new_arg)
-
-
-# =============================================================================
 # Degenerated deprecations (zero impact)
 # =============================================================================
 

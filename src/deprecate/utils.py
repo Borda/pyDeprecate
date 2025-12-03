@@ -44,7 +44,6 @@ class DeprecatedCallableInfo:
         identity_mapping: List of args where key equals value (e.g., {'arg': 'arg'}).
         self_reference: True if target points to the same function.
         no_effect: True if wrapper has zero impact (combines all checks).
-        has_effect: True if the wrapper has a meaningful effect (inverse of no_effect).
 
     Example:
         >>> info = DeprecatedCallableInfo(
@@ -52,7 +51,7 @@ class DeprecatedCallableInfo:
         ...     function="old_function",
         ...     deprecated_info={"deprecated_in": "1.0", "remove_in": "2.0"},
         ...     invalid_args=["nonexistent"],
-        ...     has_effect=False,
+        ...     no_effect=True,
         ... )
         >>> info.function
         'old_function'
@@ -69,7 +68,6 @@ class DeprecatedCallableInfo:
     identity_mapping: List[str] = field(default_factory=list)
     self_reference: bool = False
     no_effect: bool = False
-    has_effect: bool = True
 
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, tuple, Any]]:
@@ -255,7 +253,6 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
             - identity_mapping: List of args where key equals value (no effect)
             - self_reference: True if target is the same as func
             - no_effect: True if wrapper has zero impact (all checks combined)
-            - has_effect: True if wrapper has a meaningful effect
 
     Example:
         >>> from deprecate import deprecated, validate_deprecated_callable
@@ -330,7 +327,6 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         identity_mapping=identity_mapping,
         self_reference=self_reference,
         no_effect=no_effect,
-        has_effect=not no_effect,
     )
 
 
@@ -356,13 +352,12 @@ def find_deprecated_callables(
             - function: Function name
             - deprecated_info: The __deprecated__ attribute dict if present
             - invalid_args, empty_mapping, identity_mapping, self_reference, no_effect
-            - has_effect: True if the wrapper has a meaningful effect
 
     Example:
         >>> import my_package
         >>> results = find_deprecated_callables(my_package)
         >>> for r in results:
-        ...     if not r.has_effect:
+        ...     if not r.no_effect:
         ...         print(f"Warning: {r.module}.{r.function} has no effect!")
 
     .. note::
