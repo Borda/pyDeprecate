@@ -9,7 +9,7 @@ on:
       artifact-name:
         required: false
         type: string
-        default: ''
+        default: ""
 
 jobs:
   package:
