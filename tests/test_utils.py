@@ -4,14 +4,14 @@ from warnings import warn
 
 import pytest
 
-import tests.collection_degenerate as test_module
+import tests.collection_misconfigured as test_module
 from deprecate.utils import (
     DeprecatedCallableInfo,
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
 )
-from tests.collection_degenerate import (
+from tests.collection_misconfigured import (
     all_identity_mapping_deprecation,
     identity_mapping_deprecation,
     partial_identity_mapping_deprecation,
