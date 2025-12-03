@@ -27,12 +27,14 @@ jobs:
 
       - name: Check package
         run: |
-          pip install check-manifest build
+          pip install check-manifest
           check-manifest
-          python -m build --check
+          python setup.py check --metadata --strict
 
       - name: Create package
-        run: python -m build
+        run: |
+          pip install build
+          python -m build
 
       - name: Verify package
         run: |
