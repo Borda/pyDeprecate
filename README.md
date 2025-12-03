@@ -487,7 +487,7 @@ During development, you may want to verify that your deprecated wrappers are con
 
 ### Validating a Single Function
 
-The `validate_deprecated_callable()` utility returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
+The `validate_deprecated_callable()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
 from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
@@ -499,8 +499,8 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
 
-# Validate the configuration - returns a DeprecatedCallableInfo dataclass
-result = validate_deprecated_callable(my_func, {"old_arg": "new_arg"})
+# Validate the configuration - automatically extracts args_mapping and target from the decorator
+result = validate_deprecated_callable(my_func)
 # DeprecatedCallableInfo(function='my_func', invalid_args=[], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, has_effect=True)
 
 # Access validation fields as attributes
@@ -508,21 +508,21 @@ print(result.invalid_args)  # []
 print(result.no_effect)     # False
 print(result.has_effect)    # True
 
-# Detect invalid argument mappings
-result = validate_deprecated_callable(my_func, {"nonexistent": "new_arg"})
+# Example: Function with invalid args_mapping
+@deprecated(target=True, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
+def bad_func(real_arg: int = 0) -> int:
+    return real_arg
+
+result = validate_deprecated_callable(bad_func)
 # result.invalid_args == ['nonexistent']
 
-# Detect empty mappings (wrapper has no effect)
-result = validate_deprecated_callable(my_func, {})
+# Example: Function with empty mapping (no effect)
+@deprecated(target=True, args_mapping={}, deprecated_in="1.0")
+def empty_func(arg: int = 0) -> int:
+    return arg
+
+result = validate_deprecated_callable(empty_func)
 # result.empty_mapping == True, result.no_effect == True, result.has_effect == False
-
-# Detect identity mappings (arg mapped to itself - no effect)
-result = validate_deprecated_callable(my_func, {"old_arg": "old_arg"})
-# result.identity_mapping == ['old_arg'], result.no_effect == True, result.has_effect == False
-
-# Detect self-referencing target (wrapper forwards to itself)
-result = validate_deprecated_callable(my_func, {"old_arg": "new_arg"}, target=my_func)
-# result.self_reference == True, result.no_effect == True, result.has_effect == False
 
 # Quick check if wrapper has any effect
 if not result.has_effect:

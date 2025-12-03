@@ -229,15 +229,13 @@ def void(*args: Any, **kwrgs: Any) -> Any:
     _, _ = args, kwrgs
 
 
-def validate_deprecated_callable(
-    func: Callable,
-    args_mapping: Optional[dict] = None,
-    target: Optional[Callable] = None,
-) -> DeprecatedCallableInfo:
+def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     """Validate if a deprecated wrapper has any effect.
 
     This is a development tool to check if deprecated wrappers are configured correctly.
-    It identifies configurations that would make the deprecation wrapper have zero impact:
+    It extracts the configuration from the function's ``__deprecated__`` attribute
+    (set by the @deprecated decorator) and identifies configurations that would make
+    the deprecation wrapper have zero impact:
     - args_mapping keys that don't exist in the function's signature
     - Empty or None args_mapping (no argument remapping)
     - Identity mappings where key equals value (e.g., {'arg': 'arg'})
@@ -245,15 +243,13 @@ def validate_deprecated_callable(
     - All identity: True if ALL mappings are identity (complete no-op)
 
     Args:
-        func: The decorated function to validate
-        args_mapping: Dictionary mapping old argument names to new ones.
-            Keys should be argument names that exist in the function's signature.
-        target: The target function that calls are forwarded to.
-            Used to check for self-reference.
+        func: The decorated function to validate. Must have a ``__deprecated__``
+            attribute set by the @deprecated decorator.
 
     Returns:
         DeprecatedCallableInfo: Dataclass with validation results:
             - function: Name of the function being validated
+            - deprecated_info: The __deprecated__ attribute dict from the decorator
             - invalid_args: List of args_mapping keys not in function signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of args where key equals value (no effect)
@@ -269,14 +265,14 @@ def validate_deprecated_callable(
         ... def old_func(old_val: int) -> int:
         ...     pass
         >>> # Valid mapping to different function - has effect
-        >>> result = validate_deprecated_callable(old_func, {"old_val": "value"}, target=new_implementation)
+        >>> result = validate_deprecated_callable(old_func)
         >>> result.no_effect
         False
         >>> @deprecated(target=True, deprecated_in="1.0", args_mapping={"arg": "arg"})
         ... def identity_func(arg: int) -> int:
         ...     return arg
         >>> # Identity mapping with self-deprecation - no effect
-        >>> result = validate_deprecated_callable(identity_func, {"arg": "arg"}, target=True)
+        >>> result = validate_deprecated_callable(identity_func)
         >>> result.identity_mapping, result.no_effect
         (['arg'], True)
 
@@ -285,7 +281,22 @@ def validate_deprecated_callable(
         decorators are configured correctly. Invalid configurations won't cause
         runtime errors but will silently have no effect.
 
+    Raises:
+        ValueError: If the function does not have a __deprecated__ attribute
+            (i.e., was not decorated with @deprecated).
+
     """
+    # Extract configuration from __deprecated__ attribute
+    if not hasattr(func, "__deprecated__"):
+        raise ValueError(
+            f"Function {getattr(func, '__name__', func)} does not have a __deprecated__ attribute. "
+            "It must be decorated with @deprecated."
+        )
+
+    dep_info = getattr(func, "__deprecated__", {})
+    args_mapping = dep_info.get("args_mapping")
+    target = dep_info.get("target")
+
     invalid_args: List[str] = []
     empty_mapping = not args_mapping
     identity_mapping: List[str] = []
@@ -313,6 +324,7 @@ def validate_deprecated_callable(
 
     return DeprecatedCallableInfo(
         function=getattr(func, "__name__", str(func)),
+        deprecated_info=dep_info,
         invalid_args=invalid_args,
         empty_mapping=empty_mapping,
         identity_mapping=identity_mapping,
@@ -382,16 +394,11 @@ def find_deprecated_callables(
 
             # Check if it's a function or method with __deprecated__ attribute
             if callable(obj) and hasattr(obj, "__deprecated__"):
-                dep_info = getattr(obj, "__deprecated__", {})
-                target = dep_info.get("target")
-                args_mapping = dep_info.get("args_mapping")
-
-                # Validate the wrapper - returns DeprecatedCallableInfo
-                info = validate_deprecated_callable(obj, args_mapping, target)
+                # Validate the wrapper - extracts config from __deprecated__
+                info = validate_deprecated_callable(obj)
                 # Update with module-level info
                 info.module = mod.__name__ if hasattr(mod, "__name__") else str(mod)
                 info.function = name
-                info.deprecated_info = dep_info
 
                 results.append(info)
 

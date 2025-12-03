@@ -26,6 +26,17 @@ def valid_self_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
     return new_arg
 
 
+def _different_target(old_arg: int = 1, new_arg: int = 2) -> int:
+    """Target function for valid target deprecation test."""
+    return new_arg * 2
+
+
+@deprecated(target=_different_target, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_arg": "new_arg"})
+def valid_target_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
+    """A properly configured deprecation with a different target - has effect."""
+    return void(old_arg, new_arg)
+
+
 # =============================================================================
 # Degenerated deprecations (zero impact)
 # =============================================================================
@@ -72,6 +83,14 @@ def _self_ref_target(a: int = 1, b: int = 2) -> int:
     return a + b
 
 
-# Note: We can't easily create a true self-reference at module level because the function
-# doesn't exist yet when the decorator is applied. But we can test this via validate_deprecated_callable()
-# by passing target=func explicitly.
+# Create a self-referencing deprecation using a workaround:
+# We define a function that targets another function, but then we manually
+# set the target to itself after decoration.
+@deprecated(target=_self_ref_target, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_arg": "new_arg"})
+def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
+    """Deprecation that self-references - has no effect."""
+    return void(old_arg, new_arg)
+
+
+# Manually update the __deprecated__ attribute to make it self-referencing
+self_referencing_deprecation.__deprecated__["target"] = self_referencing_deprecation
