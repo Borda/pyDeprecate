@@ -23,7 +23,7 @@ import inspect
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional, Union
 
 
@@ -385,8 +385,7 @@ def find_deprecated_callables(
                 # Validate the wrapper - extracts config from __deprecated__
                 info = validate_deprecated_callable(obj)
                 # Update with module-level info
-                info.module = mod.__name__ if hasattr(mod, "__name__") else str(mod)
-                info.function = name
+                info = replace(info, module=mod.__name__ if hasattr(mod, "__name__") else str(mod), function=name)
 
                 results.append(info)
 

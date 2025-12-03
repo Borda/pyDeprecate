@@ -84,7 +84,6 @@ def test_validate_deprecated_callable_empty_mapping() -> None:
     assert result.identity_mapping == []
     assert result.self_reference is False
     assert result.no_effect is True
-    assert result.no_effect is not False
 
     # Test with None args_mapping (self-deprecation)
     result = validate_deprecated_callable(sample_module.none_mapping_deprecation)
@@ -93,7 +92,6 @@ def test_validate_deprecated_callable_empty_mapping() -> None:
     assert result.identity_mapping == []
     assert result.self_reference is False
     assert result.no_effect is True
-    assert result.no_effect is not False
 
 
 def test_validate_deprecated_callable_single_identity_mapping() -> None:
@@ -104,7 +102,6 @@ def test_validate_deprecated_callable_single_identity_mapping() -> None:
     assert result.identity_mapping == ["arg1"]
     assert result.self_reference is False
     assert result.no_effect is True
-    assert result.no_effect is not False
 
 
 def test_validate_deprecated_callable_all_identity_mappings() -> None:
@@ -112,7 +109,6 @@ def test_validate_deprecated_callable_all_identity_mappings() -> None:
     result = validate_deprecated_callable(sample_module.all_identity_mapping_deprecation)
     assert result.identity_mapping == ["arg1", "arg2"]
     assert result.no_effect is True
-    assert result.no_effect is not False
 
 
 def test_validate_deprecated_callable_partial_identity_mapping() -> None:
@@ -132,7 +128,6 @@ def test_validate_deprecated_callable_self_reference() -> None:
     assert result.identity_mapping == []
     assert result.self_reference is True
     assert result.no_effect is True
-    assert result.no_effect is not False
 
 
 def test_validate_deprecated_callable_different_target() -> None:
