@@ -487,9 +487,23 @@ def old_add_v2(a: int, b: int) -> int:
 
 During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this:
 
+The `DeprecatedCallableInfo` dataclass contains:
+
+- `module`: Module name where the function is defined (empty for direct validation)
+- `function`: Function name
+- `deprecated_info`: The `__deprecated__` attribute dict from the decorator
+- `invalid_args`: List of args_mapping keys that don't exist in the function signature
+- `empty_mapping`: True if args_mapping is None or empty (no argument remapping)
+- `identity_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
+- `self_reference`: True if target points to the same function (self-reference)
+- `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
+
 ### Validating a Single Function
 
 The `validate_deprecated_callable()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
+
+<details>
+<summary>Code example</summary>
 
 ```python
 from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
@@ -539,9 +553,14 @@ if result.no_effect:
     print("Warning: This wrapper configuration has zero impact!")
 ```
 
+</details>
+
 ### Scanning a Package for Deprecated Wrappers
 
 The `find_deprecated_callables()` utility scans an entire package or module and returns a list of `DeprecatedCallableInfo` dataclasses:
+
+<details>
+<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
@@ -567,9 +586,14 @@ if ineffective:
     print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
 ```
 
+</details>
+
 ### Generating Reports by Issue Type
 
 Group validation results by issue type for better reporting:
+
+<details>
+<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables
@@ -589,9 +613,14 @@ print(f"Identity mappings: {len(identity_mappings)}")
 print(f"Self-references: {len(self_refs)}")
 ```
 
+</details>
+
 ### CI/pytest Integration
 
 Use in pytest to validate your package's deprecation wrappers:
+
+<details>
+<summary>Code example</summary>
 
 ```python
 import pytest
@@ -621,16 +650,7 @@ def test_deprecated_wrappers_are_valid():
         pytest.warns(UserWarning, match=f"{r.function} has identity mapping")
 ```
 
-The `DeprecatedCallableInfo` dataclass contains:
-
-- `module`: Module name where the function is defined (empty for direct validation)
-- `function`: Function name
-- `deprecated_info`: The `__deprecated__` attribute dict from the decorator
-- `invalid_args`: List of args_mapping keys that don't exist in the function signature
-- `empty_mapping`: True if args_mapping is None or empty (no argument remapping)
-- `identity_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
-- `self_reference`: True if target points to the same function (self-reference)
-- `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
+</details>
 
 ## 🧪 Testing Deprecated Code
 
@@ -689,7 +709,8 @@ test_no_warning_after_first_call()
 
 The `no_warning_call()` context manager will fail your test if any warnings of the specified type are raised, ensuring your code is clean.
 
-**⚙️ Advanced: Control warning frequency**
+<details>
+<summary>Advanced: Control warning frequency</summary>
 
 ```python
 # Minimal replacement implementation used in examples
@@ -713,6 +734,8 @@ def old_func_always_warn(x: int) -> int:
 def old_func_warn_n_times(x: int) -> int:
     pass
 ```
+
+</details>
 
 ## 🔧 Troubleshooting
 
