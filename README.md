@@ -592,14 +592,14 @@ results = find_deprecated_callables("tests.collection_deprecate")
 # Check results - each item is a DeprecatedCallableInfo dataclass
 for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
-    if not r.no_effect:
+    if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
         print(
             f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}"
         )
 
 # Filter to only ineffective wrappers
-ineffective = [r for r in results if not r.no_effect]
+ineffective = [r for r in results if r.no_effect]
 if ineffective:
     print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
 ```
