@@ -21,6 +21,7 @@ def _load_py_module(fname: str, pkg: str = "deprecate"):
 
 ABOUT = _load_py_module("__about__.py")
 
+
 def _load_readme_description(path_dir: str, homepage: str, version: str) -> str:
     """Load readme as decribtion.
 
