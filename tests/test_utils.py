@@ -61,7 +61,9 @@ def test_validate_deprecated_callable_invalid_args() -> None:
     """Test validate_deprecated_callable detects invalid args_mapping keys."""
     import tests.collection_degenerate as test_module
 
-    result = validate_deprecated_callable(test_module.invalid_args_deprecation, {"nonexistent_arg": "new_arg"}, target=True)
+    result = validate_deprecated_callable(
+        test_module.invalid_args_deprecation, {"nonexistent_arg": "new_arg"}, target=True
+    )
     assert result["invalid_args"] == ["nonexistent_arg"]
     assert result["empty_mapping"] is False
     assert result["identity_mapping"] == []
