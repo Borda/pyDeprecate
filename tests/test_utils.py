@@ -12,11 +12,7 @@ from deprecate.utils import (
     validate_deprecated_callable,
 )
 from tests.collection_deprecate import depr_accuracy_target, depr_pow_self
-from tests.collection_misconfigured import (
-    all_identity_mapping_deprecation,
-    identity_mapping_deprecation,
-    partial_identity_mapping_deprecation,
-)
+# Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -101,7 +97,7 @@ def test_validate_deprecated_callable_empty_mapping() -> None:
 
 def test_validate_deprecated_callable_single_identity_mapping() -> None:
     """Test validate_deprecated_callable detects single identity mapping."""
-    result = validate_deprecated_callable(identity_mapping_deprecation)
+    result = validate_deprecated_callable(sample_module.identity_mapping_deprecation)
     assert result.invalid_args == []
     assert result.empty_mapping is False
     assert result.identity_mapping == ["arg1"]
@@ -112,7 +108,7 @@ def test_validate_deprecated_callable_single_identity_mapping() -> None:
 
 def test_validate_deprecated_callable_all_identity_mappings() -> None:
     """Test validate_deprecated_callable detects all identity mappings."""
-    result = validate_deprecated_callable(all_identity_mapping_deprecation)
+    result = validate_deprecated_callable(sample_module.all_identity_mapping_deprecation)
     assert result.identity_mapping == ["arg1", "arg2"]
     assert result.no_effect is True
     assert result.no_effect is not False
@@ -120,7 +116,7 @@ def test_validate_deprecated_callable_all_identity_mappings() -> None:
 
 def test_validate_deprecated_callable_partial_identity_mapping() -> None:
     """Test validate_deprecated_callable detects partial identity mapping."""
-    result = validate_deprecated_callable(partial_identity_mapping_deprecation)
+    result = validate_deprecated_callable(sample_module.partial_identity_mapping_deprecation)
     assert result.identity_mapping == ["arg1"]
     assert result.no_effect is False
     assert result.no_effect is not True
