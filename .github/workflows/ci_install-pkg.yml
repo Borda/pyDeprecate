@@ -7,32 +7,73 @@ on: # Trigger the workflow on push or pull request, but only for the main branch
   pull_request:
     branches: [main]
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   pkg-check:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.14"]
+      fail-fast: false
+    uses: ./.github/workflows/_create-pkg.yml
+    with:
+      python-version: ${{ matrix.python-version }}
+      os: ${{ matrix.os }}
+      artifact-name: ci-packages-${{ matrix.os }}-${{ matrix.python-version }}-${{ github.sha }}
 
+  pkg-install:
+    needs: pkg-check
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.14"]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.9"
-
-      - name: Check package
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v5
+        with:
+          name: ci-packages-${{ matrix.os }}-${{ matrix.python-version }}-${{ github.sha }}
+          path: dist
+      - name: show packages
+        working-directory: dist
         run: |
-          pip install check-manifest
-          check-manifest
-          python setup.py check --metadata --strict
+          ls
+          pip -V
+          echo "PKG_WHEEL=$(ls *.whl | head -n1)" >> $GITHUB_ENV
+          echo "PKG_SOURCE=$(ls *.tar.gz | head -n1)" >> $GITHUB_ENV
+          pip list
 
-      - name: Create package
+      - name: Install and check package (wheel)
+        working-directory: dist
         run: |
-          pip install build
-          python -m build
+          pip install '${{ env.PKG_WHEEL }}' --force-reinstall
+          pip list
+          python -c "import deprecate as pkg; print(f'version: {pkg.__version__}')"
 
-      - name: Verify package
+      - name: Install and check package (sdist)
+        working-directory: dist
         run: |
-          pip install -r tests/requirements.txt
-          twine check dist/*
-          python setup.py clean
+          pip install '${{ env.PKG_SOURCE }}' --force-reinstall
+          pip list
+          python -c "import deprecate as pkg; print(f'version: {pkg.__version__}')"
 
-      - name: Dry run
-        run: python setup.py install --dry-run --user
+  install-guardian:
+    runs-on: ubuntu-latest
+    needs: pkg-install
+    if: always()
+    steps:
+      - run: echo "${{ needs.pkg-install.result }}"
+      - name: failing...
+        if: needs.pkg-install.result == 'failure'
+        run: exit 1
+      - name: cancelled or skipped...
+        if: contains(fromJSON('["cancelled", "skipped"]'), needs.pkg-install.result)
+        timeout-minutes: 1
+        run: sleep 90

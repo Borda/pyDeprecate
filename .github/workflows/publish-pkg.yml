@@ -1,0 +1,58 @@
+name: Package Release
+
+# https://help.github.com/en/actions/reference/events-that-trigger-workflows
+on: # Trigger the workflow on push or pull request for the main branch, tag push, or release published
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  build:
+    uses: ./.github/workflows/_create-pkg.yml
+    with:
+      python-version: "3.10"
+      artifact-name: pypi-packages-${{ github.sha }}
+
+  publish:
+    needs: build
+    if: startsWith(github.event.ref, 'refs/tags') || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: pypi-packages-${{ github.sha }}
+          path: dist
+      - run: ls -lh dist/
+
+      - name: Publish to Test PyPI
+        uses: pypa/gh-action-pypi-publish@v1.13.0
+        with:
+          password: ${{ secrets.test_pypi_password }}
+          repository_url: https://test.pypi.org/legacy/
+
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.13.0
+        with:
+          password: ${{ secrets.pypi_password }}
+
+  release-upload:
+    needs: build
+    if: startsWith(github.event.ref, 'refs/tags') || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: pypi-packages-${{ github.sha }}
+          path: dist
+      - run: ls -lh dist/
+
+      - name: Upload to release
+        uses: AButler/upload-release-assets@v3.0
+        with:
+          files: "dist/*"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
