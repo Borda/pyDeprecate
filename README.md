@@ -236,6 +236,8 @@ print(my_sum(1, 2))
 
 </details>
 
+**Note:** When `args_mapping` is `None` or empty (default), the deprecation will not perform any argument redirection, just emit a plain warning. The deprecated function's implementation must be preserved.
+
 ### 🔄 Self argument mapping
 
 We also support deprecation and argument mapping for the function itself:
@@ -501,31 +503,34 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
 
 # Validate the configuration - automatically extracts args_mapping and target from the decorator
 result = validate_deprecated_callable(my_func)
-# DeprecatedCallableInfo(function='my_func', invalid_args=[], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, has_effect=True)
+# DeprecatedCallableInfo(function='my_func', invalid_args=[], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False)
 
 # Access validation fields as attributes
 print(result.invalid_args)  # []
-print(result.no_effect)     # False
-print(result.has_effect)    # True
+print(result.no_effect)  # False
+
 
 # Example: Function with invalid args_mapping
 @deprecated(target=True, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
 def bad_func(real_arg: int = 0) -> int:
     return real_arg
 
+
 result = validate_deprecated_callable(bad_func)
 # result.invalid_args == ['nonexistent']
+
 
 # Example: Function with empty mapping (no effect)
 @deprecated(target=True, args_mapping={}, deprecated_in="1.0")
 def empty_func(arg: int = 0) -> int:
     return arg
 
+
 result = validate_deprecated_callable(empty_func)
-# result.empty_mapping == True, result.no_effect == True, result.has_effect == False
+# result.empty_mapping == True, result.no_effect == True
 
 # Quick check if wrapper has any effect
-if not result.has_effect:
+if result.no_effect:
     print("Warning: This wrapper configuration has zero impact!")
 ```
 
@@ -535,23 +540,25 @@ The `find_deprecated_callables()` utility scans an entire package or module and 
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
-import my_package
+from tests import collection_deprecate as my_package
 
 # Scan an entire package for deprecated wrappers
 results = find_deprecated_callables(my_package)
 
 # Or scan using a string module path
-results = find_deprecated_callables("my_package.submodule")
+results = find_deprecated_callables("tests.collection_deprecate")
 
 # Check results - each item is a DeprecatedCallableInfo dataclass
 for r in results:
-    print(f"{r.module}.{r.function}: has_effect={r.has_effect}")
-    if not r.has_effect:
+    print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
+    if not r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
+        print(
+            f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}"
+        )
 
 # Filter to only ineffective wrappers
-ineffective = [r for r in results if not r.has_effect]
+ineffective = [r for r in results if not r.no_effect]
 if ineffective:
     print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
 ```
@@ -562,6 +569,7 @@ Group validation results by issue type for better reporting:
 
 ```python
 from deprecate import find_deprecated_callables
+from tests import collection_deprecate as my_package
 
 results = find_deprecated_callables(my_package)
 
@@ -583,7 +591,7 @@ Use in pytest to validate your package's deprecation wrappers:
 ```python
 import pytest
 from deprecate import find_deprecated_callables
-import my_package
+from tests import collection_deprecate as my_package
 
 
 def test_deprecated_wrappers_are_valid():
@@ -597,9 +605,7 @@ def test_deprecated_wrappers_are_valid():
     # Raise errors for wrong arguments (critical issues)
     if wrong_args:
         for r in wrong_args:
-            print(
-                f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}"
-            )
+            print(f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}")
         pytest.fail(
             f"Found {len(wrong_args)} deprecated wrappers with invalid arguments"
         )
@@ -626,7 +632,6 @@ The `DeprecatedCallableInfo` dataclass contains:
 - `identity_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
-- `has_effect`: True if the wrapper has a meaningful effect (inverse of no_effect)
 
 ## 🧪 Testing Deprecated Code
 
@@ -706,7 +711,7 @@ def old_func_always_warn(x: int) -> int:
 
 # Show warning N times
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
-def old_func_warn_5_times(x: int) -> int:
+def old_func_warn_n_times(x: int) -> int:
     pass
 ```
 

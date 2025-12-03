@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 
 @dataclass
@@ -62,10 +62,10 @@ class DeprecatedCallableInfo:
 
     module: str = ""
     function: str = ""
-    deprecated_info: Dict[str, Any] = field(default_factory=dict)
-    invalid_args: List[str] = field(default_factory=list)
+    deprecated_info: dict[str, Any] = field(default_factory=dict)
+    invalid_args: list[str] = field(default_factory=list)
     empty_mapping: bool = False
-    identity_mapping: List[str] = field(default_factory=list)
+    identity_mapping: list[str] = field(default_factory=list)
     self_reference: bool = False
     no_effect: bool = False
 
@@ -294,9 +294,9 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     args_mapping = dep_info.get("args_mapping")
     target = dep_info.get("target")
 
-    invalid_args: List[str] = []
+    invalid_args: list[str] = []
     empty_mapping = not args_mapping
-    identity_mapping: List[str] = []
+    identity_mapping: list[str] = []
     self_reference = target is func if target is not None else False
 
     all_identity = False
@@ -333,7 +333,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 def find_deprecated_callables(
     module: Any,
     recursive: bool = True,
-) -> List[DeprecatedCallableInfo]:
+) -> list[DeprecatedCallableInfo]:
     """Scan a module or package for deprecated wrapper usages and validate them.
 
     This is a development tool to scan a codebase for all functions decorated with
@@ -369,7 +369,7 @@ def find_deprecated_callables(
     import importlib
     import pkgutil
 
-    results: List[DeprecatedCallableInfo] = []
+    results: list[DeprecatedCallableInfo] = []
 
     # Handle string module path
     if isinstance(module, str):
@@ -403,9 +403,9 @@ def find_deprecated_callables(
     # Recursively scan submodules if requested
     if recursive and hasattr(module, "__path__"):
         try:
-            packages = list(pkgutil.walk_packages(
-                path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None
-            ))
+            packages = list(
+                pkgutil.walk_packages(path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None)
+            )
         except (OSError, ImportError):
             packages = []
 

@@ -7,11 +7,6 @@ Copyright (C) 2020-2023 Jiri Borovec <...>.
 """
 
 from deprecate import deprecated, void
-from tests.collection_targets import base_sum_kwargs
-
-# =============================================================================
-# Degenerated deprecations (zero impact)
-# =============================================================================
 
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"nonexistent_arg": "new_arg"})
