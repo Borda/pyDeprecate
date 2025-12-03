@@ -35,5 +35,25 @@ jobs:
         with:
           name: ci-packages-${{ matrix.os }}-${{ matrix.python-version }}-${{ github.sha }}
           path: dist
-      - name: Install from build packages
-        run: pip install dist/*.whl
+      - name: show packages
+        working-directory: dist
+        run: |
+          ls -lh
+          pip -V
+          echo "PKG_WHEEL=$(ls *.whl | head -n1)" >> $GITHUB_ENV
+          echo "PKG_SOURCE=$(ls *.tar.gz | head -n1)" >> $GITHUB_ENV
+          pip list
+
+      - name: Install and check package (wheel)
+        working-directory: dist
+        run: |
+          pip install '${{ env.PKG_WHEEL }}' --force-reinstall
+          pip list
+          python -c "import pydeprecate as pkg; print(f'version: {pkg.__version__}')"
+
+      - name: Install and check package (sdist)
+        working-directory: dist
+        run: |
+          pip install '${{ env.PKG_SOURCE }}' --force-reinstall
+          pip list
+          python -c "import pydeprecate as pkg; print(f'version: {pkg.__version__}')"
