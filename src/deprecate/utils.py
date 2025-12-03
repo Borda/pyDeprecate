@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Union
 
 
-@dataclass
+@dataclass(frozen=True)
 class DeprecatedCallableInfo:
     """Information about a deprecated callable and its validation results.
 
