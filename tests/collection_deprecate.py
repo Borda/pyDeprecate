@@ -119,3 +119,9 @@ def depr_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> float:
 @deprecated(True, "0.1", "0.3", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42)
 def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
+
+
+@deprecated(target=accuracy_score, args_mapping={"preds": "y_pred", "truth": "y_true"})
+def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
+    """A properly configured deprecation with accuracy_score target - has effect."""
+    return void(preds, truth)

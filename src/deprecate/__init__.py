@@ -24,12 +24,22 @@ Quick Example:
     >>> result = old_function(5)  # Shows warning, returns 10
 
 Exported Functions:
-    deprecated: Main decorator for marking functions/classes as deprecated
-    void: Helper function to silence IDE warnings about unused parameters
+    :func:`deprecated`: Main decorator for marking functions/classes as deprecated
+    :func:`void`: Helper function to silence IDE warnings about unused parameters
+    :func:`validate_deprecated_callable`: Development tool to validate wrapper configuration
+    :func:`find_deprecated_callables`: Scan a package for deprecated wrappers and validate them
+
+Exported Classes:
+    :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable info and validation results
 
 For detailed examples and use cases, see: https://borda.github.io/pyDeprecate
 """
 
 from deprecate.__about__ import *  # noqa: F403
 from deprecate.deprecation import deprecated  # noqa: E402, F401
-from deprecate.utils import void  # noqa: E402, F401
+from deprecate.utils import (  # noqa: E402, F401
+    DeprecatedCallableInfo,
+    find_deprecated_callables,
+    validate_deprecated_callable,
+    void,
+)

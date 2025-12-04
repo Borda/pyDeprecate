@@ -4,7 +4,7 @@ This module provides the main @deprecated decorator for marking functions, metho
 and classes as deprecated while optionally forwarding calls to their replacements.
 
 Key Components:
-    - deprecated(): Main decorator for deprecation with automatic call forwarding
+    - :func:`deprecated`: Main decorator for deprecation with automatic call forwarding
     - Warning templates for different deprecation scenarios
     - Internal helpers for argument mapping and warning management
 
@@ -352,7 +352,7 @@ def deprecated(
             - ``None``: Warning-only mode (no forwarding, function body executes normally)
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0").
         remove_in: Version when the function will be removed (e.g., "2.0.0").
-        stream: Function to output warnings (default: FutureWarning).
+        stream: Function to output warnings (default: :class:`FutureWarning`).
             Set to ``None`` to disable warnings entirely.
         num_warns: Number of times to show warning per function call:
             - ``1`` (default): Show warning once per function
@@ -433,7 +433,6 @@ def deprecated(
             # short cycle with no reason for redirect
             if not (reason_callable or reason_argument):
                 # No forwarding needed: no target to forward to, and no deprecated args used
-                # TODO: Consider warning that decorator has no effect in this case
                 return source(**kwargs)
 
             # warning per argument
