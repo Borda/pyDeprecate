@@ -19,7 +19,7 @@ jobs:
 
   publish:
     needs: build
-    if: startsWith(github.event.ref, 'refs/tags') || github.event_name == 'release'
+    if: startsWith(github.event.ref, 'refs/tags')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v5
@@ -31,19 +31,17 @@ jobs:
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
-          user: __token__
           password: ${{ secrets.test_pypi_password }}
           repository_url: https://test.pypi.org/legacy/
 
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
-          user: __token__
           password: ${{ secrets.pypi_password }}
 
   release-upload:
     needs: build
-    if: startsWith(github.event.ref, 'refs/tags') || github.event_name == 'release'
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
