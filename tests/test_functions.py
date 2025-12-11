@@ -155,7 +155,7 @@ def test_deprecated_func_skip_if() -> None:
     with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
         assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
 
-    with pytest.raises(TypeError, match="User function `shall_skip` shall return bool, but got: <class 'int'>"):
+    with pytest.raises(TypeError, match="User function 'skip_if' shall return bool, but got: <class 'int'>"):
         assert depr_pow_skip_if_func_int(2, c1=2)
 
 

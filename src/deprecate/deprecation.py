@@ -8,7 +8,7 @@ Key Components:
     - Warning templates for different deprecation scenarios
     - Internal helpers for argument mapping and warning management
 
-Copyright (C) 2020-2023 Jiri Borovec <...>
+Copyright (C) 2020-2025 Jiri Borovec <...>
 """
 
 import inspect
@@ -58,7 +58,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
 
     Returns:
         Dictionary combining converted positional arguments and existing kwargs,
-        where positional args are now mapped to their parameter names
+        where positional args are now mapped to their parameter names.
 
     Example:
         >>> from pprint import pprint
@@ -85,12 +85,12 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
     over defaults.
 
     Args:
-        func: Function whose signature provides default parameter values
-        fn_kwargs: Dictionary of keyword arguments provided by caller
+        func: Function whose signature provides default parameter values.
+        fn_kwargs: Dictionary of keyword arguments provided by caller.
 
     Returns:
         Dictionary with defaults merged with provided kwargs, where provided
-        values override defaults
+        values override defaults.
 
     Example:
         >>> from pprint import pprint
@@ -98,7 +98,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
         >>> pprint(_update_kwargs_with_defaults(example_func, {'b': 20}))
         {'a': 1, 'b': 20, 'c': 3}
 
-    .. note:
+    Note:
         Parameters without defaults (inspect._empty) are not included in the result.
 
     """
@@ -116,13 +116,13 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
     variables to generate the final warning message.
 
     Args:
-        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning)
-        source: The deprecated function/method being wrapped
-        template_mgs: Python format string with placeholders for message variables
+        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
+        source: The deprecated function/method being wrapped.
+        template_mgs: Python format string with placeholders for message variables.
         **extras: Additional string values to substitute into the template
-            (e.g., deprecated_in="1.0", remove_in="2.0")
+            (e.g., deprecated_in="1.0", remove_in="2.0").
 
-    .. note:
+    Note:
         Automatically extracts source_name and source_path from the source callable:
         - For regular functions: uses __name__
         - For __init__ methods: extracts class name from __qualname__
@@ -160,16 +160,16 @@ def _raise_warn_callable(
     callable is specified.
 
     Args:
-        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning)
-        source: The deprecated function/method being wrapped
+        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
+        source: The deprecated function/method being wrapped.
         target: The replacement implementation:
             - Callable: Forward to this function/class
             - None: No forwarding (warning only mode)
             - bool: Not applicable for this function (use _raise_warn_arguments instead)
-        deprecated_in: Version when the source was marked deprecated (e.g., "1.0.0")
-        remove_in: Version when the source will be removed (e.g., "2.0.0")
+        deprecated_in: Version when the source was marked deprecated (e.g., "1.0.0").
+        remove_in: Version when the source will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses default template based
-            on whether target is callable or None
+            on whether target is callable or None.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -227,13 +227,13 @@ def _raise_warn_arguments(
     string showing the old-to-new argument names.
 
     Args:
-        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning)
-        source: The function/method whose arguments are deprecated
+        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
+        source: The function/method whose arguments are deprecated.
         arguments: Mapping from deprecated argument names to new names
-            (e.g., {'old_arg': 'new_arg', 'removed_arg': None})
-        deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0")
-        remove_in: Version when arguments will be removed (e.g., "2.0.0")
-        template_mgs: Custom message template. If None, uses default template
+            (e.g., {'old_arg': 'new_arg', 'removed_arg': None}).
+        deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
+        remove_in: Version when arguments will be removed (e.g., "2.0.0").
+        template_mgs: Custom message template. If None, uses default template.
 
     Template Variables Available:
         - source_name: Function name (e.g., "my_func")
@@ -275,7 +275,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
 
     Args:
         wrapped_fn: Function whose docstring should be updated. Must have
-            __deprecated__ attribute set with deprecation metadata
+            __deprecated__ attribute set with deprecation metadata.
 
     Returns:
         None. Modifies the function's __doc__ attribute in-place.
@@ -304,7 +304,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
            Will be removed in 2.0.
            Use `deprecate.deprecation.new_func` instead.
 
-    .. note:
+    Note:
         Does nothing if the function has no docstring or no __deprecated__ attribute.
 
     """
@@ -351,39 +351,46 @@ def deprecated(
             - ``True``: Self-deprecation mode (deprecate arguments within same function)
             - ``None``: Warning-only mode (no forwarding, function body executes normally)
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0").
+            Default is empty string.
         remove_in: Version when the function will be removed (e.g., "2.0.0").
-        stream: Function to output warnings (default: :class:`FutureWarning`).
+            Default is empty string.
+        stream: Function to output warnings (default: :func:`deprecation_warning`, which is
+            :func:`warnings.warn` with ``FutureWarning`` category).
             Set to ``None`` to disable warnings entirely.
-        num_warns: Number of times to show warning per function call:
-            - ``1`` (default): Show warning once per function
+        num_warns: Number of times to show warning per function or per deprecated argument:
+            - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
-            - ``N``: Show warning N times
+            - ``N > 1``: Show warning N times total
         template_mgs: Custom warning message template with format specifiers:
             - ``source_name``: Function name (e.g., "my_func")
             - ``source_path``: Full path (e.g., "module.my_func")
-            - ``target_name``: Target function name
-            - ``target_path``: Full target path
+            - ``target_name``: Target function name (only for callable targets)
+            - ``target_path``: Full target path (only for callable targets)
             - ``deprecated_in``: Value of deprecated_in parameter
             - ``remove_in``: Value of remove_in parameter
-            - ``argument_map``: String showing argument mapping (for args deprecation)
+            - ``argument_map``: String showing argument mapping (for args deprecation only)
             Example: ``"v%(deprecated_in)s: `%(source_name)s` was deprecated."``
         args_mapping: Map or skip arguments when forwarding:
             - ``{'old_arg': 'new_arg'}``: Rename argument
             - ``{'old_arg': None}``: Skip argument (don't forward it)
+            - ``{}``: Empty mapping (no remapping)
             Works with both ``target=Callable`` and ``target=True``.
-        args_extra: Additional arguments to pass to target function.
+        args_extra: Additional arguments to pass to target function when forwarding.
+            Only used when target is a Callable.
             Example: ``{'new_required_arg': 42}``
-        skip_if: Conditionally skip deprecation:
-            - ``bool``: Static condition
-            - ``Callable``: Function returning bool (checked at runtime)
-            If True/returns True, no warning is shown and original function executes.
+        skip_if: Conditionally skip deprecation warning and forwarding:
+            - ``bool``: Static condition (True = skip deprecation)
+            - ``Callable``: Function returning bool (checked at runtime, must return bool)
+            If condition is True, original function executes without warning.
         update_docstring: If True, automatically append deprecation information to
-            the function's docstring. Useful for documentation generation tools.
+            the function's docstring in reStructuredText format. Useful for documentation
+            generation tools like Sphinx.
 
     Returns:
         Decorator function that wraps the source function/class.
 
     Raises:
+        TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function
             and target doesn't accept **kwargs.
 
@@ -395,7 +402,7 @@ def deprecated(
         ... def old_func(x: int) -> int:
         ...     pass
 
-        >>> # Argument mapping::
+        >>> # Argument mapping
         >>> @deprecated(
         ...     target=new_func,
         ...     args_mapping={'old_name': 'new_name', 'unused': None}
@@ -403,7 +410,7 @@ def deprecated(
         ... def old_func(old_name: int, unused: str) -> int:
         ...     pass
 
-        >>> # Self-deprecation::
+        >>> # Self-deprecation
         >>> @deprecated(target=True, args_mapping={'old_arg': 'new_arg'})
         ... def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
         ...     return new_arg * 2
@@ -416,7 +423,7 @@ def deprecated(
             # check if user requested a skip
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
-                raise TypeError(f"User function `shall_skip` shall return bool, but got: {type(shall_skip)}")
+                raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
             if shall_skip:
                 return source(*args, **kwargs)
 
@@ -440,7 +447,7 @@ def deprecated(
                 # For argument deprecation, track warnings per argument
                 # Use the minimum count across all deprecated args used in this call
                 arg_warns = [getattr(wrapped_fn, f"_warned_{arg}", 0) for arg in reason_argument]
-                nb_warned = min(arg_warns)
+                nb_warned = min(arg_warns) if arg_warns else 0
             else:
                 # For callable deprecation, track warnings per function
                 nb_warned = getattr(wrapped_fn, "_warned", 0)

@@ -5,34 +5,59 @@ methods, and classes while automatically forwarding calls to their replacements.
 
 Main Features:
     - Automatic call forwarding to new implementations
-    - Argument mapping and renaming
-    - Customizable warning messages and streams
-    - Per-function and per-argument warning tracking
-    - Support for multiple deprecation levels
-    - Testing utilities for deprecated code
+    - Argument mapping and renaming between old and new APIs
+    - Customizable warning messages and output streams
+    - Per-function and per-argument warning tracking to prevent log spam
+    - Support for multiple deprecation levels via decorator stacking
+    - Testing utilities for writing deterministic tests
+    - Package scanning for deprecated wrapper validation
+
+Core Components:
+
+**Main Decorator:**
+    - :func:`deprecated`: Decorator for marking functions/classes as deprecated
+
+**Utilities:**
+    - :func:`void`: Helper to silence IDE warnings about unused parameters
+    - :func:`validate_deprecated_callable`: Validate single wrapper configuration
+    - :func:`find_deprecated_callables`: Scan package for deprecated wrappers
+    - :func:`no_warning_call`: Context manager for testing without warnings
+
+**Data Classes:**
+    - :class:`DeprecatedCallableInfo`: Validation results for deprecated callables
 
 Quick Example:
     >>> from deprecate import deprecated
     >>>
     >>> def new_function(x: int) -> int:
+    ...     '''New implementation.'''
     ...     return x * 2
     >>>
     >>> @deprecated(target=new_function, deprecated_in="1.0", remove_in="2.0")
     ... def old_function(x: int) -> int:
-    ...     pass  # Calls forwarded to new_function
+    ...     '''Old implementation - calls forwarded automatically.'''
+    ...     pass
     >>>
     >>> result = old_function(5)  # Shows warning, returns 10
+    >>> print(result)
+    10
 
-Exported Functions:
-    :func:`deprecated`: Main decorator for marking functions/classes as deprecated
-    :func:`void`: Helper function to silence IDE warnings about unused parameters
-    :func:`validate_deprecated_callable`: Development tool to validate wrapper configuration
-    :func:`find_deprecated_callables`: Scan a package for deprecated wrappers and validate them
+Complete Documentation:
+    For detailed examples and use cases, see:
+    https://borda.github.io/pyDeprecate
 
-Exported Classes:
-    :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable info and validation results
+    Topics covered:
+    - Simple function forwarding
+    - Advanced argument mapping
+    - Warning-only deprecation (target=None)
+    - Self-deprecation (target=True)
+    - Multiple deprecation levels
+    - Conditional skip (skip_if parameter)
+    - Class deprecation
+    - Automatic docstring updates
+    - Testing deprecated code
+    - Validating wrapper configuration
 
-For detailed examples and use cases, see: https://borda.github.io/pyDeprecate
 """
 
 from deprecate.__about__ import *  # noqa: F403
@@ -40,6 +65,7 @@ from deprecate.deprecation import deprecated  # noqa: E402, F401
 from deprecate.utils import (  # noqa: E402, F401
     DeprecatedCallableInfo,
     find_deprecated_callables,
+    no_warning_call,
     validate_deprecated_callable,
     void,
 )

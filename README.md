@@ -2,6 +2,8 @@
 
 **Simple tooling for marking deprecated functions or classes and re-routing to their successors.**
 
+> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility.
+
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FBorda%2FpyDeprecate.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FBorda%2FpyDeprecate?ref=badge_shield&issueType=license)
@@ -236,7 +238,7 @@ print(my_sum(1, 2))
 
 </details>
 
-**Note:** When `args_mapping` is `None` or empty (default), the deprecation will not perform any argument redirection, just emit a plain warning. The deprecated function's implementation must be preserved.
+**Note:** When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
 
 ### 🔄 Self argument mapping
 
@@ -386,8 +388,8 @@ from deprecate import deprecated, void
 
 class PastCls(NewCls):
     """
-    The deprecated class shall be inherited from the successor class
-     to hold all methods.
+    The deprecated class should be inherited from the successor class
+     to hold all methods and properties.
     """
 
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
@@ -711,12 +713,12 @@ def test_new_function_no_warning():
 
 
 def test_no_warning_after_first_call():
-    """By default, warnings are shown only once."""
+    """By default, warnings are shown only once per function."""
     # First call shows warning
     with pytest.warns(FutureWarning):
         old_func2(1)
 
-    # Subsequent calls don't show warning
+    # Subsequent calls don't show warning (by default num_warns=1)
     with no_warning_call(FutureWarning):
         old_func2(2)
 
@@ -726,8 +728,6 @@ test_deprecated_function_shows_warning()
 test_new_function_no_warning()
 test_no_warning_after_first_call()
 ```
-
-The `no_warning_call()` context manager will fail your test if any warnings of the specified type are raised, ensuring your code is clean.
 
 <details>
 <summary>Advanced: Control warning frequency</summary>
@@ -749,7 +749,7 @@ def old_func_always_warn(x: int) -> int:
     pass
 
 
-# Show warning N times
+# Show warning N times total
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
 def old_func_warn_n_times(x: int) -> int:
     pass
@@ -861,7 +861,9 @@ def old_func2():
 
 **Problem:** You don't see the deprecation warning.
 
-**Cause:** By default, warnings are shown **only once per function** to prevent log spam.
+**Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam.
+For per-argument deprecation (when using `args_mapping` with `target=True`), each deprecated argument
+has its own warning counter, meaning warnings for different arguments are tracked independently.
 
 <details>
 <summary>Solutions</summary>
@@ -883,7 +885,7 @@ def old_func_always_warn():
     pass
 
 
-# Show warning N times
+# Show warning N times total
 @deprecated(target=new_func, num_warns=5)  # Show 5 times
 def old_func_warn_n_times():
     pass

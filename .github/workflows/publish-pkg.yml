@@ -31,12 +31,14 @@ jobs:
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
+          user: __token__
           password: ${{ secrets.test_pypi_password }}
           repository_url: https://test.pypi.org/legacy/
 
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
+          user: __token__
           password: ${{ secrets.pypi_password }}
 
   release-upload:
@@ -56,3 +58,5 @@ jobs:
         with:
           files: "dist/*"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+          release-id: ${{ github.event.release.id }}
+          release-tag: ${{ github.ref_name }}
