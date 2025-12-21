@@ -1,4 +1,5 @@
 """CLI entry point for pyDeprecate validation."""
+
 import argparse
 import os
 import sys
@@ -9,9 +10,7 @@ from deprecate.utils import find_deprecated_callables
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="pyDeprecate CLI - Validate use of deprecated functions."
-    )
+    parser = argparse.ArgumentParser(description="pyDeprecate CLI - Validate use of deprecated functions.")
     parser.add_argument(
         "path",
         type=str,
@@ -37,12 +36,12 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
 def main(args: Optional[List[str]] = None) -> int:
     """Run the CLI application."""
     parsed_args = parse_args(args)
-    
+
     print(f"Scanning path: {parsed_args.path} ...")
-    
+
     # Add current directory to sys.path to allow importing local modules
     sys.path.append(os.getcwd())
-    
+
     try:
         if os.path.isdir(parsed_args.path):
             # It's a directory
@@ -77,7 +76,7 @@ def main(args: Optional[List[str]] = None) -> int:
         return 0
 
     issues_found = False
-    
+
     # Process results
     invalid_args = [r for r in deprecated_callables if r.invalid_args]
     empty_mappings = [r for r in deprecated_callables if r.empty_mapping]
@@ -88,7 +87,7 @@ def main(args: Optional[List[str]] = None) -> int:
     if invalid_args:
         print("\n[ERROR] Found functions with invalid argument mappings:")
         for r in invalid_args:
-             print(f"  - {r.module}.{r.function}: {r.invalid_args}")
+            print(f"  - {r.module}.{r.function}: {r.invalid_args}")
         issues_found = True
 
     if identity_mappings:
@@ -96,7 +95,7 @@ def main(args: Optional[List[str]] = None) -> int:
         for r in identity_mappings:
             print(f"  - {r.module}.{r.function}: {r.identity_mapping}")
         issues_found = True
-        
+
     if no_effect:
         print("\n[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):")
         for r in no_effect:
@@ -112,7 +111,7 @@ def main(args: Optional[List[str]] = None) -> int:
     if issues_found:
         print("\nIssues were found in deprecated wrappers.")
         if not parsed_args.skip_errors and invalid_args:
-             return 1
+            return 1
     else:
         print("\nAll deprecated wrappers look correct!")
 

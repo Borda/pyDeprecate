@@ -636,7 +636,6 @@ print(f"Self-references: {len(self_refs)}")
 
 </details>
 
-
 ### 🖥️ Using the CLI
 
 You can also use the CLI to validate your deprecations directly from the command line:
