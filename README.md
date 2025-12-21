@@ -636,6 +636,17 @@ print(f"Self-references: {len(self_refs)}")
 
 </details>
 
+
+### 🖥️ Using the CLI
+
+You can also use the CLI to validate your deprecations directly from the command line:
+
+```bash
+pydeprecate path/to/your/package
+```
+
+This will scan the specified package and report any issues found, such as invalid argument mappings or wrappers with no effect.
+
 ### CI/pytest Integration
 
 Use in pytest to validate your package's deprecation wrappers:
