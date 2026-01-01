@@ -469,7 +469,7 @@ print(old_function.__doc__)
 
 This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
 
-![Documentation Sample](.assets/docs-sample.png)
+![Documentation Sample](assets/docs-sample.png)
 
 ## 🔇 Understanding the `void()` Helper
 
