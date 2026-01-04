@@ -4,11 +4,6 @@ requires = [
   "wheel",
 ]
 
-[tool.black]
-# https://github.com/psf/black
-line-length = 120
-exclude = "(.eggs|.git|.hg|.mypy_cache|.venv|_build|buck-out|build|dist)"
-
 [tool.ruff]
 target-version = "py39"
 line-length = 120
@@ -36,25 +31,11 @@ lint.extend-select = [
   "SIM", # see: https://pypi.org/project/flake8-simplify
   "YTT", # see: https://pypi.org/project/flake8-2020
 ]
-lint.per-file-ignores."setup.py" = [
-  "ANN202",
-  "ANN401",
-]
-lint.per-file-ignores."src/**" = [
-  "ANN401",
-]
 lint.per-file-ignores."tests/**" = [
-  "ANN101",
-  "ANN401",
-  "D100",
-  "D101",
-  "D103",
-  "D107",
-  "PT031",  # todo: `pytest.warns()` block should contain a single simple statement
-  "S101",
+  "S101", # flake8-bandit: Bandit — Use of assert detected (raising potential security/logic issues) (see: https://pypi.org/project/flake8-bandit)
 ]
 lint.unfixable = [
-  "F401",
+  "F401", # F401: pyflakes — module imported but unused (cannot be auto-fixed by Ruff) (see: https://pypi.org/project/pyflakes)
 ]
 # Unlike Flake8, default to a complexity level of 10.
 lint.mccabe.max-complexity = 10

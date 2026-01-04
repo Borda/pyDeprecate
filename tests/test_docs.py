@@ -16,6 +16,7 @@ class NewClass:
     """A new class."""
 
     def __init__(self, x: int) -> None:
+        """Initialize NewClass."""
         self.x = x
 
 
