@@ -41,7 +41,6 @@ lint.per-file-ignores."src/**" = [
 lint.per-file-ignores."tests/**" = [
   "ANN101", # ANN101: flake8-annotations — missing type annotation for 'self' or first parameter in method/function (see: https://pypi.org/project/flake8-annotations)
   "ANN401", # ANN401: flake8-annotations — missing type annotation for a variable/attribute (see: https://pypi.org/project/flake8-annotations)
-  "PT031",  # PT031: flake8-pytest-style — `pytest.warns()` block should contain a single simple statement (see: https://pypi.org/project/flake8-pytest-style)
   "S101",   # S101: flake8-bandit / Bandit — Use of assert detected (raising potential security/logic issues) (see: https://pypi.org/project/flake8-bandit)
 ]
 lint.unfixable = [

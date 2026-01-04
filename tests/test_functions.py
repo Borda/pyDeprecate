@@ -106,15 +106,21 @@ def test_deprecated_func_stream_calls() -> None:
         assert depr_sum_no_stream(3) == 8
 
     # check that the warning is raised only once per function
-    with pytest.warns(FutureWarning) as record:
+    def _call_depr_sum_calls_2() -> None:
         for _ in range(5):
             assert depr_sum_calls_2(3) == 8
+
+    with pytest.warns(FutureWarning) as record:
+        _call_depr_sum_calls_2()
     assert len(record) == 2
 
     # check that the warning is raised only once per function
-    with pytest.warns(FutureWarning) as record:
+    def _call_depr_sum_calls_inf() -> None:
         for _ in range(5):
             assert depr_sum_calls_inf(3) == 8
+
+    with pytest.warns(FutureWarning) as record:
+        _call_depr_sum_calls_inf()
     assert len(record) == 5
 
     with pytest.warns(FutureWarning, match="v0.1: `depr_sum_msg` was deprecated, use `base_sum_kwargs`"):
