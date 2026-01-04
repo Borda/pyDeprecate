@@ -19,7 +19,7 @@ class PastCls(NewCls):
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
     def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
         """Initialize PastCls."""
-        pass
+        super().__init__(c)
 
 
 class ThisCls(NewCls):
@@ -30,7 +30,7 @@ class ThisCls(NewCls):
     )
     def __init__(self, c: int = 3, nc: int = 5) -> None:
         """Initialize ThisCls."""
-        self.my_c = nc
+        super().__init__(c=nc)
 
 
 def test_deprecated_class_forward() -> None:
