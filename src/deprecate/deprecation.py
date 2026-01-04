@@ -419,7 +419,7 @@ def deprecated(
 
     def packing(source: Callable) -> Callable:
         @wraps(source)
-        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
+        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             # check if user requested a skip
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):

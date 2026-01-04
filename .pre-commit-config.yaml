@@ -61,8 +61,6 @@ repos:
         args: ["--fix"] #, "--unsafe-fixes"
       # perform formatting updates
       - id: ruff-format
-      # validate if all is fine with preview mode
-      - id: ruff
 
   - repo: https://github.com/tox-dev/pyproject-fmt
     rev: v2.7.0

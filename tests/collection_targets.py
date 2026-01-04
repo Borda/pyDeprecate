@@ -20,7 +20,7 @@ def base_pow_args(a: float, b: int) -> float:
 class NewCls:
     """New class for testing deprecation."""
 
-    def __init__(self, c: float, d: str = "abc", **kwargs: Any) -> None:
+    def __init__(self, c: float, d: str = "abc", **kwargs: Any) -> None:  # noqa: ANN401
         """Initialize NewCls."""
         self.my_c = c
         self.my_d = d

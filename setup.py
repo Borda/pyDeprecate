@@ -12,7 +12,7 @@ _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
 
 
-def _load_py_module(fname: str, pkg: str = "deprecate"):
+def _load_py_module(fname: str, pkg: str = "deprecate"):  # noqa: ANN202
     spec = spec_from_file_location(os.path.join(pkg, fname), os.path.join(_PATH_SOURCE, pkg, fname))
     py = module_from_spec(spec)
     spec.loader.exec_module(py)

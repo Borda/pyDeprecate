@@ -17,7 +17,7 @@ class PastCls(NewCls):
     """Deprecated class inheriting from NewCls."""
 
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
-    def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:
+    def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
         """Initialize PastCls."""
         pass
 
