@@ -60,7 +60,7 @@ def test_deprecated_func_docstring() -> None:
         "An old function that is deprecated.\n\n"
         ".. deprecated:: 0.1\n"
         "   Will be removed in 0.3.\n"
-        "   Use `tests.test_docs.new_function` instead.\n"
+        "   Use :func:`tests.test_docs.new_function` instead.\n"
     )
 
 
@@ -75,7 +75,7 @@ def test_deprecated_class_docstring() -> None:
         "Initialize the old class.\n\n"
         ".. deprecated:: 0.2\n"
         "   Will be removed in 0.4.\n"
-        "   Use `tests.test_docs.NewClass` instead.\n"
+        "   Use :class:`tests.test_docs.NewClass` instead.\n"
     )
 
 

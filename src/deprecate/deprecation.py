@@ -302,7 +302,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         <BLANKLINE>
         .. deprecated:: 1.0
            Will be removed in 2.0.
-           Use `deprecate.deprecation.new_func` instead.
+           Use :func:`deprecate.deprecation.new_func` instead.
 
     Note:
         Does nothing if the function has no docstring or no __deprecated__ attribute.
@@ -315,7 +315,10 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     remove_in_val = dep_info.get("remove_in", "")
     target_val = dep_info.get("target")
     remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
-    target_text = f"Use `{target_val.__module__}.{target_val.__name__}` instead." if callable(target_val) else ""
+    target_text = ""
+    if callable(target_val):
+        ref_type = "class" if inspect.isclass(target_val) else "func"
+        target_text = f"Use :{ref_type}:`{target_val.__module__}.{target_val.__name__}` instead."
     lines.append(
         TEMPLATE_DOC_DEPRECATED
         % {
