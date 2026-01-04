@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
+"""Tests for deprecated functions."""
 
 import pytest
 
@@ -28,6 +28,7 @@ from tests.collection_deprecate import (
 
 
 def test_deprecated_func_warn_only() -> None:
+    """Test deprecated function that only warns."""
     with pytest.warns(
         FutureWarning, match="The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3."
     ):
@@ -99,6 +100,7 @@ def test_deprecated_func_default() -> None:
 
 
 def test_deprecated_func_stream_calls() -> None:
+    """Test deprecated function stream and call limits."""
     # check that the warning is raised only once per function
     with no_warning_call(FutureWarning):
         assert depr_sum_no_stream(3) == 8
@@ -120,6 +122,7 @@ def test_deprecated_func_stream_calls() -> None:
 
 
 def test_deprecated_func_incomplete() -> None:
+    """Test deprecated functions with incomplete mappings."""
     # missing required argument
     with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
         depr_pow_args(2)

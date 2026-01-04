@@ -1,4 +1,4 @@
-"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
+"""Tests for deprecated classes and methods."""
 
 from functools import partial
 from typing import Any
@@ -14,20 +14,27 @@ _deprecation_warning = partial(warn, category=DeprecationWarning)
 
 
 class PastCls(NewCls):
+    """Deprecated class inheriting from NewCls."""
+
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
     def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:
+        """Initialize PastCls."""
         pass
 
 
 class ThisCls(NewCls):
+    """Class with deprecated __init__ method."""
+
     @deprecated(
         target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"}, stream=_deprecation_warning
     )
     def __init__(self, c: int = 3, nc: int = 5) -> None:
+        """Initialize ThisCls."""
         self.my_c = nc
 
 
 def test_deprecated_class_forward() -> None:
+    """Test deprecated class that forwards to another class."""
     with pytest.warns(
         DeprecationWarning,
         match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
@@ -50,6 +57,7 @@ def test_deprecated_class_forward() -> None:
 
 
 def test_deprecated_class_self() -> None:
+    """Test deprecated class with self-referencing __init__."""
     with no_warning_call():
         this = ThisCls(nc=1)
     assert this.my_c == 1
