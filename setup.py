@@ -4,6 +4,7 @@
 import os
 import re
 from importlib.util import module_from_spec, spec_from_file_location
+from typing import Any
 
 # Always prefer setuptools over distutils
 from setuptools import find_packages, setup
@@ -12,10 +13,10 @@ _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
 
 
-def _load_py_module(fname: str, pkg: str = "deprecate"):  # noqa: ANN202
+def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:  # noqa: ANN401
     spec = spec_from_file_location(os.path.join(pkg, fname), os.path.join(_PATH_SOURCE, pkg, fname))
-    py = module_from_spec(spec)
-    spec.loader.exec_module(py)
+    py = module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(py)  # type: ignore[union-attr]
     return py
 
 
