@@ -198,7 +198,7 @@ def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optiona
             )
 
 
-def void(*args: Any, **kwrgs: Any) -> Any:
+def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401
     """Empty function that accepts any arguments and returns None.
 
     This helper function is used to silence IDE warnings about unused parameters
@@ -344,7 +344,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
 
 def find_deprecated_callables(
-    module: Union[Any, str],
+    module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
 ) -> list[DeprecatedCallableInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
@@ -407,7 +407,7 @@ def find_deprecated_callables(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    def _scan_module(mod: Any) -> None:
+    def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
         try:
             members = inspect.getmembers(mod)

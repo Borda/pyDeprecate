@@ -1,4 +1,4 @@
-"""Test the package utility."""
+"""Test the package utility functions."""
 
 from warnings import warn
 
@@ -17,11 +17,13 @@ from tests.collection_deprecate import depr_accuracy_target, depr_pow_self
 
 
 def raise_pow(base: float, coef: float) -> float:
+    """Function that raises a warning for testing."""
     warn("warning you!", UserWarning)
     return base**coef
 
 
 def test_warning_raised() -> None:
+    """Test that warnings are raised."""
     with pytest.raises(AssertionError, match="While catching all warnings, these were found:"), no_warning_call():
         assert raise_pow(3, 2) == 9
 
@@ -39,6 +41,7 @@ def test_warning_raised() -> None:
 
 
 def test_warning_others() -> None:
+    """Test warnings for other categories."""
     with no_warning_call(UserWarning):
         assert pow(3, 2) == 9
 

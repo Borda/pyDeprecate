@@ -12,7 +12,7 @@ _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
 
 
-def _load_py_module(fname: str, pkg: str = "deprecate"):
+def _load_py_module(fname: str, pkg: str = "deprecate"):  # noqa: ANN202
     spec = spec_from_file_location(os.path.join(pkg, fname), os.path.join(_PATH_SOURCE, pkg, fname))
     py = module_from_spec(spec)
     spec.loader.exec_module(py)
@@ -37,7 +37,7 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     github_source_url = os.path.join(codebase_url, "raw", version)
     # replace relative repository path to absolute link to the release
     #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs
-    text = text.replace(".assets/", f"{os.path.join(github_source_url, '.assets/')}")
+    text = text.replace("assets/", f"{os.path.join(github_source_url, 'assets/')}")
     text = text.replace(".github/", f"{os.path.join(github_source_url, '.github/')}")
 
     # codecov badge
