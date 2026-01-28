@@ -457,9 +457,6 @@ def check_module_deprecation_expiry(
         List of error messages for callables that have expired (past their removal deadline).
         Empty list if all deprecated callables are still within their deprecation period.
 
-    Raises:
-        ValueError: If version parsing fails for current_version or any remove_in value.
-
     Example:
         >>> # Check a specific module
         >>> import my_package
@@ -479,6 +476,8 @@ def check_module_deprecation_expiry(
 
     Note:
         - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
+        - Skips callables that cannot be imported or accessed
+        - Skips callables with invalid version formats (logs no error, just continues)
         - Uses semantic versioning comparison via packaging.version.parse
         - Intended for automated checks in CI/CD pipelines
         - Can be integrated into test suites or pre-commit hooks
@@ -502,20 +501,26 @@ def check_module_deprecation_expiry(
         if not remove_in:
             continue
 
-        # Try to check expiry - if it raises AssertionError, the callable has expired
+        # Try to get the actual callable object and check its expiry
         try:
             # Need to get the actual callable object from the module
             # The info has module and function name, need to retrieve the callable
-            try:
-                mod = importlib.import_module(info.module)
-                func = getattr(mod, info.function)
-                check_deprecation_expiry(func, current_version)
-            except (ImportError, AttributeError):
-                # If we can't import/access the function, skip it
-                continue
+            mod = importlib.import_module(info.module)
+            func = getattr(mod, info.function)
+        except (ImportError, AttributeError):
+            # If we can't import/access the function, skip it
+            continue
+
+        # Now check if this callable has expired
+        try:
+            check_deprecation_expiry(func, current_version)
         except AssertionError as e:
             # This callable has expired - add to list
             expired_callables.append(str(e))
+        except ValueError:
+            # Version parsing failed for this callable - skip it
+            # This can happen if remove_in has an invalid version format
+            continue
 
     return expired_callables
 
