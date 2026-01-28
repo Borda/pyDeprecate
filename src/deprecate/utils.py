@@ -389,7 +389,8 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
         ...     check_deprecation_expiry(old_func, "2.0.0")
         ... except AssertionError as e:
         ...     print(str(e))
-        Callable `old_func` was scheduled for removal in version 2.0 but still exists in version 2.0.0. Please delete this deprecated code.
+        Callable `old_func` was scheduled for removal in version 2.0 but still exists in version \
+2.0.0. Please delete this deprecated code.
 
     Note:
         - Uses semantic versioning comparison via packaging.version.parse

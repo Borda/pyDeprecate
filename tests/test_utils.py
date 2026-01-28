@@ -11,7 +11,7 @@ from deprecate.utils import (
     no_warning_call,
     validate_deprecated_callable,
 )
-from tests.collection_deprecate import depr_pow_self, depr_sum, depr_sum_no_stream
+from tests.collection_deprecate import depr_pow_self, depr_sum
 
 # Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
 
@@ -251,7 +251,9 @@ def test_check_deprecation_expiry_at_removal_version() -> None:
     from deprecate import check_deprecation_expiry
 
     # Current version equals remove_in - should raise AssertionError
-    with pytest.raises(AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.5"):
+    with pytest.raises(
+        AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.5"
+    ):
         check_deprecation_expiry(depr_pow_self, "0.5")  # remove_in="0.5"
 
 
@@ -260,7 +262,9 @@ def test_check_deprecation_expiry_past_removal_version() -> None:
     from deprecate import check_deprecation_expiry
 
     # Current version is greater than remove_in - should raise AssertionError
-    with pytest.raises(AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.6"):
+    with pytest.raises(
+        AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.6"
+    ):
         check_deprecation_expiry(depr_pow_self, "0.6")  # remove_in="0.5"
 
 
