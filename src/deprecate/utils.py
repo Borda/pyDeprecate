@@ -465,25 +465,17 @@ def validate_deprecation_chains(func: Callable) -> None:
         - The function passes deprecated arguments to another deprecated function
 
     Example:
-        >>> from deprecate import deprecated, validate_deprecation_chains
-        >>> def new_implementation(value: int) -> int:
-        ...     return value * 2
+        >>> from tests.collection_chains import caller_calls_deprecated
+        >>> from deprecate import validate_deprecation_chains
         >>>
-        >>> @deprecated(target=new_implementation, deprecated_in="1.0", remove_in="2.0")
-        ... def old_func(value: int) -> int:
-        ...     pass
-        >>>
-        >>> @deprecated(target=None, deprecated_in="1.5", remove_in="2.5")
-        ... def newer_func(value: int) -> int:
-        ...     return old_func(value)  # Calls deprecated function
-        >>>
-        >>> validate_deprecation_chains(newer_func)
-        Warning: 'newer_func' calls deprecated function 'old_func'. Please update the code to call '...new_implementation' directly.
+        >>> # Inspect a function that calls another deprecated function
+        >>> validate_deprecation_chains(caller_calls_deprecated)  # doctest: +ELLIPSIS
+        Warning: 'caller_calls_deprecated' calls deprecated function 'deprecated_callee'. Please update the code to call '...target_func' directly.
 
     Note:
         - This function ignores version numbers (remove_in)
         - Only flags callees using the pyDeprecate @deprecated decorator
-        - Resolves function names in the caller's scope (globals and locals)
+        - Resolves function names in the caller's module scope
 
     """
     import ast
