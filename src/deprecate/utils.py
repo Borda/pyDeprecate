@@ -489,6 +489,12 @@ def validate_deprecation_chains(func: Callable) -> None:
         source_code = inspect.getsource(func)
     except (OSError, TypeError):
         # Cannot get source (e.g., built-in function, C extension)
+        warnings.warn(
+            f"validate_deprecation_chains: Cannot get source code for '{func.__name__}'. "
+            f"Skipping analysis.",
+            UserWarning,
+            stacklevel=2,
+        )
         return
 
     # Parse the source code into an AST
@@ -496,12 +502,24 @@ def validate_deprecation_chains(func: Callable) -> None:
         tree = ast.parse(source_code)
     except SyntaxError:
         # Cannot parse source
+        warnings.warn(
+            f"validate_deprecation_chains: Cannot parse source code for '{func.__name__}'. "
+            f"Skipping analysis.",
+            UserWarning,
+            stacklevel=2,
+        )
         return
 
     # Get the module where the function is defined to resolve names
     # Use the module from __module__ attribute, not __globals__ (which may be the wrapper's module)
     func_module_name = getattr(func, "__module__", None)
     if not func_module_name:
+        warnings.warn(
+            f"validate_deprecation_chains: Cannot determine module for '{func.__name__}'. "
+            f"Skipping analysis.",
+            UserWarning,
+            stacklevel=2,
+        )
         return
 
     # Get the module object
@@ -510,6 +528,12 @@ def validate_deprecation_chains(func: Callable) -> None:
         try:
             func_module = importlib.import_module(func_module_name)
         except ImportError:
+            warnings.warn(
+                f"validate_deprecation_chains: Cannot import module '{func_module_name}' for '{func.__name__}'. "
+                f"Skipping analysis.",
+                UserWarning,
+                stacklevel=2,
+            )
             return
 
     # Walk through the AST and find all function calls

@@ -284,6 +284,6 @@ def test_validate_deprecation_chains_no_warnings_clean() -> None:
 
 def test_validate_deprecation_chains_builtin_function() -> None:
     """Test validate_deprecation_chains handles built-in functions gracefully."""
-    # Should not raise an error for built-in functions and should return None
-    result = validate_deprecation_chains(len)
-    assert result is None
+    # Should issue a warning for built-in functions (cannot get source) and return None
+    with pytest.warns(UserWarning, match="validate_deprecation_chains: Cannot get source code"):
+        validate_deprecation_chains(len)
