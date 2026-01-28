@@ -238,60 +238,52 @@ def test_find_deprecated_callables_report_grouping() -> None:
 # =============================================================================
 
 
-def test_validate_deprecation_chains_detects_call_with_target(capsys) -> None:
+def test_validate_deprecation_chains_detects_call_with_target() -> None:
     """Test validate_deprecation_chains detects deprecated function calling another with target."""
     from tests.collection_chains import caller_calls_deprecated
 
-    validate_deprecation_chains(caller_calls_deprecated)
-    captured = capsys.readouterr()
-    assert "Warning:" in captured.out
-    assert "'caller_calls_deprecated' calls deprecated function 'deprecated_callee'" in captured.out
-    assert "Please update the code to call" in captured.out
-    assert "target_func" in captured.out
+    with pytest.warns(UserWarning, match="'caller_calls_deprecated' calls deprecated function 'deprecated_callee'"):
+        validate_deprecation_chains(caller_calls_deprecated)
 
 
-def test_validate_deprecation_chains_no_warning_for_no_target(capsys) -> None:
+def test_validate_deprecation_chains_no_warning_for_no_target() -> None:
     """Test validate_deprecation_chains doesn't warn when callee has no target."""
     from tests.collection_chains import caller_calls_deprecated_no_target
 
-    validate_deprecation_chains(caller_calls_deprecated_no_target)
-    captured = capsys.readouterr()
     # Should not warn because deprecated_callee_no_target has no target
-    assert "target_func" not in captured.out
+    with no_warning_call(UserWarning):
+        validate_deprecation_chains(caller_calls_deprecated_no_target)
 
 
-def test_validate_deprecation_chains_detects_deprecated_args(capsys) -> None:
+def test_validate_deprecation_chains_detects_deprecated_args() -> None:
     """Test validate_deprecation_chains detects passing deprecated arguments."""
     from tests.collection_chains import caller_passes_deprecated_arg
 
-    validate_deprecation_chains(caller_passes_deprecated_arg)
-    captured = capsys.readouterr()
-    assert "Warning:" in captured.out
-    assert "'caller_passes_deprecated_arg' passes deprecated argument 'old_arg'" in captured.out
-    assert "Please update to use the new argument name 'new_arg'" in captured.out
+    with pytest.warns(
+        UserWarning, match="'caller_passes_deprecated_arg' passes deprecated argument 'old_arg'"
+    ):
+        validate_deprecation_chains(caller_passes_deprecated_arg)
 
 
-def test_validate_deprecation_chains_non_deprecated_caller(capsys) -> None:
+def test_validate_deprecation_chains_non_deprecated_caller() -> None:
     """Test validate_deprecation_chains works with non-deprecated functions."""
     from tests.collection_chains import non_deprecated_caller
 
-    validate_deprecation_chains(non_deprecated_caller)
-    captured = capsys.readouterr()
-    assert "Warning:" in captured.out
-    assert "'non_deprecated_caller' calls deprecated function 'deprecated_callee'" in captured.out
+    with pytest.warns(UserWarning, match="'non_deprecated_caller' calls deprecated function 'deprecated_callee'"):
+        validate_deprecation_chains(non_deprecated_caller)
 
 
-def test_validate_deprecation_chains_no_warnings_clean(capsys) -> None:
+def test_validate_deprecation_chains_no_warnings_clean() -> None:
     """Test validate_deprecation_chains doesn't warn for clean code."""
     from tests.collection_chains import caller_no_deprecated_calls
 
-    validate_deprecation_chains(caller_no_deprecated_calls)
-    captured = capsys.readouterr()
     # Should not warn because it doesn't call deprecated functions
-    assert "Warning:" not in captured.out
+    with no_warning_call(UserWarning):
+        validate_deprecation_chains(caller_no_deprecated_calls)
 
 
 def test_validate_deprecation_chains_builtin_function() -> None:
     """Test validate_deprecation_chains handles built-in functions gracefully."""
-    # Should not raise an error for built-in functions
-    validate_deprecation_chains(len)  # No error expected
+    # Should not raise an error for built-in functions and should return None
+    result = validate_deprecation_chains(len)
+    assert result is None

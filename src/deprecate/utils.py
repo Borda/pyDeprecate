@@ -11,6 +11,7 @@ Key Functions:
     - :func:`no_warning_call`: Context manager for testing code without warnings
     - :func:`void`: Helper to silence IDE warnings about unused parameters
     - :func:`validate_deprecated_callable`: Validate wrapper configuration
+    - :func:`validate_deprecation_chains`: Detect deprecated functions calling other deprecated functions
     - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
 
 Key Classes:
@@ -19,7 +20,10 @@ Key Classes:
 Copyright (C) 2020-2025 Jiri Borovec <...>
 """
 
+import ast
+import importlib
 import inspect
+import sys
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
@@ -460,28 +464,26 @@ def validate_deprecation_chains(func: Callable) -> None:
         func: The function to inspect for deprecation chains.
 
     Warnings:
-        Issues warnings (prints to stdout) when:
+        Issues warnings using Python's warning system (UserWarning) when:
         - The function calls another deprecated function that has a target
         - The function passes deprecated arguments to another deprecated function
 
     Example:
         >>> from tests.collection_chains import caller_calls_deprecated
         >>> from deprecate import validate_deprecation_chains
+        >>> import warnings
         >>>
         >>> # Inspect a function that calls another deprecated function
-        >>> validate_deprecation_chains(caller_calls_deprecated)  # doctest: +ELLIPSIS
-        Warning: 'caller_calls_deprecated' calls deprecated function 'deprecated_callee'. Please update the code to call '...target_func' directly.
+        >>> with warnings.catch_warnings(record=True):
+        ...     validate_deprecation_chains(caller_calls_deprecated)  # Issues warning
 
     Note:
         - This function ignores version numbers (remove_in)
         - Only flags callees using the pyDeprecate @deprecated decorator
         - Resolves function names in the caller's module scope
+        - Only detects simple function calls (e.g., func()), not module.func() or obj.method()
 
     """
-    import ast
-    import importlib
-    import sys
-
     # Get the function's source code
     try:
         source_code = inspect.getsource(func)
@@ -545,9 +547,11 @@ def validate_deprecation_chains(func: Callable) -> None:
         # Check if target exists and warn
         if callable(target):
             target_path = f"{target.__module__}.{target.__name__}"
-            print(
-                f"Warning: '{func.__name__}' calls deprecated function '{callee_name}'. "
-                f"Please update the code to call '{target_path}' directly."
+            warnings.warn(
+                f"'{func.__name__}' calls deprecated function '{callee_name}'. "
+                f"Please update the code to call '{target_path}' directly.",
+                UserWarning,
+                stacklevel=2,
             )
 
         # Check for deprecated arguments being passed
@@ -567,7 +571,9 @@ def validate_deprecation_chains(func: Callable) -> None:
                 for arg_name in deprecated_args_used:
                     new_arg_name = args_mapping[arg_name]
                     if new_arg_name:  # Not mapped to None (skip)
-                        print(
-                            f"Warning: '{func.__name__}' passes deprecated argument '{arg_name}' "
-                            f"to '{callee_name}'. Please update to use the new argument name '{new_arg_name}'."
+                        warnings.warn(
+                            f"'{func.__name__}' passes deprecated argument '{arg_name}' "
+                            f"to '{callee_name}'. Please update to use the new argument name '{new_arg_name}'.",
+                            UserWarning,
+                            stacklevel=2,
                         )
