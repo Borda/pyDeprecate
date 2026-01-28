@@ -20,6 +20,7 @@ Core Components:
 **Utilities:**
     - :func:`void`: Helper to silence IDE warnings about unused parameters
     - :func:`validate_deprecated_callable`: Validate single wrapper configuration
+    - :func:`validate_deprecation_chains`: Detect deprecated functions calling other deprecated functions
     - :func:`find_deprecated_callables`: Scan package for deprecated wrappers
     - :func:`no_warning_call`: Context manager for testing without warnings
 
@@ -67,5 +68,6 @@ from deprecate.utils import (  # noqa: E402, F401
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
+    validate_deprecation_chains,
     void,
 )
