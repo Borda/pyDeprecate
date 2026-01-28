@@ -331,3 +331,86 @@ def test_check_deprecation_expiry_invalid_version_format() -> None:
     with pytest.raises(ValueError, match="Failed to parse versions"):
         check_deprecation_expiry(depr_pow_self, "invalid-version")
 
+
+# =============================================================================
+# Tests for check_module_deprecation_expiry()
+# =============================================================================
+
+
+def test_check_module_deprecation_expiry_no_expired() -> None:
+    """Test check_module_deprecation_expiry when no callables have expired."""
+    from deprecate import check_module_deprecation_expiry
+
+    # Check the test collection module with a version before any removal deadlines
+    expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+    assert expired == []
+
+
+def test_check_module_deprecation_expiry_with_expired() -> None:
+    """Test check_module_deprecation_expiry detects expired callables."""
+    from deprecate import check_module_deprecation_expiry
+
+    # Check with a version past some removal deadlines
+    expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+
+    # Should find at least depr_sum (remove_in="0.5") as expired
+    assert len(expired) > 0
+
+    # Check that error messages are properly formatted
+    for msg in expired:
+        assert "scheduled for removal" in msg
+        assert "still exists" in msg
+
+
+def test_check_module_deprecation_expiry_with_module_object() -> None:
+    """Test check_module_deprecation_expiry with module object instead of string."""
+    from deprecate import check_module_deprecation_expiry
+    from tests import collection_deprecate
+
+    # Pass module object directly
+    expired = check_module_deprecation_expiry(collection_deprecate, "0.1", recursive=False)
+    assert expired == []
+
+    # Now check with expired version
+    expired = check_module_deprecation_expiry(collection_deprecate, "1.0", recursive=False)
+    assert len(expired) > 0
+
+
+def test_check_module_deprecation_expiry_recursive() -> None:
+    """Test check_module_deprecation_expiry with recursive scanning."""
+    from deprecate import check_module_deprecation_expiry
+
+    # Test with recursive=True (default)
+    expired = check_module_deprecation_expiry("tests", "10.0", recursive=True)
+
+    # Should find multiple expired callables across the test package
+    assert len(expired) > 0
+
+
+def test_check_module_deprecation_expiry_skips_missing_remove_in() -> None:
+    """Test check_module_deprecation_expiry skips callables without remove_in."""
+    from deprecate import check_module_deprecation_expiry
+
+    # The collection_deprecate module has some functions without remove_in
+    # This should not raise an error, just skip those functions
+    expired = check_module_deprecation_expiry("tests.collection_deprecate", "100.0", recursive=False)
+
+    # Should find expired ones, but not crash on missing remove_in
+    assert isinstance(expired, list)
+
+
+def test_check_module_deprecation_expiry_return_format() -> None:
+    """Test check_module_deprecation_expiry returns properly formatted error messages."""
+    from deprecate import check_module_deprecation_expiry
+
+    # Get some expired callables
+    expired = check_module_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+
+    # All expired entries should be strings (error messages)
+    assert all(isinstance(msg, str) for msg in expired)
+
+    # Each message should contain key information
+    for msg in expired:
+        assert "Callable" in msg or "scheduled" in msg
+
+

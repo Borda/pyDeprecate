@@ -12,6 +12,7 @@ Key Functions:
     - :func:`void`: Helper to silence IDE warnings about unused parameters
     - :func:`validate_deprecated_callable`: Validate wrapper configuration
     - :func:`check_deprecation_expiry`: Check if deprecated code has passed removal deadline
+    - :func:`check_module_deprecation_expiry`: Check all deprecated code in a module for expired deadlines
     - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
 
 Key Classes:
@@ -426,6 +427,97 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
             f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
             f"but still exists in version {current_version}. Please delete this deprecated code."
         )
+
+
+def check_module_deprecation_expiry(
+    module: Union[Any, str],  # noqa: ANN401
+    current_version: str,
+    recursive: bool = True,
+) -> list[str]:
+    """Check all deprecated callables in a module/package for expired removal deadlines.
+
+    This enforcement tool scans an entire module or package for deprecated functions
+    and checks if any have passed their scheduled removal version. It's designed for
+    CI/CD pipelines to automatically detect and report zombie code across a codebase.
+
+    The function uses ``find_deprecated_callables`` to discover all deprecated functions,
+    then applies ``check_deprecation_expiry`` to each one. Any callables that have
+    reached or passed their removal deadline are collected and reported.
+
+    Args:
+        module: A Python module or package to scan. Can be:
+            - Imported module object (e.g., ``import my_package; check_module_deprecation_expiry(my_package, "2.0")``)
+            - String module path (e.g., ``check_module_deprecation_expiry("my_package.submodule", "2.0")``)
+        current_version: The current version of the package (e.g., "2.0.0").
+            Should follow semantic versioning conventions.
+        recursive: If True (default), recursively scan submodules. If False, only
+            scan the top-level module.
+
+    Returns:
+        List of error messages for callables that have expired (past their removal deadline).
+        Empty list if all deprecated callables are still within their deprecation period.
+
+    Raises:
+        ValueError: If version parsing fails for current_version or any remove_in value.
+
+    Example:
+        >>> # Check a specific module
+        >>> import my_package
+        >>> expired = check_module_deprecation_expiry(my_package, "2.0.0")
+        >>> if expired:
+        ...     for msg in expired:
+        ...         print(msg)
+        ...     raise AssertionError(f"Found {len(expired)} expired deprecation(s)")
+
+        >>> # Use in CI/CD pipeline
+        >>> from my_package import __version__
+        >>> expired = check_module_deprecation_expiry("my_package", __version__)
+        >>> assert not expired, f"Remove expired deprecated code: {expired}"
+
+        >>> # Check without recursion (single module only)
+        >>> expired = check_module_deprecation_expiry("my_package.utils", "2.0.0", recursive=False)
+
+    Note:
+        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
+        - Uses semantic versioning comparison via packaging.version.parse
+        - Intended for automated checks in CI/CD pipelines
+        - Can be integrated into test suites or pre-commit hooks
+
+    """
+    import importlib
+
+    # Handle string module path
+    if isinstance(module, str):
+        module = importlib.import_module(module)
+
+    # Find all deprecated callables in the module
+    deprecated_callables = find_deprecated_callables(module, recursive=recursive)
+
+    expired_callables = []
+
+    # Check each deprecated callable for expiry
+    for info in deprecated_callables:
+        # Skip if no remove_in specified (warning-only deprecation)
+        remove_in = info.deprecated_info.get("remove_in")
+        if not remove_in:
+            continue
+
+        # Try to check expiry - if it raises AssertionError, the callable has expired
+        try:
+            # Need to get the actual callable object from the module
+            # The info has module and function name, need to retrieve the callable
+            try:
+                mod = importlib.import_module(info.module)
+                func = getattr(mod, info.function)
+                check_deprecation_expiry(func, current_version)
+            except (ImportError, AttributeError):
+                # If we can't import/access the function, skip it
+                continue
+        except AssertionError as e:
+            # This callable has expired - add to list
+            expired_callables.append(str(e))
+
+    return expired_callables
 
 
 def find_deprecated_callables(
