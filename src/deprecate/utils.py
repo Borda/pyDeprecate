@@ -536,6 +536,11 @@ def validate_deprecation_chains(func: Callable) -> None:
             )
             return
 
+    # Use find_deprecated_callables to get all deprecated functions in the module
+    # This provides a map of function names to their deprecation info
+    deprecated_callables = find_deprecated_callables(func_module, recursive=False)
+    deprecated_map = {info.function: info for info in deprecated_callables}
+
     # Walk through the AST and find all function calls
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -554,17 +559,13 @@ def validate_deprecation_chains(func: Callable) -> None:
         if not callee_name:
             continue
 
-        # Resolve the callee name to the actual function object from the module
-        callee_func = getattr(func_module, callee_name, None)
-        if not callable(callee_func):
+        # Check if the callee is in our deprecated functions map
+        if callee_name not in deprecated_map:
             continue
 
-        # Check if the callee is decorated with @deprecated
-        if not hasattr(callee_func, "__deprecated__"):
-            continue
-
-        # Get deprecation info
-        dep_info = getattr(callee_func, "__deprecated__", {})
+        # Get deprecation info from the map
+        callee_info = deprecated_map[callee_name]
+        dep_info = callee_info.deprecated_info
         target = dep_info.get("target")
         args_mapping = dep_info.get("args_mapping")
 
