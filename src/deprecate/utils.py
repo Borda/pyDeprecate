@@ -11,6 +11,7 @@ Key Functions:
     - :func:`no_warning_call`: Context manager for testing code without warnings
     - :func:`void`: Helper to silence IDE warnings about unused parameters
     - :func:`validate_deprecated_callable`: Validate wrapper configuration
+    - :func:`check_deprecation_expiry`: Check if deprecated code has passed removal deadline
     - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
 
 Key Classes:
@@ -25,6 +26,8 @@ from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional, Union
+
+from packaging import version
 
 
 @dataclass(frozen=True)
@@ -341,6 +344,86 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         self_reference=self_reference,
         no_effect=no_effect,
     )
+
+
+def check_deprecation_expiry(func: Callable, current_version: str) -> None:
+    """Check if a deprecated callable has passed its scheduled removal version.
+
+    This enforcement tool verifies that deprecated code is actually removed when
+    it reaches its scheduled removal deadline. It prevents "zombie code" - deprecated
+    functions that remain in the codebase past their intended removal date.
+
+    The function validates that the callable is properly decorated, extracts the
+    removal version from its metadata, and compares it against the current version
+    using semantic versioning. If the current version is greater than or equal to
+    the scheduled removal version, it raises an AssertionError indicating the code
+    must be deleted.
+
+    Args:
+        func: The deprecated callable to check. Must have a ``__deprecated__``
+            attribute set by the @deprecated decorator.
+        current_version: The current version of the package (e.g., "2.0.0").
+            Should follow semantic versioning conventions.
+
+    Raises:
+        ValueError: If the function does not have a ``__deprecated__`` attribute
+            (i.e., was not decorated with @deprecated).
+        ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
+        AssertionError: If the current version is greater than or equal to the
+            scheduled removal version, indicating the code should have been removed.
+
+    Example:
+        >>> from deprecate import deprecated, check_deprecation_expiry
+        >>> def new_func(x: int) -> int:
+        ...     return x * 2
+        >>>
+        >>> @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+        ... def old_func(x: int) -> int:
+        ...     pass
+        >>>
+        >>> # This passes - current version is before removal deadline
+        >>> check_deprecation_expiry(old_func, "1.5.0")
+        >>>
+        >>> # This raises AssertionError - past removal deadline
+        >>> try:
+        ...     check_deprecation_expiry(old_func, "2.0.0")
+        ... except AssertionError as e:
+        ...     print(str(e))
+        Callable `old_func` was scheduled for removal in version 2.0 but still exists in version 2.0.0. Please delete this deprecated code.
+
+    Note:
+        - Uses semantic versioning comparison via packaging.version.parse
+        - Intended for use in CI/CD pipelines or development checks
+        - Helps maintain code hygiene by enforcing deprecation deadlines
+        - Can be integrated into test suites or pre-commit hooks
+
+    """
+    # First validate that the function has proper deprecation metadata
+    info = validate_deprecated_callable(func)
+
+    # Extract the remove_in version from the metadata
+    remove_in = info.deprecated_info.get("remove_in")
+    if not remove_in:
+        raise ValueError(
+            f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
+        )
+
+    # Parse both versions using packaging.version for proper semantic version comparison
+    try:
+        current_ver = version.parse(current_version)
+        remove_ver = version.parse(remove_in)
+    except Exception as e:
+        raise ValueError(
+            f"Failed to parse versions for comparison. current_version='{current_version}', "
+            f"remove_in='{remove_in}'. Error: {e}"
+        ) from e
+
+    # Check if the current version has reached or passed the removal deadline
+    if current_ver >= remove_ver:
+        raise AssertionError(
+            f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
+            f"but still exists in version {current_version}. Please delete this deprecated code."
+        )
 
 
 def find_deprecated_callables(

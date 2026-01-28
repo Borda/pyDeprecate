@@ -11,7 +11,7 @@ from deprecate.utils import (
     no_warning_call,
     validate_deprecated_callable,
 )
-from tests.collection_deprecate import depr_accuracy_target, depr_pow_self
+from tests.collection_deprecate import depr_pow_self, depr_sum, depr_sum_no_stream
 
 # Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
 
@@ -135,14 +135,15 @@ def test_validate_deprecated_callable_self_reference() -> None:
 
 def test_validate_deprecated_callable_different_target() -> None:
     """Test validate_deprecated_callable with a different target function."""
-    # Different target - has effect
-    result = validate_deprecated_callable(depr_accuracy_target)
+    # Different target - has effect even with empty/no args_mapping
+    result = validate_deprecated_callable(depr_sum)
     assert result.invalid_args == []
-    assert result.empty_mapping is False
+    # args_mapping is None, so empty_mapping is True
+    assert result.empty_mapping is True
     assert result.identity_mapping == []
     assert result.self_reference is False
+    # But it still has an effect because it forwards to a different function
     assert result.no_effect is False
-    assert result.no_effect is not True
 
 
 def test_validate_deprecated_callable_no_deprecated_attr() -> None:
@@ -230,3 +231,100 @@ def test_find_deprecated_callables_report_grouping() -> None:
 
     # We should find some degenerated deprecations
     assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
+
+
+# =============================================================================
+# Tests for check_deprecation_expiry()
+# =============================================================================
+
+
+def test_check_deprecation_expiry_not_expired() -> None:
+    """Test check_deprecation_expiry when current version is before removal deadline."""
+    from deprecate import check_deprecation_expiry
+
+    # Current version is less than remove_in - should not raise
+    check_deprecation_expiry(depr_pow_self, "0.4")  # remove_in="0.5"
+
+
+def test_check_deprecation_expiry_at_removal_version() -> None:
+    """Test check_deprecation_expiry raises AssertionError at removal version."""
+    from deprecate import check_deprecation_expiry
+
+    # Current version equals remove_in - should raise AssertionError
+    with pytest.raises(AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.5"):
+        check_deprecation_expiry(depr_pow_self, "0.5")  # remove_in="0.5"
+
+
+def test_check_deprecation_expiry_past_removal_version() -> None:
+    """Test check_deprecation_expiry raises AssertionError past removal version."""
+    from deprecate import check_deprecation_expiry
+
+    # Current version is greater than remove_in - should raise AssertionError
+    with pytest.raises(AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.6"):
+        check_deprecation_expiry(depr_pow_self, "0.6")  # remove_in="0.5"
+
+
+def test_check_deprecation_expiry_error_message() -> None:
+    """Test check_deprecation_expiry error message content."""
+    from deprecate import check_deprecation_expiry
+
+    # Test the error message contains all expected information
+    with pytest.raises(AssertionError) as exc_info:
+        check_deprecation_expiry(depr_pow_self, "1.0")  # remove_in="0.5"
+
+    error_msg = str(exc_info.value)
+    assert "depr_pow_self" in error_msg
+    assert "0.5" in error_msg  # remove_in version
+    assert "1.0" in error_msg  # current version
+    assert "scheduled for removal" in error_msg
+    assert "Please delete this deprecated code" in error_msg
+
+
+def test_check_deprecation_expiry_no_deprecated_attr() -> None:
+    """Test check_deprecation_expiry raises ValueError for non-deprecated functions."""
+    from deprecate import check_deprecation_expiry
+
+    def plain_function(x: int) -> int:
+        return x
+
+    with pytest.raises(ValueError, match="does not have a __deprecated__ attribute"):
+        check_deprecation_expiry(plain_function, "1.0")
+
+
+def test_check_deprecation_expiry_no_remove_in() -> None:
+    """Test check_deprecation_expiry raises ValueError when remove_in is missing."""
+    from deprecate import check_deprecation_expiry, deprecated
+
+    # Create a deprecated function without remove_in
+    @deprecated(target=None, deprecated_in="1.0")
+    def func_without_remove_in(x: int) -> int:
+        return x
+
+    with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
+        check_deprecation_expiry(func_without_remove_in, "2.0")
+
+
+def test_check_deprecation_expiry_semantic_versioning() -> None:
+    """Test check_deprecation_expiry handles semantic versioning correctly."""
+    from deprecate import check_deprecation_expiry
+
+    # Test with semantic versions (depr_sum has remove_in="0.5")
+    check_deprecation_expiry(depr_sum, "0.4.9")  # remove_in="0.5"
+    check_deprecation_expiry(depr_sum, "0.5.0-alpha")  # remove_in="0.5"
+
+    # Should raise at 0.5.0 or later
+    with pytest.raises(AssertionError):
+        check_deprecation_expiry(depr_sum, "0.5.0")
+
+    with pytest.raises(AssertionError):
+        check_deprecation_expiry(depr_sum, "0.5.1")
+
+
+def test_check_deprecation_expiry_invalid_version_format() -> None:
+    """Test check_deprecation_expiry handles invalid version formats."""
+    from deprecate import check_deprecation_expiry
+
+    # Invalid version format should raise ValueError
+    with pytest.raises(ValueError, match="Failed to parse versions"):
+        check_deprecation_expiry(depr_pow_self, "invalid-version")
+
