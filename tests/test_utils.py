@@ -11,7 +11,7 @@ from deprecate.utils import (
     no_warning_call,
     validate_deprecated_callable,
 )
-from tests.collection_deprecate import depr_pow_self, depr_sum
+from tests.collection_deprecate import depr_accuracy_target, depr_pow_self, depr_sum
 
 # Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
 
@@ -135,15 +135,14 @@ def test_validate_deprecated_callable_self_reference() -> None:
 
 def test_validate_deprecated_callable_different_target() -> None:
     """Test validate_deprecated_callable with a different target function."""
-    # Different target - has effect even with empty/no args_mapping
-    result = validate_deprecated_callable(depr_sum)
+    # Different target - has effect
+    result = validate_deprecated_callable(depr_accuracy_target)
     assert result.invalid_args == []
-    # args_mapping is None, so empty_mapping is True
-    assert result.empty_mapping is True
+    assert result.empty_mapping is False
     assert result.identity_mapping == []
     assert result.self_reference is False
-    # But it still has an effect because it forwards to a different function
     assert result.no_effect is False
+    assert result.no_effect is not True
 
 
 def test_validate_deprecated_callable_no_deprecated_attr() -> None:

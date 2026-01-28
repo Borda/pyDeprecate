@@ -27,7 +27,8 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional, Union
 
-from packaging import version
+from packaging.version import InvalidVersion
+from packaging.version import parse as parse_version
 
 
 @dataclass(frozen=True)
@@ -411,9 +412,9 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
 
     # Parse both versions using packaging.version for proper semantic version comparison
     try:
-        current_ver = version.parse(current_version)
-        remove_ver = version.parse(remove_in)
-    except Exception as e:
+        current_ver = parse_version(current_version)
+        remove_ver = parse_version(remove_in)
+    except InvalidVersion as e:
         raise ValueError(
             f"Failed to parse versions for comparison. current_version='{current_version}', "
             f"remove_in='{remove_in}'. Error: {e}"
