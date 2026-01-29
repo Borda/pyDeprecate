@@ -123,10 +123,9 @@ Agents should follow these cross-references to access the complete, authoritativ
 
 ## 🔗 Related Documentation
 
-| Document                                                  | Purpose                                     |
-| --------------------------------------------------------- | ------------------------------------------- |
+| Document                                                  | Purpose                                            |
+| --------------------------------------------------------- | -------------------------------------------------- |
 | [Contributing Guide](.github/CONTRIBUTING.md)             | Development workflow, coding standards, PR process |
-| [Security Policy](.github/SECURITY.md)                    | Vulnerability reporting, security practices |
-| [Code of Conduct](.github/CODE_OF_CONDUCT.md)             | Community guidelines and expectations       |
-| [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md) | PR submission checklist                     |
-
+| [Security Policy](.github/SECURITY.md)                    | Vulnerability reporting, security practices        |
+| [Code of Conduct](.github/CODE_OF_CONDUCT.md)             | Community guidelines and expectations              |
+| [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md) | PR submission checklist                            |
