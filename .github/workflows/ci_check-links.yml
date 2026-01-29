@@ -1,0 +1,34 @@
+name: Check Markdown links
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  schedule:
+  # Run once a week on Sundays
+  - cron: "0 9 * * SUN"
+
+jobs:
+  markdown-link-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: List files
+      run: ls -lh
+    - run: cat README.md
+
+    - name: Link Checker
+      uses: lycheeverse/lychee-action@v2
+      with:
+        # default args: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
+        args: |
+          --verbose
+          --no-progress
+          './**/*.md'
+          './**/*.py'
+          './**/*.yml'
+          './**/*.toml'
+          --include-verbatim
+          --exclude https://github.com/YOUR-USERNAME/REPO-NAME.git
+        fail: true
