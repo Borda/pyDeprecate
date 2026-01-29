@@ -6,10 +6,10 @@ Thank you for helping keep pyDeprecate and its users safe! We take security seri
 
 Security updates are typically provided for the **latest stable release** of the project.
 
-| Version  | Supported |
-| -------- | --------- |
-| >= 0.3.0 | ✅ Yes    |
-| < 0.3.0  | ❌ No     |
+| Version               | Supported       |
+| --------------------- | --------------- |
+| Latest stable release | ✅ Yes          |
+| Older releases        | ⚠️ Case by case |
 
 > 💡 **Tip:** Always use the latest version to benefit from security patches and improvements.
 

@@ -98,7 +98,7 @@ Before approving any PR, verify:
   from deprecate import deprecated
 
 
-  @deprecated(target=None, deprecated_in="1.0.0", remove_in="2.0.0")
+  @deprecated(target=None, deprecated_in="X.Y.Z", remove_in="A.B.C")
   def old_function():
       pass
   ```
