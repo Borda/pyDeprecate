@@ -6,17 +6,15 @@ on:
   pull_request:
   schedule:
     # Run once a week on Sundays
-    - cron: "0 9 * * SUN"
+    - cron: "0 9 * * 0"
 
 jobs:
   markdown-link-check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: List files
-        run: ls -lh
-      - run: cat README.md
+        uses: actions/checkout@v6
+
 
       - name: Link Checker
         uses: lycheeverse/lychee-action@v2
