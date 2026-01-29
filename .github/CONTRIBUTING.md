@@ -223,7 +223,7 @@ ______________________________________________________________________
 
 <div align="center">
 
-**Questions about security?** Contact the project maintainers privately.
+**Questions about security?** See our [Security Policy](SECURITY.md) for reporting vulnerabilities.
 
 Made with 💙 by pyDeprecate contributors.
 

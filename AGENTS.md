@@ -125,8 +125,8 @@ Agents should follow these cross-references to access the complete, authoritativ
 
 | Document                                                  | Purpose                                     |
 | --------------------------------------------------------- | ------------------------------------------- |
-| [Contributing Guide](.github/CONTRIBUTING.md)             | Development workflow, coding standards, PR  |
+| [Contributing Guide](.github/CONTRIBUTING.md)             | Development workflow, coding standards, PR process |
 | [Security Policy](.github/SECURITY.md)                    | Vulnerability reporting, security practices |
 | [Code of Conduct](.github/CODE_OF_CONDUCT.md)             | Community guidelines and expectations       |
 | [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md) | PR submission checklist                     |
-| [GitHub Copilot Instructions](copilot-instructions.md)    | IDE-specific agent configuration            |
+
