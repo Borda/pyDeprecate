@@ -27,5 +27,4 @@ jobs:
             './**/*.yml'
             './**/*.toml'
             --include-verbatim
-            --exclude https://github.com/YOUR-USERNAME/REPO-NAME.git
           fail: true
