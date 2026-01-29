@@ -6,10 +6,10 @@ Thank you for helping keep pyDeprecate and its users safe! We take security seri
 
 Security updates are typically provided for the **latest stable release** of the project.
 
-| Version                  | Supported        |
-| ------------------------ | ---------------- |
-| >= 0.3.0                 | ✅ Yes           |
-| < 0.3.0                  | ❌ No            |
+| Version  | Supported |
+| -------- | --------- |
+| >= 0.3.0 | ✅ Yes    |
+| < 0.3.0  | ❌ No     |
 
 > 💡 **Tip:** Always use the latest version to benefit from security patches and improvements.
 
@@ -36,12 +36,12 @@ When reporting a vulnerability, please provide:
 
 After you submit a report:
 
-| Timeline   | Action                                                  |
-| ---------- | ------------------------------------------------------- |
-| 48 hours   | Acknowledgment of your report                           |
-| 1-2 weeks  | Initial assessment and severity determination           |
-| Ongoing    | Updates on fix progress                                 |
-| Upon fix   | Credit in release notes (unless you prefer anonymity)   |
+| Timeline  | Action                                                |
+| --------- | ----------------------------------------------------- |
+| 48 hours  | Acknowledgment of your report                         |
+| 1-2 weeks | Initial assessment and severity determination         |
+| Ongoing   | Updates on fix progress                               |
+| Upon fix  | Credit in release notes (unless you prefer anonymity) |
 
 > 🙏 We appreciate your patience. Open source maintainers often work on projects in their spare time.
 
@@ -67,7 +67,7 @@ We believe in recognizing security researchers who help improve our projects:
 - [GitHub Security Advisories](https://docs.github.com/en/code-security/security-advisories)
 - [Responsible Disclosure Guidelines](https://cheatsheetseries.owasp.org/cheatsheets/Vulnerability_Disclosure_Cheat_Sheet.html)
 
----
+______________________________________________________________________
 
 <div align="center">
 

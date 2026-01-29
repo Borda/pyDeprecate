@@ -12,16 +12,16 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md). We expect all 
 
 There are many ways to contribute beyond writing code. Every contribution, no matter how small, makes a difference:
 
-| Contribution            | Description                                                                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| 🐛 Report bugs          | Found an issue? Let us know! Detailed bug reports help us fix problems faster.                                                      |
-| 🔧 Fix bugs             | Implement fixes for reported issues. Great way to start contributing!                                                               |
-| 💡 Suggest improvements | Propose enhancements, optimizations, or better approaches to existing functionality                                                 |
-| ✨ Build features       | Implement new features after getting maintainer approval                                                                            |
-| 📚 Improve docs         | Fix typos, clarify explanations, or add examples. Good documentation makes the project accessible to more people.                   |
-| 👀 Review PRs           | Provide feedback on pull requests. Code reviews help maintain quality and catch potential issues early.                             |
-| 💬 Answer questions     | Help others in discussions and issues. Your knowledge can help someone overcome a problem.                                          |
-| ⭐ Spread the word      | Star the repo, share it with others, or write about your experience. This helps the project grow and attract more contributors.    |
+| Contribution            | Description                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 🐛 Report bugs          | Found an issue? Let us know! Detailed bug reports help us fix problems faster.                                                  |
+| 🔧 Fix bugs             | Implement fixes for reported issues. Great way to start contributing!                                                           |
+| 💡 Suggest improvements | Propose enhancements, optimizations, or better approaches to existing functionality                                             |
+| ✨ Build features       | Implement new features after getting maintainer approval                                                                        |
+| 📚 Improve docs         | Fix typos, clarify explanations, or add examples. Good documentation makes the project accessible to more people.               |
+| 👀 Review PRs           | Provide feedback on pull requests. Code reviews help maintain quality and catch potential issues early.                         |
+| 💬 Answer questions     | Help others in discussions and issues. Your knowledge can help someone overcome a problem.                                      |
+| ⭐ Spread the word      | Star the repo, share it with others, or write about your experience. This helps the project grow and attract more contributors. |
 
 ## 💭 Before You Start
 
@@ -165,7 +165,9 @@ We value all levels of contribution and want to encourage everyone, regardless o
 - **Be meaningful and reasonable** — Contribute what you can realistically complete. Even small improvements make a difference.
 
 ### Deprecation Specifics
+
 When contributing to `pyDeprecate`, ensure:
+
 - New deprecation logic is tested against multiple Python versions (if possible).
 - Warnings are correctly triggered and contain helpful migration messages.
 - The `target` and `deprecated_in` / `remove_in` arguments are used consistently.
@@ -217,7 +219,7 @@ git push origin feature/amazing-feature
 
 By contributing, you agree that your contributions will be licensed under the same license as the project (see [LICENSE](../LICENSE) file).
 
----
+______________________________________________________________________
 
 <div align="center">
 

@@ -97,6 +97,7 @@ Before approving any PR, verify:
   ```python
   from deprecate import deprecated
 
+
   @deprecated(target=None, deprecated_in="1.0.0", remove_in="2.0.0")
   def old_function():
       pass
@@ -122,10 +123,10 @@ Agents should follow these cross-references to access the complete, authoritativ
 
 ## 🔗 Related Documentation
 
-| Document                                                    | Purpose                                    |
-| ----------------------------------------------------------- | ------------------------------------------ |
-| [Contributing Guide](.github/CONTRIBUTING.md)               | Development workflow, coding standards, PR |
-| [Security Policy](.github/SECURITY.md)                      | Vulnerability reporting, security practices|
-| [Code of Conduct](.github/CODE_OF_CONDUCT.md)               | Community guidelines and expectations      |
-| [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md)   | PR submission checklist                    |
-| [GitHub Copilot Instructions](copilot-instructions.md)      | IDE-specific agent configuration           |
+| Document                                                  | Purpose                                     |
+| --------------------------------------------------------- | ------------------------------------------- |
+| [Contributing Guide](.github/CONTRIBUTING.md)             | Development workflow, coding standards, PR  |
+| [Security Policy](.github/SECURITY.md)                    | Vulnerability reporting, security practices |
+| [Code of Conduct](.github/CODE_OF_CONDUCT.md)             | Community guidelines and expectations       |
+| [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md) | PR submission checklist                     |
+| [GitHub Copilot Instructions](copilot-instructions.md)    | IDE-specific agent configuration            |
