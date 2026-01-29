@@ -27,4 +27,5 @@ jobs:
             './**/*.yml'
             './**/*.toml'
             --include-verbatim
+            --exclude https://github.com/YOUR-USERNAME/pyDeprecate.git
           fail: true
