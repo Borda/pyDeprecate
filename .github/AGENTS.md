@@ -90,4 +90,4 @@ This improves readability, maintainability, and helps other contributors underst
 
 ## Related Documentation
 
-For comprehensive development guidelines, coding standards, and GitHub Copilot instructions, see [GitHub Copilot Instructions](../copilot-instructions.md).
+For comprehensive development guidelines, coding standards, and GitHub Copilot instructions, see [GitHub Copilot Instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions).
