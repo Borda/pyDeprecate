@@ -149,3 +149,37 @@ def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> flo
 def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
     """A properly configured deprecation with accuracy_score target - has effect."""
     return void(preds, truth)
+
+
+# ========== Wrapper Deprecation Examples ==========
+
+
+# Import dependencies for wrapper examples
+import functools
+import time
+from typing import Any, Callable
+
+from tests.collection_targets import logging_wrapper
+
+
+def old_timing_wrapper(func: Callable) -> Callable:
+    """Old deprecated timing wrapper (prints execution time)."""
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        """Wrapper function."""
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        # Old version had less informative output
+        print(f"Time: {(end_time - start_time):.4f}s")
+        return result
+
+    return wrapper
+
+
+# Deprecate the old timing wrapper in favor of logging_wrapper
+@deprecated(target=logging_wrapper, deprecated_in="1.0", remove_in="2.0")
+def depr_timing_wrapper(func: Callable) -> Callable:
+    """Deprecated timing wrapper - use logging_wrapper instead."""
+    return void(func)
