@@ -198,10 +198,10 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     }
 
 
-class TestDeprecatedWrappers:
-    """Test suite for deprecating wrapper/decorator functions and classes."""
+class TestDeprecatedFunctionWrappers:
+    """Test suite for deprecating function-based wrapper/decorators."""
 
-    def test_deprecated_wrapper_function_shows_warning(self) -> None:
+    def test_deprecated_wrapper_shows_warning(self) -> None:
         """Test that deprecated wrapper function shows deprecation warning."""
         from tests.collection_deprecate import depr_timing_wrapper
 
@@ -223,7 +223,7 @@ class TestDeprecatedWrappers:
         # Verify the wrapper was applied correctly
         assert callable(wrapped_func)
 
-    def test_deprecated_wrapper_function_forwards_correctly(self) -> None:
+    def test_deprecated_wrapper_forwards_correctly(self) -> None:
         """Test that deprecated wrapper function forwards to new implementation."""
         from tests.collection_deprecate import depr_timing_wrapper
 
@@ -238,7 +238,7 @@ class TestDeprecatedWrappers:
         result = wrapped_func(5)
         assert result == 10
 
-    def test_new_wrapper_function_no_warning(self) -> None:
+    def test_new_wrapper_no_warning(self) -> None:
         """Test that new wrapper function works without warnings."""
         from tests.collection_targets import timing_wrapper
 
@@ -251,7 +251,11 @@ class TestDeprecatedWrappers:
             result = new_wrapped(7)
             assert result == 14
 
-    def test_deprecated_wrapper_class_shows_warning(self) -> None:
+
+class TestDeprecatedClassWrappers:
+    """Test suite for deprecating class-based wrapper/decorators."""
+
+    def test_deprecated_wrapper_shows_warning(self) -> None:
         """Test that deprecated class-based wrapper shows deprecation warning."""
         from tests.collection_deprecate import DeprTimerDecorator
 
@@ -273,7 +277,7 @@ class TestDeprecatedWrappers:
         # Verify the wrapper was applied correctly
         assert callable(wrapped_func)
 
-    def test_deprecated_wrapper_class_forwards_correctly(self) -> None:
+    def test_deprecated_wrapper_forwards_correctly(self) -> None:
         """Test that deprecated class-based wrapper forwards to new implementation."""
         from tests.collection_deprecate import DeprTimerDecorator
 
@@ -288,7 +292,7 @@ class TestDeprecatedWrappers:
         result = wrapped_func(3)
         assert result == 8
 
-    def test_deprecated_wrapper_class_preserves_attributes(self) -> None:
+    def test_deprecated_wrapper_preserves_attributes(self) -> None:
         """Test that deprecated class-based wrapper preserves tracking attributes."""
         from tests.collection_deprecate import DeprTimerDecorator
 
@@ -307,7 +311,7 @@ class TestDeprecatedWrappers:
         assert hasattr(wrapped_func, "calls")
         assert wrapped_func.calls == 1
 
-    def test_new_wrapper_class_no_warning(self) -> None:
+    def test_new_wrapper_no_warning(self) -> None:
         """Test that new class-based wrapper works without warnings."""
         from tests.collection_targets import TimerDecorator
 
