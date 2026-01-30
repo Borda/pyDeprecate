@@ -11,7 +11,7 @@ from typing import Any, Callable
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
-from tests.collection_targets import base_pow_args, base_sum_kwargs, logging_wrapper
+from tests.collection_targets import base_pow_args, base_sum_kwargs, timing_wrapper
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
@@ -159,14 +159,14 @@ def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
 
 
 def old_timing_wrapper(func: Callable) -> Callable:
-    """Old deprecated timing wrapper (prints execution time)."""
+    """Old deprecated timing wrapper with less precise timing."""
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Wrapper function."""
-        start_time = time.perf_counter()
+        start_time = time.time()  # Old version used time.time() - less precise
         result = func(*args, **kwargs)
-        end_time = time.perf_counter()
+        end_time = time.time()
         # Old version had less informative output
         print(f"Time: {(end_time - start_time):.4f}s")
         return result
@@ -174,8 +174,8 @@ def old_timing_wrapper(func: Callable) -> Callable:
     return wrapper
 
 
-# Deprecate the old timing wrapper in favor of logging_wrapper
-@deprecated(target=logging_wrapper, deprecated_in="1.0", remove_in="2.0")
+# Deprecate the old timing wrapper in favor of the improved timing_wrapper
+@deprecated(target=timing_wrapper, deprecated_in="1.0", remove_in="2.0")
 def depr_timing_wrapper(func: Callable) -> Callable:
-    """Deprecated timing wrapper - use logging_wrapper instead."""
+    """Deprecated timing wrapper - use timing_wrapper instead (better precision and output)."""
     return void(func)

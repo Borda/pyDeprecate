@@ -206,7 +206,7 @@ def test_deprecated_wrapper_function() -> None:
     improved wrapper implementation.
     """
     from tests.collection_deprecate import depr_timing_wrapper
-    from tests.collection_targets import logging_wrapper
+    from tests.collection_targets import timing_wrapper
 
     # Define a simple test function to be wrapped
     def sample_function(x: int) -> int:
@@ -217,19 +217,19 @@ def test_deprecated_wrapper_function() -> None:
     with pytest.warns(
         FutureWarning,
         match="The `depr_timing_wrapper` was deprecated since v1.0 in favor of "
-        "`tests.collection_targets.logging_wrapper`. It will be removed in v2.0.",
+        "`tests.collection_targets.timing_wrapper`. It will be removed in v2.0.",
     ):
         # Apply the deprecated wrapper
         wrapped_func = depr_timing_wrapper(sample_function)
 
-    # The deprecated wrapper should forward to logging_wrapper
+    # The deprecated wrapper should forward to timing_wrapper
     assert callable(wrapped_func)
     # Call the wrapped function to verify it works
     result = wrapped_func(5)
     assert result == 10
 
-    # Verify the new wrapper works without warnings
+    # Verify the new timing wrapper works without warnings
     with no_warning_call(FutureWarning):
-        new_wrapped = logging_wrapper(sample_function)
+        new_wrapped = timing_wrapper(sample_function)
         result = new_wrapped(7)
         assert result == 14
