@@ -4,9 +4,7 @@ This module contains various examples of deprecated functions with different
 configurations to test the deprecation functionality.
 """
 
-import functools
-import time
-from typing import Any, Callable
+from typing import Callable
 
 from sklearn.metrics import accuracy_score
 
@@ -158,47 +156,14 @@ def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
 # ========== Wrapper Deprecation Examples ==========
 
 
-def old_timing_wrapper(func: Callable) -> Callable:
-    """Old deprecated timing wrapper with less precise timing."""
-
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        """Wrapper function."""
-        start_time = time.time()  # Old version used time.time() - less precise
-        result = func(*args, **kwargs)
-        end_time = time.time()
-        # Old version had less informative output
-        print(f"Time: {(end_time - start_time):.4f}s")
-        return result
-
-    return wrapper
-
-
-# Deprecate the old timing wrapper in favor of the improved timing_wrapper
+# Deprecate a function-based timing wrapper in favor of the improved timing_wrapper
 @deprecated(target=timing_wrapper, deprecated_in="1.0", remove_in="2.0")
 def depr_timing_wrapper(func: Callable) -> Callable:
     """Deprecated timing wrapper - use timing_wrapper instead (better precision and output)."""
     return void(func)
 
 
-class OldTimerDecorator:
-    """Old class-based timer decorator with basic timing (deprecated version)."""
-
-    def __init__(self, func: Callable) -> None:
-        """Initialize the old timer decorator."""
-        functools.update_wrapper(self, func)
-        self.func = func
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        """Call the wrapped function with basic timing."""
-        start_time = time.time()  # Old version used time.time() - less precise
-        result = self.func(*args, **kwargs)
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"[OLD] '{self.func.__name__}' took {execution_time:.4f}s")
-        return result
-
-
+# Deprecate a class-based timer decorator in favor of the improved TimerDecorator
 class DeprTimerDecorator(TimerDecorator):
     """Deprecated class-based timer - use TimerDecorator instead (better precision and tracking).
 
