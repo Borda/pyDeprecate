@@ -187,7 +187,7 @@ cd pyDeprecate
 git checkout -b feature/amazing-feature
 
 # 4. Install in development mode
-pip install -e ".[test]"
+pip install -e . "pre-commit" -r tests/requirements.txt
 pre-commit install
 
 # 5. Make your changes

@@ -11,7 +11,7 @@ __author_email__ = "j.borovec+github[at]gmail.com"
 __homepage__ = "https://borda.github.io/pyDeprecate"
 __source_code__ = "https://github.com/Borda/pyDeprecate"
 __license__ = "Apache-2.0"
-__copyright__ = f"Copyright (C) 2020-2025 {__author__}."
+__copyright__ = f"Copyright (C) 2020-2026 {__author__}."
 __long_doc__ = """
 The pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies.
  It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs,
