@@ -4,10 +4,14 @@ This module contains various examples of deprecated functions with different
 configurations to test the deprecation functionality.
 """
 
+import functools
+import time
+from typing import Any, Callable
+
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
-from tests.collection_targets import base_pow_args, base_sum_kwargs
+from tests.collection_targets import base_pow_args, base_sum_kwargs, logging_wrapper
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
@@ -152,14 +156,6 @@ def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
 
 
 # ========== Wrapper Deprecation Examples ==========
-
-
-# Import dependencies for wrapper examples
-import functools
-import time
-from typing import Any, Callable
-
-from tests.collection_targets import logging_wrapper
 
 
 def old_timing_wrapper(func: Callable) -> Callable:

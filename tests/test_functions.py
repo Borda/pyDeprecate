@@ -221,11 +221,12 @@ def test_deprecated_wrapper_function() -> None:
     ):
         # Apply the deprecated wrapper
         wrapped_func = depr_timing_wrapper(sample_function)
-        # The deprecated wrapper should forward to logging_wrapper
-        assert callable(wrapped_func)
-        # Call the wrapped function to verify it works
-        result = wrapped_func(5)
-        assert result == 10
+
+    # The deprecated wrapper should forward to logging_wrapper
+    assert callable(wrapped_func)
+    # Call the wrapped function to verify it works
+    result = wrapped_func(5)
+    assert result == 10
 
     # Verify the new wrapper works without warnings
     with no_warning_call(FutureWarning):
