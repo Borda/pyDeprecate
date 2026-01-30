@@ -56,3 +56,25 @@ def logging_wrapper(func: Callable) -> Callable:
         return result
 
     return wrapper
+
+
+class TimerDecorator:
+    """A class-based decorator to time functions and methods."""
+
+    def __init__(self, func: Callable) -> None:
+        """Initialize the timer decorator."""
+        functools.update_wrapper(self, func)
+        self.func = func
+        self.total_time = 0.0
+        self.calls = 0
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        """Call the wrapped function and track timing."""
+        start_time = time.perf_counter()
+        result = self.func(*args, **kwargs)
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
+        self.total_time += execution_time
+        self.calls += 1
+        print(f"'{self.func.__name__}' executed in {execution_time:.4f}s")
+        return result

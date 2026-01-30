@@ -233,3 +233,45 @@ def test_deprecated_wrapper_function() -> None:
         new_wrapped = timing_wrapper(sample_function)
         result = new_wrapped(7)
         assert result == 14
+
+
+def test_deprecated_wrapper_class() -> None:
+    """Test deprecating a class-based wrapper/decorator.
+
+    This tests the use case of deprecating a class-based decorator (like TimerDecorator)
+    that wraps functions. The deprecated class decorator forwards to a new improved
+    class-based decorator implementation.
+    """
+    from tests.collection_deprecate import DeprTimerDecorator
+    from tests.collection_targets import TimerDecorator
+
+    # Define a simple test function to be wrapped
+    def sample_function(x: int) -> int:
+        """A simple function for testing class-based wrappers."""
+        return x + 5
+
+    # Test that using the deprecated class decorator shows a deprecation warning
+    with pytest.warns(
+        FutureWarning,
+        match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
+        "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
+    ):
+        # Apply the deprecated class decorator
+        wrapped_func = DeprTimerDecorator(sample_function)
+
+    # The deprecated wrapper should forward to TimerDecorator
+    assert callable(wrapped_func)
+    # Call the wrapped function to verify it works
+    result = wrapped_func(3)
+    assert result == 8
+    # Verify tracking attributes exist (from TimerDecorator)
+    assert hasattr(wrapped_func, "total_time")
+    assert hasattr(wrapped_func, "calls")
+    assert wrapped_func.calls == 1
+
+    # Verify the new class decorator works without warnings
+    with no_warning_call(FutureWarning):
+        new_wrapped = TimerDecorator(sample_function)
+        result = new_wrapped(4)
+        assert result == 9
+        assert new_wrapped.calls == 1
