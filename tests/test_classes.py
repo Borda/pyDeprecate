@@ -64,7 +64,6 @@ class TestDeprecatedClass:
         with no_warning_call():
             assert PastCls(c=2, d="", e=0.9999)
 
-
     def test_class_self_new_args(self) -> None:
         """Test deprecated class with self-referencing __init__, using new arguments."""
         with no_warning_call():
