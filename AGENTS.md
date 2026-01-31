@@ -54,7 +54,7 @@
 Agents may read and reference:
 
 - `README.md`, `setup.py` and `pyproject.toml` for project setup and usage
-- `src/deprecate/` for core deprecation logic
+- `src/` for core deprecation logic
 - `tests/` (unit tests for deprecation logic)
 - `.github/CONTRIBUTING.md` for contribution guidelines and coding standards
 - `.github/SECURITY.md` for security policies and vulnerability reporting

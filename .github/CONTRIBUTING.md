@@ -147,7 +147,7 @@ Tests and quality improvements are **always welcome**! These contributions are h
 pip install -e ".[test]"
 
 # Run tests
-pytest tests/
+pytest src/ tests/
 
 # Run linting
 pre-commit run --all-files
