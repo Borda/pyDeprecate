@@ -59,7 +59,7 @@ class TestDeprecatedClass:
     def test_class_forward_once(self) -> None:
         """Check that the warning is raised only on the first call to the wrapped __init__."""
         PastCls.__init__._warned = False
-        with pytest.warns(DeprecationWarning):
+        with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
             PastCls(2)
         with no_warning_call():
             assert PastCls(c=2, d="", e=0.9999)
