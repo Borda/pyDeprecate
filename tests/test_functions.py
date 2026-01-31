@@ -52,7 +52,7 @@ class TestDeprecationWarnings:
         # However, depr_sum might have been called in previous test if not careful,
         # but here we want to ensure that WITHIN a clean state it only warns once.
         # Note: depr_sum is imported from collection_deprecate, it might share state if not reset.
-        depr_sum._warned = False
+        depr_sum._warned = 0
         with pytest.warns(FutureWarning):
             depr_sum(2)
         with no_warning_call(FutureWarning):
@@ -212,7 +212,7 @@ class TestErrorHandling:
     def test_invalid_skip_if(self) -> None:
         """Test invalid skip_if return value."""
         with pytest.raises(TypeError, match="User function 'skip_if' shall return bool, but got: <class 'int'>"):
-            assert depr_pow_skip_if_func_int(2, c1=2)
+            depr_pow_skip_if_func_int(2, c1=2)
 
 
 def test_deprecated_func_accuracy_map() -> None:
