@@ -54,7 +54,7 @@ class TestDeprecationWarnings:
         # Note: depr_sum is imported from collection_deprecate, it might share state if not reset.
         depr_sum._warned = 0
         with pytest.warns(FutureWarning):
-            depr_sum(2)
+            assert depr_sum(2) == 7
         with no_warning_call(FutureWarning):
             assert depr_sum(3) == 8
 
@@ -169,6 +169,10 @@ class TestArgumentMapping:
 
     def test_chain_new(self) -> None:
         """Test chaining deprecation wrappers, calling with new argument."""
+        # First, trigger the deprecation warning so that per-argument counters are incremented.
+        with pytest.warns(FutureWarning):
+            assert depr_pow_self_twice(2, 3) == 8
+        # After the initial warning, calling with the new argument should be quiet.
         with no_warning_call():
             assert depr_pow_self_twice(2, c1=3) == 8
 
