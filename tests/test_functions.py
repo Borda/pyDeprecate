@@ -59,7 +59,7 @@ class TestDeprecationWarnings:
             assert depr_sum(3) == 8
 
     def test_default_independent(self) -> None:
-        """Check that it does not affect other functions."""
+        """Check that it does not affect other functions when called with positional args."""
         with pytest.warns(
             FutureWarning,
             match="The `depr_pow_mix` was deprecated since v0.1 in favor of `tests.collection_targets.base_pow_args`."
@@ -186,13 +186,13 @@ def test_skip_if_func() -> None:
 
 
 def test_skip_if_true_false() -> None:
-    """Test conditional wrapper skip when one is True and another is False."""
+    """Test conditional wrapper skip with decorator order: @skip_if=True then @skip_if=False (outer skips)."""
     with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
         assert depr_pow_skip_if_true_false(2, c1=2) == 0.5
 
 
 def test_skip_if_false_true() -> None:
-    """Test conditional wrapper skip when one is False and another is True."""
+    """Test conditional wrapper skip with decorator order: @skip_if=False then @skip_if=True (outer skips)."""
     with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
         assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
 
@@ -221,7 +221,7 @@ class TestErrorHandling:
             assert depr_pow_args(2, 1) == 2
 
     def test_incomplete_independent(self) -> None:
-        """Check that it does not affect other functions for incomplete mappings."""
+        """Check that it does not affect other functions for incomplete mappings when called with kwargs."""
         # reset the warning
         depr_pow_args._warned = False
         with pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3."):

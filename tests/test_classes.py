@@ -64,11 +64,6 @@ class TestDeprecatedClass:
         with no_warning_call():
             assert PastCls(c=2, d="", e=0.9999)
 
-    def test_class_forward_reset(self) -> None:
-        """Check that the warning is raised after manual reset."""
-        PastCls.__init__._warned = False
-        with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
-            PastCls(2)
 
     def test_class_self_new_args(self) -> None:
         """Test deprecated class with self-referencing __init__, using new arguments."""

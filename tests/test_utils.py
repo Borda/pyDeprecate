@@ -66,7 +66,6 @@ class TestValidateDeprecatedCallable:
         assert result.identity_mapping == []
         assert result.self_reference is False
         assert result.no_effect is False
-        assert result.no_effect is not True
 
     def test_invalid_args(self) -> None:
         """Test validate_deprecated_callable detects invalid args_mapping keys."""
@@ -114,7 +113,6 @@ class TestValidateDeprecatedCallable:
         result = validate_deprecated_callable(sample_module.partial_identity_mapping_deprecation)
         assert result.identity_mapping == ["arg1"]
         assert result.no_effect is False
-        assert result.no_effect is not True
 
     def test_self_reference(self) -> None:
         """Test validate_deprecated_callable detects self-referencing target."""
@@ -135,7 +133,6 @@ class TestValidateDeprecatedCallable:
         assert result.identity_mapping == []
         assert result.self_reference is False
         assert result.no_effect is False
-        assert result.no_effect is not True
 
     def test_no_deprecated_attr(self) -> None:
         """Test validate_deprecated_callable raises ValueError for non-deprecated functions."""
