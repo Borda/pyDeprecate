@@ -105,13 +105,18 @@ class TestArgumentMapping:
 
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
-        """Reset deprecation state for depr_pow_self_double."""
-        if hasattr(depr_pow_self_double, "_warned"):
-            depr_pow_self_double._warned = False
-        if hasattr(depr_pow_self_double, "_warned_c1"):
-            depr_pow_self_double._warned_c1 = 0
-        if hasattr(depr_pow_self_double, "_warned_c2"):
-            depr_pow_self_double._warned_c2 = 0
+        """Reset deprecation state for functions with chained or multiple deprecations."""
+        # List of functions and their warning attributes to reset
+        reset_config = [
+            (depr_pow_self_double, ["_warned", "_warned_c1", "_warned_c2"]),
+            (depr_pow_self_twice, ["_warned", "_warned_c1", "_warned_nc1"]),
+        ]
+
+        for func, attrs in reset_config:
+            for attr in attrs:
+                if hasattr(func, attr):
+                    # Use False for boolean _warned, 0 for counter attributes
+                    setattr(func, attr, False if attr == "_warned" else 0)
 
     def test_arguments_new_only(self) -> None:
         """Test calling with new arguments only (no warning)."""
