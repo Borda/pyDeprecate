@@ -38,6 +38,7 @@ class TestDeprecatedClass:
 
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
+        PastCls.__init__._warned = False
         with pytest.warns(
             DeprecationWarning,
             match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."

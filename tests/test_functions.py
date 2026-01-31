@@ -103,6 +103,14 @@ class TestDeprecationWarnings:
 class TestArgumentMapping:
     """Tests for deprecated function arguments mapping."""
 
+    @pytest.fixture(autouse=True)
+    def _reset_deprecation_state(self) -> None:
+        """Reset deprecation state for depr_pow_self_double."""
+        if hasattr(depr_pow_self_double, "_warned_c1"):
+            depr_pow_self_double._warned_c1 = 0
+        if hasattr(depr_pow_self_double, "_warned_c2"):
+            depr_pow_self_double._warned_c2 = 0
+
     def test_arguments_new_only(self) -> None:
         """Test calling with new arguments only (no warning)."""
         with no_warning_call():
