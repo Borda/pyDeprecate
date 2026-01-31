@@ -3,7 +3,7 @@
 These functions intentionally have invalid or ineffective deprecation configurations
 to test the validate_deprecated_callable() and find_deprecated_callables() utilities.
 
-Copyright (C) 2020-2023 Jiri Borovec <...>.
+Copyright (C) 2020-2026 Jiri Borovec <...>.
 """
 
 from deprecate import deprecated, void
