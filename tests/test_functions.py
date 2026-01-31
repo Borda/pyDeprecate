@@ -106,6 +106,8 @@ class TestArgumentMapping:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for depr_pow_self_double."""
+        if hasattr(depr_pow_self_double, "_warned"):
+            depr_pow_self_double._warned = False
         if hasattr(depr_pow_self_double, "_warned_c1"):
             depr_pow_self_double._warned_c1 = 0
         if hasattr(depr_pow_self_double, "_warned_c2"):
@@ -137,11 +139,27 @@ class TestArgumentMapping:
 
     def test_arguments_double_mixed(self) -> None:
         """Testing that preferable use the new arguments when both are provided."""
-        with no_warning_call():
-            assert depr_pow_self_double(2, c1=3, c2=4, nc1=1, nc2=2) == 8
+        # Reset warning state to ensure test independence
+        if hasattr(depr_pow_self_double, "_warned_c1"):
+            depr_pow_self_double._warned_c1 = 0
+        if hasattr(depr_pow_self_double, "_warned_c2"):
+            depr_pow_self_double._warned_c2 = 0
 
         with no_warning_call():
+            assert depr_pow_self_double(2, nc1=1, nc2=2) == 8
+
+        # When both c1 and c2 are provided, warns about both together
+        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
             assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
+
+        # Need to reset after first warning because both counters were incremented
+        depr_pow_self_double._warned_c1 = 0
+        depr_pow_self_double._warned_c2 = 0
+
+        # When both c1 and c2 are provided, warns about both together
+        # Result is 32 because: c1->nc1=3, c2->nc2=4, but nc2=2 (user wins), so 2**(0+0+3+2)=32
+        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
+            assert depr_pow_self_double(2, c1=3, c2=4, nc2=2) == 32
 
     def test_chain_deprecated(self) -> None:
         """Test chaining deprecation wrappers, calling with deprecated argument."""

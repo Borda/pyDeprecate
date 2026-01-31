@@ -36,9 +36,14 @@ class ThisCls(NewCls):
 class TestDeprecatedClass:
     """Tests for deprecated classes."""
 
+    @pytest.fixture(autouse=True)
+    def _reset_deprecation_state(self) -> None:
+        """Reset deprecation state for PastCls.__init__."""
+        if hasattr(PastCls.__init__, "_warned"):
+            PastCls.__init__._warned = False
+
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
-        PastCls.__init__._warned = False
         with pytest.warns(
             DeprecationWarning,
             match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
