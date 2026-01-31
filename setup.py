@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
+"""Copyright (C) 2020-2026 Jiri Borovec <...>."""
 
 import os
 import re
