@@ -27,200 +27,155 @@ from tests.collection_deprecate import (
 )
 
 
-class TestDeprecationWarnings:
-    """Tests for basic deprecation warning behavior."""
-
-    def test_warn_only(self) -> None:
-        """Test deprecated function that only warns."""
-        with pytest.warns(
-            FutureWarning, match="The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3."
-        ):
-            assert depr_sum_warn_only(2) is None
-
-    def test_default(self) -> None:
-        """Testing some base/default configurations."""
-        with pytest.warns(
-            FutureWarning,
-            match="The `depr_sum` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
-            " It will be removed in v0.5.",
-        ):
-            assert depr_sum(2) == 7
-
-    def test_default_once(self) -> None:
-        """Check that the warning is raised only once per function."""
-        # Pre-call to trigger the warning if it wasn't already triggered (though tests should be independent)
-        # However, depr_sum might have been called in previous test if not careful,
-        # but here we want to ensure that WITHIN a clean state it only warns once.
-        # Note: depr_sum is imported from collection_deprecate, it might share state if not reset.
-        depr_sum._warned = False
-        with pytest.warns(FutureWarning):
-            depr_sum(2)
-        with no_warning_call(FutureWarning):
-            assert depr_sum(3) == 8
-
-    def test_default_independent(self) -> None:
-        """Check that it does not affect other functions."""
-        with pytest.warns(
-            FutureWarning,
-            match="The `depr_pow_mix` was deprecated since v0.1 in favor of `tests.collection_targets.base_pow_args`."
-            " It will be removed in v0.5.",
-        ):
-            assert depr_pow_mix(2, 1) == 2
-
-    def test_stream_calls_no_stream(self) -> None:
-        """Check that the warning is NOT raised when stream is None."""
-        with no_warning_call(FutureWarning):
-            assert depr_sum_no_stream(3) == 8
-
-    def test_stream_calls_limit(self) -> None:
-        """Check that the warning is raised only N times."""
-
-        def _call_depr_sum_calls_2() -> None:
-            for _ in range(5):
-                assert depr_sum_calls_2(3) == 8
-
-        with pytest.warns(FutureWarning) as record:
-            _call_depr_sum_calls_2()
-        assert len(record) == 2
-
-    def test_stream_calls_inf(self) -> None:
-        """Check that the warning is raised infinitely."""
-
-        def _call_depr_sum_calls_inf() -> None:
-            for _ in range(5):
-                assert depr_sum_calls_inf(3) == 8
-
-        with pytest.warns(FutureWarning) as record:
-            _call_depr_sum_calls_inf()
-        assert len(record) == 5
-
-    def test_stream_calls_msg(self) -> None:
-        """Test deprecated function with custom message."""
-        with pytest.warns(FutureWarning, match="v0.1: `depr_sum_msg` was deprecated, use `base_sum_kwargs`"):
-            assert depr_sum_msg(3) == 8
+def test_deprecated_func_warn_only() -> None:
+    """Test deprecated function that only warns."""
+    with pytest.warns(
+        FutureWarning, match="The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3."
+    ):
+        assert depr_sum_warn_only(2) is None
 
 
-class TestArgumentMapping:
-    """Tests for deprecated function arguments mapping."""
+def test_deprecated_func_arguments() -> None:
+    """Test deprecation function arguments."""
+    with no_warning_call():
+        assert depr_pow_self(2, new_coef=3) == 8
 
-    def test_arguments_new_only(self) -> None:
-        """Test calling with new arguments only (no warning)."""
-        with no_warning_call():
-            assert depr_pow_self(2, new_coef=3) == 8
+    with pytest.warns(
+        FutureWarning,
+        match="The `depr_pow_self` uses deprecated arguments: `coef` -> `new_coef`."
+        " They were deprecated since v0.1 and will be removed in v0.5.",
+    ):
+        assert depr_pow_self(2, 3) == 8
 
-    def test_arguments_deprecated(self) -> None:
-        """Test calling with deprecated argument (should warn)."""
-        with pytest.warns(
-            FutureWarning,
-            match="The `depr_pow_self` uses deprecated arguments: `coef` -> `new_coef`."
-            " They were deprecated since v0.1 and will be removed in v0.5.",
-        ):
-            assert depr_pow_self(2, 3) == 8
+    with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c1` -> `nc1`."):
+        assert depr_pow_self_double(2, c1=3) == 32
 
-    def test_arguments_double_deprecated_c1(self) -> None:
-        """Test double mapping, calling with first deprecated argument."""
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c1` -> `nc1`."):
-            assert depr_pow_self_double(2, c1=3) == 32
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3) == 32
 
-    def test_arguments_double_deprecated_c2(self) -> None:
-        """Test double mapping, calling with second deprecated argument."""
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c2` -> `nc2`."):
-            assert depr_pow_self_double(2, c2=2) == 8
+    with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c2` -> `nc2`."):
+        assert depr_pow_self_double(2, c2=2) == 8
 
-    def test_arguments_double_mixed(self) -> None:
-        """Testing that preferable use the new arguments when both are provided."""
-        with no_warning_call():
-            assert depr_pow_self_double(2, c1=3, c2=4, nc1=1, nc2=2) == 8
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3, c2=4) == 128
 
-        with no_warning_call():
-            assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
+    # testing that preferable use the new arguments
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3, c2=4, nc1=1, nc2=2) == 8
 
-    def test_chain_deprecated(self) -> None:
-        """Test chaining deprecation wrappers, calling with deprecated argument."""
-        with pytest.warns(FutureWarning) as warns:
-            assert depr_pow_self_twice(2, 3) == 8
-        assert len(warns) == 2
-
-    def test_chain_new(self) -> None:
-        """Test chaining deprecation wrappers, calling with new argument."""
-        with no_warning_call():
-            assert depr_pow_self_twice(2, c1=3) == 8
+    with no_warning_call():
+        assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
 
 
-def test_skip_if_true() -> None:
-    """Test conditional wrapper skip when skip_if=True."""
+def test_deprecated_func_chain() -> None:
+    """Test chaining deprecation wrappers."""
+    with pytest.warns(FutureWarning) as warns:
+        assert depr_pow_self_twice(2, 3) == 8
+    assert len(warns) == 2
+
+    with no_warning_call():
+        assert depr_pow_self_twice(2, c1=3) == 8
+
+
+def test_deprecated_func_default() -> None:
+    """Testing some base/default configurations."""
+    with pytest.warns(
+        FutureWarning,
+        match="The `depr_sum` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
+        " It will be removed in v0.5.",
+    ):
+        assert depr_sum(2) == 7
+
+    # check that the warning is raised only once per function
+    with no_warning_call(FutureWarning):
+        assert depr_sum(3) == 8
+
+    # and does not affect other functions
+    with pytest.warns(
+        FutureWarning,
+        match="The `depr_pow_mix` was deprecated since v0.1 in favor of `tests.collection_targets.base_pow_args`."
+        " It will be removed in v0.5.",
+    ):
+        assert depr_pow_mix(2, 1) == 2
+
+
+def test_deprecated_func_stream_calls() -> None:
+    """Test deprecated function stream and call limits."""
+    # check that the warning is raised only once per function
+    with no_warning_call(FutureWarning):
+        assert depr_sum_no_stream(3) == 8
+
+    # check that the warning is raised only once per function
+    def _call_depr_sum_calls_2() -> None:
+        for _ in range(5):
+            assert depr_sum_calls_2(3) == 8
+
+    with pytest.warns(FutureWarning) as record:
+        _call_depr_sum_calls_2()
+    assert len(record) == 2
+
+    # check that the warning is raised only once per function
+    def _call_depr_sum_calls_inf() -> None:
+        for _ in range(5):
+            assert depr_sum_calls_inf(3) == 8
+
+    with pytest.warns(FutureWarning) as record:
+        _call_depr_sum_calls_inf()
+    assert len(record) == 5
+
+    with pytest.warns(FutureWarning, match="v0.1: `depr_sum_msg` was deprecated, use `base_sum_kwargs`"):
+        assert depr_sum_msg(3) == 8
+
+
+def test_deprecated_func_incomplete() -> None:
+    """Test deprecated functions with incomplete mappings."""
+    # missing required argument
+    with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
+        depr_pow_args(2)
+
+    # missing argument in target
+    with pytest.raises(
+        TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments missing in target source: \['c'\]"
+    ):
+        depr_pow_wrong(2)
+
+    # check that the warning is raised only once per function
+    with no_warning_call(FutureWarning):
+        assert depr_pow_args(2, 1) == 2
+
+    # reset the warning
+    depr_pow_args._warned = False
+    # does not affect other functions
+    with pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3."):
+        assert depr_pow_args(b=2, a=1) == 1
+
+
+def test_deprecated_func_skip_if() -> None:
+    """Test conditional wrapper skip."""
     with no_warning_call():
         assert depr_pow_skip_if_true(2, c1=2) == 2
 
-
-def test_skip_if_func() -> None:
-    """Test conditional wrapper skip when skip_if is a function returning True."""
     with no_warning_call():
         assert depr_pow_skip_if_func(2, c1=2) == 2
 
-
-def test_skip_if_true_false() -> None:
-    """Test conditional wrapper skip when one is True and another is False."""
     with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
         assert depr_pow_skip_if_true_false(2, c1=2) == 0.5
 
-
-def test_skip_if_false_true() -> None:
-    """Test conditional wrapper skip when one is False and another is True."""
     with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
         assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
 
-
-class TestErrorHandling:
-    """Test error handling in deprecated functions."""
-
-    def test_incomplete_missing_arg(self) -> None:
-        """Test missing required argument."""
-        with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
-            depr_pow_args(2)
-
-    def test_incomplete_missing_target(self) -> None:
-        """Test missing argument in target."""
-        with pytest.raises(
-            TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments missing in target source: \['c'\]"
-        ):
-            depr_pow_wrong(2)
-
-    def test_incomplete_once(self) -> None:
-        """Check that the warning is raised only once per function for incomplete mappings."""
-        depr_pow_args._warned = False
-        with pytest.warns(FutureWarning):
-            depr_pow_args(2, 1)
-        with no_warning_call(FutureWarning):
-            assert depr_pow_args(2, 1) == 2
-
-    def test_incomplete_independent(self) -> None:
-        """Check that it does not affect other functions for incomplete mappings."""
-        # reset the warning
-        depr_pow_args._warned = False
-        with pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3."):
-            assert depr_pow_args(b=2, a=1) == 1
-
-    def test_invalid_skip_if(self) -> None:
-        """Test invalid skip_if return value."""
-        with pytest.raises(TypeError, match="User function 'skip_if' shall return bool, but got: <class 'int'>"):
-            assert depr_pow_skip_if_func_int(2, c1=2)
+    with pytest.raises(TypeError, match="User function 'skip_if' shall return bool, but got: <class 'int'>"):
+        assert depr_pow_skip_if_func_int(2, c1=2)
 
 
-def test_deprecated_func_accuracy_map() -> None:
-    """Test mapping to external accuracy_map function."""
+def test_deprecated_func_mapping() -> None:
+    """Test mapping to external functions."""
     with pytest.warns(FutureWarning):
         assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
 
-
-def test_deprecated_func_accuracy_skip() -> None:
-    """Test mapping to external accuracy_skip function."""
     with pytest.warns(FutureWarning):
         assert depr_accuracy_skip([1, 0, 1, 2]) == 0.5
 
-
-def test_deprecated_func_accuracy_extra() -> None:
-    """Test mapping to external accuracy_extra function."""
     with pytest.warns(FutureWarning):
         assert depr_accuracy_extra([1, 0, 1, 2]) == 0.75
 
