@@ -78,12 +78,12 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 | --------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: |
 | **Simple Warnings**         |      ✅       |            ✅            |         ✅          |          ✅          |
 | **Auto-Forwarding Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |
-| **Argument Deprecation**    |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
 | **Argument Mapping**        |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Argument Deprecation**    |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
 | **Docstring Updates**       |      ✅       |            ❌            |         ✅          |          ✅          |
-| **Zero Extra Dependencies** |      ✅       |            ✅            |         ❌          |          ❌          |
-| **Prevent Log Spam**        | ✅ (built-in) |       🖐️ (manual)        |         ❌          |          ❌          |
 | **Version Tracking**        |      ✅       |       🖐️ (manual)        |         ✅          |          ✅          |
+| **Prevent Log Spam**        | ✅ (built-in) |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Zero Extra Dependencies** |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Custom Streams**          |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Testing Helpers**         |      ✅       |            ❌            |         ❌          |          ❌          |
 
