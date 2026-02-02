@@ -366,12 +366,17 @@ class TestDeprecatedClassWrappers:
         """Test that deprecated class-based wrapper forwards to new implementation."""
         from tests.collection_deprecate import DeprTimerDecorator
 
+        # Reset warning counter to ensure consistent behavior
+        if hasattr(DeprTimerDecorator.__init__, "_warned"):
+            DeprTimerDecorator.__init__._warned = 0
+
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
-        # Don't expect warning if already warned in previous test
-        wrapped_func = DeprTimerDecorator(sample_function)
+        # Expect warning on first use
+        with pytest.warns(FutureWarning):
+            wrapped_func = DeprTimerDecorator(sample_function)
 
         # Verify the wrapped function executes correctly
         result = wrapped_func(3)
@@ -407,5 +412,5 @@ class TestDeprecatedClassWrappers:
         with no_warning_call(FutureWarning):
             new_wrapped = TimerDecorator(sample_function)
             result = new_wrapped(4)
-            assert result == 9
-            assert new_wrapped.calls == 1
+        assert result == 9
+        assert new_wrapped.calls == 1
