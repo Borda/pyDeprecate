@@ -68,18 +68,24 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 
 How does pyDeprecate compare to other Python deprecation solutions?
 
-| Feature                   |  pyDeprecate  | warnings.warn (stdlib) | deprecation | Deprecated (wrapt) | deprecated (Tantale) |
-| ------------------------- | :-----------: | :--------------------: | :---------: | :----------------: | :------------------: |
-| **Simple Warnings**       |      ✅       |           ✅           |     ✅      |         ✅         |          ✅          |
-| **Auto-Forwarding Calls** |      ✅       |           ❌           |     ❌      |         ❌         |          ❌          |
-| **Argument Mapping**      |      ✅       |           ❌           |     ❌      |         ❌         |          ❌          |
-| **Docstring Updates**     |      ✅       |           ❌           |     ✅      |      Partial       |          ✅          |
-| **Zero Dependencies**     |      ✅       |           ✅           |     ❌      |         ❌         |          ❌          |
-| **Prevent Log Spam**      | ✅ (built-in) |         Manual         |     ❌      |         ❌         |          ❌          |
-| **Version Tracking**      |      ✅       |         Manual         |     ✅      |         ✅         |          ✅          |
-| **Argument Deprecation**  |      ✅       |         Manual         |     ❌      |         ❌         |       Partial        |
-| **Custom Streams**        |      ✅       |           ✅           |     ❌      |         ❌         |          ❌          |
-| **Testing Helpers**       |      ✅       |           ❌           |     ❌      |         ❌         |          ❌          |
+While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, other tools might fit different needs:
+
+- [`warnings.warn`](https://docs.python.org/3/library/warnings.html) (stdlib): The standard library's built-in function, perfect for simple cases requiring no dependencies.
+- [`deprecation`](https://pypi.org/project/deprecation/) (Lib): A widely used library by Brian Curtin, excellent for version-based deprecations.
+- [`Deprecated`](https://pypi.org/project/Deprecated/) (wrapt): A robust decorator-based library by Laurent Laporte with `wrapt` integration.
+
+| Feature                     | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) |
+| --------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: |
+| **Simple Warnings**         |      ✅       |            ✅            |         ✅          |          ✅          |
+| **Auto-Forwarding Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Argument Deprecation**    |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Argument Mapping**        |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Docstring Updates**       |      ✅       |            ❌            |         ✅          |          ✅          |
+| **Zero Extra Dependencies** |      ✅       |            ✅            |         ❌          |          ❌          |
+| **Prevent Log Spam**        | ✅ (built-in) |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Version Tracking**        |      ✅       |       🖐️ (manual)        |         ✅          |          ✅          |
+| **Custom Streams**          |      ✅       |            ✅            |         ❌          |          ❌          |
+| **Testing Helpers**         |      ✅       |            ❌            |         ❌          |          ❌          |
 
 **Key Advantages of pyDeprecate:**
 
