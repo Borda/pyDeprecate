@@ -89,6 +89,7 @@ Before approving any PR, verify:
 - [ ] Updates documentation if needed
 - [ ] Links to related issue(s)
 - [ ] Passes all CI checks
+- [ ] Run `pre-commit run --all-files` to ensure linting and formatting compliance
 
 ### Documentation & Community Update
 

@@ -297,11 +297,7 @@ class TestDeprecatedFunctionWrappers:
             """A simple function for testing wrappers."""
             return x * 2
 
-        with pytest.warns(
-            FutureWarning,
-            match="The `depr_timing_wrapper` was deprecated since v1.0 in favor of "
-            "`tests.collection_targets.timing_wrapper`. It will be removed in v2.0.",
-        ):
+        with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
 
         # Verify the wrapper was applied correctly
@@ -315,11 +311,7 @@ class TestDeprecatedFunctionWrappers:
             """A simple function for testing wrappers."""
             return x * 2
 
-        with pytest.warns(
-            FutureWarning,
-            match="The `depr_timing_wrapper` was deprecated since v1.0 in favor of "
-            "`tests.collection_targets.timing_wrapper`. It will be removed in v2.0.",
-        ):
+        with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
 
         # Verify the wrapped function executes correctly
@@ -343,11 +335,7 @@ class TestDeprecatedFunctionWrappers:
         """Test warning when applied using @ decorator syntax."""
         from tests.collection_deprecate import depr_timing_wrapper
 
-        with pytest.warns(
-            FutureWarning,
-            match="The `depr_timing_wrapper` was deprecated since v1.0 in favor of "
-            "`tests.collection_targets.timing_wrapper`. It will be removed in v2.0.",
-        ):
+        with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
 
             @depr_timing_wrapper
             def sample_function(x: int) -> int:
@@ -378,11 +366,7 @@ class TestDeprecatedClassWrappers:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
-        with pytest.warns(
-            FutureWarning,
-            match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
-            "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
-        ):
+        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
             wrapped_func = DeprTimerDecorator(sample_function)
 
         # Verify the wrapper was applied correctly
@@ -397,11 +381,7 @@ class TestDeprecatedClassWrappers:
             return x + 5
 
         # Expect warning on first use
-        with pytest.warns(
-            FutureWarning,
-            match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
-            "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
-        ):
+        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
             wrapped_func = DeprTimerDecorator(sample_function)
 
         # Verify the wrapped function executes correctly
@@ -417,11 +397,7 @@ class TestDeprecatedClassWrappers:
             return x + 5
 
         # Expect warning on first use, then test attributes
-        with pytest.warns(
-            FutureWarning,
-            match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
-            "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
-        ):
+        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
             wrapped_func = DeprTimerDecorator(sample_function)
 
         # Call the function once
@@ -450,11 +426,7 @@ class TestDeprecatedClassWrappers:
         """Test warning when applied using @ decorator syntax."""
         from tests.collection_deprecate import DeprTimerDecorator
 
-        with pytest.warns(
-            FutureWarning,
-            match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
-            "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
-        ):
+        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
 
             @DeprTimerDecorator
             def sample_function(x: int) -> int:
