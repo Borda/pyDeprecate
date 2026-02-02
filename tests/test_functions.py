@@ -287,7 +287,7 @@ class TestDeprecatedFunctionWrappers:
 
         # Reset warning counter
         if hasattr(depr_timing_wrapper, "_warned"):
-            depr_timing_wrapper._warned = False
+            depr_timing_wrapper._warned = 0
 
         def sample_function(x: int) -> int:
             """A simple function for testing wrappers."""
@@ -341,7 +341,7 @@ class TestDeprecatedClassWrappers:
 
         # Reset warning counter
         if hasattr(DeprTimerDecorator.__init__, "_warned"):
-            DeprTimerDecorator.__init__._warned = False
+            DeprTimerDecorator.__init__._warned = 0
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""

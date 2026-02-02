@@ -44,19 +44,6 @@ def timing_wrapper(func: Callable) -> Callable:
     return wrapper
 
 
-def logging_wrapper(func: Callable) -> Callable:
-    """Decorator to log function calls (improved version)."""
-
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        """Wrapper function."""
-        print(f"Calling {func.__name__!r} with args={args}, kwargs={kwargs}")
-        result = func(*args, **kwargs)
-        print(f"Function {func.__name__!r} returned {result!r}")
-        return result
-
-    return wrapper
-
 
 class TimerDecorator:
     """A class-based decorator to time functions and methods."""
