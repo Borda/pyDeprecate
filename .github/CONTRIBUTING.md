@@ -215,6 +215,34 @@ git push origin feature/amazing-feature
 - Write meaningful variable and function names
 - Add comments if the code is not self-explanatory
 
+### Test Organization
+
+When writing tests:
+
+- **Group related tests in classes** - Use test classes when you have multiple related tests or need shared fixtures
+- **Avoid redundant naming** - Don't repeat class context in test method names
+  - Example: In `TestDeprecatedWrapper`, use `test_shows_warning()` not `test_deprecated_wrapper_shows_warning()`
+- **Use fixtures for independence** - Use pytest fixtures to reset state between tests
+- **One behavior per test** - Each test method should verify one specific aspect
+
+Example:
+
+```python
+class TestMyFeature:
+    """Test suite for my feature."""
+
+    @pytest.fixture(autouse=True)
+    def reset_state(self) -> None:
+        """Reset state before each test."""
+        # Reset any shared state
+
+    def test_basic_functionality(self) -> None:
+        """Test that feature works correctly."""
+        # Test one specific behavior
+```
+
+Note: Test classes are most beneficial when you have multiple tests or need fixtures. For single standalone tests, a simple test function is sufficient.
+
 ## 📄 License
 
 By contributing, you agree that your contributions will be licensed under the same license as the project (see [LICENSE](../LICENSE) file).

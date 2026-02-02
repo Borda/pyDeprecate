@@ -4,10 +4,12 @@ This module contains various examples of deprecated functions with different
 configurations to test the deprecation functionality.
 """
 
+from typing import Callable
+
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
-from tests.collection_targets import base_pow_args, base_sum_kwargs
+from tests.collection_targets import TimerDecorator, base_pow_args, base_sum_kwargs, timing_wrapper
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
@@ -149,3 +151,27 @@ def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> flo
 def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
     """A properly configured deprecation with accuracy_score target - has effect."""
     return void(preds, truth)
+
+
+# ========== Wrapper Deprecation Examples ==========
+
+
+# Deprecate a function-based timing wrapper in favor of the improved timing_wrapper
+@deprecated(target=timing_wrapper, deprecated_in="1.0", remove_in="2.0")
+def depr_timing_wrapper(func: Callable) -> Callable:
+    """Deprecated timing wrapper - use timing_wrapper instead (better precision and output)."""
+    return void(func)
+
+
+# Deprecate a class-based timer decorator in favor of the improved TimerDecorator
+class DeprTimerDecorator(TimerDecorator):
+    """Deprecated class-based timer - use TimerDecorator instead (better precision and tracking).
+
+    This class inherits from TimerDecorator to provide the same functionality
+    but shows a deprecation warning when used.
+    """
+
+    @deprecated(target=TimerDecorator, deprecated_in="1.0", remove_in="2.0")
+    def __init__(self, func: Callable) -> None:
+        """Initialize deprecated timer."""
+        void(func)
