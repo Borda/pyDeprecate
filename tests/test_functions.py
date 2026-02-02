@@ -1,4 +1,20 @@
-"""Tests for deprecated functions."""
+"""Tests for deprecated functions.
+
+TODO: Reconsider and/or refine the deprecation warning behavior for decorator syntax.
+When using @decorator syntax, the warning is currently raised at decoration time
+(during function/class definition or module import), not at call time.
+This might differ from the intended behavior if warnings should be raised at runtime.
+Consider whether the warning should be raised:
+1. Only once during import/decoration (current behavior)
+2. At every function call (runtime behavior)
+3. Once per function call location (hybrid approach)
+This could be a future improvement to make decorator deprecation more consistent
+with function/class deprecation patterns.
+
+Current test coverage:
+- TestDeprecatedFunctionWrappers.test_with_decorator_syntax (line ~348)
+- TestDeprecatedClassWrappers.test_with_decorator_syntax (line ~447)
+"""
 
 import pytest
 
