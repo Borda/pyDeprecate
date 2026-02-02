@@ -307,12 +307,17 @@ class TestDeprecatedFunctionWrappers:
         """Test that deprecated wrapper function forwards to new implementation."""
         from tests.collection_deprecate import depr_timing_wrapper
 
+        # Ensure this test does not depend on previous tests to set the warned state
+        if hasattr(depr_timing_wrapper, "_warned"):
+            depr_timing_wrapper._warned = 1
+
         def sample_function(x: int) -> int:
             """A simple function for testing wrappers."""
             return x * 2
 
-        # Don't expect warning if already warned in previous test
-        wrapped_func = depr_timing_wrapper(sample_function)
+        # On subsequent use, no deprecation warning should be emitted
+        with no_warning_call(FutureWarning):
+            wrapped_func = depr_timing_wrapper(sample_function)
 
         # Verify the wrapped function executes correctly
         result = wrapped_func(5)
