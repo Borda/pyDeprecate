@@ -25,6 +25,7 @@ ______________________________________________________________________
 
 - [📖 Overview](#overview)
 - [✨ Features](#features)
+  - [Comparison with Other Tools](#comparison-with-other-tools)
 - [💾 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
 - [📚 Use-cases and Applications](#use-cases-and-applications)
@@ -62,6 +63,34 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
 - 🧪 Includes testing helpers (e.g., `no_warning_call`) for deterministic tests
 - 🔗 Compatible with methods, class constructors and cross‑module moves
+
+### 📊 Comparison with Other Tools
+
+How does pyDeprecate compare to other Python deprecation solutions?
+
+| Feature                   |  pyDeprecate  | warnings.warn (stdlib) | deprecation | Deprecated (wrapt) | deprecated (Tantale) |
+| ------------------------- | :-----------: | :--------------------: | :---------: | :----------------: | :------------------: |
+| **Simple Warnings**       |      ✅       |           ✅           |     ✅      |         ✅         |          ✅          |
+| **Auto-Forwarding Calls** |      ✅       |           ❌           |     ❌      |         ❌         |          ❌          |
+| **Argument Mapping**      |      ✅       |           ❌           |     ❌      |         ❌         |          ❌          |
+| **Docstring Updates**     |      ✅       |           ❌           |     ✅      |      Partial       |          ✅          |
+| **Zero Dependencies**     |      ✅       |           ✅           |     ❌      |         ❌         |          ❌          |
+| **Prevent Log Spam**      | ✅ (built-in) |         Manual         |     ❌      |         ❌         |          ❌          |
+| **Version Tracking**      |      ✅       |         Manual         |     ✅      |         ✅         |          ✅          |
+| **Argument Deprecation**  |      ✅       |         Manual         |     ❌      |         ❌         |       Partial        |
+| **Custom Streams**        |      ✅       |           ✅           |     ❌      |         ❌         |          ❌          |
+| **Testing Helpers**       |      ✅       |           ❌           |     ❌      |         ❌         |          ❌          |
+
+**Key Advantages of pyDeprecate:**
+
+- **Auto-forwarding**: Automatically redirect calls to new functions without executing deprecated code
+- **Argument mapping**: Seamlessly translate old API arguments to new ones
+- **Smart warnings**: Shows warnings only N times per function (default: once) to avoid log spam
+- **Zero dependencies**: Uses only Python standard library
+- **Testing-friendly**: Includes helpers like `no_warning_call()` for deterministic testing
+- **Flexible streams**: Output to logging, warnings module, or custom callables
+
+> **ℹ️ Note**: This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
 
 ## 💾 Installation
 
