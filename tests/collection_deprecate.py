@@ -174,4 +174,4 @@ class DeprTimerDecorator(TimerDecorator):
     @deprecated(target=TimerDecorator, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, func: Callable) -> None:
         """Initialize deprecated timer."""
-        super().__init__(func)
+        void(func)
