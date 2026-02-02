@@ -66,11 +66,29 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 
 ### 📊 Comparison with Other Tools
 
-How does pyDeprecate compare to other Python deprecation solutions?
+> 💬 _How does pyDeprecate compare to other Python deprecation solutions?_
+
+While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, other tools might fit different needs:
 
 - [`warnings.warn`](https://docs.python.org/3/library/warnings.html) (stdlib): The standard library's built-in function, perfect for simple cases requiring no dependencies.
 - [`deprecation`](https://pypi.org/project/deprecation/) (Lib): A widely used library by Brian Curtin, excellent for version-based deprecations.
 - [`Deprecated`](https://pypi.org/project/Deprecated/) (wrapt): A robust decorator-based library by Laurent Laporte with `wrapt` integration.
+
+<details>
+  <summary><strong>Key Advantages & Feature Breakdown</strong></summary>
+
+- **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
+- **Auto-Forwarding Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
+- **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
+- **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
+- **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
+- **Version Tracking**: Clearly specifies `deprecated_in` and `remove_in` versions for better lifecycle management.
+- **Prevent Log Spam**: Prevents log spam by showing warnings only once per function (or N times) by default.
+- **Zero Extra Dependencies**: Lightweight and easy to install, relying solely on the Python standard library.
+- **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
+- **Testing Helpers**: Built-in tools like `no_warning_call()` ensure your deprecations are testable and deterministic.
+
+</details>
 
 | Feature                     | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) |
 | --------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: |
@@ -84,21 +102,6 @@ How does pyDeprecate compare to other Python deprecation solutions?
 | **Zero Extra Dependencies** |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Custom Streams**          |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Testing Helpers**         |      ✅       |            ❌            |         ❌          |          ❌          |
-
-<details>
-  <summary><strong>Key Advantages & Feature Breakdown</strong></summary>
-
-  - **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
-  - **Auto-Forwarding Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
-  - **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
-  - **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
-  - **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
-  - **Version Tracking**: Clearly specifies `deprecated_in` and `remove_in` versions for better lifecycle management.
-  - **Prevent Log Spam**: Prevents log spam by showing warnings only once per function (or N times) by default.
-  - **Zero Extra Dependencies**: Lightweight and easy to install, relying solely on the Python standard library.
-  - **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
-  - **Testing Helpers**: Built-in tools like `no_warning_call()` ensure your deprecations are testable and deterministic.
-</details>
 
 > **ℹ️ Note**: This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
 
