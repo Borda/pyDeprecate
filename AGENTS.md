@@ -109,6 +109,38 @@ Before approving any PR, verify:
 
 When writing or modifying code, add comments if the code is not self-explanatory. This improves readability, maintainability, and helps other contributors understand complex logic or non-obvious decisions.
 
+### Test Organization and Naming
+
+When writing tests, follow these guidelines for better maintainability:
+
+- **Use test classes to group related tests** - Group tests by the feature or component being tested
+- **Avoid redundant words in test names** - Since tests are grouped in classes, don't repeat class-level context in method names
+  - ❌ Bad: `class TestDeprecatedWrapper: def test_deprecated_wrapper_shows_warning()`
+  - ✅ Good: `class TestDeprecatedWrapper: def test_shows_warning()`
+- **Use fixtures for test independence** - Use pytest fixtures (especially `@pytest.fixture(autouse=True)`) to reset state between tests, ensuring tests can run independently in any order
+- **Keep test methods focused** - Each test method should verify one specific behavior or aspect
+
+Example of well-organized tests:
+```python
+class TestDeprecatedFunctionWrappers:
+    """Test suite for deprecating function-based wrapper/decorators."""
+
+    @pytest.fixture(autouse=True)
+    def reset_warnings(self) -> None:
+        """Reset warning counters before each test for independence."""
+        from my_module import deprecated_func
+        if hasattr(deprecated_func, "_warned"):
+            deprecated_func._warned = 0
+
+    def test_shows_warning(self) -> None:
+        """Test that deprecated wrapper shows deprecation warning."""
+        # Test implementation...
+
+    def test_forwards_correctly(self) -> None:
+        """Test that wrapper forwards to new implementation."""
+        # Test implementation...
+```
+
 ### Cross-Reference Guidelines
 
 This AGENTS.md file intentionally avoids duplicating content from other documentation:
