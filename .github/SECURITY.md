@@ -11,7 +11,8 @@ Security updates are typically provided for the **latest stable release** of the
 | Latest stable release | ✅ Yes          |
 | Older releases        | ⚠️ Case by case |
 
-> 💡 **Tip:** Always use the latest version to benefit from security patches and improvements.
+> [!TIP]
+> Always use the latest version to benefit from security patches and improvements.
 
 ## 🚨 Reporting a Vulnerability
 
@@ -43,7 +44,8 @@ After you submit a report:
 | Ongoing   | Updates on fix progress                               |
 | Upon fix  | Credit in release notes (unless you prefer anonymity) |
 
-> 🙏 We appreciate your patience. Open source maintainers often work on projects in their spare time.
+> [!NOTE]
+> We appreciate your patience. Open source maintainers often work on projects in their spare time.
 
 ## 🔐 Security Best Practices
 

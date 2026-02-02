@@ -103,7 +103,8 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 | **Custom Streams**       |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |
 
-> **ℹ️ Note**: This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
+> [!NOTE]
+> This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
 
 ## 💾 Installation
 
@@ -280,7 +281,8 @@ print(my_sum(1, 2))
 
 </details>
 
-**Note:** When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
+> [!NOTE]
+> When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
 
 ### 🔄 Self argument mapping
 
@@ -540,7 +542,8 @@ def old_add_v2(a: int, b: int) -> int:
     pass  # This also works
 ```
 
-**💡 Note:** `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
+> [!TIP]
+> `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
 
 ## 🔍 Validating Wrapper Configuration
 

@@ -2,7 +2,8 @@
 
 Thank you for your interest in contributing to pyDeprecate! We appreciate all contributions and welcome everyone, regardless of experience level. Your help makes this project better for everyone.
 
-> 💡 **First time contributing to open source?** Check out [First Contributions](https://github.com/firstcontributions/first-contributions) for a beginner-friendly guide that walks you through the entire process.
+> [!TIP]
+> **First time contributing to open source?** Check out [First Contributions](https://github.com/firstcontributions/first-contributions) for a beginner-friendly guide that walks you through the entire process.
 
 ## 📖 Code of Conduct
 
@@ -41,7 +42,8 @@ Don't hesitate to ask! Open an issue or use discussions to:
 - Understand implementation details — Get help with specific technical questions
 - Get guidance on where to contribute — Find areas where your skills and interests can make the biggest impact
 
-> 💡 Asking questions shows you're thoughtful and helps everyone learn together.
+> [!TIP]
+> Asking questions shows you're thoughtful and helps everyone learn together.
 
 ## 🐛 Reporting Bugs
 
@@ -64,7 +66,8 @@ Bug fixing is a great way to contribute! Here's how to get started:
 4. **Test your fix** — Write or update tests to verify your fix works and prevents the bug from recurring.
 5. **Submit a PR** — Create a pull request with your fix, linking to the issue it addresses.
 
-> 🚀 **Pro tip:** Fixes with tests are more likely to be merged quickly!
+> [!TIP]
+> Fixes with tests are more likely to be merged quickly!
 
 ## 💡 Suggesting Improvements
 
@@ -95,7 +98,8 @@ Here's how to suggest and implement improvements:
 3. **Discuss and refine** — Engage in the issue discussion to clarify requirements and explore alternatives.
 4. **Get consensus** — Ensure there's general agreement from the community before starting implementation.
 
-> ⚠️ **Critical:** Always get maintainer approval before implementing new features! This ensures your work aligns with project direction and won't be wasted effort. Features implemented without prior approval may be rejected.
+> [!CAUTION]
+> Always get maintainer approval before implementing new features! This ensures your work aligns with project direction and won't be wasted effort. Features implemented without prior approval may be rejected.
 
 **When you have approval:**
 
@@ -155,7 +159,8 @@ pre-commit run --all-files
 
 ## 💎 Quality Expectations
 
-> 🙌 **Always do your best — that's the essential spirit of OSS contributions.**
+> [!IMPORTANT]
+> **Always do your best — that's the essential spirit of OSS contributions.**
 
 We value all levels of contribution and want to encourage everyone, regardless of skill level or time available. What matters is being reasonable and meaningful about what you can deliver:
 

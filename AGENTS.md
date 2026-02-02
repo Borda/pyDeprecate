@@ -1,6 +1,7 @@
 # Agent HQ Configuration for pyDeprecate
 
-> 📋 **Note:** For detailed contribution guidelines, coding standards, and development workflows, see the [Contributing Guide](.github/CONTRIBUTING.md). This document focuses on agent-specific configurations and does not duplicate those instructions.
+> [!IMPORTANT]
+> For detailed contribution guidelines, coding standards, and development workflows, see the [Contributing Guide](.github/CONTRIBUTING.md). This document focuses on agent-specific configurations and does not duplicate those instructions.
 
 ## 🧠 Agents
 
