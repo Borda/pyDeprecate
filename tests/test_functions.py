@@ -409,12 +409,17 @@ class TestDeprecatedClassWrappers:
         """Test that deprecated class-based wrapper preserves tracking attributes."""
         from tests.collection_deprecate import DeprTimerDecorator
 
+        # Reset warning counter to ensure consistent behavior
+        if hasattr(DeprTimerDecorator.__init__, "_warned"):
+            DeprTimerDecorator.__init__._warned = 0
+
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
-        # Don't expect warning if already warned in previous test
-        wrapped_func = DeprTimerDecorator(sample_function)
+        # Expect warning on first use, then test attributes
+        with pytest.warns(FutureWarning):
+            wrapped_func = DeprTimerDecorator(sample_function)
 
         # Call the function once
         wrapped_func(3)
