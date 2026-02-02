@@ -315,7 +315,11 @@ class TestDeprecatedFunctionWrappers:
             """A simple function for testing wrappers."""
             return x * 2
 
-        with pytest.warns(FutureWarning):
+        with pytest.warns(
+            FutureWarning,
+            match="The `depr_timing_wrapper` was deprecated since v1.0 in favor of "
+            "`tests.collection_targets.timing_wrapper`. It will be removed in v2.0.",
+        ):
             wrapped_func = depr_timing_wrapper(sample_function)
 
         # Verify the wrapped function executes correctly
@@ -393,7 +397,11 @@ class TestDeprecatedClassWrappers:
             return x + 5
 
         # Expect warning on first use
-        with pytest.warns(FutureWarning):
+        with pytest.warns(
+            FutureWarning,
+            match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
+            "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
+        ):
             wrapped_func = DeprTimerDecorator(sample_function)
 
         # Verify the wrapped function executes correctly
@@ -409,7 +417,11 @@ class TestDeprecatedClassWrappers:
             return x + 5
 
         # Expect warning on first use, then test attributes
-        with pytest.warns(FutureWarning):
+        with pytest.warns(
+            FutureWarning,
+            match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
+            "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
+        ):
             wrapped_func = DeprTimerDecorator(sample_function)
 
         # Call the function once

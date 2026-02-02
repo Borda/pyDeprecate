@@ -219,7 +219,7 @@ git push origin feature/amazing-feature
 
 When writing tests:
 
-- **Group related tests in classes** - Use test classes to organize tests by feature or component
+- **Group related tests in classes** - Use test classes when you have multiple related tests or need shared fixtures
 - **Avoid redundant naming** - Don't repeat class context in test method names
   - Example: In `TestDeprecatedWrapper`, use `test_shows_warning()` not `test_deprecated_wrapper_shows_warning()`
 - **Use fixtures for independence** - Use pytest fixtures to reset state between tests
@@ -231,7 +231,7 @@ class TestMyFeature:
     """Test suite for my feature."""
     
     @pytest.fixture(autouse=True)
-    def setup(self) -> None:
+    def reset_state(self) -> None:
         """Reset state before each test."""
         # Reset any shared state
     
@@ -239,6 +239,8 @@ class TestMyFeature:
         """Test that feature works correctly."""
         # Test one specific behavior
 ```
+
+Note: Test classes are most beneficial when you have multiple tests or need fixtures. For single standalone tests, a simple test function is sufficient.
 
 ## 📄 License
 
