@@ -44,7 +44,6 @@ def timing_wrapper(func: Callable) -> Callable:
     return wrapper
 
 
-
 class TimerDecorator:
     """A class-based decorator to time functions and methods."""
 
