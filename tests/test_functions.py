@@ -336,6 +336,29 @@ class TestDeprecatedFunctionWrappers:
             result = new_wrapped(7)
             assert result == 14
 
+    def test_deprecated_wrapper_with_decorator_syntax(self) -> None:
+        """Test that deprecated wrapper shows warning when applied using @ decorator syntax."""
+        from tests.collection_deprecate import depr_timing_wrapper
+
+        # Reset warning counter
+        if hasattr(depr_timing_wrapper, "_warned"):
+            depr_timing_wrapper._warned = 0
+
+        with pytest.warns(
+            FutureWarning,
+            match="The `depr_timing_wrapper` was deprecated since v1.0 in favor of "
+            "`tests.collection_targets.timing_wrapper`. It will be removed in v2.0.",
+        ):
+
+            @depr_timing_wrapper
+            def sample_function(x: int) -> int:
+                """A simple function for testing wrappers with @ syntax."""
+                return x * 3
+
+        # Verify the wrapped function works correctly
+        result = sample_function(4)
+        assert result == 12
+
 
 class TestDeprecatedClassWrappers:
     """Test suite for deprecating class-based wrapper/decorators."""
@@ -409,3 +432,31 @@ class TestDeprecatedClassWrappers:
             result = new_wrapped(4)
             assert result == 9
             assert new_wrapped.calls == 1
+
+    def test_deprecated_wrapper_with_decorator_syntax(self) -> None:
+        """Test that deprecated class-based wrapper shows warning when applied using @ decorator syntax."""
+        from tests.collection_deprecate import DeprTimerDecorator
+
+        # Reset warning counter
+        if hasattr(DeprTimerDecorator.__init__, "_warned"):
+            DeprTimerDecorator.__init__._warned = 0
+
+        with pytest.warns(
+            FutureWarning,
+            match="The `DeprTimerDecorator` was deprecated since v1.0 in favor of "
+            "`tests.collection_targets.TimerDecorator`. It will be removed in v2.0.",
+        ):
+
+            @DeprTimerDecorator
+            def sample_function(x: int) -> int:
+                """A simple function for testing class-based wrappers with @ syntax."""
+                return x + 5
+
+        # Verify the wrapped function works correctly
+        result = sample_function(3)
+        assert result == 8
+
+        # Verify tracking attributes exist
+        assert hasattr(sample_function, "total_time")
+        assert hasattr(sample_function, "calls")
+        assert sample_function.calls == 1
