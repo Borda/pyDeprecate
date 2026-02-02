@@ -122,6 +122,7 @@ When writing tests, follow these guidelines for better maintainability:
 - **Keep test methods focused** - Each test method should verify one specific behavior or aspect
 
 Example of well-organized tests:
+
 ```python
 class TestDeprecatedFunctionWrappers:
     """Test suite for deprecating function-based wrapper/decorators."""
@@ -130,6 +131,7 @@ class TestDeprecatedFunctionWrappers:
     def reset_warnings(self) -> None:
         """Reset warning counters before each test for independence."""
         from my_module import deprecated_func
+
         if hasattr(deprecated_func, "_warned"):
             deprecated_func._warned = 0
 

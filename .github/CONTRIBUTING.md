@@ -226,15 +226,16 @@ When writing tests:
 - **One behavior per test** - Each test method should verify one specific aspect
 
 Example:
+
 ```python
 class TestMyFeature:
     """Test suite for my feature."""
-    
+
     @pytest.fixture(autouse=True)
     def reset_state(self) -> None:
         """Reset state before each test."""
         # Reset any shared state
-    
+
     def test_basic_functionality(self) -> None:
         """Test that feature works correctly."""
         # Test one specific behavior
