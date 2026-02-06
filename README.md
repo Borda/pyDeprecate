@@ -641,9 +641,7 @@ for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(
-            f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}"
-        )
+        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if r.no_effect]
@@ -708,9 +706,7 @@ def test_deprecated_wrappers_are_valid():
     if wrong_args:
         for r in wrong_args:
             print(f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}")
-        pytest.fail(
-            f"Found {len(wrong_args)} deprecated wrappers with invalid arguments"
-        )
+        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid arguments")
 
     # Warn for identity mappings (less severe)
     for r in identity_mappings:
