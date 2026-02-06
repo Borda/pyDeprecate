@@ -12,10 +12,10 @@ jobs:
   links-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: 🔀 Checkout repository
         uses: actions/checkout@v6
 
-      - name: Link Checker
+      - name: 🔗 Link Checker
         uses: lycheeverse/lychee-action@v2
         with:
           # default args: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
