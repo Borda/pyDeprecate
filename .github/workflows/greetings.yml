@@ -7,7 +7,8 @@ jobs:
   greeting:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/first-interaction@v3
+      - name: 👋 First interaction greeting
+        uses: actions/first-interaction@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           issue-message: "Hi! thanks for your contribution!, great first issue!"
