@@ -40,6 +40,27 @@ TEMPLATE_DOC_DEPRECATED = """
    %(remove_text)s
    %(target_text)s
 """
+#: Template for documentation with deprecated callable using Markdown Admonitions
+TEMPLATE_DOC_DEPRECATED_MARKDOWN = """
+!!! warning "Deprecated in %(deprecated_in)s"
+    %(remove_text)s
+    %(target_text)s
+"""
+
+#: Deprecation notice for Google-style docstrings (to be injected before Args:)
+TEMPLATE_DOC_DEPRECATED_GOOGLE = """
+Deprecation:
+    %(remove_text)s
+    %(target_text)s
+"""
+
+#: Deprecation notice for NumPy-style docstrings (to be injected before Parameters)
+TEMPLATE_DOC_DEPRECATED_NUMPY = """
+Deprecated
+----------
+%(remove_text)s
+%(target_text)s
+"""
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
