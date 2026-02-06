@@ -23,25 +23,25 @@ ______________________________________________________________________
 
 ## 📋 Table of Contents
 
-- [📖 Overview](#overview)
-- [✨ Features](#features)
-  - [Comparison with Other Tools](#comparison-with-other-tools)
-- [💾 Installation](#installation)
-- [🚀 Quick Start](#quick-start)
-- [📚 Use-cases and Applications](#use-cases-and-applications)
-  - [Simple function forwarding](#simple-function-forwarding)
-  - [Advanced target argument mapping](#advanced-target-argument-mapping)
-  - [Deprecation warning only](#deprecation-warning-only)
-  - [Self argument mapping](#self-argument-mapping)
-  - [Multiple deprecation levels](#multiple-deprecation-levels)
-  - [Conditional skip](#conditional-skip)
-  - [Class deprecation](#class-deprecation)
-  - [Automatic docstring updates](#automatic-docstring-updates)
-- [🔇 Understanding the void() Helper](#understanding-the-void-helper)
-- [🔍 Validating Wrapper Configuration](#validating-wrapper-configuration)
-- [🧪 Testing Deprecated Code](#testing-deprecated-code)
-- [🔧 Troubleshooting](#troubleshooting)
-- [🤝 Contributing](#contributing)
+- [📖 Overview](#-overview)
+- [✨ Features](#-features)
+  - [Comparison with Other Tools](#-comparison-with-other-tools)
+- [💾 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [📚 Use-cases and Applications](#-use-cases-and-applications)
+  - [Simple function forwarding](#-simple-function-forwarding)
+  - [Advanced target argument mapping](#-advanced-target-argument-mapping)
+  - [Deprecation warning only](#-deprecation-warning-only)
+  - [Self argument mapping](#-self-argument-mapping)
+  - [Multiple deprecation levels](#-multiple-deprecation-levels)
+  - [Conditional skip](#-conditional-skip)
+  - [Class deprecation](#-class-deprecation)
+  - [Automatic docstring updates](#-automatic-docstring-updates)
+- [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
+- [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
+- [🧪 Testing Deprecated Code](#-testing-deprecated-code)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [🤝 Contributing](#-contributing)
 
 ## 📖 Overview
 
@@ -170,7 +170,7 @@ In particular the target values (cases):
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
-### ➡️ Simple function forwarding
+### ➡ Simple function forwarding
 
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
 
@@ -253,7 +253,7 @@ sample output:
 
 </details>
 
-### ⚠️ Deprecation warning only
+### ⚠ Deprecation warning only
 
 Base use-case with no forwarding and just raising a warning:
 
@@ -363,7 +363,7 @@ code output:
 
 </details>
 
-### ⚙️ Conditional skip
+### ⚙ Conditional skip
 
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
 
@@ -409,7 +409,7 @@ print(skip_pow(2, 3))
 
 This can be beneficial with multiple deprecation levels shown above...
 
-### 🏗️ Class deprecation
+### 🏗 Class deprecation
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 
