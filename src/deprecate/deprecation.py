@@ -69,12 +69,20 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     """
     if not fn_args:
         return fn_kwargs
-    func_arg_type_val = get_func_arguments_types_defaults(func)
-    # parse only the argument names
-    arg_names = [arg[0] for arg in func_arg_type_val]
-    # convert args to kwargs
-    fn_kwargs.update(dict(zip(arg_names, fn_args)))
-    return fn_kwargs
+    params = list(inspect.signature(func).parameters.values())
+    updated_kwargs = dict(fn_kwargs)
+    for index, arg in enumerate(fn_args):
+        if index >= len(params):
+            break
+        param = params[index]
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            break
+        if param.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            updated_kwargs[param.name] = arg
+    return updated_kwargs
 
 
 def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
@@ -432,6 +440,7 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
+            raw_kwargs = dict(kwargs)
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
@@ -480,6 +489,11 @@ def deprecated(
                 kwargs.update(args_extra)
 
             if not callable(target):
+                if target is None and any(
+                    param.kind == inspect.Parameter.VAR_POSITIONAL
+                    for param in inspect.signature(source).parameters.values()
+                ):
+                    return source(*args, **raw_kwargs)
                 return source(**kwargs)
 
             # Validate that all arguments can be passed to target
