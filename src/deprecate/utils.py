@@ -123,7 +123,7 @@ def _get_signature_cached(func: Callable) -> inspect.Signature:
 
 
 def _get_signature(func: Callable) -> inspect.Signature:
-    """Cache inspect.signature lookups for repeated calls.
+    """Get function signature with caching when possible.
 
     Falls back to uncached lookup for unhashable callables.
     """
