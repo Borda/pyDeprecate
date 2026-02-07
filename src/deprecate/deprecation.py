@@ -548,7 +548,7 @@ def deprecated(
 
             # Validate that all arguments can be passed to target
             target_is_class = inspect.isclass(target)
-            # Class-to-class forwarding instantiates the target directly instead of calling __init__ manually.
+            # Class-to-class forwarding instantiates the target directly; function-to-class forwarding calls __init__.
             target_func = target
             if target_is_class and not source_is_class:
                 target_func = target.__init__
@@ -562,7 +562,8 @@ def deprecated(
             # Check for arguments that target doesn't accept
             missed = [arg for arg in kwargs if arg not in target_args]
             is_enum_value_case = False
-            if target_is_class:
+            source_is_enum = source_is_class and issubclass(source, Enum)
+            if target_is_class and source_is_enum:
                 try:
                     is_enum_value_case = issubclass(target, Enum) and missed == ["value"]
                 except TypeError:
@@ -572,7 +573,7 @@ def deprecated(
                 if varargs is None:
                     # Target doesn't accept these args and doesn't have *args to catch them.
                     raise TypeError(
-                        f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}"
+                        f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}"
                     )
                 if not is_enum_value_case:
                     raise TypeError(

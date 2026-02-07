@@ -233,7 +233,7 @@ class TestErrorHandling:
     def test_incomplete_missing_target(self) -> None:
         """Test missing argument in target."""
         with pytest.raises(
-            TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments missing in target source: \['c'\]"
+            TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments not accepted by target: \['c'\]"
         ):
             depr_pow_wrong(2)
 
