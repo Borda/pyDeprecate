@@ -35,6 +35,8 @@ TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
+#: Enum constructor keyword for value lookups.
+ENUM_VALUE_PARAM = "value"
 #: Default template for documentation with deprecated callable
 TEMPLATE_DOC_DEPRECATED = """
 .. deprecated:: %(deprecated_in)s
@@ -567,10 +569,11 @@ def deprecated(
                 try:
                     source_is_enum = issubclass(source, Enum)
                 except TypeError:
+                    # issubclass can fail when source is not a class type.
                     source_is_enum = False
             if target_is_class and source_is_enum:
                 try:
-                    is_enum_value_case = issubclass(target, Enum) and len(missed) == 1 and "value" in missed
+                    is_enum_value_case = issubclass(target, Enum) and len(missed) == 1 and ENUM_VALUE_PARAM in missed
                 except TypeError:
                     # issubclass can fail for non-class callables; treat as non-enum.
                     pass
@@ -583,7 +586,7 @@ def deprecated(
                 if not is_enum_value_case:
                     raise TypeError(
                         f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts "
-                        f"*args but does not accept these keyword arguments): {missed}"
+                        f"*args but these keyword arguments are not allowed): {missed}"
                     )
             # Positional args become kwargs for regular callables; source classes with varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
