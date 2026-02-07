@@ -46,7 +46,10 @@ deprecation_warning = partial(warn, category=FutureWarning)
 
 @lru_cache(maxsize=None)
 def _get_signature(func: Callable) -> inspect.Signature:
-    """Cache inspect.signature lookups for repeated calls."""
+    """Cache inspect.signature lookups since signatures are stable at runtime.
+
+    Uses an unbounded cache (``maxsize=None``) because decorated callables are reused.
+    """
     return inspect.signature(func)
 
 
@@ -453,6 +456,7 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
+            # Preserve original kwargs for var-positional fallback before remapping.
             original_kwargs = kwargs
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)

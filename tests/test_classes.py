@@ -130,7 +130,8 @@ class TestDeprecatedEnums:
 
     def test_enum_attribute_access(self) -> None:
         """Test attribute access on deprecated Enum."""
-        assert DeprecatedEnum.ALPHA.value == "alpha"
+        with no_warning_call(FutureWarning):
+            assert DeprecatedEnum.ALPHA.value == "alpha"
 
 
 class TestDeprecatedDataclasses:
