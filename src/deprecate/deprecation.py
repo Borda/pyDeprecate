@@ -572,10 +572,10 @@ def deprecated(
                     raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
                 if not is_enum_value_case:
                     raise TypeError(
-                        f"Failed mapping of `{source.__name__}`, arguments missing in target source (expected Enum "
-                        f"value parameter): {missed}"
+                        f"Failed mapping of `{source.__name__}`, arguments missing in target source (varargs "
+                        f"signature does not accept these keywords): {missed}"
                     )
-            # all args were already moved to kwargs
+            # Positional args are mapped into kwargs for regular callables; class-level varargs keep original args.
             # For class-level wrappers with var-positional signatures (e.g., Enum), preserve original args so the
             # target constructor receives positional values instead of dropped kwargs-only mapping.
             if source_is_class and source_has_var_positional:
