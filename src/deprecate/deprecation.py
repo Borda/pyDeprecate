@@ -58,6 +58,15 @@ def _positional_label(count: int) -> str:
     return "argument" if count == 1 else "arguments"
 
 
+def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
+    """Filter positional-only and positional-or-keyword parameters."""
+    return [
+        param
+        for param in params
+        if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+
+
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
     """Convert positional arguments to keyword arguments using function signature.
 
@@ -86,11 +95,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     if not fn_args:
         return fn_kwargs
     params = list(_get_signature(func).parameters.values())
-    positional_params = [
-        param
-        for param in params
-        if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-    ]
+    positional_params = _get_positional_params(params)
     has_var_positional = any(param.kind == inspect.Parameter.VAR_POSITIONAL for param in params)
 
     if not has_var_positional and len(fn_args) > len(positional_params):
@@ -104,11 +109,11 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
                 f"{func.__qualname__}() takes {len(positional_params)} positional {expected_label} "
                 f"but got {len(fn_args)} positional {received_label}"
             )
-        range_label = _positional_label(len(positional_params))
+        max_positional_label = _positional_label(len(positional_params))
         received_label = _positional_label(len(fn_args))
         raise TypeError(
             f"{func.__qualname__}() takes {len(required_positional_params)} to {len(positional_params)} "
-            f"positional {range_label} but got {len(fn_args)} positional {received_label}"
+            f"positional {max_positional_label} but got {len(fn_args)} positional {received_label}"
         )
     updated_kwargs = dict(fn_kwargs)
     for index, arg in enumerate(fn_args):
