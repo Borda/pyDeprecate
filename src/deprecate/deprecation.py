@@ -562,10 +562,15 @@ def deprecated(
             # Check for arguments that target doesn't accept
             missed = [arg for arg in kwargs if arg not in target_args]
             is_enum_value_case = False
-            source_is_enum = source_is_class and issubclass(source, Enum)
+            source_is_enum = False
+            if source_is_class:
+                try:
+                    source_is_enum = issubclass(source, Enum)
+                except TypeError:
+                    source_is_enum = False
             if target_is_class and source_is_enum:
                 try:
-                    is_enum_value_case = issubclass(target, Enum) and missed == ["value"]
+                    is_enum_value_case = issubclass(target, Enum) and len(missed) == 1 and "value" in missed
                 except TypeError:
                     # issubclass can fail for non-class callables; treat as non-enum.
                     pass
@@ -577,8 +582,8 @@ def deprecated(
                     )
                 if not is_enum_value_case:
                     raise TypeError(
-                        f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target has "
-                        f"varargs but does not accept these keyword arguments): {missed}"
+                        f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts "
+                        f"*args but does not accept these keyword arguments): {missed}"
                     )
             # Positional args become kwargs for regular callables; source classes with varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
