@@ -12,7 +12,7 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect
-from functools import partial, wraps
+from functools import lru_cache, partial, wraps
 from typing import Any, Callable, Optional, Union
 from warnings import warn
 
@@ -44,6 +44,12 @@ TEMPLATE_DOC_DEPRECATED = """
 deprecation_warning = partial(warn, category=FutureWarning)
 
 
+@lru_cache(maxsize=None)
+def _get_signature(func: Callable) -> inspect.Signature:
+    """Cache inspect.signature lookups for repeated calls."""
+    return inspect.signature(func)
+
+
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
     """Convert positional arguments to keyword arguments using function signature.
 
@@ -71,7 +77,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     """
     if not fn_args:
         return fn_kwargs
-    params = list(inspect.signature(func).parameters.values())
+    params = list(_get_signature(func).parameters.values())
     updated_kwargs = dict(fn_kwargs)
     for index, arg in enumerate(fn_args):
         if index >= len(params):
@@ -433,7 +439,7 @@ def deprecated(
     def packing(source: Callable) -> Callable:
         has_var_positional = target is None and any(
             param.kind == inspect.Parameter.VAR_POSITIONAL
-            for param in inspect.signature(source).parameters.values()
+            for param in _get_signature(source).parameters.values()
         )
 
         @wraps(source)
@@ -447,7 +453,7 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
-            original_kwargs = dict(kwargs) if has_var_positional else None
+            original_kwargs = kwargs if has_var_positional else None
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
