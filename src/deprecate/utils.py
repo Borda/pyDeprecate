@@ -24,6 +24,7 @@ import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from typing import Any, Callable, Optional, Union
 
 
@@ -102,13 +103,19 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
         - Excludes *args and **kwargs (use inspect.getfullargspec for those)
 
     """
-    func_default_params = inspect.signature(func).parameters
+    func_default_params = _get_signature(func).parameters
     func_arg_type_val = []
     for arg in func_default_params:
         arg_type = func_default_params[arg].annotation
         arg_default = func_default_params[arg].default
         func_arg_type_val.append((arg, arg_type, arg_default))
     return func_arg_type_val
+
+
+@lru_cache(maxsize=256)
+def _get_signature(func: Callable) -> inspect.Signature:
+    """Cache inspect.signature lookups for repeated calls."""
+    return inspect.signature(func)
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
