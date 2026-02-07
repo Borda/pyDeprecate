@@ -12,6 +12,7 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect
+from enum import Enum
 from functools import lru_cache, partial, wraps
 from typing import Any, Callable, Optional, Union
 from warnings import warn
@@ -547,7 +548,9 @@ def deprecated(
 
             # Validate that all arguments can be passed to target
             target_is_class = inspect.isclass(target)
-            target_func = target if target_is_class and source_is_class else target.__init__ if target_is_class else target
+            target_func = target
+            if target_is_class and not source_is_class:
+                target_func = target.__init__
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             # get full args & name of varkw
@@ -557,9 +560,16 @@ def deprecated(
 
             # Check for arguments that target doesn't accept
             missed = [arg for arg in kwargs if arg not in target_args]
-            if missed and varkw is None and varargs is None:
-                # Target doesn't accept these args and doesn't have **kwargs to catch them
-                raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
+            is_enum_value_case = target_is_class and issubclass(target, Enum) and missed == ["value"]
+            if missed and varkw is None:
+                if varargs is None:
+                    # Target doesn't accept these args and doesn't have **kwargs to catch them
+                    raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
+                if not is_enum_value_case:
+                    raise TypeError(
+                        f"Failed mapping of `{source.__name__}`, arguments missing in target (expected Enum value "
+                        f"parameter): {missed}"
+                    )
             # all args were already moved to kwargs
             if source_is_class and source_has_var_positional:
                 return target_func(*args, **kwargs)
