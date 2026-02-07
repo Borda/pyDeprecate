@@ -551,6 +551,7 @@ def deprecated(
             target_func = target
             if target_is_class and not source_is_class:
                 target_func = target.__init__
+            # Class-to-class forwarding instantiates the target directly instead of calling __init__ manually.
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             # get full args & name of varkw
@@ -560,7 +561,12 @@ def deprecated(
 
             # Check for arguments that target doesn't accept
             missed = [arg for arg in kwargs if arg not in target_args]
-            is_enum_value_case = target_is_class and issubclass(target, Enum) and missed == ["value"]
+            is_enum_value_case = False
+            if target_is_class:
+                try:
+                    is_enum_value_case = issubclass(target, Enum) and missed == ["value"]
+                except TypeError:
+                    is_enum_value_case = False
             if missed and varkw is None:
                 if varargs is None:
                     # Target doesn't accept these args and doesn't have **kwargs to catch them
