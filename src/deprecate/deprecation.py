@@ -560,7 +560,9 @@ def deprecated(
 
             # Check for arguments that target doesn't accept
             missed = [arg for arg in kwargs if arg not in target_args]
-            is_enum_value_case = target_is_class and issubclass(target, Enum) and missed == ["value"]
+            is_enum_value_case = False
+            if target_is_class and isinstance(target, type):
+                is_enum_value_case = issubclass(target, Enum) and missed == ["value"]
             if missed and varkw is None:
                 if varargs is None:
                     # Target doesn't accept these args and doesn't have **kwargs to catch them
@@ -570,10 +572,8 @@ def deprecated(
                         f"Failed mapping of `{source.__name__}`, arguments missing in target source (target has "
                         f"varargs but does not accept these keyword arguments): {missed}"
                     )
-            # Positional args are mapped into kwargs for regular callables; class-level varargs keep original args.
-            # In the default path below, positional arguments have already been converted to keyword arguments.
-            # For class-level wrappers with var-positional signatures (e.g., Enum), preserve original args so the
-            # target constructor receives positional values instead of dropped kwargs-only mapping.
+            # Positional args become kwargs for regular callables; class-level varargs keep positional values.
+            # For Enum-style signatures, preserve original args so target constructors receive positional values.
             if source_is_class and source_has_var_positional:
                 return target_func(*args, **kwargs)
             return target_func(**kwargs)
