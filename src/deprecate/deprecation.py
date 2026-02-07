@@ -446,7 +446,7 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
-            raw_kwargs = dict(kwargs)
+            raw_kwargs = dict(kwargs) if has_var_positional else None
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
