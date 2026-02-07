@@ -95,12 +95,11 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
             expected_label = "argument" if len(positional_params) == 1 else "arguments"
             raise TypeError(
                 f"{func.__qualname__}() takes {len(positional_params)} positional {expected_label} "
-                f"but got {len(fn_args)}"
+                f"but got {len(fn_args)} positional arguments"
             )
         raise TypeError(
             f"{func.__qualname__}() takes from {len(required_positional_params)} to {len(positional_params)} "
-            "positional arguments but got "
-            f"{len(fn_args)}"
+            f"positional arguments but got {len(fn_args)} positional arguments"
         )
     updated_kwargs = dict(fn_kwargs)
     for index, arg in enumerate(fn_args):
