@@ -437,7 +437,7 @@ def deprecated(
     """
 
     def packing(source: Callable) -> Callable:
-        has_var_positional = target is None and any(
+        needs_var_positional_fallback = target is None and any(
             param.kind == inspect.Parameter.VAR_POSITIONAL
             for param in _get_signature(source).parameters.values()
         )
@@ -453,7 +453,8 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
-            original_kwargs = kwargs if has_var_positional else None
+            if needs_var_positional_fallback:
+                original_kwargs = kwargs
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
@@ -502,7 +503,7 @@ def deprecated(
                 kwargs.update(args_extra)
 
             if not callable(target):
-                if has_var_positional:
+                if needs_var_positional_fallback:
                     return source(*args, **original_kwargs)
                 return source(**kwargs)
 
