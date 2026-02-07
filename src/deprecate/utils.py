@@ -114,15 +114,17 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
 
 @lru_cache(maxsize=256)
 def _get_signature_cached(func: Callable) -> inspect.Signature:
-    """Cache inspect.signature lookups for repeated calls."""
+    """Cache inspect.signature lookups for repeated calls.
+
+    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime.
+    The size balances reuse for common callables without unbounded memory growth.
+    """
     return inspect.signature(func)
 
 
 def _get_signature(func: Callable) -> inspect.Signature:
     """Cache inspect.signature lookups for repeated calls.
 
-    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime.
-    The size balances reuse for common callables without unbounded memory growth.
     Falls back to uncached lookup for unhashable callables.
     """
     try:

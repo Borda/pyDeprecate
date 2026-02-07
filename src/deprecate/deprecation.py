@@ -105,7 +105,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
         range_label = _positional_label(len(positional_params))
         received_label = _positional_label(len(fn_args))
         raise TypeError(
-            f"{func.__qualname__}() takes from {len(required_positional_params)} to {len(positional_params)} "
+            f"{func.__qualname__}() takes {len(required_positional_params)} to {len(positional_params)} "
             f"positional {range_label} but got {len(fn_args)} positional {received_label}"
         )
     updated_kwargs = dict(fn_kwargs)
