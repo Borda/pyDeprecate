@@ -122,6 +122,7 @@ def _get_signature(func: Callable) -> inspect.Signature:
     """Cache inspect.signature lookups for repeated calls.
 
     Uses an LRU cache (maxsize=256) since function signatures are stable at runtime.
+    The size balances reuse for common callables without unbounded memory growth.
     Falls back to uncached lookup for unhashable callables.
     """
     try:

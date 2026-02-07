@@ -91,7 +91,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
         required_positional = [param for param in positional_params if param.default is inspect.Parameter.empty]
         if len(required_positional) == len(positional_params):
             raise TypeError(
-                f"{func.__qualname__}() takes {len(positional_params)} positional arguments "
+                f"{func.__qualname__}() takes at most {len(positional_params)} positional arguments "
                 f"but {len(fn_args)} were given"
             )
         raise TypeError(
