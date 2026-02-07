@@ -172,6 +172,11 @@ class TestDeprecatedEnums:
         with pytest.warns(FutureWarning):
             assert MappedEnum(old_value="alpha") is ReplacementEnum.ALPHA
 
+    def test_enum_argument_mapping_positional_value(self) -> None:
+        """Test mapped Enum forwards positional value to replacement."""
+        with pytest.warns(FutureWarning):
+            assert MappedEnum("alpha") is ReplacementEnum.ALPHA
+
 
 class TestDeprecatedDataclasses:
     """Tests for deprecated dataclass wrappers."""
