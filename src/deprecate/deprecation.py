@@ -94,17 +94,18 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     has_var_positional = any(param.kind == inspect.Parameter.VAR_POSITIONAL for param in params)
 
     if not has_var_positional and len(fn_args) > len(positional_params):
-        received_label = _positional_label(len(fn_args))
         required_positional_params = [
             param for param in positional_params if param.default is inspect.Parameter.empty
         ]
         if len(required_positional_params) == len(positional_params):
             expected_label = _positional_label(len(positional_params))
+            received_label = _positional_label(len(fn_args))
             raise TypeError(
                 f"{func.__qualname__}() takes {len(positional_params)} positional {expected_label} "
                 f"but got {len(fn_args)} positional {received_label}"
             )
-        range_label = _positional_label(2)
+        range_label = _positional_label(len(positional_params))
+        received_label = _positional_label(len(fn_args))
         raise TypeError(
             f"{func.__qualname__}() takes {len(required_positional_params)} to {len(positional_params)} "
             f"positional {range_label} but got {len(fn_args)} positional {received_label}"
