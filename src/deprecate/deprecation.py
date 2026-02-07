@@ -89,18 +89,17 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     has_var_positional = any(param.kind == inspect.Parameter.VAR_POSITIONAL for param in params)
     if not has_var_positional and len(fn_args) > len(positional_params):
         positional_arg_label = "argument" if len(positional_params) == 1 else "arguments"
-        given_verb = "was" if len(fn_args) == 1 else "were"
         required_positional_params = [
             param for param in positional_params if param.default is inspect.Parameter.empty
         ]
         if len(required_positional_params) == len(positional_params):
             raise TypeError(
                 f"{func.__qualname__}() takes {len(positional_params)} positional {positional_arg_label} "
-                f"but {len(fn_args)} {given_verb} given"
+                f"but got {len(fn_args)}"
             )
         raise TypeError(
             f"{func.__qualname__}() takes from {len(required_positional_params)} to {len(positional_params)} "
-            f"positional {positional_arg_label} but {len(fn_args)} {given_verb} given"
+            f"positional {positional_arg_label} but got {len(fn_args)}"
         )
     updated_kwargs = dict(fn_kwargs)
     for index, arg in enumerate(fn_args):
