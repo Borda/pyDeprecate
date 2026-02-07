@@ -58,7 +58,8 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
 
     Returns:
         Dictionary combining converted positional arguments and existing kwargs,
-        where positional args are now mapped to their parameter names.
+        where positional args are now mapped to their parameter names. Conversion
+        stops when encountering var-positional parameters (``*args``).
 
     Example:
         >>> from pprint import pprint
@@ -429,6 +430,11 @@ def deprecated(
     """
 
     def packing(source: Callable) -> Callable:
+        has_var_positional = target is None and any(
+            param.kind == inspect.Parameter.VAR_POSITIONAL
+            for param in inspect.signature(source).parameters.values()
+        )
+
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             # check if user requested a skip
@@ -489,10 +495,7 @@ def deprecated(
                 kwargs.update(args_extra)
 
             if not callable(target):
-                if target is None and any(
-                    param.kind == inspect.Parameter.VAR_POSITIONAL
-                    for param in inspect.signature(source).parameters.values()
-                ):
+                if has_var_positional:
                     return source(*args, **raw_kwargs)
                 return source(**kwargs)
 
