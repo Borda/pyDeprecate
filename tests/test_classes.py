@@ -51,6 +51,35 @@ class DeprecatedIntEnum(Enum):
     TWO = 2
 
 
+class ReplacementEnum(Enum):
+    """Replacement enum for forwarding tests."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(target=ReplacementEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+class RedirectedEnum(Enum):
+    """Deprecated enum that forwards to a replacement enum."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(
+    target=ReplacementEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class MappedEnum(Enum):
+    """Deprecated enum that forwards to a replacement enum with argument mapping."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
 @deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 @dataclass
 class DeprecatedDataClass:
@@ -132,6 +161,16 @@ class TestDeprecatedEnums:
         """Test attribute access on deprecated Enum."""
         with no_warning_call(FutureWarning):
             assert DeprecatedEnum.ALPHA.value == "alpha"
+
+    def test_enum_redirects_to_replacement(self) -> None:
+        """Test deprecated Enum forwarding to a replacement Enum."""
+        with pytest.warns(FutureWarning):
+            assert RedirectedEnum("alpha") is ReplacementEnum.ALPHA
+
+    def test_enum_argument_mapping_forwards(self) -> None:
+        """Test argument mapping when forwarding deprecated Enum to replacement."""
+        with pytest.warns(FutureWarning):
+            assert MappedEnum(old_value="alpha") is ReplacementEnum.ALPHA
 
 
 class TestDeprecatedDataclasses:

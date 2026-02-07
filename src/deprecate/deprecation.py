@@ -474,7 +474,8 @@ def deprecated(
     """
 
     def packing(source: Callable) -> Callable:
-        needs_var_positional_fallback = target is None and any(
+        source_is_class = inspect.isclass(source)
+        source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL
             for param in _get_signature(source).parameters.values()
         )
@@ -540,24 +541,28 @@ def deprecated(
                 kwargs.update(args_extra)
 
             if not callable(target):
-                if needs_var_positional_fallback:
+                if source_has_var_positional:
                     return source(*args, **original_kwargs)
                 return source(**kwargs)
 
             # Validate that all arguments can be passed to target
-            target_func = target.__init__ if inspect.isclass(target) else target
+            target_is_class = inspect.isclass(target)
+            target_func = target if target_is_class and source_is_class else target.__init__ if target_is_class else target
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             # get full args & name of varkw
             target_full_arg_spec = inspect.getfullargspec(target_func)
+            varargs = target_full_arg_spec.varargs
             varkw = target_full_arg_spec.varkw
 
             # Check for arguments that target doesn't accept
             missed = [arg for arg in kwargs if arg not in target_args]
-            if missed and varkw is None:
+            if missed and varkw is None and varargs is None:
                 # Target doesn't accept these args and doesn't have **kwargs to catch them
                 raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
             # all args were already moved to kwargs
+            if source_is_class and source_has_var_positional:
+                return target_func(*args, **kwargs)
             return target_func(**kwargs)
 
         # Set deprecation info for documentation
