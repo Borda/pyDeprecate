@@ -566,10 +566,11 @@ def deprecated(
                 try:
                     is_enum_value_case = issubclass(target, Enum) and missed == ["value"]
                 except TypeError:
+                    # issubclass can fail for non-class callables; treat as non-enum.
                     pass
             if missed and varkw is None:
                 if varargs is None:
-                    # Target doesn't accept these args and doesn't have *args/**kwargs to catch them.
+                    # Target doesn't accept these args and doesn't have *args to catch them.
                     raise TypeError(
                         f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}"
                     )
