@@ -564,19 +564,17 @@ def deprecated(
             # Check for arguments that target doesn't accept
             missed = [arg for arg in kwargs if arg not in target_args]
             is_enum_value_case = False
-            source_is_enum = False
-            if source_is_class:
+            source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
+            target_is_enum = False
+            if target_is_class:
                 try:
-                    source_is_enum = issubclass(source, Enum)
+                    target_is_enum = issubclass(target, Enum)
                 except TypeError:
-                    # issubclass can fail when source is not a class type.
-                    source_is_enum = False
-            if target_is_class and source_is_enum:
-                try:
-                    is_enum_value_case = issubclass(target, Enum) and len(missed) == 1 and ENUM_VALUE_PARAM in missed
-                except TypeError:
-                    # issubclass can fail for non-class callables; treat as non-enum.
-                    pass
+                    # issubclass can fail for non-type objects; treat as non-enum.
+                    target_is_enum = False
+            single_missed_arg = len(missed) == 1
+            missed_is_value_param = ENUM_VALUE_PARAM in missed
+            is_enum_value_case = source_is_enum and target_is_enum and single_missed_arg and missed_is_value_param
             if missed and varkw is None:
                 if varargs is None:
                     # Target doesn't accept these args and doesn't have *args to catch them.
