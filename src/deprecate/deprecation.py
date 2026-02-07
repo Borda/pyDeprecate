@@ -453,8 +453,7 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
-            if needs_var_positional_fallback:
-                original_kwargs = kwargs
+            original_kwargs = kwargs
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 

@@ -35,7 +35,7 @@ class ThisCls(NewCls):
         super().__init__(c=nc)
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", stream=None)
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class DeprecatedEnum(Enum):
     """Deprecated enum for regression testing."""
 
@@ -43,7 +43,7 @@ class DeprecatedEnum(Enum):
     BETA = "beta"
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", stream=None)
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class DeprecatedIntEnum(Enum):
     """Deprecated enum with integer values for regression testing."""
 
@@ -51,7 +51,7 @@ class DeprecatedIntEnum(Enum):
     TWO = 2
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", stream=None)
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 @dataclass
 class DeprecatedDataClass:
     """Deprecated dataclass for regression testing."""
@@ -115,15 +115,17 @@ class TestDeprecatedEnums:
 
     def test_enum_by_string_value(self) -> None:
         """Test that deprecated Enum can be instantiated by string value."""
-        assert DeprecatedEnum("alpha") is DeprecatedEnum.ALPHA
+        with pytest.warns(FutureWarning):
+            assert DeprecatedEnum("alpha") is DeprecatedEnum.ALPHA
 
     def test_enum_by_int_value(self) -> None:
         """Test that deprecated Enum can be instantiated by int value."""
-        assert DeprecatedIntEnum(1) is DeprecatedIntEnum.ONE
+        with pytest.warns(FutureWarning):
+            assert DeprecatedIntEnum(1) is DeprecatedIntEnum.ONE
 
     def test_enum_invalid_value_raises_value_error(self) -> None:
         """Test that invalid Enum values still raise ValueError."""
-        with pytest.raises(ValueError):
+        with pytest.warns(FutureWarning), pytest.raises(ValueError):
             DeprecatedEnum("nonexistent")
 
     def test_enum_attribute_access(self) -> None:
@@ -136,10 +138,12 @@ class TestDeprecatedDataclasses:
 
     def test_dataclass_positional_and_keyword_init(self) -> None:
         """Test that deprecated dataclass supports positional and keyword args."""
-        instance = DeprecatedDataClass("alpha", 2)
+        with pytest.warns(FutureWarning):
+            instance = DeprecatedDataClass("alpha", 2)
         assert instance.name == "alpha"
         assert instance.count == 2
-        instance = DeprecatedDataClass(name="beta")
+        with pytest.warns(FutureWarning):
+            instance = DeprecatedDataClass(name="beta")
         assert instance.name == "beta"
         assert instance.count == 0
 
