@@ -121,7 +121,7 @@ class TestDeprecatedEnums:
         """Test that deprecated Enum can be instantiated by int value."""
         assert DeprecatedIntEnum(1) is DeprecatedIntEnum.ONE
 
-    def test_enum_invalid_value_raises_valueerror(self) -> None:
+    def test_enum_invalid_value_raises_value_error(self) -> None:
         """Test that invalid Enum values still raise ValueError."""
         with pytest.raises(ValueError):
             DeprecatedEnum("nonexistent")

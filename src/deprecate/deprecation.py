@@ -59,7 +59,8 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     Returns:
         Dictionary combining converted positional arguments and existing kwargs,
         where positional args are now mapped to their parameter names. Conversion
-        stops when encountering var-positional parameters (``*args``).
+        stops when encountering var-positional parameters (``*args``) because
+        they cannot be safely represented as keyword arguments.
 
     Example:
         >>> from pprint import pprint
@@ -446,7 +447,7 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
-            raw_kwargs = dict(kwargs) if has_var_positional else None
+            original_kwargs = dict(kwargs) if has_var_positional else None
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
@@ -496,7 +497,7 @@ def deprecated(
 
             if not callable(target):
                 if has_var_positional:
-                    return source(*args, **raw_kwargs)
+                    return source(*args, **original_kwargs)
                 return source(**kwargs)
 
             # Validate that all arguments can be passed to target
