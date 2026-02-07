@@ -548,10 +548,10 @@ def deprecated(
 
             # Validate that all arguments can be passed to target
             target_is_class = inspect.isclass(target)
+            # Class-to-class forwarding instantiates the target directly instead of calling __init__ manually.
             target_func = target
             if target_is_class and not source_is_class:
                 target_func = target.__init__
-            # Class-to-class forwarding instantiates the target directly instead of calling __init__ manually.
             target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
             # get full args & name of varkw
@@ -573,10 +573,10 @@ def deprecated(
                     raise TypeError(f"Failed mapping of `{source.__name__}`, arguments missing in target source: {missed}")
                 if not is_enum_value_case:
                     raise TypeError(
-                        f"Failed mapping of `{source.__name__}`, arguments missing in target source (target has "
+                        f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target has "
                         f"varargs but does not accept these keyword arguments): {missed}"
                     )
-            # Positional args become kwargs for regular callables; class-level varargs keep positional values.
+            # Positional args become kwargs for regular callables; source classes with varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
             if source_is_class and source_has_var_positional:
                 return target_func(*args, **kwargs)
