@@ -148,12 +148,13 @@ Tests and quality improvements are **always welcome**! These contributions are h
 
 ```bash
 # Install in development mode
-pip install -e ".[test]"
+pip install -e . "pre-commit" -r tests/requirements.txt
+pre-commit install
 
-# Run tests
+# Run tests (includes doctests from src/)
 pytest src/ tests/
 
-# Run linting
+# Run linting and formatting
 pre-commit run --all-files
 ```
 
@@ -168,14 +169,6 @@ We value all levels of contribution and want to encourage everyone, regardless o
 - **Break work into steps** — This allows others to take over and continue if needed. It also makes your work more approachable for reviewers.
 - **Avoid abandoned PRs** — Forked PRs are difficult to carry over except by maintainers, creating significant burden. If you can't complete a PR, let us know.
 - **Be meaningful and reasonable** — Contribute what you can realistically complete. Even small improvements make a difference.
-
-### Deprecation Specifics
-
-When contributing to `pyDeprecate`, ensure:
-
-- New deprecation logic is tested against multiple Python versions (if possible).
-- Warnings are correctly triggered and contain helpful migration messages.
-- The `target` and `deprecated_in` / `remove_in` arguments are used consistently.
 
 We don't expect perfection. We expect genuine effort. If you're unsure about something, ask! The community is here to help.
 
@@ -213,22 +206,51 @@ git push origin feature/amazing-feature
 
 ## 📋 Coding Standards
 
+### Style & Formatting
+
 - Follow [PEP 8](https://pep8.org/) style guidelines
-- Write clear, descriptive docstrings (Google or NumPy style)
+- Write clear, descriptive docstrings (Google-style convention)
 - Keep functions focused and modular
-- Add type hints where appropriate
+- Add type hints to all function signatures
 - Write meaningful variable and function names
-- Add comments if the code is not self-explanatory
+- Add comments only where the code is not self-explanatory
+- No bare `except:` — always catch specific exceptions
+
+Code style is enforced by pre-commit hooks — run `pre-commit run --all-files` before submitting. Key tools and their configs live in `pyproject.toml` and `.pre-commit-config.yaml` (`ruff` for formatting/linting, `mypy` for type checking).
+
+### Architecture Constraints
+
+- **Zero runtime dependencies** — pyDeprecate has no runtime dependencies. Do not add any.
+- **Fast imports / low overhead** — avoid expensive computations or premature imports in module-level code or wrapper setup.
+- **Circular imports** — when editing `src/deprecate/`, verify new imports don't create cycles. Use `if TYPE_CHECKING:` blocks for type-only imports.
+- **Deprecation chains** — if modifying chain validation logic, handle infinite loops (A deprecates B, B deprecates A) gracefully without crashing.
 
 ### Test Organization
 
-When writing tests:
+Tests live in `tests/` and follow a **three-layer separation**:
 
-- **Group related tests in classes** - Use test classes when you have multiple related tests or need shared fixtures
-- **Avoid redundant naming** - Don't repeat class context in test method names
-  - Example: In `TestDeprecatedWrapper`, use `test_shows_warning()` not `test_deprecated_wrapper_shows_warning()`
-- **Use fixtures for independence** - Use pytest fixtures to reset state between tests
-- **One behavior per test** - Each test method should verify one specific aspect
+| File | Purpose |
+| --- | --- |
+| `collection_targets.py` | Target functions and classes (the "new" implementations that deprecated code forwards to) |
+| `collection_deprecate.py` | Deprecated wrappers that use `@deprecated(...)` to forward to targets |
+| `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing |
+| `test_*.py` | Actual test logic — imports from the collections above and asserts behavior |
+
+> [!IMPORTANT]
+> Do **not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py` and deprecated wrappers in `collection_deprecate.py`, then import them in tests.
+
+**Test requirements:**
+
+- Every new function or behavior change must have accompanying tests.
+- For every new utility or feature, include tests for:
+  1. The happy path (expected correct behavior).
+  2. The failure path (expected errors are raised).
+  3. Edge cases (None types, empty inputs, circular chains, missing arguments).
+- **Group related tests in classes** — use test classes when you have multiple related tests or need shared fixtures.
+- **Avoid redundant naming** — don't repeat class context in test method names (e.g., in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`).
+- **Use fixtures for independence** — use pytest fixtures to reset state between tests. Add `autouse=True` fixtures when a class needs per-test reset.
+- **One behavior per test** — each test method should verify one specific aspect.
+- **Assertions on warnings:** Use `pytest.warns(FutureWarning)` to verify deprecation warnings are emitted correctly.
 
 Example:
 
@@ -246,7 +268,64 @@ class TestMyFeature:
         # Test one specific behavior
 ```
 
-Note: Test classes are most beneficial when you have multiple tests or need fixtures. For single standalone tests, a simple test function is sufficient.
+> [!NOTE]
+> Test classes are most beneficial when you have multiple tests or need fixtures. For single standalone tests, a simple test function is sufficient.
+
+### Common Patterns
+
+<details>
+<summary>Adding a new deprecation wrapper (in test collections)</summary>
+
+```python
+# tests/collection_targets.py — the new implementation
+def new_implementation(x: int) -> int:
+    """New implementation."""
+    return x * 2
+
+# tests/collection_deprecate.py — the deprecated wrapper
+from deprecate import deprecated
+from tests.collection_targets import new_implementation
+
+@deprecated(target=new_implementation, deprecated_in="1.0", remove_in="2.0")
+def old_implementation(x: int) -> int:
+    """Deprecated: use new_implementation instead."""
+
+# tests/test_functions.py — the test
+import pytest
+from tests.collection_deprecate import old_implementation
+
+def test_deprecation_warning() -> None:
+    with pytest.warns(FutureWarning, match="was deprecated"):
+        assert old_implementation(5) == 10
+```
+
+</details>
+
+<details>
+<summary>Argument renaming</summary>
+
+```python
+@deprecated(target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_param": "new_param"})
+def my_func(old_param: int = 0, new_param: int = 0) -> int:
+    """Function with renamed parameter."""
+    return new_param
+```
+
+</details>
+
+<details>
+<summary>Testing without warnings</summary>
+
+```python
+from deprecate import no_warning_call
+
+def test_without_warning() -> None:
+    with no_warning_call(FutureWarning):
+        # ... test code that should not emit warnings
+        pass
+```
+
+</details>
 
 ## 📄 License
 

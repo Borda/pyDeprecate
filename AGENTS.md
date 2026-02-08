@@ -81,17 +81,6 @@ Agents may read and reference:
 - Ensure proper error handling and logging for deprecated features
 - Check for proper migration examples in documentation
 
-### Code Review
-
-Before approving any PR, verify:
-
-- [ ] Follows existing code style (see [Coding Standards](.github/CONTRIBUTING.md#-coding-standards))
-- [ ] Includes tests for new functionality
-- [ ] Updates documentation if needed
-- [ ] Links to related issue(s)
-- [ ] Passes all CI checks
-- [ ] Run `pre-commit run --all-files` to ensure linting and formatting compliance
-
 ### Documentation & Community Update
 
 - Update README if API, config, or deprecation logic changes
@@ -121,29 +110,6 @@ When writing tests, follow these guidelines for better maintainability:
   - ✅ Good: `class TestDeprecatedWrapper: def test_shows_warning()`
 - **Use fixtures for test independence** - Use pytest fixtures (especially `@pytest.fixture(autouse=True)`) to reset state between tests, ensuring tests can run independently in any order
 - **Keep test methods focused** - Each test method should verify one specific behavior or aspect
-
-Example of well-organized tests:
-
-```python
-class TestDeprecatedFunctionWrappers:
-    """Test suite for deprecating function-based wrapper/decorators."""
-
-    @pytest.fixture(autouse=True)
-    def reset_warnings(self) -> None:
-        """Reset warning counters before each test for independence."""
-        from my_module import deprecated_func
-
-        if hasattr(deprecated_func, "_warned"):
-            deprecated_func._warned = 0
-
-    def test_shows_warning(self) -> None:
-        """Test that deprecated wrapper shows deprecation warning."""
-        # Test implementation...
-
-    def test_forwards_correctly(self) -> None:
-        """Test that wrapper forwards to new implementation."""
-        # Test implementation...
-```
 
 ### Cross-Reference Guidelines
 
