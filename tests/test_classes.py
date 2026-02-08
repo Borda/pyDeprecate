@@ -15,7 +15,7 @@ from tests.collection_deprecate import (
     MappedEnum,
     RedirectedEnum,
 )
-from tests.collection_targets import NewCls, ReplacementEnum
+from tests.collection_targets import NewCls, NewEnum
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
 
@@ -117,17 +117,17 @@ class TestDeprecatedEnums:
     def test_enum_redirects_to_replacement(self) -> None:
         """Test deprecated Enum forwarding to a replacement Enum."""
         with pytest.warns(FutureWarning):
-            assert RedirectedEnum("alpha") is ReplacementEnum.ALPHA
+            assert RedirectedEnum("alpha") is NewEnum.ALPHA
 
     def test_enum_argument_mapping_forwards(self) -> None:
         """Test argument mapping when forwarding deprecated Enum to replacement."""
         with pytest.warns(FutureWarning):
-            assert MappedEnum(old_value="alpha") is ReplacementEnum.ALPHA
+            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA
 
     def test_enum_argument_mapping_positional_value(self) -> None:
         """Test mapped Enum forwards positional value to replacement."""
         with pytest.warns(FutureWarning):
-            assert MappedEnum("alpha") is ReplacementEnum.ALPHA
+            assert MappedEnum("alpha") is NewEnum.ALPHA
 
 
 class TestDeprecatedDataclasses:

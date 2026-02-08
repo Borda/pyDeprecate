@@ -11,13 +11,7 @@ from typing import Callable
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
-from tests.collection_targets import (
-    ReplacementEnum,
-    TimerDecorator,
-    base_pow_args,
-    base_sum_kwargs,
-    timing_wrapper,
-)
+from tests.collection_targets import NewEnum, TimerDecorator, base_pow_args, base_sum_kwargs, timing_wrapper
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
@@ -39,26 +33,26 @@ class DeprecatedIntEnum(Enum):
     TWO = 2
 
 
-@deprecated(target=ReplacementEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated(target=NewEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class RedirectedEnum(Enum):
-    """Deprecated enum that forwards to a replacement enum."""
+    """Deprecated enum that forwards to a new enum."""
 
     ALPHA = "alpha"
     BETA = "beta"
 
 
 @deprecated(
-    target=ReplacementEnum,
+    target=NewEnum,
     deprecated_in="0.1",
     remove_in="0.2",
     num_warns=-1,
     args_mapping={"old_value": "value"},
 )
 class MappedEnum(Enum):
-    """Deprecated enum that forwards to a replacement enum with argument mapping."""
+    """Deprecated enum that forwards to a new enum with argument mapping."""
 
-    ALPHA = "alpha"
-    BETA = "beta"
+    OLD_ALPHA = "alpha"
+    OLD_BETA = "beta"
 
 
 @deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)

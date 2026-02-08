@@ -30,8 +30,8 @@ class NewCls:
         self.my_e = kwargs.get("e", 0.2)
 
 
-class ReplacementEnum(Enum):
-    """Replacement enum for forwarding tests."""
+class NewEnum(Enum):
+    """New enum for forwarding tests."""
 
     ALPHA = "alpha"
     BETA = "beta"
