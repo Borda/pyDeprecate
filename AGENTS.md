@@ -1,7 +1,11 @@
 # Agent HQ Configuration for pyDeprecate
 
 > [!IMPORTANT]
-> For detailed contribution guidelines, coding standards, and development workflows, see the [Contributing Guide](.github/CONTRIBUTING.md). This document focuses on agent-specific configurations and does not duplicate those instructions.
+> For contribution workflows (PRs, issues, community process), see the [Contributing Guide](.github/CONTRIBUTING.md).
+
+## Overview
+
+pyDeprecate is a lightweight Python library providing decorator-based deprecation for functions, methods, and classes with automatic call forwarding. Python 3.9+, zero runtime dependencies.
 
 ## 🧠 Agents
 
@@ -50,17 +54,35 @@
 | community-scribe | `docs`, `main` | ✅        | ✅               | ❌                |
 | security-watcher | `main`         | ✅        | ✅               | ✅                |
 
+## 📚 Project Structure
+
+```
+src/deprecate/
+├── __about__.py              # Version and metadata
+├── __init__.py               # Public API exports
+├── deprecation.py            # Core @deprecated decorator and warning logic
+└── utils.py                  # Helpers: void, validation, no_warning_call
+tests/
+├── collection_targets.py     # Target functions/classes (the "new" implementations)
+├── collection_deprecate.py   # Deprecated wrappers using @deprecated(...)
+├── collection_misconfigured.py # Invalid deprecation configs for validation tests
+├── test_functions.py         # Tests for function deprecation
+├── test_classes.py           # Tests for class deprecation
+├── test_docs.py              # Tests for docstring updates
+└── test_utils.py             # Tests for utility functions
+```
+
 ## 📚 Context
 
-Agents may read and reference:
+> [!IMPORTANT]
+> Before starting any work, agents **must** read and understand these resources to ensure all actions are aligned with the project.
 
-- `README.md`, `setup.py` and `pyproject.toml` for project setup and usage
-- `src/` for core deprecation logic
-- `tests/` (unit tests for deprecation logic)
-- `.github/CONTRIBUTING.md` for contribution guidelines and coding standards
-- `.github/SECURITY.md` for security policies and vulnerability reporting
-- `.github/CODE_OF_CONDUCT.md` for community guidelines
-- Configuration files and deprecation metadata
+- `README.md`, `setup.py` and `pyproject.toml` — project setup, usage, and configuration
+- `src/` — core deprecation logic
+- `tests/` — unit tests and test collections for deprecation logic
+- `.github/CONTRIBUTING.md` — contribution guidelines and coding standards
+- `.github/SECURITY.md` — security policies and vulnerability reporting
+- `.github/CODE_OF_CONDUCT.md` — community guidelines
 
 ## 🧭 Mission Rules
 
@@ -94,40 +116,75 @@ Agents may read and reference:
       pass
   ```
 
-## 📋 Best Practices
+## 📦 Commands
 
-### Code Comments
+```bash
+pytest src/ tests/             # run tests (includes doctests)
+pre-commit run --all-files     # run all linters and formatters
+pip install -e . "pre-commit" -r tests/requirements.txt && pre-commit install  # dev setup
+```
 
-When writing or modifying code, add comments if the code is not self-explanatory. This improves readability, maintainability, and helps other contributors understand complex logic or non-obvious decisions.
+## 📋 Coding Rules & Architecture
 
-### Test Organization and Naming
+Follow the [Coding Standards](.github/CONTRIBUTING.md#-coding-standards) in the Contributing Guide. Key constraints agents must not violate:
 
-When writing tests, follow these guidelines for better maintainability:
+- **Zero runtime dependencies** — `install_requires` is empty by design
+- **All function signatures must have type hints** — enforced by `mypy`
+- **No bare `except:`** — always catch specific exceptions
+- **Fast imports** — no expensive module-level code or premature imports
+- **Circular imports** — use `if TYPE_CHECKING:` blocks in `src/deprecate/`
 
-- **Use test classes to group related tests** - Group tests by the feature or component being tested
-- **Avoid redundant words in test names** - Since tests are grouped in classes, don't repeat class-level context in method names
-  - ❌ Bad: `class TestDeprecatedWrapper: def test_deprecated_wrapper_shows_warning()`
-  - ✅ Good: `class TestDeprecatedWrapper: def test_shows_warning()`
-- **Use fixtures for test independence** - Use pytest fixtures (especially `@pytest.fixture(autouse=True)`) to reset state between tests, ensuring tests can run independently in any order
-- **Keep test methods focused** - Each test method should verify one specific behavior or aspect
+## 🧪 Test File Placement
 
-### Cross-Reference Guidelines
+Tests follow a **three-layer separation** — do not mix these concerns:
 
-This AGENTS.md file intentionally avoids duplicating content from other documentation:
+| Layer | File(s) | What goes here |
+| --- | --- | --- |
+| Targets | `collection_targets.py` | The "new" functions and classes that deprecated code forwards to |
+| Deprecated wrappers | `collection_deprecate.py` | Functions/classes decorated with `@deprecated(...)` |
+| Misconfigured | `collection_misconfigured.py` | Intentionally invalid deprecation configs for validation testing |
+| Test logic | `test_*.py` | Imports from collections above, asserts behavior |
 
-- **Coding standards** → See [Contributing Guide](.github/CONTRIBUTING.md#-coding-standards)
-- **Testing guidelines** → See [Contributing Guide](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
-- **PR process** → See [Contributing Guide](.github/CONTRIBUTING.md#-pull-requests)
-- **Security reporting** → See [Security Policy](.github/SECURITY.md#-reporting-a-vulnerability)
-- **Community guidelines** → See [Code of Conduct](.github/CODE_OF_CONDUCT.md)
+> [!IMPORTANT]
+> Do **not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files.
 
-Agents should follow these cross-references to access the complete, authoritative guidelines.
+**Test requirements:**
 
-## 🔗 Related Documentation
+- Every new function or behavior change must have accompanying tests.
+- Include tests for: happy path, failure path, and edge cases (None, empty inputs, circular chains).
+- Group related tests in classes. Avoid redundant naming — in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`.
+- Use `pytest.warns(FutureWarning)` to verify deprecation warnings.
+- Use `pytest.fixture(autouse=True)` for per-test state reset when needed.
+- One behavior per test method.
 
-| Document                                                  | Purpose                                            |
-| --------------------------------------------------------- | -------------------------------------------------- |
-| [Contributing Guide](.github/CONTRIBUTING.md)             | Development workflow, coding standards, PR process |
-| [Security Policy](.github/SECURITY.md)                    | Vulnerability reporting, security practices        |
-| [Code of Conduct](.github/CODE_OF_CONDUCT.md)             | Community guidelines and expectations              |
-| [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md) | PR submission checklist                            |
+## 🚧 Boundaries
+
+### ✅ Always
+
+- Run `pre-commit run --all-files` before committing
+- Provide `deprecated_in` and `remove_in` version strings on every deprecation
+- Include migration messages in deprecation warnings pointing to replacements
+- Place targets in `collection_targets.py`, wrappers in `collection_deprecate.py`, tests in `test_*.py`
+
+### ⚠️ Ask First
+
+- Adding new public API surface to `src/deprecate/`
+- Modifying deprecation chain validation logic
+- Changes that affect backwards compatibility
+
+### 🚫 Never
+
+- Add runtime dependencies
+- Commit `.env`, API keys, or sensitive information
+- Use bare `except:` clauses
+
+## 🔗 Cross-Reference Guidelines
+
+This file avoids duplicating content from other documentation. Agents should follow these references for the complete, authoritative guidelines:
+
+- **Coding standards** → [Contributing Guide: Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
+- **Testing guidelines** → [Contributing Guide: Tests and Quality Assurance](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
+- **PR process** → [Contributing Guide: Pull Requests](.github/CONTRIBUTING.md#-pull-requests)
+- **PR review guidelines** → [Copilot Instructions: PR Review Guidelines](.github/copilot-instructions.md#pr-review-guidelines)
+- **Security reporting** → [Security Policy](.github/SECURITY.md)
+- **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)
