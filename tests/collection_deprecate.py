@@ -4,15 +4,70 @@ This module contains various examples of deprecated functions with different
 configurations to test the deprecation functionality.
 """
 
+from dataclasses import dataclass
+from enum import Enum
 from typing import Callable
 
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
-from tests.collection_targets import TimerDecorator, base_pow_args, base_sum_kwargs, timing_wrapper
+from tests.collection_targets import (
+    ReplacementEnum,
+    TimerDecorator,
+    base_pow_args,
+    base_sum_kwargs,
+    timing_wrapper,
+)
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
+
+
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+class DeprecatedEnum(Enum):
+    """Deprecated enum for regression testing."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+class DeprecatedIntEnum(Enum):
+    """Deprecated enum with integer values for regression testing."""
+
+    ONE = 1
+    TWO = 2
+
+
+@deprecated(target=ReplacementEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+class RedirectedEnum(Enum):
+    """Deprecated enum that forwards to a replacement enum."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(
+    target=ReplacementEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class MappedEnum(Enum):
+    """Deprecated enum that forwards to a replacement enum with argument mapping."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@dataclass
+class DeprecatedDataClass:
+    """Deprecated dataclass for regression testing."""
+
+    name: str
+    count: int = 0
 
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")

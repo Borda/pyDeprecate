@@ -1,7 +1,5 @@
 """Tests for deprecated classes and methods."""
 
-from dataclasses import dataclass
-from enum import Enum
 from functools import partial
 from typing import Any
 from warnings import warn
@@ -10,7 +8,14 @@ import pytest
 
 from deprecate.deprecation import deprecated
 from deprecate.utils import no_warning_call
-from tests.collection_targets import NewCls
+from tests.collection_deprecate import (
+    DeprecatedDataClass,
+    DeprecatedEnum,
+    DeprecatedIntEnum,
+    MappedEnum,
+    RedirectedEnum,
+)
+from tests.collection_targets import NewCls, ReplacementEnum
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
 
@@ -34,59 +39,6 @@ class ThisCls(NewCls):
         """Initialize ThisCls."""
         super().__init__(c=nc)
 
-
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
-class DeprecatedEnum(Enum):
-    """Deprecated enum for regression testing."""
-
-    ALPHA = "alpha"
-    BETA = "beta"
-
-
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
-class DeprecatedIntEnum(Enum):
-    """Deprecated enum with integer values for regression testing."""
-
-    ONE = 1
-    TWO = 2
-
-
-class ReplacementEnum(Enum):
-    """Replacement enum for forwarding tests."""
-
-    ALPHA = "alpha"
-    BETA = "beta"
-
-
-@deprecated(target=ReplacementEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
-class RedirectedEnum(Enum):
-    """Deprecated enum that forwards to a replacement enum."""
-
-    ALPHA = "alpha"
-    BETA = "beta"
-
-
-@deprecated(
-    target=ReplacementEnum,
-    deprecated_in="0.1",
-    remove_in="0.2",
-    num_warns=-1,
-    args_mapping={"old_value": "value"},
-)
-class MappedEnum(Enum):
-    """Deprecated enum that forwards to a replacement enum with argument mapping."""
-
-    ALPHA = "alpha"
-    BETA = "beta"
-
-
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
-@dataclass
-class DeprecatedDataClass:
-    """Deprecated dataclass for regression testing."""
-
-    name: str
-    count: int = 0
 
 
 class TestDeprecatedClass:

@@ -6,6 +6,7 @@ functions in other test modules.
 
 import functools
 import time
+from enum import Enum
 from typing import Any, Callable
 
 
@@ -27,6 +28,13 @@ class NewCls:
         self.my_c = c
         self.my_d = d
         self.my_e = kwargs.get("e", 0.2)
+
+
+class ReplacementEnum(Enum):
+    """Replacement enum for forwarding tests."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
 
 
 def timing_wrapper(func: Callable) -> Callable:
