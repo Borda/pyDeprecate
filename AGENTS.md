@@ -138,12 +138,12 @@ Follow the [Coding Standards](.github/CONTRIBUTING.md#-coding-standards) in the 
 
 Tests follow a **three-layer separation** — do not mix these concerns:
 
-| Layer | File(s) | What goes here |
-| --- | --- | --- |
-| Targets | `collection_targets.py` | The "new" functions and classes that deprecated code forwards to |
-| Deprecated wrappers | `collection_deprecate.py` | Functions/classes decorated with `@deprecated(...)` |
-| Misconfigured | `collection_misconfigured.py` | Intentionally invalid deprecation configs for validation testing |
-| Test logic | `test_*.py` | Imports from collections above, asserts behavior |
+| Layer               | File(s)                       | What goes here                                                   |
+| ------------------- | ----------------------------- | ---------------------------------------------------------------- |
+| Targets             | `collection_targets.py`       | The "new" functions and classes that deprecated code forwards to |
+| Deprecated wrappers | `collection_deprecate.py`     | Functions/classes decorated with `@deprecated(...)`              |
+| Misconfigured       | `collection_misconfigured.py` | Intentionally invalid deprecation configs for validation testing |
+| Test logic          | `test_*.py`                   | Imports from collections above, asserts behavior                 |
 
 > [!IMPORTANT]
 > Do **not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files.
