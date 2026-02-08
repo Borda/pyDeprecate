@@ -151,7 +151,7 @@ Tests and quality improvements are **always welcome**! These contributions are h
 pip install -e . "pre-commit" -r tests/requirements.txt
 pre-commit install
 
-# Run tests (includes doctests from src/)
+# Run the full test suite, including doctests from src/ (use this when developing locally)
 pytest src/ tests/
 
 # Run linting and formatting
@@ -237,7 +237,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | `test_*.py`                   | Actual test logic — imports from the collections above and asserts behavior               |
 
 > [!IMPORTANT]
-> Do **not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py` and deprecated wrappers in `collection_deprecate.py`, then import them in tests.
+> In almost all cases, **do not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files. Prefer placing targets in `collection_targets.py` and deprecated wrappers in `collection_deprecate.py`, then importing them in tests. A small number of existing tests intentionally define `@deprecated` callables inline when the test itself is about how `@deprecated` is declared; new tests should follow the three-layer pattern unless such an inline definition is explicitly required.
 
 **Test requirements:**
 
@@ -250,7 +250,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 - **Avoid redundant naming** — don't repeat class context in test method names (e.g., in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`).
 - **Use fixtures for independence** — use pytest fixtures to reset state between tests. Add `autouse=True` fixtures when a class needs per-test reset.
 - **One behavior per test** — each test method should verify one specific aspect.
-- **Assertions on warnings:** Use `pytest.warns(FutureWarning)` to verify deprecation warnings are emitted correctly.
+- **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
 
 Example:
 
