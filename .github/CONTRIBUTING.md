@@ -229,12 +229,12 @@ Code style is enforced by pre-commit hooks — run `pre-commit run --all-files` 
 
 Tests live in `tests/` and follow a **three-layer separation**:
 
-| File | Purpose |
-| --- | --- |
-| `collection_targets.py` | Target functions and classes (the "new" implementations that deprecated code forwards to) |
-| `collection_deprecate.py` | Deprecated wrappers that use `@deprecated(...)` to forward to targets |
-| `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing |
-| `test_*.py` | Actual test logic — imports from the collections above and asserts behavior |
+| File                          | Purpose                                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------------------- |
+| `collection_targets.py`       | Target functions and classes (the "new" implementations that deprecated code forwards to) |
+| `collection_deprecate.py`     | Deprecated wrappers that use `@deprecated(...)` to forward to targets                     |
+| `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing       |
+| `test_*.py`                   | Actual test logic — imports from the collections above and asserts behavior               |
 
 > [!IMPORTANT]
 > Do **not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py` and deprecated wrappers in `collection_deprecate.py`, then import them in tests.
@@ -282,17 +282,21 @@ def new_implementation(x: int) -> int:
     """New implementation."""
     return x * 2
 
+
 # tests/collection_deprecate.py — the deprecated wrapper
 from deprecate import deprecated
 from tests.collection_targets import new_implementation
+
 
 @deprecated(target=new_implementation, deprecated_in="1.0", remove_in="2.0")
 def old_implementation(x: int) -> int:
     """Deprecated: use new_implementation instead."""
 
+
 # tests/test_functions.py — the test
 import pytest
 from tests.collection_deprecate import old_implementation
+
 
 def test_deprecation_warning() -> None:
     with pytest.warns(FutureWarning, match="was deprecated"):
@@ -318,6 +322,7 @@ def my_func(old_param: int = 0, new_param: int = 0) -> int:
 
 ```python
 from deprecate import no_warning_call
+
 
 def test_without_warning() -> None:
     with no_warning_call(FutureWarning):
