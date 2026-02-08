@@ -8,7 +8,14 @@ import pytest
 
 from deprecate.deprecation import deprecated
 from deprecate.utils import no_warning_call
-from tests.collection_targets import NewCls
+from tests.collection_deprecate import (
+    DeprecatedDataClass,
+    DeprecatedEnum,
+    DeprecatedIntEnum,
+    MappedEnum,
+    RedirectedEnum,
+)
+from tests.collection_targets import NewCls, NewEnum
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
 
@@ -31,6 +38,7 @@ class ThisCls(NewCls):
     def __init__(self, c: int = 3, nc: int = 5) -> None:
         """Initialize ThisCls."""
         super().__init__(c=nc)
+
 
 
 class TestDeprecatedClass:
@@ -81,6 +89,60 @@ class TestDeprecatedClass:
             this = ThisCls(2)
         assert this.my_c == 2
         assert isinstance(this, ThisCls)
+
+
+class TestDeprecatedEnums:
+    """Tests for deprecated Enum wrappers."""
+
+    def test_enum_by_string_value(self) -> None:
+        """Test that deprecated Enum can be instantiated by string value."""
+        with pytest.warns(FutureWarning):
+            assert DeprecatedEnum("alpha") is DeprecatedEnum.ALPHA
+
+    def test_enum_by_int_value(self) -> None:
+        """Test that deprecated Enum can be instantiated by int value."""
+        with pytest.warns(FutureWarning):
+            assert DeprecatedIntEnum(1) is DeprecatedIntEnum.ONE
+
+    def test_enum_invalid_value_raises_value_error(self) -> None:
+        """Test that invalid Enum values still raise ValueError."""
+        with pytest.warns(FutureWarning), pytest.raises(ValueError):
+            DeprecatedEnum("nonexistent")
+
+    def test_enum_attribute_access(self) -> None:
+        """Test attribute access on deprecated Enum."""
+        with no_warning_call(FutureWarning):
+            assert DeprecatedEnum.ALPHA.value == "alpha"
+
+    def test_enum_redirects_to_replacement(self) -> None:
+        """Test deprecated Enum forwarding to a replacement Enum."""
+        with pytest.warns(FutureWarning):
+            assert RedirectedEnum("alpha") is NewEnum.ALPHA
+
+    def test_enum_argument_mapping_forwards(self) -> None:
+        """Test argument mapping when forwarding deprecated Enum to replacement."""
+        with pytest.warns(FutureWarning):
+            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA
+
+    def test_enum_argument_mapping_positional_value(self) -> None:
+        """Test mapped Enum forwards positional value to replacement."""
+        with pytest.warns(FutureWarning):
+            assert MappedEnum("alpha") is NewEnum.ALPHA
+
+
+class TestDeprecatedDataclasses:
+    """Tests for deprecated dataclass wrappers."""
+
+    def test_dataclass_positional_and_keyword_init(self) -> None:
+        """Test that deprecated dataclass supports positional and keyword args."""
+        with pytest.warns(FutureWarning):
+            instance = DeprecatedDataClass("alpha", 2)
+        assert instance.name == "alpha"
+        assert instance.count == 2
+        with pytest.warns(FutureWarning):
+            instance = DeprecatedDataClass(name="beta")
+        assert instance.name == "beta"
+        assert instance.count == 0
 
 
 def test_deprecated_class_attribute_set_at_decoration_time() -> None:
