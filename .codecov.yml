@@ -15,14 +15,12 @@ coverage:
   round: nearest # how coverage is rounded: down/up/nearest
   range: 60...100 # custom range of coverage colors from red -> yellow -> green
   status:
-    # https://codecov.readme.io/v1.0/docs/commit-status
     project:
       default:
         against: auto
         target: 99% # specify the target coverage for each commit status
         threshold: 40% # allow this little decrease on project
         if_ci_failed: error
-    # https://github.com/codecov/support/wiki/Patch-Status
     patch:
       default:
         against: auto

@@ -22,19 +22,21 @@ jobs:
     if: startsWith(github.event.ref, 'refs/tags')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v7
+      - name: 📥 Download artifact
+        uses: actions/download-artifact@v7
         with:
           name: pypi-packages-${{ github.sha }}
           path: dist
-      - run: ls -lh dist/
+      - name: 📋 Show packages
+        run: ls -lh dist/
 
-      - name: Publish to Test PyPI
+      - name: 🚀 Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
           password: ${{ secrets.test_pypi_password }}
-          repository_url: https://test.pypi.org/legacy/
+          repository-url: https://test.pypi.org/legacy/
 
-      - name: Publish distribution 📦 to PyPI
+      - name: 🚀 Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
           password: ${{ secrets.pypi_password }}
@@ -45,13 +47,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/download-artifact@v7
+      - name: 📥 Download artifact
+        uses: actions/download-artifact@v7
         with:
           name: pypi-packages-${{ github.sha }}
           path: dist
-      - run: ls -lh dist/
+      - name: 📋 Show packages
+        run: ls -lh dist/
 
-      - name: Upload to release
+      - name: 📤 Upload to release
         uses: AButler/upload-release-assets@v3.0
         with:
           files: "dist/*"

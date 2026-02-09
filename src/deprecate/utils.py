@@ -18,7 +18,7 @@ Key Functions:
 Key Classes:
     - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
 
-Copyright (C) 2020-2025 Jiri Borovec <...>
+Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect

@@ -18,30 +18,31 @@ jobs:
     # Timeout: https://stackoverflow.com/a/59076067/4521646
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+      - name: 🐍 Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install requirements
+      - name: 📦 Install requirements
         run: |
           pip install -r tests/requirements.txt
           pip list
         shell: bash
 
-      - name: Tests
+      - name: 🧪 Tests
         run: |
           phmdoctest README.md --outfile tests/test_readme.py
           python -m pytest . -vv --cov=deprecate
 
-      - name: Statistics
+      - name: 📊 Statistics
         if: success()
         run: |
           coverage report
           coverage xml
 
-      - name: Upload coverage to Codecov
+      - name: 📡 Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         if: success()
         continue-on-error: true
@@ -57,10 +58,10 @@ jobs:
     if: always()
     steps:
       - run: echo "${{ needs.pytester.result }}"
-      - name: failing...
+      - name: ❌ Failing...
         if: needs.pytester.result == 'failure'
         run: exit 1
-      - name: cancelled or skipped...
+      - name: ⏭️ Cancelled or skipped...
         if: contains(fromJSON('["cancelled", "skipped"]'), needs.pytester.result)
         timeout-minutes: 1
         run: sleep 90
