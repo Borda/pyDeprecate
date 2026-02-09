@@ -243,9 +243,7 @@ def test_validate_deprecation_chains_detects_deprecated_args() -> None:
     """Test validate_deprecation_chains detects passing deprecated arguments."""
     from tests.collection_chains import caller_passes_deprecated_arg
 
-    with pytest.warns(
-        UserWarning, match="'caller_passes_deprecated_arg' passes deprecated argument 'old_arg'"
-    ):
+    with pytest.warns(UserWarning, match="'caller_passes_deprecated_arg' passes deprecated argument 'old_arg'"):
         validate_deprecation_chains(caller_passes_deprecated_arg)
 
 

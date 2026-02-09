@@ -490,8 +490,7 @@ def validate_deprecation_chains(func: Callable) -> None:
     except (OSError, TypeError):
         # Cannot get source (e.g., built-in function, C extension)
         warnings.warn(
-            f"validate_deprecation_chains: Cannot get source code for '{func.__name__}'. "
-            f"Skipping analysis.",
+            f"validate_deprecation_chains: Cannot get source code for '{func.__name__}'. Skipping analysis.",
             UserWarning,
             stacklevel=2,
         )
@@ -503,8 +502,7 @@ def validate_deprecation_chains(func: Callable) -> None:
     except SyntaxError:
         # Cannot parse source
         warnings.warn(
-            f"validate_deprecation_chains: Cannot parse source code for '{func.__name__}'. "
-            f"Skipping analysis.",
+            f"validate_deprecation_chains: Cannot parse source code for '{func.__name__}'. Skipping analysis.",
             UserWarning,
             stacklevel=2,
         )
@@ -515,8 +513,7 @@ def validate_deprecation_chains(func: Callable) -> None:
     func_module_name = getattr(func, "__module__", None)
     if not func_module_name:
         warnings.warn(
-            f"validate_deprecation_chains: Cannot determine module for '{func.__name__}'. "
-            f"Skipping analysis.",
+            f"validate_deprecation_chains: Cannot determine module for '{func.__name__}'. Skipping analysis.",
             UserWarning,
             stacklevel=2,
         )
