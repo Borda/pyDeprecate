@@ -78,21 +78,19 @@ def _prepare_target_call(
     """Resolve the target callable and validate mapped keyword arguments.
 
     Example:
-        >>> def source(a: int, b: int) -> int:
-        ...     return a + b
-        >>> def target(a: int, b: int) -> int:
-        ...     return a - b
-        >>> target_func, use_positional = _prepare_target_call(source, target, {"a": 1, "b": 2}, False, False)
-        >>> target_func is target
-        True
-        >>> use_positional
-        False
         >>> class OldEnum(Enum):
         ...     A = "a"
         >>> class NewEnum(Enum):
         ...     A = "a"
-        >>> _prepare_target_call(OldEnum, NewEnum, {ENUM_VALUE_PARAM: "a"}, True, True)[1]
+        >>> target_func, use_positional = _prepare_target_call(OldEnum, NewEnum, {ENUM_VALUE_PARAM: "a"}, True, True)
+        >>> target_func is NewEnum
         True
+        >>> use_positional
+        True
+        >>> def source(a: int, b: int) -> int:
+        ...     return a + b
+        >>> def target(a: int, b: int) -> int:
+        ...     return a - b
         >>> _prepare_target_call(source, target, {"c": 1}, False, False)
         Traceback (most recent call last):
         ...
