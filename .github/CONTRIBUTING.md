@@ -151,8 +151,8 @@ Tests and quality improvements are **always welcome**! These contributions are h
 pip install -e . "pre-commit" -r tests/requirements.txt
 pre-commit install
 
-# Run the full test suite, including doctests from src/ (use this when developing locally)
-pytest src/ tests/
+# Run the full test suite (including doctests if configured in pytest)
+pytest .
 
 # Run linting and formatting
 pre-commit run --all-files
