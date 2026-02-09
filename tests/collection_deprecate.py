@@ -157,11 +157,11 @@ def depr_accuracy_map(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
 
 @deprecated(target=accuracy_score, args_extra={"y_pred": (0, 1, 1, 1)})
 def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
-    """Injecting extra arguments into the forwarded call.
+    """Injecting and overriding arguments in the forwarded call.
 
     Examples:
-        New API requires an argument the old API didn't expose. `args_extra`
-        injects a default `y_pred` value so the target always gets what it needs.
+        The wrapper forces a fixed `y_pred` to be sent to `accuracy_score`,
+        overriding any user-provided `y_pred` via `args_extra={"y_pred": ...}`.
     """
     return void(y_pred, y_true)
 
