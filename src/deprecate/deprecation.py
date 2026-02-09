@@ -78,6 +78,7 @@ def _prepare_target_call(
     """Resolve the target callable and validate mapped keyword arguments.
 
     Example:
+        >>> from deprecate.deprecation import _prepare_target_call
         >>> from enum import Enum
         >>> class OldEnum(Enum):
         ...     A = "a"

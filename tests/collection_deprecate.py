@@ -57,7 +57,7 @@ class RedirectedEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedEnum(Enum):
-    """Deprecated enum with old_value->value mapping for forwarding to NewEnum, where member names differ."""
+    """Deprecated enum with old_value->value mapping, where member names differ but values match NewEnum."""
 
     OLD_ALPHA = "alpha"
     OLD_BETA = "beta"
@@ -85,7 +85,7 @@ class MappedIntEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedValueEnum(Enum):
-    """Deprecated enum with old_value->value mapping to NewEnum, where member values differ."""
+    """Deprecated enum with old_value->value mapping, where member values differ from NewEnum's values."""
 
     ALPHA = "old-alpha"
     BETA = "old-beta"
