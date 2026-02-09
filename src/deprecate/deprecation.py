@@ -8,7 +8,7 @@ Key Components:
     - Warning templates for different deprecation scenarios
     - Internal helpers for argument mapping and warning management
 
-Copyright (C) 2020-2025 Jiri Borovec <...>
+Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect

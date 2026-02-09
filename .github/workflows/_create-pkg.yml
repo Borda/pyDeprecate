@@ -20,28 +20,30 @@ jobs:
     runs-on: ${{ inputs.os }}
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ inputs.python-version }}
 
-      - name: Check package
+      - name: 🔍 Pre-build pkg check
         run: |
           pip install check-manifest
           check-manifest
           python setup.py check --metadata --strict
 
-      - name: Create package
+      - name: 🏗️ Create package
         run: |
           pip install build
           python -m build
 
-      - name: Verify package
+      - name: ✅ Verify package
         run: |
           pip install twine
           twine check dist/*
 
-      - name: Upload artifact
+      - name: 📤 Upload artifact
         if: ${{ inputs.artifact-name != '' }}
         uses: actions/upload-artifact@v6
         with:

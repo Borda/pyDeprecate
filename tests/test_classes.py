@@ -33,44 +33,54 @@ class ThisCls(NewCls):
         super().__init__(c=nc)
 
 
-def test_deprecated_class_forward() -> None:
-    """Test deprecated class that forwards to another class."""
-    with pytest.warns(
-        DeprecationWarning,
-        match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
-        " It will be removed in v0.4.",
-    ):
-        past = PastCls(2, e=0.1)
-    assert past.my_c == 2
-    assert past.my_d == "efg"
-    assert past.my_e == 0.1
-    assert isinstance(past, NewCls)
-    assert isinstance(past, PastCls)
+class TestDeprecatedClass:
+    """Tests for deprecated classes."""
 
-    # check that the warning is raised only once per function
-    with no_warning_call():
-        assert PastCls(c=2, d="", e=0.9999)
+    @pytest.fixture(autouse=True)
+    def _reset_deprecation_state(self) -> None:
+        """Reset deprecation state for PastCls.__init__."""
+        if hasattr(PastCls.__init__, "_warned"):
+            PastCls.__init__._warned = False
 
-    PastCls.__init__._warned = False
-    with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
-        PastCls(2)
+    def test_class_forward(self) -> None:
+        """Test deprecated class that forwards to another class."""
+        with pytest.warns(
+            DeprecationWarning,
+            match="The `PastCls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
+            " It will be removed in v0.4.",
+        ):
+            past = PastCls(2, e=0.1)
+        assert past.my_c == 2
+        assert past.my_d == "efg"
+        assert past.my_e == 0.1
+        assert isinstance(past, NewCls)
+        assert isinstance(past, PastCls)
 
+    def test_class_forward_once(self) -> None:
+        """Check that the warning is raised only on the first call to the wrapped __init__."""
+        PastCls.__init__._warned = False
+        with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
+            PastCls(2)
+        with no_warning_call():
+            assert PastCls(c=2, d="", e=0.9999)
 
-def test_deprecated_class_self() -> None:
-    """Test deprecated class with self-referencing __init__."""
-    with no_warning_call():
-        this = ThisCls(nc=1)
-    assert this.my_c == 1
-    assert isinstance(this, ThisCls)
+    def test_class_self_new_args(self) -> None:
+        """Test deprecated class with self-referencing __init__, using new arguments."""
+        with no_warning_call():
+            this = ThisCls(nc=1)
+        assert this.my_c == 1
+        assert isinstance(this, ThisCls)
 
-    with pytest.warns(
-        DeprecationWarning,
-        match="The `ThisCls` uses deprecated arguments: `c` -> `nc`."
-        " They were deprecated since v0.3 and will be removed in v0.5.",
-    ):
-        this = ThisCls(2)
-    assert this.my_c == 2
-    assert isinstance(this, ThisCls)
+    def test_class_self_deprecated_args(self) -> None:
+        """Test deprecated class with self-referencing __init__, using deprecated arguments."""
+        with pytest.warns(
+            DeprecationWarning,
+            match="The `ThisCls` uses deprecated arguments: `c` -> `nc`."
+            " They were deprecated since v0.3 and will be removed in v0.5.",
+        ):
+            this = ThisCls(2)
+        assert this.my_c == 2
+        assert isinstance(this, ThisCls)
 
 
 def test_deprecated_class_attribute_set_at_decoration_time() -> None:

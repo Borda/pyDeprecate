@@ -132,3 +132,6 @@ dmypy.json
 
 # Ruff - python all-in-one
 .ruff_cache/
+
+# Jetbrain's IDEs and editors
+.idea/

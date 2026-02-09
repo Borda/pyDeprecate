@@ -23,24 +23,25 @@ ______________________________________________________________________
 
 ## 📋 Table of Contents
 
-- [📖 Overview](#overview)
-- [✨ Features](#features)
-- [💾 Installation](#installation)
-- [🚀 Quick Start](#quick-start)
-- [📚 Use-cases and Applications](#use-cases-and-applications)
-  - [Simple function forwarding](#simple-function-forwarding)
-  - [Advanced target argument mapping](#advanced-target-argument-mapping)
-  - [Deprecation warning only](#deprecation-warning-only)
-  - [Self argument mapping](#self-argument-mapping)
-  - [Multiple deprecation levels](#multiple-deprecation-levels)
-  - [Conditional skip](#conditional-skip)
-  - [Class deprecation](#class-deprecation)
-  - [Automatic docstring updates](#automatic-docstring-updates)
-- [🔇 Understanding the void() Helper](#understanding-the-void-helper)
-- [🔍 Validating Wrapper Configuration](#validating-wrapper-configuration)
-- [🧪 Testing Deprecated Code](#testing-deprecated-code)
-- [🔧 Troubleshooting](#troubleshooting)
-- [🤝 Contributing](#contributing)
+- [📖 Overview](#-overview)
+- [✨ Features](#-features)
+  - [Comparison with Other Tools](#-comparison-with-other-tools)
+- [💾 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [📚 Use-cases and Applications](#-use-cases-and-applications)
+  - [Simple function forwarding](#-simple-function-forwarding)
+  - [Advanced target argument mapping](#-advanced-target-argument-mapping)
+  - [Deprecation warning only](#-deprecation-warning-only)
+  - [Self argument mapping](#-self-argument-mapping)
+  - [Multiple deprecation levels](#-multiple-deprecation-levels)
+  - [Conditional skip](#-conditional-skip)
+  - [Class deprecation](#-class-deprecation)
+  - [Automatic docstring updates](#-automatic-docstring-updates)
+- [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
+- [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
+- [🧪 Testing Deprecated Code](#-testing-deprecated-code)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [🤝 Contributing](#-contributing)
 
 ## 📖 Overview
 
@@ -62,6 +63,48 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
 - 🧪 Includes testing helpers (e.g., `no_warning_call`) for deterministic tests
 - 🔗 Compatible with methods, class constructors and cross‑module moves
+
+### 📊 Comparison with Other Tools
+
+> 💬 _How does pyDeprecate compare to other Python deprecation solutions?_
+
+While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, other tools might fit different needs:
+
+- [`warnings.warn`](https://docs.python.org/3/library/warnings.html) (stdlib): The standard library's built-in function, perfect for simple cases requiring no dependencies.
+- [`deprecation`](https://pypi.org/project/deprecation/) (Lib): A widely used library by Brian Curtin, excellent for version-based deprecations.
+- [`Deprecated`](https://pypi.org/project/Deprecated/) (wrapt): A robust decorator-based library by Laurent Laporte with `wrapt` integration.
+
+<details>
+  <summary><strong>Key Advantages & Feature Breakdown</strong></summary>
+
+- **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
+- **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
+- **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
+- **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
+- **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
+- **Version Tracking**: Clearly specifies `deprecated_in` and `remove_in` versions for better lifecycle management.
+- **Prevent Log Spam**: Prevents log spam by showing warnings only once per function (or N times) by default.
+- **Zero Extra Depend.**: Lightweight and easy to install, relying solely on the Python standard library.
+- **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
+- **Testing Helpers**: Built-in tools like `no_warning_call()` ensure your deprecations are testable and deterministic.
+
+</details>
+
+| Feature                  | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) |
+| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Argument Deprecation** |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |
+| **Version Tracking**     |      ✅       |       🖐️ (manual)        |         ✅          |          ✅          |
+| **Prevent Log Spam**     |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |
+| **Custom Streams**       |      ✅       |            ✅            |         ❌          |          ❌          |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |
+
+> [!NOTE]
+> This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
 
 ## 💾 Installation
 
@@ -127,7 +170,7 @@ In particular the target values (cases):
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
-### ➡️ Simple function forwarding
+### ➡ Simple function forwarding
 
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
 
@@ -210,7 +253,7 @@ sample output:
 
 </details>
 
-### ⚠️ Deprecation warning only
+### ⚠ Deprecation warning only
 
 Base use-case with no forwarding and just raising a warning:
 
@@ -238,7 +281,8 @@ print(my_sum(1, 2))
 
 </details>
 
-**Note:** When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
+> [!NOTE]
+> When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
 
 ### 🔄 Self argument mapping
 
@@ -319,7 +363,7 @@ code output:
 
 </details>
 
-### ⚙️ Conditional skip
+### ⚙ Conditional skip
 
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
 
@@ -365,7 +409,7 @@ print(skip_pow(2, 3))
 
 This can be beneficial with multiple deprecation levels shown above...
 
-### 🏗️ Class deprecation
+### 🏗 Class deprecation
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 
@@ -498,7 +542,8 @@ def old_add_v2(a: int, b: int) -> int:
     pass  # This also works
 ```
 
-**💡 Note:** `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
+> [!TIP]
+> `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
 
 ## 🔍 Validating Wrapper Configuration
 
@@ -596,9 +641,7 @@ for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(
-            f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}"
-        )
+        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if r.no_effect]
@@ -663,9 +706,7 @@ def test_deprecated_wrappers_are_valid():
     if wrong_args:
         for r in wrong_args:
             print(f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}")
-        pytest.fail(
-            f"Found {len(wrong_args)} deprecated wrappers with invalid arguments"
-        )
+        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid arguments")
 
     # Warn for identity mappings (less severe)
     for r in identity_mappings:

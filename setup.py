@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
+"""Copyright (C) 2020-2026 Jiri Borovec <...>."""
 
 import os
 import re
@@ -34,7 +34,6 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     with open(path_readme, encoding="utf-8") as fp:
         text = fp.read()
 
-    # https://github.com/Borda/pyDeprecate/raw/main/docs/source/_static/images/...png
     github_source_url = os.path.join(codebase_url, "raw", version)
     # replace relative repository path to absolute link to the release
     #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs

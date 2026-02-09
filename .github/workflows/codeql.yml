@@ -23,19 +23,19 @@ jobs:
         language: [python]
 
     steps:
-      - name: Checkout
+      - name: 🔀 Checkout
         uses: actions/checkout@v6
 
-      - name: Initialize CodeQL
+      - name: 🛡️ Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: +security-and-quality
 
-      - name: Autobuild
+      - name: 🏗️ Autobuild
         uses: github/codeql-action/autobuild@v4
 
-      - name: Perform CodeQL Analysis
+      - name: 🔍 Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"

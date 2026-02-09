@@ -1,5 +1,5 @@
 default_language_version:
-  python: python3
+  python: python3.10
 
 ci:
   autofix_prs: true
@@ -23,7 +23,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/JoC0de/pre-commit-prettier
-    rev: b3e25fa39aa676c36bc18eb9eae6f26d9bb63f39 # v3.6.2 using SHA as tags are not persistent
+    rev: v3.8.1 # using tag; previously pinned SHA when tags were not persistent
     hooks:
       - id: prettier
         files: \.(html|yml|yaml|toml)
@@ -38,37 +38,37 @@ repos:
         #args: ["--write-changes"] # uncomment if you want to get automatic fixing
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.0
+    rev: v1.19.1
     hooks:
       - id: mypy
         name: typing
         exclude: ^temp_docs/ # exclude develop docs folder
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.22
+    rev: 1.0.0
     hooks:
       - id: mdformat
         args: ["--number"]
         additional_dependencies:
           - mdformat-gfm
-          - mdformat-black
+          - mdformat-ruff
           - mdformat_frontmatter
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.10
+    rev: v0.15.0
     hooks:
       # try to fix what is possible
-      - id: ruff
+      - id: ruff-check
         args: ["--fix"] #, "--unsafe-fixes"
       # perform formatting updates
       - id: ruff-format
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: v2.11.1
+    rev: v2.12.1
     hooks:
       - id: pyproject-fmt
         additional_dependencies: [tox]
   - repo: https://github.com/abravalheri/validate-pyproject
-    rev: v0.24.1
+    rev: v0.25
     hooks:
       - id: validate-pyproject
