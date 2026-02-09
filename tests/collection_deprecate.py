@@ -27,7 +27,11 @@ _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argume
 
 @deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class DeprecatedEnum(Enum):
-    """Deprecated enum for regression testing."""
+    """Deprecated enum for regression testing.
+
+    Example:
+        A user can still resolve a deprecated enum by value such as "alpha".
+    """
 
     ALPHA = "alpha"
     BETA = "beta"
@@ -35,7 +39,11 @@ class DeprecatedEnum(Enum):
 
 @deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class DeprecatedIntEnum(Enum):
-    """Deprecated enum with integer values for regression testing."""
+    """Deprecated enum with integer values for regression testing.
+
+    Example:
+        A user can still resolve a deprecated enum by integer value such as 1.
+    """
 
     ONE = 1
     TWO = 2
@@ -43,7 +51,11 @@ class DeprecatedIntEnum(Enum):
 
 @deprecated(target=NewEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class RedirectedEnum(Enum):
-    """Deprecated enum that forwards to a new enum."""
+    """Deprecated enum that forwards to a new enum.
+
+    Example:
+        A user can still call RedirectedEnum("alpha") and receive NewEnum.ALPHA.
+    """
 
     ALPHA = "alpha"
     BETA = "beta"
@@ -57,7 +69,11 @@ class RedirectedEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedEnum(Enum):
-    """Deprecated enum with old_value->value mapping, where member names differ but values match NewEnum."""
+    """Deprecated enum with old_value->value mapping, where member names differ but values match NewEnum.
+
+    Example:
+        A user can pass old_value="alpha" and resolve NewEnum.ALPHA.
+    """
 
     OLD_ALPHA = "alpha"
     OLD_BETA = "beta"
@@ -71,7 +87,11 @@ class MappedEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedIntEnum(Enum):
-    """Deprecated int enum mapping old_value->value where member names differ from NewIntEnum."""
+    """Deprecated int enum mapping old_value->value where member names differ from NewIntEnum.
+
+    Example:
+        A user can pass old_value=1 and resolve NewIntEnum.ALPHA.
+    """
 
     ONE = 1
     TWO = 2
@@ -85,7 +105,11 @@ class MappedIntEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedValueEnum(Enum):
-    """Deprecated enum with old_value->value mapping, where member values differ from NewEnum's values."""
+    """Deprecated enum with old_value->value mapping, where member values differ from NewEnum's values.
+
+    Example:
+        A user can pass old_value="alpha" even though ALPHA stores "old-alpha".
+    """
 
     ALPHA = "old-alpha"
     BETA = "old-beta"
@@ -99,7 +123,11 @@ class MappedValueEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class SelfMappedEnum(Enum):
-    """Deprecated enum with old_value->value mapping that forwards to itself via target=True."""
+    """Deprecated enum with old_value->value mapping that forwards to itself via target=True.
+
+    Example:
+        A user can pass old_value="alpha" and resolve SelfMappedEnum.ALPHA.
+    """
 
     ALPHA = "alpha"
     BETA = "beta"
@@ -108,7 +136,11 @@ class SelfMappedEnum(Enum):
 @deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 @dataclass
 class DeprecatedDataClass:
-    """Deprecated dataclass for regression testing."""
+    """Deprecated dataclass for regression testing.
+
+    Example:
+        A user can still instantiate DeprecatedDataClass("alpha", 2).
+    """
 
     name: str
     count: int = 0
@@ -117,7 +149,11 @@ class DeprecatedDataClass:
 @deprecated(target=NewDataClass, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 @dataclass
 class RedirectedDataClass:
-    """Deprecated dataclass forwarding to NewDataClass."""
+    """Deprecated dataclass forwarding to NewDataClass.
+
+    Example:
+        A user can still instantiate RedirectedDataClass("alpha", 2).
+    """
 
     name: str
     count: int = 0
