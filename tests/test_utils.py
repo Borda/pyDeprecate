@@ -426,6 +426,3 @@ def test_check_module_deprecation_expiry_gracefully_skips_import_errors() -> Non
     # Should return a list without crashing
     assert isinstance(expired, list)
     assert len(expired) == 0  # No expired at version 0.1
-
-
-
