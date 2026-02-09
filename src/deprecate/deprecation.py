@@ -81,7 +81,10 @@ def _prepare_target_call(
     Example:
         >>> def target(a: int, b: int) -> int:
         ...     return a + b
-        >>> _prepare_target_call(target, target, {"a": 1, "b": 2}, False, False)[1]
+        >>> target_func, use_positional = _prepare_target_call(target, target, {"a": 1, "b": 2}, False, False)
+        >>> target_func is target
+        True
+        >>> use_positional
         False
         >>> _prepare_target_call(target, target, {"c": 1}, False, False)
         Traceback (most recent call last):

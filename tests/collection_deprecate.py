@@ -57,7 +57,7 @@ class RedirectedEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedEnum(Enum):
-    """Deprecated enum mapping old_value to value when member names differ from NewEnum."""
+    """Deprecated enum mapping old_value→value when member names differ from NewEnum."""
 
     OLD_ALPHA = "alpha"
     OLD_BETA = "beta"
@@ -71,7 +71,7 @@ class MappedEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedIntEnum(Enum):
-    """Deprecated int enum mapping old_value to NewIntEnum values with different names."""
+    """Deprecated int enum mapping old_value→value where member names differ from NewIntEnum."""
 
     ONE = 1
     TWO = 2
@@ -85,7 +85,7 @@ class MappedIntEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedValueEnum(Enum):
-    """Deprecated enum mapping old_value while values differ from NewEnum ('old-*' vs 'alpha'/'beta')."""
+    """Deprecated enum mapping old_value where values differ from NewEnum (e.g., 'old-alpha' vs 'alpha')."""
 
     ALPHA = "old-alpha"
     BETA = "old-beta"
@@ -99,7 +99,7 @@ class MappedValueEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class SelfMappedEnum(Enum):
-    """Deprecated enum mapping old_value within the same enum for keyword compatibility."""
+    """Deprecated enum mapping old_value→value while forwarding to itself (target=True)."""
 
     ALPHA = "alpha"
     BETA = "beta"
