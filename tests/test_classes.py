@@ -40,7 +40,6 @@ class ThisCls(NewCls):
         super().__init__(c=nc)
 
 
-
 class TestDeprecatedClass:
     """Tests for deprecated classes."""
 

@@ -102,9 +102,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     has_var_positional = any(param.kind == inspect.Parameter.VAR_POSITIONAL for param in params)
 
     if not has_var_positional and len(fn_args) > len(positional_params):
-        required_positional_params = [
-            param for param in positional_params if param.default is inspect.Parameter.empty
-        ]
+        required_positional_params = [param for param in positional_params if param.default is inspect.Parameter.empty]
         if len(required_positional_params) == len(positional_params):
             expected_label = _positional_label(len(positional_params))
             received_label = _positional_label(len(fn_args))
@@ -479,8 +477,7 @@ def deprecated(
     def packing(source: Callable) -> Callable:
         source_is_class = inspect.isclass(source)
         source_has_var_positional = any(
-            param.kind == inspect.Parameter.VAR_POSITIONAL
-            for param in _get_signature(source).parameters.values()
+            param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
 
         @wraps(source)
