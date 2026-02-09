@@ -12,11 +12,11 @@ from tests.collection_deprecate import (
     DeprecatedDataClass,
     DeprecatedEnum,
     DeprecatedIntEnum,
-    MappedIntEnum,
     MappedEnum,
+    MappedIntEnum,
     MappedValueEnum,
-    RedirectedEnum,
     RedirectedDataClass,
+    RedirectedEnum,
     SelfMappedEnum,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
