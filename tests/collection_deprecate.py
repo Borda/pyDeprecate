@@ -85,7 +85,7 @@ class MappedIntEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedValueEnum(Enum):
-    """Deprecated enum mapping old_value where values differ from NewEnum (e.g., 'old-alpha' vs 'alpha')."""
+    """Deprecated enum mapping old_value where member values differ from NewEnum (e.g., 'old-alpha' vs 'alpha')."""
 
     ALPHA = "old-alpha"
     BETA = "old-beta"

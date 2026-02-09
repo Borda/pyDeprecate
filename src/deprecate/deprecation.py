@@ -12,7 +12,6 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect
-from copy import deepcopy
 from enum import Enum
 from functools import lru_cache, partial, wraps
 from inspect import Parameter
@@ -541,8 +540,8 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
-            # Preserve original kwargs for var-positional fallback before remapping (deepcopy for nested values).
-            original_kwargs = deepcopy(kwargs)
+            # Preserve original kwargs for var-positional fallback before remapping.
+            original_kwargs = dict(kwargs)
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
