@@ -83,6 +83,10 @@ def _prepare_target_call(
         ...     return a + b
         >>> _prepare_target_call(target, target, {"a": 1, "b": 2}, False, False)[1]
         False
+        >>> _prepare_target_call(target, target, {"c": 1}, False, False)
+        Traceback (most recent call last):
+        ...
+        TypeError: Failed mapping of `target`, arguments not accepted by target: ['c']
 
     """
     target_is_class = inspect.isclass(target)
@@ -534,7 +538,7 @@ def deprecated(
 
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
-            # Preserve original kwargs for var-positional fallback before remapping.
+            # Preserve original kwargs for var-positional fallback before remapping (deepcopy for nested values).
             original_kwargs = deepcopy(kwargs)
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
