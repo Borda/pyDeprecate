@@ -30,7 +30,7 @@ class DeprecatedEnum(Enum):
     """Deprecated enum for regression testing.
 
     Example:
-        A user can still resolve DeprecatedEnum("alpha") or access DeprecatedEnum.ALPHA.
+        A user can still resolve DeprecatedEnum("alpha") via value lookup (DeprecatedEnum.ALPHA).
     """
 
     ALPHA = "alpha"
@@ -54,7 +54,7 @@ class RedirectedEnum(Enum):
     """Deprecated enum that forwards to a new enum.
 
     Example:
-        A user can still call RedirectedEnum("alpha") and receive NewEnum.ALPHA.
+        A user can still call RedirectedEnum("alpha") via value lookup and receive NewEnum.ALPHA.
     """
 
     ALPHA = "alpha"
@@ -126,7 +126,7 @@ class SelfMappedEnum(Enum):
     """Deprecated enum with old_value->value mapping that forwards to itself via target=True.
 
     Example:
-        A user can pass old_value="alpha" and resolve SelfMappedEnum.ALPHA.
+        A user can call SelfMappedEnum(old_value="alpha") to resolve SelfMappedEnum.ALPHA.
     """
 
     ALPHA = "alpha"
