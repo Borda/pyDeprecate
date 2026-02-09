@@ -78,17 +78,19 @@ def _prepare_target_call(
     """Resolve the target callable and validate mapped keyword arguments.
 
     Example:
-        >>> def target(a: int, b: int) -> int:
+        >>> def source(a: int, b: int) -> int:
         ...     return a + b
-        >>> target_func, use_positional = _prepare_target_call(target, target, {"a": 1, "b": 2}, False, False)
+        >>> def target(a: int, b: int) -> int:
+        ...     return a - b
+        >>> target_func, use_positional = _prepare_target_call(source, target, {"a": 1, "b": 2}, False, False)
         >>> target_func is target
         True
         >>> use_positional
         False
-        >>> _prepare_target_call(target, target, {"c": 1}, False, False)
+        >>> _prepare_target_call(source, target, {"c": 1}, False, False)
         Traceback (most recent call last):
         ...
-        TypeError: Failed mapping of `target`, arguments not accepted by target: ['c']
+        TypeError: Failed mapping of `source`, arguments not accepted by target: ['c']
 
     """
     target_is_class = inspect.isclass(target)
@@ -590,10 +592,8 @@ def deprecated(
                 kwargs.update(args_extra)
 
             if not callable(target):
-                if source_has_var_positional and not reason_argument:
-                    return source(*args, **original_kwargs)
                 if source_has_var_positional:
-                    return source(*args, **kwargs)
+                    return source(*args, **(original_kwargs if not reason_argument else kwargs))
                 return source(**kwargs)
 
             target_func, use_positional_args = _prepare_target_call(
