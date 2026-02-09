@@ -30,7 +30,7 @@ class DeprecatedEnum(Enum):
     """Deprecated enum for regression testing.
 
     Example:
-        A user can still resolve a deprecated enum by value such as "alpha".
+        A user can still resolve DeprecatedEnum("alpha") or access DeprecatedEnum.ALPHA.
     """
 
     ALPHA = "alpha"
@@ -139,7 +139,7 @@ class DeprecatedDataClass:
     """Deprecated dataclass for regression testing.
 
     Example:
-        A user can still instantiate DeprecatedDataClass("alpha", 2).
+        A user can still instantiate DeprecatedDataClass(name="alpha", count=2).
     """
 
     name: str
@@ -152,7 +152,7 @@ class RedirectedDataClass:
     """Deprecated dataclass forwarding to NewDataClass.
 
     Example:
-        A user can still instantiate RedirectedDataClass("alpha", 2).
+        A user can still instantiate RedirectedDataClass(name="alpha", count=2).
     """
 
     name: str
