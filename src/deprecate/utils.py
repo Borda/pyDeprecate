@@ -22,14 +22,121 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect
+import re
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional, Union
 
-from packaging.version import InvalidVersion
-from packaging.version import parse as parse_version
+
+def _parse_version(version_string: str) -> tuple[int, ...]:
+    """Parse a version string into a tuple of integers for comparison.
+
+    This is a simple version parser that handles semantic versioning without
+    external dependencies. It splits on dots and extracts numeric parts.
+    Pre-release versions (with dash or plus) are treated as less than the base version.
+
+    Args:
+        version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0-alpha")
+
+    Returns:
+        Tuple of integers representing the version for comparison.
+        Pre-release versions return a tuple with a marker (-1) at the end to ensure
+        they sort before the release version.
+
+    Raises:
+        ValueError: If the version string cannot be parsed into valid numeric components.
+
+    Example:
+        >>> _parse_version("1.2.3")
+        (1, 2, 3)
+        >>> _parse_version("2.0")
+        (2, 0)
+        >>> _parse_version("1.5.0-alpha") < _parse_version("1.5.0")
+        True
+
+    """
+    # Check if this is a pre-release version (contains dash or plus)
+    is_prerelease = '-' in version_string or '+' in version_string
+
+    # Remove common pre-release suffixes for comparison
+    # Split on dash or plus to handle versions like "1.2.3-alpha" or "1.2.3+build"
+    base_version = re.split(r'[-+]', version_string)[0]
+
+    try:
+        # Split on dots and convert to integers
+        parts = [int(part) for part in base_version.split('.')]
+        if not parts:
+            raise ValueError(f"Version string '{version_string}' has no numeric components")
+
+        # If it's a pre-release, add a marker to ensure it sorts before the release
+        # This makes "1.5.0-alpha" < "1.5.0"
+        if is_prerelease:
+            parts.append(-1)
+
+        return tuple(parts)
+    except ValueError as e:
+        raise ValueError(
+            f"Failed to parse version '{version_string}'. "
+            f"Expected format: 'X.Y.Z' (e.g., '1.2.3' or '2.0'). Error: {e}"
+        ) from e
+
+
+def _normalize_versions_for_comparison(
+    v1: tuple[int, ...], v2: tuple[int, ...]
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Normalize two version tuples to the same length for comparison.
+
+    Ensures that comparing versions like "0.5" and "0.5.0-alpha" works correctly
+    by padding the shorter version with zeros up to the base length of the longer version.
+    Preserves prerelease markers at the end.
+
+    Args:
+        v1: First version tuple
+        v2: Second version tuple
+
+    Returns:
+        Tuple of two normalized version tuples
+
+    Example:
+        >>> _normalize_versions_for_comparison((0, 5), (0, 5, 0, -1))
+        ((0, 5, 0, 0), (0, 5, 0, -1))
+
+    """
+    # Extract base versions (without pre-release marker) and check for prerelease
+    v1_list = list(v1)
+    v2_list = list(v2)
+
+    v1_is_prerelease = len(v1_list) > 0 and v1_list[-1] == -1
+    v2_is_prerelease = len(v2_list) > 0 and v2_list[-1] == -1
+
+    # Remove prerelease markers temporarily for normalization
+    if v1_is_prerelease:
+        v1_list.pop()
+    if v2_is_prerelease:
+        v2_list.pop()
+
+    # Pad to same length
+    max_len = max(len(v1_list), len(v2_list))
+    while len(v1_list) < max_len:
+        v1_list.append(0)
+    while len(v2_list) < max_len:
+        v2_list.append(0)
+
+    # Re-add prerelease markers
+    # For non-prerelease versions, add 0 as a marker (sorts after -1)
+    if v1_is_prerelease:
+        v1_list.append(-1)
+    else:
+        v1_list.append(0)  # Stable release marker
+
+    if v2_is_prerelease:
+        v2_list.append(-1)
+    else:
+        v2_list.append(0)  # Stable release marker
+
+    return tuple(v1_list), tuple(v2_list)
 
 
 @dataclass(frozen=True)
@@ -395,7 +502,7 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
 2.0.0. Please delete this deprecated code.
 
     Note:
-        - Uses semantic versioning comparison via packaging.version.parse
+        - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
         - Intended for use in CI/CD pipelines or development checks
         - Helps maintain code hygiene by enforcing deprecation deadlines
         - Can be integrated into test suites or pre-commit hooks
@@ -411,15 +518,18 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
             f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
         )
 
-    # Parse both versions using packaging.version for proper semantic version comparison
+    # Parse both versions for proper semantic version comparison
     try:
-        current_ver = parse_version(current_version)
-        remove_ver = parse_version(remove_in)
-    except InvalidVersion as e:
+        current_ver = _parse_version(current_version)
+        remove_ver = _parse_version(remove_in)
+    except ValueError as e:
         raise ValueError(
             f"Failed to parse versions for comparison. current_version='{current_version}', "
             f"remove_in='{remove_in}'. Error: {e}"
         ) from e
+
+    # Normalize versions for proper comparison (handles different lengths)
+    current_ver, remove_ver = _normalize_versions_for_comparison(current_ver, remove_ver)
 
     # Check if the current version has reached or passed the removal deadline
     if current_ver >= remove_ver:
@@ -478,7 +588,7 @@ def check_module_deprecation_expiry(
         - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
         - Skips callables that cannot be imported or accessed
         - Skips callables with invalid version formats (logs no error, just continues)
-        - Uses semantic versioning comparison via packaging.version.parse
+        - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
         - Intended for automated checks in CI/CD pipelines
         - Can be integrated into test suites or pre-commit hooks
 
