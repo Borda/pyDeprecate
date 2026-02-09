@@ -83,7 +83,7 @@ def _prepare_target_call(
         ...     A = "a"
         >>> class NewEnum(Enum):
         ...     A = "a"
-        >>> target_func, use_positional = _prepare_target_call(OldEnum, NewEnum, {ENUM_VALUE_PARAM: "a"}, True, True)
+        >>> target_func, use_positional = _prepare_target_call(OldEnum, NewEnum, {"value": "a"}, True, True)
         >>> target_func is NewEnum
         True
         >>> use_positional
