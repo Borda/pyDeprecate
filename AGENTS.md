@@ -153,7 +153,7 @@ Tests follow a **three-layer separation** — do not mix these concerns:
 - Every new function or behavior change must have accompanying tests.
 - Include tests for: happy path, failure path, and edge cases (None, empty inputs, circular chains).
 - Group related tests in classes. Avoid redundant naming — in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`.
-- Use `pytest.warns(FutureWarning)` to verify deprecation warnings.
+- Use `pytest.warns(FutureWarning)` (or `pytest.warns(DeprecationWarning)` when testing custom warning streams/categories) to verify deprecation warnings.
 - Use `pytest.fixture(autouse=True)` for per-test state reset when needed.
 - One behavior per test method.
 
