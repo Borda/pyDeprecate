@@ -12,8 +12,10 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect
+from copy import deepcopy
 from enum import Enum
 from functools import lru_cache, partial, wraps
+from inspect import Parameter
 from typing import Any, Callable, Optional, Union
 from warnings import warn
 
@@ -37,6 +39,8 @@ TEMPLATE_WARNING_NO_TARGET = (
 )
 #: Enum constructor keyword for value lookups.
 ENUM_VALUE_PARAM = "value"
+POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
+POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 #: Default template for documentation with deprecated callable
 TEMPLATE_DOC_DEPRECATED = """
 .. deprecated:: %(deprecated_in)s
@@ -56,18 +60,64 @@ def _get_signature(func: Callable) -> inspect.Signature:
     return inspect.signature(func)
 
 
-def _positional_label(count: int) -> str:
-    """Return a grammatically correct label for positional arguments."""
-    return "argument" if count == 1 else "arguments"
-
-
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
     """Filter positional-only and positional-or-keyword parameters."""
     return [
         param
         for param in params
-        if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)
     ]
+
+
+def _prepare_target_call(
+    source: Callable,
+    target: Callable,
+    kwargs: dict[str, Any],
+    source_is_class: bool,
+    source_has_var_positional: bool,
+) -> tuple[Callable, bool]:
+    """Resolve the target callable and validate mapped keyword arguments.
+
+    Example:
+        >>> def target(a: int, b: int) -> int:
+        ...     return a + b
+        >>> _prepare_target_call(target, target, {"a": 1, "b": 2}, False, False)[1]
+        False
+
+    """
+    target_is_class = inspect.isclass(target)
+    # Class-to-class forwarding instantiates the target directly; function-to-class forwarding calls __init__.
+    target_func = target
+    if target_is_class and not source_is_class:
+        target_func = target.__init__
+    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
+
+    target_full_arg_spec = inspect.getfullargspec(target_func)
+    varargs = target_full_arg_spec.varargs
+    varkw = target_full_arg_spec.varkw
+
+    missed = [arg for arg in kwargs if arg not in target_args]
+    source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
+    target_is_enum = False
+    if target_is_class:
+        try:
+            target_is_enum = issubclass(target, Enum)
+        except TypeError:
+            # issubclass can fail for non-type objects; treat as non-enum.
+            target_is_enum = False
+    single_missed_arg = len(missed) == 1
+    missed_is_value_param = ENUM_VALUE_PARAM in missed
+    is_enum_value_case = source_is_enum and target_is_enum and single_missed_arg and missed_is_value_param
+    if missed and varkw is None:
+        if varargs is None:
+            # Target doesn't accept these args and doesn't have *args to catch them.
+            raise TypeError(f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}")
+        if not is_enum_value_case:
+            raise TypeError(
+                f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
+                f"these keyword arguments are not allowed): {missed}"
+            )
+    return target_func, source_is_class and source_has_var_positional
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -104,17 +154,13 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     if not has_var_positional and len(fn_args) > len(positional_params):
         required_positional_params = [param for param in positional_params if param.default is inspect.Parameter.empty]
         if len(required_positional_params) == len(positional_params):
-            expected_label = _positional_label(len(positional_params))
-            received_label = _positional_label(len(fn_args))
             raise TypeError(
-                f"{func.__qualname__}() takes {len(positional_params)} positional {expected_label} "
-                f"but got {len(fn_args)} positional {received_label}"
+                f"{func.__qualname__}() takes {len(positional_params)} positional argument(s) but got "
+                f"{len(fn_args)} positional argument(s)"
             )
-        max_positional_label = _positional_label(len(positional_params))
-        received_label = _positional_label(len(fn_args))
         raise TypeError(
             f"{func.__qualname__}() takes {len(required_positional_params)} to {len(positional_params)} "
-            f"positional {max_positional_label} but got {len(fn_args)} positional {received_label}"
+            f"positional argument(s) but got {len(fn_args)} positional argument(s)"
         )
     updated_kwargs = dict(fn_kwargs)
     for index, arg in enumerate(fn_args):
@@ -123,10 +169,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
         param = params[index]
         if param.kind == inspect.Parameter.VAR_POSITIONAL:
             break
-        if param.kind in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        ):
+        if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD):
             updated_kwargs[param.name] = arg
     return updated_kwargs
 
@@ -492,7 +535,7 @@ def deprecated(
             nb_called = getattr(wrapped_fn, "_called", 0)
             setattr(wrapped_fn, "_called", nb_called + 1)
             # Preserve original kwargs for var-positional fallback before remapping.
-            original_kwargs = dict(kwargs)
+            original_kwargs = deepcopy(kwargs)
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
@@ -541,51 +584,22 @@ def deprecated(
                 kwargs.update(args_extra)
 
             if not callable(target):
-                if source_has_var_positional:
+                if source_has_var_positional and not reason_argument:
                     return source(*args, **original_kwargs)
+                if source_has_var_positional:
+                    return source(*args, **kwargs)
                 return source(**kwargs)
 
-            # Validate that all arguments can be passed to target
-            target_is_class = inspect.isclass(target)
-            # Class-to-class forwarding instantiates the target directly; function-to-class forwarding calls __init__.
-            target_func = target
-            if target_is_class and not source_is_class:
-                target_func = target.__init__
-            target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
-
-            # get full args & name of varkw
-            target_full_arg_spec = inspect.getfullargspec(target_func)
-            varargs = target_full_arg_spec.varargs
-            varkw = target_full_arg_spec.varkw
-
-            # Check for arguments that target doesn't accept
-            missed = [arg for arg in kwargs if arg not in target_args]
-            is_enum_value_case = False
-            source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
-            target_is_enum = False
-            if target_is_class:
-                try:
-                    target_is_enum = issubclass(target, Enum)
-                except TypeError:
-                    # issubclass can fail for non-type objects; treat as non-enum.
-                    target_is_enum = False
-            single_missed_arg = len(missed) == 1
-            missed_is_value_param = ENUM_VALUE_PARAM in missed
-            is_enum_value_case = source_is_enum and target_is_enum and single_missed_arg and missed_is_value_param
-            if missed and varkw is None:
-                if varargs is None:
-                    # Target doesn't accept these args and doesn't have *args to catch them.
-                    raise TypeError(
-                        f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}"
-                    )
-                if not is_enum_value_case:
-                    raise TypeError(
-                        f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts "
-                        f"*args but these keyword arguments are not allowed): {missed}"
-                    )
-            # Positional args become kwargs for regular callables; source classes with varargs keep positional values.
+            target_func, use_positional_args = _prepare_target_call(
+                source,
+                target,
+                kwargs,
+                source_is_class,
+                source_has_var_positional,
+            )
+            # Positional args become kwargs for regular callables; class-level varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
-            if source_is_class and source_has_var_positional:
+            if use_positional_args:
                 return target_func(*args, **kwargs)
             return target_func(**kwargs)
 

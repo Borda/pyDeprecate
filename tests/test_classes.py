@@ -12,10 +12,14 @@ from tests.collection_deprecate import (
     DeprecatedDataClass,
     DeprecatedEnum,
     DeprecatedIntEnum,
+    MappedIntEnum,
     MappedEnum,
+    MappedValueEnum,
     RedirectedEnum,
+    RedirectedDataClass,
+    SelfMappedEnum,
 )
-from tests.collection_targets import NewCls, NewEnum
+from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
 
@@ -128,6 +132,21 @@ class TestDeprecatedEnums:
         with pytest.warns(FutureWarning):
             assert MappedEnum("alpha") is NewEnum.ALPHA
 
+    def test_enum_argument_mapping_int_forwards(self) -> None:
+        """Test argument mapping for int enums forwarding to NewIntEnum."""
+        with pytest.warns(FutureWarning):
+            assert MappedIntEnum(old_value=1) is NewIntEnum.ALPHA
+
+    def test_enum_argument_mapping_value_differs(self) -> None:
+        """Test mapping when enum values differ from the new enum."""
+        with pytest.warns(FutureWarning):
+            assert MappedValueEnum(old_value="alpha") is NewEnum.ALPHA
+
+    def test_enum_self_argument_mapping(self) -> None:
+        """Test argument mapping when deprecating within the same enum."""
+        with pytest.warns(FutureWarning):
+            assert SelfMappedEnum(old_value="alpha") is SelfMappedEnum.ALPHA
+
 
 class TestDeprecatedDataclasses:
     """Tests for deprecated dataclass wrappers."""
@@ -142,6 +161,14 @@ class TestDeprecatedDataclasses:
             instance = DeprecatedDataClass(name="beta")
         assert instance.name == "beta"
         assert instance.count == 0
+
+    def test_dataclass_forwarding(self) -> None:
+        """Test deprecated dataclass forwarding to NewDataClass."""
+        with pytest.warns(FutureWarning):
+            instance = RedirectedDataClass("alpha", 2)
+        assert instance.name == "alpha"
+        assert instance.count == 2
+        assert isinstance(instance, NewDataClass)
 
 
 def test_deprecated_class_attribute_set_at_decoration_time() -> None:

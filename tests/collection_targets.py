@@ -6,6 +6,7 @@ functions in other test modules.
 
 import functools
 import time
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
 
@@ -35,6 +36,21 @@ class NewEnum(Enum):
 
     ALPHA = "alpha"
     BETA = "beta"
+
+
+class NewIntEnum(Enum):
+    """New enum with integer values for mapping tests."""
+
+    ALPHA = 1
+    BETA = 2
+
+
+@dataclass
+class NewDataClass:
+    """Target dataclass for deprecation forwarding tests."""
+
+    name: str
+    count: int = 0
 
 
 def timing_wrapper(func: Callable) -> Callable:

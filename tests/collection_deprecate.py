@@ -11,7 +11,15 @@ from typing import Callable
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
-from tests.collection_targets import NewEnum, TimerDecorator, base_pow_args, base_sum_kwargs, timing_wrapper
+from tests.collection_targets import (
+    NewDataClass,
+    NewEnum,
+    NewIntEnum,
+    TimerDecorator,
+    base_pow_args,
+    base_sum_kwargs,
+    timing_wrapper,
+)
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
@@ -49,16 +57,67 @@ class RedirectedEnum(Enum):
     args_mapping={"old_value": "value"},
 )
 class MappedEnum(Enum):
-    """Deprecated enum that forwards to a new enum with argument mapping."""
+    """Deprecated enum mapping old_value to value when member names differ."""
 
     OLD_ALPHA = "alpha"
     OLD_BETA = "beta"
+
+
+@deprecated(
+    target=NewIntEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class MappedIntEnum(Enum):
+    """Deprecated int enum mapping old_value to NewIntEnum values with different names."""
+
+    ONE = 1
+    TWO = 2
+
+
+@deprecated(
+    target=NewEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class MappedValueEnum(Enum):
+    """Deprecated enum mapping old_value while values differ from the new enum."""
+
+    ALPHA = "old-alpha"
+    BETA = "old-beta"
+
+
+@deprecated(
+    target=True,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class SelfMappedEnum(Enum):
+    """Deprecated enum mapping old_value within the same enum for keyword compatibility."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
 
 
 @deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 @dataclass
 class DeprecatedDataClass:
     """Deprecated dataclass for regression testing."""
+
+    name: str
+    count: int = 0
+
+
+@deprecated(target=NewDataClass, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@dataclass
+class RedirectedDataClass:
+    """Deprecated dataclass forwarding to NewDataClass."""
 
     name: str
     count: int = 0
