@@ -240,6 +240,23 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > [!IMPORTANT]
 > In almost all cases, **do not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files. Prefer placing targets in `collection_targets.py` and deprecated wrappers in `collection_deprecate.py`, then importing them in tests. A small number of existing tests intentionally define `@deprecated` callables inline when the test itself is about how `@deprecated` is declared; new tests should follow the three-layer pattern unless such an inline definition is explicitly required.
 
+**Docstrings in test collections:**
+
+Functions in `collection_deprecate.py` and `collection_misconfigured.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
+
+Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
+
+```python
+@deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+def depr_sum_warn_only(a: int, b: int = 5) -> int:
+    """Warning-only deprecation with no forwarding.
+
+    Examples:
+        The function is going away but has no replacement yet. The user gets
+        warned, but the original body still executes (`target=None`).
+    """
+```
+
 **Test requirements:**
 
 - Every new function or behavior change must have accompanying tests.
