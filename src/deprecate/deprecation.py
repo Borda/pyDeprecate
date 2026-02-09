@@ -87,6 +87,12 @@ def _prepare_target_call(
         True
         >>> use_positional
         False
+        >>> class OldEnum(Enum):
+        ...     A = "a"
+        >>> class NewEnum(Enum):
+        ...     A = "a"
+        >>> _prepare_target_call(OldEnum, NewEnum, {ENUM_VALUE_PARAM: "a"}, True, True)[1]
+        True
         >>> _prepare_target_call(source, target, {"c": 1}, False, False)
         Traceback (most recent call last):
         ...
