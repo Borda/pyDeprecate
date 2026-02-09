@@ -119,9 +119,9 @@ tests/
 ## 📦 Commands
 
 ```bash
-pytest src/ tests/             # run tests (includes doctests)
-pre-commit run --all-files     # run all linters and formatters
 pip install -e . "pre-commit" -r tests/requirements.txt && pre-commit install  # dev setup
+pre-commit run --all-files     # run all linters and formatters
+pytest src/ tests/             # run tests (includes doctests)
 ```
 
 ## 📋 Coding Rules & Architecture
@@ -161,7 +161,7 @@ Tests follow a **three-layer separation** — do not mix these concerns:
 
 ### ✅ Always
 
-- Run `pre-commit run --all-files` before committing
+- Run `pre-commit run` before committing
 - Provide `deprecated_in` and `remove_in` version strings on every deprecation
 - Include migration messages in deprecation warnings pointing to replacements
 - Place targets in `collection_targets.py`, wrappers in `collection_deprecate.py`, tests in `test_*.py`

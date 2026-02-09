@@ -216,7 +216,8 @@ git push origin feature/amazing-feature
 - Add comments only where the code is not self-explanatory
 - No bare `except:` — always catch specific exceptions
 
-Code style is enforced by pre-commit hooks — run `pre-commit run --all-files` before submitting. Key tools and their configs live in `pyproject.toml` and `.pre-commit-config.yaml` (`ruff` for formatting/linting, `mypy` for type checking).
+> [!TIP]
+> Code style is enforced by pre-commit hooks — run `pre-commit run --all-files` before submitting. Key tools and their configs live in `pyproject.toml` and `.pre-commit-config.yaml` (`ruff` for formatting/linting, `mypy` for type checking).
 
 ### Architecture Constraints
 
