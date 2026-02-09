@@ -155,11 +155,11 @@ class DeprecatedDataClass:
     """Deprecated dataclass for regression testing.
 
     Example:
-        A user can still instantiate DeprecatedDataClass(name="alpha", count=2).
+        A user can still instantiate DeprecatedDataClass(label="alpha", total=2).
     """
 
-    name: str
-    count: int = 0
+    label: str
+    total: int = 0
 
 
 @deprecated(target=NewDataClass, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
@@ -168,11 +168,11 @@ class RedirectedDataClass:
     """Deprecated dataclass forwarding to NewDataClass.
 
     Example:
-        A user can still instantiate RedirectedDataClass(name="alpha", count=2).
+        A user can still instantiate RedirectedDataClass(label="alpha", total=2).
     """
 
-    name: str
-    count: int = 0
+    label: str
+    total: int = 0
 
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")

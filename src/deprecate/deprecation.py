@@ -103,23 +103,13 @@ def _prepare_target_call(
     target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
     target_full_arg_spec = inspect.getfullargspec(target_func)
-    varargs = target_full_arg_spec.varargs
-    varkw = target_full_arg_spec.varkw
+    var_args = target_full_arg_spec.varargs
+    var_kw = target_full_arg_spec.varkw
 
     missed = [arg for arg in kwargs if arg not in target_args]
-    source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
-    target_is_enum = False
-    if target_is_class:
-        try:
-            target_is_enum = issubclass(target, Enum)
-        except TypeError:
-            # issubclass can fail for non-type objects; treat as non-enum.
-            target_is_enum = False
-    single_missed_arg = len(missed) == 1
-    missed_is_value_param = ENUM_VALUE_PARAM in missed
-    is_enum_value_case = source_is_enum and target_is_enum and single_missed_arg and missed_is_value_param
-    if missed and varkw is None:
-        if varargs is None:
+    is_enum_value_case = _is_enum_value_case(source, target, missed, source_is_class, target_is_class)
+    if missed and var_kw is None:
+        if var_args is None:
             # Target doesn't accept these args and doesn't have *args to catch them.
             raise TypeError(f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}")
         if not is_enum_value_case:
@@ -128,6 +118,27 @@ def _prepare_target_call(
                 f"these keyword arguments are not allowed): {missed}"
             )
     return target_func, source_is_class and source_has_var_positional
+
+
+def _is_enum_value_case(
+    source: Callable,
+    target: Callable,
+    missed: list[str],
+    source_is_class: bool,
+    target_is_class: bool,
+) -> bool:
+    """Check if Enum value mapping should allow keyword fallback."""
+    source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
+    if not (source_is_enum and target_is_class):
+        return False
+    try:
+        target_is_enum = issubclass(target, Enum)
+    except TypeError:
+        # issubclass can fail for non-type objects; treat as non-enum.
+        return False
+    single_missed_arg = len(missed) == 1
+    missed_is_value_param = ENUM_VALUE_PARAM in missed
+    return target_is_enum and single_missed_arg and missed_is_value_param
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -599,7 +610,11 @@ def deprecated(
                 return source(**kwargs)
 
             target_func, use_positional_args = _prepare_target_call(
-                source, target, kwargs, source_is_class, source_has_var_positional
+                source,
+                target,
+                kwargs,
+                source_is_class,
+                source_has_var_positional,
             )
             # Positional args become kwargs for regular callables; class-level varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.

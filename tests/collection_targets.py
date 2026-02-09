@@ -49,8 +49,8 @@ class NewIntEnum(Enum):
 class NewDataClass:
     """Target dataclass for deprecation forwarding tests."""
 
-    name: str
-    count: int = 0
+    label: str
+    total: int = 0
 
 
 def timing_wrapper(func: Callable) -> Callable:

@@ -155,19 +155,19 @@ class TestDeprecatedDataclasses:
         """Test that deprecated dataclass supports positional and keyword args."""
         with pytest.warns(FutureWarning):
             instance = DeprecatedDataClass("alpha", 2)
-        assert instance.name == "alpha"
-        assert instance.count == 2
+        assert instance.label == "alpha"
+        assert instance.total == 2
         with pytest.warns(FutureWarning):
-            instance = DeprecatedDataClass(name="beta")
-        assert instance.name == "beta"
-        assert instance.count == 0
+            instance = DeprecatedDataClass(label="beta")
+        assert instance.label == "beta"
+        assert instance.total == 0
 
     def test_dataclass_forwarding(self) -> None:
         """Test deprecated dataclass forwarding to NewDataClass."""
         with pytest.warns(FutureWarning):
             instance = RedirectedDataClass("alpha", 2)
-        assert instance.name == "alpha"
-        assert instance.count == 2
+        assert instance.label == "alpha"
+        assert instance.total == 2
         assert isinstance(instance, NewDataClass)
 
 
