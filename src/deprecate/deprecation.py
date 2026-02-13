@@ -141,6 +141,23 @@ def _is_enum_value_case(
     return target_is_enum and single_missed_arg and missed_is_value_param
 
 
+def _coerce_enum_value_args(
+    target: Callable,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Move Enum value keyword argument into a positional argument when required."""
+    if not (isinstance(target, type) and issubclass(target, Enum)):
+        return args, kwargs
+    if ENUM_VALUE_PARAM not in kwargs:
+        return args, kwargs
+    new_kwargs = dict(kwargs)
+    value = new_kwargs.pop(ENUM_VALUE_PARAM)
+    if args:
+        return args, new_kwargs
+    return (*args, value), new_kwargs
+
+
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
     """Convert positional arguments to keyword arguments using function signature.
 
@@ -606,7 +623,9 @@ def deprecated(
 
             if not callable(target):
                 if source_has_var_positional:
-                    return source(*args, **(original_kwargs if not reason_argument else kwargs))
+                    call_kwargs = original_kwargs if not reason_argument else kwargs
+                    call_args, call_kwargs = _coerce_enum_value_args(source, args, call_kwargs)
+                    return source(*call_args, **call_kwargs)
                 return source(**kwargs)
 
             target_func, use_positional_args = _prepare_target_call(
@@ -619,7 +638,8 @@ def deprecated(
             # Positional args become kwargs for regular callables; class-level varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
             if use_positional_args:
-                return target_func(*args, **kwargs)
+                call_args, call_kwargs = _coerce_enum_value_args(target_func, args, kwargs)
+                return target_func(*call_args, **call_kwargs)
             return target_func(**kwargs)
 
         # Set deprecation info for documentation
