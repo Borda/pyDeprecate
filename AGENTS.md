@@ -149,7 +149,7 @@ pytest src/ tests/
 
 - **Three-layer separation**: targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, test logic in `test_*.py`
 - **Do not** define targets or `@deprecated` wrappers directly in test files
-- See [Test Organization](/.github/CONTRIBUTING.md#-coding-standards) for details
+- See [Test Organization](/.github/CONTRIBUTING.md#test-organization) for details
 
 ## 🚫 Critical Constraints
 
