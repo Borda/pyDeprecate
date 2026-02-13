@@ -127,11 +127,11 @@ def _get_signature(func: Callable) -> inspect.Signature:
     try:
         with _SIGNATURE_CACHE_LOCK:
             cached = _SIGNATURE_CACHE.get(func)
-            if cached is not None:
-                _SIGNATURE_CACHE.move_to_end(func)
     except TypeError:
         return inspect.signature(func)
     if cached is not None:
+        with _SIGNATURE_CACHE_LOCK:
+            _SIGNATURE_CACHE.move_to_end(func)
         return cached
     signature = inspect.signature(func)
     try:
