@@ -11,7 +11,7 @@ from deprecate.utils import (
     no_warning_call,
     validate_deprecated_callable,
 )
-from tests.collection_deprecate import depr_accuracy_target, depr_pow_self, depr_sum
+from tests.collection_deprecate import depr_accuracy_target, depr_func_no_remove_in, depr_pow_self, depr_sum
 
 # Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
 
@@ -280,15 +280,10 @@ def test_check_deprecation_expiry_no_deprecated_attr() -> None:
 
 def test_check_deprecation_expiry_no_remove_in() -> None:
     """Test check_deprecation_expiry raises ValueError when remove_in is missing."""
-    from deprecate import check_deprecation_expiry, deprecated
-
-    # Create a deprecated function without remove_in
-    @deprecated(target=None, deprecated_in="1.0")
-    def func_without_remove_in(x: int) -> int:
-        return x
+    from deprecate import check_deprecation_expiry
 
     with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
-        check_deprecation_expiry(func_without_remove_in, "2.0")
+        check_deprecation_expiry(depr_func_no_remove_in, "2.0")
 
 
 def test_check_deprecation_expiry_semantic_versioning() -> None:
