@@ -114,8 +114,19 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
 
 
 _SIGNATURE_CACHE_SIZE = 256
-_SIGNATURE_CACHE: "OrderedDict[Callable, inspect.Signature]" = OrderedDict()
+_SIGNATURE_CACHE: OrderedDict[Callable, inspect.Signature] = OrderedDict()
 _SIGNATURE_CACHE_LOCK = Lock()
+
+
+def _get_cached_signature(
+    cache: OrderedDict[Callable, inspect.Signature],
+    func: Callable,
+) -> Optional[inspect.Signature]:
+    """Return cached signature and refresh LRU order when available."""
+    cached = cache.get(func)
+    if cached is not None:
+        cache.move_to_end(func)
+    return cached
 
 
 def _get_signature(func: Callable) -> inspect.Signature:
@@ -129,15 +140,13 @@ def _get_signature(func: Callable) -> inspect.Signature:
     except TypeError:
         return inspect.signature(func)
     with _SIGNATURE_CACHE_LOCK:
-        cached = _SIGNATURE_CACHE.get(func)
+        cached = _get_cached_signature(_SIGNATURE_CACHE, func)
         if cached is not None:
-            _SIGNATURE_CACHE.move_to_end(func)
             return cached
     signature = inspect.signature(func)
     with _SIGNATURE_CACHE_LOCK:
-        cached = _SIGNATURE_CACHE.get(func)
+        cached = _get_cached_signature(_SIGNATURE_CACHE, func)
         if cached is not None:
-            _SIGNATURE_CACHE.move_to_end(func)
             return cached
         if len(_SIGNATURE_CACHE) >= _SIGNATURE_CACHE_SIZE:
             _SIGNATURE_CACHE.popitem(last=False)
