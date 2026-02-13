@@ -307,10 +307,10 @@ def test_parse_version_stage_ordering() -> None:
     from deprecate.utils import _parse_version
 
     versions = [
-        "1.5.0a1",      # alpha (PEP 440 format)
-        "1.5.0b1",      # beta
-        "1.5.0rc1",     # release candidate
-        "1.5.0",        # stable
+        "1.5.0a1",  # alpha (PEP 440 format)
+        "1.5.0b1",  # beta
+        "1.5.0rc1",  # release candidate
+        "1.5.0",  # stable
         "1.5.0.post1",  # post-release
     ]
     parsed = [_parse_version(v) for v in versions]
