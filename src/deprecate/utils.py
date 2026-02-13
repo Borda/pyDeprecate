@@ -21,9 +21,11 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 
 import inspect
 import warnings
+from collections import OrderedDict
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
+from threading import Lock
 from typing import Any, Callable, Optional, Union
 
 
@@ -115,24 +117,26 @@ def _get_signature(func: Callable) -> inspect.Signature:
     """Get function signature with caching when possible.
 
     Falls back to uncached lookup for unhashable callables and uses a bounded
-    cache for hashable callables.
+    LRU cache for hashable callables.
     """
     cache_max = 256
     try:
-        cache = _get_signature._cache  # type: ignore[attr-defined]
-    except AttributeError:
-        cache = {}
-        _get_signature._cache = cache  # type: ignore[attr-defined]
-    try:
-        if func in cache:
-            return cache[func]
+        with _SIGNATURE_CACHE_LOCK:
+            if func in _SIGNATURE_CACHE:
+                _SIGNATURE_CACHE.move_to_end(func)
+                return _SIGNATURE_CACHE[func]
     except TypeError:
         return inspect.signature(func)
     signature = inspect.signature(func)
-    if len(cache) >= cache_max:
-        cache.pop(next(iter(cache)))
-    cache[func] = signature
+    with _SIGNATURE_CACHE_LOCK:
+        if len(_SIGNATURE_CACHE) >= cache_max:
+            _SIGNATURE_CACHE.popitem(last=False)
+        _SIGNATURE_CACHE[func] = signature
     return signature
+
+
+_SIGNATURE_CACHE: "OrderedDict[Callable, inspect.Signature]" = OrderedDict()
+_SIGNATURE_CACHE_LOCK = Lock()
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
