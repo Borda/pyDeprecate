@@ -89,9 +89,7 @@ For code examples and patterns (deprecation wrappers, argument renaming, testing
 
 ## PR Review Guidelines
 
-When reviewing PRs, use the structured format to ensure consistent, actionable feedback.
-
-**See [PR Review Template](PR_REVIEW_TEMPLATE.md) for the complete review format and guidelines.**
+When reviewing PRs, use the structured format in [CONTRIBUTING.md: Reviewing PRs](CONTRIBUTING.md#reviewing-prs) to ensure consistent, actionable feedback.
 
 Quick checklist:
 
@@ -102,7 +100,7 @@ Quick checklist:
 - Specific suggestions (inline with GitHub suggestion format)
 
 > [!NOTE]
-> **Anchor Links**: GitHub strips emojis when generating anchors. All links in this file use the correct format (e.g., `#quick-start` not `#-quick-start`) and should not be flagged as errors.
+> **Anchor Links**: GitHub generates anchors from section headers by stripping emojis and converting to lowercase-with-dashes. When a section starts with an emoji (e.g., `## 🚀 Quick Start`), the emoji becomes a dash: `#-quick-start`. Subsections without emojis (e.g., `### Reviewing PRs`) become `#reviewing-prs` (no dash prefix). All links in this repository follow this convention and are correct.
 
 ## Known Issues & Workarounds
 
