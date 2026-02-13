@@ -127,20 +127,16 @@ def _get_signature(func: Callable) -> inspect.Signature:
     try:
         with _SIGNATURE_CACHE_LOCK:
             cached = _SIGNATURE_CACHE.get(func)
+            if cached is not None:
+                _SIGNATURE_CACHE.move_to_end(func)
+                return cached
     except TypeError:
         return inspect.signature(func)
-    if cached is not None:
-        with _SIGNATURE_CACHE_LOCK:
-            _SIGNATURE_CACHE.move_to_end(func)
-        return cached
     signature = inspect.signature(func)
-    try:
-        with _SIGNATURE_CACHE_LOCK:
-            if len(_SIGNATURE_CACHE) >= _SIGNATURE_CACHE_SIZE:
-                _SIGNATURE_CACHE.popitem(last=False)
-            _SIGNATURE_CACHE[func] = signature
-    except TypeError:
-        return signature
+    with _SIGNATURE_CACHE_LOCK:
+        if len(_SIGNATURE_CACHE) >= _SIGNATURE_CACHE_SIZE:
+            _SIGNATURE_CACHE.popitem(last=False)
+        _SIGNATURE_CACHE[func] = signature
     return signature
 
 
