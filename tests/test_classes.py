@@ -51,7 +51,7 @@ class TestDeprecatedClass:
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for PastCls.__init__."""
         if hasattr(PastCls.__init__, "_warned"):
-            PastCls.__init__._warned = False
+            setattr(PastCls.__init__, "_warned", False)
 
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
@@ -69,7 +69,7 @@ class TestDeprecatedClass:
 
     def test_class_forward_once(self) -> None:
         """Check that the warning is raised only on the first call to the wrapped __init__."""
-        PastCls.__init__._warned = False
+        setattr(PastCls.__init__, "_warned", False)
         with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
             PastCls(2)
         with no_warning_call():
@@ -109,7 +109,7 @@ class TestDeprecatedEnums:
 
     def test_enum_invalid_value_raises_value_error(self) -> None:
         """Test that invalid Enum values still raise ValueError."""
-        with pytest.warns(FutureWarning), pytest.raises(ValueError):
+        with pytest.warns(FutureWarning), pytest.raises(ValueError, match="nonexistent"):
             DeprecatedEnum("nonexistent")
 
     def test_enum_attribute_access(self) -> None:
@@ -125,7 +125,8 @@ class TestDeprecatedEnums:
     def test_enum_argument_mapping_forwards(self) -> None:
         """Test argument mapping when forwarding deprecated Enum to replacement."""
         with pytest.warns(FutureWarning):
-            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA
+            # mypy's Enum __call__ signature doesn't allow custom kwargs added via mapping.
+            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_argument_mapping_positional_value(self) -> None:
         """Test mapped Enum forwards positional value to replacement."""
@@ -135,17 +136,20 @@ class TestDeprecatedEnums:
     def test_enum_argument_mapping_int_forwards(self) -> None:
         """Test argument mapping for int enums forwarding to NewIntEnum."""
         with pytest.warns(FutureWarning):
-            assert MappedIntEnum(old_value=1) is NewIntEnum.ALPHA
+            # mypy's Enum __call__ signature doesn't allow custom kwargs added via mapping.
+            assert MappedIntEnum(old_value=1) is NewIntEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_argument_mapping_value_differs(self) -> None:
         """Test mapping when enum values differ from the new enum."""
         with pytest.warns(FutureWarning):
-            assert MappedValueEnum(old_value="alpha") is NewEnum.ALPHA
+            # mypy's Enum __call__ signature doesn't allow custom kwargs added via mapping.
+            assert MappedValueEnum(old_value="alpha") is NewEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_self_argument_mapping(self) -> None:
         """Test argument mapping when deprecating within the same enum."""
         with pytest.warns(FutureWarning):
-            assert SelfMappedEnum(old_value="alpha") is SelfMappedEnum.ALPHA
+            # mypy's Enum __call__ signature doesn't allow custom kwargs added via mapping.
+            assert SelfMappedEnum(old_value="alpha") is SelfMappedEnum.ALPHA  # type: ignore[call-arg]
 
 
 class TestDeprecatedDataclasses:

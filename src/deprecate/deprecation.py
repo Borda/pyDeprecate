@@ -49,6 +49,8 @@ TEMPLATE_DOC_DEPRECATED = """
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
+ArgsMapping = dict[str, Optional[str]]
+
 
 @lru_cache(maxsize=256)
 def _get_signature(func: Callable) -> inspect.Signature:
@@ -131,11 +133,9 @@ def _is_enum_value_case(
     source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
     if not (source_is_enum and target_is_class):
         return False
-    try:
-        target_is_enum = issubclass(target, Enum)
-    except TypeError:
-        # issubclass can fail for non-type objects; treat as non-enum.
+    if not isinstance(target, type):
         return False
+    target_is_enum = issubclass(target, Enum)
     single_missed_arg = len(missed) == 1
     missed_is_value_param = ENUM_VALUE_PARAM in missed
     return target_is_enum and single_missed_arg and missed_is_value_param
@@ -350,7 +350,7 @@ def _raise_warn_callable(
 def _raise_warn_arguments(
     stream: Callable,
     source: Callable,
-    arguments: dict[str, str],
+    arguments: ArgsMapping,
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -391,7 +391,7 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": b} for a, b in arguments.items()])
+    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
     template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
 
@@ -472,11 +472,11 @@ def deprecated(
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
     template_mgs: Optional[str] = None,
-    args_mapping: Optional[dict[str, str]] = None,
+    args_mapping: Optional[ArgsMapping] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
-) -> Callable:
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function or class with warning message and forward calls to target.
 
     This decorator marks a function or class as deprecated and can automatically forward

@@ -277,7 +277,7 @@ def depr_pow_wrong(a: int, c: float = 4) -> float:
     return void(a, c)
 
 
-@deprecated(target=accuracy_score, args_mapping={"preds": "y_pred", "yeah_arg": None})  # type: ignore
+@deprecated(target=accuracy_score, args_mapping={"preds": "y_pred", "yeah_arg": None})
 def depr_accuracy_skip(preds: list, y_true: tuple = (0, 1, 1, 2), yeah_arg: float = 1.23) -> float:
     """Argument renaming with one arg dropped entirely.
 
