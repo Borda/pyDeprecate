@@ -34,48 +34,69 @@ from typing import Any, Callable, Optional, Union
 def _parse_version(version_string: str) -> tuple[int, ...]:
     """Parse a version string into a tuple of integers for comparison.
 
-    This is a simple version parser that handles semantic versioning without
-    external dependencies. It splits on dots and extracts numeric parts.
-    Pre-release versions (with dash or plus) are treated as less than the base version.
+    This is a lightweight semantic version parser (PEP 440-inspired) without
+    external dependencies. It supports pre-releases (alpha/beta/rc), stable
+    releases, and post-releases, with ordering:
+
+        alpha < beta < rc < stable < post
 
     Args:
-        version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0-alpha")
+        version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0-alpha",
+            "1.5.0rc1", "1.5.0.post1").
 
     Returns:
-        Tuple of integers representing the version for comparison.
-        Pre-release versions return a tuple with a marker (-1) at the end to ensure
-        they sort before the release version.
+        Tuple of integers representing the version for comparison:
+        ``(<base parts...>, <stage rank>, <stage number>)``
+        where stage rank encodes the ordering above.
 
     Raises:
         ValueError: If the version string cannot be parsed into valid numeric components.
 
     Example:
         >>> _parse_version("1.2.3")
-        (1, 2, 3)
+        (1, 2, 3, 3, 0)
         >>> _parse_version("2.0")
-        (2, 0)
+        (2, 0, 3, 0)
         >>> _parse_version("1.5.0-alpha") < _parse_version("1.5.0")
         True
 
     """
-    # Check if this is a pre-release version (contains dash or plus)
-    is_prerelease = "-" in version_string or "+" in version_string
+    # Drop build metadata for comparison (e.g., "+build")
+    version_core = version_string.split("+", 1)[0]
 
-    # Remove common pre-release suffixes for comparison
-    # Split on dash or plus to handle versions like "1.2.3-alpha" or "1.2.3+build"
-    base_version = re.split(r"[-+]", version_string)[0]
+    # Extract post-release (e.g., .post1 or post1)
+    post_match = re.search(r"(?:\.?post)(\d+)$", version_core, flags=re.IGNORECASE)
+    post_num = 0
+    if post_match:
+        post_num = int(post_match.group(1))
+        version_core = version_core[: post_match.start()]
+
+    # Extract pre-release (alpha/beta/rc)
+    pre_match = re.search(r"(?:-)?(a|alpha|b|beta|rc)(\d*)$", version_core, flags=re.IGNORECASE)
+    pre_tag = None
+    pre_num = 0
+    if pre_match:
+        pre_tag = pre_match.group(1).lower()
+        pre_num = int(pre_match.group(2) or 0)
+        version_core = version_core[: pre_match.start()]
 
     try:
-        # Split on dots and convert to integers
-        parts = [int(part) for part in base_version.split(".")]
+        parts = [int(part) for part in version_core.split(".") if part != ""]
         if not parts:
             raise ValueError(f"Version string '{version_string}' has no numeric components")
 
-        # If it's a pre-release, add a marker to ensure it sorts before the release
-        # This makes "1.5.0-alpha" < "1.5.0"
-        if is_prerelease:
-            parts.append(-1)
+        stage_rank_map = {"a": 0, "alpha": 0, "b": 1, "beta": 1, "rc": 2}
+        if pre_tag is not None:
+            stage_rank = stage_rank_map.get(pre_tag, 0)
+            stage_num = pre_num
+        elif post_match:
+            stage_rank = 4
+            stage_num = post_num
+        else:
+            stage_rank = 3
+            stage_num = 0
 
+        parts.extend([stage_rank, stage_num])
         return tuple(parts)
     except ValueError as e:
         raise ValueError(
@@ -90,7 +111,7 @@ def _normalize_versions_for_comparison(
 
     Ensures that comparing versions like "0.5" and "0.5.0-alpha" works correctly
     by padding the shorter version with zeros up to the base length of the longer version.
-    Preserves prerelease markers at the end.
+    Preserves stage rank and stage number at the end.
 
     Args:
         v1: First version tuple
@@ -100,22 +121,18 @@ def _normalize_versions_for_comparison(
         Tuple of two normalized version tuples
 
     Example:
-        >>> _normalize_versions_for_comparison((0, 5), (0, 5, 0, -1))
-        ((0, 5, 0, 0), (0, 5, 0, -1))
+        >>> _normalize_versions_for_comparison((0, 5, 3, 0), (0, 5, 0, 2, 1))
+        ((0, 5, 0, 3, 0), (0, 5, 0, 2, 1))
 
     """
-    # Extract base versions (without pre-release marker) and check for prerelease
+    # Extract base versions (without stage rank/number)
     v1_list = list(v1)
     v2_list = list(v2)
 
-    v1_is_prerelease = len(v1_list) > 0 and v1_list[-1] == -1
-    v2_is_prerelease = len(v2_list) > 0 and v2_list[-1] == -1
-
-    # Remove prerelease markers temporarily for normalization
-    if v1_is_prerelease:
-        v1_list.pop()
-    if v2_is_prerelease:
-        v2_list.pop()
+    v1_stage_num = v1_list.pop() if v1_list else 0
+    v1_stage_rank = v1_list.pop() if v1_list else 3
+    v2_stage_num = v2_list.pop() if v2_list else 0
+    v2_stage_rank = v2_list.pop() if v2_list else 3
 
     # Pad to same length
     max_len = max(len(v1_list), len(v2_list))
@@ -124,17 +141,9 @@ def _normalize_versions_for_comparison(
     while len(v2_list) < max_len:
         v2_list.append(0)
 
-    # Re-add prerelease markers
-    # For non-prerelease versions, add 0 as a marker (sorts after -1)
-    if v1_is_prerelease:
-        v1_list.append(-1)
-    else:
-        v1_list.append(0)  # Stable release marker
-
-    if v2_is_prerelease:
-        v2_list.append(-1)
-    else:
-        v2_list.append(0)  # Stable release marker
+    # Re-add stage rank and stage number
+    v1_list.extend([v1_stage_rank, v1_stage_num])
+    v2_list.extend([v2_stage_rank, v2_stage_num])
 
     return tuple(v1_list), tuple(v2_list)
 

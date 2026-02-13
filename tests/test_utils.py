@@ -302,6 +302,21 @@ def test_check_deprecation_expiry_semantic_versioning() -> None:
         check_deprecation_expiry(depr_sum, "0.5.1")
 
 
+def test_parse_version_stage_ordering() -> None:
+    """Test alpha < beta < rc < stable < post ordering."""
+    from deprecate.utils import _parse_version
+
+    versions = [
+        "1.5.0-alpha",
+        "1.5.0-beta",
+        "1.5.0-rc1",
+        "1.5.0",
+        "1.5.0.post1",
+    ]
+    parsed = [_parse_version(v) for v in versions]
+    assert parsed == sorted(parsed)
+
+
 def test_check_deprecation_expiry_invalid_version_format() -> None:
     """Test check_deprecation_expiry handles invalid version formats."""
     from deprecate import check_deprecation_expiry
