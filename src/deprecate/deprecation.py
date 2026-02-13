@@ -15,7 +15,7 @@ import inspect
 from enum import Enum
 from functools import partial, update_wrapper, wraps
 from inspect import Parameter
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, TypeVar, Union
 from warnings import warn
 
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
@@ -50,6 +50,7 @@ TEMPLATE_DOC_DEPRECATED = """
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
+ReturnType = TypeVar("ReturnType")
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
@@ -178,21 +179,21 @@ def _coerce_enum_value_args(
     value = new_kwargs.pop(ENUM_VALUE_PARAM)
     if args:
         return args, new_kwargs
-    return (*args, value), new_kwargs
+    return (value,), new_kwargs
 
 
 class _DeprecatedEnumWrapper:
     """Callable proxy that preserves Enum accessors while adding deprecation behavior."""
 
-    def __init__(self, wrapper: Callable, source: type[Enum]) -> None:
+    def __init__(self, wrapper: Callable[..., ReturnType], source: type[Enum]) -> None:
         self._wrapper = wrapper
         self._source = source
         update_wrapper(self, wrapper)
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    def __call__(self, *args: Any, **kwargs: Any) -> ReturnType:
         return self._wrapper(*args, **kwargs)
 
-    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._source, name)
 
     def __getitem__(self, key: str) -> Enum:
