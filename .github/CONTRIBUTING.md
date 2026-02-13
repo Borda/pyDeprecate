@@ -262,6 +262,48 @@ git push origin fix/123-your-bug-description
 - **Circular imports** — when editing `src/deprecate/`, verify new imports don't create cycles. Use `if TYPE_CHECKING:` blocks for type-only imports.
 - **Deprecation chains** — if modifying chain validation logic, handle infinite loops (A deprecates B, B deprecates A) gracefully without crashing.
 
+### Project Structure
+
+Understanding the codebase layout helps you navigate and contribute effectively:
+
+```
+pyDeprecate/
+├── src/deprecate/              # Core library code
+│   ├── __about__.py            # Version and metadata
+│   ├── __init__.py             # Public API exports
+│   ├── deprecation.py          # @deprecated decorator and warning logic
+│   └── utils.py                # Helpers: void(), validate_*, no_warning_call()
+├── tests/                      # Test suite
+│   ├── collection_targets.py       # Target functions (new implementations)
+│   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
+│   ├── collection_misconfigured.py # Invalid configs for validation
+│   ├── test_functions.py           # Function deprecation tests
+│   ├── test_classes.py             # Class deprecation tests
+│   ├── test_docs.py                # Docstring tests
+│   └── test_utils.py               # Utility function tests
+├── .github/
+│   ├── workflows/              # CI/CD pipelines
+│   └── *.md                    # Documentation and guidelines
+├── pyproject.toml              # Project config (ruff, mypy, pytest)
+└── setup.py                    # Package setup
+```
+
+**Circular import prevention example:**
+
+When editing `src/deprecate/`, use `if TYPE_CHECKING:` blocks to avoid circular dependencies:
+
+```python
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from deprecate.deprecation import SomeType
+
+def my_function(arg: SomeType) -> None:
+    # Implementation here
+    pass
+```
+
 ### Test Organization
 
 Tests live in `tests/` and follow a **three-layer separation**:
