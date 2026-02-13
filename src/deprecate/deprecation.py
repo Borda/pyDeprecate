@@ -50,7 +50,7 @@ TEMPLATE_DOC_DEPRECATED = """
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
-ReturnType = TypeVar("ReturnType")
+EnumType = TypeVar("EnumType", bound=Enum)
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
@@ -177,24 +177,26 @@ def _coerce_enum_value_args(
         return args, kwargs
     new_kwargs = dict(kwargs)
     value = new_kwargs.pop(ENUM_VALUE_PARAM)
+    if args:
+        return args, new_kwargs
     return (*args, value), new_kwargs
 
 
-class _DeprecatedEnumWrapper(Generic[ReturnType]):
+class _DeprecatedEnumWrapper(Generic[EnumType]):
     """Callable proxy that preserves Enum accessors while adding deprecation behavior."""
 
-    def __init__(self, wrapper: Callable[..., ReturnType], source: type[Enum]) -> None:
+    def __init__(self, wrapper: Callable[..., EnumType], source: type[EnumType]) -> None:
         self._wrapper = wrapper
         self._source = source
         update_wrapper(self, wrapper)
 
-    def __call__(self, *args: Any, **kwargs: Any) -> ReturnType:
+    def __call__(self, *args: Any, **kwargs: Any) -> EnumType:
         return self._wrapper(*args, **kwargs)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._source, name)
 
-    def __getitem__(self, key: str) -> Enum:
+    def __getitem__(self, key: str) -> EnumType:
         return self._source[key]
 
 
