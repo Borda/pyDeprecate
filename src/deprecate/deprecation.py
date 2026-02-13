@@ -15,7 +15,7 @@ import inspect
 from enum import Enum
 from functools import partial, update_wrapper, wraps
 from inspect import Parameter
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 from warnings import warn
 
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
@@ -177,12 +177,10 @@ def _coerce_enum_value_args(
         return args, kwargs
     new_kwargs = dict(kwargs)
     value = new_kwargs.pop(ENUM_VALUE_PARAM)
-    if args:
-        return args, new_kwargs
-    return (value,), new_kwargs
+    return (*args, value), new_kwargs
 
 
-class _DeprecatedEnumWrapper:
+class _DeprecatedEnumWrapper(Generic[ReturnType]):
     """Callable proxy that preserves Enum accessors while adding deprecation behavior."""
 
     def __init__(self, wrapper: Callable[..., ReturnType], source: type[Enum]) -> None:
