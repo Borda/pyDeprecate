@@ -10,6 +10,7 @@ from deprecate.utils import (
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
+    validate_deprecation_chains,
 )
 from tests.collection_deprecate import depr_accuracy_target, depr_pow_self
 
@@ -214,3 +215,89 @@ class TestFindDeprecatedCallables:
 
         # We should find some degenerated deprecations
         assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
+
+
+# =============================================================================
+# Tests for validate_deprecation_chains()
+# =============================================================================
+
+
+def test_validate_deprecation_chains_detects_call_with_target() -> None:
+    """Test validate_deprecation_chains detects deprecated function calling another with target."""
+    import tests.collection_chains as test_module
+
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # Should find caller_calls_deprecated calling deprecated_callee
+    callers = [issue[0] for issue in issues if "caller_calls_deprecated" in issue[0] and issue[1] == "calls_deprecated"]
+    assert len(callers) > 0
+
+    # Check the details mention the target
+    details = [issue[2] for issue in issues if "caller_calls_deprecated" in issue[0] and issue[1] == "calls_deprecated"]
+    assert any("base_sum_kwargs" in detail for detail in details)
+
+
+def test_validate_deprecation_chains_no_warning_for_no_target() -> None:
+    """Test validate_deprecation_chains doesn't report when callee has no target."""
+    import tests.collection_chains as test_module
+
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # Should not find caller_calls_deprecated_no_target because callee has no target
+    callers = [issue[0] for issue in issues if "caller_calls_deprecated_no_target" in issue[0]]
+    assert len(callers) == 0
+
+
+def test_validate_deprecation_chains_detects_deprecated_args() -> None:
+    """Test validate_deprecation_chains detects passing deprecated arguments."""
+    import tests.collection_chains as test_module
+
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # Should find caller_passes_deprecated_arg passing old_arg
+    arg_issues = [
+        issue for issue in issues
+        if "caller_passes_deprecated_arg" in issue[0] and issue[1] == "deprecated_args"
+    ]
+    assert len(arg_issues) > 0
+    assert any("old_arg" in issue[2] for issue in arg_issues)
+
+
+def test_validate_deprecation_chains_non_deprecated_caller() -> None:
+    """Test validate_deprecation_chains only checks deprecated functions."""
+    import tests.collection_chains as test_module
+
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # non_deprecated_caller should NOT be in the results (it's not deprecated itself)
+    callers = [issue[0] for issue in issues if "non_deprecated_caller" in issue[0]]
+    assert len(callers) == 0
+
+
+def test_validate_deprecation_chains_no_warnings_clean() -> None:
+    """Test validate_deprecation_chains doesn't report clean code."""
+    import tests.collection_chains as test_module
+
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # caller_no_deprecated_calls should not be in results (calls target directly)
+    callers = [issue[0] for issue in issues if "caller_no_deprecated_calls" in issue[0]]
+    assert len(callers) == 0
+
+
+def test_validate_deprecation_chains_returns_list() -> None:
+    """Test validate_deprecation_chains returns a list of issues."""
+    import tests.collection_chains as test_module
+
+    issues = validate_deprecation_chains(test_module, recursive=False)
+    assert isinstance(issues, list)
+    # Should have at least some issues from our test module
+    assert len(issues) > 0
+    # Each issue should be a tuple of (caller, type, details)
+    for issue in issues:
+        assert isinstance(issue, tuple)
+        assert len(issue) == 3
+        assert isinstance(issue[0], str)  # caller name
+        assert issue[1] in ("calls_deprecated", "deprecated_args")  # issue type
+        assert isinstance(issue[2], str)  # details
+
