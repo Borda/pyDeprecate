@@ -224,48 +224,80 @@ class TestFindDeprecatedCallables:
 
 def test_validate_deprecation_chains_detects_call_with_target() -> None:
     """Test validate_deprecation_chains detects deprecated function calling another with target."""
-    from tests.collection_chains import caller_calls_deprecated
+    import tests.collection_chains as test_module
 
-    with pytest.warns(UserWarning, match="'caller_calls_deprecated' calls deprecated function 'deprecated_callee'"):
-        validate_deprecation_chains(caller_calls_deprecated)
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # Should find caller_calls_deprecated calling deprecated_callee
+    callers = [issue[0] for issue in issues if "caller_calls_deprecated" in issue[0] and issue[1] == "calls_deprecated"]
+    assert len(callers) > 0
+
+    # Check the details mention the target
+    details = [issue[2] for issue in issues if "caller_calls_deprecated" in issue[0] and issue[1] == "calls_deprecated"]
+    assert any("base_sum_kwargs" in detail for detail in details)
 
 
 def test_validate_deprecation_chains_no_warning_for_no_target() -> None:
-    """Test validate_deprecation_chains doesn't warn when callee has no target."""
-    from tests.collection_chains import caller_calls_deprecated_no_target
+    """Test validate_deprecation_chains doesn't report when callee has no target."""
+    import tests.collection_chains as test_module
 
-    # Should not warn because deprecated_callee_no_target has no target
-    with no_warning_call(UserWarning):
-        validate_deprecation_chains(caller_calls_deprecated_no_target)
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # Should not find caller_calls_deprecated_no_target because callee has no target
+    callers = [issue[0] for issue in issues if "caller_calls_deprecated_no_target" in issue[0]]
+    assert len(callers) == 0
 
 
 def test_validate_deprecation_chains_detects_deprecated_args() -> None:
     """Test validate_deprecation_chains detects passing deprecated arguments."""
-    from tests.collection_chains import caller_passes_deprecated_arg
+    import tests.collection_chains as test_module
 
-    with pytest.warns(UserWarning, match="'caller_passes_deprecated_arg' passes deprecated argument 'old_arg'"):
-        validate_deprecation_chains(caller_passes_deprecated_arg)
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # Should find caller_passes_deprecated_arg passing old_arg
+    arg_issues = [
+        issue for issue in issues
+        if "caller_passes_deprecated_arg" in issue[0] and issue[1] == "deprecated_args"
+    ]
+    assert len(arg_issues) > 0
+    assert any("old_arg" in issue[2] for issue in arg_issues)
 
 
 def test_validate_deprecation_chains_non_deprecated_caller() -> None:
-    """Test validate_deprecation_chains works with non-deprecated functions."""
-    from tests.collection_chains import non_deprecated_caller
+    """Test validate_deprecation_chains only checks deprecated functions."""
+    import tests.collection_chains as test_module
 
-    with pytest.warns(UserWarning, match="'non_deprecated_caller' calls deprecated function 'deprecated_callee'"):
-        validate_deprecation_chains(non_deprecated_caller)
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # non_deprecated_caller should NOT be in the results (it's not deprecated itself)
+    callers = [issue[0] for issue in issues if "non_deprecated_caller" in issue[0]]
+    assert len(callers) == 0
 
 
 def test_validate_deprecation_chains_no_warnings_clean() -> None:
-    """Test validate_deprecation_chains doesn't warn for clean code."""
-    from tests.collection_chains import caller_no_deprecated_calls
+    """Test validate_deprecation_chains doesn't report clean code."""
+    import tests.collection_chains as test_module
 
-    # Should not warn because it doesn't call deprecated functions
-    with no_warning_call(UserWarning):
-        validate_deprecation_chains(caller_no_deprecated_calls)
+    issues = validate_deprecation_chains(test_module, recursive=False)
+
+    # caller_no_deprecated_calls should not be in results (calls target directly)
+    callers = [issue[0] for issue in issues if "caller_no_deprecated_calls" in issue[0]]
+    assert len(callers) == 0
 
 
-def test_validate_deprecation_chains_builtin_function() -> None:
-    """Test validate_deprecation_chains handles built-in functions gracefully."""
-    # Should issue a warning for built-in functions (cannot get source) and return None
-    with pytest.warns(UserWarning, match="validate_deprecation_chains: Cannot get source code"):
-        validate_deprecation_chains(len)
+def test_validate_deprecation_chains_returns_list() -> None:
+    """Test validate_deprecation_chains returns a list of issues."""
+    import tests.collection_chains as test_module
+
+    issues = validate_deprecation_chains(test_module, recursive=False)
+    assert isinstance(issues, list)
+    # Should have at least some issues from our test module
+    assert len(issues) > 0
+    # Each issue should be a tuple of (caller, type, details)
+    for issue in issues:
+        assert isinstance(issue, tuple)
+        assert len(issue) == 3
+        assert isinstance(issue[0], str)  # caller name
+        assert issue[1] in ("calls_deprecated", "deprecated_args")  # issue type
+        assert isinstance(issue[2], str)  # details
+
