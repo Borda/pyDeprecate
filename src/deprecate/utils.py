@@ -59,15 +59,15 @@ def _parse_version(version_string: str) -> tuple[int, ...]:
 
     """
     # Check if this is a pre-release version (contains dash or plus)
-    is_prerelease = '-' in version_string or '+' in version_string
+    is_prerelease = "-" in version_string or "+" in version_string
 
     # Remove common pre-release suffixes for comparison
     # Split on dash or plus to handle versions like "1.2.3-alpha" or "1.2.3+build"
-    base_version = re.split(r'[-+]', version_string)[0]
+    base_version = re.split(r"[-+]", version_string)[0]
 
     try:
         # Split on dots and convert to integers
-        parts = [int(part) for part in base_version.split('.')]
+        parts = [int(part) for part in base_version.split(".")]
         if not parts:
             raise ValueError(f"Version string '{version_string}' has no numeric components")
 
@@ -79,8 +79,7 @@ def _parse_version(version_string: str) -> tuple[int, ...]:
         return tuple(parts)
     except ValueError as e:
         raise ValueError(
-            f"Failed to parse version '{version_string}'. "
-            f"Expected format: 'X.Y.Z' (e.g., '1.2.3' or '2.0'). Error: {e}"
+            f"Failed to parse version '{version_string}'. Expected format: 'X.Y.Z' (e.g., '1.2.3' or '2.0'). Error: {e}"
         ) from e
 
 
