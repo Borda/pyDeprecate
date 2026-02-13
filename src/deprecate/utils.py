@@ -474,6 +474,36 @@ def find_deprecated_callables(
     return results
 
 
+def _extract_function_calls(source_code: str) -> list[tuple[str, list[str]]]:
+    """Extract function call names and their keyword arguments from source code.
+
+    Args:
+        source_code: Python source code to analyze.
+
+    Returns:
+        List of tuples (function_name, keyword_args) for each function call found.
+        Returns empty list if parsing fails.
+    """
+    try:
+        tree = ast.parse(source_code)
+    except SyntaxError:
+        return []
+
+    calls = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+
+        # Get the function name being called (simple calls only)
+        if isinstance(node.func, ast.Name):
+            callee_name = node.func.id
+            # Extract keyword argument names
+            keyword_args = [kw.arg for kw in node.keywords if kw.arg]
+            calls.append((callee_name, keyword_args))
+
+    return calls
+
+
 def validate_deprecation_chains(func: Callable) -> None:
     """Validate that a function doesn't call deprecated functions or use deprecated arguments.
 
@@ -511,7 +541,6 @@ def validate_deprecation_chains(func: Callable) -> None:
     try:
         source_code = inspect.getsource(func)
     except (OSError, TypeError):
-        # Cannot get source (e.g., built-in function, C extension)
         warnings.warn(
             f"validate_deprecation_chains: Cannot get source code for '{func.__name__}'. Skipping analysis.",
             UserWarning,
@@ -519,20 +548,19 @@ def validate_deprecation_chains(func: Callable) -> None:
         )
         return
 
-    # Parse the source code into an AST
-    try:
-        tree = ast.parse(source_code)
-    except SyntaxError:
-        # Cannot parse source
-        warnings.warn(
-            f"validate_deprecation_chains: Cannot parse source code for '{func.__name__}'. Skipping analysis.",
-            UserWarning,
-            stacklevel=2,
-        )
+    # Parse source to extract function calls
+    function_calls = _extract_function_calls(source_code)
+    if not function_calls:
+        # Either no calls or parsing failed
+        if "(" in source_code:  # Heuristic: if there might be calls but parsing failed
+            warnings.warn(
+                f"validate_deprecation_chains: Cannot parse source code for '{func.__name__}'. Skipping analysis.",
+                UserWarning,
+                stacklevel=2,
+            )
         return
 
-    # Get the module where the function is defined to resolve names
-    # Use the module from __module__ attribute, not __globals__ (which may be the wrapper's module)
+    # Get the module where the function is defined
     func_module_name = getattr(func, "__module__", None)
     if not func_module_name:
         warnings.warn(
@@ -556,40 +584,22 @@ def validate_deprecation_chains(func: Callable) -> None:
             )
             return
 
-    # Use find_deprecated_callables to get all deprecated functions in the module
-    # This provides a map of function names to their deprecation info
+    # Get deprecated functions metadata from the module
     deprecated_callables = find_deprecated_callables(func_module, recursive=False)
     deprecated_map = {info.function: info for info in deprecated_callables}
 
-    # Walk through the AST and find all function calls
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-
-        # Get the function name being called
-        callee_name = None
-        if isinstance(node.func, ast.Name):
-            # Simple function call: func()
-            callee_name = node.func.id
-        elif isinstance(node.func, ast.Attribute):
-            # Method call or module.func(): obj.method() or module.func()
-            # For simplicity, we'll skip method calls as they're more complex
-            continue
-
-        if not callee_name:
-            continue
-
-        # Check if the callee is in our deprecated functions map
+    # Check each function call
+    for callee_name, keyword_args in function_calls:
         if callee_name not in deprecated_map:
             continue
 
-        # Get deprecation info from the map
+        # Get deprecation metadata
         callee_info = deprecated_map[callee_name]
         dep_info = callee_info.deprecated_info
         target = dep_info.get("target")
         args_mapping = dep_info.get("args_mapping")
 
-        # Check if target exists and warn
+        # Warn if calling deprecated function with a target
         if callable(target):
             target_path = f"{target.__module__}.{target.__name__}"
             warnings.warn(
@@ -599,26 +609,16 @@ def validate_deprecation_chains(func: Callable) -> None:
                 stacklevel=2,
             )
 
-        # Check for deprecated arguments being passed
-        if args_mapping:
-            # Extract argument names from the call
-            passed_args = set()
+        # Warn if passing deprecated arguments
+        if args_mapping and keyword_args:
+            deprecated_args_used = set(keyword_args) & set(args_mapping.keys())
+            for arg_name in deprecated_args_used:
+                new_arg_name = args_mapping[arg_name]
+                if new_arg_name:  # Not mapped to None (skip)
+                    warnings.warn(
+                        f"'{func.__name__}' passes deprecated argument '{arg_name}' "
+                        f"to '{callee_name}'. Please update to use the new argument name '{new_arg_name}'.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
 
-            # Get keyword arguments
-            for keyword in node.keywords:
-                if keyword.arg:  # Skip **kwargs
-                    passed_args.add(keyword.arg)
-
-            # Check if any passed arguments are in the deprecated mapping
-            deprecated_args_used = {arg for arg in args_mapping if arg in passed_args}
-
-            if deprecated_args_used:
-                for arg_name in deprecated_args_used:
-                    new_arg_name = args_mapping[arg_name]
-                    if new_arg_name:  # Not mapped to None (skip)
-                        warnings.warn(
-                            f"'{func.__name__}' passes deprecated argument '{arg_name}' "
-                            f"to '{callee_name}'. Please update to use the new argument name '{new_arg_name}'.",
-                            UserWarning,
-                            stacklevel=2,
-                        )
