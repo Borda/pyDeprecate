@@ -12,6 +12,9 @@ pyDeprecate is a lightweight Python library providing decorator-based deprecatio
 > [!IMPORTANT]
 > **Before starting any work, agents MUST anchor themselves with the repository context.** Read these files in order:
 
+> [!NOTE]
+> **Anchor Links**: GitHub strips emojis when generating anchors. All links in this file use the correct format (e.g., `#quick-start` not `#-quick-start`) and should not be flagged as errors.
+
 1. **Configuration files** (source of truth):
 
    - `pyproject.toml` — project config, tool settings (ruff, mypy, pytest)
@@ -56,9 +59,9 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 **Guidelines**:
 
-- Follow [Coding Standards](/.github/CONTRIBUTING.md#-coding-standards)
-- Follow [Test Requirements](/.github/CONTRIBUTING.md#-tests-and-quality-assurance)
-- Use [Branch Naming Convention](/.github/CONTRIBUTING.md#-branch-naming-convention)
+- Follow [Coding Standards](/.github/CONTRIBUTING.md#coding-standards)
+- Follow [Test Requirements](/.github/CONTRIBUTING.md#tests-and-quality-assurance)
+- Use [Branch Naming Convention](/.github/CONTRIBUTING.md#branch-naming-convention)
 
 ### Community-Scribe
 
@@ -72,8 +75,8 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 **Guidelines**:
 
-- Follow [Documentation Guidelines](/.github/CONTRIBUTING.md#-coding-standards)
-- See [Ways to Contribute](/.github/CONTRIBUTING.md#-ways-to-contribute)
+- Follow [Documentation Guidelines](/.github/CONTRIBUTING.md#coding-standards)
+- See [Ways to Contribute](/.github/CONTRIBUTING.md#ways-to-contribute)
 
 ### Security-Watcher
 
@@ -88,19 +91,19 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 ### Branch Management
 
-- Use [branch naming convention](.github/CONTRIBUTING.md#-branch-naming-convention): `{type}/{issue-nb}-description`
+- Use [branch naming convention](.github/CONTRIBUTING.md#branch-naming-convention): `{type}/{issue-nb}-description`
 - Types: `fix/`, `feat/`, `docs/`, `refactor/`, `test/`, `chore/`
 
 ### Bug Fixes
 
 - **Use Test-Driven Development (TDD)**: Write a failing test that reproduces the bug first, then implement the fix
-- See [Fixing Bugs](.github/CONTRIBUTING.md#-fixing-bugs) for complete workflow
+- See [Fixing Bugs](.github/CONTRIBUTING.md#fixing-bugs) for complete workflow
 
 ### New Features
 
-- **Require approval first**: See [Building Features](.github/CONTRIBUTING.md#-building-features-with-consensus)
+- **Require approval first**: See [Building Features](.github/CONTRIBUTING.md#building-features-with-consensus)
 - **Mandatory test coverage**: Happy path, failure path, and edge cases
-- See [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
+- See [Test Requirements](.github/CONTRIBUTING.md#tests-and-quality-assurance)
 
 ### Code Quality
 
@@ -108,7 +111,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Type hints required** — all function signatures must have type hints
 - **No bare `except:`** — always catch specific exceptions
 - **Fast imports** — no expensive module-level code
-- See [Coding Standards](.github/CONTRIBUTING.md#-coding-standards) for complete rules
+- See [Coding Standards](.github/CONTRIBUTING.md#coding-standards) for complete rules
 
 ### Test Organization
 
@@ -144,9 +147,9 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 This file provides quick reference for agents. For complete, authoritative guidelines:
 
 - **Contribution workflow** → [Contributing Guide](.github/CONTRIBUTING.md)
-- **Coding standards** → [Contributing: Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
-- **Testing requirements** → [Contributing: Tests and Quality](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
-- **PR process** → [Contributing: Pull Requests](.github/CONTRIBUTING.md#-pull-requests)
+- **Coding standards** → [Contributing: Coding Standards](.github/CONTRIBUTING.md#coding-standards)
+- **Testing requirements** → [Contributing: Tests and Quality](.github/CONTRIBUTING.md#tests-and-quality-assurance)
+- **PR process** → [Contributing: Pull Requests](.github/CONTRIBUTING.md#pull-requests)
 - **PR review format** → [PR Review Template](.github/PR_REVIEW_TEMPLATE.md)
 - **Security reporting** → [Security Policy](.github/SECURITY.md)
 - **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)

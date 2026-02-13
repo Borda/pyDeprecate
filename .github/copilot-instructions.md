@@ -99,6 +99,10 @@ Quick checklist:
 - Risk assessment (breaking changes, performance, compatibility, architecture)
 - Specific suggestions (inline with GitHub suggestion format)
 
+> [!NOTE]
+> **Anchor Links**: GitHub strips emojis when generating anchors. All links in this file use the correct format (e.g., `#quick-start` not `#-quick-start`) and should not be flagged as errors.
+
+
 ## Known Issues & Workarounds
 
 - **Circular imports**: Use `if TYPE_CHECKING:` blocks in `src/deprecate/`
@@ -118,6 +122,6 @@ All checks must pass before merge.
 
 - **Contribution workflow** → [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Agent behavioral rules** → [AGENTS.md](../AGENTS.md)
-- **PR review format** → [PR_REVIEW_TEMPLATE.md](PR_REVIEW_TEMPLATE.md)
+- **PR review guidelines** → [CONTRIBUTING.md: Reviewing PRs](CONTRIBUTING.md#reviewing-prs)
 - **Security reporting** → [SECURITY.md](SECURITY.md)
 - **Code of Conduct** → [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

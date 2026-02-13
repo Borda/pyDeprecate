@@ -149,6 +149,30 @@ If no issue exists, open one first to discuss the change before implementing it.
 - **Smaller PRs are easier to review** — Large PRs can be overwhelming and take longer to merge
 - **Split large changes into multiple PRs** — Break complex features into smaller, manageable pieces
 
+### Reviewing PRs
+
+When reviewing pull requests, provide structured, actionable feedback:
+
+**Overall Assessment:**
+- 🟢 **Approve** — Ready to merge
+- 🟡 **Minor Suggestions** — Improvements recommended but not blocking
+- 🟠 **Request Changes** — Significant issues must be addressed
+- 🔴 **Block** — Critical issues require major rework
+
+**Review Checklist:**
+- [ ] Clear description and linked issue
+- [ ] Tests cover happy path, failure cases, and edge cases
+- [ ] Code quality (correctness, idioms, type hints)
+- [ ] Documentation (docstrings for public APIs)
+- [ ] No breaking changes or runtime dependencies
+- [ ] CI checks pass
+
+**Provide Actionable Feedback:**
+- Explain **why** something is a problem, not just **what**
+- Distinguish blocking issues from nice-to-haves
+- Use GitHub's suggestion format for specific code improvements
+- Acknowledge good work and be pragmatic
+
 ## ✅ Tests and Quality Assurance
 
 Tests and quality improvements are **always welcome**! These contributions are highly valuable because they:
@@ -325,6 +349,8 @@ Functions in `collection_deprecate.py` and `collection_misconfigured.py` must ha
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
 ```python
+from deprecate import deprecated
+
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
 def depr_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
@@ -358,6 +384,8 @@ def depr_sum_warn_only(a: int, b: int = 5) -> int:
 Example:
 
 ```python
+import pytest
+
 class TestMyFeature:
     """Test suite for my feature."""
 
@@ -412,6 +440,8 @@ def test_deprecation_warning() -> None:
 <summary>Argument renaming</summary>
 
 ```python
+from deprecate import deprecated
+
 @deprecated(target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_param": "new_param"})
 def my_func(old_param: int = 0, new_param: int = 0) -> int:
     """Function with renamed parameter."""
