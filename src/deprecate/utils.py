@@ -75,8 +75,7 @@ def _parse_version(version_string: str) -> "Version":
         from packaging.version import InvalidVersion, Version
     except ImportError as e:
         raise ImportError(
-            "Version comparison requires the 'packaging' library. "
-            "Install with: pip install pyDeprecate[audit]"
+            "Version comparison requires the 'packaging' library. Install with: pip install pyDeprecate[audit]"
         ) from e
 
     try:
