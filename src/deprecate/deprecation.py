@@ -15,7 +15,7 @@ import inspect
 from enum import Enum
 from functools import partial, update_wrapper, wraps
 from inspect import Parameter
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, Union
 from warnings import warn
 
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
@@ -50,6 +50,39 @@ TEMPLATE_DOC_DEPRECATED = """
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
+
+
+class _DeprecatedEnumWrapper:
+    """Callable proxy that preserves Enum accessors while adding deprecation behavior.
+
+    Example:
+        >>> from enum import Enum
+        >>> class Old(Enum):
+        ...     A = "a"
+        >>> def wrapper(value: str) -> Old:
+        ...     return Old(value)
+        >>> proxied = _DeprecatedEnumWrapper(wrapper, Old)
+        >>> proxied("a") is Old.A
+        True
+        >>> proxied.A is Old.A
+        True
+        >>> proxied["A"] is Old.A
+        True
+    """
+
+    def __init__(self, wrapper: Callable[..., object], source: type[Enum]) -> None:
+        self._wrapper = wrapper
+        self._source = source
+        update_wrapper(self, wrapper)
+
+    def __call__(self, *args: object, **kwargs: object) -> object:
+        return self._wrapper(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._source, name)
+
+    def __getitem__(self, key: str) -> Enum:
+        return self._source[key]
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
@@ -179,27 +212,6 @@ def _coerce_enum_value_args(
     if args:
         return args, new_kwargs
     return (*args, value), new_kwargs
-
-
-EnumType = TypeVar("EnumType", bound=Enum)
-
-
-class _DeprecatedEnumWrapper(Generic[EnumType]):
-    """Callable proxy that preserves Enum accessors while adding deprecation behavior."""
-
-    def __init__(self, wrapper: Callable[..., EnumType], source: type[EnumType]) -> None:
-        self._wrapper = wrapper
-        self._source = source
-        update_wrapper(self, wrapper)
-
-    def __call__(self, *args: Any, **kwargs: Any) -> EnumType:
-        return self._wrapper(*args, **kwargs)
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._source, name)
-
-    def __getitem__(self, key: str) -> EnumType:
-        return self._source[key]
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -701,12 +713,8 @@ def deprecated(
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)
 
-        if source_is_class:
-            try:
-                if issubclass(source, Enum):
-                    return _DeprecatedEnumWrapper(wrapped_fn, source)
-            except TypeError:
-                pass
+        if source_is_class and isinstance(source, type) and issubclass(source, Enum):
+            return _DeprecatedEnumWrapper(wrapped_fn, source)
         return wrapped_fn
 
     return packing
