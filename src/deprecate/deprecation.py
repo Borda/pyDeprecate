@@ -187,12 +187,12 @@ def _is_enum_value_case(
     return target_is_enum and single_missed_arg and missed_is_value_param
 
 
-def _coerce_enum_value_args(
+def _convert_enum_value_args(
     target: Callable,
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> tuple[tuple[Any, ...], dict[str, Any]]:
-    """Move Enum value keyword argument into a positional argument when required.
+    """Convert Enum value keyword argument into a positional argument when required.
 
     Args:
         target: Callable being invoked (source or target).
@@ -680,7 +680,7 @@ def deprecated(
             if not callable(target):
                 if source_has_var_positional:
                     call_kwargs = original_kwargs if not reason_argument else kwargs
-                    call_args, call_kwargs = _coerce_enum_value_args(source, args, call_kwargs)
+                    call_args, call_kwargs = _convert_enum_value_args(source, args, call_kwargs)
                     return source(*call_args, **call_kwargs)
                 return source(**kwargs)
 
@@ -694,7 +694,7 @@ def deprecated(
             # Positional args become kwargs for regular callables; class-level varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
             if use_positional_args:
-                call_args, call_kwargs = _coerce_enum_value_args(target_func, args, kwargs)
+                call_args, call_kwargs = _convert_enum_value_args(target_func, args, kwargs)
                 return target_func(*call_args, **call_kwargs)
             return target_func(**kwargs)
 
