@@ -304,7 +304,7 @@ return process(data)
 GitHub Actions workflows (`.github/workflows/`):
 
 - **Linting**: Runs `ruff` and `mypy` on all Python files
-- **Testing**: Runs `pytest` across multiple Python versions (3.9, 3.10, 3.11, 3.12, 3.13)
+- **Testing**: Runs `pytest` across multiple Python versions (3.9, 3.11, 3.13)
 - **Pre-commit**: Validates formatting and style
 
 All checks must pass before merge.
