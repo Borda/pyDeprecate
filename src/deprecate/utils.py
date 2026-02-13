@@ -18,9 +18,9 @@ Key Functions:
 Key Classes:
     - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
 
-Note:
-    Version comparison features (check_deprecation_expiry, check_module_deprecation_expiry)
-    require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
+.. note::
+   Version comparison features (check_deprecation_expiry, check_module_deprecation_expiry)
+   require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <...>
 """
@@ -66,9 +66,9 @@ def _parse_version(version_string: str) -> "Version":
         >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")  # doctest: +SKIP
         True
 
-    Note:
-        Install the audit extra to use version comparison features:
-        ``pip install pyDeprecate[audit]``
+    .. note::
+       Install the audit extra to use version comparison features:
+       ``pip install pyDeprecate[audit]``
 
     """
     try:
@@ -470,11 +470,11 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
         Callable `old_func` was scheduled for removal in version 2.0 but still exists in version \
 2.0.0. Please delete this deprecated code.
 
-    Note:
-        - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
-        - Intended for use in CI/CD pipelines or development checks
-        - Helps maintain code hygiene by enforcing deprecation deadlines
-        - Can be integrated into test suites or pre-commit hooks
+    .. note::
+       - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
+       - Intended for use in CI/CD pipelines or development checks
+       - Helps maintain code hygiene by enforcing deprecation deadlines
+       - Can be integrated into test suites or pre-commit hooks
 
     """
     # First validate that the function has proper deprecation metadata
@@ -550,13 +550,13 @@ def check_module_deprecation_expiry(
         >>> # expired = check_module_deprecation_expiry("my_package", __version__)
         >>> # assert not expired, f"Remove expired deprecated code: {expired}"
 
-    Note:
-        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
-        - Skips callables that cannot be imported or accessed
-        - Skips callables with invalid version formats (logs no error, just continues)
-        - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
-        - Intended for automated checks in CI/CD pipelines
-        - Can be integrated into test suites or pre-commit hooks
+    .. note::
+       - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
+       - Skips callables that cannot be imported or accessed
+       - Skips callables with invalid version formats (logs no error, just continues)
+       - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
+       - Intended for automated checks in CI/CD pipelines
+       - Can be integrated into test suites or pre-commit hooks
 
     """
     import importlib
