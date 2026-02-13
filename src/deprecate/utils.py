@@ -18,11 +18,14 @@ Key Functions:
 Key Classes:
     - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
 
+Note:
+    Version comparison features (check_deprecation_expiry, check_module_deprecation_expiry)
+    require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
+
 Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
 import inspect
-import re
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
@@ -31,121 +34,55 @@ from functools import lru_cache
 from typing import Any, Callable, Optional, Union
 
 
-def _parse_version(version_string: str) -> tuple[int, ...]:
-    """Parse a version string into a tuple of integers for comparison.
+def _parse_version(version_string: str) -> "Version":
+    """Parse a version string using the packaging library (PEP 440 compliant).
 
-    This is a lightweight semantic version parser (PEP 440-inspired) without
-    external dependencies. It supports pre-releases (alpha/beta/rc), stable
-    releases, and post-releases, with ordering:
+    This function requires the 'packaging' library, which is available as an
+    optional dependency via the 'audit' extra: ``pip install pyDeprecate[audit]``
 
-        alpha < beta < rc < stable < post
+    The packaging library provides robust PEP 440 version parsing and comparison,
+    supporting pre-releases (alpha/beta/rc), stable releases, post-releases, and
+    development releases with proper ordering.
 
     Args:
-        version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0-alpha",
+        version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0a1",
             "1.5.0rc1", "1.5.0.post1").
 
     Returns:
-        Tuple of integers representing the version for comparison:
-        ``(<base parts...>, <stage rank>, <stage number>)``
-        where stage rank encodes the ordering above.
+        packaging.version.Version object that supports comparison operations.
 
     Raises:
-        ValueError: If the version string cannot be parsed into valid numeric components.
+        ImportError: If the packaging library is not installed.
+        InvalidVersion: If the version string is not valid per PEP 440.
 
     Example:
-        >>> _parse_version("1.2.3")
-        (1, 2, 3, 3, 0)
-        >>> _parse_version("2.0")
-        (2, 0, 3, 0)
-        >>> _parse_version("1.5.0-alpha") < _parse_version("1.5.0")
+        >>> v1 = _parse_version("1.2.3")  # doctest: +SKIP
+        >>> v2 = _parse_version("2.0")  # doctest: +SKIP
+        >>> v1 < v2  # doctest: +SKIP
+        True
+        >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")  # doctest: +SKIP
         True
 
+    Note:
+        Install the audit extra to use version comparison features:
+        ``pip install pyDeprecate[audit]``
+
     """
-    # Drop build metadata for comparison (e.g., "+build")
-    version_core = version_string.split("+", 1)[0]
-
-    # Extract post-release (e.g., .post1 or post1)
-    post_match = re.search(r"(?:\.?post)(\d+)$", version_core, flags=re.IGNORECASE)
-    post_num = 0
-    if post_match:
-        post_num = int(post_match.group(1))
-        version_core = version_core[: post_match.start()]
-
-    # Extract pre-release (alpha/beta/rc)
-    pre_match = re.search(r"(?:-)?(a|alpha|b|beta|rc)(\d*)$", version_core, flags=re.IGNORECASE)
-    pre_tag = None
-    pre_num = 0
-    if pre_match:
-        pre_tag = pre_match.group(1).lower()
-        pre_num = int(pre_match.group(2) or 0)
-        version_core = version_core[: pre_match.start()]
-
     try:
-        parts = [int(part) for part in version_core.split(".") if part != ""]
-        if not parts:
-            raise ValueError(f"Version string '{version_string}' has no numeric components")
-
-        stage_rank_map = {"a": 0, "alpha": 0, "b": 1, "beta": 1, "rc": 2}
-        if pre_tag is not None:
-            stage_rank = stage_rank_map.get(pre_tag, 0)
-            stage_num = pre_num
-        elif post_match:
-            stage_rank = 4
-            stage_num = post_num
-        else:
-            stage_rank = 3
-            stage_num = 0
-
-        parts.extend([stage_rank, stage_num])
-        return tuple(parts)
-    except ValueError as e:
-        raise ValueError(
-            f"Failed to parse version '{version_string}'. Expected format: 'X.Y.Z' (e.g., '1.2.3' or '2.0'). Error: {e}"
+        from packaging.version import InvalidVersion, Version
+    except ImportError as e:
+        raise ImportError(
+            "Version comparison requires the 'packaging' library. "
+            "Install with: pip install pyDeprecate[audit]"
         ) from e
 
-
-def _normalize_versions_for_comparison(
-    v1: tuple[int, ...], v2: tuple[int, ...]
-) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """Normalize two version tuples to the same length for comparison.
-
-    Ensures that comparing versions like "0.5" and "0.5.0-alpha" works correctly
-    by padding the shorter version with zeros up to the base length of the longer version.
-    Preserves stage rank and stage number at the end.
-
-    Args:
-        v1: First version tuple
-        v2: Second version tuple
-
-    Returns:
-        Tuple of two normalized version tuples
-
-    Example:
-        >>> _normalize_versions_for_comparison((0, 5, 3, 0), (0, 5, 0, 2, 1))
-        ((0, 5, 0, 3, 0), (0, 5, 0, 2, 1))
-
-    """
-    # Extract base versions (without stage rank/number)
-    v1_list = list(v1)
-    v2_list = list(v2)
-
-    v1_stage_num = v1_list.pop() if v1_list else 0
-    v1_stage_rank = v1_list.pop() if v1_list else 3
-    v2_stage_num = v2_list.pop() if v2_list else 0
-    v2_stage_rank = v2_list.pop() if v2_list else 3
-
-    # Pad to same length
-    max_len = max(len(v1_list), len(v2_list))
-    while len(v1_list) < max_len:
-        v1_list.append(0)
-    while len(v2_list) < max_len:
-        v2_list.append(0)
-
-    # Re-add stage rank and stage number
-    v1_list.extend([v1_stage_rank, v1_stage_num])
-    v2_list.extend([v2_stage_rank, v2_stage_num])
-
-    return tuple(v1_list), tuple(v2_list)
+    try:
+        return Version(version_string)
+    except InvalidVersion as e:
+        raise ValueError(
+            f"Failed to parse version '{version_string}'. Expected PEP 440 format "
+            f"(e.g., '1.2.3', '2.0', '1.5.0a1'). Error: {e}"
+        ) from e
 
 
 @dataclass(frozen=True)
@@ -548,18 +485,15 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
             f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
         )
 
-    # Parse both versions for proper semantic version comparison
+    # Parse both versions for proper semantic version comparison (PEP 440)
     try:
         current_ver = _parse_version(current_version)
         remove_ver = _parse_version(remove_in)
-    except ValueError as e:
+    except (ValueError, ImportError) as e:
         raise ValueError(
             f"Failed to parse versions for comparison. current_version='{current_version}', "
             f"remove_in='{remove_in}'. Error: {e}"
         ) from e
-
-    # Normalize versions for proper comparison (handles different lengths)
-    current_ver, remove_ver = _normalize_versions_for_comparison(current_ver, remove_ver)
 
     # Check if the current version has reached or passed the removal deadline
     if current_ver >= remove_ver:
