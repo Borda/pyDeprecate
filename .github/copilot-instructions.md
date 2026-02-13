@@ -1,94 +1,126 @@
 # Copilot Instructions for pyDeprecate
 
-> **Coding guidelines:** See [AGENTS.md](../AGENTS.md) for key constraints and [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
+> [!TIP]
+> **For coding standards and contribution workflow**, see [CONTRIBUTING.md](CONTRIBUTING.md). **For agent behavioral rules**, see [AGENTS.md](../AGENTS.md). This file provides Copilot-specific guidance for understanding and working with the codebase.
+
+## Project Overview
+
+pyDeprecate is a lightweight Python library (Python 3.9+) for decorator-based deprecation of functions, methods, and classes with automatic call forwarding. **Zero runtime dependencies** by design.
+
+**Tech stack**: Python, pytest, setuptools, pre-commit, GitHub Actions
+
+## ⚠️ Important: Configuration Files Are Source of Truth
+
+> [!WARNING]
+> **If this documentation contradicts actual configuration files**, the config files have **higher authority**. Trust `pyproject.toml`, `.pre-commit-config.yaml`, and other config files over documentation. When you detect a mismatch, suggest updating this documentation to match the actual configuration.
+
+**Configuration files** (source of truth):
+
+- `pyproject.toml` — project config, tool settings (ruff, mypy, pytest)
+- `.pre-commit-config.yaml` — pre-commit hooks
+- `setup.py` — package metadata and dependencies
+- `.github/workflows/*.yml` — CI/CD pipeline
+
+## Quick Reference
+
+**For detailed workflows, commands, and guidelines**, see:
+
+- **Setup & commands** → [CONTRIBUTING.md: Quick Start](CONTRIBUTING.md#-quick-start)
+- **Running tests** → [CONTRIBUTING.md: Tests](CONTRIBUTING.md#-tests-and-quality-assurance)
+- **Project structure** → [CONTRIBUTING.md: Project Structure](CONTRIBUTING.md#project-structure)
+
+## Architecture & Constraints
+
+### Critical Constraints
+
+- **Zero runtime dependencies** — `install_requires` is empty and must stay that way
+- **Fast imports** — no expensive module-level code or premature imports
+- **Type hints required** — all function signatures must have type hints
+- **No bare `except:`** — always catch specific exceptions
+
+### Test File Organization
+
+Tests use a **three-layer separation**:
+
+1. **Targets** (`collection_targets.py`) — new implementations
+2. **Deprecated wrappers** (`collection_deprecate.py`) — `@deprecated` wrappers
+3. **Test logic** (`test_*.py`) — imports from collections and asserts behavior
+
+**Important**: Do not define target functions or `@deprecated` wrappers directly in `test_*.py` files.
+
+See [CONTRIBUTING.md: Test Organization](CONTRIBUTING.md#test-organization) for details.
+
+### Circular Import Prevention
+
+When editing `src/deprecate/`, use `if TYPE_CHECKING:` blocks for type-only imports. See [CONTRIBUTING.md: Project Structure](CONTRIBUTING.md#project-structure) for the code example.
+
+## Development Guidelines
+
+### Branch Naming
+
+Follow the pattern: `{type}/{issue-nb}-description`
+
+- Types: `fix/`, `feat/`, `docs/`, `refactor/`, `test/`, `chore/`
+- Examples: `fix/123-circular-import`, `feat/45-new-validator`
+
+See [CONTRIBUTING.md: Branch Naming](CONTRIBUTING.md#-branch-naming-convention)
+
+### Test-Driven Development (TDD) for Bug Fixes
+
+1. Write a failing test that reproduces the bug
+2. Implement the fix to make the test pass
+3. Verify all tests pass
+
+See [CONTRIBUTING.md: Fixing Bugs](CONTRIBUTING.md#-fixing-bugs)
+
+### Test Coverage Requirements
+
+All new features and bug fixes **must** include tests for:
+
+- **Happy path** — correct behavior with valid inputs
+- **Failure path** — appropriate errors raised
+- **Edge cases** — None, empty inputs, circular chains, boundary conditions
+
+See [CONTRIBUTING.md: Test Requirements](CONTRIBUTING.md#-tests-and-quality-assurance)
+
+## Common Patterns
+
+For code examples and patterns (deprecation wrappers, argument renaming, testing without warnings), see [CONTRIBUTING.md: Common Patterns](CONTRIBUTING.md#common-patterns).
 
 ## PR Review Guidelines
 
-When reviewing PRs, follow this structured format for consistent, actionable feedback.
+When reviewing PRs, use the structured format in [CONTRIBUTING.md: Reviewing PRs](CONTRIBUTING.md#reviewing-prs) to ensure consistent, actionable feedback.
 
-### 1. Overall Recommendation
+Quick checklist:
 
-Start with a clear, actionable recommendation and a **specific** justification:
+- Overall recommendation (🟢 Approve / 🟡 Minor Suggestions / 🟠 Request Changes / 🔴 Block)
+- Completeness check (description, issue link, tests, docs, CI)
+- Quality scores (code/testing/documentation: n/5)
+- Risk assessment (breaking changes, performance, compatibility, architecture)
+- Specific suggestions (inline with GitHub suggestion format)
 
-- 🟢 **Approve** — ready to merge as-is
-- 🟡 **Minor Suggestions** — minor improvements recommended but not blocking
-- 🟠 **Request Changes** — significant issues must be addressed before merge
-- 🔴 **Block** — critical issues require major rework
+> [!NOTE]
+> **Anchor Links**: GitHub strips emojis from section headers and then converts the remaining text to lowercase-with-dashes. For headers like `## 🚀 Quick Start`, the emoji is removed and the space after it becomes the leading dash, so the anchor is `#-quick-start`. Subsections without emojis (e.g., `### Reviewing PRs`) become `#reviewing-prs` (no dash prefix). All links in this repository follow this convention and are correct.
 
-### 2. PR Completeness Check
+## Known Issues & Workarounds
 
-Verify the PR includes (mark ✅ complete, ⚠️ incomplete, ❌ missing, 🔵 N/A):
+- **Circular imports**: Use `if TYPE_CHECKING:` blocks in `src/deprecate/`
+- **Deprecation chains**: Handle infinite loops (A deprecates B, B deprecates A) gracefully
 
-- [ ] Clear description of what changed and why
-- [ ] Link to related issue (`Fixes #N` or `Relates to #N`)
-- [ ] Tests added/updated for new functionality
-- [ ] Docstrings for new public functions/classes (Google-style)
-- [ ] All CI checks pass
+## CI/CD Pipeline
 
-Call out missing items explicitly with inline comments on relevant files.
+GitHub Actions workflows (`.github/workflows/`):
 
-### 3. Quality Assessment
+- **Linting**: Runs `ruff` and `mypy` on all Python files
+- **Testing**: Runs `pytest` across multiple Python versions (3.9, 3.11, 3.13)
+- **Pre-commit**: Validates formatting and style
 
-Score each dimension (n/5) with specific feedback via **GitHub inline comments**:
+All checks must pass before merge.
 
-- **Code quality** — correctness, edge case handling, idiomatic Python, type hints
-- **Testing quality** — coverage of happy path, failure path, and edge cases; specific assertions; correct test file placement (`collection_targets.py` / `collection_deprecate.py` / `test_*.py`)
-- **Documentation quality** — complete docstrings, updated docs for new features
+## Reference Documentation
 
-### 4. Risk Assessment
-
-Flag any risks with severity:
-
-- **Breaking changes** — changes to public APIs, removed features (must include migration instructions)
-- **Performance impact** — inefficient algorithms, memory-intensive operations
-- **Compatibility** — new Python version requirements, platform-specific code
-- **Architecture** — new runtime dependencies (not allowed), circular imports, expensive module-level code
-
-### 5. Suggestions
-
-Provide **specific, actionable** improvements using GitHub inline comments with suggestion format:
-
-````markdown
-```suggestion
-if data is None:
-    return None
-return process(data)
-```
-````
-
-Reference suggestions in the review summary with permalinks.
-
-### Review Best Practices
-
-- Explain *why* something is a problem, not just *what* is wrong
-- Distinguish between blocking issues and nice-to-haves
-- Acknowledge good work — don't focus only on what's wrong
-- Be pragmatic — don't let perfect be the enemy of good
-- Use inline comments/suggestions directly on code (they persist across edits)
-
-### Review Summary Template
-
-```markdown
-## Review Summary
-
-### Recommendation
-[emoji] [Status] — [One-sentence justification]
-
-### PR Completeness
-- ✅ Complete: [list]
-- ❌ Missing: [list with links to inline comments]
-
-### Quality Scores
-- Code Quality: n/5 — [reason]
-- Testing: n/5 — [reason]
-- Documentation: n/5 — [reason]
-
-### Risk Level: n/5
-[Brief risk description]
-
-### Critical Issues (Must Fix)
-1. [Issue with link to inline comment]
-
-### Suggestions (Nice to Have)
-1. [Suggestion with link to inline comment]
-```
+- **Contribution workflow** → [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Agent behavioral rules** → [AGENTS.md](../AGENTS.md)
+- **PR review guidelines** → [CONTRIBUTING.md: Reviewing PRs](CONTRIBUTING.md#reviewing-prs)
+- **Security reporting** → [SECURITY.md](SECURITY.md)
+- **Code of Conduct** → [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
