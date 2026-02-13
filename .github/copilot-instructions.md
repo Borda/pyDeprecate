@@ -100,7 +100,7 @@ Quick checklist:
 - Specific suggestions (inline with GitHub suggestion format)
 
 > [!NOTE]
-> **Anchor Links**: GitHub generates anchors from section headers by stripping emojis and converting to lowercase-with-dashes. When a section starts with an emoji (e.g., `## 🚀 Quick Start`), the emoji becomes a dash: `#-quick-start`. Subsections without emojis (e.g., `### Reviewing PRs`) become `#reviewing-prs` (no dash prefix). All links in this repository follow this convention and are correct.
+> **Anchor Links**: GitHub strips emojis from section headers and then converts the remaining text to lowercase-with-dashes. For headers like `## 🚀 Quick Start`, the emoji is removed and the space after it becomes the leading dash, so the anchor is `#-quick-start`. Subsections without emojis (e.g., `### Reviewing PRs`) become `#reviewing-prs` (no dash prefix). All links in this repository follow this convention and are correct.
 
 ## Known Issues & Workarounds
 
