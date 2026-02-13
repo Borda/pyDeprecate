@@ -50,7 +50,6 @@ TEMPLATE_DOC_DEPRECATED = """
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
-EnumType = TypeVar("EnumType", bound=Enum)
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
@@ -180,6 +179,9 @@ def _coerce_enum_value_args(
     if args:
         return args, new_kwargs
     return (*args, value), new_kwargs
+
+
+EnumType = TypeVar("EnumType", bound=Enum)
 
 
 class _DeprecatedEnumWrapper(Generic[EnumType]):
