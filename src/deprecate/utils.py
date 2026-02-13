@@ -31,7 +31,10 @@ from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
-from typing import Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+
+if TYPE_CHECKING:
+    from packaging.version import Version
 
 
 def _parse_version(version_string: str) -> "Version":
@@ -485,7 +488,7 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
             f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
         )
 
-    # Parse both versions for proper semantic version comparison (PEP 440)
+    # Parse both versions for proper semantic version comparison
     try:
         current_ver = _parse_version(current_version)
         remove_ver = _parse_version(remove_in)
@@ -532,21 +535,21 @@ def check_module_deprecation_expiry(
         Empty list if all deprecated callables are still within their deprecation period.
 
     Example:
-        >>> # Check a specific module
-        >>> import my_package
-        >>> expired = check_module_deprecation_expiry(my_package, "2.0.0")
-        >>> if expired:
-        ...     for msg in expired:
-        ...         print(msg)
-        ...     raise AssertionError(f"Found {len(expired)} expired deprecation(s)")
+        >>> # Check a specific module with version before any deadlines
+        >>> from deprecate import check_module_deprecation_expiry
+        >>> expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+        >>> len(expired)
+        0
 
-        >>> # Use in CI/CD pipeline
-        >>> from my_package import __version__
-        >>> expired = check_module_deprecation_expiry("my_package", __version__)
-        >>> assert not expired, f"Remove expired deprecated code: {expired}"
+        >>> # Check with version past some removal deadlines
+        >>> expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+        >>> len(expired) > 0  # Some functions have remove_in="0.5"
+        True
 
-        >>> # Check without recursion (single module only)
-        >>> expired = check_module_deprecation_expiry("my_package.utils", "2.0.0", recursive=False)
+        >>> # Use in CI/CD pipeline (example pattern)
+        >>> # from my_package import __version__
+        >>> # expired = check_module_deprecation_expiry("my_package", __version__)
+        >>> # assert not expired, f"Remove expired deprecated code: {expired}"
 
     Note:
         - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
