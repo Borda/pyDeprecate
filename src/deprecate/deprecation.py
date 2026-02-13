@@ -706,6 +706,8 @@ def deprecated(
                 if issubclass(source, Enum):
                     return _DeprecatedEnumWrapper(wrapped_fn, source)
             except TypeError:
+                # Some objects may be marked as classes but are not valid for issubclass();
+                # in that case, we intentionally skip Enum wrapping and fall back to wrapped_fn.
                 pass
         return wrapped_fn
 
