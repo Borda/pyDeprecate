@@ -113,34 +113,41 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
     return func_arg_type_val
 
 
+_SIGNATURE_CACHE_SIZE = 256
+_SIGNATURE_CACHE_INIT_LOCK = Lock()
+
+
 def _get_signature(func: Callable) -> inspect.Signature:
     """Get function signature with caching when possible.
 
     Falls back to uncached lookup for unhashable callables and uses a bounded
     LRU cache for hashable callables.
     """
-    cache_max = 256
     try:
         cache = _get_signature._cache  # type: ignore[attr-defined]
         lock = _get_signature._lock  # type: ignore[attr-defined]
     except AttributeError:
-        cache = OrderedDict()
-        lock = Lock()
-        _get_signature._cache = cache  # type: ignore[attr-defined]
-        _get_signature._lock = lock  # type: ignore[attr-defined]
+        with _SIGNATURE_CACHE_INIT_LOCK:
+            try:
+                cache = _get_signature._cache  # type: ignore[attr-defined]
+                lock = _get_signature._lock  # type: ignore[attr-defined]
+            except AttributeError:
+                cache = OrderedDict()
+                lock = Lock()
+                _get_signature._cache = cache  # type: ignore[attr-defined]
+                _get_signature._lock = lock  # type: ignore[attr-defined]
     try:
         with lock:
             if func in cache:
                 cache.move_to_end(func)
                 return cache[func]
+            signature = inspect.signature(func)
+            if len(cache) >= _SIGNATURE_CACHE_SIZE:
+                cache.popitem(last=False)
+            cache[func] = signature
+            return signature
     except TypeError:
         return inspect.signature(func)
-    signature = inspect.signature(func)
-    with lock:
-        if len(cache) >= cache_max:
-            cache.popitem(last=False)
-        cache[func] = signature
-    return signature
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
