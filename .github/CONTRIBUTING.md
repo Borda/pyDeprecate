@@ -5,6 +5,9 @@ Thank you for your interest in contributing to pyDeprecate! We appreciate all co
 > [!TIP]
 > **First time contributing to open source?** Check out [First Contributions](https://github.com/firstcontributions/first-contributions) for a beginner-friendly guide that walks you through the entire process.
 
+> [!NOTE]
+> **Configuration files are the source of truth.** If you notice this documentation contradicts actual configuration files (`pyproject.toml`, `.pre-commit-config.yaml`, etc.), please open an issue! The config files are always correct, and the documentation should be updated to match.
+
 ## 📖 Code of Conduct
 
 Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md). We expect all contributors to be respectful, considerate, and help create a welcoming environment for everyone. This ensures our community remains inclusive and supportive for people from all backgrounds.
@@ -62,12 +65,16 @@ Bug fixing is a great way to contribute! Here's how to get started:
    - Check if the issue is already assigned to someone
    - If it's assigned but has no activity for a while, comment to ask if you can take it over
 2. **Understand the problem** — Read the issue carefully and try to reproduce the bug.
-3. **Investigate and fix** — Identify the root cause and implement a fix. Keep your changes focused on the specific issue.
-4. **Test your fix** — Write or update tests to verify your fix works and prevents the bug from recurring.
-5. **Submit a PR** — Create a pull request with your fix, linking to the issue it addresses.
+3. **Write a failing test first (TDD)** — Before fixing the bug, write a test that reproduces the issue. This ensures:
+   - You understand the problem correctly
+   - The fix actually resolves the issue
+   - The bug won't silently reappear in the future
+4. **Implement the fix** — Now that you have a failing test, implement the fix to make it pass. Keep your changes focused on the specific issue.
+5. **Verify the test passes** — Run the test suite to ensure your fix resolves the issue without breaking anything else.
+6. **Submit a PR** — Create a pull request with your fix, linking to the issue it addresses.
 
-> [!TIP]
-> Fixes with tests are more likely to be merged quickly!
+> [!IMPORTANT]
+> **Test-Driven Development (TDD) for bugs:** Always reproduce the bug in a test *before* implementing the fix. This is the most reliable way to ensure the bug is actually fixed and won't regress.
 
 ## 💡 Suggesting Improvements
 
@@ -104,9 +111,15 @@ Here's how to suggest and implement improvements:
 **When you have approval:**
 
 1. **Implement the feature** — Build the feature following the project's coding style and guidelines.
-2. **Add tests** — Write comprehensive tests to ensure your feature works correctly.
+2. **Add comprehensive tests** — Every new feature **must** have tests covering:
+   - **Happy path** — The feature works correctly with valid inputs
+   - **Failure path** — The feature handles errors gracefully and raises appropriate exceptions
+   - **Edge cases** — None values, empty inputs, boundary conditions, circular chains, missing arguments
 3. **Update documentation** — Document how to use the new feature.
 4. **Submit a PR** — Create a pull request, linking to the approved issue.
+
+> [!IMPORTANT]
+> **Test coverage is mandatory for new features.** Untested features will not be merged. Tests ensure reliability and prevent regressions.
 
 ## 📬 Pull Requests
 
@@ -114,9 +127,9 @@ Here's how to suggest and implement improvements:
 
 Complete this checklist before opening a pull request to ensure quality and smooth review:
 
-- [ ] Followed existing code style
-- [ ] Added tests for new functionality
-- [ ] Ran tests locally and they pass
+- [ ] Followed existing code style (pre-commit hooks enforce this automatically)
+- [ ] Added tests for new functionality (happy path, failure path, edge cases)
+- [ ] Ran tests locally and they pass (`pytest .`)
 - [ ] Updated documentation if needed
 - [ ] Self-reviewed my code
 - [ ] Linked to related issue(s)
@@ -136,6 +149,33 @@ If no issue exists, open one first to discuss the change before implementing it.
 - **Smaller PRs are easier to review** — Large PRs can be overwhelming and take longer to merge
 - **Split large changes into multiple PRs** — Break complex features into smaller, manageable pieces
 
+### Reviewing PRs
+
+When reviewing pull requests, provide structured, actionable feedback:
+
+**Overall Assessment:**
+
+- 🟢 **Approve** — Ready to merge
+- 🟡 **Minor Suggestions** — Improvements recommended but not blocking
+- 🟠 **Request Changes** — Significant issues must be addressed
+- 🔴 **Block** — Critical issues require major rework
+
+**Review Checklist:**
+
+- [ ] Clear description and linked issue
+- [ ] Tests cover happy path, failure cases, and edge cases
+- [ ] Code quality (correctness, idioms, type hints)
+- [ ] Documentation (docstrings for public APIs)
+- [ ] No breaking changes or runtime dependencies
+- [ ] CI checks pass
+
+**Provide Actionable Feedback:**
+
+- Explain **why** something is a problem, not just **what**
+- Distinguish blocking issues from nice-to-haves
+- Use GitHub's suggestion format for specific code improvements
+- Acknowledge good work and be pragmatic
+
 ## ✅ Tests and Quality Assurance
 
 Tests and quality improvements are **always welcome**! These contributions are highly valuable because they:
@@ -154,9 +194,12 @@ pre-commit install
 # Run the full test suite (including doctests if configured in pytest)
 pytest .
 
-# Run linting and formatting
+# Run linting and formatting manually (optional - runs automatically on commit)
 pre-commit run --all-files
 ```
+
+> [!TIP]
+> Pre-commit hooks run **automatically** on every commit, handling all linting and formatting (ruff, mypy). You only need to run `pre-commit run --all-files` manually if you want to check before committing.
 
 ## 💎 Quality Expectations
 
@@ -172,6 +215,26 @@ We value all levels of contribution and want to encourage everyone, regardless o
 
 We don't expect perfection. We expect genuine effort. If you're unsure about something, ask! The community is here to help.
 
+## 🌿 Branch Naming Convention
+
+Follow this pattern for branch names to keep the repository organized:
+
+```
+{type}/{issue-number}-description
+```
+
+**Types:**
+
+- `fix/` — Bug fixes (e.g., `fix/123-deprecation-warning-crash`)
+- `feat/` — New features (e.g., `feat/45-add-class-deprecation`)
+- `docs/` — Documentation changes (e.g., `docs/update-readme-examples`)
+- `refactor/` — Code refactoring (e.g., `refactor/simplify-validation`)
+- `test/` — Test additions or improvements (e.g., `test/edge-cases-for-chains`)
+- `chore/` — Maintenance tasks (e.g., `chore/update-dependencies`)
+
+> [!TIP]
+> Always include the issue number when one exists. If there's no issue, use a descriptive name: `fix/typo-in-readme`
+
 ## 🚀 Quick Start
 
 ```bash
@@ -181,8 +244,9 @@ We don't expect perfection. We expect genuine effort. If you're unsure about som
 git clone https://github.com/YOUR-USERNAME/pyDeprecate.git
 cd pyDeprecate
 
-# 3. Create a feature branch
-git checkout -b feature/amazing-feature
+# 3. Create a feature branch (following naming convention)
+git checkout -b fix/123-your-bug-description
+# or: git checkout -b feat/456-your-feature-description
 
 # 4. Install in development mode
 pip install -e . "pre-commit" -r tests/requirements.txt
@@ -193,13 +257,12 @@ pre-commit install
 # 6. Run tests
 pytest tests/
 
-# 7. Stage and commit your changes
-git status        # Check which files have been changed
+# 7. Commit your changes (pre-commit hooks run automatically)
 git add -A        # Stage all modified and new files
-git commit -m "Add amazing feature"  # Commit the staged changes
+git commit -m "Add amazing feature"  # Pre-commit runs linting/formatting automatically
 
 # 8. Push to your fork
-git push origin feature/amazing-feature
+git push origin fix/123-your-bug-description
 
 # 9. Open a Pull Request
 ```
@@ -217,7 +280,7 @@ git push origin feature/amazing-feature
 - No bare `except:` — always catch specific exceptions
 
 > [!TIP]
-> Code style is enforced by pre-commit hooks — run `pre-commit run --all-files` before submitting. Key tools and their configs live in `pyproject.toml` and `.pre-commit-config.yaml` (`ruff` for formatting/linting, `mypy` for type checking).
+> **All linting and formatting is automatically handled by pre-commit hooks** on every commit. Tools include `ruff` (formatting/linting) and `mypy` (type checking). Configs live in `pyproject.toml` and `.pre-commit-config.yaml`. The hooks will prevent commits with style violations.
 
 ### Architecture Constraints
 
@@ -225,6 +288,49 @@ git push origin feature/amazing-feature
 - **Fast imports / low overhead** — avoid expensive computations or premature imports in module-level code or wrapper setup.
 - **Circular imports** — when editing `src/deprecate/`, verify new imports don't create cycles. Use `if TYPE_CHECKING:` blocks for type-only imports.
 - **Deprecation chains** — if modifying chain validation logic, handle infinite loops (A deprecates B, B deprecates A) gracefully without crashing.
+
+### Project Structure
+
+Understanding the codebase layout helps you navigate and contribute effectively:
+
+```
+pyDeprecate/
+├── src/deprecate/              # Core library code
+│   ├── __about__.py            # Version and metadata
+│   ├── __init__.py             # Public API exports
+│   ├── deprecation.py          # @deprecated decorator and warning logic
+│   └── utils.py                # Helpers: void(), validate_*, no_warning_call()
+├── tests/                      # Test suite
+│   ├── collection_targets.py       # Target functions (new implementations)
+│   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
+│   ├── collection_misconfigured.py # Invalid configs for validation
+│   ├── test_functions.py           # Function deprecation tests
+│   ├── test_classes.py             # Class deprecation tests
+│   ├── test_docs.py                # Docstring tests
+│   └── test_utils.py               # Utility function tests
+├── .github/
+│   ├── workflows/              # CI/CD pipelines
+│   └── *.md                    # Documentation and guidelines
+├── pyproject.toml              # Project config (ruff, mypy, pytest)
+└── setup.py                    # Package setup
+```
+
+**Circular import prevention example:**
+
+When editing `src/deprecate/`, use `if TYPE_CHECKING:` blocks to avoid circular dependencies:
+
+```python
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from deprecate.deprecation import SomeType
+
+
+def my_function(arg: SomeType) -> None:
+    # Implementation here
+    pass
+```
 
 ### Test Organization
 
@@ -247,6 +353,9 @@ Functions in `collection_deprecate.py` and `collection_misconfigured.py` must ha
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
 ```python
+from deprecate import deprecated
+
+
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
 def depr_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
@@ -259,20 +368,30 @@ def depr_sum_warn_only(a: int, b: int = 5) -> int:
 
 **Test requirements:**
 
+> [!IMPORTANT]
+> **All new features and bug fixes must include tests.** This is non-negotiable.
+
 - Every new function or behavior change must have accompanying tests.
 - For every new utility or feature, include tests for:
-  1. The happy path (expected correct behavior).
-  2. The failure path (expected errors are raised).
-  3. Edge cases (None types, empty inputs, circular chains, missing arguments).
+  1. Happy path — expected correct behavior with valid inputs
+  2. Failure path — expected errors are raised with appropriate messages
+  3. Edge cases — None types, empty inputs, circular chains, missing arguments, boundary conditions
 - **Group related tests in classes** — use test classes when you have multiple related tests or need shared fixtures.
 - **Avoid redundant naming** — don't repeat class context in test method names (e.g., in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`).
 - **Use fixtures for independence** — use pytest fixtures to reset state between tests. Add `autouse=True` fixtures when a class needs per-test reset.
 - **One behavior per test** — each test method should verify one specific aspect.
 - **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
 
+**For bug fixes:**
+
+- Use **Test-Driven Development (TDD)**: Write a failing test that reproduces the bug first, then implement the fix to make it pass. This ensures the bug is truly fixed and won't regress.
+
 Example:
 
 ```python
+import pytest
+
+
 class TestMyFeature:
     """Test suite for my feature."""
 
@@ -327,6 +446,9 @@ def test_deprecation_warning() -> None:
 <summary>Argument renaming</summary>
 
 ```python
+from deprecate import deprecated
+
+
 @deprecated(target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_param": "new_param"})
 def my_func(old_param: int = 0, new_param: int = 0) -> int:
     """Function with renamed parameter."""

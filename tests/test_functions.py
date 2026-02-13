@@ -68,7 +68,7 @@ class TestDeprecationWarnings:
         # However, depr_sum might have been called in previous test if not careful,
         # but here we want to ensure that WITHIN a clean state it only warns once.
         # Note: depr_sum is imported from collection_deprecate, it might share state if not reset.
-        depr_sum._warned = 0
+        setattr(depr_sum, "_warned", 0)
         with pytest.warns(FutureWarning):
             assert depr_sum(2) == 7
         with no_warning_call(FutureWarning):
@@ -162,9 +162,9 @@ class TestArgumentMapping:
         """Testing that preferable use the new arguments when both are provided."""
         # Reset warning state to ensure test independence
         if hasattr(depr_pow_self_double, "_warned_c1"):
-            depr_pow_self_double._warned_c1 = 0
+            setattr(depr_pow_self_double, "_warned_c1", 0)
         if hasattr(depr_pow_self_double, "_warned_c2"):
-            depr_pow_self_double._warned_c2 = 0
+            setattr(depr_pow_self_double, "_warned_c2", 0)
 
         with no_warning_call():
             assert depr_pow_self_double(2, nc1=1, nc2=2) == 8
@@ -174,8 +174,8 @@ class TestArgumentMapping:
             assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
 
         # Need to reset after first warning because both counters were incremented
-        depr_pow_self_double._warned_c1 = 0
-        depr_pow_self_double._warned_c2 = 0
+        setattr(depr_pow_self_double, "_warned_c1", 0)
+        setattr(depr_pow_self_double, "_warned_c2", 0)
 
         # When both c1 and c2 are provided, warns about both together
         # Result is 32 because: c1->nc1=3, c2->nc2=4, but nc2=2 (user wins), so 2**(0+0+3+2)=32
@@ -233,13 +233,13 @@ class TestErrorHandling:
     def test_incomplete_missing_target(self) -> None:
         """Test missing argument in target."""
         with pytest.raises(
-            TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments missing in target source: \['c'\]"
+            TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments not accepted by target: \['c'\]"
         ):
             depr_pow_wrong(2)
 
     def test_incomplete_once(self) -> None:
         """Check that the warning is raised only once per function for incomplete mappings."""
-        depr_pow_args._warned = False
+        setattr(depr_pow_args, "_warned", False)
         with pytest.warns(FutureWarning):
             depr_pow_args(2, 1)
         with no_warning_call(FutureWarning):
@@ -248,7 +248,7 @@ class TestErrorHandling:
     def test_incomplete_independent(self) -> None:
         """Check that it does not affect other functions for incomplete mappings when called with kwargs."""
         # reset the warning
-        depr_pow_args._warned = False
+        setattr(depr_pow_args, "_warned", False)
         with pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3."):
             assert depr_pow_args(b=2, a=1) == 1
 
