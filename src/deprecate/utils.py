@@ -21,11 +21,10 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 
 import inspect
 import warnings
-from collections import OrderedDict
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
-from threading import Lock
+from functools import lru_cache
 from typing import Any, Callable, Optional, Union
 
 
@@ -113,41 +112,25 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
     return func_arg_type_val
 
 
-_SIGNATURE_CACHE_SIZE = 256
-_SIGNATURE_CACHE: OrderedDict[Callable, inspect.Signature] = OrderedDict()
-_SIGNATURE_CACHE_LOCK = Lock()
+@lru_cache(maxsize=256)
+def _get_signature_cached(func: Callable) -> inspect.Signature:
+    """Cache inspect.signature lookups for repeated calls.
 
-
-def _get_cached_signature(
-    cache: OrderedDict[Callable, inspect.Signature],
-    func: Callable,
-) -> Optional[inspect.Signature]:
-    """Return cached signature and refresh LRU order when available."""
-    cached = cache.get(func)
-    if cached is not None:
-        cache.move_to_end(func)
-    return cached
+    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime.
+    The size balances reuse for common callables without unbounded memory growth.
+    """
+    return inspect.signature(func)
 
 
 def _get_signature(func: Callable) -> inspect.Signature:
     """Get function signature with caching when possible.
 
-    Falls back to uncached lookup for unhashable callables and uses a bounded
-    LRU cache for hashable callables.
+    Falls back to uncached lookup for unhashable callables.
     """
     try:
-        hash(func)
+        return _get_signature_cached(func)
     except TypeError:
         return inspect.signature(func)
-    with _SIGNATURE_CACHE_LOCK:
-        cached = _get_cached_signature(_SIGNATURE_CACHE, func)
-        if cached is not None:
-            return cached
-        signature = inspect.signature(func)
-        while len(_SIGNATURE_CACHE) >= _SIGNATURE_CACHE_SIZE:
-            _SIGNATURE_CACHE.popitem(last=False)
-        _SIGNATURE_CACHE[func] = signature
-        return signature
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
