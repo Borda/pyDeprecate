@@ -12,6 +12,9 @@ pyDeprecate is a lightweight Python library providing decorator-based deprecatio
 > [!IMPORTANT]
 > **Before starting any work, agents MUST anchor themselves with the repository context.** Read these files in order:
 
+> [!NOTE]
+> **Anchor Links**: GitHub generates anchors from section headers. Sections with emojis (e.g., `## 🚀 Quick Start`) become `#-quick-start` (emoji → dash). Subsections without emojis (e.g., `### Test Organization`) become `#test-organization` (no dash). All links follow this convention and are correct.
+
 1. **Configuration files** (source of truth):
 
    - `pyproject.toml` — project config, tool settings (ruff, mypy, pytest)
@@ -25,6 +28,8 @@ pyDeprecate is a lightweight Python library providing decorator-based deprecatio
    - `README.md` — project usage and API
    - `src/deprecate/` — core library code to understand existing patterns
 
+3. **Project structure**: For codebase layout and file organization, explore the repository structure directly or see [Test Organization](.github/CONTRIBUTING.md#test-organization) for test file structure
+
 ### Configuration Files Are Source of Truth
 
 > [!WARNING]
@@ -33,12 +38,6 @@ pyDeprecate is a lightweight Python library providing decorator-based deprecatio
 > 1. **Trust the config file** (e.g., `pyproject.toml`, `.pre-commit-config.yaml`)
 > 2. **Suggest updating the documentation** to match reality
 > 3. **Report the mismatch** clearly to maintainers
-
-**Examples of mismatches to watch for:**
-
-- Guidelines mention Python 3.8+ but `pyproject.toml` specifies `requires-python = ">=3.9"`
-- Pre-commit hooks list differs between `.pre-commit-config.yaml` and documentation
-- Documentation mentions a tool or dependency not present in actual config files
 
 **When you find a mismatch:**
 
@@ -51,6 +50,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 ### Engineer
 
 **Scope**: Core logic, CI/CD, and Python compatibility
+
 **Responsibilities**:
 
 - Review PRs modifying `src/` code
@@ -67,6 +67,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 ### Community-Scribe
 
 **Scope**: Documentation and communication
+
 **Responsibilities**:
 
 - Maintain README and documentation
@@ -82,60 +83,30 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 ### Security-Watcher
 
 **Scope**: Security monitoring and vulnerability assessment
+
 **Responsibilities**:
 
 - Monitor dependencies for vulnerabilities
 - Review PRs for security issues
 - Follow [Security Policy](.github/SECURITY.md)
 
-## 📚 Project Structure
-
-```
-src/deprecate/
-├── __about__.py              # Version and metadata
-├── __init__.py               # Public API exports
-├── deprecation.py            # Core @deprecated decorator
-└── utils.py                  # Helpers: void, validation, no_warning_call
-tests/
-├── collection_targets.py       # Target functions (new implementations)
-├── collection_deprecate.py     # Deprecated wrappers using @deprecated(...)
-├── collection_misconfigured.py # Invalid configs for validation tests
-└── test_*.py                   # Test logic
-```
-
-## 🎯 Quick Commands
-
-```bash
-# Development setup
-pip install -e . "pre-commit" -r tests/requirements.txt && pre-commit install
-
-# Run linters and formatters manually (optional - runs automatically on commit)
-pre-commit run --all-files
-
-# Run tests (includes doctests)
-pytest src/ tests/
-```
-
-> [!NOTE]
-> Pre-commit hooks automatically run all linting (ruff, mypy) on every commit. Manual runs are only needed for pre-commit checks without committing.
-
 ## 🧭 Agent Behavioral Rules
 
 ### Branch Management
 
-- Use [branch naming convention](/.github/CONTRIBUTING.md#-branch-naming-convention): `{type}/{issue-nb}-description`
+- Use [branch naming convention](.github/CONTRIBUTING.md#-branch-naming-convention): `{type}/{issue-nb}-description`
 - Types: `fix/`, `feat/`, `docs/`, `refactor/`, `test/`, `chore/`
 
 ### Bug Fixes
 
 - **Use Test-Driven Development (TDD)**: Write a failing test that reproduces the bug first, then implement the fix
-- See [Fixing Bugs](/.github/CONTRIBUTING.md#-fixing-bugs) for complete workflow
+- See [Fixing Bugs](.github/CONTRIBUTING.md#-fixing-bugs) for complete workflow
 
 ### New Features
 
-- **Require approval first**: See [Building Features](/.github/CONTRIBUTING.md#-building-features-with-consensus)
+- **Require approval first**: See [Building Features](.github/CONTRIBUTING.md#-building-features-with-consensus)
 - **Mandatory test coverage**: Happy path, failure path, and edge cases
-- See [Test Requirements](/.github/CONTRIBUTING.md#-tests-and-quality-assurance)
+- See [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
 
 ### Code Quality
 
@@ -143,13 +114,13 @@ pytest src/ tests/
 - **Type hints required** — all function signatures must have type hints
 - **No bare `except:`** — always catch specific exceptions
 - **Fast imports** — no expensive module-level code
-- See [Coding Standards](/.github/CONTRIBUTING.md#-coding-standards) for complete rules
+- See [Coding Standards](.github/CONTRIBUTING.md#-coding-standards) for complete rules
 
 ### Test Organization
 
 - **Three-layer separation**: targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, test logic in `test_*.py`
 - **Do not** define targets or `@deprecated` wrappers directly in test files
-- See [Test Organization](/.github/CONTRIBUTING.md#test-organization) for details
+- See [Test Organization](.github/CONTRIBUTING.md#test-organization) for details
 
 ## 🚫 Critical Constraints
 
@@ -182,6 +153,6 @@ This file provides quick reference for agents. For complete, authoritative guide
 - **Coding standards** → [Contributing: Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
 - **Testing requirements** → [Contributing: Tests and Quality](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
 - **PR process** → [Contributing: Pull Requests](.github/CONTRIBUTING.md#-pull-requests)
-- **PR review format** → [Copilot Instructions: PR Review](.github/copilot-instructions.md#pr-review-guidelines)
+- **PR review guidelines** → [Contributing: Reviewing PRs](.github/CONTRIBUTING.md#reviewing-prs)
 - **Security reporting** → [Security Policy](.github/SECURITY.md)
 - **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)
