@@ -24,7 +24,6 @@ import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
-from functools import lru_cache
 from typing import Any, Callable, Optional, Union
 
 
@@ -112,25 +111,28 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
     return func_arg_type_val
 
 
-@lru_cache(maxsize=256)
-def _get_signature_cached(func: Callable) -> inspect.Signature:
-    """Cache inspect.signature lookups for repeated calls.
-
-    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime.
-    The size balances reuse for common callables without unbounded memory growth.
-    """
-    return inspect.signature(func)
-
-
 def _get_signature(func: Callable) -> inspect.Signature:
     """Get function signature with caching when possible.
 
-    Falls back to uncached lookup for unhashable callables.
+    Falls back to uncached lookup for unhashable callables and uses a bounded
+    cache for hashable callables.
     """
+    cache_max = 256
     try:
-        return _get_signature_cached(func)
+        cache = _get_signature._cache  # type: ignore[attr-defined]
+    except AttributeError:
+        cache = {}
+        _get_signature._cache = cache  # type: ignore[attr-defined]
+    try:
+        if func in cache:
+            return cache[func]
     except TypeError:
         return inspect.signature(func)
+    signature = inspect.signature(func)
+    if len(cache) >= cache_max:
+        cache.pop(next(iter(cache)))
+    cache[func] = signature
+    return signature
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:

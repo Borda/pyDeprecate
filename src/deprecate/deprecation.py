@@ -202,6 +202,12 @@ def _convert_enum_value_args(
     Returns:
         Tuple of updated positional and keyword arguments, with Enum value moved
         into positional args when necessary.
+
+    Example:
+        >>> class SampleEnum(Enum):
+        ...     ALPHA = "alpha"
+        >>> _convert_enum_value_args(SampleEnum, (), {"value": "alpha"})
+        (('alpha',), {})
     """
     if not (isinstance(target, type) and issubclass(target, Enum)):
         return args, kwargs
