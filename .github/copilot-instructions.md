@@ -24,6 +24,7 @@ pyDeprecate is a lightweight Python library (Python 3.9+) for decorator-based de
 ## Quick Reference
 
 **For detailed workflows, commands, and guidelines**, see:
+
 - **Setup & commands** → [CONTRIBUTING.md: Quick Start](CONTRIBUTING.md#-quick-start)
 - **Running tests** → [CONTRIBUTING.md: Tests](CONTRIBUTING.md#-tests-and-quality-assurance)
 - **Project structure** → [CONTRIBUTING.md: Project Structure](CONTRIBUTING.md#project-structure)
@@ -93,6 +94,7 @@ When reviewing PRs, use the structured format to ensure consistent, actionable f
 **See [PR Review Template](PR_REVIEW_TEMPLATE.md) for the complete review format and guidelines.**
 
 Quick checklist:
+
 - Overall recommendation (🟢 Approve / 🟡 Minor Suggestions / 🟠 Request Changes / 🔴 Block)
 - Completeness check (description, issue link, tests, docs, CI)
 - Quality scores (code/testing/documentation: n/5)

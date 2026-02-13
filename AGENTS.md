@@ -49,6 +49,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 **Scope**: Core logic, CI/CD, and Python compatibility
 
 **Responsibilities**:
+
 - Review PRs modifying `src/` code
 - Validate deprecation warnings and function/class deprecations
 - Ensure Python patterns for backwards compatibility
@@ -65,6 +66,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 **Scope**: Documentation and communication
 
 **Responsibilities**:
+
 - Maintain README and documentation
 - Draft follow-ups after releases or PR merges
 - Help onboard new contributors
@@ -80,6 +82,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 **Scope**: Security monitoring and vulnerability assessment
 
 **Responsibilities**:
+
 - Monitor dependencies for vulnerabilities
 - Review PRs for security issues
 - Follow [Security Policy](.github/SECURITY.md)
