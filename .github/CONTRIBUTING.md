@@ -323,6 +323,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from deprecate.deprecation import SomeType
 
+
 def my_function(arg: SomeType) -> None:
     # Implementation here
     pass
