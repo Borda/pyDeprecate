@@ -143,15 +143,11 @@ def _get_signature(func: Callable) -> inspect.Signature:
         cached = _get_cached_signature(_SIGNATURE_CACHE, func)
         if cached is not None:
             return cached
-    signature = inspect.signature(func)
-    with _SIGNATURE_CACHE_LOCK:
-        cached = _get_cached_signature(_SIGNATURE_CACHE, func)
-        if cached is not None:
-            return cached
-        if len(_SIGNATURE_CACHE) >= _SIGNATURE_CACHE_SIZE:
+        signature = inspect.signature(func)
+        while len(_SIGNATURE_CACHE) >= _SIGNATURE_CACHE_SIZE:
             _SIGNATURE_CACHE.popitem(last=False)
         _SIGNATURE_CACHE[func] = signature
-    return signature
+        return signature
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
