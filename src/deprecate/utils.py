@@ -125,15 +125,20 @@ def _get_signature(func: Callable) -> inspect.Signature:
     LRU cache for hashable callables.
     """
     try:
-        with _SIGNATURE_CACHE_LOCK:
-            cached = _SIGNATURE_CACHE.get(func)
-            if cached is not None:
-                _SIGNATURE_CACHE.move_to_end(func)
-                return cached
+        hash(func)
     except TypeError:
         return inspect.signature(func)
+    with _SIGNATURE_CACHE_LOCK:
+        cached = _SIGNATURE_CACHE.get(func)
+        if cached is not None:
+            _SIGNATURE_CACHE.move_to_end(func)
+            return cached
     signature = inspect.signature(func)
     with _SIGNATURE_CACHE_LOCK:
+        cached = _SIGNATURE_CACHE.get(func)
+        if cached is not None:
+            _SIGNATURE_CACHE.move_to_end(func)
+            return cached
         if len(_SIGNATURE_CACHE) >= _SIGNATURE_CACHE_SIZE:
             _SIGNATURE_CACHE.popitem(last=False)
         _SIGNATURE_CACHE[func] = signature
