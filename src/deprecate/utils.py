@@ -475,12 +475,13 @@ def find_deprecated_callables(
 
 
 def validate_deprecation_chains(func: Callable) -> None:
-    """Validate that a deprecated function doesn't call other deprecated functions.
+    """Validate that a function doesn't call deprecated functions or use deprecated arguments.
 
-    This is a developer utility function that detects when a deprecated function
-    calls another deprecated function and suggests immediate updates. It ensures
-    that deprecated functions are not "lazy" by calling other deprecated code,
-    but instead should be updated to call the new replacement (target) directly.
+    This is a developer utility function that detects when a function calls
+    deprecated functions or passes deprecated arguments, and suggests immediate
+    updates. It ensures that deprecated functions are not "lazy" by calling other
+    deprecated code, but instead should be updated to call the new replacement
+    (target) directly and use current argument names.
 
     Args:
         func: The function to inspect for deprecation chains.
