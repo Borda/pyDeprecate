@@ -1,58 +1,92 @@
-# Agent HQ Configuration for pyDeprecate
+# Agent Configuration for pyDeprecate
 
 > [!IMPORTANT]
-> For contribution workflows (PRs, issues, community process), see the [Contributing Guide](.github/CONTRIBUTING.md).
+> **For detailed coding standards, testing requirements, and contribution workflows**, see the [Contributing Guide](.github/CONTRIBUTING.md). This file provides agent-specific behavioral instructions and quick reference only.
 
 ## Overview
 
 pyDeprecate is a lightweight Python library providing decorator-based deprecation for functions, methods, and classes with automatic call forwarding. Python 3.9+, zero runtime dependencies.
 
-## 🧠 Agents
+## ⚓ Before Any Work: Anchor with Repository Context
+
+> [!IMPORTANT]
+> **Before starting any work, agents MUST anchor themselves with the repository context.** Read these files in order:
+
+1. **Configuration files** (source of truth):
+
+   - `pyproject.toml` — project config, tool settings (ruff, mypy, pytest)
+   - `.pre-commit-config.yaml` — pre-commit hooks configuration
+   - `setup.py` — package metadata and dependencies
+   - `.github/workflows/*.yml` — CI/CD pipeline configuration
+
+2. **Documentation and guidelines**:
+
+   - [CONTRIBUTING.md](.github/CONTRIBUTING.md) — contribution workflow, coding standards, testing requirements
+   - `README.md` — project usage and API
+   - `src/deprecate/` — core library code to understand existing patterns
+
+### Configuration Files Are Source of Truth
+
+> [!WARNING]
+> **If documentation contradicts actual configuration**, the configuration files have **higher authority**. When you detect a mismatch:
+>
+> 1. **Trust the config file** (e.g., `pyproject.toml`, `.pre-commit-config.yaml`)
+> 2. **Suggest updating the documentation** to match reality
+> 3. **Report the mismatch** clearly to maintainers
+
+**Examples of mismatches to watch for:**
+
+- Guidelines mention Python 3.8+ but `pyproject.toml` specifies `requires-python = ">=3.9"`
+- Pre-commit hooks list differs between `.pre-commit-config.yaml` and documentation
+- Documentation mentions a tool or dependency not present in actual config files
+
+**When you find a mismatch:**
+
+Write a clear explanation linking to both sources, then let maintainers decide on the update action:
+
+*"I notice [CONTRIBUTING.md:45](.github/CONTRIBUTING.md#L45) mentions using black for formatting, but [pyproject.toml:23](pyproject.toml#L23) actually configures ruff. The config file should be considered correct. Should the documentation be updated to reflect that ruff handles formatting?"*
+
+## 🧠 Agent Roles
 
 ### Engineer
 
-**Role**: Core logic, CI/CD, and Python compatibility specialist
-**Tools**: Python, pytest, setuptools, pre-commit, tox, GitHub Actions
-**Behavior**:
+**Scope**: Core logic, CI/CD, and Python compatibility
+**Responsibilities**:
 
-- Review PRs modifying code in the `src/` folder
+- Review PRs modifying `src/` code
 - Validate deprecation warnings and function/class deprecations
-- Ensure correct use of Python patterns for backwards compatibility
-- Monitor CI/CD pipeline health and validate test results
-- Check reproducibility: fixed seeds (if applicable), versioned dependencies, consistent configs
-- Follow coding standards defined in [Contributing Guide](.github/CONTRIBUTING.md#-coding-standards)
+- Ensure Python patterns for backwards compatibility
+- Monitor CI/CD pipeline health
+
+**Guidelines**:
+
+- Follow [Coding Standards](/.github/CONTRIBUTING.md#-coding-standards)
+- Follow [Test Requirements](/.github/CONTRIBUTING.md#-tests-and-quality-assurance)
+- Use [Branch Naming Convention](/.github/CONTRIBUTING.md#-branch-naming-convention)
 
 ### Community-Scribe
 
-**Role**: Documentation, communication, and onboarding assistant
-**Tools**: Markdown, Sphinx (temp_docs/), GitHub Issues, Discussions
-**Behavior**:
+**Scope**: Documentation and communication
+**Responsibilities**:
 
-- Maintain README and documentation with setup, usage, and migration instructions
+- Maintain README and documentation
 - Draft follow-ups after releases or PR merges
-- Summarize feedback from reviewers and suggest next steps
-- Help onboard new contributors with deprecation-specific guides
-- Ensure deprecation examples and API changes are documented
-- Follow documentation guidelines in [Contributing Guide](.github/CONTRIBUTING.md#-coding-standards)
+- Help onboard new contributors
+- Ensure deprecation examples are documented
+
+**Guidelines**:
+
+- Follow [Documentation Guidelines](/.github/CONTRIBUTING.md#-coding-standards)
+- See [Ways to Contribute](/.github/CONTRIBUTING.md#-ways-to-contribute)
 
 ### Security-Watcher
 
-**Role**: Security monitoring and vulnerability assessment
-**Tools**: GitHub Security Advisories, Dependabot
-**Behavior**:
+**Scope**: Security monitoring and vulnerability assessment
+**Responsibilities**:
 
-- Monitor dependencies for known vulnerabilities
-- Review PRs for potential security issues
-- Follow the [Security Policy](.github/SECURITY.md) for vulnerability handling
-- Ensure secure coding practices are followed
-
-## 🔐 Permissions
-
-| Agent            | Branch Access  | PR Review | Issue Commenting | Security Advisory |
-| ---------------- | -------------- | --------- | ---------------- | ----------------- |
-| engineer         | `main`, `dev`  | ✅        | ✅               | ❌                |
-| community-scribe | `docs`, `main` | ✅        | ✅               | ❌                |
-| security-watcher | `main`         | ✅        | ✅               | ✅                |
+- Monitor dependencies for vulnerabilities
+- Review PRs for security issues
+- Follow [Security Policy](.github/SECURITY.md)
 
 ## 📚 Project Structure
 
@@ -60,131 +94,94 @@ pyDeprecate is a lightweight Python library providing decorator-based deprecatio
 src/deprecate/
 ├── __about__.py              # Version and metadata
 ├── __init__.py               # Public API exports
-├── deprecation.py            # Core @deprecated decorator and warning logic
+├── deprecation.py            # Core @deprecated decorator
 └── utils.py                  # Helpers: void, validation, no_warning_call
 tests/
-├── collection_targets.py     # Target functions/classes (the "new" implementations)
-├── collection_deprecate.py   # Deprecated wrappers using @deprecated(...)
-├── collection_misconfigured.py # Invalid deprecation configs for validation tests
-├── test_functions.py         # Tests for function deprecation
-├── test_classes.py           # Tests for class deprecation
-├── test_docs.py              # Tests for docstring updates
-└── test_utils.py             # Tests for utility functions
+├── collection_targets.py       # Target functions (new implementations)
+├── collection_deprecate.py     # Deprecated wrappers using @deprecated(...)
+├── collection_misconfigured.py # Invalid configs for validation tests
+└── test_*.py                   # Test logic
 ```
 
-## 📚 Context
-
-> [!IMPORTANT]
-> Before starting any work, agents **must** read and understand these resources to ensure all actions are aligned with the project.
-
-- `README.md`, `setup.py` and `pyproject.toml` — project setup, usage, and configuration
-- `src/` — core deprecation logic
-- `tests/` — unit tests and test collections for deprecation logic
-- `.github/CONTRIBUTING.md` — contribution guidelines and coding standards
-- `.github/SECURITY.md` — security policies and vulnerability reporting
-- `.github/CODE_OF_CONDUCT.md` — community guidelines
-
-## 🧭 Mission Rules
-
-- Never commit `.env`, API keys, or sensitive information
-- PRs touching deprecation code or API changes must be reviewed by `engineer`
-- All deprecations must include proper warnings and migration paths
-- Dependency updates must be documented with version information
-- Follow Python best practices for library development
-- Refer to [Contributing Guide](.github/CONTRIBUTING.md) for detailed coding standards
-- Security vulnerabilities must be handled per [Security Policy](.github/SECURITY.md)
-
-## 🧪 Protocols
-
-### Deprecation Validation
-
-- Confirm deprecation decorators and warnings are correctly applied
-- Validate backwards compatibility and test coverage
-- Ensure proper error handling and logging for deprecated features
-- Check for proper migration examples in documentation
-
-### Documentation & Community Update
-
-- Update README if API, config, or deprecation logic changes
-- Include example usage:
-  ```python
-  from deprecate import deprecated
-
-
-  @deprecated(target=None, deprecated_in="X.Y.Z", remove_in="A.B.C")
-  def old_function():
-      pass
-  ```
-
-## 📦 Commands
+## 🎯 Quick Commands
 
 ```bash
-pip install -e . "pre-commit" -r tests/requirements.txt && pre-commit install  # dev setup
-pre-commit run --all-files     # run all linters and formatters
-pytest src/ tests/             # run tests (includes doctests)
+# Development setup
+pip install -e . "pre-commit" -r tests/requirements.txt && pre-commit install
+
+# Run linters and formatters manually (optional - runs automatically on commit)
+pre-commit run --all-files
+
+# Run tests (includes doctests)
+pytest src/ tests/
 ```
 
-## 📋 Coding Rules & Architecture
+> [!NOTE]
+> Pre-commit hooks automatically run all linting (ruff, mypy) on every commit. Manual runs are only needed for pre-commit checks without committing.
 
-Follow the [Coding Standards](.github/CONTRIBUTING.md#-coding-standards) in the Contributing Guide. Key constraints agents must not violate:
+## 🧭 Agent Behavioral Rules
 
-- **Zero runtime dependencies** — `install_requires` is empty by design
-- **All function signatures must have type hints** — enforced by `mypy`
+### Branch Management
+
+- Use [branch naming convention](/.github/CONTRIBUTING.md#-branch-naming-convention): `{type}/{issue-nb}-description`
+- Types: `fix/`, `feat/`, `docs/`, `refactor/`, `test/`, `chore/`
+
+### Bug Fixes
+
+- **Use Test-Driven Development (TDD)**: Write a failing test that reproduces the bug first, then implement the fix
+- See [Fixing Bugs](/.github/CONTRIBUTING.md#-fixing-bugs) for complete workflow
+
+### New Features
+
+- **Require approval first**: See [Building Features](/.github/CONTRIBUTING.md#-building-features-with-consensus)
+- **Mandatory test coverage**: Happy path, failure path, and edge cases
+- See [Test Requirements](/.github/CONTRIBUTING.md#-tests-and-quality-assurance)
+
+### Code Quality
+
+- **Zero runtime dependencies** — never add to `install_requires`
+- **Type hints required** — all function signatures must have type hints
 - **No bare `except:`** — always catch specific exceptions
-- **Fast imports** — no expensive module-level code or premature imports
-- **Circular imports** — use `if TYPE_CHECKING:` blocks in `src/deprecate/`
+- **Fast imports** — no expensive module-level code
+- See [Coding Standards](/.github/CONTRIBUTING.md#-coding-standards) for complete rules
 
-## 🧪 Test File Placement
+### Test Organization
 
-Tests follow a **three-layer separation** — do not mix these concerns:
+- **Three-layer separation**: targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, test logic in `test_*.py`
+- **Do not** define targets or `@deprecated` wrappers directly in test files
+- See [Test Organization](/.github/CONTRIBUTING.md#test-organization) for details
 
-| Layer               | File(s)                       | What goes here                                                   |
-| ------------------- | ----------------------------- | ---------------------------------------------------------------- |
-| Targets             | `collection_targets.py`       | The "new" functions and classes that deprecated code forwards to |
-| Deprecated wrappers | `collection_deprecate.py`     | Functions/classes decorated with `@deprecated(...)`              |
-| Misconfigured       | `collection_misconfigured.py` | Intentionally invalid deprecation configs for validation testing |
-| Test logic          | `test_*.py`                   | Imports from collections above, asserts behavior                 |
+## 🚫 Critical Constraints
 
-> [!IMPORTANT]
-> Do **not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files.
-
-**Test requirements:**
-
-- Every new function or behavior change must have accompanying tests.
-- Include tests for: happy path, failure path, and edge cases (None, empty inputs, circular chains).
-- Group related tests in classes. Avoid redundant naming — in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`.
-- Use `pytest.warns(FutureWarning)` (or `pytest.warns(DeprecationWarning)` when testing custom warning streams/categories) to verify deprecation warnings.
-- Use `pytest.fixture(autouse=True)` for per-test state reset when needed.
-- One behavior per test method.
-
-## 🚧 Boundaries
-
-### ✅ Always
-
-- Run `pre-commit run` before committing
-- Provide `deprecated_in` and `remove_in` version strings on every deprecation
-- Include migration messages in deprecation warnings pointing to replacements
-- Place targets in `collection_targets.py`, wrappers in `collection_deprecate.py`, tests in `test_*.py`
-
-### ⚠️ Ask First
-
-- Adding new public API surface to `src/deprecate/`
-- Modifying deprecation chain validation logic
-- Changes that affect backwards compatibility
-
-### 🚫 Never
+### Never:
 
 - Add runtime dependencies
-- Commit `.env`, API keys, or sensitive information
+- Commit sensitive information (`.env`, API keys)
 - Use bare `except:` clauses
+- Define deprecated wrappers inside test files
+- Skip test coverage for new features or bug fixes
+- Implement features without maintainer approval
+- Start work without first reading config files and guidelines
 
-## 🔗 Cross-Reference Guidelines
+### Always:
 
-This file avoids duplicating content from other documentation. Agents should follow these references for the complete, authoritative guidelines:
+- **Anchor with repository context first** — read config files (`pyproject.toml`, `.pre-commit-config.yaml`) and guidelines before any work
+- **Trust config files over documentation** — when mismatches occur, config files are the source of truth
+- **Suggest documentation updates** when you find mismatches between docs and actual configuration
+- Ensure pre-commit hooks are installed (they run automatically on commit)
+- Provide `deprecated_in` and `remove_in` versions
+- Include migration messages in deprecation warnings
+- Write tests first when fixing bugs (TDD)
+- Cover happy path, failure path, and edge cases in tests
 
-- **Coding standards** → [Contributing Guide: Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
-- **Testing guidelines** → [Contributing Guide: Tests and Quality Assurance](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
-- **PR process** → [Contributing Guide: Pull Requests](.github/CONTRIBUTING.md#-pull-requests)
-- **PR review guidelines** → [Copilot Instructions: PR Review Guidelines](.github/copilot-instructions.md#pr-review-guidelines)
+## 🔗 Complete Guidelines
+
+This file provides quick reference for agents. For complete, authoritative guidelines:
+
+- **Contribution workflow** → [Contributing Guide](.github/CONTRIBUTING.md)
+- **Coding standards** → [Contributing: Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
+- **Testing requirements** → [Contributing: Tests and Quality](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
+- **PR process** → [Contributing: Pull Requests](.github/CONTRIBUTING.md#-pull-requests)
+- **PR review format** → [Copilot Instructions: PR Review](.github/copilot-instructions.md#pr-review-guidelines)
 - **Security reporting** → [Security Policy](.github/SECURITY.md)
 - **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)
