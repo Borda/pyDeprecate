@@ -116,6 +116,7 @@ class TestDeprecatedEnums:
         """Test attribute access on deprecated Enum."""
         with no_warning_call(FutureWarning):
             assert DeprecatedEnum.ALPHA.value == "alpha"
+            assert DeprecatedEnum["ALPHA"] is DeprecatedEnum.ALPHA
 
     def test_enum_redirects_to_replacement(self) -> None:
         """Test deprecated Enum forwarding to a replacement Enum."""

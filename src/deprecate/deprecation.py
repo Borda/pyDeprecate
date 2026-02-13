@@ -13,12 +13,12 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 
 import inspect
 from enum import Enum
-from functools import lru_cache, partial, wraps
+from functools import partial, update_wrapper, wraps
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union
 from warnings import warn
 
-from deprecate.utils import get_func_arguments_types_defaults
+from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -52,15 +52,6 @@ deprecation_warning = partial(warn, category=FutureWarning)
 ArgsMapping = dict[str, Optional[str]]
 
 
-@lru_cache(maxsize=256)
-def _get_signature(func: Callable) -> inspect.Signature:
-    """Cache inspect.signature lookups since signatures are stable at runtime.
-
-    Uses a bounded cache (``maxsize=256``) to balance memory usage with reuse.
-    """
-    return inspect.signature(func)
-
-
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
     """Filter positional-only and positional-or-keyword parameters."""
     return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
@@ -74,6 +65,17 @@ def _prepare_target_call(
     source_has_var_positional: bool,
 ) -> tuple[Callable, bool]:
     """Resolve the target callable and validate mapped keyword arguments.
+
+    Args:
+        source: Deprecated callable being wrapped.
+        target: Target callable to invoke.
+        kwargs: Keyword arguments after mapping and defaults.
+        source_is_class: True if the deprecated callable is a class.
+        source_has_var_positional: True if the deprecated callable has *args.
+
+    Returns:
+        Tuple with the callable to invoke and a flag indicating whether positional
+        arguments should be preserved for the call.
 
     Example:
         >>> from deprecate.deprecation import _prepare_target_call
@@ -129,7 +131,18 @@ def _is_enum_value_case(
     source_is_class: bool,
     target_is_class: bool,
 ) -> bool:
-    """Check if Enum value mapping should allow keyword fallback."""
+    """Check if Enum value mapping should allow keyword fallback.
+
+    Args:
+        source: Deprecated callable being wrapped.
+        target: Target callable to invoke.
+        missed: Keyword arguments not accepted by the target.
+        source_is_class: True if the deprecated callable is a class.
+        target_is_class: True if the target callable is a class.
+
+    Returns:
+        True when the target is an Enum and the only missed argument is the Enum value.
+    """
     source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
     if not (source_is_enum and target_is_class):
         return False
@@ -146,7 +159,17 @@ def _coerce_enum_value_args(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> tuple[tuple[Any, ...], dict[str, Any]]:
-    """Move Enum value keyword argument into a positional argument when required."""
+    """Move Enum value keyword argument into a positional argument when required.
+
+    Args:
+        target: Callable being invoked (source or target).
+        args: Positional arguments to pass through.
+        kwargs: Keyword arguments to pass through.
+
+    Returns:
+        Tuple of updated positional and keyword arguments, with Enum value moved
+        into positional args when necessary.
+    """
     if not (isinstance(target, type) and issubclass(target, Enum)):
         return args, kwargs
     if ENUM_VALUE_PARAM not in kwargs:
@@ -156,6 +179,24 @@ def _coerce_enum_value_args(
     if args:
         return args, new_kwargs
     return (*args, value), new_kwargs
+
+
+class _DeprecatedEnumWrapper:
+    """Callable proxy that preserves Enum accessors while adding deprecation behavior."""
+
+    def __init__(self, wrapper: Callable, source: type[Enum]) -> None:
+        self._wrapper = wrapper
+        self._source = source
+        update_wrapper(self, wrapper)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        return self._wrapper(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
+        return getattr(self._source, name)
+
+    def __getitem__(self, key: str) -> Enum:
+        return self._source[key]
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -657,6 +698,12 @@ def deprecated(
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)
 
+        if source_is_class:
+            try:
+                if issubclass(source, Enum):
+                    return _DeprecatedEnumWrapper(wrapped_fn, source)
+            except TypeError:
+                pass
         return wrapped_fn
 
     return packing
