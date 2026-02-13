@@ -121,22 +121,26 @@ def _get_signature(func: Callable) -> inspect.Signature:
     """
     cache_max = 256
     try:
-        with _SIGNATURE_CACHE_LOCK:
-            if func in _SIGNATURE_CACHE:
-                _SIGNATURE_CACHE.move_to_end(func)
-                return _SIGNATURE_CACHE[func]
+        cache = _get_signature._cache  # type: ignore[attr-defined]
+        lock = _get_signature._lock  # type: ignore[attr-defined]
+    except AttributeError:
+        cache = OrderedDict()
+        lock = Lock()
+        _get_signature._cache = cache  # type: ignore[attr-defined]
+        _get_signature._lock = lock  # type: ignore[attr-defined]
+    try:
+        with lock:
+            if func in cache:
+                cache.move_to_end(func)
+                return cache[func]
     except TypeError:
         return inspect.signature(func)
     signature = inspect.signature(func)
-    with _SIGNATURE_CACHE_LOCK:
-        if len(_SIGNATURE_CACHE) >= cache_max:
-            _SIGNATURE_CACHE.popitem(last=False)
-        _SIGNATURE_CACHE[func] = signature
+    with lock:
+        if len(cache) >= cache_max:
+            cache.popitem(last=False)
+        cache[func] = signature
     return signature
-
-
-_SIGNATURE_CACHE: "OrderedDict[Callable, inspect.Signature]" = OrderedDict()
-_SIGNATURE_CACHE_LOCK = Lock()
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
