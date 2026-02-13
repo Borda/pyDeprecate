@@ -101,4 +101,5 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
 
 
 # Manually update the __deprecated__ attribute to make it self-referencing
-self_referencing_deprecation.__deprecated__["target"] = self_referencing_deprecation
+deprecated_info = getattr(self_referencing_deprecation, "__deprecated__")
+deprecated_info["target"] = self_referencing_deprecation

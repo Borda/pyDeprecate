@@ -20,15 +20,159 @@ This module contains deprecated wrappers covering real-world use cases:
 - Deprecating class-based decorators via __init__
 """
 
+from dataclasses import dataclass
+from enum import Enum
 from typing import Callable
 
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
-from tests.collection_targets import TimerDecorator, base_pow_args, base_sum_kwargs, timing_wrapper
+from tests.collection_targets import (
+    NewDataClass,
+    NewEnum,
+    NewIntEnum,
+    TimerDecorator,
+    base_pow_args,
+    base_sum_kwargs,
+    timing_wrapper,
+)
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
+
+
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+class DeprecatedEnum(Enum):
+    """Deprecated enum for regression testing.
+
+    Example:
+        A user can still resolve DeprecatedEnum("alpha") via value lookup (DeprecatedEnum.ALPHA).
+    """
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+class DeprecatedIntEnum(Enum):
+    """Deprecated enum with integer values for regression testing.
+
+    Example:
+        A user can still resolve a deprecated enum by integer value such as 1.
+    """
+
+    ONE = 1
+    TWO = 2
+
+
+@deprecated(target=NewEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+class RedirectedEnum(Enum):
+    """Deprecated enum that forwards to a new enum.
+
+    Example:
+        A user can still call RedirectedEnum("alpha") via value lookup and receive NewEnum.ALPHA.
+    """
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(
+    target=NewEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class MappedEnum(Enum):
+    """Deprecated enum with old_value->value mapping, where member names differ but values match NewEnum.
+
+    Example:
+        A user can pass old_value="alpha" and resolve NewEnum.ALPHA.
+    """
+
+    OLD_ALPHA = "alpha"
+    OLD_BETA = "beta"
+
+
+@deprecated(
+    target=NewIntEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class MappedIntEnum(Enum):
+    """Deprecated int enum mapping old_value->value where member names differ from NewIntEnum.
+
+    Example:
+        A user can pass old_value=1 and resolve NewIntEnum.ALPHA.
+    """
+
+    ONE = 1
+    TWO = 2
+
+
+@deprecated(
+    target=NewEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class MappedValueEnum(Enum):
+    """Deprecated enum with old_value->value mapping, where member values differ from NewEnum's values.
+
+    Example:
+        A user can pass old_value="alpha" even though ALPHA stores "old-alpha".
+    """
+
+    ALPHA = "old-alpha"
+    BETA = "old-beta"
+
+
+@deprecated(
+    target=True,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)
+class SelfMappedEnum(Enum):
+    """Deprecated enum with old_value->value mapping that forwards to itself via target=True.
+
+    Example:
+        A user can call SelfMappedEnum(old_value="alpha") to resolve SelfMappedEnum.ALPHA.
+    """
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@dataclass
+class DeprecatedDataClass:
+    """Deprecated dataclass for regression testing.
+
+    Example:
+        A user can still instantiate DeprecatedDataClass(label="alpha", total=2).
+    """
+
+    label: str
+    total: int = 0
+
+
+@deprecated(target=NewDataClass, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@dataclass
+class RedirectedDataClass:
+    """Deprecated dataclass forwarding to NewDataClass.
+
+    Example:
+        A user can still instantiate RedirectedDataClass(label="alpha", total=2).
+    """
+
+    label: str
+    total: int = 0
 
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
@@ -133,7 +277,7 @@ def depr_pow_wrong(a: int, c: float = 4) -> float:
     return void(a, c)
 
 
-@deprecated(target=accuracy_score, args_mapping={"preds": "y_pred", "yeah_arg": None})  # type: ignore
+@deprecated(target=accuracy_score, args_mapping={"preds": "y_pred", "yeah_arg": None})
 def depr_accuracy_skip(preds: list, y_true: tuple = (0, 1, 1, 2), yeah_arg: float = 1.23) -> float:
     """Argument renaming with one arg dropped entirely.
 
