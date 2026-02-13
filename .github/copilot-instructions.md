@@ -104,7 +104,6 @@ Quick checklist:
 > [!NOTE]
 > **Anchor Links**: GitHub strips emojis when generating anchors. All links in this file use the correct format (e.g., `#quick-start` not `#-quick-start`) and should not be flagged as errors.
 
-
 ## Known Issues & Workarounds
 
 - **Circular imports**: Use `if TYPE_CHECKING:` blocks in `src/deprecate/`

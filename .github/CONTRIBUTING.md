@@ -154,12 +154,14 @@ If no issue exists, open one first to discuss the change before implementing it.
 When reviewing pull requests, provide structured, actionable feedback:
 
 **Overall Assessment:**
+
 - 🟢 **Approve** — Ready to merge
 - 🟡 **Minor Suggestions** — Improvements recommended but not blocking
 - 🟠 **Request Changes** — Significant issues must be addressed
 - 🔴 **Block** — Critical issues require major rework
 
 **Review Checklist:**
+
 - [ ] Clear description and linked issue
 - [ ] Tests cover happy path, failure cases, and edge cases
 - [ ] Code quality (correctness, idioms, type hints)
@@ -168,6 +170,7 @@ When reviewing pull requests, provide structured, actionable feedback:
 - [ ] CI checks pass
 
 **Provide Actionable Feedback:**
+
 - Explain **why** something is a problem, not just **what**
 - Distinguish blocking issues from nice-to-haves
 - Use GitHub's suggestion format for specific code improvements
@@ -352,6 +355,7 @@ Use a one-line summary of the deprecation pattern, then an `Examples:` section d
 ```python
 from deprecate import deprecated
 
+
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
 def depr_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
@@ -386,6 +390,7 @@ Example:
 
 ```python
 import pytest
+
 
 class TestMyFeature:
     """Test suite for my feature."""
@@ -442,6 +447,7 @@ def test_deprecation_warning() -> None:
 
 ```python
 from deprecate import deprecated
+
 
 @deprecated(target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_param": "new_param"})
 def my_func(old_param: int = 0, new_param: int = 0) -> int:
