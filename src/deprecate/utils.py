@@ -505,9 +505,41 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
         )
 
 
+def _get_package_version(package_name: str) -> str:
+    """Auto-detect the installed version of a package.
+
+    This private helper function attempts to retrieve the version of an installed
+    package using importlib.metadata. This is useful for automatically detecting
+    the current version of a package when checking deprecation expiry.
+
+    Args:
+        package_name: Name of the package to get the version for (e.g., "numpy", "mypackage").
+
+    Returns:
+        The version string of the installed package.
+
+    Raises:
+        ImportError: If the package is not installed or version cannot be determined.
+
+    Example:
+        >>> _get_package_version("deprecate")  # doctest: +SKIP
+        '0.3.2'
+
+    """
+    try:
+        import importlib.metadata
+
+        return importlib.metadata.version(package_name)
+    except Exception as e:
+        raise ImportError(
+            f"Could not determine version for package '{package_name}'. "
+            f"Ensure the package is installed. Error: {e}"
+        ) from e
+
+
 def check_module_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
-    current_version: str,
+    current_version: str | None = None,
     recursive: bool = True,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.
@@ -524,8 +556,9 @@ def check_module_deprecation_expiry(
         module: A Python module or package to scan. Can be:
             - Imported module object (e.g., ``import my_package; check_module_deprecation_expiry(my_package, "2.0")``)
             - String module path (e.g., ``check_module_deprecation_expiry("my_package.submodule", "2.0")``)
-        current_version: The current version of the package (e.g., "2.0.0").
-            Should follow semantic versioning conventions.
+        current_version: The current version of your package to compare against removal deadlines
+            (e.g., ``"2.0.0"``). If None, attempts to auto-detect the version using the package name
+            from the module path (e.g., ``"mypackage"`` extracts ``mypackage`` as package name).
         recursive: If True (default), recursively scan submodules. If False, only
             scan the top-level module.
 
@@ -550,6 +583,10 @@ def check_module_deprecation_expiry(
         >>> # expired = check_module_deprecation_expiry("my_package", __version__)
         >>> # assert not expired, f"Remove expired deprecated code: {expired}"
 
+        >>> # Auto-detect version (extracts package name from module path)
+        >>> # expired = check_module_deprecation_expiry("mypackage")  # auto-detects version
+        >>> # assert not expired, f"Remove expired deprecated code: {expired}"
+
     .. note::
        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
        - Skips callables that cannot be imported or accessed
@@ -560,6 +597,20 @@ def check_module_deprecation_expiry(
 
     """
     import importlib
+
+    # Determine module name for auto-version detection
+    module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
+
+    # Auto-detect version if not provided
+    if current_version is None:
+        if not module_name:
+            raise ValueError(
+                "Cannot auto-detect version: module object has no __name__ attribute. "
+                "Please provide current_version explicitly."
+            )
+        # Extract package name (first component of module path)
+        package_name = module_name.split(".")[0]
+        current_version = _get_package_version(package_name)
 
     # Validate current_version format upfront to provide fail-fast feedback
     try:

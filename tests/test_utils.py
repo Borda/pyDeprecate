@@ -418,3 +418,27 @@ class TestCheckModuleDeprecationExpiry:
         # Should return a list without crashing
         assert isinstance(expired, list)
         assert len(expired) == 0  # No expired at version 0.1
+
+    def test_auto_detect_version(self) -> None:
+        """Test auto-detection of package version when current_version is None."""
+        from deprecate import check_module_deprecation_expiry
+
+        # Test with tests.collection_deprecate module (part of tests, not a real package)
+        # Should try to auto-detect "tests" package version and fail gracefully
+        # We expect ImportError because "tests" is not an installed package
+        with pytest.raises(ImportError, match="Could not determine version"):
+            check_module_deprecation_expiry("tests.collection_deprecate", None, recursive=False)
+
+    def test_auto_detect_version_with_module_object_without_name(self) -> None:
+        """Test auto-detect fails gracefully when module has no __name__ attribute."""
+        from deprecate import check_module_deprecation_expiry
+
+        # Create a mock module-like object without __name__
+        class FakeModule:
+            pass
+
+        fake_mod = FakeModule()
+
+        # Should raise ValueError when trying to auto-detect without __name__
+        with pytest.raises(ValueError, match="Cannot auto-detect version.*__name__"):
+            check_module_deprecation_expiry(fake_mod, None, recursive=False)

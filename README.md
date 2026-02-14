@@ -782,6 +782,10 @@ import mypackage
 expired = check_module_deprecation_expiry(mypackage, mypackage.__version__)
 assert not expired, f"Zombie code detected: {expired}"
 
+# Auto-detect version (extracts package name and looks up installed version)
+expired = check_module_deprecation_expiry("mypackage")  # Automatically detects mypackage version
+assert not expired, f"Zombie code detected: {expired}"
+
 # Control recursion
 expired = check_module_deprecation_expiry("mypackage", "2.0.0", recursive=False)  # Only scan top-level module
 ```
