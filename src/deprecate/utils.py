@@ -74,18 +74,18 @@ def _parse_version(version_string: str) -> "Version":
     """
     try:
         from packaging.version import InvalidVersion, Version
-    except ImportError as e:
+    except ImportError as err:
         raise ImportError(
             "Version comparison requires the 'packaging' library. Install with: pip install pyDeprecate[audit]"
-        ) from e
+        ) from err
 
     try:
         return Version(version_string)
-    except InvalidVersion as e:
+    except InvalidVersion as err:
         raise ValueError(
             f"Failed to parse version '{version_string}'. Expected PEP 440 format "
-            f"(e.g., '1.2.3', '2.0', '1.5.0a1'). Error: {e}"
-        ) from e
+            f"(e.g., '1.2.3', '2.0', '1.5.0a1'). Error: {err}"
+        ) from err
 
 
 @dataclass(frozen=True)
@@ -466,8 +466,8 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
         >>> # This raises AssertionError - past removal deadline
         >>> try:
         ...     check_deprecation_expiry(old_func, "2.0.0")
-        ... except AssertionError as e:
-        ...     print(str(e))
+        ... except AssertionError as err:
+        ...     print(str(err))
         Callable `old_func` was scheduled for removal in version 2.0 but still exists in version \
 2.0.0. Please delete this deprecated code.
 
@@ -492,13 +492,13 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
     # Let ImportError propagate with its helpful install message
     try:
         current_ver = _parse_version(current_version)
-    except ValueError as e:
-        raise ValueError(f"Invalid current_version '{current_version}': {e}") from e
+    except ValueError as err:
+        raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
     
     try:
         remove_ver = _parse_version(remove_in)
-    except ValueError as e:
-        raise ValueError(f"Invalid remove_in '{remove_in}' for callable `{info.function}`: {e}") from e
+    except ValueError as err:
+        raise ValueError(f"Invalid remove_in '{remove_in}' for callable `{info.function}`: {err}") from err
 
     # Check if the current version has reached or passed the removal deadline
     if current_ver >= remove_ver:
@@ -533,10 +533,10 @@ def _get_package_version(package_name: str) -> str:
         import importlib.metadata
 
         return importlib.metadata.version(package_name)
-    except Exception as e:
+    except Exception as err:
         raise ImportError(
-            f"Could not determine version for package '{package_name}'. Ensure the package is installed. Error: {e}"
-        ) from e
+            f"Could not determine version for package '{package_name}'. Ensure the package is installed. Error: {err}"
+        ) from err
 
 
 def check_module_deprecation_expiry(
@@ -618,8 +618,8 @@ def check_module_deprecation_expiry(
     # and avoid repeated parsing. Let ImportError propagate with install hint.
     try:
         current_ver = _parse_version(current_version)
-    except ValueError as e:
-        raise ValueError(f"Invalid current_version '{current_version}': {e}") from e
+    except ValueError as err:
+        raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
 
     # Handle string module path
     if isinstance(module, str):
