@@ -39,6 +39,7 @@ ______________________________________________________________________
   - [Automatic docstring updates](#-automatic-docstring-updates)
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
 - [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
+- [⏰ Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
 - [🧪 Testing Deprecated Code](#-testing-deprecated-code)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🤝 Contributing](#-contributing)
@@ -714,6 +715,129 @@ def test_deprecated_wrappers_are_valid():
 ```
 
 </details>
+
+## ⏰ Enforcing Deprecation Removal Deadlines
+
+When you deprecate code with a `remove_in` version, you're making a commitment to remove that code when that version is reached. However, it's easy to forget to actually remove the code—leading to "zombie code" that lingers past its scheduled removal.
+
+pyDeprecate provides enforcement utilities to detect and prevent zombie code in your CI/CD pipeline:
+
+### Checking Individual Functions
+
+The `check_deprecation_expiry()` utility verifies if a single deprecated callable has reached its removal deadline:
+
+<details>
+<summary>Code example</summary>
+
+```python
+from deprecate import deprecated, check_deprecation_expiry
+
+
+def new_func(x: int) -> int:
+    return x * 2
+
+
+# ---------------------------
+
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+def old_func(x: int) -> int:
+    pass
+
+
+# In your tests or CI pipeline
+current_version = "1.9.0"
+check_deprecation_expiry(old_func, current_version)  # OK - not expired yet
+
+current_version = "2.0.0"
+check_deprecation_expiry(old_func, current_version)  # AssertionError: scheduled for removal in version 2.0
+
+current_version = "2.1.0"
+check_deprecation_expiry(old_func, current_version)  # AssertionError: scheduled for removal in version 2.0
+```
+
+</details>
+
+### Scanning Entire Packages
+
+The `check_module_deprecation_expiry()` utility scans an entire module or package for expired deprecations:
+
+<details>
+<summary>Code example</summary>
+
+```python
+from deprecate import check_module_deprecation_expiry
+
+# Scan your package for expired deprecations
+expired = check_module_deprecation_expiry("mypackage", "2.0.0")
+
+if expired:
+    print("=== Expired Deprecations Found ===")
+    for msg in expired:
+        print(msg)
+    raise AssertionError(f"Found {len(expired)} deprecated callables past their removal deadline!")
+
+# Or use with your package version
+import mypackage
+
+expired = check_module_deprecation_expiry(mypackage, mypackage.__version__)
+assert not expired, f"Zombie code detected: {expired}"
+
+# Control recursion
+expired = check_module_deprecation_expiry("mypackage", "2.0.0", recursive=False)  # Only scan top-level module
+```
+
+</details>
+
+### CI/pytest Integration for Expiry Enforcement
+
+Integrate expiry checks into your test suite to catch zombie code automatically:
+
+<details>
+<summary>Code example</summary>
+
+```python
+import pytest
+from deprecate import check_module_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+
+def test_no_zombie_deprecations():
+    """Ensure all deprecated code is removed when it reaches its deadline."""
+    # Use your package's actual version
+    from tests.collection_deprecate import __version__
+
+    expired = check_module_deprecation_expiry(my_package, __version__)
+
+    if expired:
+        error_msg = "Found deprecated code past its removal deadline:\n"
+        for msg in expired:
+            error_msg += f"  - {msg}\n"
+        pytest.fail(error_msg)
+
+
+# Alternative: Use a fixture to run on every test session
+@pytest.fixture(scope="session", autouse=True)
+def enforce_deprecation_deadlines():
+    """Automatically check for zombie code before running any tests."""
+    import mypackage
+
+    expired = check_module_deprecation_expiry(mypackage, mypackage.__version__)
+    if expired:
+        raise AssertionError(
+            f"Cannot run tests: {len(expired)} deprecated callables past removal deadline. "
+            f"Remove these functions first: {expired}"
+        )
+```
+
+</details>
+
+> [!TIP]
+> - Callables without `remove_in` are skipped (warnings-only deprecations are allowed)
+> - Invalid version formats in `remove_in` are silently skipped
+> - Semantic versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
+> - Pre-release versions are handled correctly (e.g., "1.5.0-alpha" < "1.5.0")
 
 ## 🧪 Testing Deprecated Code
 
