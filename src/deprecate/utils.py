@@ -553,13 +553,19 @@ def check_module_deprecation_expiry(
     .. note::
        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
        - Skips callables that cannot be imported or accessed
-       - Skips callables with invalid version formats (logs no error, just continues)
+       - Silently skips callables with invalid ``remove_in`` version formats
        - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
        - Intended for automated checks in CI/CD pipelines
        - Can be integrated into test suites or pre-commit hooks
 
     """
     import importlib
+
+    # Validate current_version format upfront to provide fail-fast feedback
+    try:
+        _parse_version(current_version)
+    except (ValueError, ImportError) as e:
+        raise ValueError(f"Invalid current_version '{current_version}'. Error: {e}") from e
 
     # Handle string module path
     if isinstance(module, str):
@@ -594,8 +600,9 @@ def check_module_deprecation_expiry(
             # This callable has expired - add to list
             expired_callables.append(str(e))
         except ValueError:
-            # Version parsing failed for this callable - skip it
-            # This can happen if remove_in has an invalid version format
+            # Version parsing failed for remove_in (not current_version, which was validated upfront)
+            # This can happen if the callable's remove_in has an invalid version format
+            # Silently skip this callable
             continue
 
     return expired_callables

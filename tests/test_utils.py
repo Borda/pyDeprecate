@@ -1,5 +1,6 @@
 """Test the package utility functions."""
 
+import importlib.util
 from warnings import warn
 
 import pytest
@@ -14,6 +15,10 @@ from deprecate.utils import (
 from tests.collection_deprecate import depr_accuracy_target, depr_func_no_remove_in, depr_pow_self, depr_sum
 
 # Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
+
+# Check if packaging is available for version comparison tests
+PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
+requires_packaging = pytest.mark.skipif(not PACKAGING_AVAILABLE, reason="requires packaging library")
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -216,6 +221,7 @@ class TestFindDeprecatedCallables:
         assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
 
 
+@requires_packaging
 class TestCheckDeprecationExpiry:
     """Tests for check_deprecation_expiry()."""
 
@@ -317,6 +323,7 @@ class TestCheckDeprecationExpiry:
             check_deprecation_expiry(depr_pow_self, "invalid-version")
 
 
+@requires_packaging
 class TestCheckModuleDeprecationExpiry:
     """Tests for check_module_deprecation_expiry()."""
 
@@ -392,20 +399,13 @@ class TestCheckModuleDeprecationExpiry:
             assert "Callable" in msg or "scheduled" in msg
 
     def test_handles_invalid_current_version(self) -> None:
-        """Test with invalid current_version raises ValueError."""
-        from contextlib import suppress
-
+        """Test that invalid current_version raises ValueError immediately."""
         from deprecate import check_module_deprecation_expiry
 
-        # Invalid version format in current_version should raise ValueError during first check
-        # This is expected to fail on the first callable with remove_in
-        # The ValueError will propagate from parse_version(current_version)
-        # Since current_version is validated on every call to check_deprecation_expiry,
-        # the first one will raise ValueError
-        with suppress(ValueError):
+        # Invalid version format in current_version should raise ValueError upfront
+        # before any callable checking begins
+        with pytest.raises(ValueError, match="Invalid current_version"):
             check_module_deprecation_expiry("tests.collection_deprecate", "invalid", recursive=False)
-            # If it doesn't raise, that means all callables were skipped (no remove_in)
-            # which is also acceptable behavior
 
     def test_gracefully_skips_import_errors(self) -> None:
         """Test handles callables that can't be imported."""
