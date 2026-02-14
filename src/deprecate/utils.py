@@ -11,10 +11,15 @@ Key Functions:
     - :func:`no_warning_call`: Context manager for testing code without warnings
     - :func:`void`: Helper to silence IDE warnings about unused parameters
     - :func:`validate_deprecated_callable`: Validate wrapper configuration
+    - :func:`check_module_deprecation_expiry`: Check all deprecated code in a module for expired deadlines
     - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
 
 Key Classes:
     - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
+
+.. note::
+   Version comparison features (check_module_deprecation_expiry)
+   require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <...>
 """
@@ -25,7 +30,61 @@ from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
-from typing import Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+
+if TYPE_CHECKING:
+    from packaging.version import Version
+
+
+def _parse_version(version_string: str) -> "Version":
+    """Parse a version string using the packaging library (PEP 440 compliant).
+
+    This function requires the 'packaging' library, which is available as an
+    optional dependency via the 'audit' extra: ``pip install pyDeprecate[audit]``
+
+    The packaging library provides robust PEP 440 version parsing and comparison,
+    supporting pre-releases (alpha/beta/rc), stable releases, post-releases, and
+    development releases with proper ordering.
+
+    Args:
+        version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0a1",
+            "1.5.0rc1", "1.5.0.post1").
+
+    Returns:
+        packaging.version.Version object that supports comparison operations.
+
+    Raises:
+        ImportError: If the packaging library is not installed.
+        ValueError: If the version string is not valid per PEP 440
+            (wraps ``packaging.version.InvalidVersion`` with additional context).
+
+    Example:
+        >>> v1 = _parse_version("1.2.3")  # doctest: +SKIP
+        >>> v2 = _parse_version("2.0")  # doctest: +SKIP
+        >>> v1 < v2  # doctest: +SKIP
+        True
+        >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")  # doctest: +SKIP
+        True
+
+    .. note::
+       Install the audit extra to use version comparison features:
+       ``pip install pyDeprecate[audit]``
+
+    """
+    try:
+        from packaging.version import InvalidVersion, Version
+    except ImportError as err:
+        raise ImportError(
+            "Version comparison requires the 'packaging' library. Install with: pip install pyDeprecate[audit]"
+        ) from err
+
+    try:
+        return Version(version_string)
+    except InvalidVersion as err:
+        raise ValueError(
+            f"Failed to parse version '{version_string}'. Expected PEP 440 format "
+            f"(e.g., '1.2.3', '2.0', '1.5.0a1'). Error: {err}"
+        ) from err
 
 
 @dataclass(frozen=True)
@@ -363,6 +422,210 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         self_reference=self_reference,
         no_effect=no_effect,
     )
+
+
+def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> None:
+    """Check if a deprecated callable has passed its scheduled removal version.
+
+    This is an internal helper function used by check_module_deprecation_expiry.
+    It verifies that deprecated code is actually removed when it reaches its
+    scheduled removal deadline.
+
+    The function validates that the callable is properly decorated, extracts the
+    removal version from its metadata, and compares it against the current version
+    using semantic versioning. If the current version is greater than or equal to
+    the scheduled removal version, it raises an AssertionError indicating the code
+    must be deleted.
+
+    Args:
+        func: The deprecated callable to check. Must have a ``__deprecated__``
+            attribute set by the @deprecated decorator.
+        current_version: The current version of the package (e.g., "2.0.0").
+            Should follow PEP 440 versioning conventions.
+
+    Raises:
+        ValueError: If the function does not have a ``__deprecated__`` attribute
+            (i.e., was not decorated with @deprecated).
+        ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
+        AssertionError: If the current version is greater than or equal to the
+            scheduled removal version, indicating the code should have been removed.
+
+    """
+    # First validate that the function has proper deprecation metadata
+    info = validate_deprecated_callable(func)
+
+    # Extract the remove_in version from the metadata
+    remove_in = info.deprecated_info.get("remove_in")
+    if not remove_in:
+        raise ValueError(
+            f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
+        )
+
+    # Parse both versions for proper semantic version comparison
+    # Let ImportError propagate with its helpful install message
+    try:
+        current_ver = _parse_version(current_version)
+    except ValueError as err:
+        raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
+    
+    try:
+        remove_ver = _parse_version(remove_in)
+    except ValueError as err:
+        raise ValueError(f"Invalid remove_in '{remove_in}' for callable `{info.function}`: {err}") from err
+
+    # Check if the current version has reached or passed the removal deadline
+    if current_ver >= remove_ver:
+        raise AssertionError(
+            f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
+            f"but still exists in version {current_version}. Please delete this deprecated code."
+        )
+
+
+def _get_package_version(package_name: str) -> str:
+    """Auto-detect the installed version of a package.
+
+    This private helper function attempts to retrieve the version of an installed
+    package using importlib.metadata. This is useful for automatically detecting
+    the current version of a package when checking deprecation expiry.
+
+    Args:
+        package_name: Name of the package to get the version for (e.g., "numpy", "mypackage").
+
+    Returns:
+        The version string of the installed package.
+
+    Raises:
+        ImportError: If the package is not installed or version cannot be determined.
+
+    Example:
+        >>> _get_package_version("deprecate")  # doctest: +SKIP
+        '0.3.2'
+
+    """
+    try:
+        import importlib.metadata
+
+        return importlib.metadata.version(package_name)
+    except Exception as err:
+        raise ImportError(
+            f"Could not determine version for package '{package_name}'. Ensure the package is installed. Error: {err}"
+        ) from err
+
+
+def check_module_deprecation_expiry(
+    module: Union[Any, str],  # noqa: ANN401
+    current_version: str | None = None,
+    recursive: bool = True,
+) -> list[str]:
+    """Check all deprecated callables in a module/package for expired removal deadlines.
+
+    This enforcement tool scans an entire module or package for deprecated functions
+    and checks if any have passed their scheduled removal version. It's designed for
+    CI/CD pipelines to automatically detect and report zombie code across a codebase.
+
+    The function uses ``find_deprecated_callables`` to discover all deprecated functions,
+    then applies ``_check_deprecated_callable_expiry`` to each one. Any callables that have
+    reached or passed their removal deadline are collected and reported.
+
+    Args:
+        module: A Python module or package to scan. Can be:
+            - Imported module object (e.g., ``import my_package; check_module_deprecation_expiry(my_package, "2.0")``)
+            - String module path (e.g., ``check_module_deprecation_expiry("my_package.submodule", "2.0")``)
+        current_version: The current version of your package to compare against removal deadlines
+            (e.g., ``"2.0.0"``). If None, attempts to auto-detect the version using the package name
+            from the module path (e.g., ``"mypackage"`` extracts ``mypackage`` as package name).
+        recursive: If True (default), recursively scan submodules. If False, only
+            scan the top-level module.
+
+    Returns:
+        List of error messages for callables that have expired (past their removal deadline).
+        Empty list if all deprecated callables are still within their deprecation period.
+
+    Example:
+        >>> # Check a specific module with version before any deadlines
+        >>> from deprecate import check_module_deprecation_expiry
+        >>> expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+        >>> len(expired)
+        0
+
+        >>> # Check with version past some removal deadlines
+        >>> expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+        >>> len(expired) > 0  # Some functions have remove_in="0.5"
+        True
+
+        >>> # Use in CI/CD pipeline (example pattern)
+        >>> # from my_package import __version__
+        >>> # expired = check_module_deprecation_expiry("my_package", __version__)
+        >>> # assert not expired, f"Remove expired deprecated code: {expired}"
+
+        >>> # Auto-detect version (extracts package name from module path)
+        >>> # expired = check_module_deprecation_expiry("mypackage")  # auto-detects version
+        >>> # assert not expired, f"Remove expired deprecated code: {expired}"
+
+    .. note::
+       - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
+       - Skips callables that cannot be imported or accessed
+       - Silently skips callables with invalid ``remove_in`` version formats
+       - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
+       - Intended for automated checks in CI/CD pipelines
+       - Can be integrated into test suites or pre-commit hooks
+
+    """
+    import importlib
+
+    # Determine module name for auto-version detection
+    module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
+
+    # Auto-detect version if not provided
+    if current_version is None:
+        if not module_name:
+            raise ValueError(
+                "Cannot auto-detect version: module object has no __name__ attribute. "
+                "Please provide current_version explicitly."
+            )
+        # Extract package name (first component of module path)
+        package_name = module_name.split(".")[0]
+        current_version = _get_package_version(package_name)
+
+    # Validate and parse current_version once upfront to provide fail-fast feedback
+    # and avoid repeated parsing. Let ImportError propagate with install hint.
+    try:
+        current_ver = _parse_version(current_version)
+    except ValueError as err:
+        raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
+
+    # Handle string module path
+    if isinstance(module, str):
+        module = importlib.import_module(module)
+
+    # Find all deprecated callables in the module
+    deprecated_callables = find_deprecated_callables(module, recursive=recursive)
+
+    expired_callables = []
+
+    # Check each deprecated callable for expiry
+    for info in deprecated_callables:
+        # Skip if no remove_in specified (warning-only deprecation)
+        remove_in = info.deprecated_info.get("remove_in")
+        if not remove_in:
+            continue
+
+        # Parse remove_in version and compare with pre-parsed current_version
+        try:
+            remove_ver = _parse_version(remove_in)
+        except ValueError:
+            # Version parsing failed for remove_in
+            # Silently skip this callable - it has invalid version format
+            continue
+
+        # Check if the current version has reached or passed the removal deadline
+        if current_ver >= remove_ver:
+            expired_callables.append(
+                f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
+                f"but still exists in version {current_version}. Please delete this deprecated code."
+            )
+
+    return expired_callables
 
 
 def find_deprecated_callables(

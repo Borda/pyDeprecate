@@ -45,6 +45,11 @@ class NewIntEnum(Enum):
     BETA = 2
 
 
+def plain_function_target(x: int) -> int:
+    """Plain function without deprecation decorator for testing error handling."""
+    return x
+
+
 @dataclass
 class NewDataClass:
     """Target dataclass for deprecation forwarding tests."""

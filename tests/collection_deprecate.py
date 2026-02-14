@@ -444,3 +444,18 @@ class DeprTimerDecorator(TimerDecorator):
     def __init__(self, func: Callable) -> None:
         """Initialize deprecated timer."""
         void(func)
+
+
+# ========== Testing Expiry Enforcement Examples ==========
+
+
+@deprecated(target=None, deprecated_in="1.0")
+def depr_func_no_remove_in(x: int) -> int:
+    """Warning-only deprecation with no removal deadline.
+
+    Examples:
+        Function is deprecated but no specific removal version is set yet.
+        This tests that expiry enforcement gracefully handles callables
+        without a `remove_in` field.
+    """
+    return x
