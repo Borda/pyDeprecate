@@ -287,11 +287,10 @@ class TestCheckDeprecationExpiry:
             Developer accidentally runs expiry check on a regular function without @deprecated
             decorator. Clear error message indicates the function is not decorated.
         """
-        def plain_function(x: int) -> int:
-            return x
+        from tests.collection_targets import plain_function_target
 
         with pytest.raises(ValueError, match="does not have a __deprecated__ attribute"):
-            check_deprecation_expiry(plain_function, "1.0")
+            check_deprecation_expiry(plain_function_target, "1.0")
 
     def test_no_remove_in(self) -> None:
         """Deprecated callable without remove_in raises ValueError.
@@ -303,23 +302,34 @@ class TestCheckDeprecationExpiry:
         with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
             check_deprecation_expiry(depr_func_no_remove_in, "2.0")
 
-    def test_semantic_versioning(self) -> None:
-        """Version comparison follows PEP 440 semantic ordering.
+    @pytest.mark.parametrize(
+        "current_version",
+        ["0.4.9", "0.5.0a1"],  # Pre-release versions before removal deadline
+    )
+    def test_semantic_versioning_before_deadline(self, current_version: str) -> None:
+        """Version comparison follows PEP 440 semantic ordering for versions before deadline.
 
         Examples:
-            Developer uses pre-release versions (0.5.0a1) and patch versions (0.4.9, 0.5.1).
-            Expiry check correctly recognizes alpha versions come before stable, and 0.5.1 is past 0.5 deadline.
+            Developer uses pre-release versions (0.5.0a1) and patch versions (0.4.9) in CI.
+            Expiry check passes because these versions come before the 0.5 removal deadline.
         """
         # Test with semantic versions (depr_sum has remove_in="0.5")
-        check_deprecation_expiry(depr_sum, "0.4.9")  # remove_in="0.5"
-        check_deprecation_expiry(depr_sum, "0.5.0a1")  # remove_in="0.5" (PEP 440 alpha format)
+        check_deprecation_expiry(depr_sum, current_version)
 
+    @pytest.mark.parametrize(
+        "current_version",
+        ["0.5.0", "0.5.1"],  # Versions at or after removal deadline
+    )
+    def test_semantic_versioning_at_or_after_deadline(self, current_version: str) -> None:
+        """Version comparison follows PEP 440 semantic ordering for versions at/after deadline.
+
+        Examples:
+            Developer reaches version 0.5.0 or 0.5.1 in their project. Expiry check raises
+            AssertionError because these versions are at or past the 0.5 removal deadline.
+        """
         # Should raise at 0.5.0 or later
         with pytest.raises(AssertionError):
-            check_deprecation_expiry(depr_sum, "0.5.0")
-
-        with pytest.raises(AssertionError):
-            check_deprecation_expiry(depr_sum, "0.5.1")
+            check_deprecation_expiry(depr_sum, current_version)
 
     def test_parse_version_stage_ordering(self) -> None:
         """Pre-release stages order correctly per PEP 440.

@@ -722,12 +722,10 @@ When you deprecate code with a `remove_in` version, you're making a commitment t
 
 pyDeprecate provides enforcement utilities to detect and prevent zombie code in your CI/CD pipeline:
 
-### Checking Individual Functions
+<details>
+<summary><b>Checking Individual Functions</b></summary>
 
 The `check_deprecation_expiry()` utility verifies if a single deprecated callable has reached its removal deadline:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import deprecated, check_deprecation_expiry
@@ -757,12 +755,10 @@ check_deprecation_expiry(old_func, current_version)  # AssertionError: scheduled
 
 </details>
 
-### Scanning Entire Packages
+<details>
+<summary><b>Scanning Entire Packages</b></summary>
 
 The `check_module_deprecation_expiry()` utility scans an entire module or package for expired deprecations:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import check_module_deprecation_expiry
@@ -792,12 +788,10 @@ expired = check_module_deprecation_expiry("mypackage", "2.0.0", recursive=False)
 
 </details>
 
-### CI/pytest Integration for Expiry Enforcement
+<details>
+<summary><b>CI/pytest Integration for Expiry Enforcement</b></summary>
 
 Integrate expiry checks into your test suite to catch zombie code automatically:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 import pytest
