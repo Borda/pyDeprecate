@@ -561,12 +561,10 @@ The `DeprecatedCallableInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 
-### Validating a Single Function
+<details>
+<summary><b>Validating a Single Function</b></summary>
 
 The `validate_deprecated_callable()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
@@ -618,12 +616,10 @@ if result.no_effect:
 
 </details>
 
-### Scanning a Package for Deprecated Wrappers
+<details>
+<summary><b>Scanning a Package for Deprecated Wrappers</b></summary>
 
 The `find_deprecated_callables()` utility scans an entire package or module and returns a list of `DeprecatedCallableInfo` dataclasses:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
@@ -652,12 +648,10 @@ if ineffective:
 
 </details>
 
-### Generating Reports by Issue Type
+<details>
+<summary><b>Generating Reports by Issue Type</b></summary>
 
 Group validation results by issue type for better reporting:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables
@@ -680,12 +674,10 @@ print(f"Self-references: {len(self_refs)}")
 
 </details>
 
-### CI/pytest Integration
+<details>
+<summary><b>CI/pytest Integration</b></summary>
 
 Use in pytest to validate your package's deprecation wrappers:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 import pytest
