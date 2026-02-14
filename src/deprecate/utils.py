@@ -489,14 +489,16 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
         )
 
     # Parse both versions for proper semantic version comparison
+    # Let ImportError propagate with its helpful install message
     try:
         current_ver = _parse_version(current_version)
+    except ValueError as e:
+        raise ValueError(f"Invalid current_version '{current_version}': {e}") from e
+    
+    try:
         remove_ver = _parse_version(remove_in)
-    except (ValueError, ImportError) as e:
-        raise ValueError(
-            f"Failed to parse versions for comparison. current_version='{current_version}', "
-            f"remove_in='{remove_in}'. Error: {e}"
-        ) from e
+    except ValueError as e:
+        raise ValueError(f"Invalid remove_in '{remove_in}' for callable `{info.function}`: {e}") from e
 
     # Check if the current version has reached or passed the removal deadline
     if current_ver >= remove_ver:
@@ -612,11 +614,12 @@ def check_module_deprecation_expiry(
         package_name = module_name.split(".")[0]
         current_version = _get_package_version(package_name)
 
-    # Validate current_version format upfront to provide fail-fast feedback
+    # Validate and parse current_version once upfront to provide fail-fast feedback
+    # and avoid repeated parsing. Let ImportError propagate with install hint.
     try:
-        _parse_version(current_version)
-    except (ValueError, ImportError) as e:
-        raise ValueError(f"Invalid current_version '{current_version}'. Error: {e}") from e
+        current_ver = _parse_version(current_version)
+    except ValueError as e:
+        raise ValueError(f"Invalid current_version '{current_version}': {e}") from e
 
     # Handle string module path
     if isinstance(module, str):
@@ -634,27 +637,20 @@ def check_module_deprecation_expiry(
         if not remove_in:
             continue
 
-        # Try to get the actual callable object and check its expiry
+        # Parse remove_in version and compare with pre-parsed current_version
         try:
-            # Need to get the actual callable object from the module
-            # The info has module and function name, need to retrieve the callable
-            mod = importlib.import_module(info.module)
-            func = getattr(mod, info.function)
-        except (ImportError, AttributeError):
-            # If we can't import/access the function, skip it
+            remove_ver = _parse_version(remove_in)
+        except ValueError:
+            # Version parsing failed for remove_in
+            # Silently skip this callable - it has invalid version format
             continue
 
-        # Now check if this callable has expired
-        try:
-            check_deprecation_expiry(func, current_version)
-        except AssertionError as e:
-            # This callable has expired - add to list
-            expired_callables.append(str(e))
-        except ValueError:
-            # Version parsing failed for remove_in (not current_version, which was validated upfront)
-            # This can happen if the callable's remove_in has an invalid version format
-            # Silently skip this callable
-            continue
+        # Check if the current version has reached or passed the removal deadline
+        if current_ver >= remove_ver:
+            expired_callables.append(
+                f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
+                f"but still exists in version {current_version}. Please delete this deprecated code."
+            )
 
     return expired_callables
 

@@ -360,7 +360,7 @@ class TestCheckDeprecationExpiry:
             expiry check. Clear error message indicates version parsing failed with PEP 440 requirements.
         """
         # Invalid version format should raise ValueError
-        with pytest.raises(ValueError, match="Failed to parse versions"):
+        with pytest.raises(ValueError, match="Invalid current_version"):
             check_deprecation_expiry(depr_pow_self, "invalid-version")
 
 
