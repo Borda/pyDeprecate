@@ -56,7 +56,8 @@ def _parse_version(version_string: str) -> "Version":
 
     Raises:
         ImportError: If the packaging library is not installed.
-        InvalidVersion: If the version string is not valid per PEP 440.
+        ValueError: If the version string is not valid per PEP 440
+            (wraps ``packaging.version.InvalidVersion`` with additional context).
 
     Example:
         >>> v1 = _parse_version("1.2.3")  # doctest: +SKIP
