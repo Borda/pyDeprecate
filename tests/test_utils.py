@@ -17,8 +17,8 @@ from tests.collection_deprecate import depr_accuracy_target, depr_func_no_remove
 # Removed redundant direct imports from tests.collection_misconfigured; use sample_module.<name> instead.
 
 # Check if packaging is available for version comparison tests
-PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
-requires_packaging = pytest.mark.skipif(not PACKAGING_AVAILABLE, reason="requires packaging library")
+_PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
+_requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -221,7 +221,7 @@ class TestFindDeprecatedCallables:
         assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
 
 
-@requires_packaging
+@_requires_packaging
 class TestCheckDeprecationExpiry:
     """Tests for check_deprecation_expiry()."""
 
@@ -323,7 +323,7 @@ class TestCheckDeprecationExpiry:
             check_deprecation_expiry(depr_pow_self, "invalid-version")
 
 
-@requires_packaging
+@_requires_packaging
 class TestCheckModuleDeprecationExpiry:
     """Tests for check_module_deprecation_expiry()."""
 
