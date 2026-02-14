@@ -505,6 +505,7 @@ class TestCheckModuleDeprecationExpiry:
             Developer passes malformed or mock module object without __name__ attribute.
             Clear error message indicates auto-detection requires proper module objects.
         """
+
         # Create a mock module-like object without __name__
         class FakeModule:
             pass

@@ -533,8 +533,7 @@ def _get_package_version(package_name: str) -> str:
         return importlib.metadata.version(package_name)
     except Exception as e:
         raise ImportError(
-            f"Could not determine version for package '{package_name}'. "
-            f"Ensure the package is installed. Error: {e}"
+            f"Could not determine version for package '{package_name}'. Ensure the package is installed. Error: {e}"
         ) from e
 
 

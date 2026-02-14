@@ -729,6 +729,7 @@ def new_func(x: int) -> int:
 
 # ---------------------------
 
+
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
 def old_func(x: int) -> int:
     pass
@@ -824,6 +825,7 @@ def enforce_deprecation_deadlines():
 </details>
 
 > [!TIP]
+>
 > - Callables without `remove_in` are skipped (warnings-only deprecations are allowed)
 > - Invalid version formats in `remove_in` are silently skipped
 > - Semantic versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
