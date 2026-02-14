@@ -6,6 +6,7 @@ from warnings import warn
 import pytest
 
 import tests.collection_misconfigured as sample_module
+from deprecate import check_deprecation_expiry, check_module_deprecation_expiry
 from deprecate.utils import (
     DeprecatedCallableInfo,
     find_deprecated_callables,
@@ -232,8 +233,6 @@ class TestCheckDeprecationExpiry:
             Developer runs expiry check in CI for version 0.4 on a callable scheduled for
             removal in version 0.5. The check passes silently, allowing the release to proceed.
         """
-        from deprecate import check_deprecation_expiry
-
         # Current version is less than remove_in - should not raise
         check_deprecation_expiry(depr_pow_self, "0.4")  # remove_in="0.5"
 
@@ -244,8 +243,6 @@ class TestCheckDeprecationExpiry:
             Developer releases version 0.5, which matches the remove_in deadline. CI runs
             expiry check and raises AssertionError, blocking the release until zombie code is deleted.
         """
-        from deprecate import check_deprecation_expiry
-
         # Current version equals remove_in - should raise AssertionError
         with pytest.raises(
             AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.5"
@@ -259,8 +256,6 @@ class TestCheckDeprecationExpiry:
             Developer releases version 0.6 but forgot to delete deprecated code scheduled for
             removal in version 0.5. CI expiry check catches the zombie code and blocks the release.
         """
-        from deprecate import check_deprecation_expiry
-
         # Current version is greater than remove_in - should raise AssertionError
         with pytest.raises(
             AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.6"
@@ -274,8 +269,6 @@ class TestCheckDeprecationExpiry:
             Developer sees clear error message from CI identifying which deprecated callable
             needs deletion, showing both the removal deadline and current version for easy diagnosis.
         """
-        from deprecate import check_deprecation_expiry
-
         # Test the error message contains all expected information
         with pytest.raises(AssertionError) as exc_info:
             check_deprecation_expiry(depr_pow_self, "1.0")  # remove_in="0.5"
@@ -294,8 +287,6 @@ class TestCheckDeprecationExpiry:
             Developer accidentally runs expiry check on a regular function without @deprecated
             decorator. Clear error message indicates the function is not decorated.
         """
-        from deprecate import check_deprecation_expiry
-
         def plain_function(x: int) -> int:
             return x
 
@@ -309,8 +300,6 @@ class TestCheckDeprecationExpiry:
             Developer runs expiry check on a warning-only deprecated function that has no
             removal deadline. Error message indicates remove_in parameter is required for enforcement.
         """
-        from deprecate import check_deprecation_expiry
-
         with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
             check_deprecation_expiry(depr_func_no_remove_in, "2.0")
 
@@ -321,8 +310,6 @@ class TestCheckDeprecationExpiry:
             Developer uses pre-release versions (0.5.0a1) and patch versions (0.4.9, 0.5.1).
             Expiry check correctly recognizes alpha versions come before stable, and 0.5.1 is past 0.5 deadline.
         """
-        from deprecate import check_deprecation_expiry
-
         # Test with semantic versions (depr_sum has remove_in="0.5")
         check_deprecation_expiry(depr_sum, "0.4.9")  # remove_in="0.5"
         check_deprecation_expiry(depr_sum, "0.5.0a1")  # remove_in="0.5" (PEP 440 alpha format)
@@ -362,8 +349,6 @@ class TestCheckDeprecationExpiry:
             Developer accidentally passes an invalid version string like "invalid-version" to
             expiry check. Clear error message indicates version parsing failed with PEP 440 requirements.
         """
-        from deprecate import check_deprecation_expiry
-
         # Invalid version format should raise ValueError
         with pytest.raises(ValueError, match="Failed to parse versions"):
             check_deprecation_expiry(depr_pow_self, "invalid-version")
@@ -380,8 +365,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer runs package-wide expiry check in CI for version 0.1 release. All
             deprecated callables have future removal deadlines, so CI passes cleanly.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Check the test collection module with a version before any removal deadlines
         expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
         assert expired == []
@@ -393,8 +376,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer releases version 0.5 but forgets to delete some deprecated functions.
             CI package scan identifies all expired callables and blocks the release with clear error messages.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Check with a version past some removal deadlines
         expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
 
@@ -413,7 +394,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer prefers to import and pass module object directly rather than using
             string path. Both approaches work identically for expiry checking.
         """
-        from deprecate import check_module_deprecation_expiry
         from tests import collection_deprecate
 
         # Pass module object directly
@@ -431,8 +411,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer runs expiry check on root package with submodules. Recursive mode
             scans all subpackages and submodules, ensuring no zombie code hides in deep module hierarchy.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Test with recursive=True (default)
         expired = check_module_deprecation_expiry("tests", "10.0", recursive=True)
 
@@ -446,8 +424,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer has mix of removal-scheduled and warning-only deprecations. Package scan
             silently skips warning-only functions and only checks ones with removal deadlines.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # The collection_deprecate module has some functions without remove_in
         # This should not raise an error, just skip those functions
         expired = check_module_deprecation_expiry("tests.collection_deprecate", "100.0", recursive=False)
@@ -462,8 +438,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer wants to log all expired callables before failing CI. Return value is
             list of strings describing each expired callable, suitable for logging or aggregation.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Get some expired callables
         expired = check_module_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
 
@@ -481,8 +455,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer accidentally passes "invalid" as version string to package scan. Immediate
             fail-fast error prevents wasted time scanning when version parameter is wrong.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Invalid version format in current_version should raise ValueError upfront
         # before any callable checking begins
         with pytest.raises(ValueError, match="Invalid current_version"):
@@ -495,8 +467,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer has deprecated callables with optional dependencies or import errors.
             Package scan doesn't crash entirely, just skips problematic callables and continues.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Test with a module that should work fine
         # The implementation should skip any callables that can't be imported
         expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
@@ -512,8 +482,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer omits current_version parameter in CI for installed package. Function
             auto-detects version from importlib.metadata, simplifying CI configuration.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Test with tests.collection_deprecate module (part of tests, not a real package)
         # Should try to auto-detect "tests" package version and fail gracefully
         # We expect ImportError because "tests" is not an installed package
@@ -527,8 +495,6 @@ class TestCheckModuleDeprecationExpiry:
             Developer passes malformed or mock module object without __name__ attribute.
             Clear error message indicates auto-detection requires proper module objects.
         """
-        from deprecate import check_module_deprecation_expiry
-
         # Create a mock module-like object without __name__
         class FakeModule:
             pass
