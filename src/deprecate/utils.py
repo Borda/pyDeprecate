@@ -11,7 +11,6 @@ Key Functions:
     - :func:`no_warning_call`: Context manager for testing code without warnings
     - :func:`void`: Helper to silence IDE warnings about unused parameters
     - :func:`validate_deprecated_callable`: Validate wrapper configuration
-    - :func:`check_deprecation_expiry`: Check if deprecated code has passed removal deadline
     - :func:`check_module_deprecation_expiry`: Check all deprecated code in a module for expired deadlines
     - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
 
@@ -19,7 +18,7 @@ Key Classes:
     - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
 
 .. note::
-   Version comparison features (check_deprecation_expiry, check_module_deprecation_expiry)
+   Version comparison features (check_module_deprecation_expiry)
    require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <...>
@@ -425,12 +424,12 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     )
 
 
-def check_deprecation_expiry(func: Callable, current_version: str) -> None:
+def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> None:
     """Check if a deprecated callable has passed its scheduled removal version.
 
-    This enforcement tool verifies that deprecated code is actually removed when
-    it reaches its scheduled removal deadline. It prevents "zombie code" - deprecated
-    functions that remain in the codebase past their intended removal date.
+    This is an internal helper function used by check_module_deprecation_expiry.
+    It verifies that deprecated code is actually removed when it reaches its
+    scheduled removal deadline.
 
     The function validates that the callable is properly decorated, extracts the
     removal version from its metadata, and compares it against the current version
@@ -442,7 +441,7 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
         func: The deprecated callable to check. Must have a ``__deprecated__``
             attribute set by the @deprecated decorator.
         current_version: The current version of the package (e.g., "2.0.0").
-            Should follow semantic versioning conventions.
+            Should follow PEP 440 versioning conventions.
 
     Raises:
         ValueError: If the function does not have a ``__deprecated__`` attribute
@@ -450,32 +449,6 @@ def check_deprecation_expiry(func: Callable, current_version: str) -> None:
         ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
         AssertionError: If the current version is greater than or equal to the
             scheduled removal version, indicating the code should have been removed.
-
-    Example:
-        >>> from deprecate import deprecated, check_deprecation_expiry
-        >>> def new_func(x: int) -> int:
-        ...     return x * 2
-        >>>
-        >>> @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-        ... def old_func(x: int) -> int:
-        ...     pass
-        >>>
-        >>> # This passes - current version is before removal deadline
-        >>> check_deprecation_expiry(old_func, "1.5.0")
-        >>>
-        >>> # This raises AssertionError - past removal deadline
-        >>> try:
-        ...     check_deprecation_expiry(old_func, "2.0.0")
-        ... except AssertionError as err:
-        ...     print(str(err))
-        Callable `old_func` was scheduled for removal in version 2.0 but still exists in version \
-2.0.0. Please delete this deprecated code.
-
-    .. note::
-       - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
-       - Intended for use in CI/CD pipelines or development checks
-       - Helps maintain code hygiene by enforcing deprecation deadlines
-       - Can be integrated into test suites or pre-commit hooks
 
     """
     # First validate that the function has proper deprecation metadata
@@ -551,7 +524,7 @@ def check_module_deprecation_expiry(
     CI/CD pipelines to automatically detect and report zombie code across a codebase.
 
     The function uses ``find_deprecated_callables`` to discover all deprecated functions,
-    then applies ``check_deprecation_expiry`` to each one. Any callables that have
+    then applies ``_check_deprecated_callable_expiry`` to each one. Any callables that have
     reached or passed their removal deadline are collected and reported.
 
     Args:
