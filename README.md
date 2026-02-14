@@ -828,8 +828,8 @@ def enforce_deprecation_deadlines():
 >
 > - Callables without `remove_in` are skipped (warnings-only deprecations are allowed)
 > - Invalid version formats in `remove_in` are silently skipped
-> - Semantic versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
-> - Pre-release versions are handled correctly (e.g., "1.5.0-alpha" < "1.5.0")
+> - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
+> - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
 
 ## 🧪 Testing Deprecated Code
 
