@@ -196,10 +196,16 @@ pytest .
 
 # Run linting and formatting manually (optional - runs automatically on commit)
 pre-commit run --all-files
+
+# Generate/extract README examples as tests (when updating README examples)
+phmdoctest README.md --outfile tests/test_readme.py
 ```
 
 > [!TIP]
 > Pre-commit hooks run **automatically** on every commit, handling all linting and formatting (ruff, mypy). You only need to run `pre-commit run --all-files` manually if you want to check before committing.
+
+> [!NOTE]
+> When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves.
 
 ## 💎 Quality Expectations
 

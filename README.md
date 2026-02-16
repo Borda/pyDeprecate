@@ -756,8 +756,11 @@ The `check_module_deprecation_expiry()` utility scans an entire module or packag
 ```python
 from deprecate import check_module_deprecation_expiry
 
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
 # Scan your package for expired deprecations
-expired = check_module_deprecation_expiry("mypackage", "2.0.0")
+expired = check_module_deprecation_expiry(my_package, "0.5")
 
 if expired:
     print("=== Expired Deprecations Found ===")
@@ -766,17 +769,19 @@ if expired:
     raise AssertionError(f"Found {len(expired)} deprecated callables past their removal deadline!")
 
 # Or use with your package version
-import mypackage
+# Replace my_package with: import mypackage
+current_version = "0.5"  # Replace with: mypackage.__version__
 
-expired = check_module_deprecation_expiry(mypackage, mypackage.__version__)
+expired = check_module_deprecation_expiry(my_package, current_version)
 assert not expired, f"Zombie code detected: {expired}"
 
 # Auto-detect version (extracts package name and looks up installed version)
-expired = check_module_deprecation_expiry("mypackage")  # Automatically detects mypackage version
+# For your own package, use: expired = check_module_deprecation_expiry("mypackage")
+expired = check_module_deprecation_expiry("tests.collection_deprecate")
 assert not expired, f"Zombie code detected: {expired}"
 
 # Control recursion
-expired = check_module_deprecation_expiry("mypackage", "2.0.0", recursive=False)  # Only scan top-level module
+expired = check_module_deprecation_expiry(my_package, "0.5", recursive=False)  # Only scan top-level module
 ```
 
 </details>
@@ -796,10 +801,10 @@ from tests import collection_deprecate as my_package
 
 def test_no_zombie_deprecations():
     """Ensure all deprecated code is removed when it reaches its deadline."""
-    # Use your package's actual version
-    from tests.collection_deprecate import __version__
+    # Use your package's actual version - for this example we use a test version
+    current_version = "0.5"  # Replace with: from mypackage import __version__
 
-    expired = check_module_deprecation_expiry(my_package, __version__)
+    expired = check_module_deprecation_expiry(my_package, current_version)
 
     if expired:
         error_msg = "Found deprecated code past its removal deadline:\n"
@@ -809,12 +814,14 @@ def test_no_zombie_deprecations():
 
 
 # Alternative: Use a fixture to run on every test session
+# For testing purposes, we use the test module; normally you would import your own package
 @pytest.fixture(scope="session", autouse=True)
 def enforce_deprecation_deadlines():
     """Automatically check for zombie code before running any tests."""
-    import mypackage
+    from tests import collection_deprecate as my_package
 
-    expired = check_module_deprecation_expiry(mypackage, mypackage.__version__)
+    current_version = "0.5"  # Replace with: from mypackage import __version__
+    expired = check_module_deprecation_expiry(my_package, current_version)
     if expired:
         raise AssertionError(
             f"Cannot run tests: {len(expired)} deprecated callables past removal deadline. "
