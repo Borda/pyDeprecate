@@ -6,7 +6,7 @@ from warnings import warn
 import pytest
 
 import tests.collection_misconfigured as sample_module
-from deprecate import check_module_deprecation_expiry
+from deprecate import validate_deprecation_expiry
 from deprecate.utils import (
     DeprecatedCallableInfo,
     _check_deprecated_callable_expiry,
@@ -367,7 +367,7 @@ class TestCheckDeprecationExpiry:
 
 @_requires_packaging
 class TestCheckModuleDeprecationExpiry:
-    """Tests for check_module_deprecation_expiry()."""
+    """Tests for validate_deprecation_expiry()."""
 
     def test_no_expired(self) -> None:
         """Module scan before any removal deadlines returns empty list.
@@ -377,7 +377,7 @@ class TestCheckModuleDeprecationExpiry:
             deprecated callables have future removal deadlines, so CI passes cleanly.
         """
         # Check the test collection module with a version before any removal deadlines
-        expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
         assert expired == []
 
     def test_with_expired(self) -> None:
@@ -388,7 +388,7 @@ class TestCheckModuleDeprecationExpiry:
             CI package scan identifies all expired callables and blocks the release with clear error messages.
         """
         # Check with a version past some removal deadlines
-        expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
 
         # Should find at least depr_sum (remove_in="0.5") as expired
         assert len(expired) > 0
@@ -408,11 +408,11 @@ class TestCheckModuleDeprecationExpiry:
         from tests import collection_deprecate
 
         # Pass module object directly
-        expired = check_module_deprecation_expiry(collection_deprecate, "0.1", recursive=False)
+        expired = validate_deprecation_expiry(collection_deprecate, "0.1", recursive=False)
         assert expired == []
 
         # Now check with expired version
-        expired = check_module_deprecation_expiry(collection_deprecate, "1.0", recursive=False)
+        expired = validate_deprecation_expiry(collection_deprecate, "1.0", recursive=False)
         assert len(expired) > 0
 
     def test_recursive(self) -> None:
@@ -423,7 +423,7 @@ class TestCheckModuleDeprecationExpiry:
             scans all subpackages and submodules, ensuring no zombie code hides in deep module hierarchy.
         """
         # Test with recursive=True (default)
-        expired = check_module_deprecation_expiry("tests", "10.0", recursive=True)
+        expired = validate_deprecation_expiry("tests", "10.0", recursive=True)
 
         # Should find multiple expired callables across the test package
         assert len(expired) > 0
@@ -437,7 +437,7 @@ class TestCheckModuleDeprecationExpiry:
         """
         # The collection_deprecate module has some functions without remove_in
         # This should not raise an error, just skip those functions
-        expired = check_module_deprecation_expiry("tests.collection_deprecate", "100.0", recursive=False)
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "100.0", recursive=False)
 
         # Should find expired ones, but not crash on missing remove_in
         assert isinstance(expired, list)
@@ -450,7 +450,7 @@ class TestCheckModuleDeprecationExpiry:
             list of strings describing each expired callable, suitable for logging or aggregation.
         """
         # Get some expired callables
-        expired = check_module_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
 
         # All expired entries should be strings (error messages)
         assert all(isinstance(msg, str) for msg in expired)
@@ -469,7 +469,7 @@ class TestCheckModuleDeprecationExpiry:
         # Invalid version format in current_version should raise ValueError upfront
         # before any callable checking begins
         with pytest.raises(ValueError, match="Invalid current_version"):
-            check_module_deprecation_expiry("tests.collection_deprecate", "invalid", recursive=False)
+            validate_deprecation_expiry("tests.collection_deprecate", "invalid", recursive=False)
 
     def test_gracefully_skips_import_errors(self) -> None:
         """Scan continues gracefully when individual callables fail to import.
@@ -480,7 +480,7 @@ class TestCheckModuleDeprecationExpiry:
         """
         # Test with a module that should work fine
         # The implementation should skip any callables that can't be imported
-        expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
 
         # Should return a list without crashing
         assert isinstance(expired, list)
@@ -497,7 +497,7 @@ class TestCheckModuleDeprecationExpiry:
         # Should try to auto-detect "tests" package version and fail gracefully
         # We expect ImportError because "tests" is not an installed package
         with pytest.raises(ImportError, match="Could not determine version"):
-            check_module_deprecation_expiry("tests.collection_deprecate", None, recursive=False)
+            validate_deprecation_expiry("tests.collection_deprecate", None, recursive=False)
 
     def test_auto_detect_version_with_module_object_without_name(self) -> None:
         """Auto-detection fails clearly when module object lacks __name__ attribute.
@@ -515,4 +515,4 @@ class TestCheckModuleDeprecationExpiry:
 
         # Should raise ValueError when trying to auto-detect without __name__
         with pytest.raises(ValueError, match="Cannot auto-detect version.*__name__"):
-            check_module_deprecation_expiry(fake_mod, None, recursive=False)
+            validate_deprecation_expiry(fake_mod, None, recursive=False)

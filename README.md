@@ -714,68 +714,31 @@ When you deprecate code with a `remove_in` version, you're making a commitment t
 
 pyDeprecate provides enforcement utilities to detect and prevent zombie code in your CI/CD pipeline:
 
-<details>
-<summary><b>Checking Individual Functions</b></summary>
-
-The `check_deprecation_expiry()` utility verifies if a single deprecated callable has reached its removal deadline:
+The `validate_deprecation_expiry()` utility scans an entire module or package for expired deprecations:
 
 ```python
-import pytest  # For demonstration - use in your test suite
-from deprecate import deprecated, check_deprecation_expiry
-
-
-def new_func(x: int) -> int:
-    return x * 2
-
-
-# ---------------------------
-
-
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func(x: int) -> int:
-    pass
-
-
-# In your tests or CI pipeline
-check_deprecation_expiry(old_func, "1.9.0")  # OK - not expired yet
-
-# Versions >= remove_in raise AssertionError
-with pytest.raises(AssertionError, match="scheduled for removal"):
-    check_deprecation_expiry(old_func, "2.0.0")
-
-with pytest.raises(AssertionError, match="scheduled for removal"):
-    check_deprecation_expiry(old_func, "2.1.0")
-```
-
-</details>
-
-<details>
-<summary><b>Scanning Entire Packages</b></summary>
-
-The `check_module_deprecation_expiry()` utility scans an entire module or package for expired deprecations:
-
-```python
-from deprecate import check_module_deprecation_expiry
+from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
 # Scan your package for expired deprecations - using early-version that won't have expirations
-expired = check_module_deprecation_expiry(my_package, "0.2")
+expired = validate_deprecation_expiry(my_package, "0.2")
 print(f"Found {len(expired)} expired")  # Returns a list of error messages (empty list = no expired)
 
 # Example with expired deprecations found (using later-version)
-expired = check_module_deprecation_expiry(my_package, "0.5")
+expired = validate_deprecation_expiry(my_package, "0.5")
 print(f"Found {len(expired)} expired")
 
 # Auto-detect version from package metadata (mocked for demo)
 from unittest.mock import patch
+
 with patch("importlib.metadata.version", return_value="0.3"):
-    expired = check_module_deprecation_expiry(my_package)  # Automatically detects version
+    expired = validate_deprecation_expiry(my_package)  # Automatically detects version
     print(f"Found {len(expired)} expired")
 
 # Control recursion
-expired = check_module_deprecation_expiry(my_package, "0.1", recursive=False)  # Only scan top-level module
+expired = validate_deprecation_expiry(my_package, "0.1", recursive=False)  # Only scan top-level module
 print(f"Found {len(expired)} expired")
 ```
 
@@ -800,7 +763,7 @@ Integrate expiry checks into your test suite to catch zombie code automatically:
 
 ```python
 import pytest
-from deprecate import check_module_deprecation_expiry
+from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
@@ -811,7 +774,7 @@ def test_no_zombie_deprecations():
     # Use your package's actual version - for this example we use a test version
     current_version = "0.5"  # Replace with: from mypackage import __version__
 
-    expired = check_module_deprecation_expiry(my_package, current_version)
+    expired = validate_deprecation_expiry(my_package, current_version)
 
     if expired:
         error_msg = "Found deprecated code past its removal deadline:\n"
@@ -828,7 +791,7 @@ def enforce_deprecation_deadlines():
     from tests import collection_deprecate as my_package
 
     current_version = "0.5"  # Replace with: from mypackage import __version__
-    expired = check_module_deprecation_expiry(my_package, current_version)
+    expired = validate_deprecation_expiry(my_package, current_version)
     if expired:
         raise AssertionError(
             f"Cannot run tests: {len(expired)} deprecated callables past removal deadline. "

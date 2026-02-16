@@ -11,14 +11,14 @@ Key Functions:
     - :func:`no_warning_call`: Context manager for testing code without warnings
     - :func:`void`: Helper to silence IDE warnings about unused parameters
     - :func:`validate_deprecated_callable`: Validate wrapper configuration
-    - :func:`check_module_deprecation_expiry`: Check all deprecated code in a module for expired deadlines
+    - :func:`validate_deprecation_expiry`: Check all deprecated code in a module for expired deadlines
     - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
 
 Key Classes:
     - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
 
 .. note::
-   Version comparison features (check_module_deprecation_expiry)
+   Version comparison features (validate_deprecation_expiry)
    require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <...>
@@ -427,7 +427,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> None:
     """Check if a deprecated callable has passed its scheduled removal version.
 
-    This is an internal helper function used by check_module_deprecation_expiry.
+    This is an internal helper function used by validate_deprecation_expiry.
     It verifies that deprecated code is actually removed when it reaches its
     scheduled removal deadline.
 
@@ -512,7 +512,7 @@ def _get_package_version(package_name: str) -> str:
         ) from err
 
 
-def check_module_deprecation_expiry(
+def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
@@ -529,8 +529,8 @@ def check_module_deprecation_expiry(
 
     Args:
         module: A Python module or package to scan. Can be:
-            - Imported module object (e.g., ``import my_package; check_module_deprecation_expiry(my_package, "2.0")``)
-            - String module path (e.g., ``check_module_deprecation_expiry("my_package.submodule", "2.0")``)
+            - Imported module object (e.g., ``import my_package; validate_deprecation_expiry(my_package, "2.0")``)
+            - String module path (e.g., ``validate_deprecation_expiry("my_package.submodule", "2.0")``)
         current_version: The current version of your package to compare against removal deadlines
             (e.g., ``"2.0.0"``). If None, attempts to auto-detect the version using the package name
             from the module path (e.g., ``"mypackage"`` extracts ``mypackage`` as package name).
@@ -543,23 +543,23 @@ def check_module_deprecation_expiry(
 
     Example:
         >>> # Check a specific module with version before any deadlines
-        >>> from deprecate import check_module_deprecation_expiry
-        >>> expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+        >>> from deprecate import validate_deprecation_expiry
+        >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
         >>> len(expired)
         0
 
         >>> # Check with version past some removal deadlines
-        >>> expired = check_module_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+        >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
         >>> len(expired) > 0  # Some functions have remove_in="0.5"
         True
 
         >>> # Use in CI/CD pipeline (example pattern)
         >>> # from my_package import __version__
-        >>> # expired = check_module_deprecation_expiry("my_package", __version__)
+        >>> # expired = validate_deprecation_expiry("my_package", __version__)
         >>> # assert not expired, f"Remove expired deprecated code: {expired}"
 
         >>> # Auto-detect version (extracts package name from module path)
-        >>> # expired = check_module_deprecation_expiry("mypackage")  # auto-detects version
+        >>> # expired = validate_deprecation_expiry("mypackage")  # auto-detects version
         >>> # assert not expired, f"Remove expired deprecated code: {expired}"
 
     .. note::

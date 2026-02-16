@@ -191,14 +191,14 @@ Tests and quality improvements are **always welcome**! These contributions are h
 pip install -e . "pre-commit" -r tests/requirements.txt
 pre-commit install
 
-# Run the full test suite (including doctests if configured in pytest)
-pytest .
-
-# Run linting and formatting manually (optional - runs automatically on commit)
+# Run linting and formatting first (optional - runs automatically on commit)
 pre-commit run --all-files
 
 # Generate/extract README examples as tests (when updating README examples)
 phmdoctest README.md --outfile tests/test_readme.py
+
+# Run the full test suite (including doctests if configured in pytest)
+pytest .
 ```
 
 > [!TIP]
@@ -261,8 +261,8 @@ pre-commit install
 # 5. Make your changes
 
 # 6. Run linter and tests before committing
+pre-commit run --all-files         # Run linter first (optional - runs on commit anyway)
 pytest tests/                      # Run test suite
-pre-commit run --all-files         # Run linter (optional - runs on commit anyway)
 
 # 7. Commit your changes (pre-commit hooks run automatically)
 git add -A        # Stage all modified and new files
