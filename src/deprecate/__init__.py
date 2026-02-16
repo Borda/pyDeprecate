@@ -65,10 +65,10 @@ from deprecate.__about__ import *  # noqa: F403
 from deprecate.deprecation import deprecated  # noqa: E402, F401
 from deprecate.utils import (  # noqa: E402, F401
     DeprecatedCallableInfo,
-    validate_deprecation_expiry,
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
+    validate_deprecation_expiry,
     void,
 )
 

@@ -18,7 +18,7 @@ Key Classes:
     - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
 
 .. note::
-   Version comparison features (validate_deprecation_expiry)
+   Version comparison features (``validate_deprecation_expiry()``)
    require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <...>
@@ -92,8 +92,8 @@ class DeprecatedCallableInfo:
     """Information about a deprecated callable and its validation results.
 
     This dataclass represents a deprecated function or method, containing both
-    identification info and validation results from validate_deprecated_callable()
-    or find_deprecated_callables().
+    identification info and validation results from ``validate_deprecated_callable()``
+    or ``find_deprecated_callables()``.
 
     Attributes:
         module: Module name where the function is defined (empty for direct validation).
@@ -317,7 +317,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     This is a development tool to check if deprecated wrappers are configured correctly
     and will have the intended effect. It examines the ``__deprecated__`` attribute
-    set by the @deprecated decorator and identifies configurations that would result
+    set by the ``@deprecated`` decorator and identifies configurations that would result
     in zero impact:
 
     - args_mapping keys that don't exist in the function's signature
@@ -328,7 +328,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     Args:
         func: The decorated function to validate. Must have a ``__deprecated__``
-            attribute set by the @deprecated decorator.
+            attribute set by the ``@deprecated`` decorator.
 
     Returns:
         DeprecatedCallableInfo: Dataclass with validation results:
@@ -342,7 +342,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     Raises:
         ValueError: If the function does not have a __deprecated__ attribute
-            (i.e., was not decorated with @deprecated).
+            (i.e., was not decorated with ``@deprecated``).
 
     Example:
         >>> from deprecate import deprecated, validate_deprecated_callable
@@ -381,7 +381,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     if not hasattr(func, "__deprecated__"):
         raise ValueError(
             f"Function {getattr(func, '__name__', func)} does not have a __deprecated__ attribute. "
-            "It must be decorated with @deprecated."
+            "It must be decorated with `@deprecated`."
         )
 
     dep_info = getattr(func, "__deprecated__", {})
@@ -427,7 +427,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> None:
     """Check if a deprecated callable has passed its scheduled removal version.
 
-    This is an internal helper function used by validate_deprecation_expiry.
+    This is an internal helper function used by ``validate_deprecation_expiry()``.
     It verifies that deprecated code is actually removed when it reaches its
     scheduled removal deadline.
 
@@ -439,13 +439,13 @@ def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> N
 
     Args:
         func: The deprecated callable to check. Must have a ``__deprecated__``
-            attribute set by the @deprecated decorator.
+            attribute set by the ``@deprecated`` decorator.
         current_version: The current version of the package (e.g., "2.0.0").
             Should follow PEP 440 versioning conventions.
 
     Raises:
         ValueError: If the function does not have a ``__deprecated__`` attribute
-            (i.e., was not decorated with @deprecated).
+            (i.e., was not decorated with ``@deprecated``).
         ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
         AssertionError: If the current version is greater than or equal to the
             scheduled removal version, indicating the code should have been removed.

@@ -1,6 +1,6 @@
 """Deprecation wrapper and utilities for marking deprecated code.
 
-This module provides the main @deprecated decorator for marking functions, methods,
+This module provides the main ``@deprecated`` decorator for marking functions, methods,
 and classes as deprecated while optionally forwarding calls to their replacements.
 
 Key Components:
