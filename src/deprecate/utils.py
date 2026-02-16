@@ -623,8 +623,8 @@ def validate_deprecation_expiry(
         # Check if the current version has reached or passed the removal deadline
         if current_ver >= remove_ver:
             expired_callables.append(
-                f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
-                f"but still exists in version {current_version}. Please delete this deprecated code."
+                f"Callable `{info.function}` was scheduled for removal in version {remove_in}"
+                f" but still exists in version {current_version}. Please delete this deprecated code."
             )
 
     return expired_callables
