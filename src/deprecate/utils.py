@@ -467,7 +467,7 @@ def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> N
         current_ver = _parse_version(current_version)
     except ValueError as err:
         raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
-    
+
     try:
         remove_ver = _parse_version(remove_in)
     except ValueError as err:
@@ -514,7 +514,7 @@ def _get_package_version(package_name: str) -> str:
 
 def check_module_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
-    current_version: str | None = None,
+    current_version: Optional[str] = None,
     recursive: bool = True,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.

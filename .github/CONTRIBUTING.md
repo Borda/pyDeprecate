@@ -254,8 +254,9 @@ pre-commit install
 
 # 5. Make your changes
 
-# 6. Run tests
-pytest tests/
+# 6. Run linter and tests before committing
+pytest tests/                      # Run test suite
+pre-commit run --all-files         # Run linter (optional - runs on commit anyway)
 
 # 7. Commit your changes (pre-commit hooks run automatically)
 git add -A        # Stage all modified and new files
@@ -274,7 +275,7 @@ git push origin fix/123-your-bug-description
 - Follow [PEP 8](https://pep8.org/) style guidelines
 - Write clear, descriptive docstrings (Google-style convention)
 - Keep functions focused and modular
-- Add type hints to all function signatures
+- Add type hints to all function signatures aligned with the **minimum supported Python version** (check `python_requires` in `setup.py`). If unsure about syntax compatibility, consult the official Python documentation for the minimum version or search for PEP references
 - Write meaningful variable and function names
 - Add comments only where the code is not self-explanatory
 - No bare `except:` — always catch specific exceptions

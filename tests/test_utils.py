@@ -7,9 +7,9 @@ import pytest
 
 import tests.collection_misconfigured as sample_module
 from deprecate import check_module_deprecation_expiry
-from deprecate.utils import _check_deprecated_callable_expiry
 from deprecate.utils import (
     DeprecatedCallableInfo,
+    _check_deprecated_callable_expiry,
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
