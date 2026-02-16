@@ -770,6 +770,7 @@ print(f"Found {len(expired)} expired")
 
 # Auto-detect version from package metadata (mocked for demo)
 from unittest.mock import patch
+
 with patch("importlib.metadata.version", return_value="0.3"):
     expired = check_module_deprecation_expiry(my_package)  # Automatically detects version
     print(f"Found {len(expired)} expired")
