@@ -485,7 +485,8 @@ def _get_package_version(package_name: str) -> str:
     """Auto-detect the installed version of a package.
 
     This private helper function attempts to retrieve the version of an installed
-    package using importlib.metadata. This is useful for automatically detecting
+    package using importlib.metadata, with a fallback to checking the package's
+    ``__version__`` attribute. This is useful for automatically detecting
     the current version of a package when checking deprecation expiry.
 
     Args:
@@ -502,14 +503,24 @@ def _get_package_version(package_name: str) -> str:
         '0.3.2'
 
     """
-    try:
-        import importlib.metadata
+    import importlib
+    import importlib.metadata
 
+    # Try importlib.metadata first (standard approach for installed packages)
+    with suppress(Exception):
         return importlib.metadata.version(package_name)
-    except Exception as err:
-        raise ImportError(
-            f"Could not determine version for package '{package_name}'. Ensure the package is installed. Error: {err}"
-        ) from err
+
+    # Fall back to checking __version__ attribute
+    with suppress(Exception):
+        module = importlib.import_module(package_name)
+        if hasattr(module, "__version__"):
+            return module.__version__
+
+    # If both methods fail, raise an informative error
+    raise ImportError(
+        f"Could not determine version for package '{package_name}'. "
+        f"Ensure the package is installed and has version metadata."
+    )
 
 
 def validate_deprecation_expiry(
@@ -550,17 +561,8 @@ def validate_deprecation_expiry(
 
         >>> # Check with version past some removal deadlines
         >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
-        >>> len(expired) > 0  # Some functions have remove_in="0.5"
-        True
-
-        >>> # Use in CI/CD pipeline (example pattern)
-        >>> # from my_package import __version__
-        >>> # expired = validate_deprecation_expiry("my_package", __version__)
-        >>> # assert not expired, f"Remove expired deprecated code: {expired}"
-
-        >>> # Auto-detect version (extracts package name from module path)
-        >>> # expired = validate_deprecation_expiry("mypackage")  # auto-detects version
-        >>> # assert not expired, f"Remove expired deprecated code: {expired}"
+        >>> print(len(expired))  # Some functions have remove_in="0.5"
+        20
 
     .. note::
        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
@@ -664,16 +666,16 @@ def find_deprecated_callables(
         >>> from tests import collection_deprecate as my_package
         >>>
         >>> results = find_deprecated_callables(my_package)
-        >>> len(results) > 0  # Should find deprecated functions
+        >>> print(len(results) > 0)  # Should find deprecated functions
         True
         >>> # Also works with string module paths
         >>> results = find_deprecated_callables("tests.collection_deprecate")
-        >>> len(results) > 0
+        >>> print(len(results) > 0)
         True
 
         >>> # Filter to find only problematic wrappers
         >>> problematic = [r for r in results if r.invalid_args or r.no_effect]
-        >>> len(problematic) >= 0  # May or may not have problematic ones
+        >>> print(len(results) > 0)  # May or may not have problematic ones
         True
 
     Note:
