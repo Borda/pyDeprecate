@@ -77,7 +77,7 @@ setup(
     setup_requires=[],
     install_requires=[],
     extras_require={
-        "audit": ["packaging>=20.0"],  # For check_module_deprecation_expiry and validation tools
+        "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
     },
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
     classifiers=[

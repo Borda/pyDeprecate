@@ -754,7 +754,6 @@ Found 0 expired
 
 </details>
 
-</details>
 
 <details>
 <summary><b>CI/pytest Integration for Expiry Enforcement</b></summary>
