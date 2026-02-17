@@ -40,6 +40,7 @@ ______________________________________________________________________
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
 - [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
 - [⏰ Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
+- [🔗 Detecting Deprecation Chains](#-detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#-testing-deprecated-code)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🤝 Contributing](#-contributing)
@@ -810,6 +811,121 @@ def enforce_deprecation_deadlines():
 > - Invalid version formats in `remove_in` are silently skipped
 > - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
 > - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
+
+## 🔗 Detecting Deprecation Chains
+
+When refactoring code, it's easy to create "lazy" deprecated wrappers that call other deprecated functions instead of calling the new target directly. This creates deprecation chains that defeat the purpose of deprecation.
+
+The `validate_deprecation_chains()` utility scans a module or package for deprecated functions whose `target` is itself a deprecated callable. Such chains are wasteful: the outer wrapper should point directly to the final (non-deprecated) implementation. Detection is purely metadata-based — no source-code inspection.
+
+<details>
+<summary><b>Example: Detecting Both Chain Types</b></summary>
+
+```python
+from deprecate import deprecated, validate_deprecated_callable, void
+
+
+def new_power(base: float, exponent: float = 2) -> float:
+    return base**exponent
+
+
+# deprecated forwarder — targets new_power directly
+@deprecated(target=new_power, deprecated_in="1.0", remove_in="2.0")
+def power_v2(base: float, exponent: float = 2) -> float:
+    void(base, exponent)
+
+
+# self-deprecation — renames old arg "exp" -> "exponent" within the same function
+@deprecated(True, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
+def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
+    return base**exponent
+
+
+# BAD: targets power_v2 (another deprecated forwarder) — ChainType.TARGET
+# SOLUTION: point directly to new_power
+@deprecated(target=power_v2, deprecated_in="1.5", remove_in="2.5")
+def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
+    return void(base, exponent)
+
+
+# BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED
+# Mappings chain: "power" -> "exp" -> "exponent" — must be composed.
+# SOLUTION: target=new_power, args_mapping={"power": "exponent"}
+@deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})
+def caller_stacked_chain(base: float, power: float = 2) -> float:  # ❌
+    return void(base, power)
+
+
+# GOOD: targets final implementation directly with composed mapping
+@deprecated(target=new_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exponent"})
+def caller_direct(base: float, power: float = 2) -> float:  # ✅
+    return void(base, power)
+
+
+for func in (caller_target_chain, caller_stacked_chain, caller_direct):
+    info = validate_deprecated_callable(func)
+    print(f"{func.__name__}: {info.chain_type}")
+```
+
+</details>
+
+<details>
+  <summary>Output: chain types</summary>
+
+```
+caller_target_chain: ChainType.TARGET
+caller_stacked_chain: ChainType.STACKED
+caller_direct: None
+```
+
+</details>
+
+<details>
+<summary><b>CI/pytest Integration for Chain Detection</b></summary>
+
+Integrate chain detection into your test suite to prevent deprecated-to-deprecated forwarding:
+
+```python
+import pytest
+from deprecate import validate_deprecation_chains
+
+# normally you would import your own package
+from tests import collection_chains as my_package
+
+
+def test_no_deprecation_chains():
+    """Ensure no deprecated function targets another deprecated function."""
+    issues = validate_deprecation_chains(my_package)
+
+    if issues:
+        lines = [
+            f"  - {i.function}: target '{getattr(i.deprecated_info['target'], '__name__', repr(i.deprecated_info['target']))}' is deprecated"
+            for i in issues
+        ]
+        pytest.fail("Found deprecation chains:\n" + "\n".join(lines))
+
+
+# Alternative: session-scoped auto-use fixture
+@pytest.fixture(scope="session", autouse=True)
+def enforce_no_deprecation_chains():
+    from tests import collection_chains as my_package
+
+    issues = validate_deprecation_chains(my_package)
+    if issues:
+        raise AssertionError(f"Found {len(issues)} deprecation chain(s). Fix before running tests.")
+```
+
+</details>
+
+> [!TIP]
+>
+> - The function scans all deprecated functions found by `find_deprecated_callables()`
+> - Returns `list[DeprecatedCallableInfo]` — each entry has `chain_type` set to a `ChainType` enum value
+> - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
+> - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
+>   - Callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming) — mappings compose across hops
+>   - Stacked `@deprecated(True, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
+> - Use `recursive=False` to scan only the top-level module
 
 ## 🧪 Testing Deprecated Code
 

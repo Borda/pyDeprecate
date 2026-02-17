@@ -691,11 +691,7 @@ def deprecated(
                 return source(**kwargs)
 
             target_func, use_positional_args = _prepare_target_call(
-                source,
-                target,
-                kwargs,
-                source_is_class,
-                source_has_var_positional,
+                source, target, kwargs, source_is_class, source_has_var_positional
             )
             # Positional args become kwargs for regular callables; class-level varargs keep positional values.
             # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
