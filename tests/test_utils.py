@@ -278,7 +278,7 @@ class TestValidateDeprecationChains:
         assert len(chain_funcs) > 0
 
         # The info must report ChainType.TARGET and expose the outer args_mapping
-        info = next(i for i in issues if "caller_acc_comp_depr_map" in i.function)
+        info = next(i for i in issues if i.function == "caller_acc_comp_depr_map")
         assert info.chain_type is ChainType.TARGET
         assert info.deprecated_info.get("args_mapping") == {"predictions": "preds", "labels": "truth"}
 
