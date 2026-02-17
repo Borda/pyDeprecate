@@ -826,7 +826,7 @@ from deprecate import deprecated, validate_deprecated_callable, void
 
 
 def new_power(base: float, exponent: float = 2) -> float:
-    return base ** exponent
+    return base**exponent
 
 
 # deprecated forwarder — targets new_power directly
