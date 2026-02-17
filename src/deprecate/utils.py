@@ -426,7 +426,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         if getattr(target, "__deprecated__", {}).get("target") is True:
             chain_type = ChainType.STACKED  # target is a self-deprecation wrapper — mappings compose
         else:
-            chain_type = ChainType.TARGET   # target forwards to another function
+            chain_type = ChainType.TARGET  # target forwards to another function
     elif target is True:
         wrapped = getattr(func, "__wrapped__", None)
         if wrapped is not None and getattr(wrapped, "__deprecated__", {}).get("target") is True:
