@@ -25,7 +25,6 @@ Key Classes:
 Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
-
 import inspect
 import warnings
 from collections.abc import Generator
