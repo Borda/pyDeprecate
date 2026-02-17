@@ -201,7 +201,7 @@ print(depr_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(depr_sum(1, 2))</code></summary>
 
 ```
 3
@@ -214,7 +214,7 @@ print(depr_sum(1, 2))
 Another more complex example is using argument mapping is:
 
 <details>
-  <summary>Advanced example</summary>
+  <summary>Example: mapping deprecated args to <code>sklearn.metrics.accuracy_score</code></summary>
 
 ```python
 import logging
@@ -273,7 +273,7 @@ print(my_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(my_sum(1, 2))</code></summary>
 
 ```
 3
@@ -312,7 +312,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
 
 ```
 8
@@ -325,7 +325,7 @@ print(any_pow(2, 3))
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
 
 <details>
-  <summary>Multiple deprecation levels</summary>
+  <summary>Example: chaining two argument deprecations across different versions</summary>
 
 ```python
 from deprecate import deprecated
@@ -398,7 +398,7 @@ print(skip_pow(2, 3))
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>skip_pow</code> before and after version change</summary>
 
 ```
 0.25
@@ -414,7 +414,7 @@ This can be beneficial with multiple deprecation levels shown above...
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: forwarding <code>__init__</code> to a successor class</summary>
 
 ```python
 class NewCls:
@@ -456,7 +456,7 @@ print(inst.my_d)  # returns: "efg"
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>PastCls</code> instance attributes</summary>
 
 ```
 7
@@ -470,7 +470,7 @@ efg
 You can automatically append deprecation information to your function's docstring:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
 
 ```python
 def new_function(x: int) -> int:
@@ -560,12 +560,10 @@ The `DeprecatedCallableInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 
-### Validating a Single Function
+<details>
+<summary><b>Validating a Single Function</b></summary>
 
 The `validate_deprecated_callable()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
@@ -617,12 +615,10 @@ if result.no_effect:
 
 </details>
 
-### Scanning a Package for Deprecated Wrappers
+<details>
+<summary><b>Scanning a Package for Deprecated Wrappers</b></summary>
 
 The `find_deprecated_callables()` utility scans an entire package or module and returns a list of `DeprecatedCallableInfo` dataclasses:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
@@ -651,12 +647,10 @@ if ineffective:
 
 </details>
 
-### Generating Reports by Issue Type
+<details>
+<summary><b>Generating Reports by Issue Type</b></summary>
 
 Group validation results by issue type for better reporting:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables
@@ -679,12 +673,10 @@ print(f"Self-references: {len(self_refs)}")
 
 </details>
 
-### CI/pytest Integration
+<details>
+<summary><b>CI/pytest Integration</b></summary>
 
 Use in pytest to validate your package's deprecation wrappers:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 import pytest
