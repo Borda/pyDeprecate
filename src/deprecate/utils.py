@@ -14,13 +14,12 @@ Key Functions:
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
+import inspect
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, Callable, Optional, Union
-
-import inspect
 
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, Any]]:
