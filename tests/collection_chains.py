@@ -3,21 +3,23 @@
 This module contains test examples for validate_deprecation_chains functionality.
 
 Deprecation Chain Schema:
-    Function Call Chains:
+    Function Call Chains (Bad Decorator Usage):
         caller_calls_deprecated (deprecated) → deprecated_callee (deprecated) ⇒ base_sum_kwargs (target)
         caller_calls_deprecated_no_target (deprecated) → deprecated_callee_no_target (deprecated, no target)
-        caller_no_deprecated_calls (deprecated) → base_sum_kwargs (target, direct - CORRECT)
-        non_deprecated_caller → deprecated_callee (deprecated) ⇒ base_sum_kwargs (target)
-
-    Deprecated Argument Usage:
         caller_passes_deprecated_arg (deprecated) → deprecated_callee_with_args(old_arg=...) 
             - Uses deprecated parameter 'old_arg' which maps to 'a' in target base_pow_args
+
+    Clean Implementation (Correct):
+        caller_no_deprecated_calls (deprecated) → base_sum_kwargs (target, direct - CORRECT)
 
     Legend:
         → : direct function call
         ⇒ : automatic forwarding via @deprecated(target=...)
         (deprecated): function wrapped with @deprecated decorator
         (target): final implementation that should be called directly
+        
+    Note: This module focuses on decorator/wrapper misuse. Non-deprecated functions
+          calling deprecated functions is out of scope for this validation.
 """
 
 from deprecate import deprecated
@@ -90,17 +92,6 @@ def caller_passes_deprecated_arg(value: float) -> float:
         deprecated argument names that should be updated.
     """
     return deprecated_callee_with_args(old_arg=value)
-
-
-def non_deprecated_caller(a: int, b: int = 5) -> int:
-    """Non-deprecated function calling a deprecated function.
-
-    Examples:
-        A regular function that hasn't been deprecated yet but still calls
-        a deprecated function. This should be flagged to update the call to
-        use the new target directly.
-    """
-    return deprecated_callee(a, b)
 
 
 @deprecated(target=None, deprecated_in="1.5", remove_in="2.5")

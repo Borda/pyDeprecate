@@ -270,17 +270,6 @@ def test_validate_deprecation_chains_detects_deprecated_args() -> None:
     assert any("old_arg" in issue[2] for issue in arg_issues)
 
 
-def test_validate_deprecation_chains_non_deprecated_caller() -> None:
-    """Test validate_deprecation_chains only checks deprecated functions."""
-    import tests.collection_chains as test_module
-
-    issues = validate_deprecation_chains(test_module, recursive=False)
-
-    # non_deprecated_caller should NOT be in the results (it's not deprecated itself)
-    callers = [issue[0] for issue in issues if "non_deprecated_caller" in issue[0]]
-    assert len(callers) == 0
-
-
 def test_validate_deprecation_chains_no_warnings_clean() -> None:
     """Test validate_deprecation_chains doesn't report clean code."""
     import tests.collection_chains as test_module
