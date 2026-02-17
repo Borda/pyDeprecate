@@ -340,7 +340,6 @@ class TestCheckDeprecationExpiry:
             Version parser correctly orders them so alpha < beta < rc < stable < post for accurate
             expiry checking across the release cycle.
         """
-        pytest.importorskip("packaging")
         from deprecate.utils import _parse_version
 
         versions = [
