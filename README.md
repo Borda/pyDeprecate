@@ -39,6 +39,8 @@ ______________________________________________________________________
   - [Automatic docstring updates](#-automatic-docstring-updates)
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
 - [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
+- [⏰ Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
+- [🔗 Detecting Deprecation Chains](#-detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#-testing-deprecated-code)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🤝 Contributing](#-contributing)
@@ -201,7 +203,7 @@ print(depr_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(depr_sum(1, 2))</code></summary>
 
 ```
 3
@@ -214,7 +216,7 @@ print(depr_sum(1, 2))
 Another more complex example is using argument mapping is:
 
 <details>
-  <summary>Advanced example</summary>
+  <summary>Example: mapping deprecated args to <code>sklearn.metrics.accuracy_score</code></summary>
 
 ```python
 import logging
@@ -273,7 +275,7 @@ print(my_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(my_sum(1, 2))</code></summary>
 
 ```
 3
@@ -312,7 +314,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
 
 ```
 8
@@ -325,7 +327,7 @@ print(any_pow(2, 3))
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
 
 <details>
-  <summary>Multiple deprecation levels</summary>
+  <summary>Example: chaining two argument deprecations across different versions</summary>
 
 ```python
 from deprecate import deprecated
@@ -368,7 +370,7 @@ code output:
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
 
 <details>
-<summary>Code example</summary>
+<summary>Example: <code>skip_if</code> based on a runtime condition</summary>
 
 ```python
 from deprecate import deprecated
@@ -398,7 +400,7 @@ print(skip_pow(2, 3))
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>skip_pow</code> before and after version change</summary>
 
 ```
 0.25
@@ -414,7 +416,7 @@ This can be beneficial with multiple deprecation levels shown above...
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: forwarding <code>__init__</code> to a successor class</summary>
 
 ```python
 class NewCls:
@@ -456,7 +458,7 @@ print(inst.my_d)  # returns: "efg"
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>PastCls</code> instance attributes</summary>
 
 ```
 7
@@ -470,7 +472,7 @@ efg
 You can automatically append deprecation information to your function's docstring:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
 
 ```python
 def new_function(x: int) -> int:
@@ -560,12 +562,10 @@ The `DeprecatedCallableInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 
-### Validating a Single Function
+<details>
+<summary><b>Validating a Single Function</b></summary>
 
 The `validate_deprecated_callable()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
@@ -617,12 +617,10 @@ if result.no_effect:
 
 </details>
 
-### Scanning a Package for Deprecated Wrappers
+<details>
+<summary><b>Scanning a Package for Deprecated Wrappers</b></summary>
 
 The `find_deprecated_callables()` utility scans an entire package or module and returns a list of `DeprecatedCallableInfo` dataclasses:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
@@ -651,12 +649,10 @@ if ineffective:
 
 </details>
 
-### Generating Reports by Issue Type
+<details>
+<summary><b>Generating Reports by Issue Type</b></summary>
 
 Group validation results by issue type for better reporting:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables
@@ -679,12 +675,10 @@ print(f"Self-references: {len(self_refs)}")
 
 </details>
 
-### CI/pytest Integration
+<details>
+<summary><b>CI/pytest Integration</b></summary>
 
 Use in pytest to validate your package's deprecation wrappers:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 import pytest
@@ -714,6 +708,224 @@ def test_deprecated_wrappers_are_valid():
 ```
 
 </details>
+
+## ⏰ Enforcing Deprecation Removal Deadlines
+
+When you deprecate code with a `remove_in` version, you're making a commitment to remove that code when that version is reached. However, it's easy to forget to actually remove the code—leading to "zombie code" that lingers past its scheduled removal.
+
+pyDeprecate provides enforcement utilities to detect and prevent zombie code in your CI/CD pipeline:
+
+The `validate_deprecation_expiry()` utility scans an entire module or package for expired deprecations:
+
+<details>
+<summary>Example: scanning a package for expired removal deadlines</summary>
+
+```python
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+# Scan your package for expired deprecations - using early-version that won't have expirations
+expired = validate_deprecation_expiry(my_package, "0.2")
+print(f"Found {len(expired)} expired")  # Returns a list of error messages (empty list = no expired)
+
+# Example with expired deprecations found (using later-version)
+expired = validate_deprecation_expiry(my_package, "0.5")
+print(f"Found {len(expired)} expired")
+
+# Auto-detect version from package metadata (mocked for demo)
+from unittest.mock import patch
+
+with patch("importlib.metadata.version", return_value="0.3"):
+    expired = validate_deprecation_expiry(my_package)  # Automatically detects version
+    print(f"Found {len(expired)} expired")
+
+# Control recursion
+expired = validate_deprecation_expiry(my_package, "0.1", recursive=False)  # Only scan top-level module
+print(f"Found {len(expired)} expired")
+```
+
+</details>
+
+<details>
+  <summary>Output: expired count per scanned version</summary>
+
+```
+Found 12 expired
+Found 20 expired
+Found 14 expired
+Found 0 expired
+```
+
+</details>
+
+<details>
+<summary><b>CI/pytest Integration for Expiry Enforcement</b></summary>
+
+Integrate expiry checks into your test suite to catch zombie code automatically:
+
+```python
+import pytest
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+
+def test_no_zombie_deprecations():
+    """Ensure all deprecated code is removed when it reaches its deadline."""
+    # Use your package's actual version - for this example we use a test version
+    current_version = "0.5"  # Replace with: from mypackage import __version__
+
+    expired = validate_deprecation_expiry(my_package, current_version)
+
+    if expired:
+        error_msg = "Found deprecated code past its removal deadline:\n"
+        for msg in expired:
+            error_msg += f"  - {msg}\n"
+        pytest.fail(error_msg)
+
+
+# Alternative: Use a fixture to run on every test session
+# For testing purposes, we use the test module; normally you would import your own package
+@pytest.fixture(scope="session", autouse=True)
+def enforce_deprecation_deadlines():
+    """Automatically check for zombie code before running any tests."""
+    from tests import collection_deprecate as my_package
+
+    current_version = "0.5"  # Replace with: from mypackage import __version__
+    expired = validate_deprecation_expiry(my_package, current_version)
+    if expired:
+        raise AssertionError(
+            f"Cannot run tests: {len(expired)} deprecated callables past removal deadline. "
+            f"Remove these functions first: {expired}"
+        )
+```
+
+</details>
+
+> [!TIP]
+>
+> - Callables without `remove_in` are skipped (warnings-only deprecations are allowed)
+> - Invalid version formats in `remove_in` are silently skipped
+> - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
+> - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
+
+## 🔗 Detecting Deprecation Chains
+
+When refactoring code, it's easy to create "lazy" deprecated wrappers that call other deprecated functions instead of calling the new target directly. This creates deprecation chains that defeat the purpose of deprecation.
+
+The `validate_deprecation_chains()` utility scans a module or package for deprecated functions whose `target` is itself a deprecated callable. Such chains are wasteful: the outer wrapper should point directly to the final (non-deprecated) implementation. Detection is purely metadata-based — no source-code inspection.
+
+<details>
+<summary><b>Example: Detecting Both Chain Types</b></summary>
+
+```python
+from deprecate import deprecated, validate_deprecated_callable, void
+
+
+def new_power(base: float, exponent: float = 2) -> float:
+    return base**exponent
+
+
+# deprecated forwarder — targets new_power directly
+@deprecated(target=new_power, deprecated_in="1.0", remove_in="2.0")
+def power_v2(base: float, exponent: float = 2) -> float:
+    void(base, exponent)
+
+
+# self-deprecation — renames old arg "exp" -> "exponent" within the same function
+@deprecated(True, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
+def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
+    return base**exponent
+
+
+# BAD: targets power_v2 (another deprecated forwarder) — ChainType.TARGET
+# SOLUTION: point directly to new_power
+@deprecated(target=power_v2, deprecated_in="1.5", remove_in="2.5")
+def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
+    return void(base, exponent)
+
+
+# BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED
+# Mappings chain: "power" -> "exp" -> "exponent" — must be composed.
+# SOLUTION: target=new_power, args_mapping={"power": "exponent"}
+@deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})
+def caller_stacked_chain(base: float, power: float = 2) -> float:  # ❌
+    return void(base, power)
+
+
+# GOOD: targets final implementation directly with composed mapping
+@deprecated(target=new_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exponent"})
+def caller_direct(base: float, power: float = 2) -> float:  # ✅
+    return void(base, power)
+
+
+for func in (caller_target_chain, caller_stacked_chain, caller_direct):
+    info = validate_deprecated_callable(func)
+    print(f"{func.__name__}: {info.chain_type}")
+```
+
+</details>
+
+<details>
+  <summary>Output: chain types</summary>
+
+```
+caller_target_chain: ChainType.TARGET
+caller_stacked_chain: ChainType.STACKED
+caller_direct: None
+```
+
+</details>
+
+<details>
+<summary><b>CI/pytest Integration for Chain Detection</b></summary>
+
+Integrate chain detection into your test suite to prevent deprecated-to-deprecated forwarding:
+
+```python
+import pytest
+from deprecate import validate_deprecation_chains
+
+# normally you would import your own package
+from tests import collection_chains as my_package
+
+
+def test_no_deprecation_chains():
+    """Ensure no deprecated function targets another deprecated function."""
+    issues = validate_deprecation_chains(my_package)
+
+    if issues:
+        lines = [
+            f"  - {i.function}: target '{getattr(i.deprecated_info['target'], '__name__', repr(i.deprecated_info['target']))}' is deprecated"
+            for i in issues
+        ]
+        pytest.fail("Found deprecation chains:\n" + "\n".join(lines))
+
+
+# Alternative: session-scoped auto-use fixture
+@pytest.fixture(scope="session", autouse=True)
+def enforce_no_deprecation_chains():
+    from tests import collection_chains as my_package
+
+    issues = validate_deprecation_chains(my_package)
+    if issues:
+        raise AssertionError(f"Found {len(issues)} deprecation chain(s). Fix before running tests.")
+```
+
+</details>
+
+> [!TIP]
+>
+> - The function scans all deprecated functions found by `find_deprecated_callables()`
+> - Returns `list[DeprecatedCallableInfo]` — each entry has `chain_type` set to a `ChainType` enum value
+> - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
+> - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
+>   - Callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming) — mappings compose across hops
+>   - Stacked `@deprecated(True, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
+> - Use `recursive=False` to scan only the top-level module
 
 ## 🧪 Testing Deprecated Code
 
