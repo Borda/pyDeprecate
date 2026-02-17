@@ -11,16 +11,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Set up Python
+      - name: 🐍 Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Install package
+      - name: 📦 Install package
         run: pip install -e . -r temp_docs/requirements.txt
 
-      - name: Build documentation
+      - name: 📖 Build documentation
         working-directory: temp_docs
         run: make html

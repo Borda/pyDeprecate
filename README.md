@@ -15,7 +15,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/borda/pydeprecate/badge)](https://www.codefactor.io/repository/github/borda/pydeprecate)
 
 [![CI testing](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml/badge.svg?branch=main&event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/ci_testing.yml)
-[![Code formatting](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml/badge.svg?branch=main&event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/code-format.yml)
+[![Install pkg](https://github.com/Borda/pyDeprecate/actions/workflows/ci_install-pkg.yml/badge.svg?branch=main&event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/ci_install-pkg.yml)
 [![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Borda/pyDeprecate/main.svg)](https://results.pre-commit.ci/latest/github/Borda/pyDeprecate/main)
 
@@ -23,24 +23,26 @@ ______________________________________________________________________
 
 ## 📋 Table of Contents
 
-- [📖 Overview](#overview)
-- [✨ Features](#features)
-- [💾 Installation](#installation)
-- [🚀 Quick Start](#quick-start)
-- [📚 Use-cases and Applications](#use-cases-and-applications)
-  - [Simple function forwarding](#simple-function-forwarding)
-  - [Advanced target argument mapping](#advanced-target-argument-mapping)
-  - [Deprecation warning only](#deprecation-warning-only)
-  - [Self argument mapping](#self-argument-mapping)
-  - [Multiple deprecation levels](#multiple-deprecation-levels)
-  - [Conditional skip](#conditional-skip)
-  - [Class deprecation](#class-deprecation)
-  - [Automatic docstring updates](#automatic-docstring-updates)
-- [🔇 Understanding the void() Helper](#understanding-the-void-helper)
-- [🔍 Validating Wrapper Configuration](#validating-wrapper-configuration)
-- [🧪 Testing Deprecated Code](#testing-deprecated-code)
-- [🔧 Troubleshooting](#troubleshooting)
-- [🤝 Contributing](#contributing)
+- [📖 Overview](#-overview)
+- [✨ Features](#-features)
+  - [Comparison with Other Tools](#-comparison-with-other-tools)
+- [💾 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [📚 Use-cases and Applications](#-use-cases-and-applications)
+  - [Simple function forwarding](#-simple-function-forwarding)
+  - [Advanced target argument mapping](#-advanced-target-argument-mapping)
+  - [Deprecation warning only](#-deprecation-warning-only)
+  - [Self argument mapping](#-self-argument-mapping)
+  - [Multiple deprecation levels](#-multiple-deprecation-levels)
+  - [Conditional skip](#-conditional-skip)
+  - [Class deprecation](#-class-deprecation)
+  - [Automatic docstring updates](#-automatic-docstring-updates)
+- [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
+- [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
+- [⏰ Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
+- [🧪 Testing Deprecated Code](#-testing-deprecated-code)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [🤝 Contributing](#-contributing)
 
 ## 📖 Overview
 
@@ -62,6 +64,48 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
 - 🧪 Includes testing helpers (e.g., `no_warning_call`) for deterministic tests
 - 🔗 Compatible with methods, class constructors and cross‑module moves
+
+### 📊 Comparison with Other Tools
+
+> 💬 _How does pyDeprecate compare to other Python deprecation solutions?_
+
+While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, other tools might fit different needs:
+
+- [`warnings.warn`](https://docs.python.org/3/library/warnings.html) (stdlib): The standard library's built-in function, perfect for simple cases requiring no dependencies.
+- [`deprecation`](https://pypi.org/project/deprecation/) (Lib): A widely used library by Brian Curtin, excellent for version-based deprecations.
+- [`Deprecated`](https://pypi.org/project/Deprecated/) (wrapt): A robust decorator-based library by Laurent Laporte with `wrapt` integration.
+
+<details>
+  <summary><strong>Key Advantages & Feature Breakdown</strong></summary>
+
+- **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
+- **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
+- **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
+- **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
+- **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
+- **Version Tracking**: Clearly specifies `deprecated_in` and `remove_in` versions for better lifecycle management.
+- **Prevent Log Spam**: Prevents log spam by showing warnings only once per function (or N times) by default.
+- **Zero Extra Depend.**: Lightweight and easy to install, relying solely on the Python standard library.
+- **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
+- **Testing Helpers**: Built-in tools like `no_warning_call()` ensure your deprecations are testable and deterministic.
+
+</details>
+
+| Feature                  | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) |
+| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Argument Deprecation** |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |
+| **Version Tracking**     |      ✅       |       🖐️ (manual)        |         ✅          |          ✅          |
+| **Prevent Log Spam**     |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |
+| **Custom Streams**       |      ✅       |            ✅            |         ❌          |          ❌          |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |
+
+> [!NOTE]
+> This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
 
 ## 💾 Installation
 
@@ -127,7 +171,7 @@ In particular the target values (cases):
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
-### ➡️ Simple function forwarding
+### ➡ Simple function forwarding
 
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
 
@@ -158,7 +202,7 @@ print(depr_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(depr_sum(1, 2))</code></summary>
 
 ```
 3
@@ -171,7 +215,7 @@ print(depr_sum(1, 2))
 Another more complex example is using argument mapping is:
 
 <details>
-  <summary>Advanced example</summary>
+  <summary>Example: mapping deprecated args to <code>sklearn.metrics.accuracy_score</code></summary>
 
 ```python
 import logging
@@ -210,7 +254,7 @@ sample output:
 
 </details>
 
-### ⚠️ Deprecation warning only
+### ⚠ Deprecation warning only
 
 Base use-case with no forwarding and just raising a warning:
 
@@ -230,7 +274,7 @@ print(my_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(my_sum(1, 2))</code></summary>
 
 ```
 3
@@ -238,7 +282,8 @@ print(my_sum(1, 2))
 
 </details>
 
-**Note:** When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
+> [!NOTE]
+> When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
 
 ### 🔄 Self argument mapping
 
@@ -268,7 +313,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
 
 ```
 8
@@ -281,7 +326,7 @@ print(any_pow(2, 3))
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
 
 <details>
-  <summary>Multiple deprecation levels</summary>
+  <summary>Example: chaining two argument deprecations across different versions</summary>
 
 ```python
 from deprecate import deprecated
@@ -319,12 +364,12 @@ code output:
 
 </details>
 
-### ⚙️ Conditional skip
+### ⚙ Conditional skip
 
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
 
 <details>
-<summary>Code example</summary>
+<summary>Example: <code>skip_if</code> based on a runtime condition</summary>
 
 ```python
 from deprecate import deprecated
@@ -354,7 +399,7 @@ print(skip_pow(2, 3))
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>skip_pow</code> before and after version change</summary>
 
 ```
 0.25
@@ -365,12 +410,12 @@ print(skip_pow(2, 3))
 
 This can be beneficial with multiple deprecation levels shown above...
 
-### 🏗️ Class deprecation
+### 🏗 Class deprecation
 
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: forwarding <code>__init__</code> to a successor class</summary>
 
 ```python
 class NewCls:
@@ -412,7 +457,7 @@ print(inst.my_d)  # returns: "efg"
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>PastCls</code> instance attributes</summary>
 
 ```
 7
@@ -426,7 +471,7 @@ efg
 You can automatically append deprecation information to your function's docstring:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
 
 ```python
 def new_function(x: int) -> int:
@@ -498,7 +543,8 @@ def old_add_v2(a: int, b: int) -> int:
     pass  # This also works
 ```
 
-**💡 Note:** `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
+> [!TIP]
+> `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
 
 ## 🔍 Validating Wrapper Configuration
 
@@ -515,12 +561,10 @@ The `DeprecatedCallableInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 
-### Validating a Single Function
+<details>
+<summary><b>Validating a Single Function</b></summary>
 
 The `validate_deprecated_callable()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
@@ -572,12 +616,10 @@ if result.no_effect:
 
 </details>
 
-### Scanning a Package for Deprecated Wrappers
+<details>
+<summary><b>Scanning a Package for Deprecated Wrappers</b></summary>
 
 The `find_deprecated_callables()` utility scans an entire package or module and returns a list of `DeprecatedCallableInfo` dataclasses:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables, DeprecatedCallableInfo
@@ -596,9 +638,7 @@ for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(
-            f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}"
-        )
+        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if r.no_effect]
@@ -608,12 +648,10 @@ if ineffective:
 
 </details>
 
-### Generating Reports by Issue Type
+<details>
+<summary><b>Generating Reports by Issue Type</b></summary>
 
 Group validation results by issue type for better reporting:
-
-<details>
-<summary>Code example</summary>
 
 ```python
 from deprecate import find_deprecated_callables
@@ -636,7 +674,8 @@ print(f"Self-references: {len(self_refs)}")
 
 </details>
 
-### 🖥️ Using the CLI
+<details>
+<summary><b>Using the CLI</b></summary>
 
 You can also use the CLI to validate your deprecations directly from the command line:
 
@@ -646,12 +685,12 @@ pydeprecate path/to/your/package
 
 This will scan the specified package and report any issues found, such as invalid argument mappings or wrappers with no effect.
 
-### CI/pytest Integration
-
-Use in pytest to validate your package's deprecation wrappers:
+</details>
 
 <details>
-<summary>Code example</summary>
+<summary><b>CI/pytest Integration</b></summary>
+
+Use in pytest to validate your package's deprecation wrappers:
 
 ```python
 import pytest
@@ -673,9 +712,7 @@ def test_deprecated_wrappers_are_valid():
     if wrong_args:
         for r in wrong_args:
             print(f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}")
-        pytest.fail(
-            f"Found {len(wrong_args)} deprecated wrappers with invalid arguments"
-        )
+        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid arguments")
 
     # Warn for identity mappings (less severe)
     for r in identity_mappings:
@@ -683,6 +720,109 @@ def test_deprecated_wrappers_are_valid():
 ```
 
 </details>
+
+## ⏰ Enforcing Deprecation Removal Deadlines
+
+When you deprecate code with a `remove_in` version, you're making a commitment to remove that code when that version is reached. However, it's easy to forget to actually remove the code—leading to "zombie code" that lingers past its scheduled removal.
+
+pyDeprecate provides enforcement utilities to detect and prevent zombie code in your CI/CD pipeline:
+
+The `validate_deprecation_expiry()` utility scans an entire module or package for expired deprecations:
+
+<details>
+<summary>Example: scanning a package for expired removal deadlines</summary>
+
+```python
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+# Scan your package for expired deprecations - using early-version that won't have expirations
+expired = validate_deprecation_expiry(my_package, "0.2")
+print(f"Found {len(expired)} expired")  # Returns a list of error messages (empty list = no expired)
+
+# Example with expired deprecations found (using later-version)
+expired = validate_deprecation_expiry(my_package, "0.5")
+print(f"Found {len(expired)} expired")
+
+# Auto-detect version from package metadata (mocked for demo)
+from unittest.mock import patch
+
+with patch("importlib.metadata.version", return_value="0.3"):
+    expired = validate_deprecation_expiry(my_package)  # Automatically detects version
+    print(f"Found {len(expired)} expired")
+
+# Control recursion
+expired = validate_deprecation_expiry(my_package, "0.1", recursive=False)  # Only scan top-level module
+print(f"Found {len(expired)} expired")
+```
+
+</details>
+
+<details>
+  <summary>Output: expired count per scanned version</summary>
+
+```
+Found 12 expired
+Found 20 expired
+Found 14 expired
+Found 0 expired
+```
+
+</details>
+
+<details>
+<summary><b>CI/pytest Integration for Expiry Enforcement</b></summary>
+
+Integrate expiry checks into your test suite to catch zombie code automatically:
+
+```python
+import pytest
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+
+def test_no_zombie_deprecations():
+    """Ensure all deprecated code is removed when it reaches its deadline."""
+    # Use your package's actual version - for this example we use a test version
+    current_version = "0.5"  # Replace with: from mypackage import __version__
+
+    expired = validate_deprecation_expiry(my_package, current_version)
+
+    if expired:
+        error_msg = "Found deprecated code past its removal deadline:\n"
+        for msg in expired:
+            error_msg += f"  - {msg}\n"
+        pytest.fail(error_msg)
+
+
+# Alternative: Use a fixture to run on every test session
+# For testing purposes, we use the test module; normally you would import your own package
+@pytest.fixture(scope="session", autouse=True)
+def enforce_deprecation_deadlines():
+    """Automatically check for zombie code before running any tests."""
+    from tests import collection_deprecate as my_package
+
+    current_version = "0.5"  # Replace with: from mypackage import __version__
+    expired = validate_deprecation_expiry(my_package, current_version)
+    if expired:
+        raise AssertionError(
+            f"Cannot run tests: {len(expired)} deprecated callables past removal deadline. "
+            f"Remove these functions first: {expired}"
+        )
+```
+
+</details>
+
+> [!TIP]
+>
+> - Callables without `remove_in` are skipped (warnings-only deprecations are allowed)
+> - Invalid version formats in `remove_in` are silently skipped
+> - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
+> - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
 
 ## 🧪 Testing Deprecated Code
 

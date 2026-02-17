@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-"""Copyright (C) 2020-2023 Jiri Borovec <...>."""
+"""Copyright (C) 2020-2026 Jiri Borovec <...>."""
 
 import os
 import re
 from importlib.util import module_from_spec, spec_from_file_location
+from typing import Any
 
 # Always prefer setuptools over distutils
 from setuptools import find_packages, setup
@@ -12,10 +13,10 @@ _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
 
 
-def _load_py_module(fname: str, pkg: str = "deprecate"):  # noqa: ANN202
+def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:  # noqa: ANN401
     spec = spec_from_file_location(os.path.join(pkg, fname), os.path.join(_PATH_SOURCE, pkg, fname))
-    py = module_from_spec(spec)
-    spec.loader.exec_module(py)
+    py = module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(py)  # type: ignore[union-attr]
     return py
 
 
@@ -33,7 +34,6 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     with open(path_readme, encoding="utf-8") as fp:
         text = fp.read()
 
-    # https://github.com/Borda/pyDeprecate/raw/main/docs/source/_static/images/...png
     github_source_url = os.path.join(codebase_url, "raw", version)
     # replace relative repository path to absolute link to the release
     #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs
@@ -76,6 +76,9 @@ setup(
     python_requires=">=3.9",
     setup_requires=[],
     install_requires=[],
+    extras_require={
+        "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
+    },
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
     entry_points={
         "console_scripts": [
