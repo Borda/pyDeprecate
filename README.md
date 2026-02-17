@@ -554,7 +554,7 @@ Deprecations are only as good as the hygiene around them. The `deprecate.audit` 
 
 ### Validating Wrapper Configuration
 
-During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this:
+During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this: `validate_deprecated_callable()` for inspecting a single function, and `find_deprecated_callables()` for scanning an entire package.
 
 The `DeprecatedCallableInfo` dataclass contains:
 
@@ -628,7 +628,7 @@ if result.no_effect:
 The `find_deprecated_callables()` utility scans an entire package or module and returns a list of `DeprecatedCallableInfo` dataclasses:
 
 ```python
-from deprecate import find_deprecated_callables, DeprecatedCallableInfo
+from deprecate import find_deprecated_callables
 
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
@@ -686,6 +686,8 @@ print(f"Self-references: {len(self_refs)}")
 Use in pytest to validate your package's deprecation wrappers:
 
 ```python
+import warnings
+
 import pytest
 from deprecate import find_deprecated_callables
 
@@ -697,7 +699,7 @@ def test_deprecated_wrappers_are_valid():
     """Validate all deprecated wrappers have proper configuration."""
     results = find_deprecated_callables(my_package)
 
-    # Collect issues - errors for wrong args, warnings for identity mappings
+    # Collect issues — wrong arg names are errors, identity mappings are worth a warning
     wrong_args = [r for r in results if r.invalid_args]
     identity_mappings = [r for r in results if r.identity_mapping]
 
