@@ -1,21 +1,28 @@
 """Audit tools for deprecation lifecycle management.
 
-This module provides tooling for developers and CI pipelines to verify that
-deprecated callables are correctly configured and their removal schedules are honoured.
+This module provides three complementary utilities for verifying the health of
+deprecated callables across a codebase. All three are designed to be called from
+pytest or a CI script against an imported package.
 
-Key Functions:
-    - :func:`validate_deprecated_callable`: Validate a single wrapper configuration
-    - :func:`validate_deprecation_chains`: Detect deprecated functions calling other deprecated functions
-    - :func:`validate_deprecation_expiry`: Check all deprecated code in a module for expired deadlines
-    - :func:`find_deprecated_callables`: Scan a package for deprecated wrappers
+**Wrapper configuration** (:func:`validate_deprecated_callable`, :func:`find_deprecated_callables`):
+    Detect wrappers that have zero impact — invalid ``args_mapping`` keys, identity
+    mappings, empty mappings, or a ``target`` pointing back to the same function.
 
-Key Classes:
-    - :class:`DeprecatedCallableInfo`: Dataclass for deprecated callable information
-    - :class:`ChainType`: Enum describing the type of deprecation chain detected
+**Expiry enforcement** (:func:`validate_deprecation_expiry`):
+    Detect wrappers whose ``remove_in`` version has been reached or passed, preventing
+    zombie code from shipping past its scheduled removal deadline.
+
+**Chain detection** (:func:`validate_deprecation_chains`):
+    Detect wrappers whose ``target`` is itself a deprecated callable, forming a chain
+    that users traverse unnecessarily. Two chain kinds are reported via :class:`ChainType`:
+    ``TARGET`` (forwarding chain) and ``STACKED`` (composed argument mappings).
+
+Results are returned as :class:`DeprecatedCallableInfo` dataclasses, which carry both
+identification info and structured validation results for programmatic processing.
 
 .. note::
-   Version comparison features (``validate_deprecation_expiry()``)
-   require the 'packaging' library. Install with: ``pip install pyDeprecate[audit]``
+   :func:`validate_deprecation_expiry` requires the ``packaging`` library for PEP 440
+   version comparison. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """

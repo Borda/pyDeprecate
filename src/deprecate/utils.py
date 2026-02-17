@@ -1,15 +1,17 @@
-"""Utility helpers for the deprecation system.
+"""Low-level helpers for the deprecation system.
 
-This module provides supporting helpers used internally by the deprecation decorator
-and exposed for use in tests:
-    - Function signature introspection
-    - Testing utilities for deprecated code
-    - Warning management tools
+This module provides two kinds of helpers:
 
-Key Functions:
-    - :func:`get_func_arguments_types_defaults`: Extract function signature details
-    - :func:`no_warning_call`: Context manager for testing code without warnings
-    - :func:`void`: Helper to silence IDE warnings about unused parameters
+**Internal** (used by :mod:`deprecate.deprecation` and :mod:`deprecate.audit`):
+    - :func:`get_func_arguments_types_defaults`: Extract parameter names, annotations,
+      and defaults from a callable's signature. Used when applying ``args_mapping``
+      and when auditing wrapper configuration.
+
+**Public** (exported via :mod:`deprecate`):
+    - :func:`no_warning_call`: Context manager that asserts no warnings are raised
+      during a block — the inverse of ``pytest.warns()``.
+    - :func:`void`: Accepts any arguments and returns ``None``. Used in deprecated
+      function stubs to suppress IDE "unused parameter" warnings.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
