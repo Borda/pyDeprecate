@@ -67,7 +67,7 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ final     | accuracy_score             ║
     ╚════════════════════════════════════════╝
-    # Fix: target=accuracy_score,
+    # Solution: target=accuracy_score,
     #   args_mapping={"predictions": "y_pred", "labels": "y_true"}
 
     BAD — stacked self-deprecation arg mappings (should be collapsed):
@@ -86,7 +86,7 @@ Deprecation Chain Schema:
     ║ target    |  True (self)               ║
     ║ mapping   |  "nc1" -> "nc2"            ║
     ╚════════════════════════════════════════╝
-    # Fix: single @deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
+    # Solution: single @deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
 
     BAD — callable target is itself a self-deprecation (mappings must compose):
 
@@ -104,7 +104,7 @@ Deprecation Chain Schema:
     ║ target    |  True (self)               ║
     ║ mapping   |  "coef" -> "new_coef"      ║
     ╚════════════════════════════════════════╝
-    # Fix: target=depr_pow_self.__wrapped__,
+    # Solution: target=depr_pow_self.__wrapped__,
     #   args_mapping={"exp": "new_coef"}
 
     GOOD — outer target is not deprecated (no chain):
