@@ -260,9 +260,9 @@ pre-commit install
 
 # 5. Make your changes
 
-# 6. Run linter and tests before committing
-pre-commit run --all-files         # Run linter first (optional - runs on commit anyway)
-pytest tests/                      # Run test suite
+# 6. Run linting & tests
+pre-commit run --all-files  # Run linter first (optional - runs on commit anyway)
+pytest tests/  # Run test suite
 
 # 7. Commit your changes (pre-commit hooks run automatically)
 git add -A        # Stage all modified and new files
@@ -278,13 +278,15 @@ git push origin fix/123-your-bug-description
 
 ### Style & Formatting
 
-- Follow [PEP 8](https://pep8.org/) style guidelines
-- Write clear, descriptive docstrings (Google-style convention)
-- Keep functions focused and modular
-- Add type hints to all function signatures aligned with the **minimum supported Python version** (check `python_requires` in `setup.py`). If unsure about syntax compatibility, consult the official Python documentation for the minimum version or search for PEP references
-- Write meaningful variable and function names
-- Add comments only where the code is not self-explanatory
-- No bare `except:` — always catch specific exceptions
+- Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
+- Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior
+- Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
+- Add type hints to all function signatures, including return types
+- Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
+- If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
+- Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
+- Add comments only where the logic is not self-evident — explain *why*, not *what*
+- No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
 > **All linting and formatting is automatically handled by pre-commit hooks** on every commit. Tools include `ruff` (formatting/linting) and `mypy` (type checking). Configs live in `pyproject.toml` and `.pre-commit-config.yaml`. The hooks will prevent commits with style violations.
