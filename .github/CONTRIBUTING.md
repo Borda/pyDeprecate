@@ -191,15 +191,21 @@ Tests and quality improvements are **always welcome**! These contributions are h
 pip install -e . "pre-commit" -r tests/requirements.txt
 pre-commit install
 
+# Run linting and formatting first (optional - runs automatically on commit)
+pre-commit run --all-files
+
+# Generate/extract README examples as tests (when updating README examples)
+phmdoctest README.md --outfile tests/test_readme.py
+
 # Run the full test suite (including doctests if configured in pytest)
 pytest .
-
-# Run linting and formatting manually (optional - runs automatically on commit)
-pre-commit run --all-files
 ```
 
 > [!TIP]
 > Pre-commit hooks run **automatically** on every commit, handling all linting and formatting (ruff, mypy). You only need to run `pre-commit run --all-files` manually if you want to check before committing.
+
+> [!NOTE]
+> When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves.
 
 ## 💎 Quality Expectations
 
@@ -254,8 +260,9 @@ pre-commit install
 
 # 5. Make your changes
 
-# 6. Run tests
-pytest tests/
+# 6. Run linting & tests
+pre-commit run --all-files  # Run linter first (optional - runs on commit anyway)
+pytest tests/  # Run test suite
 
 # 7. Commit your changes (pre-commit hooks run automatically)
 git add -A        # Stage all modified and new files
@@ -271,13 +278,15 @@ git push origin fix/123-your-bug-description
 
 ### Style & Formatting
 
-- Follow [PEP 8](https://pep8.org/) style guidelines
-- Write clear, descriptive docstrings (Google-style convention)
-- Keep functions focused and modular
-- Add type hints to all function signatures
-- Write meaningful variable and function names
-- Add comments only where the code is not self-explanatory
-- No bare `except:` — always catch specific exceptions
+- Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
+- Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior
+- Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
+- Add type hints to all function signatures, including return types
+- Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
+- If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
+- Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
+- Add comments only where the logic is not self-evident — explain *why*, not *what*
+- No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
 > **All linting and formatting is automatically handled by pre-commit hooks** on every commit. Tools include `ruff` (formatting/linting) and `mypy` (type checking). Configs live in `pyproject.toml` and `.pre-commit-config.yaml`. The hooks will prevent commits with style violations.
