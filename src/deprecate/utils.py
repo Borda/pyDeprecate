@@ -25,7 +25,7 @@ Key Classes:
 Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
-import importlib
+
 import inspect
 import warnings
 from collections.abc import Generator
@@ -91,7 +91,7 @@ def _parse_version(version_string: str) -> "Version":
 
 
 class ChainType(Enum):
-    """Type of deprecation chain detected by ``validate_deprecated_callable()``.
+    """Type of deprecation chain detected by ``validate_deprecation_chains()``.
 
     Attributes:
         TARGET: The ``target`` argument is itself a callable decorated with ``@deprecated``
