@@ -608,6 +608,8 @@ def validate_deprecation_expiry(
        - Can be integrated into test suites or pre-commit hooks
 
     """
+    import importlib
+
     # Determine module name for auto-version detection
     module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
 
@@ -718,6 +720,7 @@ def find_deprecated_callables(
         - Handles import errors gracefully (warnings are suppressed)
 
     """
+    import importlib
     import pkgutil
 
     results: list[DeprecatedCallableInfo] = []
