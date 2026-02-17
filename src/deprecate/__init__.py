@@ -77,6 +77,7 @@ from deprecate.utils import (  # noqa: E402, F401
 __all__ = [
     "deprecated",
     "DeprecatedCallableInfo",
+    "validate_deprecation_chains",
     "validate_deprecation_expiry",
     "find_deprecated_callables",
     "no_warning_call",
