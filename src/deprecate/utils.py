@@ -27,9 +27,7 @@ Copyright (C) 2020-2026 Jiri Borovec <...>
 
 import ast
 import importlib
-import importlib.metadata
 import inspect
-import pkgutil
 import sys
 import warnings
 from collections.abc import Generator
@@ -509,6 +507,8 @@ def _get_package_version(package_name: str) -> str:
         '0.3.2'
 
     """
+    import importlib.metadata
+
     # Try importlib.metadata first (standard approach for installed packages)
     with suppress(Exception):
         return importlib.metadata.version(package_name)
@@ -686,6 +686,8 @@ def find_deprecated_callables(
         - Handles import errors gracefully (warnings are suppressed)
 
     """
+    import pkgutil
+
     results: list[DeprecatedCallableInfo] = []
 
     # Handle string module path
