@@ -40,6 +40,7 @@ ______________________________________________________________________
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
 - [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
 - [⏰ Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
+- [🔗 Detecting Deprecation Chains](#-detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#-testing-deprecated-code)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🤝 Contributing](#-contributing)
@@ -810,6 +811,112 @@ def enforce_deprecation_deadlines():
 > - Invalid version formats in `remove_in` are silently skipped
 > - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
 > - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
+
+## 🔗 Detecting Deprecation Chains
+
+When refactoring code, it's easy to create "lazy" deprecated wrappers that call other deprecated functions instead of calling the new target directly. This creates deprecation chains that defeat the purpose of deprecation.
+
+The `validate_deprecation_chains()` utility scans a module or package to detect when deprecated functions call other deprecated functions:
+
+<details>
+<summary><b>Example: Scanning for Deprecation Chains</b></summary>
+
+```python
+from deprecate import deprecated, validate_deprecation_chains
+
+
+# Example deprecated functions
+def new_implementation(x: int) -> int:
+    return x * 2
+
+
+@deprecated(target=new_implementation, deprecated_in="1.0", remove_in="2.0")
+def old_func(x: int) -> int:
+    pass
+
+
+# BAD: Lazy wrapper calling another deprecated function
+@deprecated(target=None, deprecated_in="1.5", remove_in="2.5")
+def lazy_wrapper(x: int) -> int:
+    return old_func(x)  # ❌ Calls deprecated function instead of new_implementation
+
+
+# GOOD: Proper wrapper calling target directly
+@deprecated(target=None, deprecated_in="1.5", remove_in="2.5")
+def proper_wrapper(x: int) -> int:
+    return new_implementation(x)  # ✅ Calls new implementation directly
+
+
+# Scan for deprecation chains
+# For testing purposes, we use the test module
+from tests import collection_chains as test_module
+
+issues = validate_deprecation_chains(test_module, recursive=False)
+
+for caller, issue_type, details in issues:
+    print(f"{caller}: {details}")
+```
+
+</details>
+
+<details>
+  <summary>Output: detected deprecation chains</summary>
+
+```
+tests.collection_chains.caller_calls_deprecated: Calls deprecated function 'deprecated_callee'. Update to call 'tests.collection_targets.base_sum_kwargs' directly.
+tests.collection_chains.caller_passes_deprecated_arg: Calls deprecated function 'deprecated_callee_with_args'. Update to call 'tests.collection_targets.base_pow_args' directly.
+tests.collection_chains.caller_passes_deprecated_arg: Passes deprecated argument 'old_arg' to 'deprecated_callee_with_args'. Update to use 'a'.
+```
+
+</details>
+
+<details>
+<summary><b>CI/pytest Integration for Chain Detection</b></summary>
+
+Integrate chain detection into your test suite to prevent lazy deprecated wrappers:
+
+```python
+import pytest
+from deprecate import validate_deprecation_chains
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_chains as my_package
+
+
+def test_no_deprecation_chains():
+    """Ensure deprecated functions call new targets directly, not other deprecated functions."""
+    issues = validate_deprecation_chains(my_package)
+
+    if issues:
+        error_msg = "Found deprecated functions calling other deprecated functions:\n"
+        for caller, issue_type, details in issues:
+            error_msg += f"  - {caller}: {details}\n"
+        pytest.fail(error_msg)
+
+
+# Alternative: Use a fixture to run on every test session
+@pytest.fixture(scope="session", autouse=True)
+def enforce_no_deprecation_chains():
+    """Automatically check for deprecation chains before running any tests."""
+    from tests import collection_chains as my_package
+
+    issues = validate_deprecation_chains(my_package)
+    if issues:
+        raise AssertionError(
+            f"Cannot run tests: Found {len(issues)} deprecation chain issues. "
+            f"Fix these before running tests."
+        )
+```
+
+</details>
+
+> [!TIP]
+>
+> - The function scans all deprecated functions found by `find_deprecated_callables()`
+> - Returns a list of tuples: `(caller_name, issue_type, details)`
+> - `issue_type` is either `"calls_deprecated"` (calling deprecated functions) or `"deprecated_args"` (using deprecated argument names)
+> - Only detects simple function calls (`func()`), not `module.func()` or `obj.method()`
+> - Use `recursive=False` to scan only the top-level module
 
 ## 🧪 Testing Deprecated Code
 
