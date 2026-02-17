@@ -10,6 +10,7 @@ from deprecate import validate_deprecation_expiry
 from deprecate.utils import (
     DeprecatedCallableInfo,
     _check_deprecated_callable_expiry,
+    _parse_version,
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
@@ -340,8 +341,6 @@ class TestCheckDeprecationExpiry:
             Version parser correctly orders them so alpha < beta < rc < stable < post for accurate
             expiry checking across the release cycle.
         """
-        from deprecate.utils import _parse_version
-
         versions = [
             "1.5.0a1",  # alpha (PEP 440 format)
             "1.5.0b1",  # beta
