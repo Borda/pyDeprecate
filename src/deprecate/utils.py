@@ -25,10 +25,8 @@ Key Classes:
 Copyright (C) 2020-2026 Jiri Borovec <...>
 """
 
-import ast
 import importlib
 import inspect
-import sys
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
@@ -108,6 +106,7 @@ class DeprecatedCallableInfo:
         identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
         self_reference: True if target points to the same function.
         no_effect: True if wrapper has zero impact (combines all checks).
+        target_is_deprecated: True if target is itself a deprecated callable (deprecation chain).
 
     Example:
         >>> info = DeprecatedCallableInfo(
@@ -132,6 +131,7 @@ class DeprecatedCallableInfo:
     identity_mapping: list[str] = field(default_factory=list)
     self_reference: bool = False
     no_effect: bool = False
+    target_is_deprecated: bool = False
 
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, Any]]:
@@ -396,6 +396,13 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     empty_mapping = not args_mapping
     identity_mapping: list[str] = []
     self_reference = target is func if target is not None else False
+    target_is_deprecated = callable(target) and hasattr(target, "__deprecated__")
+    # Also detect stacked self-deprecation: @deprecated(True) applied on top of another
+    # @deprecated decorator. functools.wraps sets __wrapped__ to the decorated source,
+    # so the outer wrapper's __wrapped__ is the inner wrapper (which has __deprecated__).
+    if not target_is_deprecated and target is True:
+        wrapped = getattr(func, "__wrapped__", None)
+        target_is_deprecated = wrapped is not None and hasattr(wrapped, "__deprecated__")
 
     all_identity = False
     if args_mapping:
@@ -425,6 +432,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         identity_mapping=identity_mapping,
         self_reference=self_reference,
         no_effect=no_effect,
+        target_is_deprecated=target_is_deprecated,
     )
 
 
@@ -735,47 +743,20 @@ def find_deprecated_callables(
     return results
 
 
-def _extract_function_calls(source_code: str) -> list[tuple[str, list[str]]]:
-    """Extract function call names and their keyword arguments from source code.
-
-    Args:
-        source_code: Python source code to analyze.
-
-    Returns:
-        List of tuples (function_name, keyword_args) for each function call found.
-        Returns empty list if parsing fails.
-    """
-    try:
-        tree = ast.parse(source_code)
-    except SyntaxError:
-        return []
-
-    calls = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-
-        # Get the function name being called (simple calls only)
-        if isinstance(node.func, ast.Name):
-            callee_name = node.func.id
-            # Extract keyword argument names
-            keyword_args = [kw.arg for kw in node.keywords if kw.arg]
-            calls.append((callee_name, keyword_args))
-
-    return calls
-
-
 def validate_deprecation_chains(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
-) -> list[tuple[str, str, str]]:
-    """Validate that deprecated functions don't call other deprecated functions.
+) -> list[DeprecatedCallableInfo]:
+    """Validate that deprecated functions don't target other deprecated functions.
 
-    This is a developer utility function that scans a module or package for
-    deprecated functions that call other deprecated functions or pass deprecated
-    arguments, and reports these chains. It ensures that deprecated functions
-    are not "lazy" by calling other deprecated code, but instead should call
-    the new replacement (target) directly and use current argument names.
+    This is a developer utility that scans a module or package for deprecated
+    functions whose ``target`` is itself a deprecated callable. Such chains
+    are wasteful: the outer wrapper should point directly to the final
+    (non-deprecated) implementation instead of routing through another
+    deprecated layer.
+
+    Detection is based purely on decorator metadata (``__deprecated__``
+    attributes) — no source-code or AST inspection is performed.
 
     Args:
         module: A Python module or package to scan for deprecation chains.
@@ -786,102 +767,21 @@ def validate_deprecation_chains(
             scan the top-level module.
 
     Returns:
-        List of tuples (caller_name, issue_type, details) describing found deprecation chains:
-            - caller_name: Name of the function with the issue
-            - issue_type: Either "calls_deprecated" or "deprecated_args"
-            - details: Description of the issue
+        List of :class:`DeprecatedCallableInfo` where ``target_is_deprecated`` is
+        True, i.e. every deprecated function whose target is itself deprecated.
 
     Example:
         >>> from deprecate import validate_deprecation_chains
         >>> import tests.collection_chains as test_module
         >>>
-        >>> # Scan a module for deprecation chains
         >>> issues = validate_deprecation_chains(test_module, recursive=False)
         >>> len(issues) > 0  # Should find chains
         True
 
     Note:
-        - This function ignores version numbers (remove_in)
-        - Only flags callees using the pyDeprecate @deprecated decorator
-        - Only detects simple function calls (e.g., func()), not module.func() or obj.method()
-        - Uses find_deprecated_callables() to discover deprecated functions
+        - Only flags callees using the pyDeprecate ``@deprecated`` decorator
+        - Uses :func:`find_deprecated_callables` to discover deprecated functions
+          and their ``target_is_deprecated`` field to detect chains
 
     """
-    # Get all deprecated functions in the module
-    deprecated_callables = find_deprecated_callables(module, recursive=recursive)
-
-    # Build a map of module -> function name -> info
-    deprecated_by_module: dict[str, dict[str, DeprecatedCallableInfo]] = {}
-    for info in deprecated_callables:
-        if info.module not in deprecated_by_module:
-            deprecated_by_module[info.module] = {}
-        deprecated_by_module[info.module][info.function] = info
-
-    issues: list[tuple[str, str, str]] = []
-
-    # Check each deprecated function for chains
-    for info in deprecated_callables:
-        # Get the actual function object
-        try:
-            func_module = sys.modules.get(info.module)
-            if not func_module:
-                func_module = importlib.import_module(info.module)
-            func = getattr(func_module, info.function, None)
-            if not callable(func):
-                continue
-        except (ImportError, AttributeError):
-            continue
-
-        # Get the function's source code
-        try:
-            source_code = inspect.getsource(func)
-        except (OSError, TypeError):
-            # Cannot get source (e.g., built-in function, C extension)
-            continue
-
-        # Parse source to extract function calls
-        function_calls = _extract_function_calls(source_code)
-        if not function_calls:
-            continue
-
-        # Get deprecated functions in the same module
-        module_deprecated = deprecated_by_module.get(info.module, {})
-
-        # Check each function call
-        for callee_name, keyword_args in function_calls:
-            if callee_name not in module_deprecated:
-                continue
-
-            # Get deprecation metadata
-            callee_info = module_deprecated[callee_name]
-            dep_info = callee_info.deprecated_info
-            target = dep_info.get("target")
-            args_mapping = dep_info.get("args_mapping")
-
-            # Report if calling deprecated function with a target
-            if callable(target):
-                target_path = f"{target.__module__}.{target.__name__}"
-                issues.append(
-                    (
-                        f"{info.module}.{info.function}",
-                        "calls_deprecated",
-                        f"Calls deprecated function '{callee_name}'. Update to call '{target_path}' directly.",
-                    )
-                )
-
-            # Report if passing deprecated arguments
-            if args_mapping and keyword_args:
-                deprecated_args_used = set(keyword_args) & set(args_mapping.keys())
-                for arg_name in deprecated_args_used:
-                    new_arg_name = args_mapping[arg_name]
-                    if new_arg_name:  # Not mapped to None (skip)
-                        issues.append(
-                            (
-                                f"{info.module}.{info.function}",
-                                "deprecated_args",
-                                f"Passes deprecated argument '{arg_name}' to '{callee_name}'. "
-                                f"Update to use '{new_arg_name}'.",
-                            )
-                        )
-
-    return issues
+    return [info for info in find_deprecated_callables(module, recursive=recursive) if info.target_is_deprecated]

@@ -233,97 +233,106 @@ class TestFindDeprecatedCallables:
 class TestValidateDeprecationChains:
     """Tests for validate_deprecation_chains()."""
 
-    def test_detects_call_with_target(self) -> None:
-        """Detects deprecated function calling another with target.
+    def test_detects_chain(self) -> None:
+        """Detects deprecated function whose target is itself deprecated.
 
         Examples:
-            Developer has a deprecated wrapper that calls another deprecated function instead
-            of calling the target directly. The validation detects this lazy implementation.
+            Developer has a deprecated wrapper that targets another deprecated function
+            instead of the final implementation. The validation detects this chain.
         """
         import tests.collection_chains as test_module
 
         issues = validate_deprecation_chains(test_module, recursive=False)
 
-        # Should find caller_calls_deprecated calling deprecated_callee
-        callers = [
-            issue[0] for issue in issues if "caller_calls_deprecated" in issue[0] and issue[1] == "calls_deprecated"
-        ]
-        assert len(callers) > 0
+        # Should find caller_chains_to_depr (target=depr_sum which is deprecated)
+        chain_funcs = [info.function for info in issues if "caller_chains_to_depr" in info.function]
+        assert len(chain_funcs) > 0
 
-        # Check the details mention the target
-        details = [
-            issue[2] for issue in issues if "caller_calls_deprecated" in issue[0] and issue[1] == "calls_deprecated"
-        ]
-        assert any("base_sum_kwargs" in detail for detail in details)
-
-    def test_no_warning_for_no_target(self) -> None:
-        """Doesn't report when callee has no target.
+    def test_detects_chain_with_mapped_args(self) -> None:
+        """Detects chain through a deprecated function that has arg mapping.
 
         Examples:
-            Developer has a deprecated function calling another deprecated function, but the callee
-            has no target defined. Since there's no better alternative to recommend, no warning is issued.
+            Developer wraps a deprecated function that itself remaps arguments.
+            The outer wrapper should skip the intermediate and target the final function.
         """
         import tests.collection_chains as test_module
 
         issues = validate_deprecation_chains(test_module, recursive=False)
 
-        # Should not find caller_calls_deprecated_no_target because callee has no target
-        callers = [issue[0] for issue in issues if "caller_calls_deprecated_no_target" in issue[0]]
-        assert len(callers) == 0
+        chain_funcs = [info.function for info in issues if "caller_chains_mapped_args" in info.function]
+        assert len(chain_funcs) > 0
 
-    def test_detects_deprecated_args(self) -> None:
-        """Detects passing deprecated arguments.
+    def test_detects_chain_with_composed_arg_mappings(self) -> None:
+        """Detects chain where the outer wrapper also has its own args_mapping.
 
         Examples:
-            Developer has a deprecated wrapper that passes deprecated argument names to another
-            function. The validation detects this and suggests using the new argument names.
+            Developer stacks two deprecated wrappers, each renaming arguments.
+            Both hops must be collapsed: the outer wrapper should target the final
+            function directly with the combined mapping.
         """
         import tests.collection_chains as test_module
 
         issues = validate_deprecation_chains(test_module, recursive=False)
 
-        # Should find caller_passes_deprecated_arg passing old_arg
-        arg_issues = [
-            issue for issue in issues if "caller_passes_deprecated_arg" in issue[0] and issue[1] == "deprecated_args"
-        ]
-        assert len(arg_issues) > 0
-        assert any("old_arg" in issue[2] for issue in arg_issues)
+        # caller_chains_composed_args has target=depr_accuracy_map (deprecated)
+        # AND its own args_mapping={"predictions": "preds", "labels": "truth"}
+        chain_funcs = [info.function for info in issues if "caller_chains_composed_args" in info.function]
+        assert len(chain_funcs) > 0
 
-    def test_no_warnings_clean(self) -> None:
-        """Doesn't report clean code.
+        # The info must report target_is_deprecated and expose the outer args_mapping
+        info = next(i for i in issues if "caller_chains_composed_args" in i.function)
+        assert info.target_is_deprecated is True
+        assert info.deprecated_info.get("args_mapping") == {"predictions": "preds", "labels": "truth"}
+
+    def test_no_warning_for_clean_target(self) -> None:
+        """Doesn't report when target is not deprecated.
 
         Examples:
-            Developer has a deprecated wrapper that directly calls the target function using the
-            correct arguments. No issues are detected since the code follows best practices.
+            Developer has a deprecated wrapper pointing directly to a non-deprecated
+            target. This is the correct pattern and should not trigger any warning.
         """
         import tests.collection_chains as test_module
 
         issues = validate_deprecation_chains(test_module, recursive=False)
 
-        # caller_no_deprecated_calls should not be in results (calls target directly)
-        callers = [issue[0] for issue in issues if "caller_no_deprecated_calls" in issue[0]]
-        assert len(callers) == 0
+        clean_funcs = [info.function for info in issues if "caller_no_chain" in info.function]
+        assert len(clean_funcs) == 0
 
-    def test_returns_list(self) -> None:
-        """Returns a list of issues in the correct format.
+    def test_detects_stacked_self_deprecation(self) -> None:
+        """Detects stacked @deprecated(True) decorators that should be collapsed.
 
         Examples:
-            Developer calls validate_deprecation_chains on a module and receives a list of tuples,
-            each containing (caller_name, issue_type, details) for programmatic processing.
+            Developer stacks two @deprecated(True, args_mapping=...) decorators on the
+            same function instead of combining the mappings into a single decorator.
+            The outer layer wraps an inner deprecated layer (detectable via __wrapped__).
+        """
+        import tests.collection_chains as test_module
+
+        issues = validate_deprecation_chains(test_module, recursive=False)
+
+        # caller_chains_stacked_args has two stacked @deprecated(True) decorators
+        stacked_funcs = [info.function for info in issues if "caller_chains_stacked_args" in info.function]
+        assert len(stacked_funcs) > 0
+
+        info = next(i for i in issues if "caller_chains_stacked_args" in i.function)
+        assert info.target_is_deprecated is True
+        assert info.deprecated_info.get("args_mapping") == {"c1": "nc2"}
+
+    def test_returns_list_of_infos(self) -> None:
+        """Returns a list of DeprecatedCallableInfo with target_is_deprecated=True.
+
+        Examples:
+            Developer calls validate_deprecation_chains and receives structured
+            DeprecatedCallableInfo objects for programmatic processing.
         """
         import tests.collection_chains as test_module
 
         issues = validate_deprecation_chains(test_module, recursive=False)
         assert isinstance(issues, list)
-        # Should have at least some issues from our test module
         assert len(issues) > 0
-        # Each issue should be a tuple of (caller, type, details)
-        for issue in issues:
-            assert isinstance(issue, tuple)
-            assert len(issue) == 3
-            assert isinstance(issue[0], str)  # caller name
-            assert issue[1] in ("calls_deprecated", "deprecated_args")  # issue type
-            assert isinstance(issue[2], str)  # details
+        for info in issues:
+            assert isinstance(info, DeprecatedCallableInfo)
+            assert info.target_is_deprecated is True
 
 
 @_requires_packaging
