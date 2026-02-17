@@ -264,8 +264,7 @@ def test_validate_deprecation_chains_detects_deprecated_args() -> None:
 
     # Should find caller_passes_deprecated_arg passing old_arg
     arg_issues = [
-        issue for issue in issues
-        if "caller_passes_deprecated_arg" in issue[0] and issue[1] == "deprecated_args"
+        issue for issue in issues if "caller_passes_deprecated_arg" in issue[0] and issue[1] == "deprecated_args"
     ]
     assert len(arg_issues) > 0
     assert any("old_arg" in issue[2] for issue in arg_issues)
@@ -308,6 +307,7 @@ def test_validate_deprecation_chains_returns_list() -> None:
         assert isinstance(issue[0], str)  # caller name
         assert issue[1] in ("calls_deprecated", "deprecated_args")  # issue type
         assert isinstance(issue[2], str)  # details
+
 
 @_requires_packaging
 class TestCheckDeprecationExpiry:

@@ -865,11 +865,13 @@ def validate_deprecation_chains(
             # Report if calling deprecated function with a target
             if callable(target):
                 target_path = f"{target.__module__}.{target.__name__}"
-                issues.append((
-                    f"{info.module}.{info.function}",
-                    "calls_deprecated",
-                    f"Calls deprecated function '{callee_name}'. Update to call '{target_path}' directly."
-                ))
+                issues.append(
+                    (
+                        f"{info.module}.{info.function}",
+                        "calls_deprecated",
+                        f"Calls deprecated function '{callee_name}'. Update to call '{target_path}' directly.",
+                    )
+                )
 
             # Report if passing deprecated arguments
             if args_mapping and keyword_args:
@@ -877,12 +879,13 @@ def validate_deprecation_chains(
                 for arg_name in deprecated_args_used:
                     new_arg_name = args_mapping[arg_name]
                     if new_arg_name:  # Not mapped to None (skip)
-                        issues.append((
-                            f"{info.module}.{info.function}",
-                            "deprecated_args",
-                            f"Passes deprecated argument '{arg_name}' to '{callee_name}'. "
-                            f"Update to use '{new_arg_name}'."
-                        ))
+                        issues.append(
+                            (
+                                f"{info.module}.{info.function}",
+                                "deprecated_args",
+                                f"Passes deprecated argument '{arg_name}' to '{callee_name}'. "
+                                f"Update to use '{new_arg_name}'.",
+                            )
+                        )
 
     return issues
-
