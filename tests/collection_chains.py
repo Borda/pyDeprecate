@@ -1,6 +1,23 @@
 """Collection of deprecated functions that call other deprecated functions.
 
 This module contains test examples for validate_deprecation_chains functionality.
+
+Deprecation Chain Schema:
+    Function Call Chains:
+        caller_calls_deprecated (deprecated) → deprecated_callee (deprecated) ⇒ base_sum_kwargs (target)
+        caller_calls_deprecated_no_target (deprecated) → deprecated_callee_no_target (deprecated, no target)
+        caller_no_deprecated_calls (deprecated) → base_sum_kwargs (target, direct - CORRECT)
+        non_deprecated_caller → deprecated_callee (deprecated) ⇒ base_sum_kwargs (target)
+
+    Deprecated Argument Usage:
+        caller_passes_deprecated_arg (deprecated) → deprecated_callee_with_args(old_arg=...) 
+            - Uses deprecated parameter 'old_arg' which maps to 'a' in target base_pow_args
+
+    Legend:
+        → : direct function call
+        ⇒ : automatic forwarding via @deprecated(target=...)
+        (deprecated): function wrapped with @deprecated decorator
+        (target): final implementation that should be called directly
 """
 
 from deprecate import deprecated
