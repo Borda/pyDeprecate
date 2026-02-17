@@ -5,15 +5,18 @@ from warnings import warn
 
 import pytest
 
+import tests.collection_chains as chain_module
 import tests.collection_misconfigured as sample_module
 from deprecate import validate_deprecation_expiry
 from deprecate.utils import (
+    ChainType,
     DeprecatedCallableInfo,
     _check_deprecated_callable_expiry,
     _parse_version,
     find_deprecated_callables,
     no_warning_call,
     validate_deprecated_callable,
+    validate_deprecation_chains,
 )
 from tests.collection_deprecate import depr_accuracy_target, depr_func_no_remove_in, depr_pow_self, depr_sum
 
@@ -222,6 +225,117 @@ class TestFindDeprecatedCallables:
 
         # We should find some degenerated deprecations
         assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
+
+
+# =============================================================================
+# Tests for validate_deprecation_chains()
+# =============================================================================
+
+
+class TestValidateDeprecationChains:
+    """Tests for validate_deprecation_chains()."""
+
+    def test_detects_chain(self) -> None:
+        """Detects deprecated function whose target is itself deprecated.
+
+        Examples:
+            Developer has a deprecated wrapper that targets another deprecated function
+            instead of the final implementation. The validation detects this chain.
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False)
+
+        # Should find caller_sum_via_depr_sum (target=depr_sum which is deprecated)
+        chain_funcs = [info.function for info in issues if info.function == "caller_sum_via_depr_sum"]
+        assert len(chain_funcs) > 0
+        info = next(i for i in issues if i.function == "caller_sum_via_depr_sum")
+        assert info.chain_type is ChainType.TARGET
+
+    def test_detects_chain_with_mapped_args(self) -> None:
+        """Detects chain through a deprecated function that has arg mapping.
+
+        Examples:
+            Developer wraps a deprecated function that itself remaps arguments.
+            The outer wrapper should skip the intermediate and target the final function.
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False)
+
+        chain_funcs = [info.function for info in issues if info.function == "caller_acc_via_depr_map"]
+        assert len(chain_funcs) > 0
+
+    def test_detects_chain_with_composed_arg_mappings(self) -> None:
+        """Detects chain where the outer wrapper also has its own args_mapping.
+
+        Examples:
+            Developer stacks two deprecated wrappers, each renaming arguments.
+            Both hops must be collapsed: the outer wrapper should target the final
+            function directly with the combined mapping.
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False)
+
+        # caller_acc_comp_depr_map has target=depr_accuracy_map (deprecated)
+        # AND its own args_mapping={"predictions": "preds", "labels": "truth"}
+        chain_funcs = [info.function for info in issues if info.function == "caller_acc_comp_depr_map"]
+        assert len(chain_funcs) > 0
+
+        # The info must report ChainType.TARGET and expose the outer args_mapping
+        info = next(i for i in issues if i.function == "caller_acc_comp_depr_map")
+        assert info.chain_type is ChainType.TARGET
+        assert info.deprecated_info.get("args_mapping") == {"predictions": "preds", "labels": "truth"}
+
+    def test_detects_stacked_self_deprecation(self) -> None:
+        """Detects stacked target=True decorators whose arg mappings should be collapsed.
+
+        Examples:
+            Developer applies two ``@deprecated(True, args_mapping=...)`` decorators to
+            the same function, each renaming a different argument. The two decorators
+            should be merged into one with a combined args_mapping.
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False)
+
+        stacked = [info for info in issues if "caller_stacked_args_map" in info.function]
+        assert len(stacked) > 0
+        assert stacked[0].chain_type is ChainType.STACKED
+
+    def test_detects_stacked_via_callable_self_depr_target(self) -> None:
+        """Detects STACKED chain when callable target is itself a self-deprecation with arg renaming.
+
+        Examples:
+            Developer's wrapper targets a deprecated function whose own target=True (self-renaming).
+            The arg mappings from both layers compose: the caller's mapping feeds into the target's
+            renaming, so both hops must be collapsed with a combined args_mapping.
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False)
+
+        via_self = [info for info in issues if "caller_pow_via_self_depr" in info.function]
+        assert len(via_self) > 0
+        # Must be STACKED (not TARGET) — mappings compose through the self-deprecation layer
+        assert via_self[0].chain_type is ChainType.STACKED
+
+    def test_no_warning_for_clean_target(self) -> None:
+        """Doesn't report when target is not deprecated.
+
+        Examples:
+            Developer has a deprecated wrapper pointing directly to a non-deprecated
+            target. This is the correct pattern and should not trigger any warning.
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False)
+
+        clean_funcs = [info.function for info in issues if "caller_sum_direct" in info.function]
+        assert len(clean_funcs) == 0
+
+    def test_returns_list_of_infos(self) -> None:
+        """Returns a list of DeprecatedCallableInfo with chain_type set.
+
+        Examples:
+            Developer calls validate_deprecation_chains and receives structured
+            DeprecatedCallableInfo objects for programmatic processing.
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False)
+        assert isinstance(issues, list)
+        assert len(issues) > 0
+        for info in issues:
+            assert isinstance(info, DeprecatedCallableInfo)
+            assert info.chain_type is not None
 
 
 @_requires_packaging
