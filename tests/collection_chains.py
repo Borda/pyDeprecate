@@ -114,7 +114,7 @@ Deprecation Chain Schema:
                            detected by validate_deprecation_chains
 """
 
-from deprecate import deprecated
+from deprecate import deprecated, void
 from tests.collection_deprecate import depr_accuracy_map, depr_sum
 from tests.collection_targets import base_sum_kwargs
 
@@ -128,7 +128,7 @@ def caller_chains_to_depr(a: int, b: int = 5) -> int:
         routes through ``depr_sum`` (also deprecated). The outer wrapper
         should skip the intermediate step and target ``base_sum_kwargs`` directly.
     """
-    pass
+    return void(a, b)
 
 
 @deprecated(target=depr_accuracy_map, deprecated_in="1.5", remove_in="2.5")
@@ -140,7 +140,7 @@ def caller_chains_mapped_args(preds: list, truth: tuple = (0, 1, 1, 2)) -> float
         directly to ``accuracy_score``. Both the intermediate step and its
         argument renaming should be collapsed into a direct target reference.
     """
-    pass
+    return void(preds, truth)
 
 
 @deprecated(
@@ -160,7 +160,7 @@ def caller_chains_composed_args(predictions: list, labels: tuple = (0, 1, 1, 2))
         To fix: collapse both hops into a single wrapper targeting ``accuracy_score``
         directly with ``args_mapping={"predictions": "y_pred", "labels": "y_true"}``.
     """
-    pass
+    return void(predictions, labels)
 
 
 @deprecated(True, deprecated_in="0.3", remove_in="0.6", args_mapping={"c1": "nc2"})
@@ -184,4 +184,4 @@ def caller_no_chain(a: int, b: int = 3) -> int:
         Points directly to ``base_sum_kwargs``, which is not deprecated.
         This is the correct pattern and should not trigger any chain warnings.
     """
-    pass
+    return void(a, b)

@@ -822,7 +822,7 @@ The `validate_deprecation_chains()` utility scans a module or package for deprec
 <summary><b>Example: Scanning for Deprecation Chains</b></summary>
 
 ```python
-from deprecate import deprecated, validate_deprecation_chains
+from deprecate import deprecated, validate_deprecated_callable
 
 
 def new_implementation(x: int) -> int:
@@ -834,26 +834,22 @@ def old_func(x: int) -> int:
     pass
 
 
-# BAD: outer wrapper targets another deprecated function
+# BAD: outer-wrapper targets another deprecated function
 @deprecated(target=old_func, deprecated_in="1.5", remove_in="2.5")
 def lazy_wrapper(x: int) -> int:  # ❌ should target new_implementation directly
     pass
 
 
-# GOOD: outer wrapper targets the final implementation directly
+# GOOD: outer-wrapper targets the final implementation directly
 @deprecated(target=new_implementation, deprecated_in="1.5", remove_in="2.5")
 def proper_wrapper(x: int) -> int:  # ✅
     pass
 
 
-# For testing purposes, we use the test module
-from tests import collection_chains as test_module
-
-issues = validate_deprecation_chains(test_module, recursive=False)
-
-for info in issues:
-    target = info.deprecated_info["target"]
-    print(f"{info.function}: target '{target.__name__}' is deprecated")
+# Validate each wrapper individually
+for func in (lazy_wrapper, proper_wrapper):
+    info = validate_deprecated_callable(func)
+    print(f"{func.__name__} chain detected: {info.target_is_deprecated}")
 ```
 
 </details>
@@ -862,8 +858,8 @@ for info in issues:
   <summary>Output: detected deprecation chains</summary>
 
 ```
-caller_chains_to_depr: target 'depr_sum' is deprecated
-caller_chains_mapped_args: target 'depr_accuracy_map' is deprecated
+lazy_wrapper chain detected: True
+proper_wrapper chain detected: False
 ```
 
 </details>
@@ -886,7 +882,10 @@ def test_no_deprecation_chains():
     issues = validate_deprecation_chains(my_package)
 
     if issues:
-        lines = [f"  - {i.function}: target '{i.deprecated_info['target'].__name__}' is deprecated" for i in issues]
+        lines = [
+            f"  - {i.function}: target '{getattr(i.deprecated_info['target'], '__name__', repr(i.deprecated_info['target']))}' is deprecated"
+            for i in issues
+        ]
         pytest.fail("Found deprecation chains:\n" + "\n".join(lines))
 
 
@@ -905,9 +904,8 @@ def enforce_no_deprecation_chains():
 > [!TIP]
 >
 > - The function scans all deprecated functions found by `find_deprecated_callables()`
-> - Returns a list of tuples: `(caller_name, issue_type, details)`
-> - `issue_type` is either `"calls_deprecated"` (calling deprecated functions) or `"deprecated_args"` (using deprecated argument names)
-> - Only detects simple function calls (`func()`), not `module.func()` or `obj.method()`
+> - Returns `list[DeprecatedCallableInfo]` — each entry has `target_is_deprecated=True`
+> - Also detects stacked `@deprecated(True, ...)` layers on the same function (via `__wrapped__`)
 > - Use `recursive=False` to scan only the top-level module
 
 ## 🧪 Testing Deprecated Code
