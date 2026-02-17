@@ -7,7 +7,7 @@ Deprecation Chain Schema:
     BAD — outer target is itself deprecated (chain detected):
 
     ╔════════════════════════════════════════╗
-    ║ chain (2) | caller_chains_to_depr      ║
+    ║ chain (2) | caller_sum_via_depr_sum    ║
     ║-----------|----------------------------║
     ║ target    |  depr_sum                  ║
     ╚════════════════════╤═══════════════════╝
@@ -25,7 +25,7 @@ Deprecation Chain Schema:
     ╚════════════════════════════════════════╝
 
     ╔════════════════════════════════════════╗
-    ║ chain (2) | caller_chains_mapped_args  ║
+    ║ chain (2) | caller_acc_via_depr_map    ║
     ║-----------|----------------------------║
     ║ target    |  depr_accuracy_map         ║
     ╚════════════════════╤═══════════════════╝
@@ -47,7 +47,7 @@ Deprecation Chain Schema:
     BAD — chained arg mappings (each hop renames args, must be collapsed):
 
     ╔════════════════════════════════════════╗
-    ║ chain (2) | caller_chains_composed_args║
+    ║ chain (2) | caller_acc_comp_depr_map   ║
     ║-----------|----------------------------║
     ║ target    |  depr_accuracy_map         ║
     ║ mapping   |  "predictions" -> "preds"  ║
@@ -73,7 +73,7 @@ Deprecation Chain Schema:
     BAD — stacked self-deprecation arg mappings (should be collapsed):
 
     ╔════════════════════════════════════════╗
-    ║ outer     | caller_chains_stacked_args ║
+    ║ outer     | caller_stacked_args_map    ║
     ║-----------|----------------------------║
     ║ target    |  True (self)               ║
     ║ mapping   |  "c1" -> "nc2"             ║
@@ -81,17 +81,36 @@ Deprecation Chain Schema:
                          │  [stacked ← chain]
                          ▼
     ╔════════════════════════════════════════╗
-    ║ inner     | caller_chains_stacked_args ║
+    ║ inner     | caller_stacked_args_map    ║
     ║-----------|----------------------------║
     ║ target    |  True (self)               ║
     ║ mapping   |  "nc1" -> "nc2"            ║
     ╚════════════════════════════════════════╝
     # Fix: single @deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
 
+    BAD — callable target is itself a self-deprecation (mappings must compose):
+
+    ╔════════════════════════════════════════╗
+    ║ chain (2) | caller_pow_via_self_depr   ║
+    ║-----------|----------------------------║
+    ║ target    |  depr_pow_self             ║
+    ║ mapping   |  "exp" -> "coef"           ║
+    ╚════════════════════╤═══════════════════╝
+                         │  [stacked ← chain, target is self-depr]
+                         ▼
+    ╔════════════════════════════════════════╗
+    ║ self-depr | depr_pow_self              ║
+    ║-----------|----------------------------║
+    ║ target    |  True (self)               ║
+    ║ mapping   |  "coef" -> "new_coef"      ║
+    ╚════════════════════════════════════════╝
+    # Fix: target=depr_pow_self.__wrapped__,
+    #   args_mapping={"exp": "new_coef"}
+
     GOOD — outer target is not deprecated (no chain):
 
     ╔════════════════════════════════════════╗
-    ║ chain (1) | caller_no_chain            ║
+    ║ chain (1) | caller_sum_direct          ║
     ║-----------|----------------------------║
     ║ target    |  base_sum_kwargs           ║
     ╚════════════════════╤═══════════════════╝
@@ -104,23 +123,21 @@ Deprecation Chain Schema:
     Legend:
         chain (N) : deprecated function, N hops from the final target
                     (chain (1) = one hop away, chain (2) = two hops away, …)
-        outer/inner: stacked @deprecated(True) layers on the same function
         target    : forwarding destination set in @deprecated(target=...)
         mapping   : argument renames applied on forwarding (old -> new)
         final     : plain, non-deprecated function — chain ends here
-        [deprecated ← chain]: target is itself deprecated,
-                               detected by validate_deprecation_chains
-        [stacked ← chain]: target=True layer wrapping another deprecated layer,
-                           detected by validate_deprecation_chains
+        [deprecated ← chain]: target is itself deprecated (a callable with
+                               @deprecated), detected by validate_deprecation_chains
+        note      : target=True (self-deprecation for arg renaming) is NOT a chain
 """
 
 from deprecate import deprecated, void
-from tests.collection_deprecate import depr_accuracy_map, depr_sum
+from tests.collection_deprecate import depr_accuracy_map, depr_pow_self, depr_sum
 from tests.collection_targets import base_sum_kwargs
 
 
 @deprecated(target=depr_sum, deprecated_in="1.5", remove_in="2.5")
-def caller_chains_to_depr(a: int, b: int = 5) -> int:
+def caller_sum_via_depr_sum(a: int, b: int = 5) -> int:
     """Deprecated wrapper whose target is itself deprecated (chain).
 
     Examples:
@@ -132,7 +149,7 @@ def caller_chains_to_depr(a: int, b: int = 5) -> int:
 
 
 @deprecated(target=depr_accuracy_map, deprecated_in="1.5", remove_in="2.5")
-def caller_chains_mapped_args(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
+def caller_acc_via_depr_map(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
     """Deprecated wrapper chaining through a deprecated function with arg mapping.
 
     Examples:
@@ -149,7 +166,7 @@ def caller_chains_mapped_args(preds: list, truth: tuple = (0, 1, 1, 2)) -> float
     remove_in="2.5",
     args_mapping={"predictions": "preds", "labels": "truth"},
 )
-def caller_chains_composed_args(predictions: list, labels: tuple = (0, 1, 1, 2)) -> float:
+def caller_acc_comp_depr_map(predictions: list, labels: tuple = (0, 1, 1, 2)) -> float:
     """Deprecated wrapper with its own arg mapping that chains into another deprecated mapping.
 
     Examples:
@@ -165,19 +182,31 @@ def caller_chains_composed_args(predictions: list, labels: tuple = (0, 1, 1, 2))
 
 @deprecated(True, deprecated_in="0.3", remove_in="0.6", args_mapping={"c1": "nc2"})
 @deprecated(True, deprecated_in="0.4", remove_in="0.7", args_mapping={"nc1": "nc2"})
-def caller_chains_stacked_args(base: float, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
-    """Stacked self-deprecation that should be collapsed into a single decorator.
+def caller_stacked_args_map(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
+    """Stacked self-deprecation decorators whose arg mappings should be collapsed.
 
     Examples:
-        The outer decorator renames ``c1``->``nc2`` and the inner renames ``nc1``->``nc2``.
-        Both layers use ``target=True`` (self-deprecation), so the chain can be collapsed
-        into a single ``@deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})``.
+        Both decorators use ``target=True`` (self-deprecation) but each renames a
+        different argument. They should be merged into a single decorator:
+        ``@deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})``.
     """
-    return base**nc2
+    return void(base, c1, nc1, nc2)
+
+
+@deprecated(target=depr_pow_self, deprecated_in="1.5", remove_in="2.5", args_mapping={"exp": "coef"})
+def caller_pow_via_self_depr(base: float, exp: float = 2) -> float:
+    """Deprecated wrapper whose target is itself a self-deprecation with arg renaming.
+
+    Examples:
+        Routes through ``depr_pow_self`` (deprecated with ``target=True, args_mapping={"coef": "new_coef"}``).
+        The two arg renames compose: ``exp -> coef -> new_coef``. The fix is to target the
+        final implementation directly with the collapsed mapping ``{"exp": "new_coef"}``.
+    """
+    return void(base, exp)
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="1.5", remove_in="2.5")
-def caller_no_chain(a: int, b: int = 3) -> int:
+def caller_sum_direct(a: int, b: int = 3) -> int:
     """Deprecated wrapper with a clean, non-deprecated target (correct pattern).
 
     Examples:

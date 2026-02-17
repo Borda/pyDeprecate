@@ -31,6 +31,7 @@ import warnings
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
+from enum import Enum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
@@ -89,6 +90,23 @@ def _parse_version(version_string: str) -> "Version":
         ) from err
 
 
+class ChainType(Enum):
+    """Type of deprecation chain detected by ``validate_deprecated_callable()``.
+
+    Attributes:
+        TARGET: The ``target`` argument is itself a callable decorated with ``@deprecated``
+            (a forwarding chain). Fix by pointing directly to the final non-deprecated target.
+        STACKED: Arg mappings chain and must be composed/collapsed. Two sub-cases:
+            (a) Callable ``target`` is itself ``@deprecated(True, args_mapping=...)`` — the
+            caller's mapping feeds into the target's self-renaming, so both hops must be
+            collapsed into one. (b) Multiple ``@deprecated(True, args_mapping=...)`` decorators
+            are stacked on the same function and should be merged into a single decorator.
+    """
+
+    TARGET = "target"
+    STACKED = "stacked"
+
+
 @dataclass(frozen=True)
 class DeprecatedCallableInfo:
     """Information about a deprecated callable and its validation results.
@@ -106,7 +124,8 @@ class DeprecatedCallableInfo:
         identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
         self_reference: True if target points to the same function.
         no_effect: True if wrapper has zero impact (combines all checks).
-        target_is_deprecated: True if target is itself a deprecated callable (deprecation chain).
+        chain_type: The kind of deprecation chain detected, or ``None`` if no chain.
+            See :class:`ChainType` for values (``TARGET`` or ``STACKED``).
 
     Example:
         >>> info = DeprecatedCallableInfo(
@@ -131,7 +150,7 @@ class DeprecatedCallableInfo:
     identity_mapping: list[str] = field(default_factory=list)
     self_reference: bool = False
     no_effect: bool = False
-    target_is_deprecated: bool = False
+    chain_type: Optional[ChainType] = None
 
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, Any]]:
@@ -396,13 +415,22 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     empty_mapping = not args_mapping
     identity_mapping: list[str] = []
     self_reference = target is func if target is not None else False
-    target_is_deprecated = callable(target) and hasattr(target, "__deprecated__")
-    # Also detect stacked self-deprecation: @deprecated(True) applied on top of another
-    # @deprecated decorator. functools.wraps sets __wrapped__ to the decorated source,
-    # so the outer wrapper's __wrapped__ is the inner wrapper (which has __deprecated__).
-    if not target_is_deprecated and target is True:
+    # chain_type distinguishes two chain problems:
+    # - ChainType.TARGET: target is a deprecated callable that itself forwards to another function
+    #   (i.e. target.__deprecated__["target"] is not True). Fix: point directly to the final target.
+    # - ChainType.STACKED: arg mappings chain/compose and need collapsing. Two sub-cases:
+    #   (a) target is a deprecated callable whose own target=True (self-deprecation with renaming).
+    #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
+    chain_type: Optional[ChainType] = None
+    if callable(target) and hasattr(target, "__deprecated__"):
+        if getattr(target, "__deprecated__", {}).get("target") is True:
+            chain_type = ChainType.STACKED  # target is a self-deprecation wrapper — mappings compose
+        else:
+            chain_type = ChainType.TARGET   # target forwards to another function
+    elif target is True:
         wrapped = getattr(func, "__wrapped__", None)
-        target_is_deprecated = wrapped is not None and hasattr(wrapped, "__deprecated__")
+        if wrapped is not None and getattr(wrapped, "__deprecated__", {}).get("target") is True:
+            chain_type = ChainType.STACKED  # stacked @deprecated(True) decorators
 
     all_identity = False
     if args_mapping:
@@ -414,13 +442,14 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     # Wrapper has no effect if:
     # - Self-reference (forwards to itself)
-    # - target is None AND no args_mapping (just warns, no forwarding or remapping)
+    # - target is None: the decorator only warns; any args_mapping is also silently
+    #   ignored by the runtime (the mapping branch requires a truthy target)
     # - target is True (self-deprecation) AND (empty mapping OR all identity mappings)
     # Note: When target is a different function, there's ALWAYS an effect (forwarding)
     is_self_deprecation = target is True or self_reference
     no_effect = (
         self_reference
-        or (target is None and empty_mapping)
+        or (target is None)  # args_mapping is ignored when target=None
         or (is_self_deprecation and (empty_mapping or all_identity))
     )
 
@@ -432,7 +461,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         identity_mapping=identity_mapping,
         self_reference=self_reference,
         no_effect=no_effect,
-        target_is_deprecated=target_is_deprecated,
+        chain_type=chain_type,
     )
 
 
@@ -767,8 +796,9 @@ def validate_deprecation_chains(
             scan the top-level module.
 
     Returns:
-        List of :class:`DeprecatedCallableInfo` where ``target_is_deprecated`` is
-        True, i.e. every deprecated function whose target is itself deprecated.
+        List of :class:`DeprecatedCallableInfo` where ``chain_type`` is not ``None``,
+        i.e. every deprecated function that forms a chain (``ChainType.TARGET`` or
+        ``ChainType.STACKED``).
 
     Example:
         >>> from deprecate import validate_deprecation_chains
@@ -780,8 +810,7 @@ def validate_deprecation_chains(
 
     Note:
         - Only flags callees using the pyDeprecate ``@deprecated`` decorator
-        - Uses :func:`find_deprecated_callables` to discover deprecated functions
-          and their ``target_is_deprecated`` field to detect chains
+        - Uses :func:`find_deprecated_callables` and inspects ``chain_type`` to detect chains
 
     """
-    return [info for info in find_deprecated_callables(module, recursive=recursive) if info.target_is_deprecated]
+    return [info for info in find_deprecated_callables(module, recursive=recursive) if info.chain_type is not None]
