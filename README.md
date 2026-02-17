@@ -202,7 +202,7 @@ print(depr_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(depr_sum(1, 2))</code></summary>
 
 ```
 3
@@ -215,7 +215,7 @@ print(depr_sum(1, 2))
 Another more complex example is using argument mapping is:
 
 <details>
-  <summary>Advanced example</summary>
+  <summary>Example: mapping deprecated args to <code>sklearn.metrics.accuracy_score</code></summary>
 
 ```python
 import logging
@@ -274,7 +274,7 @@ print(my_sum(1, 2))
 ```
 
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: <code>print(my_sum(1, 2))</code></summary>
 
 ```
 3
@@ -313,7 +313,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
 
 ```
 8
@@ -326,7 +326,7 @@ print(any_pow(2, 3))
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
 
 <details>
-  <summary>Multiple deprecation levels</summary>
+  <summary>Example: chaining two argument deprecations across different versions</summary>
 
 ```python
 from deprecate import deprecated
@@ -369,7 +369,7 @@ code output:
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
 
 <details>
-<summary>Code example</summary>
+<summary>Example: <code>skip_if</code> based on a runtime condition</summary>
 
 ```python
 from deprecate import deprecated
@@ -399,7 +399,7 @@ print(skip_pow(2, 3))
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>skip_pow</code> before and after version change</summary>
 
 ```
 0.25
@@ -415,7 +415,7 @@ This can be beneficial with multiple deprecation levels shown above...
 This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: forwarding <code>__init__</code> to a successor class</summary>
 
 ```python
 class NewCls:
@@ -457,7 +457,7 @@ print(inst.my_d)  # returns: "efg"
 </details>
 
 <details>
-  <summary>code output:</summary>
+  <summary>Output: <code>PastCls</code> instance attributes</summary>
 
 ```
 7
@@ -471,7 +471,7 @@ efg
 You can automatically append deprecation information to your function's docstring:
 
 <details>
-<summary>Code example</summary>
+<summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
 
 ```python
 def new_function(x: int) -> int:
@@ -716,6 +716,9 @@ pyDeprecate provides enforcement utilities to detect and prevent zombie code in 
 
 The `validate_deprecation_expiry()` utility scans an entire module or package for expired deprecations:
 
+<details>
+<summary>Example: scanning a package for expired removal deadlines</summary>
+
 ```python
 from deprecate import validate_deprecation_expiry
 
@@ -742,8 +745,10 @@ expired = validate_deprecation_expiry(my_package, "0.1", recursive=False)  # Onl
 print(f"Found {len(expired)} expired")
 ```
 
+</details>
+
 <details>
-  <summary>sample output:</summary>
+  <summary>Output: expired count per scanned version</summary>
 
 ```
 Found 12 expired
