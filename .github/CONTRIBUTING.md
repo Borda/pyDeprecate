@@ -285,7 +285,7 @@ git push origin fix/123-your-bug-description
 - Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
-- Add comments only where the logic is not self-evident — explain *why*, not *what*
+- Comments explain **why**, never __what__ — code should be self-contained; if a comment is needed to explain what the code does, the code should be rewritten (better names, smaller functions). Only comment when the *reason* behind a decision cannot be expressed in code itself: a non-obvious trade-off, a workaround for a known quirk, or a constraint invisible from the code alone
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
@@ -308,15 +308,18 @@ pyDeprecate/
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
 │   ├── deprecation.py          # @deprecated decorator and warning logic
-│   └── utils.py                # Helpers: void(), validate_*, no_warning_call()
+│   ├── audit.py                # Audit tools: validate_*, find_deprecated_callables()
+│   └── utils.py                # Low-level helpers: void(), no_warning_call()
 ├── tests/                      # Test suite
 │   ├── collection_targets.py       # Target functions (new implementations)
 │   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
 │   ├── collection_misconfigured.py # Invalid configs for validation
+│   ├── collection_chains.py        # Chained deprecation patterns
 │   ├── test_functions.py           # Function deprecation tests
 │   ├── test_classes.py             # Class deprecation tests
 │   ├── test_docs.py                # Docstring tests
-│   └── test_utils.py               # Utility function tests
+│   ├── test_audit.py               # Audit module tests
+│   └── test_utils.py               # Utility helper tests
 ├── .github/
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines

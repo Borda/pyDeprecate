@@ -38,9 +38,10 @@ ______________________________________________________________________
   - [Class deprecation](#-class-deprecation)
   - [Automatic docstring updates](#-automatic-docstring-updates)
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
-- [🔍 Validating Wrapper Configuration](#-validating-wrapper-configuration)
-- [⏰ Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
-- [🔗 Detecting Deprecation Chains](#-detecting-deprecation-chains)
+- [🔍 Audit](#-audit)
+  - [Validating Wrapper Configuration](#-validating-wrapper-configuration)
+  - [Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
+  - [Detecting Deprecation Chains](#-detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#-testing-deprecated-code)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🤝 Contributing](#-contributing)
@@ -547,7 +548,11 @@ def old_add_v2(a: int, b: int) -> int:
 > [!TIP]
 > `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
 
-## 🔍 Validating Wrapper Configuration
+## 🔍 Audit
+
+Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, and that chains of deprecated-to-deprecated calls don't silently pile up. These tools are designed to run in CI pipelines and test suites, catching problems before they reach users.
+
+### Validating Wrapper Configuration
 
 During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this:
 
@@ -709,7 +714,7 @@ def test_deprecated_wrappers_are_valid():
 
 </details>
 
-## ⏰ Enforcing Deprecation Removal Deadlines
+### ⏰ Enforcing Deprecation Removal Deadlines
 
 When you deprecate code with a `remove_in` version, you're making a commitment to remove that code when that version is reached. However, it's easy to forget to actually remove the code—leading to "zombie code" that lingers past its scheduled removal.
 
@@ -812,7 +817,7 @@ def enforce_deprecation_deadlines():
 > - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
 > - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
 
-## 🔗 Detecting Deprecation Chains
+### 🔗 Detecting Deprecation Chains
 
 When refactoring code, it's easy to create "lazy" deprecated wrappers that call other deprecated functions instead of calling the new target directly. This creates deprecation chains that defeat the purpose of deprecation.
 
@@ -932,8 +937,7 @@ def enforce_no_deprecation_chains():
 pyDeprecate provides utilities to help you test deprecated code properly:
 
 ```python
-from deprecate import deprecated
-from deprecate.utils import no_warning_call, void
+from deprecate import deprecated, no_warning_call, void
 import pytest
 
 
