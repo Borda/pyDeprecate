@@ -440,18 +440,14 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         # Check if ALL mappings are identity (complete no-op)
         all_identity = len(identity_mapping) == len(args_mapping) and len(args_mapping) > 0
 
-    # Wrapper has no effect if:
-    # - Self-reference (forwards to itself)
-    # - target is None: the decorator only warns; any args_mapping is also silently
-    #   ignored by the runtime (the mapping branch requires a truthy target)
+    # Wrapper has no effect if it provides no call forwarding, arg mapping, or warning:
+    # - Self-reference (forwards to itself — no meaningful forwarding)
     # - target is True (self-deprecation) AND (empty mapping OR all identity mappings)
-    # Note: When target is a different function, there's ALWAYS an effect (forwarding)
+    #   → no forwarding, no meaningful arg remapping
+    # Note: target=None is NOT no_effect — it still emits deprecation warnings.
+    # Note: When target is a different function, there's ALWAYS an effect (forwarding).
     is_self_deprecation = target is True or self_reference
-    no_effect = (
-        self_reference
-        or (target is None)  # args_mapping is ignored when target=None
-        or (is_self_deprecation and (empty_mapping or all_identity))
-    )
+    no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
 
     return DeprecatedCallableInfo(
         function=getattr(func, "__name__", str(func)),
@@ -776,13 +772,20 @@ def validate_deprecation_chains(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
 ) -> list[DeprecatedCallableInfo]:
-    """Validate that deprecated functions don't target other deprecated functions.
+    """Validate that deprecated functions don't form chains with other deprecated code.
 
     This is a developer utility that scans a module or package for deprecated
-    functions whose ``target`` is itself a deprecated callable. Such chains
-    are wasteful: the outer wrapper should point directly to the final
-    (non-deprecated) implementation instead of routing through another
-    deprecated layer.
+    functions that form chains in two ways:
+
+    1. **TARGET chains**: The ``target`` argument points to another deprecated
+       callable instead of the final non-deprecated implementation.
+    2. **STACKED chains**: Multiple ``@deprecated(True, ...)`` decorators are
+       stacked on the same function with argument mappings that should be
+       collapsed, or a callable ``target`` is itself a self-deprecation
+       (``target=True``) requiring mapping composition.
+
+    Both types are wasteful: wrappers should point directly to the final
+    (non-deprecated) implementation with composed argument mappings.
 
     Detection is based purely on decorator metadata (``__deprecated__``
     attributes) — no source-code or AST inspection is performed.

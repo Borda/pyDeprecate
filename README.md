@@ -845,7 +845,7 @@ def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
 # SOLUTION: point directly to new_power
 @deprecated(target=power_v2, deprecated_in="1.5", remove_in="2.5")
 def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
-    pass
+    return void(base, exponent)
 
 
 # BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED
@@ -853,13 +853,13 @@ def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
 # SOLUTION: target=new_power, args_mapping={"power": "exponent"}
 @deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})
 def caller_stacked_chain(base: float, power: float = 2) -> float:  # ❌
-    pass
+    return void(base, power)
 
 
 # GOOD: targets final implementation directly with composed mapping
 @deprecated(target=new_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exponent"})
 def caller_direct(base: float, power: float = 2) -> float:  # ✅
-    pass
+    return void(base, power)
 
 
 for func in (caller_target_chain, caller_stacked_chain, caller_direct):

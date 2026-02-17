@@ -245,9 +245,9 @@ class TestValidateDeprecationChains:
         issues = validate_deprecation_chains(chain_module, recursive=False)
 
         # Should find caller_sum_via_depr_sum (target=depr_sum which is deprecated)
-        chain_funcs = [info.function for info in issues if "caller_sum_via_depr_sum" in info.function]
+        chain_funcs = [info.function for info in issues if info.function == "caller_sum_via_depr_sum"]
         assert len(chain_funcs) > 0
-        info = next(i for i in issues if "caller_sum_via_depr_sum" in i.function)
+        info = next(i for i in issues if i.function == "caller_sum_via_depr_sum")
         assert info.chain_type is ChainType.TARGET
 
     def test_detects_chain_with_mapped_args(self) -> None:
@@ -259,7 +259,7 @@ class TestValidateDeprecationChains:
         """
         issues = validate_deprecation_chains(chain_module, recursive=False)
 
-        chain_funcs = [info.function for info in issues if "caller_acc_via_depr_map" in info.function]
+        chain_funcs = [info.function for info in issues if info.function == "caller_acc_via_depr_map"]
         assert len(chain_funcs) > 0
 
     def test_detects_chain_with_composed_arg_mappings(self) -> None:
@@ -274,7 +274,7 @@ class TestValidateDeprecationChains:
 
         # caller_acc_comp_depr_map has target=depr_accuracy_map (deprecated)
         # AND its own args_mapping={"predictions": "preds", "labels": "truth"}
-        chain_funcs = [info.function for info in issues if "caller_acc_comp_depr_map" in info.function]
+        chain_funcs = [info.function for info in issues if info.function == "caller_acc_comp_depr_map"]
         assert len(chain_funcs) > 0
 
         # The info must report ChainType.TARGET and expose the outer args_mapping

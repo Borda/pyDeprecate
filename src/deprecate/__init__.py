@@ -65,6 +65,7 @@ Complete Documentation:
 from deprecate.__about__ import *  # noqa: F403
 from deprecate.deprecation import deprecated  # noqa: E402, F401
 from deprecate.utils import (  # noqa: E402, F401
+    ChainType,
     DeprecatedCallableInfo,
     find_deprecated_callables,
     no_warning_call,
@@ -76,6 +77,7 @@ from deprecate.utils import (  # noqa: E402, F401
 
 __all__ = [
     "deprecated",
+    "ChainType",
     "DeprecatedCallableInfo",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
