@@ -63,11 +63,13 @@ def _parse_version(version_string: str) -> "Version":
             (wraps ``packaging.version.InvalidVersion`` with additional context).
 
     Example:
-        >>> v1 = _parse_version("1.2.3")  # doctest: +SKIP
-        >>> v2 = _parse_version("2.0")  # doctest: +SKIP
-        >>> v1 < v2  # doctest: +SKIP
+        >>> import pytest; pytest.importorskip("packaging")  # doctest: +ELLIPSIS
+        <module 'packaging' ...>
+        >>> v1 = _parse_version("1.2.3")
+        >>> v2 = _parse_version("2.0")
+        >>> v1 < v2
         True
-        >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")  # doctest: +SKIP
+        >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")
         True
 
     .. note::
@@ -353,10 +355,6 @@ def _get_package_version(package_name: str) -> str:
 
     Raises:
         ImportError: If the package is not installed or version cannot be determined.
-
-    Example:
-        >>> _get_package_version("deprecate")  # doctest: +SKIP
-        '0.3.2'
 
     """
     import importlib.metadata
