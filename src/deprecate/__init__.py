@@ -15,19 +15,20 @@ Main Features:
 Core Components:
 
 **Main Decorator** (:mod:`deprecate.deprecation`):
-    - :func:`deprecated`: Decorator for marking functions/classes as deprecated
+    - :func:`~deprecate.deprecation.deprecated`: Decorator for marking functions/classes as deprecated
 
 **Audit** (:mod:`deprecate.audit`):
-    - :func:`validate_deprecated_callable`: Validate a single wrapper's configuration
-    - :func:`find_deprecated_callables`: Scan a package for all deprecated wrappers
-    - :func:`validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
-    - :func:`validate_deprecation_chains`: Detect deprecated functions chaining to other deprecated functions
-    - :class:`DeprecatedCallableInfo`: Structured result returned by the audit functions
-    - :class:`ChainType`: Enum describing the kind of deprecation chain detected
+    - :func:`~deprecate.audit.validate_deprecated_callable`: Validate a single wrapper's configuration
+    - :func:`~deprecate.audit.find_deprecated_callables`: Scan a package for all deprecated wrappers
+    - :func:`~deprecate.audit.validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
+    - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated functions chaining to
+      other deprecated functions
+    - :class:`~deprecate.audit.DeprecatedCallableInfo`: Structured result returned by the audit functions
+    - :class:`~deprecate.audit.ChainType`: Enum describing the kind of deprecation chain detected
 
 **Testing** (:mod:`deprecate.utils`):
-    - :func:`no_warning_call`: Context manager asserting that no warnings are raised
-    - :func:`void`: Helper to silence IDE warnings about unused parameters in deprecated stubs
+    - :func:`~deprecate.utils.no_warning_call`: Context manager asserting that no warnings are raised
+    - :func:`~deprecate.utils.void`: Helper to silence IDE warnings about unused parameters in deprecated stubs
 
 Quick Example:
     >>> from deprecate import deprecated

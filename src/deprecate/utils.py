@@ -3,14 +3,14 @@
 This module provides two kinds of helpers:
 
 **Internal** (used by :mod:`deprecate.deprecation` and :mod:`deprecate.audit`):
-    - :func:`get_func_arguments_types_defaults`: Extract parameter names, annotations,
+    - :func:`~deprecate.utils.get_func_arguments_types_defaults`: Extract parameter names, annotations,
       and defaults from a callable's signature. Used when applying ``args_mapping``
       and when auditing wrapper configuration.
 
 **Public** (exported via :mod:`deprecate`):
-    - :func:`no_warning_call`: Context manager that asserts no warnings are raised
+    - :func:`~deprecate.utils.no_warning_call`: Context manager that asserts no warnings are raised
       during a block — the inverse of ``pytest.warns()``.
-    - :func:`void`: Accepts any arguments and returns ``None``. Used in deprecated
+    - :func:`~deprecate.utils.void`: Accepts any arguments and returns ``None``. Used in deprecated
       function stubs to suppress IDE "unused parameter" warnings.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>

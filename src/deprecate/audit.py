@@ -4,24 +4,25 @@ This module provides three complementary utilities for verifying the health of
 deprecated callables across a codebase. All three are designed to be called from
 pytest or a CI script against an imported package.
 
-**Wrapper configuration** (:func:`validate_deprecated_callable`, :func:`find_deprecated_callables`):
+**Wrapper configuration** (:func:`~deprecate.audit.validate_deprecated_callable`,
+:func:`~deprecate.audit.find_deprecated_callables`):
     Detect wrappers that have zero impact — invalid ``args_mapping`` keys, identity
     mappings, empty mappings, or a ``target`` pointing back to the same function.
 
-**Expiry enforcement** (:func:`validate_deprecation_expiry`):
+**Expiry enforcement** (:func:`~deprecate.audit.validate_deprecation_expiry`):
     Detect wrappers whose ``remove_in`` version has been reached or passed, preventing
     zombie code from shipping past its scheduled removal deadline.
 
-**Chain detection** (:func:`validate_deprecation_chains`):
+**Chain detection** (:func:`~deprecate.audit.validate_deprecation_chains`):
     Detect wrappers whose ``target`` is itself a deprecated callable, forming a chain
-    that users traverse unnecessarily. Two chain kinds are reported via :class:`ChainType`:
+    that users traverse unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`:
     ``TARGET`` (forwarding chain) and ``STACKED`` (composed argument mappings).
 
-Results are returned as :class:`DeprecatedCallableInfo` dataclasses, which carry both
+Results are returned as :class:`~deprecate.audit.DeprecatedCallableInfo` dataclasses, which carry both
 identification info and structured validation results for programmatic processing.
 
 .. note::
-   :func:`validate_deprecation_expiry` requires the ``packaging`` library for PEP 440
+   :func:`~deprecate.audit.validate_deprecation_expiry` requires the ``packaging`` library for PEP 440
    version comparison. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
@@ -125,7 +126,7 @@ class DeprecatedCallableInfo:
         self_reference: True if target points to the same function.
         no_effect: True if wrapper has zero impact (combines all checks).
         chain_type: The kind of deprecation chain detected, or ``None`` if no chain.
-            See :class:`ChainType` for values (``TARGET`` or ``STACKED``).
+            See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
 
     Example:
         >>> info = DeprecatedCallableInfo(
@@ -622,7 +623,7 @@ def validate_deprecation_chains(
             scan the top-level module.
 
     Returns:
-        List of :class:`DeprecatedCallableInfo` where ``chain_type`` is not ``None``,
+        List of :class:`~deprecate.audit.DeprecatedCallableInfo` where ``chain_type`` is not ``None``,
         i.e. every deprecated function that forms a chain (``ChainType.TARGET`` or
         ``ChainType.STACKED``).
 
@@ -636,7 +637,7 @@ def validate_deprecation_chains(
 
     Note:
         - Only flags callees using the pyDeprecate ``@deprecated`` decorator
-        - Uses :func:`find_deprecated_callables` and inspects ``chain_type`` to detect chains
+        - Uses :func:`~deprecate.audit.find_deprecated_callables` and inspects ``chain_type`` to detect chains
 
     """
     return [info for info in find_deprecated_callables(module, recursive=recursive) if info.chain_type is not None]
