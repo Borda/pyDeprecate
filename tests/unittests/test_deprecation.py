@@ -144,11 +144,7 @@ class TestRaiseWarn:
             def __init__(self) -> None:
                 pass
 
-        _raise_warn(
-            stream,
-            MyClass.__init__,
-            "%(source_name)s"
-        )
+        _raise_warn(stream, MyClass.__init__, "%(source_name)s")
         called_msg = stream.call_args[0][0]
         assert "MyClass" in called_msg
 
