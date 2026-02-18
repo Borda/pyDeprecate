@@ -1,18 +1,13 @@
 """Unit tests for private helpers in deprecate.deprecation."""
 
 import inspect
-import warnings
 from enum import Enum
 from unittest.mock import MagicMock
 
 import pytest
 
 from deprecate.deprecation import (
-    POSITIONAL_ONLY,
     POSITIONAL_OR_KEYWORD,
-    TEMPLATE_WARNING_ARGUMENTS,
-    TEMPLATE_WARNING_CALLABLE,
-    TEMPLATE_WARNING_NO_TARGET,
     _convert_enum_value_args,
     _get_positional_params,
     _is_enum_value_case,
