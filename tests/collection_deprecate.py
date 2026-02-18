@@ -22,12 +22,15 @@ This module contains deprecated wrappers covering real-world use cases:
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
+from functools import partial
+from typing import Any, Callable
+from warnings import warn
 
 from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, void
 from tests.collection_targets import (
+    NewCls,
     NewDataClass,
     NewEnum,
     NewIntEnum,
@@ -36,6 +39,8 @@ from tests.collection_targets import (
     base_sum_kwargs,
     timing_wrapper,
 )
+
+_deprecation_warning = partial(warn, category=DeprecationWarning)
 
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
@@ -459,3 +464,26 @@ def depr_func_no_remove_in(x: int) -> int:
         without a `remove_in` field.
     """
     return x
+
+
+# ========== Class deprecation with custom DeprecationWarning stream ==========
+
+
+class PastCls(NewCls):
+    """Deprecated class forwarding to NewCls with DeprecationWarning."""
+
+    @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
+    def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialize PastCls."""
+        super().__init__(c)
+
+
+class ThisCls(NewCls):
+    """Class with deprecated __init__ remapping argument via self-deprecation."""
+
+    @deprecated(
+        target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"}, stream=_deprecation_warning
+    )
+    def __init__(self, c: int = 3, nc: int = 5) -> None:
+        """Initialize ThisCls."""
+        super().__init__(c=nc)

@@ -1,16 +1,9 @@
 """Test the utility helper functions."""
 
-from warnings import warn
-
 import pytest
 
 from deprecate.utils import no_warning_call
-
-
-def raise_pow(base: float, coef: float) -> float:
-    """Function that raises a warning for testing."""
-    warn("warning you!", UserWarning)
-    return base**coef
+from tests.collection_targets import raise_pow
 
 
 class TestWarningCall:

@@ -33,7 +33,7 @@ jobs:
 
       - name: 🧪 Tests
         run: |
-          phmdoctest README.md --outfile tests/test_readme.py
+          phmdoctest README.md --outfile tests/integration/test_readme.py
           python -m pytest . -vv --cov=deprecate
 
       - name: 📊 Statistics

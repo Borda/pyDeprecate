@@ -139,6 +139,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Anchor with repository context first** — read config files (`pyproject.toml`, `.pre-commit-config.yaml`) and guidelines before any work
 - **Trust config files over documentation** — when mismatches occur, config files are the source of truth
 - **Suggest documentation updates** when you find mismatches between docs and actual configuration
+- **Update docs immediately after any structural change** — adding, moving, renaming, or deleting files/folders/modules must be followed by updating `.github/CONTRIBUTING.md` (project structure tree, Test Organisation table) and any other `*.md` that references affected paths or names. Do not wait to be asked.
 - Ensure pre-commit hooks are installed (they run automatically on commit)
 - Provide `deprecated_in` and `remove_in` versions
 - Include migration messages in deprecation warnings
