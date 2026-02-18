@@ -1,6 +1,13 @@
 """Tests for deprecation documentation strings."""
 
-from tests.collection_docstrings import NewClass, OldClass, OldClassPlain, new_function, old_function, old_function_plain
+from tests.collection_docstrings import (
+    NewClass,
+    OldClass,
+    OldClassPlain,
+    new_function,
+    old_function,
+    old_function_plain,
+)
 
 
 class TestDeprecationDocstrings:
