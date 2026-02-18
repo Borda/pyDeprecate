@@ -7,11 +7,13 @@ This module provides two kinds of helpers:
       and defaults from a callable's signature. Used when applying ``args_mapping``
       and when auditing wrapper configuration.
 
-**Public** (exported via :mod:`deprecate`):
+**Public — decorator companion** (exported via :mod:`deprecate`):
+    - :func:`~deprecate.utils.void`: Accepts any arguments and returns ``None``. Used in deprecated
+      function stubs to satisfy IDEs and mypy about unused parameters.
+
+**Public — testing** (exported via :mod:`deprecate`):
     - :func:`~deprecate.utils.no_warning_call`: Context manager that asserts no warnings are raised
       during a block — the inverse of ``pytest.warns()``.
-    - :func:`~deprecate.utils.void`: Accepts any arguments and returns ``None``. Used in deprecated
-      function stubs to suppress IDE "unused parameter" warnings.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """

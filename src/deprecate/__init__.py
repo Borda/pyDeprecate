@@ -16,6 +16,7 @@ Core Components:
 
 **Main Decorator** (:mod:`deprecate.deprecation`):
     - :func:`~deprecate.deprecation.deprecated`: Decorator for marking functions/classes as deprecated
+    - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
 **Audit** (:mod:`deprecate.audit`):
     - :func:`~deprecate.audit.validate_deprecated_callable`: Validate a single wrapper's configuration
@@ -28,7 +29,6 @@ Core Components:
 
 **Testing** (:mod:`deprecate.utils`):
     - :func:`~deprecate.utils.no_warning_call`: Context manager asserting that no warnings are raised
-    - :func:`~deprecate.utils.void`: Helper to silence IDE warnings about unused parameters in deprecated stubs
 
 Quick Example:
     >>> from deprecate import deprecated
