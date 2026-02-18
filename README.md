@@ -98,13 +98,15 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 | **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |
 | **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |
 | **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |
-| **Argument Deprecation** |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |
 | **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |
-| **Version Tracking**     |      ✅       |       🖐️ (manual)        |         ✅          |          ✅          |
-| **Prevent Log Spam**     |      ✅       |       🖐️ (manual)        |         ❌          |          ❌          |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |
 | **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Custom Streams**       |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |
+
+✍️ = possible but requires manual implementation
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
