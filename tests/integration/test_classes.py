@@ -1,12 +1,7 @@
 """Tests for deprecated classes and methods."""
 
-from functools import partial
-from typing import Any
-from warnings import warn
-
 import pytest
 
-from deprecate.deprecation import deprecated
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     DeprecatedDataClass,
@@ -15,33 +10,13 @@ from tests.collection_deprecate import (
     MappedEnum,
     MappedIntEnum,
     MappedValueEnum,
+    PastCls,
     RedirectedDataClass,
     RedirectedEnum,
     SelfMappedEnum,
+    ThisCls,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
-
-_deprecation_warning = partial(warn, category=DeprecationWarning)
-
-
-class PastCls(NewCls):
-    """Deprecated class inheriting from NewCls."""
-
-    @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
-    def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
-        """Initialize PastCls."""
-        super().__init__(c)
-
-
-class ThisCls(NewCls):
-    """Class with deprecated __init__ method."""
-
-    @deprecated(
-        target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"}, stream=_deprecation_warning
-    )
-    def __init__(self, c: int = 3, nc: int = 5) -> None:
-        """Initialize ThisCls."""
-        super().__init__(c=nc)
 
 
 class TestDeprecatedClass:

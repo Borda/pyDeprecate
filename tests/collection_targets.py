@@ -6,9 +6,16 @@ functions in other test modules.
 
 import functools
 import time
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
+
+
+def raise_pow(base: float, coef: float) -> float:
+    """Compute base**coef while emitting a UserWarning — used to test no_warning_call."""
+    warnings.warn("warning you!", UserWarning)
+    return base**coef
 
 
 def base_sum_kwargs(a: int = 0, b: int = 3) -> int:

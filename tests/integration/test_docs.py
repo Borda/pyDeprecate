@@ -1,57 +1,6 @@
-"""Sample module for testing deprecation documentation.
+"""Tests for deprecation documentation strings."""
 
-This module contains example functions and classes to demonstrate
-deprecation warnings in generated documentation.
-"""
-
-from deprecate import deprecated
-
-
-def new_function(a: int, b: str = "default") -> str:
-    """A new function that is the target."""
-    return f"{a} {b}"
-
-
-class NewClass:
-    """A new class."""
-
-    def __init__(self, x: int) -> None:
-        """Initialize NewClass."""
-        self.x = x
-
-
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
-def old_function(a: int, b: str = "old") -> str:
-    """An old function that is deprecated."""
-    return f"old {a} {b}"
-
-
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
-def old_function_plain(a: int, b: str = "old") -> str:
-    return f"old {a} {b}"
-
-
-class OldClass:
-    """An old class that is deprecated."""
-
-    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
-    def __init__(self, x: int) -> None:
-        """Initialize the old class."""
-        self.x = x
-
-
-class OldClassPlain:
-    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
-    def __init__(self, x: int) -> None:
-        self.x = x
-
-
-__all__ = [
-    "new_function",
-    "NewClass",
-    "old_function",
-    "OldClass",
-]
+from tests.collection_docstrings import NewClass, OldClass, OldClassPlain, new_function, old_function, old_function_plain
 
 
 class TestDeprecationDocstrings:
@@ -63,7 +12,7 @@ class TestDeprecationDocstrings:
             "An old function that is deprecated.\n\n"
             ".. deprecated:: 0.1\n"
             "   Will be removed in 0.3.\n"
-            "   Use :func:`tests.integration.test_docs.new_function` instead.\n"
+            "   Use :func:`tests.collection_docstrings.new_function` instead.\n"
         )
 
     def test_deprecated_func_docstring_plain(self) -> None:
@@ -76,7 +25,7 @@ class TestDeprecationDocstrings:
             "Initialize the old class.\n\n"
             ".. deprecated:: 0.2\n"
             "   Will be removed in 0.4.\n"
-            "   Use :class:`tests.integration.test_docs.NewClass` instead.\n"
+            "   Use :class:`tests.collection_docstrings.NewClass` instead.\n"
         )
 
     def test_deprecated_class_docstring_plain(self) -> None:
