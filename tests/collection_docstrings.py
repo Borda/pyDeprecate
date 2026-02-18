@@ -23,7 +23,7 @@ def old_function(a: int, b: str = "old") -> str:
 
 
 @deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
-def old_function_plain(a: int, b: str = "old") -> str:
+def old_function_plain(a: int, b: str = "old") -> str:  # noqa: D103
     return f"old {a} {b}"
 
 
@@ -36,7 +36,7 @@ class OldClass:
         self.x = x
 
 
-class OldClassPlain:
+class OldClassPlain:  # noqa: D101
     @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
-    def __init__(self, x: int) -> None:
+    def __init__(self, x: int) -> None:  # noqa: D107
         self.x = x

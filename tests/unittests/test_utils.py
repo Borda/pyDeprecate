@@ -91,19 +91,19 @@ class TestVoid:
 
 class TestGetFuncArgumentsTypesDefaults:
     def test_extracts_names_types_and_defaults(self) -> None:
-        def my_func(x: int, y: str = "hello", z=42) -> None:
+        def my_func(x: int, y: str = "hello", z=42) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN001
             pass
 
         result = get_func_arguments_types_defaults(my_func)
         assert len(result) == 3
         names = [r[0] for r in result]
         assert names == ["x", "y", "z"]
-        assert result[0][1] == int
+        assert result[0][1] is int
         assert result[1][2] == "hello"
         assert result[2][2] == 42
 
     def test_unannotated_param_has_empty_annotation(self) -> None:
-        def my_func(a, b: int) -> None:
+        def my_func(a, b: int) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN001
             pass
 
         result = get_func_arguments_types_defaults(my_func)
