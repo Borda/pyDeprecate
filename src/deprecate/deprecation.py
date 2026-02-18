@@ -4,11 +4,11 @@ This module provides the main ``@deprecated`` decorator for marking functions, m
 and classes as deprecated while optionally forwarding calls to their replacements.
 
 Key Components:
-    - :func:`deprecated`: Main decorator for deprecation with automatic call forwarding
+    - :func:`~deprecate.deprecation.deprecated`: Main decorator for deprecation with automatic call forwarding
     - Warning templates for different deprecation scenarios
     - Internal helpers for argument mapping and warning management
 
-Copyright (C) 2020-2026 Jiri Borovec <...>
+Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
@@ -554,7 +554,7 @@ def deprecated(
             Default is empty string.
         remove_in: Version when the function will be removed (e.g., "2.0.0").
             Default is empty string.
-        stream: Function to output warnings (default: :func:`deprecation_warning`, which is
+        stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
             :func:`warnings.warn` with ``FutureWarning`` category).
             Set to ``None`` to disable warnings entirely.
         num_warns: Number of times to show warning per function or per deprecated argument:
