@@ -80,6 +80,11 @@ setup(
         "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
     },
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
+    entry_points={
+        "console_scripts": [
+            "pydeprecate=deprecate.cli:main",
+        ],
+    },
     classifiers=[
         "Environment :: Console",
         "Natural Language :: English",
