@@ -73,11 +73,14 @@ from deprecate.audit import (
     validate_deprecation_expiry,
 )
 from deprecate.deprecation import deprecated
+from deprecate.structs import DeprecatedStruct, deprecated_instance
 from deprecate.utils import no_warning_call, void
 
 __all__ = [
     "deprecated",
     "DeprecatedCallableInfo",
+    "DeprecatedStruct",
+    "deprecated_instance",
     "find_deprecated_callables",
     "validate_deprecated_callable",
     "validate_deprecation_chains",

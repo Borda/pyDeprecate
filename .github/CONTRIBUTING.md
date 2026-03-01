@@ -280,6 +280,7 @@ git push origin fix/123-your-bug-description
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
 - Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior
+- In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax (e.g., `:func:`~deprecate.deprecation.deprecated`` rather than just `:func:`deprecated``); standard library symbols (e.g., `FutureWarning`) do not need a module prefix
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
 - Add type hints to all function signatures, including return types
 - Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
@@ -309,6 +310,7 @@ pyDeprecate/
 │   ├── __init__.py             # Public API exports
 │   ├── deprecation.py          # @deprecated decorator and warning logic
 │   ├── audit.py                # Audit tools: validate_*, find_deprecated_callables()
+│   ├── structs.py              # Instance/class proxy: DeprecatedStruct, deprecated_instance()
 │   └── utils.py                # Low-level helpers: void(), no_warning_call()
 ├── tests/                      # Test suite
 │   ├── collection_targets.py       # Target functions (new implementations)
@@ -361,7 +363,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 **`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `audit.py`, `utils.py`).
 
 > [!IMPORTANT]
-> In almost all cases, **do not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files. Prefer placing targets in `collection_targets.py` and deprecated wrappers in `collection_deprecate.py`, then importing them in tests. A small number of existing tests intentionally define `@deprecated` callables inline when the test itself is about how `@deprecated` is declared; new tests should follow the three-layer pattern unless such an inline definition is explicitly required.
+> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 
 **Docstrings in test collections:**
 

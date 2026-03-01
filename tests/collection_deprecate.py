@@ -18,6 +18,8 @@ This module contains deprecated wrappers covering real-world use cases:
 - Conditional skip (skip_if with bool and callable)
 - Deprecating decorator/wrapper functions
 - Deprecating class-based decorators via __init__
+- Instance deprecation via deprecated_instance()
+- Class-level deprecation with DeprecatedStruct (Enum and dataclass)
 """
 
 from dataclasses import dataclass
@@ -28,12 +30,13 @@ from warnings import warn
 
 from sklearn.metrics import accuracy_score
 
-from deprecate import deprecated, void
+from deprecate import DeprecatedStruct, deprecated, deprecated_instance, void
 from tests.collection_targets import (
     NewCls,
     NewDataClass,
     NewEnum,
     NewIntEnum,
+    TargetColorEnum,
     TimerDecorator,
     base_pow_args,
     base_sum_kwargs,
@@ -487,3 +490,118 @@ class ThisCls(NewCls):
     def __init__(self, c: int = 3, nc: int = 5) -> None:
         """Initialize ThisCls."""
         super().__init__(c=nc)
+
+
+# ========== Instance and class-level proxy deprecation examples ==========
+
+
+# deprecated config dict for integration tests (name auto-inferred as "dict")
+depr_config_dict = deprecated_instance(
+    {"threshold": 0.5, "enabled": True},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)
+"""Deprecated config dict wrapped with deprecated_instance for integration tests."""
+
+# read-only deprecated config dict — rejects mutations
+depr_config_dict_read_only = deprecated_instance(
+    {"threshold": 0.5, "enabled": True},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+    read_only=True,
+)
+"""Read-only deprecated config dict that rejects mutations."""
+
+
+@DeprecatedStruct(target=TargetColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+class DeprecatedColorEnum(Enum):
+    """Deprecated color enum forwarding to TargetColorEnum via DeprecatedStruct.
+
+    Example:
+        A user calling DeprecatedColorEnum.RED receives TargetColorEnum.RED.
+    """
+
+    RED = 1
+    BLUE = 2
+
+
+@DeprecatedStruct(target=NewDataClass, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@dataclass
+class DeprecatedColorDataClass:
+    """Deprecated dataclass forwarding to NewDataClass via DeprecatedStruct.
+
+    Example:
+        A user instantiating DeprecatedColorDataClass(label="x") receives a NewDataClass instance.
+    """
+
+    label: str
+    total: int = 0
+
+
+@DeprecatedStruct(deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+class WarnOnlyColorEnum(Enum):
+    """Deprecated enum with no forwarding target — warns on access only.
+
+    Example:
+        A user accessing WarnOnlyColorEnum.A receives the original member with a warning.
+    """
+
+    A = "a"
+
+
+@DeprecatedStruct(
+    target=TargetColorEnum,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+    arg_mapping={"val": "value"},
+)
+class MappedColorEnum(Enum):
+    """Deprecated enum with arg_mapping: remaps 'val' kwarg to 'value' when called.
+
+    Example:
+        A user calling MappedColorEnum(val=1) receives TargetColorEnum.RED.
+    """
+
+    RED = 1
+    BLUE = 2
+
+
+@DeprecatedStruct(
+    target=NewDataClass,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+    arg_mapping={"name": "label", "count": "total"},
+)
+@dataclass
+class MappedDataClass:
+    """Deprecated dataclass with arg_mapping: remaps 'name'->'label' and 'count'->'total'.
+
+    Example:
+        A user calling MappedDataClass(name="x", count=3) receives NewDataClass(label="x", total=3).
+    """
+
+    label: str
+    total: int = 0
+
+
+@DeprecatedStruct(
+    target=NewDataClass,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+    arg_mapping={"legacy_flag": None, "name": "label"},
+)
+@dataclass
+class MappedDropArgDataClass:
+    """Deprecated dataclass with arg_mapping: drops 'legacy_flag', remaps 'name'->'label'.
+
+    Example:
+        A user calling MappedDropArgDataClass(name="x", legacy_flag=True) receives NewDataClass(label="x").
+    """
+
+    label: str
+    total: int = 0

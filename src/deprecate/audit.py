@@ -28,6 +28,14 @@ identification info and structured validation results for programmatic processin
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
+# TODO:
+# Follow-up: extend audit functions to cover :class:`~deprecate.structs.DeprecatedStruct`
+# proxy objects and module-level :func:`~deprecate.structs.deprecated_instance` constants.
+# These are currently not scanned by :func:`find_deprecated_callables` or
+# :func:`validate_deprecation_expiry`.  Tests should verify that decorated Enums/dataclasses
+# and deprecated instance constants are discoverable and their ``remove_in`` deadlines
+# are enforced the same way as regular callables.
+
 import inspect
 from contextlib import suppress
 from dataclasses import dataclass, field, replace

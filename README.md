@@ -36,6 +36,8 @@ ______________________________________________________________________
   - [Multiple deprecation levels](#-multiple-deprecation-levels)
   - [Conditional skip](#-conditional-skip)
   - [Class deprecation](#-class-deprecation)
+  - [Deprecating constants and instances](#-deprecating-constants-and-instances)
+  - [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)
   - [Automatic docstring updates](#-automatic-docstring-updates)
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
 - [🔍 Audit](#-audit)
@@ -466,6 +468,94 @@ print(inst.my_d)  # returns: "efg"
 ```
 7
 efg
+```
+
+</details>
+
+### 📦 Deprecating constants and instances
+
+Use `deprecated_instance` to wrap any Python object — a number, string, dict, or custom object — with
+transparent deprecation warnings.  The `name` parameter is optional; when omitted it defaults to the
+type name of the wrapped object (e.g. `"dict"`).
+
+```python
+from deprecate import deprecated_instance
+
+# Legacy threshold constant — migrate to new_config.threshold
+LEGACY_THRESHOLD = deprecated_instance(0.5, deprecated_in="1.0", remove_in="2.0")
+
+# Legacy config dict — read-only so accidental mutations are blocked
+LEGACY_CONFIG = deprecated_instance(
+    {"threshold": 0.5, "enabled": True},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    read_only=True,
+)
+
+# Any read triggers a FutureWarning:
+#   The `dict` was deprecated since v1.0. It will be removed in v2.0.
+val = LEGACY_CONFIG["threshold"]  # 0.5
+
+# Writes are blocked in read-only mode:
+LEGACY_CONFIG["threshold"] = 0.9  # raises AttributeError
+```
+
+### 🗂 Deprecating Enums and dataclasses
+
+<details>
+<summary>Example: <code>@DeprecatedStruct</code> with optional <code>arg_mapping</code></summary>
+
+`@DeprecatedStruct` wraps an entire Enum or dataclass in a transparent proxy that warns on every
+access and forwards attribute, item, and call operations to the replacement class.
+Use `arg_mapping` to rename or drop kwargs when the deprecated class is called.
+
+```python
+from enum import Enum
+from dataclasses import dataclass
+from deprecate import DeprecatedStruct
+
+
+class NewColor(Enum):
+    RED = 1
+    BLUE = 2
+
+
+@DeprecatedStruct(target=NewColor, deprecated_in="1.0", remove_in="2.0")
+class OldColor(Enum):
+    RED = 1
+    BLUE = 2
+
+
+# All access is forwarded to NewColor — a FutureWarning is emitted once:
+#   The `OldColor` was deprecated since v1.0. It will be removed in v2.0.
+assert OldColor.RED is NewColor.RED  # True
+assert OldColor(1) is NewColor.RED   # True
+assert OldColor["RED"] is NewColor.RED  # True
+
+
+@dataclass
+class NewPoint:
+    x: float
+    y: float
+
+
+# arg_mapping renames 'left'→'x' and 'top'→'y'; pass None to drop a kwarg entirely
+@DeprecatedStruct(
+    target=NewPoint,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    arg_mapping={"left": "x", "top": "y"},
+)
+@dataclass
+class OldPoint:
+    x: float
+    y: float
+
+
+# Old callers using keyword arguments are remapped automatically:
+pt = OldPoint(left=3.0, top=4.0)  # → NewPoint(x=3.0, y=4.0)
+assert pt.x == 3.0
+assert pt.y == 4.0
 ```
 
 </details>
