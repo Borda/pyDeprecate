@@ -60,9 +60,9 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 **Guidelines**:
 
-- Follow [Coding Standards](/.github/CONTRIBUTING.md#-coding-standards)
-- Follow [Test Requirements](/.github/CONTRIBUTING.md#-tests-and-quality-assurance)
-- Use [Branch Naming Convention](/.github/CONTRIBUTING.md#-branch-naming-convention)
+- Follow [Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
+- Follow [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
+- Use [Branch Naming Convention](.github/CONTRIBUTING.md#-branch-naming-convention)
 
 ### Community-Scribe
 
@@ -77,8 +77,8 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 **Guidelines**:
 
-- Follow [Documentation Guidelines](/.github/CONTRIBUTING.md#-coding-standards)
-- See [Ways to Contribute](/.github/CONTRIBUTING.md#-ways-to-contribute)
+- Follow [Documentation Guidelines](.github/CONTRIBUTING.md#-coding-standards)
+- See [Ways to Contribute](.github/CONTRIBUTING.md#-ways-to-contribute)
 
 ### Security-Watcher
 
