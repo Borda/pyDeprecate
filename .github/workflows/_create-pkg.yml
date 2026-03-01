@@ -45,7 +45,7 @@ jobs:
 
       - name: 📤 Upload artifact
         if: ${{ inputs.artifact-name != '' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: dist/
