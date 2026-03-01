@@ -60,6 +60,7 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
 - 🛠️ Supports deprecating functions, methods, and classes
+- 📦 Supports deprecating objects/instances (e.g. dicts, lists, Enums) via `deprecated_instance`
 - 📝 Optionally, docstrings can be updated automatically to reflect deprecation
 - 🔍 Preserves original function signature, annotations and metadata for introspection
 - ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
@@ -155,7 +156,98 @@ result = old_sum(1, 2)  # Returns 3
 #          It will be removed in v2.0.
 ```
 
-That's it! All calls to `old_sum()` are automatically forwarded to `new_sum()` with a deprecation warning.
+Or if you need to deprecate a variable, dictionary, or any standalone instance, use the `deprecated_instance` wrapper:
+
+```python
+from deprecate import deprecated_instance
+
+OLD_CONFIG = {"enabled": True, "threshold": 0.5}
+
+# Wrap your legacy dictionary or object
+CONFIG = deprecated_instance(OLD_CONFIG, name="CONFIG", deprecated_in="1.0", remove_in="2.0")
+
+# Accessing the proxy transparently routes to the target, emitting a single warning
+val = CONFIG["threshold"]
+# Warning: The `CONFIG` was deprecated since v1.0. It will be removed in v2.0.
+```
+
+And if you want to deprecate a struct type itself (like `@dataclass` or `Enum`), you can use the `@DeprecatedStruct` decorator:
+
+```python
+from enum import Enum
+from deprecate import DeprecatedStruct
+
+
+@DeprecatedStruct(deprecated_in="1.0", remove_in="2.0")
+class ColorEnum(Enum):
+    RED = 1
+    BLUE = 2
+
+
+# Accessing class attributes warns:
+val = ColorEnum.RED
+# Warning: The `ColorEnum` was deprecated since v1.0. It will be removed in v2.0.
+```
+
+<details>
+  <summary>Advanced: Restricting modifications with <code>read_only=True</code></summary>
+
+You can enforce strict migrations by making the deprecated instance read-only. We intercept mutation magic methods (`__setitem__`, `__setattr__`, etc.) and raise a runtime error.
+
+```python
+from deprecate import deprecated_instance
+
+RO_CONFIG = deprecated_instance(
+    {"enabled": True}, name="RO_CONFIG", deprecated_in="1.0", remove_in="2.0", read_only=True
+)
+
+# Writing raises an error due to read_only=True
+RO_CONFIG["enabled"] = False
+# RuntimeError: You can read legacy state, but updates are no longer supported—migrate now!
+```
+
+</details>
+
+<details>
+  <summary>Advanced: Redirecting to a new target</summary>
+
+You can optionally provide a `target` argument to transparently redirect all interactions (attribute access, instantiation, etc.) to a new object, while continuing to warn users about the migration.
+
+```python
+NEW_CONFIG = {"enabled": True, "threshold": 0.8}
+CONFIG = deprecated_instance(
+    {"enabled": True, "threshold": 0.5}, target=NEW_CONFIG, name="CONFIG", deprecated_in="1.0", remove_in="2.0"
+)
+
+# Warns about the legacy config, but reads from NEW_CONFIG
+CONFIG["threshold"]
+# Warning: The `CONFIG` was deprecated since v1.0 in favor of `dict`. It will be removed in v2.0.
+# 0.8
+```
+
+And similarly for decorated classes:
+
+```python
+class NewColorEnum(Enum):
+    RED = 10
+    BLUE = 20
+
+
+@DeprecatedStruct(target=NewColorEnum, deprecated_in="1.0", remove_in="2.0")
+class ColorEnum(Enum):
+    RED = 1
+    BLUE = 2
+
+
+# Warns about ColorEnum, but routes to NewColorEnum
+ColorEnum.RED
+# Warning: The `ColorEnum` was deprecated since v1.0 in favor of `NewColorEnum`. It will be removed in v2.0.
+# <NewColorEnum.RED: 10>
+```
+
+</details>
+
+That's it! All calls to `old_sum()` are automatically forwarded to `new_sum()`, primitive instances wrapped with `deprecated_instance` proxy and warn on data access, and classes decorated with `@DeprecatedStruct` warn on instantiation or attribute access.
 
 ## 📚 Use-cases and Applications
 
@@ -174,6 +266,8 @@ In particular the target values (cases):
 - _None_ - raise only warning message (ignore all argument mapping)
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
+
+You can also use `deprecated_instance` to wrap any object (dicts, Enums, class instances) so that attribute or item accesses trigger standard deprecation warnings while forwarding reads to the wrapped target, with an optional strict `read_only` mode.
 
 ### ➡ Simple function forwarding
 
