@@ -475,7 +475,7 @@ efg
 ### 📦 Deprecating constants and instances
 
 Use `deprecated_instance` to wrap any Python object — a number, string, dict, or custom object — with
-transparent deprecation warnings.  The `name` parameter is optional; when omitted it defaults to the
+transparent deprecation warnings. The `name` parameter is optional; when omitted it defaults to the
 type name of the wrapped object (e.g. `"dict"`).
 
 ```python
@@ -529,7 +529,7 @@ class OldColor(Enum):
 # All access is forwarded to NewColor — a FutureWarning is emitted once:
 #   The `OldColor` was deprecated since v1.0. It will be removed in v2.0.
 assert OldColor.RED is NewColor.RED  # True
-assert OldColor(1) is NewColor.RED   # True
+assert OldColor(1) is NewColor.RED  # True
 assert OldColor["RED"] is NewColor.RED  # True
 
 
