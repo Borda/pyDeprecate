@@ -22,7 +22,9 @@ from tests.collection_targets import (
 
 class TestDeprecatedInstance:
     def test_dict_read_warning(self) -> None:
-        with pytest.warns(FutureWarning, match="The `depr_config_dict` was deprecated since v1.0. It will be removed in v2.0."):
+        with pytest.warns(
+            FutureWarning, match="The `depr_config_dict` was deprecated since v1.0. It will be removed in v2.0."
+        ):
             assert depr_config_dict["threshold"] == 0.5
 
     def test_dict_read_only(self) -> None:
@@ -67,21 +69,24 @@ class TestDeprecatedInstance:
 
     def test_decorator_proxy(self) -> None:
         # Deprecate the decorator instance itself
-        depr_decorator = deprecated_instance(TimerDecorator, name="TimerDecorator", deprecated_in="1.0", remove_in="2.0")
+        depr_decorator = deprecated_instance(
+            TimerDecorator, name="TimerDecorator", deprecated_in="1.0", remove_in="2.0"
+        )
 
         # Use the deprecated decorator
         with pytest.warns(FutureWarning, match="The `TimerDecorator` was deprecated"):
+
             @depr_decorator
             def add_two(x: int) -> int:
                 return x + 2
-                
+
         # Call the decorated function - shouldn't warn again unless the wrapper was also deprecated
         assert add_two(5) == 7
 
     def test_dict_redirection(self) -> None:
         with pytest.warns(FutureWarning, match=r"The `depr_redirect_dict` was deprecated.*in favor of.*"):
             assert depr_redirect_dict["a"] == 2
-        
+
         # Modification should route to target
         with pytest.warns(FutureWarning):
             depr_redirect_dict["b"] = 3
@@ -101,9 +106,11 @@ class TestDeprecatedStruct:
         assert cfg.port == 8080
 
     def test_enum_redirection(self) -> None:
-        with pytest.warns(FutureWarning, match="The `OldColors` was deprecated since v1.0 in favor of `TargetColors`. It will be removed in v2.0."):
+        with pytest.warns(
+            FutureWarning,
+            match="The `OldColors` was deprecated since v1.0 in favor of `TargetColors`. It will be removed in v2.0.",
+        ):
             val = OldColors.RED.value
-        
+
         # Should redirect to TargetColors's RED which is 10
         assert val == 10
-

@@ -1,6 +1,7 @@
 """Deprecated instance proxy for data structures and objects."""
 
-from typing import Any, Callable, Iterator, Optional, TypeVar
+from collections.abc import Iterator
+from typing import Any, Callable, Optional, TypeVar
 from warnings import warn
 
 T = TypeVar("T")
@@ -113,15 +114,15 @@ class DeprecatedStruct:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         source = object.__getattribute__(self, "_DeprecatedStruct__source")
         target = object.__getattribute__(self, "_DeprecatedStruct__target")
-        
+
         if source is None:
             # Acts as a decorator
             if len(args) != 1 or kwargs:
                 raise TypeError("When used as a decorator, must be called with a single target.")
-            
+
             new_source = args[0]
             name = object.__getattribute__(self, "_DeprecatedStruct__name") or getattr(new_source, "__name__", "object")
-            
+
             return type(self)(
                 source=new_source,
                 target=target,
@@ -132,7 +133,7 @@ class DeprecatedStruct:
                 stream=object.__getattribute__(self, "_DeprecatedStruct__stream"),
                 num_warns=object.__getattribute__(self, "_DeprecatedStruct__num_warns"),
             )
-            
+
         self.__warn()
         return self.__get_active()(*args, **kwargs)
 
