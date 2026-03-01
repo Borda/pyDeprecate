@@ -100,3 +100,10 @@ class TimerDecorator:
         self.calls += 1
         print(f"'{self.func.__name__}' executed in {execution_time:.4f}s")
         return result
+
+
+class TargetColors(Enum):
+    """Target enum for redirection tests."""
+
+    RED = 10
+    BLUE = 20

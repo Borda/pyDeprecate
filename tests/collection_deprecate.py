@@ -28,12 +28,13 @@ from warnings import warn
 
 from sklearn.metrics import accuracy_score
 
-from deprecate import deprecated, void
+from deprecate import DeprecatedStruct, deprecated, deprecated_instance, void
 from tests.collection_targets import (
     NewCls,
     NewDataClass,
     NewEnum,
     NewIntEnum,
+    TargetColors,
     TimerDecorator,
     base_pow_args,
     base_sum_kwargs,
@@ -487,3 +488,59 @@ class ThisCls(NewCls):
     def __init__(self, c: int = 3, nc: int = 5) -> None:
         """Initialize ThisCls."""
         super().__init__(c=nc)
+
+
+# ========== Instance Deprecation Examples ==========
+
+
+depr_config_dict = deprecated_instance(
+    {"threshold": 0.5},
+    name="depr_config_dict",
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)
+
+depr_read_only_dict = deprecated_instance(
+    {"enabled": True},
+    name="depr_read_only_dict",
+    deprecated_in="1.0",
+    remove_in="2.0",
+    read_only=True,
+    num_warns=-1,
+)
+
+
+@DeprecatedStruct(deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@dataclass
+class Settings:
+    """Settings dataclass proxy example."""
+
+    host: str
+    port: int
+
+
+@DeprecatedStruct(deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+class Colors(Enum):
+    """Colors enum proxy example."""
+
+    RED = 1
+    BLUE = 2
+
+
+depr_redirect_dict = deprecated_instance(
+    {"a": 1},
+    target={"a": 2},
+    name="depr_redirect_dict",
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)
+
+
+@DeprecatedStruct(target=TargetColors, name="OldColors", deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+class OldColors(Enum):
+    """Old enum that redirects to TargetColors."""
+
+    RED = 1
+    BLUE = 2
