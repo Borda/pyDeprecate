@@ -21,25 +21,21 @@ class TestProxyInit:
     """Internal state initialisation for _DeprecatedProxy instances."""
 
     def test_internal_state_stored_correctly(self) -> None:
-        """All constructor kwargs are stored in name-mangled attributes."""
+        """Constructor stores runtime config in __config and metadata in __deprecated__."""
         obj = {"a": 1}
         proxy = _DeprecatedProxy(obj=obj, name="x", deprecated_in="1.0", remove_in="2.0", num_warns=3, stream=None)
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__obj") is obj
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__name") == "x"
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__deprecated_in") == "1.0"
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__remove_in") == "2.0"
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__num_warns") == 3
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__stream") is None
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__read_only") is False
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__warned") == 0
-
-    def test_deprecated_metadata_attribute(self) -> None:
-        """__deprecated__ dict is set with correct keys."""
-        proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0")
+        cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
+        assert cfg["obj"] is obj
+        assert cfg["num_warns"] == 3
+        assert cfg["stream"] is None
+        assert cfg["read_only"] is False
+        assert cfg["warned"] == 0
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert meta["name"] == "x"
         assert meta["deprecated_in"] == "1.0"
         assert meta["remove_in"] == "2.0"
+        assert meta["target"] is None
+        assert meta["args_mapping"] is None
 
 
 class TestProxyWarnBehavior:
@@ -61,7 +57,7 @@ class TestProxyWarnBehavior:
             warnings.simplefilter("always")
             proxy._warn()
             proxy._warn()
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__warned") == 2
+        assert object.__getattribute__(proxy, "_DeprecatedProxy__config")["warned"] == 2
 
     def test_warn_stops_after_limit(self) -> None:
         """Warnings stop once num_warns threshold is reached."""
@@ -306,7 +302,7 @@ class TestDecoratorFactory:
 
     def test_uses_class_name_as_proxy_name(self) -> None:
         """The proxy name is taken from the decorated class __name__."""
-        name = object.__getattribute__(WarnOnlyColorEnum, "_DeprecatedProxy__name")
+        name = object.__getattribute__(WarnOnlyColorEnum, "__deprecated__")["name"]
         assert name == "WarnOnlyColorEnum"
 
     def test_no_target_reads_from_source(self) -> None:
@@ -415,7 +411,7 @@ class TestArgsMapping:
 
     def test_args_mapping_stored_in_proxy(self) -> None:
         """Proxy should retain args_mapping so audit and introspection can verify remapping behavior."""
-        mapping = object.__getattribute__(MappedDataClass, "_DeprecatedProxy__args_mapping")
+        mapping = object.__getattribute__(MappedDataClass, "__deprecated__")["args_mapping"]
         assert mapping == {"name": "label", "count": "total"}
 
     def test_enum_remap_kwarg(self) -> None:

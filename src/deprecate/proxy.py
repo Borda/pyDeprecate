@@ -78,19 +78,23 @@ class _DeprecatedProxy:
         target: Any = None,  # noqa: ANN401
         args_mapping: Optional[dict] = None,
     ) -> None:
-        """Initialise the proxy, storing all configuration via object.__setattr__."""
-        object.__setattr__(self, "_DeprecatedProxy__obj", obj)
-        object.__setattr__(self, "_DeprecatedProxy__target", target)
-        object.__setattr__(self, "_DeprecatedProxy__name", name)
-        object.__setattr__(self, "_DeprecatedProxy__deprecated_in", deprecated_in)
-        object.__setattr__(self, "_DeprecatedProxy__remove_in", remove_in)
-        object.__setattr__(self, "_DeprecatedProxy__num_warns", num_warns)
-        object.__setattr__(self, "_DeprecatedProxy__stream", stream)
-        object.__setattr__(self, "_DeprecatedProxy__read_only", read_only)
-        object.__setattr__(self, "_DeprecatedProxy__warned", 0)
-        object.__setattr__(self, "_DeprecatedProxy__args_mapping", args_mapping)
-        # Compatibility: audit/introspection functions rely on this metadata key layout.
-        # Align with @deprecated schema by including target and args_mapping.
+        """Initialise the proxy with two storage dicts, bypassing the overridden __setattr__.
+
+        ``__config`` holds private runtime state (obj, stream, num_warns, read_only,
+        and the mutable ``warned`` counter).  Mutations to ``warned`` are plain dict
+        assignments — no ``object.__setattr__`` needed on every warning emission.
+
+        ``__deprecated__`` is the public metadata interface consumed by audit tools
+        (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) and
+        kept strictly read-only semantically.  Aligns with the ``@deprecated`` schema.
+        """
+        object.__setattr__(self, "_DeprecatedProxy__config", {
+            "obj": obj,
+            "stream": stream,
+            "num_warns": num_warns,
+            "read_only": read_only,
+            "warned": 0,
+        })
         object.__setattr__(
             self,
             "__deprecated__",
@@ -110,54 +114,52 @@ class _DeprecatedProxy:
 
     def _warn(self) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted."""
-        stream: Optional[Callable[..., None]] = object.__getattribute__(self, "_DeprecatedProxy__stream")
+        cfg: dict = object.__getattribute__(self, "_DeprecatedProxy__config")
+        stream = cfg["stream"]
         if not stream:
             return
-        num_warns: int = object.__getattribute__(self, "_DeprecatedProxy__num_warns")
-        warned: int = object.__getattribute__(self, "_DeprecatedProxy__warned")
-        if num_warns >= 0 and warned >= num_warns:
+        if cfg["num_warns"] >= 0 and cfg["warned"] >= cfg["num_warns"]:
             return
-        name: str = object.__getattribute__(self, "_DeprecatedProxy__name")
-        deprecated_in: str = object.__getattribute__(self, "_DeprecatedProxy__deprecated_in")
-        remove_in: str = object.__getattribute__(self, "_DeprecatedProxy__remove_in")
-        target: Any = object.__getattribute__(self, "_DeprecatedProxy__target")
+        dep: dict = object.__getattribute__(self, "__deprecated__")
+        target: Any = dep["target"]
         if callable(target):
             target_name = target.__name__
             target_path = f"{target.__module__}.{target_name}"
             msg = TEMPLATE_WARNING_CALLABLE % {
-                "source_name": name,
-                "deprecated_in": deprecated_in,
-                "remove_in": remove_in,
+                "source_name": dep["name"],
+                "deprecated_in": dep["deprecated_in"],
+                "remove_in": dep["remove_in"],
                 "target_name": target_name,
                 "target_path": target_path,
             }
         else:
             msg = TEMPLATE_WARNING_NO_TARGET % {
-                "source_name": name,
-                "deprecated_in": deprecated_in,
-                "remove_in": remove_in,
+                "source_name": dep["name"],
+                "deprecated_in": dep["deprecated_in"],
+                "remove_in": dep["remove_in"],
             }
         stream(msg)
-        object.__setattr__(self, "_DeprecatedProxy__warned", warned + 1)
+        cfg["warned"] += 1  # dict mutation — no object.__setattr__ needed
 
     def _check_read_only(self, operation: str) -> None:
         """Raise AttributeError when the proxy is in read-only mode."""
-        if object.__getattribute__(self, "_DeprecatedProxy__read_only"):
-            name: str = object.__getattribute__(self, "_DeprecatedProxy__name")
+        cfg: dict = object.__getattribute__(self, "_DeprecatedProxy__config")
+        if cfg["read_only"]:
+            name: str = object.__getattribute__(self, "__deprecated__")["name"]
             raise AttributeError(
                 f"'{name}' is deprecated and read-only. {operation} is not allowed. Migrate away from this object."
             )
 
     def _get_active(self) -> Any:  # noqa: ANN401
         """Return the active object: *target* when set, otherwise *source*."""
-        target = object.__getattribute__(self, "_DeprecatedProxy__target")
+        target = object.__getattribute__(self, "__deprecated__")["target"]
         if target is not None:
             return target
-        return object.__getattribute__(self, "_DeprecatedProxy__obj")
+        return object.__getattribute__(self, "_DeprecatedProxy__config")["obj"]
 
     def _apply_args_mapping(self, kwargs: dict) -> dict:
         """Apply args_mapping to *kwargs*, renaming or dropping keys as configured."""
-        args_mapping: Optional[dict] = object.__getattribute__(self, "_DeprecatedProxy__args_mapping")
+        args_mapping: Optional[dict] = object.__getattribute__(self, "__deprecated__")["args_mapping"]
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
@@ -200,7 +202,7 @@ class _DeprecatedProxy:
         attr = getattr(self._get_active(), name)
         # In read-only mode, guard common mutating methods accessed via attribute lookup.
         if (
-            object.__getattribute__(self, "_DeprecatedProxy__read_only")
+            object.__getattribute__(self, "_DeprecatedProxy__config")["read_only"]
             and callable(attr)
             and self._is_potential_mutator(name)
         ):
@@ -272,10 +274,10 @@ class _DeprecatedProxy:
     # ------------------------------------------------------------------
 
     def __eq__(self, other: object) -> bool:
-        """Compare the wrapped object for equality."""
-        obj = object.__getattribute__(self, "_DeprecatedProxy__obj")
+        """Compare the source object for equality."""
+        obj = object.__getattribute__(self, "_DeprecatedProxy__config")["obj"]
         if isinstance(other, _DeprecatedProxy):
-            other = object.__getattribute__(other, "_DeprecatedProxy__obj")
+            other = object.__getattribute__(other, "_DeprecatedProxy__config")["obj"]
         return bool(obj == other)
 
     def __ne__(self, other: object) -> bool:
@@ -283,20 +285,20 @@ class _DeprecatedProxy:
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        """Return the hash of the wrapped object."""
-        return hash(object.__getattribute__(self, "_DeprecatedProxy__obj"))
+        """Return the hash of the source object."""
+        return hash(object.__getattribute__(self, "_DeprecatedProxy__config")["obj"])
 
     # ------------------------------------------------------------------
     # String representations — no warning emitted (used for debugging)
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        """Return repr of the wrapped object."""
-        return repr(object.__getattribute__(self, "_DeprecatedProxy__obj"))
+        """Return repr of the source object."""
+        return repr(object.__getattribute__(self, "_DeprecatedProxy__config")["obj"])
 
     def __str__(self) -> str:
-        """Return str of the wrapped object."""
-        return str(object.__getattribute__(self, "_DeprecatedProxy__obj"))
+        """Return str of the source object."""
+        return str(object.__getattribute__(self, "_DeprecatedProxy__config")["obj"])
 
     def __bool__(self) -> bool:
         """Return bool of the active object without emitting a warning."""
