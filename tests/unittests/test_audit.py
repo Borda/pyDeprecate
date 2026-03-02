@@ -170,7 +170,7 @@ class TestValidateDeprecatedCallableWithProxy:
         assert "old_key" in result.invalid_args
 
     def test_proxy_function_name_from_dep_info(self) -> None:
-        """function field comes from dep_info.name, not from getattr(proxy, '__name__').
+        """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
 
         Without this, getattr routes through __getattr__ and leaks the target's __name__.
         """
