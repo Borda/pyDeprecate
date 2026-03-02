@@ -1,5 +1,6 @@
 """Test the audit module functions."""
 
+import importlib
 import importlib.metadata
 import importlib.util
 import inspect
