@@ -28,22 +28,22 @@ identification info and structured validation results for programmatic processin
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
-# FIXME: Proxy objects are not fully covered by audit utilities (GitHub issue needed).
-# :func:`~deprecate.proxy.deprecated_class` and :func:`~deprecate.proxy.deprecated_instance`
-# are discoverable via the generic ``callable(obj)`` + ``hasattr(obj, "__deprecated__")``
-# scan in :func:`find_deprecated_callables` and :func:`validate_deprecation_expiry`,
-# but two gaps remain:
+# TODO: Proxy objects are not fully covered by audit utilities (GitHub issue needed).
+#     :func:`~deprecate.proxy.deprecated_class` and :func:`~deprecate.proxy.deprecated_instance`
+#     are discoverable via the generic ``callable(obj)`` + ``hasattr(obj, "__deprecated__")``
+#     scan in :func:`find_deprecated_callables` and :func:`validate_deprecation_expiry`,
+#     but two gaps remain:
 #
-# 1. ``validate_deprecated_callable`` reports the *wrong function name* for proxy objects
-#    because ``getattr(func, "__name__")`` routes through ``__getattr__`` → ``_get_active()``
-#    and returns the *target* class name instead of the deprecated source name.
-#    Fix in :func:`validate_deprecated_callable`: use ``dep_info.get("name")`` first:
-#        name_from_meta = dep_info.get("name", "")
-#        function = name_from_meta or getattr(func, "__name__", str(func))
+#     1. ``validate_deprecated_callable`` reports the *wrong function name* for proxy objects
+#        because ``getattr(func, "__name__")`` routes through ``__getattr__`` → ``_get_active()``
+#        and returns the *target* class name instead of the deprecated source name.
+#        Fix in :func:`validate_deprecated_callable`: use ``dep_info.get("name")`` first:
+#            name_from_meta = dep_info.get("name", "")
+#            function = name_from_meta or getattr(func, "__name__", str(func))
 #
-# 2. No dedicated tests verify that decorated Enums/dataclasses and deprecated instance
-#    constants are discoverable and that their ``remove_in`` deadlines are enforced the
-#    same way as regular callables.
+#     2. No dedicated tests verify that decorated Enums/dataclasses and deprecated instance
+#        constants are discoverable and that their ``remove_in`` deadlines are enforced the
+#        same way as regular callables.
 
 import inspect
 from contextlib import suppress
