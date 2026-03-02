@@ -142,15 +142,52 @@ class _DeprecatedProxy:
         args_to_drop = {k for k, v in arg_mapping.items() if v is None}
         return {arg_mapping.get(k, k): v for k, v in kwargs.items() if k not in args_to_drop}
 
+    @staticmethod
+    def _is_potential_mutator(name: str) -> bool:
+        """Heuristic to detect common mutating methods on built-in collections.
+
+        This is intentionally conservative and only covers the most common
+        mutating APIs on built-in container types (lists, dicts, sets).
+        """
+        mutating_names = {
+            "append",
+            "extend",
+            "insert",
+            "pop",
+            "remove",
+            "clear",
+            "update",
+            "setdefault",
+            "add",
+            "discard",
+        }
+        return name in mutating_names
+
     # ------------------------------------------------------------------
     # Attribute access
     # ------------------------------------------------------------------
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
-        """Forward attribute lookup to the active object, emitting a deprecation warning."""
-        self._warn()
-        return getattr(self._get_active(), name)
+        """Forward attribute lookup to the active object, emitting a deprecation warning.
 
+        In read-only mode, common mutating methods on built-in collections
+        (for example, ``append`` or ``update``) are wrapped so that calling
+        them raises :class:`AttributeError` instead of mutating the
+        underlying object.
+        """
+        self._warn()
+        attr = getattr(self._get_active(), name)
+        # In read-only mode, guard common mutating methods accessed via attribute lookup.
+        if (
+            object.__getattribute__(self, "_DeprecatedProxy__read_only")
+            and callable(attr)
+            and self._is_potential_mutator(name)
+        ):
+            def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+                self._check_read_only(f"Calling mutating method '{name}'")
+
+            return _guarded_mutator
+        return attr
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
         """Forward attribute mutation to the source object, raising in read-only mode."""
         self._check_read_only(f"Setting attribute '{name}'")
