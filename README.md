@@ -569,6 +569,8 @@ print(pt.x)
 print(pt.y)
 ```
 
+</details>
+
 <details>
   <summary>Output: <code>OldColor</code> forwarding and <code>OldPoint</code> remapping</summary>
 
@@ -579,8 +581,6 @@ True
 3.0
 4.0
 ```
-
-</details>
 
 </details>
 
