@@ -217,11 +217,7 @@ class _DeprecatedProxy:
         self._warn()
         attr = getattr(self._get_active(), name)
         # In read-only mode, guard common mutating methods accessed via attribute lookup.
-        if (
-            self._cfg.read_only
-            and callable(attr)
-            and self._is_potential_mutator(name)
-        ):
+        if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
 
             def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
                 self._check_read_only(f"Calling mutating method '{name}'")
