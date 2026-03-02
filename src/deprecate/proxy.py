@@ -124,8 +124,7 @@ class _DeprecatedProxy:
         if object.__getattribute__(self, "_DeprecatedProxy__read_only"):
             name: str = object.__getattribute__(self, "_DeprecatedProxy__name")
             raise AttributeError(
-                f"'{name}' is deprecated and read-only. "
-                f"{operation} is not allowed. Migrate away from this object."
+                f"'{name}' is deprecated and read-only. {operation} is not allowed. Migrate away from this object."
             )
 
     def _get_active(self) -> Any:  # noqa: ANN401
