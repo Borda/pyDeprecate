@@ -129,7 +129,8 @@ class DeprecatedCallableInfo:
     Attributes:
         module: Module name where the function is defined (empty for direct validation).
         function: Function name.
-        deprecated_info: The ``__deprecated__`` attribute from the decorator, as a :class:`~deprecate._types.DeprecationInfo`.
+        deprecated_info: The ``__deprecated__`` attribute from the decorator,
+            as a :class:`~deprecate._types.DeprecationInfo`.
         invalid_args: List of ``args_mapping`` keys that don't exist in the function signature.
         empty_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
         identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
@@ -253,15 +254,13 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
     chain_type: Optional[ChainType] = None
     if callable(target) and _has_deprecation_meta(target):
-        if target.__deprecated__.target is True:
-            chain_type = ChainType.STACKED  # target is a self-deprecation wrapper — mappings compose
-        else:
-            chain_type = ChainType.TARGET  # target forwards to another function
+        chain_type = (
+            ChainType.STACKED if target.__deprecated__.target is True else ChainType.TARGET
+        )  # target is self-deprecation (mappings compose) or forwarding
     elif target is True:
         wrapped = getattr(func, "__wrapped__", None)
-        if wrapped is not None and _has_deprecation_meta(wrapped):
-            if wrapped.__deprecated__.target is True:
-                chain_type = ChainType.STACKED  # stacked @deprecated(True) decorators
+        if wrapped is not None and _has_deprecation_meta(wrapped) and wrapped.__deprecated__.target is True:
+            chain_type = ChainType.STACKED  # stacked @deprecated(True) decorators
 
     all_identity = False
     if args_mapping:
