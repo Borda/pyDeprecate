@@ -36,6 +36,8 @@ ______________________________________________________________________
   - [Multiple deprecation levels](#-multiple-deprecation-levels)
   - [Conditional skip](#-conditional-skip)
   - [Class deprecation](#-class-deprecation)
+  - [Deprecating constants and instances](#-deprecating-constants-and-instances)
+  - [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)
   - [Automatic docstring updates](#-automatic-docstring-updates)
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
 - [🔍 Audit](#-audit)
@@ -466,6 +468,120 @@ print(inst.my_d)  # returns: "efg"
 ```
 7
 efg
+```
+
+</details>
+
+### 📦 Deprecating constants and instances
+
+Use `deprecated_instance` to wrap objects accessed via attribute/item/call operations (for example, dicts,
+lists, or custom objects) with transparent deprecation warnings. Primitive protocol methods (such as numeric
+arithmetic on `float` or concatenation on `str`) are not proxied. The `name` parameter is optional; when omitted
+it defaults to the type name of the wrapped object (e.g. `"dict"`). For primitive constants like floats or
+strings, prefer wrapping them in a container (such as a dict or configuration object) or updating call sites
+directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper.
+
+```python
+import pytest
+from deprecate import deprecated_instance
+
+# Legacy config dict — read-only so accidental mutations are blocked
+LEGACY_CONFIG = deprecated_instance(
+    {"threshold": 0.5, "enabled": True},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    read_only=True,
+)
+
+# Any read triggers a FutureWarning and returns the value:
+#   The `dict` was deprecated since v1.0. It will be removed in v2.0.
+print(LEGACY_CONFIG["threshold"])
+
+# Writes are blocked in read-only mode — wrap with pytest.raises so the example runs cleanly:
+with pytest.raises(AttributeError, match="read-only"):
+    LEGACY_CONFIG["threshold"] = 0.9
+```
+
+<details>
+  <summary>Output: <code>print(LEGACY_CONFIG["threshold"])</code></summary>
+
+```
+0.5
+```
+
+</details>
+
+### 🗂 Deprecating Enums and dataclasses
+
+<details>
+<summary>Example: <code>@deprecated_class</code> with optional <code>args_mapping</code></summary>
+
+`@deprecated_class` wraps an entire Enum or dataclass in a transparent proxy that warns on every
+access and forwards attribute, item, and call operations to the replacement class.
+Use `args_mapping` to rename or drop kwargs when the deprecated class is called.
+
+```python
+from enum import Enum
+from dataclasses import dataclass
+from deprecate import deprecated_class
+
+
+class NewColor(Enum):
+    RED = 1
+    BLUE = 2
+
+
+@deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0")
+class OldColor(Enum):
+    RED = 1
+    BLUE = 2
+
+
+# All access is forwarded to NewColor — a FutureWarning is emitted once:
+#   The `OldColor` was deprecated since v1.0. It will be removed in v2.0.
+print(OldColor.RED is NewColor.RED)
+print(OldColor(1) is NewColor.RED)
+print(OldColor["RED"] is NewColor.RED)
+
+
+# Precision migration story:
+# - PointV1 used integer pixel coordinates.
+# - PointV2 supports float coordinates for sub-pixel precision and smoother transforms.
+@dataclass
+class PointV2:
+    x: float
+    y: float
+
+
+@deprecated_class(target=PointV2, deprecated_in="1.8", remove_in="2.0")
+@dataclass
+class PointV1:
+    x: int
+    y: int
+
+
+# Existing callers using integer coordinates still work and are forwarded to PointV2:
+p_old = PointV1(3, 4)
+print(isinstance(p_old, PointV2))
+print((p_old.x, p_old.y))
+
+# New callers can use higher precision directly:
+p_new = PointV2(3.25, 4.75)
+print((p_new.x, p_new.y))
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>OldColor</code> forwarding and <code>PointV1</code> precision migration</summary>
+
+```
+True
+True
+True
+True
+(3, 4)
+(3.25, 4.75)
 ```
 
 </details>

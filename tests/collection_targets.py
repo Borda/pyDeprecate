@@ -52,6 +52,13 @@ class NewIntEnum(Enum):
     BETA = 2
 
 
+class TargetColorEnum(Enum):
+    """Target enum for deprecated_class forwarding tests."""
+
+    RED = 1
+    BLUE = 2
+
+
 def plain_function_target(x: int) -> int:
     """Plain function without deprecation decorator for testing error handling."""
     return x

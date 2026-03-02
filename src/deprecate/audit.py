@@ -28,6 +28,23 @@ identification info and structured validation results for programmatic processin
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
+# TODO: Proxy objects are not fully covered by audit utilities (GitHub issue needed).
+#     :func:`~deprecate.proxy.deprecated_class` and :func:`~deprecate.proxy.deprecated_instance`
+#     are discoverable via the generic ``callable(obj)`` + ``hasattr(obj, "__deprecated__")``
+#     scan in :func:`find_deprecated_callables` and :func:`validate_deprecation_expiry`,
+#     but two gaps remain:
+#
+#     1. ``validate_deprecated_callable`` reports the *wrong function name* for proxy objects
+#        because ``getattr(func, "__name__")`` routes through ``__getattr__`` → ``_get_active()``
+#        and returns the *target* class name instead of the deprecated source name.
+#        Fix in :func:`validate_deprecated_callable`: use ``dep_info.get("name")`` first:
+#            name_from_meta = dep_info.get("name", "")
+#            function = name_from_meta or getattr(func, "__name__", str(func))
+#
+#     2. No dedicated tests verify that decorated Enums/dataclasses and deprecated instance
+#        constants are discoverable and that their ``remove_in`` deadlines are enforced the
+#        same way as regular callables.
+
 import inspect
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
@@ -270,8 +287,11 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     is_self_deprecation = target is True or self_reference
     no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
 
+    name_from_meta = dep_info.get("name", "")
+    function = name_from_meta or getattr(func, "__name__", str(func))
+
     return DeprecatedCallableInfo(
-        function=getattr(func, "__name__", str(func)),
+        function=function,
         deprecated_info=dep_info,
         invalid_args=invalid_args,
         empty_mapping=empty_mapping,

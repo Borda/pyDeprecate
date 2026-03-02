@@ -5,6 +5,7 @@ import importlib.util
 import pytest
 
 import tests.collection_chains as chain_module
+import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
 from deprecate import validate_deprecation_expiry
 from deprecate.audit import (
@@ -16,7 +17,6 @@ from deprecate.audit import (
     validate_deprecated_callable,
     validate_deprecation_chains,
 )
-from tests.collection_deprecate import depr_accuracy_target, depr_func_no_remove_in, depr_pow_self, depr_sum
 
 # Check if packaging is available for version comparison tests
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -28,7 +28,7 @@ class TestValidateDeprecatedCallable:
 
     def test_valid_deprecation(self) -> None:
         """Test validate_deprecated_callable with a properly configured deprecated function."""
-        result = validate_deprecated_callable(depr_pow_self)
+        result = validate_deprecated_callable(proxy_module.depr_pow_self)
         assert isinstance(result, DeprecatedCallableInfo)
         assert result.invalid_args == []
         assert result.empty_mapping is False
@@ -96,7 +96,7 @@ class TestValidateDeprecatedCallable:
     def test_different_target(self) -> None:
         """Test validate_deprecated_callable with a different target function."""
         # Different target - has effect
-        result = validate_deprecated_callable(depr_accuracy_target)
+        result = validate_deprecated_callable(proxy_module.depr_accuracy_target)
         assert result.invalid_args == []
         assert result.empty_mapping is False
         assert result.identity_mapping == []
@@ -183,6 +183,38 @@ class TestFindDeprecatedCallables:
 
         # We should find some degenerated deprecations
         assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
+
+    def test_discovers_proxy_based_deprecations(self) -> None:
+        """Proxy-based deprecations are discoverable with correct names and metadata."""
+        results = find_deprecated_callables(proxy_module, recursive=False)
+        by_name = {r.function: r for r in results}
+
+        assert "depr_config_dict" in by_name
+        assert "DeprecatedColorEnum" in by_name
+
+        enum_info = by_name["DeprecatedColorEnum"]
+        assert hasattr(enum_info, "deprecated_info")
+        enum_target = enum_info.deprecated_info.get("target")
+        assert enum_target is not None
+        assert enum_target.__name__ == "TargetColorEnum"
+
+        mapped_enum = by_name.get("MappedColorEnum")
+        assert mapped_enum is not None
+        assert mapped_enum.deprecated_info.get("args_mapping") == {"val": "value"}
+
+    def test_discovers_proxy_without_target_and_drop_mapping(self) -> None:
+        """Proxy deprecations without targets and with dropped args are discoverable."""
+        results = find_deprecated_callables(proxy_module, recursive=False)
+        by_name = {r.function: r for r in results}
+
+        warn_only_enum = by_name.get("WarnOnlyColorEnum")
+        assert warn_only_enum is not None
+        assert warn_only_enum.deprecated_info.get("target") is None
+        assert warn_only_enum.deprecated_info.get("remove_in") == "2.0"
+
+        mapped_drop_dc = by_name.get("MappedDropArgDataClass")
+        assert mapped_drop_dc is not None
+        assert mapped_drop_dc.deprecated_info.get("args_mapping") == {"legacy_flag": None, "name": "label"}
 
 
 class TestValidateDeprecationChains:
@@ -303,7 +335,7 @@ class TestCheckDeprecationExpiry:
             removal in version 0.5. The check passes silently, allowing the release to proceed.
         """
         # Current version is less than remove_in - should not raise
-        _check_deprecated_callable_expiry(depr_pow_self, "0.4")  # remove_in="0.5"
+        _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.4")  # remove_in="0.5"
 
     def test_at_removal_version(self) -> None:
         """Callable at exact removal version triggers AssertionError.
@@ -316,7 +348,7 @@ class TestCheckDeprecationExpiry:
         with pytest.raises(
             AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.5"
         ):
-            _check_deprecated_callable_expiry(depr_pow_self, "0.5")  # remove_in="0.5"
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.5")  # remove_in="0.5"
 
     def test_past_removal_version(self) -> None:
         """Callable past removal deadline triggers AssertionError.
@@ -329,7 +361,7 @@ class TestCheckDeprecationExpiry:
         with pytest.raises(
             AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.6"
         ):
-            _check_deprecated_callable_expiry(depr_pow_self, "0.6")  # remove_in="0.5"
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.6")  # remove_in="0.5"
 
     def test_error_message(self) -> None:
         """Error message includes callable name, versions, and actionable guidance.
@@ -340,7 +372,7 @@ class TestCheckDeprecationExpiry:
         """
         # Test the error message contains all expected information
         with pytest.raises(AssertionError) as exc_info:
-            _check_deprecated_callable_expiry(depr_pow_self, "1.0")  # remove_in="0.5"
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "1.0")  # remove_in="0.5"
 
         error_msg = str(exc_info.value)
         assert "depr_pow_self" in error_msg
@@ -369,7 +401,7 @@ class TestCheckDeprecationExpiry:
             removal deadline. Error message indicates remove_in parameter is required for enforcement.
         """
         with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
-            _check_deprecated_callable_expiry(depr_func_no_remove_in, "2.0")
+            _check_deprecated_callable_expiry(proxy_module.depr_func_no_remove_in, "2.0")
 
     @pytest.mark.parametrize(
         "current_version",
@@ -383,7 +415,7 @@ class TestCheckDeprecationExpiry:
             Expiry check passes because these versions come before the 0.5 removal deadline.
         """
         # Test with semantic versions (depr_sum has remove_in="0.5")
-        _check_deprecated_callable_expiry(depr_sum, current_version)
+        _check_deprecated_callable_expiry(proxy_module.depr_sum, current_version)
 
     @pytest.mark.parametrize(
         "current_version",
@@ -398,7 +430,7 @@ class TestCheckDeprecationExpiry:
         """
         # Should raise at 0.5.0 or later
         with pytest.raises(AssertionError):
-            _check_deprecated_callable_expiry(depr_sum, current_version)
+            _check_deprecated_callable_expiry(proxy_module.depr_sum, current_version)
 
     def test_parse_version_stage_ordering(self) -> None:
         """Pre-release stages order correctly per PEP 440.
@@ -427,7 +459,7 @@ class TestCheckDeprecationExpiry:
         """
         # Invalid version format should raise ValueError
         with pytest.raises(ValueError, match="Invalid current_version"):
-            _check_deprecated_callable_expiry(depr_pow_self, "invalid-version")
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "invalid-version")
 
 
 @_requires_packaging
