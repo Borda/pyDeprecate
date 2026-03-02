@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from typing import TypeGuard
+    from typing_extensions import TypeGuard
 
 
 @dataclass(frozen=True)

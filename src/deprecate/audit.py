@@ -32,8 +32,8 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 # ``hasattr(obj, "__deprecated__")`` scan in :func:`find_deprecated_callables` and
 # :func:`validate_deprecation_expiry`. The ``__deprecated__`` schema is now unified
 # across ``@deprecated`` and :class:`~deprecate.proxy._DeprecatedProxy` via
-# :class:`~deprecate._types.DeprecationInfo` — both always include the ``"name"`` key,
-# so ``validate_deprecated_callable`` reads it correctly for proxy objects too.
+# :class:`~deprecate._types.DeprecationInfo` — both always populate the ``name`` field,
+# so ``validate_deprecated_callable`` can read it correctly for proxy objects too.
 
 import inspect
 from contextlib import suppress
