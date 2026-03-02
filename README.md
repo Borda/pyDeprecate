@@ -479,6 +479,7 @@ transparent deprecation warnings. The `name` parameter is optional; when omitted
 type name of the wrapped object (e.g. `"dict"`).
 
 ```python
+import pytest
 from deprecate import deprecated_instance
 
 # Legacy threshold constant — migrate to new_config.threshold
@@ -492,27 +493,37 @@ LEGACY_CONFIG = deprecated_instance(
     read_only=True,
 )
 
-# Any read triggers a FutureWarning:
+# Any read triggers a FutureWarning and returns the value:
 #   The `dict` was deprecated since v1.0. It will be removed in v2.0.
-val = LEGACY_CONFIG["threshold"]  # 0.5
+print(LEGACY_CONFIG["threshold"])
 
-# Writes are blocked in read-only mode:
-LEGACY_CONFIG["threshold"] = 0.9  # raises AttributeError
+# Writes are blocked in read-only mode — wrap with pytest.raises so the example runs cleanly:
+with pytest.raises(AttributeError, match="read-only"):
+    LEGACY_CONFIG["threshold"] = 0.9
 ```
+
+<details>
+  <summary>Output: <code>print(LEGACY_CONFIG["threshold"])</code></summary>
+
+```
+0.5
+```
+
+</details>
 
 ### 🗂 Deprecating Enums and dataclasses
 
 <details>
-<summary>Example: <code>@DeprecatedStruct</code> with optional <code>arg_mapping</code></summary>
+<summary>Example: <code>@deprecated_class</code> with optional <code>arg_mapping</code></summary>
 
-`@DeprecatedStruct` wraps an entire Enum or dataclass in a transparent proxy that warns on every
+`@deprecated_class` wraps an entire Enum or dataclass in a transparent proxy that warns on every
 access and forwards attribute, item, and call operations to the replacement class.
 Use `arg_mapping` to rename or drop kwargs when the deprecated class is called.
 
 ```python
 from enum import Enum
 from dataclasses import dataclass
-from deprecate import DeprecatedStruct
+from deprecate import deprecated_class
 
 
 class NewColor(Enum):
@@ -520,7 +531,7 @@ class NewColor(Enum):
     BLUE = 2
 
 
-@DeprecatedStruct(target=NewColor, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0")
 class OldColor(Enum):
     RED = 1
     BLUE = 2
@@ -528,9 +539,9 @@ class OldColor(Enum):
 
 # All access is forwarded to NewColor — a FutureWarning is emitted once:
 #   The `OldColor` was deprecated since v1.0. It will be removed in v2.0.
-assert OldColor.RED is NewColor.RED  # True
-assert OldColor(1) is NewColor.RED  # True
-assert OldColor["RED"] is NewColor.RED  # True
+print(OldColor.RED is NewColor.RED)
+print(OldColor(1) is NewColor.RED)
+print(OldColor["RED"] is NewColor.RED)
 
 
 @dataclass
@@ -540,7 +551,7 @@ class NewPoint:
 
 
 # arg_mapping renames 'left'→'x' and 'top'→'y'; pass None to drop a kwarg entirely
-@DeprecatedStruct(
+@deprecated_class(
     target=NewPoint,
     deprecated_in="1.0",
     remove_in="2.0",
@@ -554,9 +565,22 @@ class OldPoint:
 
 # Old callers using keyword arguments are remapped automatically:
 pt = OldPoint(left=3.0, top=4.0)  # → NewPoint(x=3.0, y=4.0)
-assert pt.x == 3.0
-assert pt.y == 4.0
+print(pt.x)
+print(pt.y)
 ```
+
+<details>
+  <summary>Output: <code>OldColor</code> forwarding and <code>OldPoint</code> remapping</summary>
+
+```
+True
+True
+True
+3.0
+4.0
+```
+
+</details>
 
 </details>
 

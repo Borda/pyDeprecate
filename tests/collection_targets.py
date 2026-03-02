@@ -53,7 +53,7 @@ class NewIntEnum(Enum):
 
 
 class TargetColorEnum(Enum):
-    """Target enum for DeprecatedStruct forwarding tests."""
+    """Target enum for deprecated_class forwarding tests."""
 
     RED = 1
     BLUE = 2

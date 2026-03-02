@@ -19,7 +19,7 @@ This module contains deprecated wrappers covering real-world use cases:
 - Deprecating decorator/wrapper functions
 - Deprecating class-based decorators via __init__
 - Instance deprecation via deprecated_instance()
-- Class-level deprecation with DeprecatedStruct (Enum and dataclass)
+- Class-level deprecation with deprecated_class (Enum and dataclass)
 """
 
 from dataclasses import dataclass
@@ -30,7 +30,7 @@ from warnings import warn
 
 from sklearn.metrics import accuracy_score
 
-from deprecate import DeprecatedStruct, deprecated, deprecated_instance, void
+from deprecate import deprecated, deprecated_class, deprecated_instance, void
 from tests.collection_targets import (
     NewCls,
     NewDataClass,
@@ -515,9 +515,9 @@ depr_config_dict_read_only = deprecated_instance(
 """Read-only deprecated config dict that rejects mutations."""
 
 
-@DeprecatedStruct(target=TargetColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated_class(target=TargetColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 class DeprecatedColorEnum(Enum):
-    """Deprecated color enum forwarding to TargetColorEnum via DeprecatedStruct.
+    """Deprecated color enum forwarding to TargetColorEnum via deprecated_class.
 
     Example:
         A user calling DeprecatedColorEnum.RED receives TargetColorEnum.RED.
@@ -527,10 +527,10 @@ class DeprecatedColorEnum(Enum):
     BLUE = 2
 
 
-@DeprecatedStruct(target=NewDataClass, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated_class(target=NewDataClass, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 @dataclass
 class DeprecatedColorDataClass:
-    """Deprecated dataclass forwarding to NewDataClass via DeprecatedStruct.
+    """Deprecated dataclass forwarding to NewDataClass via deprecated_class.
 
     Example:
         A user instantiating DeprecatedColorDataClass(label="x") receives a NewDataClass instance.
@@ -540,7 +540,7 @@ class DeprecatedColorDataClass:
     total: int = 0
 
 
-@DeprecatedStruct(deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated_class(deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 class WarnOnlyColorEnum(Enum):
     """Deprecated enum with no forwarding target — warns on access only.
 
@@ -551,7 +551,7 @@ class WarnOnlyColorEnum(Enum):
     A = "a"
 
 
-@DeprecatedStruct(
+@deprecated_class(
     target=TargetColorEnum,
     deprecated_in="1.0",
     remove_in="2.0",
@@ -569,7 +569,7 @@ class MappedColorEnum(Enum):
     BLUE = 2
 
 
-@DeprecatedStruct(
+@deprecated_class(
     target=NewDataClass,
     deprecated_in="1.0",
     remove_in="2.0",
@@ -588,7 +588,7 @@ class MappedDataClass:
     total: int = 0
 
 
-@DeprecatedStruct(
+@deprecated_class(
     target=NewDataClass,
     deprecated_in="1.0",
     remove_in="2.0",

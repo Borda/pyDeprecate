@@ -5,7 +5,7 @@ import warnings
 import pytest
 
 from deprecate import deprecated_instance
-from deprecate.structs import DeprecatedStruct
+from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
     depr_config_dict,
     depr_config_dict_read_only,
@@ -47,10 +47,10 @@ class TestDemoUseCases:
 class TestInstanceProxy:
     """Behaviour of deprecated_instance() proxy objects."""
 
-    def test_returns_deprecated_struct_instance(self) -> None:
-        """deprecated_instance returns a DeprecatedStruct."""
+    def test_returns_deprecated_proxy_instance(self) -> None:
+        """deprecated_instance returns a _DeprecatedProxy."""
         proxy = deprecated_instance({}, name="x", deprecated_in="1.0", remove_in="2.0")
-        assert isinstance(proxy, DeprecatedStruct)
+        assert isinstance(proxy, _DeprecatedProxy)
 
     def test_name_auto_inferred_from_type(self) -> None:
         """When name is omitted, the type name is used in the warning."""
@@ -195,7 +195,7 @@ class TestReadOnlyMode:
             warnings.simplefilter("always")
             proxy["x"] = 99
         assert inner["x"] == 99
-        assert not caught  # mutations never warn
+        assert not caught
 
     def test_delitem_removes_from_source(self) -> None:
         """Removing proxy[key] removes the key from the source dict."""

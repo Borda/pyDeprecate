@@ -27,6 +27,10 @@ Core Components:
     - :class:`~deprecate.audit.DeprecatedCallableInfo`: Structured result returned by the audit functions
     - :class:`~deprecate.audit.ChainType`: Enum describing the kind of deprecation chain detected
 
+**Proxy** (:mod:`deprecate.proxy`):
+    - :func:`~deprecate.proxy.deprecated_instance`: Wrap any object with deprecation warnings
+    - :func:`~deprecate.proxy.deprecated_class`: Decorator for deprecating Enum/dataclass definitions
+
 **Testing** (:mod:`deprecate.utils`):
     - :func:`~deprecate.utils.no_warning_call`: Context manager asserting that no warnings are raised
 
@@ -73,13 +77,13 @@ from deprecate.audit import (
     validate_deprecation_expiry,
 )
 from deprecate.deprecation import deprecated
-from deprecate.structs import DeprecatedStruct, deprecated_instance
+from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.utils import no_warning_call, void
 
 __all__ = [
     "deprecated",
     "DeprecatedCallableInfo",
-    "DeprecatedStruct",
+    "deprecated_class",
     "deprecated_instance",
     "find_deprecated_callables",
     "validate_deprecated_callable",
