@@ -336,3 +336,62 @@ class TestDeprecatedClassGuard:
         with pytest.warns(FutureWarning):
             instance = MyClass()
         assert isinstance(instance, MyClass)
+
+
+class TestCrossClassMethodGuard:
+    """@deprecated raises TypeError when target is a method on a different class."""
+
+    def test_raises_for_cross_class_method_target(self) -> None:
+        """Forwarding to a method on a different class raises TypeError at decoration time."""
+        from deprecate import deprecated, void
+
+        class OtherClass:
+            def other_method(self, x: int) -> int:
+                return x
+
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+
+            class MyClass:
+                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
+    def test_does_not_raise_for_same_class_method_target(self) -> None:
+        """Forwarding to a method on the same class does not raise."""
+        from deprecate import deprecated, void
+
+        class MyClass:
+            def new_method(self, x: int) -> int:
+                return x * 2
+
+            @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
+            def old_method(self, x: int) -> int:
+                return void(x)
+
+        with pytest.warns(FutureWarning):
+            assert MyClass().old_method(5) == 10
+
+    def test_does_not_raise_for_module_level_function_target(self) -> None:
+        """Forwarding a class method to a module-level function is allowed (no self passed)."""
+        from deprecate import deprecated, void
+
+        def standalone(x: int) -> int:
+            return x + 1
+
+        class MyClass:
+            @deprecated(target=standalone, deprecated_in="1.0", remove_in="2.0")
+            def old_method(self, x: int) -> int:
+                return void(x)
+
+    def test_does_not_raise_for_class_target(self) -> None:
+        """Forwarding a method to a full class (constructor forwarding) is allowed."""
+        from deprecate import deprecated, void
+
+        class NewClass:
+            def __init__(self, x: int) -> None:
+                self.x = x
+
+        class OldClass(NewClass):
+            @deprecated(target=NewClass, deprecated_in="1.0", remove_in="2.0")
+            def __init__(self, x: int) -> None:
+                void(x)

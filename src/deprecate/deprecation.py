@@ -56,6 +56,50 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
     return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
 
 
+def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
+    """Raise TypeError when target is a method on a different class than source.
+
+    Forwarding a class method to a method on a *different* class silently passes
+    ``self`` of the wrong type, causing runtime attribute errors.  This guard
+    detects the misconfiguration at decoration time by comparing the immediate
+    class name extracted from each callable's ``__qualname__``.
+
+    Qualname patterns and how they are handled:
+
+    - ``"MyClass.method"``                   → class ``MyClass``
+    - ``"outer.<locals>.MyClass.method"``    → class ``MyClass`` (class inside a function)
+    - ``"outer.<locals>.<lambda>"``          → skipped; prefix ends with ``<locals>``
+    - ``"base_sum_kwargs"``                  → skipped; no dot means module-level function
+
+    Args:
+        source: The callable being decorated with ``@deprecated``.
+        target: The replacement callable supplied as the ``target`` argument.
+
+    Raises:
+        TypeError: If both callables appear to be class methods (their qualname
+            contains a class-prefix component) and those class names differ.
+
+    """
+    src_qualname = getattr(source, "__qualname__", "")
+    tgt_qualname = getattr(target, "__qualname__", "")
+    src_parts = src_qualname.rsplit(".", 1)
+    tgt_parts = tgt_qualname.rsplit(".", 1)
+    if len(src_parts) == 2 and len(tgt_parts) == 2:
+        src_prefix, tgt_prefix = src_parts[0], tgt_parts[0]
+        # Skip nested functions / lambdas whose prefix ends with "<locals>"
+        if not src_prefix.endswith("<locals>") and not tgt_prefix.endswith("<locals>"):
+            src_class = src_prefix.rsplit(".", 1)[-1]
+            tgt_class = tgt_prefix.rsplit(".", 1)[-1]
+            if src_class != tgt_class:
+                raise TypeError(
+                    f"Cannot use @deprecated on '{source.__qualname__}' with target "
+                    f"'{target.__qualname__}': cross-class method forwarding is not supported "
+                    f"because `self` would carry the wrong type. "
+                    f"The target must be a method on the same class ('{src_class}') "
+                    f"or a full class (use target={tgt_class} for class migration)."
+                )
+
+
 def _prepare_target_call(
     source: Callable,
     target: Callable,
@@ -489,6 +533,9 @@ def deprecated(
             and target doesn't accept **kwargs.
         TypeError: If applied directly to a class. Use :func:`deprecate.proxy.deprecated_class`
             for class-level deprecation.
+        TypeError: If the source is a class method and target is a method on a *different*
+            class (cross-class method forwarding). The target must be a method on the same
+            class, or a full class (``target=NewClass``) for constructor forwarding.
 
     Example:
         >>> # Basic forwarding
@@ -519,6 +566,8 @@ def deprecated(
                 f"Cannot apply @deprecated to class '{source.__name__}'. "
                 "For class-level deprecation use @deprecated_class() from deprecate.proxy."
             )
+        if callable(target) and not inspect.isclass(target):
+            _check_cross_class_method_target(source, target)
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )

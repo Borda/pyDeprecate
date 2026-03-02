@@ -15,6 +15,7 @@ from tests.collection_deprecate import (
     RedirectedDataClass,
     RedirectedEnum,
     SelfMappedEnum,
+    ServiceCls,
     ThisCls,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
@@ -106,7 +107,7 @@ class TestDeprecatedEnums:
     def test_enum_argument_mapping_forwards(self) -> None:
         """Test argument mapping when forwarding deprecated Enum to replacement."""
         with pytest.warns(FutureWarning):
-            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA
+            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_argument_mapping_positional_value(self) -> None:
         """Test mapped Enum forwards positional value to replacement."""
@@ -116,12 +117,12 @@ class TestDeprecatedEnums:
     def test_enum_argument_mapping_int_forwards(self) -> None:
         """Test argument mapping for int enums forwarding to NewIntEnum."""
         with pytest.warns(FutureWarning):
-            assert MappedIntEnum(old_value=1) is NewIntEnum.ALPHA
+            assert MappedIntEnum(old_value=1) is NewIntEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_argument_mapping_value_differs(self) -> None:
         """Test mapping when enum values differ from the new enum."""
         with pytest.warns(FutureWarning):
-            assert MappedValueEnum(old_value="alpha") is NewEnum.ALPHA
+            assert MappedValueEnum(old_value="alpha") is NewEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_self_argument_mapping(self) -> None:
         """Test argument mapping when deprecating within the same enum."""
@@ -150,6 +151,85 @@ class TestDeprecatedDataclasses:
         assert instance.label == "alpha"
         assert instance.total == 2
         assert isinstance(instance, NewDataClass)
+
+
+class TestDeprecatedClassMethod:
+    """Tests for @deprecated applied to individual class methods (non-__init__)."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_method_state(self) -> None:
+        """Reset warned_calls so each test gets a fresh warning budget."""
+        getattr(ServiceCls.old_warn_method, "_state").warned_calls = 0
+        getattr(ServiceCls.old_redirect_method, "_state").warned_calls = 0
+        getattr(ServiceCls.old_mapped_method, "_state").warned_calls = 0
+        getattr(ServiceCls.self_renamed_method, "_state").warned_calls = 0
+
+    def test_warn_only_method_emits_warning(self) -> None:
+        """@deprecated(target=None) on a method emits FutureWarning."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning, match="old_warn_method"):
+            result = svc.old_warn_method(5)
+        assert result == 10
+
+    def test_warn_only_method_body_executes(self) -> None:
+        """With target=None the method body still runs and returns its result."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning):
+            assert svc.old_warn_method(3) == 6
+
+    def test_redirect_method_emits_warning(self) -> None:
+        """@deprecated(target=compute) on a method emits FutureWarning."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning, match="old_redirect_method"):
+            result = svc.old_redirect_method(5)
+        assert result == 10
+
+    def test_redirect_method_forwards_to_target(self) -> None:
+        """Deprecated method redirected to compute() returns the same result."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning):
+            redirected = svc.old_redirect_method(4)
+        assert redirected == svc.compute(4)
+
+    def test_warn_only_warning_content(self) -> None:
+        """FutureWarning message contains source name, version info, and removal hint."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning, match="deprecated since v1.0.*removed in v2.0"):
+            svc.old_warn_method(1)
+
+    def test_redirect_warning_content(self) -> None:
+        """FutureWarning message for redirect contains source and target names."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning, match="old_redirect_method.*compute"):
+            svc.old_redirect_method(1)
+
+    def test_args_mapping_renames_argument(self) -> None:
+        """args_mapping renames x->value when forwarding to compute_scaled()."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning, match="old_mapped_method"):
+            result = svc.old_mapped_method(x=5)
+        assert result == svc.compute_scaled(value=5)
+
+    def test_args_mapping_positional_argument(self) -> None:
+        """Positional call with args_mapping: positional x is renamed to value."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning):
+            result = svc.old_mapped_method(5)
+        assert result == 10
+
+    def test_self_rename_with_deprecated_arg_warns(self) -> None:
+        """target=True with args_mapping renames old_x->x within the same method."""
+        svc = ServiceCls()
+        with pytest.warns(FutureWarning, match="self_renamed_method.*old_x.*x"):
+            result = svc.self_renamed_method(old_x=5)
+        assert result == 10
+
+    def test_self_rename_with_new_arg_no_warning(self) -> None:
+        """Calling with the new arg name (x) does not trigger a deprecation warning."""
+        svc = ServiceCls()
+        with no_warning_call():
+            result = svc.self_renamed_method(x=3)
+        assert result == 6
 
 
 def test_deprecated_class_attribute_set_at_decoration_time() -> None:
