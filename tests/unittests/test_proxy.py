@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 import pytest
 
-from deprecate.proxy import _DeprecatedProxy, deprecated_instance
+from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
     DeprecatedColorDataClass,
     DeprecatedColorEnum,
@@ -125,6 +125,42 @@ class TestProxyReadOnly:
         """_check_read_only does nothing when read_only is False."""
         proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=False)
         proxy._check_read_only("Test operation")  # must not raise
+
+    def test_setitem_raises_when_read_only(self) -> None:
+        """__setitem__ raises AttributeError in read_only mode via _check_read_only."""
+        proxy = _DeprecatedProxy(obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        with pytest.raises(AttributeError, match="read-only"):
+            proxy["k"] = 2
+
+    def test_delitem_raises_when_read_only(self) -> None:
+        """__delitem__ raises AttributeError in read_only mode via _check_read_only."""
+        proxy = _DeprecatedProxy(obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        with pytest.raises(AttributeError, match="read-only"):
+            del proxy["k"]
+
+    def test_setattr_raises_when_read_only(self) -> None:
+        """__setattr__ raises AttributeError in read_only mode via _check_read_only."""
+        proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        with pytest.raises(AttributeError, match="read-only"):
+            proxy.some_attr = "value"
+
+    def test_setitem_forwards_to_source(self) -> None:
+        """__setitem__ mutates the source object when not read-only, without emitting a warning."""
+        inner = {"k": 1}
+        proxy = _DeprecatedProxy(obj=inner, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy["k"] = 99
+        assert inner["k"] == 99
+        assert not caught
+
+    def test_delitem_removes_from_source(self) -> None:
+        """__delitem__ removes the key from the source object when not read-only."""
+        inner = {"k": 1, "m": 2}
+        proxy = _DeprecatedProxy(obj=inner, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
+        del proxy["k"]
+        assert "k" not in inner
+        assert "m" in inner
 
 
 class TestProxyGetActive:
@@ -250,6 +286,16 @@ class TestProxyNoWarnMethods:
         p2 = _DeprecatedProxy(obj={"a": 2}, name="x", deprecated_in="1.0", remove_in="2.0")
         assert p1 != p2
 
+    def test_hash_matches_inner(self) -> None:
+        """hash(proxy) equals hash(wrapped object) for hashable types, without emitting a warning."""
+        inner = (1, 2, 3)
+        proxy = _DeprecatedProxy(obj=inner, name="t", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            h = hash(proxy)
+        assert h == hash(inner)
+        assert not caught
+
 
 class TestProxyWarnMethods:
     """Methods that warn on access."""
@@ -269,11 +315,11 @@ class TestProxyWarnMethods:
         assert callable(method)
 
     def test_iter_warns(self) -> None:
-        """__iter__ emits warning."""
-        proxy = _DeprecatedProxy(obj={"a": 1, "b": 2}, name="x", deprecated_in="1.0", remove_in="2.0")
+        """__iter__ emits warning and yields all elements of the wrapped iterable."""
+        proxy = _DeprecatedProxy(obj=[10, 20, 30], name="x", deprecated_in="1.0", remove_in="2.0")
         with pytest.warns(FutureWarning, match=r"The `x` was deprecated since v1\.0"):
-            keys = list(proxy)
-        assert set(keys) == {"a", "b"}
+            items = list(proxy)
+        assert items == [10, 20, 30]
 
     def test_call_warns_and_invokes(self) -> None:
         """__call__ emits warning and invokes the active object."""
@@ -430,47 +476,48 @@ class TestArgsMapping:
 class TestContainerProtocolWithTarget:
     """Container protocol behaviour when a target is set on the proxy.
 
-    TODO: The source-vs-target behaviour is intentional for now but must be
-    pinned so it is not silently changed. When target is set:
-    - __len__ and __contains__ use _get_active() (typically the target)
-    - __bool__, __iter__, __getitem__, __getattr__, __call__ also use _get_active() (typically the target)
+    Pins the source-vs-target routing so it is not silently changed.
+    __len__, __contains__, and __bool__ all use _get_active() (the target when set).
+    See TestProxyNoWarnMethods for the no-target variants of __len__ and __contains__.
     """
 
-    @pytest.mark.skip(reason="TODO: pin target-based behaviour for __len__ with target set (uses _get_active())")
-    def test_len_reads_from_target_when_set(self) -> None:
-        """len(proxy) reflects the active object (target when set), not the original source."""
-
-    @pytest.mark.skip(reason="TODO: pin target-based behaviour for __contains__ with target set (uses _get_active())")
-    def test_contains_reads_from_target_when_set(self) -> None:
-        """Membership test uses the active object (target when set), not the original source."""
-
-    @pytest.mark.skip(reason="TODO: pin target-based behaviour for __bool__ with target set (uses _get_active())")
     def test_bool_reads_from_target_when_set(self) -> None:
-        """bool(proxy) evaluates the truthiness of the active object (target when set), not the original source."""
+        """bool(proxy) evaluates the active object (target when set), not the original source."""
+        proxy = _DeprecatedProxy(
+            obj=[1, 2, 3],  # truthy source
+            target=[],  # falsy target
+            name="x",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=None,
+        )
+        assert not bool(proxy)
 
 
 class TestHashOnUnhashableType:
     """hash() behaviour for proxies wrapping unhashable objects."""
 
-    @pytest.mark.skip(reason="TODO: document hash(proxy) raises TypeError for unhashable source (e.g. dict)")
     def test_hash_raises_for_unhashable_source(self) -> None:
         """hash(proxy) raises TypeError when the wrapped object is unhashable (e.g. dict).
 
-        Current behaviour: propagates the TypeError from the underlying hash() call with
-        no additional context. Pin this so we know if the behaviour changes.
+        Propagates TypeError from the underlying hash() call with no additional context.
         """
+        proxy = _DeprecatedProxy(obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with pytest.raises(TypeError):
+            hash(proxy)
 
 
 class TestDeprecatedClassReadOnly:
     """Constraints on deprecated_class — unsupported parameters."""
 
-    @pytest.mark.skip(reason="TODO: assert deprecated_class rejects read_only=True with TypeError")
     def test_read_only_raises_type_error(self) -> None:
-        """deprecated_class does not accept read_only; passing it must raise TypeError.
+        """deprecated_class does not accept read_only; passing it raises TypeError.
 
         deprecated_instance supports read_only; deprecated_class does not. This test
         makes the limitation explicit so it is not accidentally introduced later.
         """
+        with pytest.raises(TypeError, match="read_only"):
+            deprecated_class(read_only=True, deprecated_in="1.0", remove_in="2.0")  # type: ignore[call-arg]
 
 
 class TestDeprecatedInstance:
@@ -506,20 +553,12 @@ class TestDeprecatedInstance:
         assert dep.deprecated_in == "2.0"
         assert dep.remove_in == "3.5"
 
-    def test_warns_on_attribute_access(self) -> None:
-        """Reading an attribute through the proxy emits FutureWarning."""
-        proxy = deprecated_instance({"key": 1}, deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(FutureWarning, match=r"deprecated since v1\.0"):
-            _ = proxy.get
-
-    def test_warns_on_item_access(self) -> None:
-        """Subscript access through the proxy emits FutureWarning."""
-        proxy = deprecated_instance({"key": 1}, deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(FutureWarning, match=r"deprecated since v1\.0"):
-            _ = proxy["key"]
-
     def test_warns_once_by_default(self) -> None:
-        """Default num_warns=1 means only the first access emits a warning."""
+        """Default num_warns=1 means only the first access emits a warning.
+
+        This is specific to deprecated_instance() — unlike _DeprecatedProxy which requires
+        an explicit num_warns, deprecated_instance() defaults to num_warns=1.
+        """
         proxy = deprecated_instance({"k": 1}, deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -527,29 +566,10 @@ class TestDeprecatedInstance:
             _ = proxy["k"]
         assert len(caught) == 1
 
-    def test_stream_none_suppresses_warnings(self) -> None:
-        """stream=None completely suppresses all warnings."""
-        proxy = deprecated_instance({}, deprecated_in="1.0", remove_in="2.0", stream=None)
+    def test_stream_none_suppresses_on_item_access(self) -> None:
+        """stream=None suppresses warnings even when items are accessed via __getitem__."""
+        proxy = deprecated_instance({"k": "v"}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            _ = proxy.get
+            _ = proxy["k"]
         assert not caught
-
-    def test_read_only_prevents_item_mutation(self) -> None:
-        """read_only=True raises AttributeError on __setitem__."""
-        proxy = deprecated_instance({"k": 1}, deprecated_in="1.0", remove_in="2.0", stream=None, read_only=True)
-        with pytest.raises(AttributeError, match="read-only"):
-            proxy["k"] = 2
-
-    def test_read_only_prevents_item_deletion(self) -> None:
-        """read_only=True raises AttributeError on __delitem__."""
-        proxy = deprecated_instance({"k": 1}, deprecated_in="1.0", remove_in="2.0", stream=None, read_only=True)
-        with pytest.raises(AttributeError, match="read-only"):
-            del proxy["k"]
-
-    def test_read_write_allows_item_mutation(self) -> None:
-        """Default read_only=False lets callers mutate the wrapped object through the proxy."""
-        data = {"k": 1}
-        proxy = deprecated_instance(data, deprecated_in="1.0", remove_in="2.0", stream=None)
-        proxy["k"] = 99
-        assert data["k"] == 99
