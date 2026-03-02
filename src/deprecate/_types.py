@@ -51,11 +51,11 @@ class _HasDeprecationMeta(Protocol):
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the deprecated object."""
-        pass
+        raise NotImplementedError
 
 
 def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
-    """Return ``True`` if *obj* carries a :class:`DeprecationInfo` ``__deprecated__`` attribute.
+    """Return ``True`` if *obj* carries typed :class:`DeprecationInfo` metadata.
 
     Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to
     :class:`_HasDeprecationMeta`, allowing direct typed access to ``obj.__deprecated__``
@@ -65,10 +65,11 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
         obj: Any object to test.
 
     Returns:
-        ``True`` if ``__deprecated__`` is present; ``False`` otherwise.
+        ``True`` if ``__deprecated__`` exists and is a
+        :class:`~deprecate._types.DeprecationInfo`; ``False`` otherwise.
 
     """
-    return hasattr(obj, "__deprecated__")
+    return isinstance(getattr(obj, "__deprecated__", None), DeprecationInfo)
 
 
 @dataclass
