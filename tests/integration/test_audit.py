@@ -17,7 +17,6 @@ from deprecate.audit import (
     validate_deprecated_callable,
     validate_deprecation_chains,
 )
-from tests.collection_deprecate import depr_accuracy_target, depr_func_no_remove_in, depr_pow_self, depr_sum
 
 # Check if packaging is available for version comparison tests
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -29,7 +28,7 @@ class TestValidateDeprecatedCallable:
 
     def test_valid_deprecation(self) -> None:
         """Test validate_deprecated_callable with a properly configured deprecated function."""
-        result = validate_deprecated_callable(depr_pow_self)
+        result = validate_deprecated_callable(proxy_module.depr_pow_self)
         assert isinstance(result, DeprecatedCallableInfo)
         assert result.invalid_args == []
         assert result.empty_mapping is False
@@ -97,7 +96,7 @@ class TestValidateDeprecatedCallable:
     def test_different_target(self) -> None:
         """Test validate_deprecated_callable with a different target function."""
         # Different target - has effect
-        result = validate_deprecated_callable(depr_accuracy_target)
+        result = validate_deprecated_callable(proxy_module.depr_accuracy_target)
         assert result.invalid_args == []
         assert result.empty_mapping is False
         assert result.identity_mapping == []
