@@ -27,7 +27,7 @@ Example:
 from collections.abc import Iterator
 from typing import Any, Callable, Optional
 
-from deprecate.deprecation import TEMPLATE_WARNING_NO_TARGET, deprecation_warning
+from deprecate.deprecation import TEMPLATE_WARNING_CALLABLE, TEMPLATE_WARNING_NO_TARGET, deprecation_warning
 
 
 class _DeprecatedProxy:
@@ -111,11 +111,23 @@ class _DeprecatedProxy:
         name: str = object.__getattribute__(self, "_DeprecatedProxy__name")
         deprecated_in: str = object.__getattribute__(self, "_DeprecatedProxy__deprecated_in")
         remove_in: str = object.__getattribute__(self, "_DeprecatedProxy__remove_in")
-        msg = TEMPLATE_WARNING_NO_TARGET % {
-            "source_name": name,
-            "deprecated_in": deprecated_in,
-            "remove_in": remove_in,
-        }
+        target: Any = object.__getattribute__(self, "_DeprecatedProxy__target")
+        if callable(target):
+            target_name = target.__name__
+            target_path = f"{target.__module__}.{target_name}"
+            msg = TEMPLATE_WARNING_CALLABLE % {
+                "source_name": name,
+                "deprecated_in": deprecated_in,
+                "remove_in": remove_in,
+                "target_name": target_name,
+                "target_path": target_path,
+            }
+        else:
+            msg = TEMPLATE_WARNING_NO_TARGET % {
+                "source_name": name,
+                "deprecated_in": deprecated_in,
+                "remove_in": remove_in,
+            }
         stream(msg)
         object.__setattr__(self, "_DeprecatedProxy__warned", warned + 1)
 

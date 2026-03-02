@@ -502,7 +502,6 @@ depr_config_dict = deprecated_instance(
     remove_in="2.0",
     num_warns=-1,
 )
-"""Deprecated config dict wrapped with deprecated_instance for integration tests."""
 
 # read-only deprecated config dict — rejects mutations
 depr_config_dict_read_only = deprecated_instance(
@@ -512,7 +511,6 @@ depr_config_dict_read_only = deprecated_instance(
     num_warns=-1,
     read_only=True,
 )
-"""Read-only deprecated config dict that rejects mutations."""
 
 
 @deprecated_class(target=TargetColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)

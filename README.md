@@ -474,9 +474,10 @@ efg
 
 ### 📦 Deprecating constants and instances
 
-Use `deprecated_instance` to wrap any Python object — a number, string, dict, or custom object — with
-transparent deprecation warnings. The `name` parameter is optional; when omitted it defaults to the
-type name of the wrapped object (e.g. `"dict"`).
+Use `deprecated_instance` to wrap objects accessed via attribute/item/call operations (for example, dicts,
+lists, or custom objects) with transparent deprecation warnings. Primitive protocol methods (such as numeric
+arithmetic on `float` or concatenation on `str`) are not proxied. The `name` parameter is optional; when omitted
+it defaults to the type name of the wrapped object (e.g. `"dict"`).
 
 ```python
 import pytest

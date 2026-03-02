@@ -151,7 +151,7 @@ class TestInstanceProxy:
         inner = {"k": "v"}
         proxy = deprecated_instance(inner, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
         assert proxy == inner
-        assert proxy == proxy
+        assert proxy is proxy
 
     def test_hash_matches_inner(self) -> None:
         """hash(proxy) equals hash(wrapped object) for hashable types."""

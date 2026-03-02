@@ -90,6 +90,22 @@ class TestProxyWarnBehavior:
         assert "2.3" in msg
         assert "4.0" in msg
 
+    def test_warn_message_includes_target_path_for_callable_target(self) -> None:
+        """Warnings include replacement path when target is callable."""
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="old_color",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            target=TargetColorEnum,
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy._warn()
+        msg = str(caught[0].message)
+        assert "old_color" in msg
+        assert "tests.collection_targets.TargetColorEnum" in msg
+
     def test_warn_category_is_future_warning(self) -> None:
         """Default stream emits FutureWarning."""
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0")
