@@ -366,5 +366,5 @@ class TestArgMapping:
     def test_enum_remap_kwarg(self) -> None:
         """arg_mapping works when the deprecated class wraps an Enum."""
         with pytest.warns(FutureWarning):
-            result = MappedColorEnum(value=1)
+            result = MappedColorEnum(val=1)
         assert result is TargetColorEnum.RED
