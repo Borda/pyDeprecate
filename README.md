@@ -479,15 +479,13 @@ lists, or custom objects) with transparent deprecation warnings. Primitive proto
 arithmetic on `float` or concatenation on `str`) are not proxied. The `name` parameter is optional; when omitted
 it defaults to the type name of the wrapped object (e.g. `"dict"`).
 
+it defaults to the type name of the wrapped object (e.g. `"dict"`). For primitive constants like floats or
+strings, prefer wrapping them in a container (such as a dict or configuration object) or updating call sites
+directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper.
+
 ```python
 import pytest
 from deprecate import deprecated_instance
-
-# Legacy threshold constant — migrate to new_config.threshold
-LEGACY_THRESHOLD = deprecated_instance(0.5, deprecated_in="1.0", remove_in="2.0")
-# Note: arithmetic dunder methods (float +, -, *) are NOT proxied — use repr() to read the value:
-print(repr(LEGACY_THRESHOLD))  # 0.5
-
 # Legacy config dict — read-only so accidental mutations are blocked
 LEGACY_CONFIG = deprecated_instance(
     {"threshold": 0.5, "enabled": True},
