@@ -183,11 +183,13 @@ class _DeprecatedProxy:
             and callable(attr)
             and self._is_potential_mutator(name)
         ):
+
             def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
                 self._check_read_only(f"Calling mutating method '{name}'")
 
             return _guarded_mutator
         return attr
+
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
         """Forward attribute mutation to the source object, raising in read-only mode."""
         self._check_read_only(f"Setting attribute '{name}'")

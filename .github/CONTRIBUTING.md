@@ -280,7 +280,7 @@ git push origin fix/123-your-bug-description
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
 - Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior
-- In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax (e.g., ``:func:`~deprecate.deprecation.deprecated``` rather than just ``:func:`deprecated```); standard library symbols (e.g., `FutureWarning`) do not need a module prefix
+- In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax (e.g., ```` :func:`~deprecate.deprecation.deprecated``` rather than just  ````:func:```` deprecated```); standard library symbols (e.g.,  ````FutureWarning\`) do not need a module prefix
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
 - Add type hints to all function signatures, including return types
 - Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
