@@ -50,7 +50,6 @@ deprecation_warning = partial(warn, category=FutureWarning)
 ArgsMapping = dict[str, Optional[str]]
 
 
-
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
     """Filter positional-only and positional-or-keyword parameters."""
     return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
@@ -102,7 +101,6 @@ def _prepare_target_call(
             f"these keyword arguments are not allowed): {missed}"
         )
     return target_func
-
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
