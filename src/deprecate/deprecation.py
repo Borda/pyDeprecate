@@ -15,9 +15,10 @@ import inspect
 from enum import Enum
 from functools import partial, update_wrapper, wraps
 from inspect import Parameter
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Union, cast
 from warnings import warn
 
+from deprecate._types import DeprecationInfo, _WrapperState
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 #: Default template warning message for redirecting callable
@@ -478,7 +479,8 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         None. Modifies the function's __doc__ attribute in-place.
 
     Metadata Used:
-        The function's __deprecated__ attribute should contain:
+        The function's ``__deprecated__`` attribute should be a
+        :class:`~deprecate._types.DeprecationInfo` instance with:
         - deprecated_in: Version when deprecated
         - remove_in: Version when will be removed
         - target: Replacement callable (optional)
@@ -488,11 +490,11 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         >>> def old_func():
         ...     '''Original docstring.'''
         ...     pass
-        >>> old_func.__deprecated__ = {
-        ...     'deprecated_in': '1.0',
-        ...     'remove_in': '2.0',
-        ...     'target': new_func
-        ... }
+        >>> old_func.__deprecated__ = DeprecationInfo(
+        ...     deprecated_in='1.0',
+        ...     remove_in='2.0',
+        ...     target=new_func,
+        ... )
         >>> _update_docstring_with_deprecation(old_func)
         >>> print(old_func.__doc__) # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
         Original docstring.
@@ -507,10 +509,12 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     """
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
         return
+    if not hasattr(wrapped_fn, "__deprecated__"):
+        return
     lines = wrapped_fn.__doc__.splitlines()
-    dep_info = getattr(wrapped_fn, "__deprecated__", {})
-    remove_in_val = dep_info.get("remove_in", "")
-    target_val = dep_info.get("target")
+    dep_info = cast(DeprecationInfo, getattr(wrapped_fn, "__deprecated__"))
+    remove_in_val = dep_info.remove_in
+    target_val = dep_info.target
     remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
     target_text = ""
     if callable(target_val):
@@ -519,7 +523,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     lines.append(
         TEMPLATE_DOC_DEPRECATED
         % {
-            "deprecated_in": dep_info.get("deprecated_in", ""),
+            "deprecated_in": dep_info.deprecated_in,
             "remove_text": remove_text,
             "target_text": target_text,
         }
@@ -632,8 +636,8 @@ def deprecated(
             if shall_skip:
                 return source(*args, **kwargs)
 
-            nb_called = getattr(wrapped_fn, "_called", 0)
-            setattr(wrapped_fn, "_called", nb_called + 1)
+            state = cast(_WrapperState, getattr(wrapped_fn, "_state"))
+            state.called += 1
             # Preserve original kwargs for var-positional fallback before remapping.
             original_kwargs = dict(kwargs)
             # convert args to kwargs
@@ -653,22 +657,20 @@ def deprecated(
             if reason_argument:
                 # For argument deprecation, track warnings per argument
                 # Use the minimum count across all deprecated args used in this call
-                arg_warns = [getattr(wrapped_fn, f"_warned_{arg}", 0) for arg in reason_argument]
-                nb_warned = min(arg_warns) if arg_warns else 0
+                nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
             else:
                 # For callable deprecation, track warnings per function
-                nb_warned = getattr(wrapped_fn, "_warned", 0)
+                nb_warned = state.warned_calls
 
             # warn user only N times in lifetime or infinitely...
             if stream and (num_warns < 0 or nb_warned < num_warns):
                 if reason_callable:
                     _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs)
-                    setattr(wrapped_fn, "_warned", nb_warned + 1)
+                    state.warned_calls += 1
                 elif reason_argument:
                     _raise_warn_arguments(stream, source, reason_argument, deprecated_in, remove_in, template_mgs)
-                    attrib_names = [f"_warned_{arg}" for arg in reason_argument]
-                    for n in attrib_names:
-                        setattr(wrapped_fn, n, getattr(wrapped_fn, n, 0) + 1)
+                    for arg in reason_argument:
+                        state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
 
             if reason_callable:
                 kwargs = _update_kwargs_with_defaults(source, kwargs)
@@ -700,17 +702,17 @@ def deprecated(
                 return target_func(*call_args, **call_kwargs)
             return target_func(**kwargs)
 
-        # Set deprecation info for documentation
-        setattr(
-            wrapped_fn,
-            "__deprecated__",
-            {
-                "deprecated_in": deprecated_in,
-                "remove_in": remove_in,
-                "target": target,
-                "args_mapping": args_mapping,
-            },
+        # Static deprecation metadata — consumed by audit tools and docstring helpers.
+        dep_meta = DeprecationInfo(
+            deprecated_in=deprecated_in,
+            remove_in=remove_in,
+            name=source.__name__,
+            target=target,
+            args_mapping=args_mapping,
         )
+        setattr(wrapped_fn, "__deprecated__", dep_meta)
+        # Private mutable runtime state — call counter, warning counters.
+        setattr(wrapped_fn, "_state", _WrapperState())
 
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)

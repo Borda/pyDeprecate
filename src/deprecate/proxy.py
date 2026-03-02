@@ -25,8 +25,9 @@ Example:
 """
 
 from collections.abc import Iterator
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
+from deprecate._types import DeprecationInfo, _ProxyConfig
 from deprecate.deprecation import TEMPLATE_WARNING_CALLABLE, TEMPLATE_WARNING_NO_TARGET, deprecation_warning
 
 
@@ -78,92 +79,103 @@ class _DeprecatedProxy:
         target: Any = None,  # noqa: ANN401
         args_mapping: Optional[dict] = None,
     ) -> None:
-        """Initialise the proxy with two storage dicts, bypassing the overridden __setattr__.
+        """Initialise the proxy with typed runtime/config dataclasses.
 
-        ``__config`` holds private runtime state (obj, stream, num_warns, read_only,
-        and the mutable ``warned`` counter).  Mutations to ``warned`` are plain dict
-        assignments — no ``object.__setattr__`` needed on every warning emission.
+        ``__config`` stores private mutable runtime state in :class:`~deprecate._types._ProxyConfig`
+        (obj, stream, num_warns, read_only, warned counter).
 
         ``__deprecated__`` is the public metadata interface consumed by audit tools
-        (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) and
-        kept strictly read-only semantically.  Aligns with the ``@deprecated`` schema.
+        (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) as a
+        :class:`~deprecate._types.DeprecationInfo` instance aligned with the
+        ``@deprecated`` schema.
         """
-        object.__setattr__(
-            self,
-            "_DeprecatedProxy__config",
-            {
-                "obj": obj,
-                "stream": stream,
-                "num_warns": num_warns,
-                "read_only": read_only,
-                "warned": 0,
-            },
+        # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object.
+        cfg = _ProxyConfig(
+            obj=obj,
+            stream=stream,
+            num_warns=num_warns,
+            read_only=read_only,
         )
-        object.__setattr__(
-            self,
-            "__deprecated__",
-            {
-                "deprecated_in": deprecated_in,
-                "remove_in": remove_in,
-                "name": name,
-                "target": target,
-                "args_mapping": args_mapping,
-            },
+        object.__setattr__(self, "_DeprecatedProxy__config", cfg)
+        # Static deprecation metadata stored as a dunder attribute — readable by audit tools via __deprecated__.
+        dep_meta = DeprecationInfo(
+            deprecated_in=deprecated_in,
+            remove_in=remove_in,
+            name=name,
+            target=target,
+            args_mapping=args_mapping,
         )
+        object.__setattr__(self, "__deprecated__", dep_meta)
 
     # ------------------------------------------------------------------
     # Internal helpers — must use object.__getattribute__ / object.__setattr__
     # to avoid triggering the proxy's own __getattr__ / __setattr__.
     # ------------------------------------------------------------------
 
+    @property
+    def _cfg(self) -> _ProxyConfig:
+        """Private mutable runtime state (warn counter, stream, read-only flag, wrapped object).
+
+        Private to this class — not part of the public API and not consumed by audit tools.
+        """
+        return cast(_ProxyConfig, object.__getattribute__(self, "_DeprecatedProxy__config"))
+
+    @property
+    def _dep(self) -> DeprecationInfo:
+        """Static deprecation metadata (versions, name, target, args_mapping).
+
+        Stored as ``__deprecated__`` (dunder, not name-mangled) — audit tools and external
+        code may read it directly; this property simply provides a typed view of the same object.
+        """
+        return cast(DeprecationInfo, object.__getattribute__(self, "__deprecated__"))
+
     def _warn(self) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted."""
-        cfg: dict = object.__getattribute__(self, "_DeprecatedProxy__config")
-        stream = cfg["stream"]
+        cfg = self._cfg
+        stream = cfg.stream
         if not stream:
             return
-        if cfg["num_warns"] >= 0 and cfg["warned"] >= cfg["num_warns"]:
+        if cfg.num_warns >= 0 and cfg.warned >= cfg.num_warns:
             return
-        dep: dict = object.__getattribute__(self, "__deprecated__")
-        target: Any = dep["target"]
+        dep = self._dep
+        target: Any = dep.target
         if callable(target):
             target_name = target.__name__
             target_path = f"{target.__module__}.{target_name}"
             msg = TEMPLATE_WARNING_CALLABLE % {
-                "source_name": dep["name"],
-                "deprecated_in": dep["deprecated_in"],
-                "remove_in": dep["remove_in"],
+                "source_name": dep.name,
+                "deprecated_in": dep.deprecated_in,
+                "remove_in": dep.remove_in,
                 "target_name": target_name,
                 "target_path": target_path,
             }
         else:
             msg = TEMPLATE_WARNING_NO_TARGET % {
-                "source_name": dep["name"],
-                "deprecated_in": dep["deprecated_in"],
-                "remove_in": dep["remove_in"],
+                "source_name": dep.name,
+                "deprecated_in": dep.deprecated_in,
+                "remove_in": dep.remove_in,
             }
         stream(msg)
-        cfg["warned"] += 1  # dict mutation — no object.__setattr__ needed
+        cfg.warned += 1
 
     def _check_read_only(self, operation: str) -> None:
         """Raise AttributeError when the proxy is in read-only mode."""
-        cfg: dict = object.__getattribute__(self, "_DeprecatedProxy__config")
-        if cfg["read_only"]:
-            name: str = object.__getattribute__(self, "__deprecated__")["name"]
+        if self._cfg.read_only:
+            name: str = self._dep.name
             raise AttributeError(
                 f"'{name}' is deprecated and read-only. {operation} is not allowed. Migrate away from this object."
             )
 
     def _get_active(self) -> Any:  # noqa: ANN401
         """Return the active object: *target* when set, otherwise *source*."""
-        target = object.__getattribute__(self, "__deprecated__")["target"]
+        target = self._dep.target
         if target is not None:
             return target
-        return object.__getattribute__(self, "_DeprecatedProxy__config")["obj"]
+        return self._cfg.obj
 
     def _apply_args_mapping(self, kwargs: dict) -> dict:
         """Apply args_mapping to *kwargs*, renaming or dropping keys as configured."""
-        args_mapping: Optional[dict] = object.__getattribute__(self, "__deprecated__")["args_mapping"]
+        args_mapping = self._dep.args_mapping
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
@@ -205,11 +217,7 @@ class _DeprecatedProxy:
         self._warn()
         attr = getattr(self._get_active(), name)
         # In read-only mode, guard common mutating methods accessed via attribute lookup.
-        if (
-            object.__getattribute__(self, "_DeprecatedProxy__config")["read_only"]
-            and callable(attr)
-            and self._is_potential_mutator(name)
-        ):
+        if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
 
             def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
                 self._check_read_only(f"Calling mutating method '{name}'")
@@ -279,9 +287,9 @@ class _DeprecatedProxy:
 
     def __eq__(self, other: object) -> bool:
         """Compare the source object for equality."""
-        obj = object.__getattribute__(self, "_DeprecatedProxy__config")["obj"]
+        obj = self._cfg.obj
         if isinstance(other, _DeprecatedProxy):
-            other = object.__getattribute__(other, "_DeprecatedProxy__config")["obj"]
+            other = other._cfg.obj
         return bool(obj == other)
 
     def __ne__(self, other: object) -> bool:
@@ -290,7 +298,7 @@ class _DeprecatedProxy:
 
     def __hash__(self) -> int:
         """Return the hash of the source object."""
-        return hash(object.__getattribute__(self, "_DeprecatedProxy__config")["obj"])
+        return hash(self._cfg.obj)
 
     # ------------------------------------------------------------------
     # String representations — no warning emitted (used for debugging)
@@ -298,11 +306,11 @@ class _DeprecatedProxy:
 
     def __repr__(self) -> str:
         """Return repr of the source object."""
-        return repr(object.__getattribute__(self, "_DeprecatedProxy__config")["obj"])
+        return repr(self._cfg.obj)
 
     def __str__(self) -> str:
         """Return str of the source object."""
-        return str(object.__getattribute__(self, "_DeprecatedProxy__config")["obj"])
+        return str(self._cfg.obj)
 
     def __bool__(self) -> bool:
         """Return bool of the active object without emitting a warning."""

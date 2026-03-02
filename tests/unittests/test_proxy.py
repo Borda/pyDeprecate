@@ -25,17 +25,17 @@ class TestProxyInit:
         obj = {"a": 1}
         proxy = _DeprecatedProxy(obj=obj, name="x", deprecated_in="1.0", remove_in="2.0", num_warns=3, stream=None)
         cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
-        assert cfg["obj"] is obj
-        assert cfg["num_warns"] == 3
-        assert cfg["stream"] is None
-        assert cfg["read_only"] is False
-        assert cfg["warned"] == 0
+        assert cfg.obj is obj
+        assert cfg.num_warns == 3
+        assert cfg.stream is None
+        assert cfg.read_only is False
+        assert cfg.warned == 0
         meta = object.__getattribute__(proxy, "__deprecated__")
-        assert meta["name"] == "x"
-        assert meta["deprecated_in"] == "1.0"
-        assert meta["remove_in"] == "2.0"
-        assert meta["target"] is None
-        assert meta["args_mapping"] is None
+        assert meta.name == "x"
+        assert meta.deprecated_in == "1.0"
+        assert meta.remove_in == "2.0"
+        assert meta.target is None
+        assert meta.args_mapping is None
 
 
 class TestProxyWarnBehavior:
@@ -57,7 +57,7 @@ class TestProxyWarnBehavior:
             warnings.simplefilter("always")
             proxy._warn()
             proxy._warn()
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__config")["warned"] == 2
+        assert object.__getattribute__(proxy, "_DeprecatedProxy__config").warned == 2
 
     def test_warn_stops_after_limit(self) -> None:
         """Warnings stop once num_warns threshold is reached."""
@@ -302,7 +302,7 @@ class TestDecoratorFactory:
 
     def test_uses_class_name_as_proxy_name(self) -> None:
         """The proxy name is taken from the decorated class __name__."""
-        name = object.__getattribute__(WarnOnlyColorEnum, "__deprecated__")["name"]
+        name = object.__getattribute__(WarnOnlyColorEnum, "__deprecated__").name
         assert name == "WarnOnlyColorEnum"
 
     def test_no_target_reads_from_source(self) -> None:
@@ -411,7 +411,7 @@ class TestArgsMapping:
 
     def test_args_mapping_stored_in_proxy(self) -> None:
         """Proxy should retain args_mapping so audit and introspection can verify remapping behavior."""
-        mapping = object.__getattribute__(MappedDataClass, "__deprecated__")["args_mapping"]
+        mapping = object.__getattribute__(MappedDataClass, "__deprecated__").args_mapping
         assert mapping == {"name": "label", "count": "total"}
 
     def test_enum_remap_kwarg(self) -> None:

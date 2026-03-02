@@ -2,6 +2,7 @@
 
 import pytest
 
+from deprecate._types import DeprecationInfo
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     DeprecatedDataClass,
@@ -25,8 +26,7 @@ class TestDeprecatedClass:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for PastCls.__init__."""
-        if hasattr(PastCls.__init__, "_warned"):
-            setattr(PastCls.__init__, "_warned", False)
+        getattr(PastCls.__init__, "_state").warned_calls = 0
 
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
@@ -44,7 +44,7 @@ class TestDeprecatedClass:
 
     def test_class_forward_once(self) -> None:
         """Check that the warning is raised only on the first call to the wrapped __init__."""
-        setattr(PastCls.__init__, "_warned", False)
+        getattr(PastCls.__init__, "_state").warned_calls = 0
         with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
             PastCls(2)
         with no_warning_call():
@@ -159,9 +159,10 @@ def test_deprecated_class_attribute_set_at_decoration_time() -> None:
     """
     # Verify __deprecated__ is set on the __init__ WITHOUT instantiating the class
     assert hasattr(PastCls.__init__, "__deprecated__")
-    assert PastCls.__init__.__deprecated__ == {
-        "deprecated_in": "0.2",
-        "remove_in": "0.4",
-        "target": NewCls,
-        "args_mapping": None,
-    }
+    assert PastCls.__init__.__deprecated__ == DeprecationInfo(
+        deprecated_in="0.2",
+        remove_in="0.4",
+        name="__init__",
+        target=NewCls,
+        args_mapping=None,
+    )
