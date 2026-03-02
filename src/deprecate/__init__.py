@@ -15,7 +15,7 @@ Main Features:
 Core Components:
 
 **Main Decorator** (:mod:`deprecate.deprecation`):
-    - :func:`~deprecate.deprecation.deprecated`: Decorator for marking functions/classes as deprecated
+    - :func:`~deprecate.deprecation.deprecated`: Decorator for marking functions/methods as deprecated
     - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
 **Audit** (:mod:`deprecate.audit`):

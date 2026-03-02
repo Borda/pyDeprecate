@@ -4,6 +4,7 @@ This module contains deprecated wrappers covering real-world use cases:
 
 - Warning-only deprecation (no forwarding, just notify users)
 - Basic call forwarding to a replacement function
+- Function-to-class forwarding via constructor call
 - Silent deprecation (no warning stream)
 - Controlled warning frequency (warn N times, warn every call)
 - Custom warning messages
@@ -205,6 +206,16 @@ def depr_sum(a: int, b: int = 5) -> int:
         transparently forwards the call to `base_sum_kwargs`.
     """
     return void(a, b)
+
+
+@deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
+def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noqa: ANN401
+    """Forward a deprecated factory function to a class constructor.
+
+    Examples:
+        Users call the old function but receive a ``NewCls`` instance.
+    """
+    return void(c, d, kwargs)
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)

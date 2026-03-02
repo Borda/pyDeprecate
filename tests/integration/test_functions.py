@@ -24,6 +24,7 @@ from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
+    depr_make_new_cls,
     depr_pow_args,
     depr_pow_mix,
     depr_pow_self,
@@ -62,6 +63,23 @@ class TestDeprecationWarnings:
             " It will be removed in v0.5.",
         ):
             assert depr_sum(2) == 7
+
+    def test_function_to_class_forwarding(self) -> None:
+        """Deprecated function targeting a class should instantiate and return the class."""
+        from tests.collection_targets import NewCls
+
+        getattr(depr_make_new_cls, "_state").warned_calls = 0
+        with pytest.warns(
+            FutureWarning,
+            match="The `depr_make_new_cls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
+            " It will be removed in v0.4.",
+        ):
+            instance = depr_make_new_cls(2, e=0.9)
+
+        assert isinstance(instance, NewCls)
+        assert instance.my_c == 2
+        assert instance.my_d == "abc"
+        assert instance.my_e == 0.9
 
     def test_default_once(self) -> None:
         """Check that the warning is raised only once per function."""

@@ -285,7 +285,7 @@ class TestDeprecatedClassGuard:
         with pytest.raises(TypeError, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
-            class MyClass:
+            class _MyClass:
                 pass
 
     def test_raises_for_enum_class(self) -> None:
@@ -297,7 +297,7 @@ class TestDeprecatedClassGuard:
         with pytest.raises(TypeError, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
-            class MyEnum(Enum):
+            class _MyEnum(Enum):
                 A = "a"
 
     def test_raises_for_dataclass(self) -> None:
@@ -310,7 +310,7 @@ class TestDeprecatedClassGuard:
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             @dataclass
-            class MyData:
+            class _MyData:
                 x: int
 
     def test_does_not_raise_for_function(self) -> None:
@@ -321,11 +321,18 @@ class TestDeprecatedClassGuard:
         def my_func() -> None:
             pass
 
+        with pytest.warns(FutureWarning):
+            my_func()
+
     def test_does_not_raise_for_init_method(self) -> None:
         class _unused_my_class:
         from deprecate import deprecated
 
-        class _UnusedMyClass:
+        class MyClass:
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             def __init__(self) -> None:
                 pass
+
+        with pytest.warns(FutureWarning):
+            instance = MyClass()
+        assert isinstance(instance, MyClass)

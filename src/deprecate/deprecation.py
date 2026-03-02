@@ -1,7 +1,8 @@
 """Deprecation wrapper and utilities for marking deprecated code.
 
-This module provides the main ``@deprecated`` decorator for marking functions, methods,
-and classes as deprecated while optionally forwarding calls to their replacements.
+This module provides the main ``@deprecated`` decorator for marking functions and
+methods as deprecated while optionally forwarding calls to their replacements.
+Class-level deprecation is handled by :func:`deprecate.proxy.deprecated_class`.
 
 Key Components:
     - :func:`~deprecate.deprecation.deprecated`: Main decorator for deprecation with automatic call forwarding
@@ -68,8 +69,11 @@ def _prepare_target_call(
         kwargs: Keyword arguments after mapping and defaults.
 
     Returns:
-        The callable to invoke. When *target* is a class, returns ``target.__init__``
-        so that argument names can be matched against the constructor signature.
+        The callable to invoke. For class targets this validates keyword compatibility
+        against ``target.__init__`` and then:
+        - returns ``target.__init__`` for ``__init__``-to-``__init__`` forwarding
+          (source instance is passed via ``self`` in ``kwargs``),
+        - otherwise returns the class itself for normal instantiation.
 
     Example:
         >>> from deprecate.deprecation import _prepare_target_call
@@ -84,11 +88,11 @@ def _prepare_target_call(
 
     """
     target_is_class = inspect.isclass(target)
-    # Function-to-class forwarding calls __init__ to match argument names.
-    target_func = target.__init__ if target_is_class else target
-    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
+    # Always validate class kwargs against constructor signature.
+    target_for_signature = target.__init__ if target_is_class else target
+    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_for_signature)]
 
-    target_full_arg_spec = inspect.getfullargspec(target_func)
+    target_full_arg_spec = inspect.getfullargspec(target_for_signature)
     var_args = target_full_arg_spec.varargs
     var_kw = target_full_arg_spec.varkw
 
@@ -100,7 +104,11 @@ def _prepare_target_call(
             f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
             f"these keyword arguments are not allowed): {missed}"
         )
-    return target_func
+    # Keep __init__ forwarding for deprecated constructors (self is provided),
+    # but instantiate class targets for normal function/method forwarding.
+    if target_is_class and source.__name__ == "__init__" and "self" in kwargs:
+        return target.__init__
+    return target
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -425,15 +433,15 @@ def deprecated(
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Decorate a function or class with warning message and forward calls to target.
+    """Decorate a function/method with warning message and forward calls to target.
 
-    This decorator marks a function or class as deprecated and can automatically forward
+    This decorator marks a function or method as deprecated and can automatically forward
     all calls to a replacement implementation. It supports argument mapping, custom
     warning messages, and flexible warning control.
 
     Args:
         target: How to handle the deprecation:
-            - ``Callable``: Forward all calls to this function/class
+            - ``Callable``: Forward all calls to this callable (function, method, or class target)
             - ``True``: Self-deprecation mode (deprecate arguments within same function)
             - ``None``: Warning-only mode (no forwarding, function body executes normally)
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0").
@@ -473,12 +481,14 @@ def deprecated(
             generation tools like Sphinx.
 
     Returns:
-        Decorator function that wraps the source function/class.
+        Decorator function that wraps the source function/method.
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function
             and target doesn't accept **kwargs.
+        TypeError: If applied directly to a class. Use :func:`deprecate.proxy.deprecated_class`
+            for class-level deprecation.
 
     Example:
         >>> # Basic forwarding
