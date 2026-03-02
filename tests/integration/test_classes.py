@@ -2,7 +2,7 @@
 
 import pytest
 
-from deprecate._types import DeprecationInfo
+
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     DeprecatedDataClass,

@@ -102,7 +102,7 @@ class _WrapperState:
 
     Attributes:
         called: Total invocation count, including calls where the warning was suppressed.
-        warned: Number of callable-level deprecation warnings emitted so far.
+        warned_calls: Number of callable-level deprecation warnings emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations.
             Keys are deprecated argument names; values are emission counts.
     """
