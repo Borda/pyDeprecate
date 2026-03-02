@@ -15,6 +15,8 @@ that the validation tooling correctly detects these misconfigurations.
 Copyright (C) 2020-2026 Jiri Borovec <...>.
 """
 
+from dataclasses import replace
+
 from deprecate import deprecated, void
 
 
@@ -102,4 +104,4 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
 
 # Manually update the __deprecated__ attribute to make it self-referencing
 deprecated_info = getattr(self_referencing_deprecation, "__deprecated__")
-deprecated_info["target"] = self_referencing_deprecation
+setattr(self_referencing_deprecation, "__deprecated__", replace(deprecated_info, target=self_referencing_deprecation))

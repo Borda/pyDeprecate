@@ -194,13 +194,13 @@ class TestFindDeprecatedCallables:
 
         enum_info = by_name["DeprecatedColorEnum"]
         assert hasattr(enum_info, "deprecated_info")
-        enum_target = enum_info.deprecated_info.get("target")
+        enum_target = enum_info.deprecated_info.target
         assert enum_target is not None
         assert enum_target.__name__ == "TargetColorEnum"
 
         mapped_enum = by_name.get("MappedColorEnum")
         assert mapped_enum is not None
-        assert mapped_enum.deprecated_info.get("args_mapping") == {"val": "value"}
+        assert mapped_enum.deprecated_info.args_mapping == {"val": "value"}
 
     def test_discovers_proxy_without_target_and_drop_mapping(self) -> None:
         """Proxy deprecations without targets and with dropped args are discoverable."""
@@ -209,12 +209,12 @@ class TestFindDeprecatedCallables:
 
         warn_only_enum = by_name.get("WarnOnlyColorEnum")
         assert warn_only_enum is not None
-        assert warn_only_enum.deprecated_info.get("target") is None
-        assert warn_only_enum.deprecated_info.get("remove_in") == "2.0"
+        assert warn_only_enum.deprecated_info.target is None
+        assert warn_only_enum.deprecated_info.remove_in == "2.0"
 
         mapped_drop_dc = by_name.get("MappedDropArgDataClass")
         assert mapped_drop_dc is not None
-        assert mapped_drop_dc.deprecated_info.get("args_mapping") == {"legacy_flag": None, "name": "label"}
+        assert mapped_drop_dc.deprecated_info.args_mapping == {"legacy_flag": None, "name": "label"}
 
 
 class TestValidateDeprecationChains:
@@ -265,7 +265,7 @@ class TestValidateDeprecationChains:
         # The info must report ChainType.TARGET and expose the outer args_mapping
         info = next(i for i in issues if i.function == "caller_acc_comp_depr_map")
         assert info.chain_type is ChainType.TARGET
-        assert info.deprecated_info.get("args_mapping") == {"predictions": "preds", "labels": "truth"}
+        assert info.deprecated_info.args_mapping == {"predictions": "preds", "labels": "truth"}
 
     def test_detects_stacked_self_deprecation(self) -> None:
         """Detects stacked target=True decorators whose arg mappings should be collapsed.

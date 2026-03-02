@@ -28,32 +28,23 @@ identification info and structured validation results for programmatic processin
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
-# TODO: Proxy objects are not fully covered by audit utilities (GitHub issue needed).
-#     :func:`~deprecate.proxy.deprecated_class` and :func:`~deprecate.proxy.deprecated_instance`
-#     are discoverable via the generic ``callable(obj)`` + ``hasattr(obj, "__deprecated__")``
-#     scan in :func:`find_deprecated_callables` and :func:`validate_deprecation_expiry`,
-#     but two gaps remain:
-#
-#     1. ``validate_deprecated_callable`` reports the *wrong function name* for proxy objects
-#        because ``getattr(func, "__name__")`` routes through ``__getattr__`` → ``_get_active()``
-#        and returns the *target* class name instead of the deprecated source name.
-#        Fix in :func:`validate_deprecated_callable`: use ``dep_info.get("name")`` first:
-#            name_from_meta = dep_info.get("name", "")
-#            function = name_from_meta or getattr(func, "__name__", str(func))
-#
-#     2. No dedicated tests verify that decorated Enums/dataclasses and deprecated instance
-#        constants are discoverable and that their ``remove_in`` deadlines are enforced the
-#        same way as regular callables.
+# Note: Proxy objects are discoverable via the generic ``callable(obj)`` +
+# ``hasattr(obj, "__deprecated__")`` scan in :func:`find_deprecated_callables` and
+# :func:`validate_deprecation_expiry`. The ``__deprecated__`` schema is now unified
+# across ``@deprecated`` and :class:`~deprecate.proxy._DeprecatedProxy` via
+# :class:`~deprecate._types.DeprecationInfo` — both always include the ``"name"`` key,
+# so ``validate_deprecated_callable`` reads it correctly for proxy objects too.
 
 import inspect
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
 if TYPE_CHECKING:
     from packaging.version import Version
 
+from deprecate._types import DeprecationInfo
 from deprecate.utils import get_func_arguments_types_defaults
 
 
@@ -138,7 +129,7 @@ class DeprecatedCallableInfo:
     Attributes:
         module: Module name where the function is defined (empty for direct validation).
         function: Function name.
-        deprecated_info: The ``__deprecated__`` attribute dict from the decorator.
+        deprecated_info: The ``__deprecated__`` attribute from the decorator, as a :class:`~deprecate._types.DeprecationInfo`.
         invalid_args: List of ``args_mapping`` keys that don't exist in the function signature.
         empty_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
         identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
@@ -151,7 +142,7 @@ class DeprecatedCallableInfo:
         >>> info = DeprecatedCallableInfo(
         ...     module="my_package.module",
         ...     function="old_function",
-        ...     deprecated_info={"deprecated_in": "1.0", "remove_in": "2.0"},
+        ...     deprecated_info=DeprecationInfo(deprecated_in="1.0", remove_in="2.0"),
         ...     invalid_args=["nonexistent"],
         ...     no_effect=True,
         ... )
@@ -164,7 +155,7 @@ class DeprecatedCallableInfo:
 
     module: str = ""
     function: str = ""
-    deprecated_info: dict[str, Any] = field(default_factory=dict)
+    deprecated_info: DeprecationInfo = field(default_factory=DeprecationInfo)
     invalid_args: list[str] = field(default_factory=list)
     empty_mapping: bool = False
     identity_mapping: list[str] = field(default_factory=list)
@@ -245,9 +236,9 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
             "It must be decorated with `@deprecated`."
         )
 
-    dep_info = getattr(func, "__deprecated__", {})
-    args_mapping = dep_info.get("args_mapping")
-    target = dep_info.get("target")
+    dep_info = cast(DeprecationInfo, getattr(func, "__deprecated__"))
+    args_mapping = dep_info.args_mapping
+    target = dep_info.target
 
     invalid_args: list[str] = []
     empty_mapping = not args_mapping
@@ -261,14 +252,17 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
     chain_type: Optional[ChainType] = None
     if callable(target) and hasattr(target, "__deprecated__"):
-        if getattr(target, "__deprecated__", {}).get("target") is True:
+        target_dep = cast(DeprecationInfo, target.__deprecated__)
+        if target_dep.target is True:
             chain_type = ChainType.STACKED  # target is a self-deprecation wrapper — mappings compose
         else:
             chain_type = ChainType.TARGET  # target forwards to another function
     elif target is True:
         wrapped = getattr(func, "__wrapped__", None)
-        if wrapped is not None and getattr(wrapped, "__deprecated__", {}).get("target") is True:
-            chain_type = ChainType.STACKED  # stacked @deprecated(True) decorators
+        if wrapped is not None and hasattr(wrapped, "__deprecated__"):
+            wrapped_dep = cast(DeprecationInfo, wrapped.__deprecated__)
+            if wrapped_dep.target is True:
+                chain_type = ChainType.STACKED  # stacked @deprecated(True) decorators
 
     all_identity = False
     if args_mapping:
@@ -287,8 +281,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     is_self_deprecation = target is True or self_reference
     no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
 
-    name_from_meta = dep_info.get("name", "")
-    function = name_from_meta or getattr(func, "__name__", str(func))
+    function = dep_info.name or getattr(func, "__name__", str(func))
 
     return DeprecatedCallableInfo(
         function=function,
@@ -333,7 +326,7 @@ def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> N
     info = validate_deprecated_callable(func)
 
     # Extract the remove_in version from the metadata
-    remove_in = info.deprecated_info.get("remove_in")
+    remove_in = info.deprecated_info.remove_in
     if not remove_in:
         raise ValueError(
             f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
@@ -483,7 +476,7 @@ def validate_deprecation_expiry(
     # Check each deprecated callable for expiry
     for info in deprecated_callables:
         # Skip if no remove_in specified (warning-only deprecation)
-        remove_in = info.deprecated_info.get("remove_in")
+        remove_in = info.deprecated_info.remove_in
         if not remove_in:
             continue
 
