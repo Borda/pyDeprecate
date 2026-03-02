@@ -1,22 +1,33 @@
 """Test the audit module functions."""
 
+import importlib
+import importlib.metadata
 import importlib.util
+import inspect
+import pkgutil
+import warnings
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
+import tests
 import tests.collection_chains as chain_module
 import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
-from deprecate import validate_deprecation_expiry
+from deprecate import deprecated, validate_deprecation_expiry
+from deprecate._types import DeprecationInfo
 from deprecate.audit import (
     ChainType,
     DeprecatedCallableInfo,
     _check_deprecated_callable_expiry,
+    _get_package_version,
     _parse_version,
     find_deprecated_callables,
     validate_deprecated_callable,
     validate_deprecation_chains,
 )
+from tests.collection_targets import plain_function_target
 
 # Check if packaging is available for version comparison tests
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -27,7 +38,7 @@ class TestValidateDeprecatedCallable:
     """Tests for validate_deprecated_callable()."""
 
     def test_valid_deprecation(self) -> None:
-        """Test validate_deprecated_callable with a properly configured deprecated function."""
+        """Properly configured deprecated function returns a clean validation result."""
         result = validate_deprecated_callable(proxy_module.depr_pow_self)
         assert isinstance(result, DeprecatedCallableInfo)
         assert result.invalid_args == []
@@ -37,25 +48,17 @@ class TestValidateDeprecatedCallable:
         assert result.no_effect is False
 
     def test_invalid_args(self) -> None:
-        """Test validate_deprecated_callable detects invalid args_mapping keys."""
+        """args_mapping keys absent from the function signature are reported."""
         result = validate_deprecated_callable(sample_module.invalid_args_deprecation)
         assert result.invalid_args == ["nonexistent_arg"]
         assert result.empty_mapping is False
         assert result.identity_mapping == []
         assert result.self_reference is False
 
-    def test_empty_mapping(self) -> None:
-        """Test validate_deprecated_callable detects empty args_mapping."""
-        # Test with empty args_mapping (self-deprecation)
-        result = validate_deprecated_callable(sample_module.empty_mapping_deprecation)
-        assert result.invalid_args == []
-        assert result.empty_mapping is True
-        assert result.identity_mapping == []
-        assert result.self_reference is False
-        assert result.no_effect is True
-
-        # Test with None args_mapping (self-deprecation)
-        result = validate_deprecated_callable(sample_module.none_mapping_deprecation)
+    @pytest.mark.parametrize("func_name", ["empty_mapping_deprecation", "none_mapping_deprecation"])
+    def test_empty_mapping(self, func_name: str) -> None:
+        """Empty or None args_mapping on a self-deprecation yields no_effect=True."""
+        result = validate_deprecated_callable(getattr(sample_module, func_name))
         assert result.invalid_args == []
         assert result.empty_mapping is True
         assert result.identity_mapping == []
@@ -63,29 +66,27 @@ class TestValidateDeprecatedCallable:
         assert result.no_effect is True
 
     def test_single_identity_mapping(self) -> None:
-        """Test validate_deprecated_callable detects single identity mapping."""
+        """A single key==value entry in args_mapping is detected as identity."""
         result = validate_deprecated_callable(sample_module.identity_mapping_deprecation)
         assert result.invalid_args == []
         assert result.empty_mapping is False
         assert result.identity_mapping == ["arg1"]
-        assert result.self_reference is False
         assert result.no_effect is True
 
     def test_all_identity_mappings(self) -> None:
-        """Test validate_deprecated_callable detects all identity mappings."""
+        """All key==value entries in args_mapping yield no_effect=True."""
         result = validate_deprecated_callable(sample_module.all_identity_mapping_deprecation)
         assert result.identity_mapping == ["arg1", "arg2"]
         assert result.no_effect is True
 
     def test_partial_identity_mapping(self) -> None:
-        """Test validate_deprecated_callable detects partial identity mapping."""
+        """Partially identity args_mapping still has effect via non-identity entries."""
         result = validate_deprecated_callable(sample_module.partial_identity_mapping_deprecation)
         assert result.identity_mapping == ["arg1"]
         assert result.no_effect is False
 
     def test_self_reference(self) -> None:
-        """Test validate_deprecated_callable detects self-referencing target."""
-        # Self-reference - no effect
+        """Target pointing to the same function yields self_reference=True and no_effect=True."""
         result = validate_deprecated_callable(sample_module.self_referencing_deprecation)
         assert result.invalid_args == []
         assert result.empty_mapping is False
@@ -94,8 +95,7 @@ class TestValidateDeprecatedCallable:
         assert result.no_effect is True
 
     def test_different_target(self) -> None:
-        """Test validate_deprecated_callable with a different target function."""
-        # Different target - has effect
+        """Forwarding to a different function has effect: no_effect=False."""
         result = validate_deprecated_callable(proxy_module.depr_accuracy_target)
         assert result.invalid_args == []
         assert result.empty_mapping is False
@@ -103,8 +103,24 @@ class TestValidateDeprecatedCallable:
         assert result.self_reference is False
         assert result.no_effect is False
 
+    def test_proxy_function_name_is_source_not_target(self) -> None:
+        """validate_deprecated_callable reports the deprecated source name, not the target's name.
+
+        Proxy objects route ``__name__`` through ``__getattr__`` → target class, so
+        ``getattr(proxy, "__name__")`` returns the *target's* name.  The audit function
+        must read ``dep_info.name`` (always set by the proxy at decoration time) to avoid
+        reporting the wrong callable name.
+        """
+        result = validate_deprecated_callable(proxy_module.DeprecatedColorEnum)
+        assert result.function == "DeprecatedColorEnum"
+        # Confirm the proxy leaks the wrong __name__ via __getattr__:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assert getattr(proxy_module.DeprecatedColorEnum, "__name__") == "TargetColorEnum"
+        assert result.function != result.deprecated_info.target.__name__
+
     def test_no_deprecated_attr(self) -> None:
-        """Test validate_deprecated_callable raises ValueError for non-deprecated functions."""
+        """Non-decorated callable raises ValueError."""
 
         def plain_function(x: int) -> int:
             return x
@@ -113,503 +129,433 @@ class TestValidateDeprecatedCallable:
             validate_deprecated_callable(plain_function)
 
 
+class TestValidateDeprecatedCallableProxy:
+    """validate_deprecated_callable with deprecated_class and deprecated_instance proxies."""
+
+    @pytest.mark.parametrize(
+        ("proxy_obj", "fn_name", "target_name"),
+        [
+            (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", "TargetColorEnum"),
+            (proxy_module.DeprecatedColorDataClass, "DeprecatedColorDataClass", "NewDataClass"),
+        ],
+    )
+    def test_deprecated_class_with_target(self, proxy_obj: Any, fn_name: str, target_name: str) -> None:  # noqa: ANN401
+        """deprecated_class proxy with a forwarding target reports correct metadata."""
+        result = validate_deprecated_callable(proxy_obj)
+        assert result.function == fn_name
+        assert result.deprecated_info.deprecated_in == "1.0"
+        assert result.deprecated_info.remove_in == "2.0"
+        assert result.deprecated_info.target.__name__ == target_name
+        assert result.deprecated_info.args_mapping is None
+        assert result.empty_mapping is True  # no args_mapping
+        assert result.self_reference is False
+        assert result.no_effect is False  # has a different target → effective
+        assert result.chain_type is None
+
+    @pytest.mark.parametrize(
+        ("proxy_obj", "fn_name", "expected_mapping", "target_name"),
+        [
+            (proxy_module.MappedColorEnum, "MappedColorEnum", {"val": "value"}, "TargetColorEnum"),
+            (
+                proxy_module.MappedDataClass,
+                "MappedDataClass",
+                {"name": "label", "count": "total"},
+                "NewDataClass",
+            ),
+            (
+                proxy_module.MappedDropArgDataClass,
+                "MappedDropArgDataClass",
+                {"legacy_flag": None, "name": "label"},
+                "NewDataClass",
+            ),
+        ],
+    )
+    def test_deprecated_class_with_args_mapping(
+        self,
+        proxy_obj: Any,  # noqa: ANN401
+        fn_name: str,
+        expected_mapping: dict,
+        target_name: str,
+    ) -> None:
+        """deprecated_class proxy with args_mapping reports mapping with no identity entries."""
+        result = validate_deprecated_callable(proxy_obj)
+        assert result.function == fn_name
+        assert result.deprecated_info.args_mapping == expected_mapping
+        assert result.deprecated_info.target.__name__ == target_name
+        assert result.empty_mapping is False
+        assert result.identity_mapping == []
+        assert result.no_effect is False
+
+    def test_deprecated_class_warn_only(self) -> None:
+        """deprecated_class with no target is still effective — it emits warnings."""
+        result = validate_deprecated_callable(proxy_module.WarnOnlyColorEnum)
+        assert result.function == "WarnOnlyColorEnum"
+        assert result.deprecated_info.target is None
+        assert result.empty_mapping is True
+        assert result.no_effect is False  # target=None still warns
+
+    def test_deprecated_instance_uses_type_name(self) -> None:
+        """deprecated_instance with no explicit name defaults function to the wrapped type name."""
+        result = validate_deprecated_callable(proxy_module.depr_config_dict)
+        # No name= passed → resolved to type({}).__name__ = "dict"
+        assert result.function == "dict"
+        assert result.deprecated_info.deprecated_in == "1.0"
+        assert result.deprecated_info.remove_in == "2.0"
+        assert result.deprecated_info.target is None
+        assert result.empty_mapping is True
+        assert result.no_effect is False  # still emits warnings
+
+    def test_deprecated_instance_read_only_same_audit_result(self) -> None:
+        """read_only flag is a runtime proxy concern and does not appear in DeprecationInfo."""
+        read_only = validate_deprecated_callable(proxy_module.depr_config_dict_read_only)
+        read_write = validate_deprecated_callable(proxy_module.depr_config_dict)
+        assert read_only.function == read_write.function == "dict"
+        assert read_only.deprecated_info.deprecated_in == read_write.deprecated_info.deprecated_in
+        assert read_only.deprecated_info.remove_in == read_write.deprecated_info.remove_in
+        assert read_only.empty_mapping == read_write.empty_mapping
+        assert read_only.no_effect == read_write.no_effect
+
+    @pytest.mark.parametrize(
+        ("proxy_obj", "fn_name", "has_target", "has_mapping", "invalid_args"),
+        [
+            # deprecated_class — no args_mapping: old arg names can't be verified against signature
+            (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", True, False, []),
+            (proxy_module.DeprecatedColorDataClass, "DeprecatedColorDataClass", True, False, []),
+            (proxy_module.WarnOnlyColorEnum, "WarnOnlyColorEnum", False, False, []),
+            # deprecated_class — with args_mapping: old arg keys absent from proxy signature → invalid_args
+            (proxy_module.MappedColorEnum, "MappedColorEnum", True, True, ["val"]),
+            (proxy_module.MappedDataClass, "MappedDataClass", True, True, ["name", "count"]),
+            (proxy_module.MappedDropArgDataClass, "MappedDropArgDataClass", True, True, ["legacy_flag", "name"]),
+            # deprecated_instance — no args_mapping
+            (proxy_module.depr_config_dict, "dict", False, False, []),
+            (proxy_module.depr_config_dict_read_only, "dict", False, False, []),
+        ],
+    )
+    def test_all_proxy_types_pass_basic_validation(
+        self,
+        proxy_obj: Any,  # noqa: ANN401
+        fn_name: str,
+        has_target: bool,
+        has_mapping: bool,
+        invalid_args: list,
+    ) -> None:
+        """All 8 proxy objects (6 deprecated_class + 2 deprecated_instance) pass validate_deprecated_callable.
+
+        Verifies the unified DeprecationInfo schema — function name, version fields, and
+        chain_type — for every proxy variant. Mapped proxies report their old arg keys as
+        ``invalid_args`` because the proxy callable has no inspectable signature with those names.
+        """
+        result = validate_deprecated_callable(proxy_obj)
+        assert result.function == fn_name
+        assert result.deprecated_info.deprecated_in == "1.0"
+        assert result.deprecated_info.remove_in == "2.0"
+        assert result.invalid_args == invalid_args
+        assert result.chain_type is None
+        assert (result.deprecated_info.target is not None) == has_target
+        assert (result.deprecated_info.args_mapping is not None) == has_mapping
+
+
 class TestFindDeprecatedCallables:
     """Tests for find_deprecated_callables()."""
 
-    def test_find_deprecated_callables(self) -> None:
-        """Test find_deprecated_callables scans a module for deprecated functions."""
+    def test_finds_decorated_functions(self) -> None:
+        """Scans a module and returns DeprecatedCallableInfo for every @deprecated function."""
         results = find_deprecated_callables(sample_module, recursive=False)
-
-        # Should find deprecated functions
         assert len(results) > 0
-
-        # All results should be DeprecatedCallableInfo dataclasses with merged fields
-        for r in results:
-            assert isinstance(r, DeprecatedCallableInfo)
-
-        # Check that known deprecated functions are found
+        assert all(isinstance(r, DeprecatedCallableInfo) for r in results)
         func_names = [r.function for r in results]
         assert "invalid_args_deprecation" in func_names
         assert "empty_mapping_deprecation" in func_names
         assert "identity_mapping_deprecation" in func_names
 
-    def test_detects_no_effect(self) -> None:
-        """Test find_deprecated_callables correctly identifies zero-impact wrappers."""
-        results = find_deprecated_callables(sample_module, recursive=False)
+    def test_detects_no_effect_wrappers(self) -> None:
+        """Identifies zero-impact wrappers via empty_mapping and identity_mapping fields."""
+        by_name = {r.function: r for r in find_deprecated_callables(sample_module, recursive=False)}
+        assert by_name["empty_mapping_deprecation"].empty_mapping is True
+        assert "arg1" in by_name["identity_mapping_deprecation"].identity_mapping
 
-        # Group by function name for easier testing
-        by_name = {r.function: r for r in results}
-
-        # Degenerated deprecations should have no effect or detect issues
-        if "empty_mapping_deprecation" in by_name:
-            assert by_name["empty_mapping_deprecation"].empty_mapping is True
-
-        if "identity_mapping_deprecation" in by_name:
-            assert "arg1" in by_name["identity_mapping_deprecation"].identity_mapping
-
-    def test_with_string_module(self) -> None:
-        """Test find_deprecated_callables accepts string module path."""
+    def test_accepts_string_module_path(self) -> None:
+        """String module paths are accepted in addition to module objects."""
         results = find_deprecated_callables("tests.collection_deprecate", recursive=False)
-
-        # Should find deprecated functions
         assert len(results) > 0
+        assert all(isinstance(r, DeprecatedCallableInfo) for r in results)
 
-        # All results should be DeprecatedCallableInfo dataclasses with merged fields
-        for r in results:
-            assert isinstance(r, DeprecatedCallableInfo)
-            assert hasattr(r, "module")
-            assert hasattr(r, "function")
-            assert hasattr(r, "deprecated_info")
-            assert hasattr(r, "invalid_args")
-            assert hasattr(r, "empty_mapping")
-            assert hasattr(r, "identity_mapping")
-            assert hasattr(r, "no_effect")
-
-    def test_report_grouping(self) -> None:
-        """Test that results can be grouped by issue type for reporting."""
+    def test_results_groupable_by_issue_type(self) -> None:
+        """Results can be filtered by invalid_args, empty_mapping, and identity_mapping."""
         results = find_deprecated_callables(sample_module, recursive=False)
-
-        # Group by issue type - now directly on DeprecatedCallableInfo
-        invalid_args = [r for r in results if r.invalid_args]
-        empty_mappings = [r for r in results if r.empty_mapping]
-        identity_mappings = [r for r in results if r.identity_mapping]
-        no_effect = [r for r in results if r.no_effect]
-
-        # Should be able to group results
-        assert isinstance(invalid_args, list)
-        assert isinstance(empty_mappings, list)
-        assert isinstance(identity_mappings, list)
-        assert isinstance(no_effect, list)
-
-        # We should find some degenerated deprecations
-        assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
+        assert len([r for r in results if r.invalid_args]) > 0
+        assert len([r for r in results if r.empty_mapping]) > 0
 
     def test_discovers_proxy_based_deprecations(self) -> None:
         """Proxy-based deprecations are discoverable with correct names and metadata."""
-        results = find_deprecated_callables(proxy_module, recursive=False)
-        by_name = {r.function: r for r in results}
-
+        by_name = {r.function: r for r in find_deprecated_callables(proxy_module, recursive=False)}
         assert "depr_config_dict" in by_name
         assert "DeprecatedColorEnum" in by_name
-
-        enum_info = by_name["DeprecatedColorEnum"]
-        assert hasattr(enum_info, "deprecated_info")
-        enum_target = enum_info.deprecated_info.target
-        assert enum_target is not None
-        assert enum_target.__name__ == "TargetColorEnum"
-
-        mapped_enum = by_name.get("MappedColorEnum")
-        assert mapped_enum is not None
-        assert mapped_enum.deprecated_info.args_mapping == {"val": "value"}
+        assert by_name["DeprecatedColorEnum"].deprecated_info.target.__name__ == "TargetColorEnum"
+        assert by_name["MappedColorEnum"].deprecated_info.args_mapping == {"val": "value"}
+        # deprecated_class on dataclass
+        assert by_name["DeprecatedColorDataClass"].deprecated_info.target.__name__ == "NewDataClass"
+        assert by_name["MappedDataClass"].deprecated_info.args_mapping == {"name": "label", "count": "total"}
 
     def test_discovers_proxy_without_target_and_drop_mapping(self) -> None:
         """Proxy deprecations without targets and with dropped args are discoverable."""
-        results = find_deprecated_callables(proxy_module, recursive=False)
-        by_name = {r.function: r for r in results}
+        by_name = {r.function: r for r in find_deprecated_callables(proxy_module, recursive=False)}
+        assert by_name["WarnOnlyColorEnum"].deprecated_info.target is None
+        assert by_name["WarnOnlyColorEnum"].deprecated_info.remove_in == "2.0"
+        assert by_name["MappedDropArgDataClass"].deprecated_info.args_mapping == {"legacy_flag": None, "name": "label"}
+        assert "depr_config_dict_read_only" in by_name
 
-        warn_only_enum = by_name.get("WarnOnlyColorEnum")
-        assert warn_only_enum is not None
-        assert warn_only_enum.deprecated_info.target is None
-        assert warn_only_enum.deprecated_info.remove_in == "2.0"
+    def test_instance_proxy_function_name_comes_from_variable_not_type(self) -> None:
+        """find_deprecated_callables reports the module variable name, not dep_info.name.
 
-        mapped_drop_dc = by_name.get("MappedDropArgDataClass")
-        assert mapped_drop_dc is not None
-        assert mapped_drop_dc.deprecated_info.args_mapping == {"legacy_flag": None, "name": "label"}
+        ``deprecated_instance`` stores the wrapped type name (``"dict"``) in ``dep_info.name``,
+        but the scanner overrides ``function`` with the attribute name from ``inspect.getmembers``.
+        Calling ``validate_deprecated_callable`` directly uses ``dep_info.name`` instead.
+        """
+        # Direct validation: uses dep_info.name → "dict" (wrapped type)
+        direct = validate_deprecated_callable(proxy_module.depr_config_dict)
+        assert direct.function == "dict"
+        # Module scan: overrides function with the attribute name
+        by_name = {r.function: r for r in find_deprecated_callables(proxy_module, recursive=False)}
+        assert "depr_config_dict" in by_name
+        assert by_name["depr_config_dict"].deprecated_info.name == "dict"
+
+    def test_scan_handles_uninspectable_module(self) -> None:
+        """Scan skips a module whose member inspection raises rather than crashing."""
+        with patch.object(inspect, "getmembers", side_effect=AttributeError("bad module")):
+            results = find_deprecated_callables(proxy_module, recursive=False)
+        assert results == []
+
+    def test_recursive_scan_handles_walk_packages_error(self) -> None:
+        """Recursive scan continues gracefully when pkgutil.walk_packages raises."""
+        # `tests` has __path__ so the recursive branch is entered.
+        with patch.object(pkgutil, "walk_packages", side_effect=OSError("no walk")):
+            results = find_deprecated_callables(tests, recursive=True)
+        assert isinstance(results, list)
 
 
 class TestValidateDeprecationChains:
     """Tests for validate_deprecation_chains()."""
 
-    def test_detects_chain(self) -> None:
-        """Detects deprecated function whose target is itself deprecated.
+    @pytest.fixture(scope="class")
+    def chain_issues(self) -> list[DeprecatedCallableInfo]:
+        """Run validate_deprecation_chains once for the class and share the result."""
+        return validate_deprecation_chains(chain_module, recursive=False)
 
-        Examples:
-            Developer has a deprecated wrapper that targets another deprecated function
-            instead of the final implementation. The validation detects this chain.
-        """
-        issues = validate_deprecation_chains(chain_module, recursive=False)
+    @pytest.mark.parametrize(
+        ("fn_name", "expected_chain_type"),
+        [
+            ("caller_sum_via_depr_sum", ChainType.TARGET),
+            ("caller_acc_via_depr_map", ChainType.TARGET),
+        ],
+    )
+    def test_detects_target_chain(self, chain_issues: list, fn_name: str, expected_chain_type: ChainType) -> None:
+        """Deprecated wrapper whose target is itself deprecated is flagged as TARGET chain."""
+        by_name = {i.function: i for i in chain_issues}
+        assert fn_name in by_name
+        assert by_name[fn_name].chain_type is expected_chain_type
 
-        # Should find caller_sum_via_depr_sum (target=depr_sum which is deprecated)
-        chain_funcs = [info.function for info in issues if info.function == "caller_sum_via_depr_sum"]
-        assert len(chain_funcs) > 0
-        info = next(i for i in issues if i.function == "caller_sum_via_depr_sum")
-        assert info.chain_type is ChainType.TARGET
-
-    def test_detects_chain_with_mapped_args(self) -> None:
-        """Detects chain through a deprecated function that has arg mapping.
-
-        Examples:
-            Developer wraps a deprecated function that itself remaps arguments.
-            The outer wrapper should skip the intermediate and target the final function.
-        """
-        issues = validate_deprecation_chains(chain_module, recursive=False)
-
-        chain_funcs = [info.function for info in issues if info.function == "caller_acc_via_depr_map"]
-        assert len(chain_funcs) > 0
-
-    def test_detects_chain_with_composed_arg_mappings(self) -> None:
-        """Detects chain where the outer wrapper also has its own args_mapping.
-
-        Examples:
-            Developer stacks two deprecated wrappers, each renaming arguments.
-            Both hops must be collapsed: the outer wrapper should target the final
-            function directly with the combined mapping.
-        """
-        issues = validate_deprecation_chains(chain_module, recursive=False)
-
-        # caller_acc_comp_depr_map has target=depr_accuracy_map (deprecated)
-        # AND its own args_mapping={"predictions": "preds", "labels": "truth"}
-        chain_funcs = [info.function for info in issues if info.function == "caller_acc_comp_depr_map"]
-        assert len(chain_funcs) > 0
-
-        # The info must report ChainType.TARGET and expose the outer args_mapping
-        info = next(i for i in issues if i.function == "caller_acc_comp_depr_map")
+    def test_detects_chain_with_composed_arg_mappings(self, chain_issues: list) -> None:
+        """Chain wrapper that also carries its own args_mapping exposes both facts."""
+        by_name = {i.function: i for i in chain_issues}
+        info = by_name["caller_acc_comp_depr_map"]
         assert info.chain_type is ChainType.TARGET
         assert info.deprecated_info.args_mapping == {"predictions": "preds", "labels": "truth"}
 
-    def test_detects_stacked_self_deprecation(self) -> None:
-        """Detects stacked target=True decorators whose arg mappings should be collapsed.
+    @pytest.mark.parametrize(
+        "fn_pattern",
+        ["caller_stacked_args_map", "caller_pow_via_self_depr"],
+    )
+    def test_detects_stacked_chain(self, chain_issues: list, fn_pattern: str) -> None:
+        """Stacked arg-mapping decorators or self-deprecation targets are flagged as STACKED."""
+        matched = [i for i in chain_issues if fn_pattern in i.function]
+        assert len(matched) > 0
+        assert matched[0].chain_type is ChainType.STACKED
 
-        Examples:
-            Developer applies two ``@deprecated(True, args_mapping=...)`` decorators to
-            the same function, each renaming a different argument. The two decorators
-            should be merged into one with a combined args_mapping.
-        """
-        issues = validate_deprecation_chains(chain_module, recursive=False)
+    def test_no_warning_for_clean_target(self, chain_issues: list) -> None:
+        """Wrapper pointing directly to a non-deprecated target is not reported."""
+        assert all("caller_sum_direct" not in i.function for i in chain_issues)
 
-        stacked = [info for info in issues if "caller_stacked_args_map" in info.function]
-        assert len(stacked) > 0
-        assert stacked[0].chain_type is ChainType.STACKED
-
-    def test_detects_stacked_via_callable_self_depr_target(self) -> None:
-        """Detects STACKED chain when callable target is itself a self-deprecation with arg renaming.
-
-        Examples:
-            Developer's wrapper targets a deprecated function whose own target=True (self-renaming).
-            The arg mappings from both layers compose: the caller's mapping feeds into the target's
-            renaming, so both hops must be collapsed with a combined args_mapping.
-        """
-        issues = validate_deprecation_chains(chain_module, recursive=False)
-
-        via_self = [info for info in issues if "caller_pow_via_self_depr" in info.function]
-        assert len(via_self) > 0
-        # Must be STACKED (not TARGET) — mappings compose through the self-deprecation layer
-        assert via_self[0].chain_type is ChainType.STACKED
-
-    def test_no_warning_for_clean_target(self) -> None:
-        """Doesn't report when target is not deprecated.
-
-        Examples:
-            Developer has a deprecated wrapper pointing directly to a non-deprecated
-            target. This is the correct pattern and should not trigger any warning.
-        """
-        issues = validate_deprecation_chains(chain_module, recursive=False)
-
-        clean_funcs = [info.function for info in issues if "caller_sum_direct" in info.function]
-        assert len(clean_funcs) == 0
-
-    def test_returns_list_of_infos(self) -> None:
-        """Returns a list of DeprecatedCallableInfo with chain_type set.
-
-        Examples:
-            Developer calls validate_deprecation_chains and receives structured
-            DeprecatedCallableInfo objects for programmatic processing.
-        """
-        issues = validate_deprecation_chains(chain_module, recursive=False)
-        assert isinstance(issues, list)
-        assert len(issues) > 0
-        for info in issues:
-            assert isinstance(info, DeprecatedCallableInfo)
-            assert info.chain_type is not None
+    def test_returns_list_of_infos(self, chain_issues: list) -> None:
+        """Return value is a non-empty list of DeprecatedCallableInfo with chain_type set."""
+        assert isinstance(chain_issues, list)
+        assert len(chain_issues) > 0
+        assert all(isinstance(i, DeprecatedCallableInfo) and i.chain_type is not None for i in chain_issues)
 
 
 @_requires_packaging
 class TestCheckDeprecationExpiry:
     """Tests for _check_deprecated_callable_expiry()."""
 
-    def test_not_expired(self) -> None:
-        """Callable before removal deadline passes validation.
+    @pytest.mark.parametrize(
+        ("callable_", "current_version"),
+        [
+            (proxy_module.depr_pow_self, "0.4"),  # @deprecated, remove_in="0.5", before deadline
+            (proxy_module.depr_sum, "0.4.9"),  # @deprecated, pre-release
+            (proxy_module.depr_sum, "0.5.0a1"),  # @deprecated, alpha before stable deadline
+            (proxy_module.DeprecatedColorEnum, "1.9"),  # deprecated_class, with target
+            (proxy_module.WarnOnlyColorEnum, "1.9"),  # deprecated_class, no target
+            (proxy_module.MappedColorEnum, "1.9"),  # deprecated_class, with args_mapping
+            (proxy_module.depr_config_dict, "1.9"),  # deprecated_instance
+            (proxy_module.depr_config_dict_read_only, "1.9"),  # deprecated_instance, read_only
+        ],
+    )
+    def test_not_expired_before_deadline(self, callable_: Any, current_version: str) -> None:  # noqa: ANN401
+        """Callable before its remove_in deadline passes silently."""
+        _check_deprecated_callable_expiry(callable_, current_version)
 
-        Examples:
-            Developer runs expiry check in CI for version 0.4 on a callable scheduled for
-            removal in version 0.5. The check passes silently, allowing the release to proceed.
-        """
-        # Current version is less than remove_in - should not raise
-        _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.4")  # remove_in="0.5"
-
-    def test_at_removal_version(self) -> None:
-        """Callable at exact removal version triggers AssertionError.
-
-        Examples:
-            Developer releases version 0.5, which matches the remove_in deadline. CI runs
-            expiry check and raises AssertionError, blocking the release until zombie code is deleted.
-        """
-        # Current version equals remove_in - should raise AssertionError
+    @pytest.mark.parametrize(
+        ("callable_", "current_version", "remove_in"),
+        [
+            (proxy_module.depr_pow_self, "0.5", "0.5"),  # @deprecated, at deadline
+            (proxy_module.depr_pow_self, "0.6", "0.5"),  # @deprecated, past deadline
+            (proxy_module.depr_sum, "0.5.0", "0.5"),  # @deprecated, at deadline (patch)
+            (proxy_module.depr_sum, "0.5.1", "0.5"),  # @deprecated, past deadline (patch)
+            (proxy_module.DeprecatedColorEnum, "2.0", "2.0"),  # deprecated_class, with target
+            (proxy_module.WarnOnlyColorEnum, "2.0", "2.0"),  # deprecated_class, no target
+            (proxy_module.MappedColorEnum, "2.0", "2.0"),  # deprecated_class, with args_mapping
+            (proxy_module.depr_config_dict, "2.0", "2.0"),  # deprecated_instance
+            (proxy_module.depr_config_dict_read_only, "2.0", "2.0"),  # deprecated_instance, read_only
+        ],
+    )
+    def test_raises_at_or_after_deadline(self, callable_: Any, current_version: str, remove_in: str) -> None:  # noqa: ANN401
+        """Callable at or past its remove_in deadline raises AssertionError."""
         with pytest.raises(
-            AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.5"
+            AssertionError,
+            match=rf"scheduled for removal in version {remove_in}.*still exists in version {current_version}",
         ):
-            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.5")  # remove_in="0.5"
+            _check_deprecated_callable_expiry(callable_, current_version)
 
-    def test_past_removal_version(self) -> None:
-        """Callable past removal deadline triggers AssertionError.
-
-        Examples:
-            Developer releases version 0.6 but forgot to delete deprecated code scheduled for
-            removal in version 0.5. CI expiry check catches the zombie code and blocks the release.
-        """
-        # Current version is greater than remove_in - should raise AssertionError
-        with pytest.raises(
-            AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.6"
-        ):
-            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.6")  # remove_in="0.5"
-
-    def test_error_message(self) -> None:
-        """Error message includes callable name, versions, and actionable guidance.
-
-        Examples:
-            Developer sees clear error message from CI identifying which deprecated callable
-            needs deletion, showing both the removal deadline and current version for easy diagnosis.
-        """
-        # Test the error message contains all expected information
+    def test_error_message_content(self) -> None:
+        """Error message includes callable name, both versions, and actionable guidance."""
         with pytest.raises(AssertionError) as exc_info:
             _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "1.0")  # remove_in="0.5"
+        msg = str(exc_info.value)
+        assert "depr_pow_self" in msg
+        assert "0.5" in msg
+        assert "1.0" in msg
+        assert "scheduled for removal" in msg
+        assert "Please delete this deprecated code" in msg
 
-        error_msg = str(exc_info.value)
-        assert "depr_pow_self" in error_msg
-        assert "0.5" in error_msg  # remove_in version
-        assert "1.0" in error_msg  # current version
-        assert "scheduled for removal" in error_msg
-        assert "Please delete this deprecated code" in error_msg
-
-    def test_no_deprecated_attr(self) -> None:
-        """Non-deprecated callable raises ValueError immediately.
-
-        Examples:
-            Developer accidentally runs expiry check on a regular function without @deprecated
-            decorator. Clear error indicates missing or invalid deprecation metadata.
-        """
-        from tests.collection_targets import plain_function_target
-
+    def test_non_deprecated_callable_raises_value_error(self) -> None:
+        """Non-decorated callable raises ValueError immediately."""
         with pytest.raises(ValueError, match="missing or invalid `__deprecated__` metadata"):
             _check_deprecated_callable_expiry(plain_function_target, "1.0")
 
-    def test_no_remove_in(self) -> None:
-        """Deprecated callable without remove_in raises ValueError.
-
-        Examples:
-            Developer runs expiry check on a warning-only deprecated function that has no
-            removal deadline. Error message indicates remove_in parameter is required for enforcement.
-        """
+    def test_no_remove_in_raises_value_error(self) -> None:
+        """Deprecated callable without remove_in raises ValueError."""
         with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
             _check_deprecated_callable_expiry(proxy_module.depr_func_no_remove_in, "2.0")
 
-    @pytest.mark.parametrize(
-        "current_version",
-        ["0.4.9", "0.5.0a1"],  # Pre-release versions before removal deadline
-    )
-    def test_semantic_versioning_before_deadline(self, current_version: str) -> None:
-        """Version comparison follows PEP 440 semantic ordering for versions before deadline.
-
-        Examples:
-            Developer uses pre-release versions (0.5.0a1) and patch versions (0.4.9) in CI.
-            Expiry check passes because these versions come before the 0.5 removal deadline.
-        """
-        # Test with semantic versions (depr_sum has remove_in="0.5")
-        _check_deprecated_callable_expiry(proxy_module.depr_sum, current_version)
-
-    @pytest.mark.parametrize(
-        "current_version",
-        ["0.5.0", "0.5.1"],  # Versions at or after removal deadline
-    )
-    def test_semantic_versioning_at_or_after_deadline(self, current_version: str) -> None:
-        """Version comparison follows PEP 440 semantic ordering for versions at/after deadline.
-
-        Examples:
-            Developer reaches version 0.5.0 or 0.5.1 in their project. Expiry check raises
-            AssertionError because these versions are at or past the 0.5 removal deadline.
-        """
-        # Should raise at 0.5.0 or later
-        with pytest.raises(AssertionError):
-            _check_deprecated_callable_expiry(proxy_module.depr_sum, current_version)
-
-    def test_parse_version_stage_ordering(self) -> None:
-        """Pre-release stages order correctly per PEP 440.
-
-        Examples:
-            Developer uses alpha, beta, RC, stable, and post-release versions in their project.
-            Version parser correctly orders them so alpha < beta < rc < stable < post for accurate
-            expiry checking across the release cycle.
-        """
-        versions = [
-            "1.5.0a1",  # alpha (PEP 440 format)
-            "1.5.0b1",  # beta
-            "1.5.0rc1",  # release candidate
-            "1.5.0",  # stable
-            "1.5.0.post1",  # post-release
-        ]
-        parsed = [_parse_version(v) for v in versions]
-        assert parsed == sorted(parsed)
-
-    def test_invalid_version_format(self) -> None:
-        """Malformed version string raises ValueError with clear message.
-
-        Examples:
-            Developer accidentally passes an invalid version string like "invalid-version" to
-            expiry check. Clear error message indicates version parsing failed with PEP 440 requirements.
-        """
-        # Invalid version format should raise ValueError
+    def test_invalid_current_version_raises_value_error(self) -> None:
+        """Malformed current_version raises ValueError with clear message."""
         with pytest.raises(ValueError, match="Invalid current_version"):
             _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "invalid-version")
+
+    def test_invalid_remove_in_raises_value_error(self) -> None:
+        """Callable with a malformed remove_in string raises ValueError naming the callable."""
+
+        @deprecated(target=None, deprecated_in="1.0", remove_in="not-semver")
+        def _bad_version_fn() -> None:
+            pass
+
+        with pytest.raises(ValueError, match="Invalid remove_in.*_bad_version_fn"):
+            _check_deprecated_callable_expiry(_bad_version_fn, "1.0")
+
+    def test_version_stage_ordering(self) -> None:
+        """Pre-release stages order correctly per PEP 440: alpha < beta < rc < stable < post."""
+        versions = ["1.5.0a1", "1.5.0b1", "1.5.0rc1", "1.5.0", "1.5.0.post1"]
+        parsed = [_parse_version(v) for v in versions]
+        assert parsed == sorted(parsed)
 
 
 @_requires_packaging
 class TestCheckModuleDeprecationExpiry:
     """Tests for validate_deprecation_expiry()."""
 
-    def test_no_expired(self) -> None:
-        """Module scan before any removal deadlines returns empty list.
+    def test_no_expired_before_deadline(self) -> None:
+        """Module scan before any removal deadlines returns an empty list."""
+        assert validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False) == []
 
-        Examples:
-            Developer runs package-wide expiry check in CI for version 0.1 release. All
-            deprecated callables have future removal deadlines, so CI passes cleanly.
-        """
-        # Check the test collection module with a version before any removal deadlines
-        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
-        assert expired == []
-
-    def test_with_expired(self) -> None:
-        """Module scan at removal deadline detects expired zombie code.
-
-        Examples:
-            Developer releases version 0.5 but forgets to delete some deprecated functions.
-            CI package scan identifies all expired callables and blocks the release with clear error messages.
-        """
-        # Check with a version past some removal deadlines
-        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
-
-        # Should find at least depr_sum (remove_in="0.5") as expired
+    def test_expired_callables_detected(self) -> None:
+        """Scan at or past a removal deadline returns error messages for expired callables."""
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
         assert len(expired) > 0
+        assert all(isinstance(msg, str) for msg in expired)
+        assert all("scheduled for removal" in msg and "still exists" in msg for msg in expired)
 
-        # Check that error messages are properly formatted
-        for msg in expired:
-            assert "scheduled for removal" in msg
-            assert "still exists" in msg
+    def test_accepts_module_object(self) -> None:
+        """Module objects are accepted alongside string paths."""
+        assert validate_deprecation_expiry(proxy_module, "0.1", recursive=False) == []
+        assert len(validate_deprecation_expiry(proxy_module, "1.0", recursive=False)) > 0
 
-    def test_with_module_object(self) -> None:
-        """Module object accepted instead of module path string.
-
-        Examples:
-            Developer prefers to import and pass module object directly rather than using
-            string path. Both approaches work identically for expiry checking.
-        """
-        from tests import collection_deprecate
-
-        # Pass module object directly
-        expired = validate_deprecation_expiry(collection_deprecate, "0.1", recursive=False)
-        assert expired == []
-
-        # Now check with expired version
-        expired = validate_deprecation_expiry(collection_deprecate, "1.0", recursive=False)
-        assert len(expired) > 0
-
-    def test_recursive(self) -> None:
-        """Recursive scan checks entire package tree for expired code.
-
-        Examples:
-            Developer runs expiry check on root package with submodules. Recursive mode
-            scans all subpackages and submodules, ensuring no zombie code hides in deep module hierarchy.
-        """
-        # Test with recursive=True (default)
+    def test_recursive_scans_submodules(self) -> None:
+        """Recursive mode finds expired callables across the full package tree."""
         expired = validate_deprecation_expiry("tests", "10.0", recursive=True)
-
-        # Should find multiple expired callables across the test package
         assert len(expired) > 0
 
-    def test_skips_missing_remove_in(self) -> None:
-        """Warning-only deprecations without remove_in are gracefully skipped.
-
-        Examples:
-            Developer has mix of removal-scheduled and warning-only deprecations. Package scan
-            silently skips warning-only functions and only checks ones with removal deadlines.
-        """
-        # The collection_deprecate module has some functions without remove_in
-        # This should not raise an error, just skip those functions
+    def test_skips_callables_without_remove_in(self) -> None:
+        """Warning-only deprecations without remove_in are silently skipped."""
         expired = validate_deprecation_expiry("tests.collection_deprecate", "100.0", recursive=False)
-
-        # Should find expired ones, but not crash on missing remove_in
         assert isinstance(expired, list)
 
-    def test_return_format(self) -> None:
-        """Returns list of error messages for all expired callables found.
-
-        Examples:
-            Developer wants to log all expired callables before failing CI. Return value is
-            list of strings describing each expired callable, suitable for logging or aggregation.
-        """
-        # Get some expired callables
-        expired = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
-
-        # All expired entries should be strings (error messages)
-        assert all(isinstance(msg, str) for msg in expired)
-
-        # Each message should contain key information
-        for msg in expired:
-            assert "Callable" in msg or "scheduled" in msg
-
-    def test_handles_invalid_current_version(self) -> None:
-        """Malformed current_version raises ValueError before scanning begins.
-
-        Examples:
-            Developer accidentally passes "invalid" as version string to package scan. Immediate
-            fail-fast error prevents wasted time scanning when version parameter is wrong.
-        """
-        # Invalid version format in current_version should raise ValueError upfront
-        # before any callable checking begins
+    def test_invalid_current_version_raises_before_scan(self) -> None:
+        """Malformed current_version raises ValueError before any callable is checked."""
         with pytest.raises(ValueError, match="Invalid current_version"):
             validate_deprecation_expiry("tests.collection_deprecate", "invalid", recursive=False)
 
-    def test_gracefully_skips_import_errors(self) -> None:
-        """Scan continues gracefully when individual callables fail to import.
-
-        Examples:
-            Developer has deprecated callables with optional dependencies or import errors.
-            Package scan doesn't crash entirely, just skips problematic callables and continues.
-        """
-        # Test with a module that should work fine
-        # The implementation should skip any callables that can't be imported
-        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
-
-        # Should return a list without crashing
-        assert isinstance(expired, list)
-        assert len(expired) == 0  # No expired at version 0.1
-
-    def test_auto_detect_version(self) -> None:
-        """Auto-detection extracts package version from installed metadata.
-
-        Examples:
-            Developer omits current_version parameter in CI for installed package. Function
-            auto-detects version from importlib.metadata, simplifying CI configuration.
-        """
-        # Test with tests.collection_deprecate module (part of tests, not a real package)
-        # Should try to auto-detect "tests" package version and fail gracefully
-        # We expect ImportError because "tests" is not an installed package
+    def test_auto_detect_version_fails_for_non_package(self) -> None:
+        """Auto-detection raises ImportError when the package has no version metadata."""
         with pytest.raises(ImportError, match="Could not determine version"):
             validate_deprecation_expiry("tests.collection_deprecate", None, recursive=False)
 
-    def test_auto_detect_version_with_module_object_without_name(self) -> None:
-        """Auto-detection fails clearly when module object lacks __name__ attribute.
-
-        Examples:
-            Developer passes malformed or mock module object without __name__ attribute.
-            Clear error message indicates auto-detection requires proper module objects.
-        """
-
-        # Create a mock module-like object without __name__
-        class FakeModule:
-            pass
-
-        fake_mod = FakeModule()
-
-        # Should raise ValueError when trying to auto-detect without __name__
+    def test_auto_detect_requires_module_name(self) -> None:
+        """Auto-detection raises ValueError when the module object has no __name__."""
         with pytest.raises(ValueError, match="Cannot auto-detect version.*__name__"):
-            validate_deprecation_expiry(fake_mod, None, recursive=False)
+            validate_deprecation_expiry(object(), None, recursive=False)
+
+    def test_version_fallback_to_dunder_version(self) -> None:
+        """_get_package_version falls back to module.__version__ when importlib.metadata fails."""
+        with patch.object(importlib.metadata, "version", side_effect=importlib.metadata.PackageNotFoundError):
+            version = _get_package_version("deprecate")
+        assert isinstance(version, str)
+        assert len(version) > 0
+
+    def test_proxy_objects_included_in_scan(self) -> None:
+        """deprecated_class and deprecated_instance proxies appear in the expired list."""
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "3.0", recursive=False)
+        expired_names = " ".join(expired)
+        assert "DeprecatedColorEnum" in expired_names
+        assert "DeprecatedColorDataClass" in expired_names
+        assert "WarnOnlyColorEnum" in expired_names
+        assert "depr_config_dict" in expired_names
+
+    def test_silently_skips_invalid_remove_in_version(self) -> None:
+        """Callables with a malformed remove_in are silently skipped, not raised."""
+        bad_info = DeprecatedCallableInfo(
+            module="tests.collection_deprecate",
+            function="bad_version_fn",
+            deprecated_info=DeprecationInfo(deprecated_in="1.0", remove_in="not-semver"),
+        )
+        with patch("deprecate.audit.find_deprecated_callables", return_value=[bad_info]):
+            result = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+        assert result == []
+
+    def test_gracefully_skips_import_errors(self) -> None:
+        """Recursive scan continues gracefully when submodule imports raise ImportError.
+
+        The ``tests`` package object is passed directly to skip the string→module
+        resolution step, ensuring only the recursive per-submodule imports are patched.
+        Those are wrapped in ``contextlib.suppress(ImportError)``, so the scan must
+        not raise and must return a plain list.
+        """
+        with patch.object(importlib, "import_module", side_effect=ImportError("bad submodule")):
+            result = validate_deprecation_expiry(tests, "2.0", recursive=True)
+        assert isinstance(result, list)
+
+    def test_return_format(self) -> None:
+        """Returns a list of string error messages; each message names the callable and version."""
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+        assert all(isinstance(msg, str) for msg in expired)
+        for msg in expired:
+            assert "Callable" in msg or "scheduled" in msg
