@@ -195,8 +195,8 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
             - no_effect: True if wrapper has zero impact (all checks combined)
 
     Raises:
-        ValueError: If the function does not have a __deprecated__ attribute
-            (i.e., was not decorated with ``@deprecated``).
+        ValueError: If the function has missing or invalid ``__deprecated__``
+            metadata (expected :class:`~deprecate._types.DeprecationInfo`).
 
     Example:
         >>> from deprecate import deprecated, validate_deprecated_callable
@@ -234,8 +234,8 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     # Extract configuration from __deprecated__ attribute
     if not _has_deprecation_meta(func):
         raise ValueError(
-            f"Function {getattr(func, '__name__', func)} does not have a __deprecated__ attribute. "
-            "It must be decorated with `@deprecated`."
+            f"Function {getattr(func, '__name__', func)} has missing or invalid `__deprecated__` metadata. "
+            "Expected `DeprecationInfo`; ensure it is decorated with `@deprecated`."
         )
 
     dep_info = func.__deprecated__
@@ -313,8 +313,8 @@ def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> N
             Should follow PEP 440 versioning conventions.
 
     Raises:
-        ValueError: If the function does not have a ``__deprecated__`` attribute
-            (i.e., was not decorated with ``@deprecated``).
+        ValueError: If the function has missing or invalid ``__deprecated__``
+            metadata (expected :class:`~deprecate._types.DeprecationInfo`).
         ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
         AssertionError: If the current version is greater than or equal to the
             scheduled removal version, indicating the code should have been removed.

@@ -109,7 +109,7 @@ class TestValidateDeprecatedCallable:
         def plain_function(x: int) -> int:
             return x
 
-        with pytest.raises(ValueError, match="does not have a __deprecated__ attribute"):
+        with pytest.raises(ValueError, match="missing or invalid `__deprecated__` metadata"):
             validate_deprecated_callable(plain_function)
 
 
@@ -386,11 +386,11 @@ class TestCheckDeprecationExpiry:
 
         Examples:
             Developer accidentally runs expiry check on a regular function without @deprecated
-            decorator. Clear error message indicates the function is not decorated.
+            decorator. Clear error indicates missing or invalid deprecation metadata.
         """
         from tests.collection_targets import plain_function_target
 
-        with pytest.raises(ValueError, match="does not have a __deprecated__ attribute"):
+        with pytest.raises(ValueError, match="missing or invalid `__deprecated__` metadata"):
             _check_deprecated_callable_expiry(plain_function_target, "1.0")
 
     def test_no_remove_in(self) -> None:
