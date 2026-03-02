@@ -128,13 +128,17 @@ class TestProxyReadOnly:
 
     def test_setitem_raises_when_read_only(self) -> None:
         """__setitem__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        proxy = _DeprecatedProxy(
+            obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None
+        )
         with pytest.raises(AttributeError, match="read-only"):
             proxy["k"] = 2
 
     def test_delitem_raises_when_read_only(self) -> None:
         """__delitem__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        proxy = _DeprecatedProxy(
+            obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None
+        )
         with pytest.raises(AttributeError, match="read-only"):
             del proxy["k"]
 
