@@ -185,7 +185,8 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     Returns:
         DeprecatedCallableInfo: Dataclass with validation results:
             - function: Name of the function being validated
-            - deprecated_info: The __deprecated__ attribute dict from the decorator
+            - deprecated_info: The typed :class:`~deprecate._types.DeprecationInfo`
+              metadata from ``__deprecated__``
             - invalid_args: List of args_mapping keys not in function signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of args where key equals value (no effect)
@@ -246,7 +247,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     self_reference = target is func if target is not None else False
     # chain_type distinguishes two chain problems:
     # - ChainType.TARGET: target is a deprecated callable that itself forwards to another function
-    #   (i.e. target.__deprecated__["target"] is not True). Fix: point directly to the final target.
+    #   (i.e. target.__deprecated__.target is not True). Fix: point directly to the final target.
     # - ChainType.STACKED: arg mappings chain/compose and need collapsing. Two sub-cases:
     #   (a) target is a deprecated callable whose own target=True (self-deprecation with renaming).
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).

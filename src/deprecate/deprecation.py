@@ -479,7 +479,8 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         None. Modifies the function's __doc__ attribute in-place.
 
     Metadata Used:
-        The function's __deprecated__ attribute should contain:
+        The function's ``__deprecated__`` attribute should be a
+        :class:`~deprecate._types.DeprecationInfo` instance with:
         - deprecated_in: Version when deprecated
         - remove_in: Version when will be removed
         - target: Replacement callable (optional)
@@ -489,11 +490,11 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         >>> def old_func():
         ...     '''Original docstring.'''
         ...     pass
-        >>> old_func.__deprecated__ = {
-        ...     'deprecated_in': '1.0',
-        ...     'remove_in': '2.0',
-        ...     'target': new_func
-        ... }
+        >>> old_func.__deprecated__ = DeprecationInfo(
+        ...     deprecated_in='1.0',
+        ...     remove_in='2.0',
+        ...     target=new_func,
+        ... )
         >>> _update_docstring_with_deprecation(old_func)
         >>> print(old_func.__doc__) # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
         Original docstring.

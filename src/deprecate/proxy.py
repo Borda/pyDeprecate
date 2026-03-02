@@ -79,15 +79,15 @@ class _DeprecatedProxy:
         target: Any = None,  # noqa: ANN401
         args_mapping: Optional[dict] = None,
     ) -> None:
-        """Initialise the proxy with two storage dicts, bypassing the overridden __setattr__.
+        """Initialise the proxy with typed runtime/config dataclasses.
 
-        ``__config`` holds private runtime state (obj, stream, num_warns, read_only,
-        and the mutable ``warned`` counter).  Mutations to ``warned`` are plain dict
-        assignments — no ``object.__setattr__`` needed on every warning emission.
+        ``__config`` stores private mutable runtime state in :class:`~deprecate._types._ProxyConfig`
+        (obj, stream, num_warns, read_only, warned counter).
 
         ``__deprecated__`` is the public metadata interface consumed by audit tools
-        (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) and
-        kept strictly read-only semantically.  Aligns with the ``@deprecated`` schema.
+        (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) as a
+        :class:`~deprecate._types.DeprecationInfo` instance aligned with the
+        ``@deprecated`` schema.
         """
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object.
         cfg = _ProxyConfig(
