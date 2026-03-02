@@ -420,7 +420,10 @@ class TestCheckDeprecationExpiry:
     )
     def test_raises_at_or_after_deadline(self, callable_: Any, current_version: str, remove_in: str) -> None:  # noqa: ANN401
         """Callable at or past its remove_in deadline raises AssertionError."""
-        with pytest.raises(AssertionError, match=rf"scheduled for removal in version {remove_in}"):
+        with pytest.raises(
+            AssertionError,
+            match=rf"scheduled for removal in version {remove_in}.*still exists in version {current_version}",
+        ):
             _check_deprecated_callable_expiry(callable_, current_version)
 
     def test_error_message_content(self) -> None:
