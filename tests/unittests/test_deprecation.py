@@ -325,7 +325,7 @@ class TestDeprecatedClassGuard:
         """Applying @deprecated to __init__ (not the class itself) does not raise."""
         from deprecate import deprecated
 
-        class MyClass:
+        class UnusedMyClass:
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             def __init__(self) -> None:
                 pass
