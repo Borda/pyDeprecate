@@ -520,7 +520,7 @@ with pytest.raises(AttributeError, match="read-only"):
 
 `@deprecated_class` wraps an entire Enum or dataclass in a transparent proxy that warns on every
 access and forwards attribute, item, and call operations to the replacement class.
-Use `args_mapping` to rename or drop kwargs when the deprecated class is called.
+Use `arg_mapping` to rename or drop kwargs when the deprecated class is called.
 
 ```python
 from enum import Enum
@@ -546,42 +546,44 @@ print(OldColor(1) is NewColor.RED)
 print(OldColor["RED"] is NewColor.RED)
 
 
+# Precision migration story:
+# - PointV1 used integer pixel coordinates.
+# - PointV2 supports float coordinates for sub-pixel precision and smoother transforms.
 @dataclass
-class NewPoint:
+class PointV2:
     x: float
     y: float
 
 
-# args_mapping renames 'left'→'x' and 'top'→'y'; pass None to drop a kwarg entirely
-@deprecated_class(
-    target=NewPoint,
-    deprecated_in="1.0",
-    remove_in="2.0",
-    args_mapping={"left": "x", "top": "y"},
-)
+@deprecated_class(target=PointV2, deprecated_in="1.8", remove_in="2.0")
 @dataclass
-class OldPoint:
-    x: float
-    y: float
+class PointV1:
+    x: int
+    y: int
 
 
-# Old callers using keyword arguments are remapped automatically:
-pt = OldPoint(left=3.0, top=4.0)  # → NewPoint(x=3.0, y=4.0)
-print(pt.x)
-print(pt.y)
+# Existing callers using integer coordinates still work and are forwarded to PointV2:
+p_old = PointV1(3, 4)
+print(isinstance(p_old, PointV2))
+print((p_old.x, p_old.y))
+
+# New callers can use higher precision directly:
+p_new = PointV2(3.25, 4.75)
+print((p_new.x, p_new.y))
 ```
 
 </details>
 
 <details>
-  <summary>Output: <code>OldColor</code> forwarding and <code>OldPoint</code> remapping</summary>
+  <summary>Output: <code>OldColor</code> forwarding and <code>PointV1</code> precision migration</summary>
 
 ```
 True
 True
 True
-3.0
-4.0
+True
+(3, 4)
+(3.25, 4.75)
 ```
 
 </details>

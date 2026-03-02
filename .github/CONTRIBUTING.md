@@ -407,6 +407,7 @@ def depr_sum_warn_only(a: int, b: int = 5) -> int:
 - **Avoid redundant naming** — don't repeat class context in test method names (e.g., in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`).
 - **Use fixtures for independence** — use pytest fixtures to reset state between tests. Add `autouse=True` fixtures when a class needs per-test reset.
 - **One behavior per test** — each test method should verify one specific aspect.
+- **Prefer parametrization for repetitive shapes** — when the setup/assertion flow is the same and only inputs/expected outputs differ, use `pytest.mark.parametrize(...)` to reduce duplication while keeping one behavioral intent per case.
 - **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
 
 **For bug fixes:**

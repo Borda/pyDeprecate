@@ -1,6 +1,7 @@
 """Unit tests for _DeprecatedProxy internals and deprecated_class decorator behaviour."""
 
 import warnings
+from collections.abc import Callable
 
 import pytest
 
@@ -260,28 +261,28 @@ class TestProxyWarnMethods:
     def test_getitem_warns(self) -> None:
         """__getitem__ emits warning."""
         proxy = _DeprecatedProxy(obj={"k": 99}, name="x", deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning, match=r"The `x` was deprecated since v1\.0"):
             val = proxy["k"]
         assert val == 99
 
     def test_getattr_warns(self) -> None:
         """__getattr__ emits warning."""
         proxy = _DeprecatedProxy(obj={"k": 1}, name="x", deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning, match=r"The `x` was deprecated since v1\.0"):
             method = proxy.get
         assert callable(method)
 
     def test_iter_warns(self) -> None:
         """__iter__ emits warning."""
         proxy = _DeprecatedProxy(obj={"a": 1, "b": 2}, name="x", deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning, match=r"The `x` was deprecated since v1\.0"):
             keys = list(proxy)
         assert set(keys) == {"a", "b"}
 
     def test_call_warns_and_invokes(self) -> None:
         """__call__ emits warning and invokes the active object."""
         proxy = _DeprecatedProxy(obj=lambda x: x * 2, name="fn", deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning, match=r"The `fn` was deprecated since v1\.0"):
             result = proxy(5)
         assert result == 10
 
@@ -324,32 +325,32 @@ class TestDecoratorFactory:
 class TestDecoratorEnum:
     """@deprecated_class applied to Enum classes."""
 
-    def test_call_warns_and_redirects(self) -> None:
-        """Calling the deprecated enum warns and returns the target member."""
-        with pytest.warns(FutureWarning, match="DeprecatedColorEnum"):
-            result = DeprecatedColorEnum(1)
-        assert result is TargetColorEnum.RED
-
-    def test_attr_access_warns_and_redirects(self) -> None:
-        """Attribute access warns and returns the target member."""
-        with pytest.warns(FutureWarning, match="DeprecatedColorEnum"):
-            result = DeprecatedColorEnum.RED
-        assert result is TargetColorEnum.RED
-
-    def test_item_access_warns_and_redirects(self) -> None:
-        """Item access warns and returns the target member."""
-        with pytest.warns(FutureWarning, match="DeprecatedColorEnum"):
-            result = DeprecatedColorEnum["RED"]
+    @pytest.mark.parametrize(
+        "action",
+        [
+            lambda: DeprecatedColorEnum(1),
+            lambda: DeprecatedColorEnum.RED,
+            lambda: DeprecatedColorEnum["RED"],
+        ],
+        ids=["call", "attribute", "item"],
+    )
+    def test_warns_and_redirects_to_target_member(self, action: Callable[[], object]) -> None:
+        """Calling, attribute access, and item lookup on deprecated Enum should warn and resolve to target member."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"The `DeprecatedColorEnum` was deprecated since v1\.0 in favor of `tests\.collection_targets\.TargetColorEnum`",
+        ):
+            result = action()
         assert result is TargetColorEnum.RED
 
     def test_no_target_warns_and_reads_source(self) -> None:
-        """@deprecated_class with no target warns and reads from source."""
-        with pytest.warns(FutureWarning, match="WarnOnlyColorEnum"):
+        """When target is None, deprecated Enum should still warn but return members from the original source Enum."""
+        with pytest.warns(FutureWarning, match=r"The `WarnOnlyColorEnum` was deprecated since v1\.0"):
             val = WarnOnlyColorEnum.A
         assert val.value == "a"
 
     def test_returns_deprecated_proxy(self) -> None:
-        """@deprecated_class wraps the class in a _DeprecatedProxy."""
+        """Decorator should return proxy objects so the decorated classes expose warning-forwarding behavior."""
         assert isinstance(DeprecatedColorEnum, _DeprecatedProxy)
         assert isinstance(WarnOnlyColorEnum, _DeprecatedProxy)
 
@@ -358,8 +359,11 @@ class TestDecoratorDataclass:
     """@deprecated_class applied to dataclasses."""
 
     def test_instantiation_warns_and_redirects(self) -> None:
-        """Instantiation warns and returns an instance of the target class."""
-        with pytest.warns(FutureWarning, match="DeprecatedColorDataClass"):
+        """Constructing deprecated dataclass should emit warning and instantiate the replacement dataclass type."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"The `DeprecatedColorDataClass` was deprecated since v1\.0 in favor of `tests\.collection_targets\.NewDataClass`",
+        ):
             obj = DeprecatedColorDataClass(label="test", total=5)
         assert isinstance(obj, NewDataClass)
         assert obj.label == "test"
@@ -369,37 +373,45 @@ class TestDecoratorDataclass:
 class TestArgsMapping:
     """args_mapping remaps or drops kwargs when the proxy is called."""
 
-    def test_remap_single_kwarg(self) -> None:
-        """args_mapping renames a kwarg before forwarding the call."""
-        with pytest.warns(FutureWarning):
-            result = MappedDataClass(name="hello", total=7)  # type: ignore[call-arg]
+    @pytest.mark.parametrize(
+        ("kwargs", "expected_label", "expected_total"),
+        [
+            ({"name": "hello", "total": 7}, "hello", 7),
+            ({"name": "world", "count": 3}, "world", 3),
+        ],
+    )
+    def test_remap_kwargs(self, kwargs: dict[str, object], expected_label: str, expected_total: int) -> None:
+        """Deprecated dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"The `MappedDataClass` was deprecated since v1\.0 in favor of `tests\.collection_targets\.NewDataClass`",
+        ):
+            result = MappedDataClass(**kwargs)  # type: ignore[arg-type]
         assert isinstance(result, NewDataClass)
-        assert result.label == "hello"
-        assert result.total == 7
-
-    def test_remap_multiple_kwargs(self) -> None:
-        """args_mapping renames multiple kwargs correctly."""
-        with pytest.warns(FutureWarning):
-            result = MappedDataClass(name="world", count=3)  # type: ignore[call-arg]
-        assert isinstance(result, NewDataClass)
-        assert result.label == "world"
-        assert result.total == 3
+        assert result.label == expected_label
+        assert result.total == expected_total
 
     def test_drop_kwarg(self) -> None:
-        """args_mapping drops kwargs mapped to None and remaps others."""
-        with pytest.warns(FutureWarning):
+        """Args mapped to None should be dropped before forwarding, while mapped kwargs still reach the target."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"The `MappedDropArgDataClass` was deprecated since v1\.0 in favor of `tests\.collection_targets\.NewDataClass`",
+        ):
             result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
         assert result.label == "x"
 
     def test_args_mapping_stored_in_proxy(self) -> None:
-        """args_mapping is stored in the proxy's internal state."""
+        """Proxy should retain args_mapping configuration so audit/introspection can verify remapping behavior."""
         mapping = object.__getattribute__(MappedDataClass, "_DeprecatedProxy__args_mapping")
         assert mapping == {"name": "label", "count": "total"}
 
     def test_enum_remap_kwarg(self) -> None:
-        """args_mapping works when the deprecated class wraps an Enum."""
-        with pytest.warns(FutureWarning):
+        """Enum wrappers should apply args_mapping so old constructor kwarg names still resolve target members."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"The `MappedColorEnum` was deprecated since v1\.0 in favor of `tests\.collection_targets\.TargetColorEnum`",
+        ):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is TargetColorEnum.RED
 

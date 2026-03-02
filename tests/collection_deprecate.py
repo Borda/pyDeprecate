@@ -495,9 +495,12 @@ class ThisCls(NewCls):
 # ========== Instance and class-level proxy deprecation examples ==========
 
 
+# shared source payload for deprecated config dict fixtures
+_DEPR_CONFIG_DICT = {"threshold": 0.5, "enabled": True}
+
 # deprecated config dict for integration tests (name auto-inferred as "dict")
 depr_config_dict = deprecated_instance(
-    {"threshold": 0.5, "enabled": True},
+    _DEPR_CONFIG_DICT.copy(),
     deprecated_in="1.0",
     remove_in="2.0",
     num_warns=-1,
@@ -505,7 +508,7 @@ depr_config_dict = deprecated_instance(
 
 # read-only deprecated config dict — rejects mutations
 depr_config_dict_read_only = deprecated_instance(
-    {"threshold": 0.5, "enabled": True},
+    _DEPR_CONFIG_DICT.copy(),
     deprecated_in="1.0",
     remove_in="2.0",
     num_warns=-1,

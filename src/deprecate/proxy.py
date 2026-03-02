@@ -69,6 +69,7 @@ class _DeprecatedProxy:
         self,
         obj: Any,  # noqa: ANN401
         name: str,
+        *,
         deprecated_in: str = "",
         remove_in: str = "",
         num_warns: int = 1,
@@ -88,6 +89,7 @@ class _DeprecatedProxy:
         object.__setattr__(self, "_DeprecatedProxy__read_only", read_only)
         object.__setattr__(self, "_DeprecatedProxy__warned", 0)
         object.__setattr__(self, "_DeprecatedProxy__args_mapping", args_mapping)
+        # Compatibility: audit/introspection functions rely on this metadata key layout.
         object.__setattr__(
             self,
             "__deprecated__",
