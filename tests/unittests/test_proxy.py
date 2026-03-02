@@ -194,7 +194,7 @@ class TestProxyNoWarnMethods:
         proxy = _DeprecatedProxy(obj=[1, 2, 3], name="x", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-        assert len(proxy) == 3
+            assert len(proxy) == 3
         assert not caught
 
     def test_len_uses_target_when_set(self) -> None:

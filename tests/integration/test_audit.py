@@ -5,6 +5,7 @@ import importlib.util
 import pytest
 
 import tests.collection_chains as chain_module
+import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
 from deprecate import validate_deprecation_expiry
 from deprecate.audit import (
@@ -183,14 +184,20 @@ class TestFindDeprecatedCallables:
 
         # We should find some degenerated deprecations
         assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
+    def test_discovers_proxy_based_deprecations(self) -> None:
+        """Proxy-based deprecations are discoverable with correct names and metadata."""
+        results = find_deprecated_callables(proxy_module, recursive=False)
+        by_name = {r.function: r for r in results}
 
-    # TODO: verify find_deprecated_callables on a module that contains deprecated_class proxies
-    #  and deprecated_instance constants.  Blocked on the audit.py FIXME (wrong .function name).
-    #  Once fixed, add a test that:
-    #   - imports tests.collection_deprecate (which contains DeprecatedColorEnum etc.)
-    #   - calls find_deprecated_callables on it
-    #   - asserts that "DeprecatedColorEnum" appears in result function names (not "TargetColorEnum")
-    #   - asserts that deprecated_instance constants are also discoverable
+        assert "depr_config_dict" in by_name
+        assert "DeprecatedColorEnum" in by_name
+
+        enum_info = by_name["DeprecatedColorEnum"]
+        assert enum_info.deprecated_info.get("target").__name__ == "TargetColorEnum"
+
+        mapped_enum = by_name.get("MappedColorEnum")
+        assert mapped_enum is not None
+        assert mapped_enum.deprecated_info.get("args_mapping") == {"val": "value"}
 
 
 class TestValidateDeprecationChains:
