@@ -40,4 +40,5 @@ jobs:
             './**/*.toml'
             --include-verbatim
             --exclude https://github.com/YOUR-USERNAME/pyDeprecate.git
+            --exclude https://codecov.io/validate
           fail: true
