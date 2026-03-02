@@ -184,6 +184,7 @@ class TestFindDeprecatedCallables:
 
         # We should find some degenerated deprecations
         assert len(empty_mappings) > 0 or len(identity_mappings) > 0 or len(invalid_args) > 0
+
     def test_discovers_proxy_based_deprecations(self) -> None:
         """Proxy-based deprecations are discoverable with correct names and metadata."""
         results = find_deprecated_callables(proxy_module, recursive=False)
