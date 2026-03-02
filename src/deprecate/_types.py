@@ -51,7 +51,7 @@ class _HasDeprecationMeta(Protocol):
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the deprecated object."""
-        ...
+        pass
 
 
 def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
