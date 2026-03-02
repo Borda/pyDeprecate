@@ -37,6 +37,7 @@ jobs:
             './**/*.md'
             './**/*.py'
             './**/*.yml'
+            './**/*.yaml'
             './**/*.toml'
             --include-verbatim
             --exclude https://github.com/YOUR-USERNAME/pyDeprecate.git
