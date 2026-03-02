@@ -520,7 +520,7 @@ with pytest.raises(AttributeError, match="read-only"):
 
 `@deprecated_class` wraps an entire Enum or dataclass in a transparent proxy that warns on every
 access and forwards attribute, item, and call operations to the replacement class.
-Use `arg_mapping` to rename or drop kwargs when the deprecated class is called.
+Use `args_mapping` to rename or drop kwargs when the deprecated class is called.
 
 ```python
 from enum import Enum

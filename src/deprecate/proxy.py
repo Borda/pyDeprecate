@@ -90,10 +90,17 @@ class _DeprecatedProxy:
         object.__setattr__(self, "_DeprecatedProxy__warned", 0)
         object.__setattr__(self, "_DeprecatedProxy__args_mapping", args_mapping)
         # Compatibility: audit/introspection functions rely on this metadata key layout.
+        # Align with @deprecated schema by including target and args_mapping.
         object.__setattr__(
             self,
             "__deprecated__",
-            {"deprecated_in": deprecated_in, "remove_in": remove_in, "name": name},
+            {
+                "deprecated_in": deprecated_in,
+                "remove_in": remove_in,
+                "name": name,
+                "target": target,
+                "args_mapping": args_mapping,
+            },
         )
 
     # ------------------------------------------------------------------
@@ -292,8 +299,8 @@ class _DeprecatedProxy:
         return str(object.__getattribute__(self, "_DeprecatedProxy__obj"))
 
     def __bool__(self) -> bool:
-        """Return bool of the wrapped object without emitting a warning."""
-        return bool(object.__getattribute__(self, "_DeprecatedProxy__obj"))
+        """Return bool of the active object without emitting a warning."""
+        return bool(self._get_active())
 
 
 def deprecated_class(

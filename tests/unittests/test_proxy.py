@@ -434,23 +434,23 @@ class TestArgsMapping:
 class TestContainerProtocolWithTarget:
     """Container protocol behaviour when a target is set on the proxy.
 
-    TODO: The source-vs-target inconsistency is intentional for now but must be
+    TODO: The source-vs-target behaviour is intentional for now but must be
     pinned so it is not silently changed. When target is set:
-    - __len__, __contains__, __bool__ read from __obj (source)
-    - __iter__, __getitem__, __getattr__, __call__ use _get_active() (target)
+    - __len__ and __contains__ use _get_active() (typically the target)
+    - __bool__, __iter__, __getitem__, __getattr__, __call__ also use _get_active() (typically the target)
     """
 
-    @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __len__ with target set")
-    def test_len_reads_from_source_not_target(self) -> None:
-        """len(proxy) returns the source length even when target is set."""
+    @pytest.mark.skip(reason="TODO: pin target-based behaviour for __len__ with target set (uses _get_active())")
+    def test_len_reads_from_target_when_set(self) -> None:
+        """len(proxy) reflects the active object (target when set), not the original source."""
 
-    @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __contains__ with target set")
-    def test_contains_reads_from_source_not_target(self) -> None:
-        """Membership test uses source even when target is set."""
+    @pytest.mark.skip(reason="TODO: pin target-based behaviour for __contains__ with target set (uses _get_active())")
+    def test_contains_reads_from_target_when_set(self) -> None:
+        """Membership test uses the active object (target when set), not the original source."""
 
-    @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __bool__ with target set")
-    def test_bool_reads_from_source_not_target(self) -> None:
-        """bool(proxy) evaluates source truthiness even when target is set."""
+    @pytest.mark.skip(reason="TODO: pin target-based behaviour for __bool__ with target set (uses _get_active())")
+    def test_bool_reads_from_target_when_set(self) -> None:
+        """bool(proxy) evaluates the truthiness of the active object (target when set), not the original source."""
 
 
 class TestHashOnUnhashableType:

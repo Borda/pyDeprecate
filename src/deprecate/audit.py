@@ -287,12 +287,11 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     is_self_deprecation = target is True or self_reference
     no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
 
+    name_from_meta = dep_info.get("name", "")
+    function = name_from_meta or getattr(func, "__name__", str(func))
+
     return DeprecatedCallableInfo(
-        # FIXME: for _DeprecatedProxy objects __getattr__ routes through _get_active() and
-        #  returns the *target* name instead of the deprecated source name. Should be:
-        #    name_from_meta = dep_info.get("name", "")
-        #    function = name_from_meta or getattr(func, "__name__", str(func))
-        function=getattr(func, "__name__", str(func)),
+        function=function,
         deprecated_info=dep_info,
         invalid_args=invalid_args,
         empty_mapping=empty_mapping,
