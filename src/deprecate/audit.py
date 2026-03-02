@@ -39,12 +39,12 @@ import inspect
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 if TYPE_CHECKING:
     from packaging.version import Version
 
-from deprecate._types import DeprecationInfo
+from deprecate._types import DeprecationInfo, _has_deprecation_meta
 from deprecate.utils import get_func_arguments_types_defaults
 
 
@@ -230,13 +230,13 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     """
     # Extract configuration from __deprecated__ attribute
-    if not hasattr(func, "__deprecated__"):
+    if not _has_deprecation_meta(func):
         raise ValueError(
             f"Function {getattr(func, '__name__', func)} does not have a __deprecated__ attribute. "
             "It must be decorated with `@deprecated`."
         )
 
-    dep_info = cast(DeprecationInfo, getattr(func, "__deprecated__"))
+    dep_info = func.__deprecated__
     args_mapping = dep_info.args_mapping
     target = dep_info.target
 
@@ -251,17 +251,15 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     #   (a) target is a deprecated callable whose own target=True (self-deprecation with renaming).
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
     chain_type: Optional[ChainType] = None
-    if callable(target) and hasattr(target, "__deprecated__"):
-        target_dep = cast(DeprecationInfo, target.__deprecated__)
-        if target_dep.target is True:
+    if callable(target) and _has_deprecation_meta(target):
+        if target.__deprecated__.target is True:
             chain_type = ChainType.STACKED  # target is a self-deprecation wrapper — mappings compose
         else:
             chain_type = ChainType.TARGET  # target forwards to another function
     elif target is True:
         wrapped = getattr(func, "__wrapped__", None)
-        if wrapped is not None and hasattr(wrapped, "__deprecated__"):
-            wrapped_dep = cast(DeprecationInfo, wrapped.__deprecated__)
-            if wrapped_dep.target is True:
+        if wrapped is not None and _has_deprecation_meta(wrapped):
+            if wrapped.__deprecated__.target is True:
                 chain_type = ChainType.STACKED  # stacked @deprecated(True) decorators
 
     all_identity = False

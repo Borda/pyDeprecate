@@ -6,7 +6,10 @@ than silently returning ``None`` at runtime.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from typing import TypeGuard
 
 
 @dataclass(frozen=True)
@@ -30,6 +33,42 @@ class DeprecationInfo:
     name: str = ""
     target: Any = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
+
+
+@runtime_checkable
+class _HasDeprecationMeta(Protocol):
+    """Structural type for any callable that carries ``__deprecated__`` metadata.
+
+    Both ``@deprecated``-decorated functions and :class:`~deprecate.proxy._DeprecatedProxy`
+    instances satisfy this protocol once the decorator has been applied.
+
+    Used as a TypeGuard target so that a ``hasattr`` guard narrows the type of an
+    arbitrary callable to one whose ``__deprecated__`` attribute is typed — eliminating
+    the need for a ``cast`` after the guard.
+    """
+
+    __deprecated__: DeprecationInfo
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        """Call the deprecated object."""
+        ...
+
+
+def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
+    """Return ``True`` if *obj* carries a :class:`DeprecationInfo` ``__deprecated__`` attribute.
+
+    Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to
+    :class:`_HasDeprecationMeta`, allowing direct typed access to ``obj.__deprecated__``
+    without a ``cast``.
+
+    Args:
+        obj: Any object to test.
+
+    Returns:
+        ``True`` if ``__deprecated__`` is present; ``False`` otherwise.
+
+    """
+    return hasattr(obj, "__deprecated__")
 
 
 @dataclass
