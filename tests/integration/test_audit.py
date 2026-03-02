@@ -200,6 +200,20 @@ class TestFindDeprecatedCallables:
         assert mapped_enum is not None
         assert mapped_enum.deprecated_info.get("args_mapping") == {"val": "value"}
 
+    def test_discovers_proxy_without_target_and_drop_mapping(self) -> None:
+        """Proxy deprecations without targets and with dropped args are discoverable."""
+        results = find_deprecated_callables(proxy_module, recursive=False)
+        by_name = {r.function: r for r in results}
+
+        warn_only_enum = by_name.get("WarnOnlyColorEnum")
+        assert warn_only_enum is not None
+        assert warn_only_enum.deprecated_info.get("target") is None
+        assert warn_only_enum.deprecated_info.get("remove_in") == "2.0"
+
+        mapped_drop_dc = by_name.get("MappedDropArgDataClass")
+        assert mapped_drop_dc is not None
+        assert mapped_drop_dc.deprecated_info.get("args_mapping") == {"legacy_flag": None, "name": "label"}
+
 
 class TestValidateDeprecationChains:
     """Tests for validate_deprecation_chains()."""
