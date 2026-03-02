@@ -88,13 +88,17 @@ class _DeprecatedProxy:
         (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) and
         kept strictly read-only semantically.  Aligns with the ``@deprecated`` schema.
         """
-        object.__setattr__(self, "_DeprecatedProxy__config", {
-            "obj": obj,
-            "stream": stream,
-            "num_warns": num_warns,
-            "read_only": read_only,
-            "warned": 0,
-        })
+        object.__setattr__(
+            self,
+            "_DeprecatedProxy__config",
+            {
+                "obj": obj,
+                "stream": stream,
+                "num_warns": num_warns,
+                "read_only": read_only,
+                "warned": 0,
+            },
+        )
         object.__setattr__(
             self,
             "__deprecated__",
