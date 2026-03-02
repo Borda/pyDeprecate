@@ -12,8 +12,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
-from enum import Enum
-from functools import partial, update_wrapper, wraps
+from functools import partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
 from warnings import warn
@@ -37,8 +36,6 @@ TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
-#: Enum constructor keyword for value lookups.
-ENUM_VALUE_PARAM = "value"
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 #: Default template for documentation with deprecated callable
@@ -53,38 +50,6 @@ deprecation_warning = partial(warn, category=FutureWarning)
 ArgsMapping = dict[str, Optional[str]]
 
 
-class _DeprecatedEnumWrapper:
-    """Callable proxy that preserves Enum accessors while adding deprecation behavior.
-
-    Example:
-        >>> from enum import Enum
-        >>> class Old(Enum):
-        ...     A = "a"
-        >>> def wrapper(value: str) -> Old:
-        ...     return Old(value)
-        >>> proxied = _DeprecatedEnumWrapper(wrapper, Old)
-        >>> proxied("a") is Old.A
-        True
-        >>> proxied.A is Old.A
-        True
-        >>> proxied["A"] is Old.A
-        True
-    """
-
-    def __init__(self, wrapper: Callable[..., object], source: type[Enum]) -> None:
-        self._wrapper = wrapper
-        self._source = source
-        update_wrapper(self, wrapper)
-
-    def __call__(self, *args: object, **kwargs: object) -> object:
-        return self._wrapper(*args, **kwargs)
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(self._source, name)
-
-    def __getitem__(self, key: str) -> Enum:
-        return self._source[key]
-
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
     """Filter positional-only and positional-or-keyword parameters."""
@@ -95,49 +60,33 @@ def _prepare_target_call(
     source: Callable,
     target: Callable,
     kwargs: dict[str, Any],
-    source_is_class: bool,
-    source_has_var_positional: bool,
-) -> tuple[Callable, bool]:
+) -> Callable:
     """Resolve the target callable and validate mapped keyword arguments.
 
     Args:
         source: Deprecated callable being wrapped.
         target: Target callable to invoke.
         kwargs: Keyword arguments after mapping and defaults.
-        source_is_class: True if the deprecated callable is a class.
-        source_has_var_positional: True if the deprecated callable has *args.
 
     Returns:
-        Tuple with the callable to invoke and a flag indicating whether positional
-        arguments should be preserved for the call.
+        The callable to invoke. When *target* is a class, returns ``target.__init__``
+        so that argument names can be matched against the constructor signature.
 
     Example:
         >>> from deprecate.deprecation import _prepare_target_call
-        >>> from enum import Enum
-        >>> class OldEnum(Enum):
-        ...     A = "a"
-        >>> class NewEnum(Enum):
-        ...     A = "a"
-        >>> target_func, use_positional = _prepare_target_call(OldEnum, NewEnum, {"value": "a"}, True, True)
-        >>> target_func is NewEnum
-        True
-        >>> use_positional
-        True
         >>> def source(a: int, b: int) -> int:
         ...     return a + b
         >>> def target(a: int, b: int) -> int:
         ...     return a - b
-        >>> _prepare_target_call(source, target, {"c": 1}, False, False)
+        >>> _prepare_target_call(source, target, {"c": 1})
         Traceback (most recent call last):
         ...
         TypeError: Failed mapping of `source`, arguments not accepted by target: ['c']
 
     """
     target_is_class = inspect.isclass(target)
-    # Class-to-class forwarding instantiates the target directly; function-to-class forwarding calls __init__.
-    target_func = target
-    if target_is_class and not source_is_class:
-        target_func = target.__init__
+    # Function-to-class forwarding calls __init__ to match argument names.
+    target_func = target.__init__ if target_is_class else target
     target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
 
     target_full_arg_spec = inspect.getfullargspec(target_func)
@@ -145,80 +94,15 @@ def _prepare_target_call(
     var_kw = target_full_arg_spec.varkw
 
     missed = [arg for arg in kwargs if arg not in target_args]
-    is_enum_value_case = _is_enum_value_case(source, target, missed, source_is_class, target_is_class)
     if missed and var_kw is None:
         if var_args is None:
-            # Target doesn't accept these args and doesn't have *args to catch them.
             raise TypeError(f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}")
-        if not is_enum_value_case:
-            raise TypeError(
-                f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
-                f"these keyword arguments are not allowed): {missed}"
-            )
-    return target_func, source_is_class and source_has_var_positional
+        raise TypeError(
+            f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
+            f"these keyword arguments are not allowed): {missed}"
+        )
+    return target_func
 
-
-def _is_enum_value_case(
-    source: Callable,
-    target: Callable,
-    missed: list[str],
-    source_is_class: bool,
-    target_is_class: bool,
-) -> bool:
-    """Check if Enum value mapping should allow keyword fallback.
-
-    Args:
-        source: Deprecated callable being wrapped.
-        target: Target callable to invoke.
-        missed: Keyword arguments not accepted by the target.
-        source_is_class: True if the deprecated callable is a class.
-        target_is_class: True if the target callable is a class.
-
-    Returns:
-        True when the target is an Enum and the only missed argument is the Enum value.
-    """
-    source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
-    if not (source_is_enum and target_is_class):
-        return False
-    if not isinstance(target, type):
-        return False
-    target_is_enum = issubclass(target, Enum)
-    single_missed_arg = len(missed) == 1
-    missed_is_value_param = ENUM_VALUE_PARAM in missed
-    return target_is_enum and single_missed_arg and missed_is_value_param
-
-
-def _convert_enum_value_args(
-    target: Callable,
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-) -> tuple[tuple[Any, ...], dict[str, Any]]:
-    """Convert Enum value keyword argument into a positional argument when required.
-
-    Args:
-        target: Callable being invoked (source or target).
-        args: Positional arguments to pass through.
-        kwargs: Keyword arguments to pass through.
-
-    Returns:
-        Tuple of updated positional and keyword arguments, with Enum value moved
-        into positional args when necessary.
-
-    Example:
-        >>> class SampleEnum(Enum):
-        ...     ALPHA = "alpha"
-        >>> _convert_enum_value_args(SampleEnum, (), {"value": "alpha"})
-        (('alpha',), {})
-    """
-    if not (isinstance(target, type) and issubclass(target, Enum)):
-        return args, kwargs
-    if ENUM_VALUE_PARAM not in kwargs:
-        return args, kwargs
-    new_kwargs = dict(kwargs)
-    value = new_kwargs.pop(ENUM_VALUE_PARAM)
-    if args:
-        return args, new_kwargs
-    return (*args, value), new_kwargs
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -622,7 +506,11 @@ def deprecated(
     """
 
     def packing(source: Callable) -> Callable:
-        source_is_class = inspect.isclass(source)
+        if inspect.isclass(source):
+            raise TypeError(
+                f"Cannot apply @deprecated to class '{source.__name__}'. "
+                "For class-level deprecation use @deprecated_class() from deprecate.proxy."
+            )
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
@@ -688,18 +576,10 @@ def deprecated(
             if not callable(target):
                 if source_has_var_positional:
                     call_kwargs = original_kwargs if not reason_argument else kwargs
-                    call_args, call_kwargs = _convert_enum_value_args(source, args, call_kwargs)
-                    return source(*call_args, **call_kwargs)
+                    return source(*args, **call_kwargs)
                 return source(**kwargs)
 
-            target_func, use_positional_args = _prepare_target_call(
-                source, target, kwargs, source_is_class, source_has_var_positional
-            )
-            # Positional args become kwargs for regular callables; class-level varargs keep positional values.
-            # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
-            if use_positional_args:
-                call_args, call_kwargs = _convert_enum_value_args(target_func, args, kwargs)
-                return target_func(*call_args, **call_kwargs)
+            target_func = _prepare_target_call(source, target, kwargs)
             return target_func(**kwargs)
 
         # Static deprecation metadata — consumed by audit tools and docstring helpers.
@@ -717,8 +597,6 @@ def deprecated(
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)
 
-        if source_is_class and isinstance(source, type) and issubclass(source, Enum):
-            return _DeprecatedEnumWrapper(wrapped_fn, source)
         return wrapped_fn
 
     return packing

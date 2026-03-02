@@ -49,7 +49,7 @@ _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s 
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class DeprecatedEnum(Enum):
     """Deprecated enum for regression testing.
 
@@ -61,7 +61,7 @@ class DeprecatedEnum(Enum):
     BETA = "beta"
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class DeprecatedIntEnum(Enum):
     """Deprecated enum with integer values for regression testing.
 
@@ -73,7 +73,7 @@ class DeprecatedIntEnum(Enum):
     TWO = 2
 
 
-@deprecated(target=NewEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(target=NewEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 class RedirectedEnum(Enum):
     """Deprecated enum that forwards to a new enum.
 
@@ -85,7 +85,7 @@ class RedirectedEnum(Enum):
     BETA = "beta"
 
 
-@deprecated(
+@deprecated_class(
     target=NewEnum,
     deprecated_in="0.1",
     remove_in="0.2",
@@ -103,7 +103,7 @@ class MappedEnum(Enum):
     OLD_BETA = "beta"
 
 
-@deprecated(
+@deprecated_class(
     target=NewIntEnum,
     deprecated_in="0.1",
     remove_in="0.2",
@@ -121,7 +121,7 @@ class MappedIntEnum(Enum):
     TWO = 2
 
 
-@deprecated(
+@deprecated_class(
     target=NewEnum,
     deprecated_in="0.1",
     remove_in="0.2",
@@ -139,15 +139,8 @@ class MappedValueEnum(Enum):
     BETA = "old-beta"
 
 
-@deprecated(
-    target=True,
-    deprecated_in="0.1",
-    remove_in="0.2",
-    num_warns=-1,
-    args_mapping={"old_value": "value"},
-)
 class SelfMappedEnum(Enum):
-    """Deprecated enum with old_value->value mapping that forwards to itself via target=True.
+    """Deprecated enum with old_value->value mapping that forwards to itself.
 
     Example:
         A user can call SelfMappedEnum(old_value="alpha") to resolve SelfMappedEnum.ALPHA.
@@ -157,7 +150,16 @@ class SelfMappedEnum(Enum):
     BETA = "beta"
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+SelfMappedEnum = deprecated_class(  # type: ignore[assignment]
+    target=SelfMappedEnum,
+    deprecated_in="0.1",
+    remove_in="0.2",
+    num_warns=-1,
+    args_mapping={"old_value": "value"},
+)(SelfMappedEnum)
+
+
+@deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 @dataclass
 class DeprecatedDataClass:
     """Deprecated dataclass for regression testing.
@@ -170,7 +172,7 @@ class DeprecatedDataClass:
     total: int = 0
 
 
-@deprecated(target=NewDataClass, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(target=NewDataClass, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
 @dataclass
 class RedirectedDataClass:
     """Deprecated dataclass forwarding to NewDataClass.
