@@ -385,7 +385,7 @@ class TestContainerProtocolWithTarget:
 
     @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __contains__ with target set")
     def test_contains_reads_from_source_not_target(self) -> None:
-        """membership test uses source even when target is set."""
+        """Membership test uses source even when target is set."""
 
     @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __bool__ with target set")
     def test_bool_reads_from_source_not_target(self) -> None:
