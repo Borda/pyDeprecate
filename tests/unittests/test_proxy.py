@@ -338,7 +338,7 @@ class TestArgMapping:
     def test_remap_single_kwarg(self) -> None:
         """arg_mapping renames a kwarg before forwarding the call."""
         with pytest.warns(FutureWarning):
-            result = MappedDataClass(name="hello", total=7)
+            result = MappedDataClass(name="hello", total=7)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
         assert result.label == "hello"
         assert result.total == 7
@@ -346,7 +346,7 @@ class TestArgMapping:
     def test_remap_multiple_kwargs(self) -> None:
         """arg_mapping renames multiple kwargs correctly."""
         with pytest.warns(FutureWarning):
-            result = MappedDataClass(name="world", count=3)
+            result = MappedDataClass(name="world", count=3)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
         assert result.label == "world"
         assert result.total == 3
@@ -354,7 +354,7 @@ class TestArgMapping:
     def test_drop_kwarg(self) -> None:
         """arg_mapping drops kwargs mapped to None and remaps others."""
         with pytest.warns(FutureWarning):
-            result = MappedDropArgDataClass(name="x", legacy_flag=True)
+            result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
         assert result.label == "x"
 
@@ -366,5 +366,5 @@ class TestArgMapping:
     def test_enum_remap_kwarg(self) -> None:
         """arg_mapping works when the deprecated class wraps an Enum."""
         with pytest.warns(FutureWarning):
-            result = MappedColorEnum(val=1)
+            result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is TargetColorEnum.RED

@@ -185,7 +185,7 @@ class TestReadOnlyMode:
         """read_only=True blocks attribute mutation."""
         proxy = deprecated_instance({"x": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True)
         with pytest.raises(AttributeError, match="read-only"):
-            proxy.new_attr = 42  # type: ignore[attr-defined]
+            proxy.new_attr = 42
 
     def test_writable_allows_mutation_no_warning(self) -> None:
         """read_only=False (default) allows mutation; writes do not warn."""
