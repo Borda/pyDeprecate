@@ -368,3 +368,49 @@ class TestArgMapping:
         with pytest.warns(FutureWarning):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is TargetColorEnum.RED
+
+
+class TestContainerProtocolWithTarget:
+    """Container protocol behaviour when a target is set on the proxy.
+
+    TODO: The source-vs-target inconsistency is intentional for now but must be
+    pinned so it is not silently changed. When target is set:
+    - __len__, __contains__, __bool__ read from __obj (source)
+    - __iter__, __getitem__, __getattr__, __call__ use _get_active() (target)
+    """
+
+    @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __len__ with target set")
+    def test_len_reads_from_source_not_target(self) -> None:
+        """len(proxy) returns the source length even when target is set."""
+
+    @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __contains__ with target set")
+    def test_contains_reads_from_source_not_target(self) -> None:
+        """membership test uses source even when target is set."""
+
+    @pytest.mark.skip(reason="TODO: pin source-vs-target behaviour for __bool__ with target set")
+    def test_bool_reads_from_source_not_target(self) -> None:
+        """bool(proxy) evaluates source truthiness even when target is set."""
+
+
+class TestHashOnUnhashableType:
+    """hash() behaviour for proxies wrapping unhashable objects."""
+
+    @pytest.mark.skip(reason="TODO: document hash(proxy) raises TypeError for unhashable source (e.g. dict)")
+    def test_hash_raises_for_unhashable_source(self) -> None:
+        """hash(proxy) raises TypeError when the wrapped object is unhashable (e.g. dict).
+
+        Current behaviour: propagates the TypeError from the underlying hash() call with
+        no additional context. Pin this so we know if the behaviour changes.
+        """
+
+
+class TestDeprecatedClassReadOnly:
+    """Constraints on deprecated_class — unsupported parameters."""
+
+    @pytest.mark.skip(reason="TODO: assert deprecated_class rejects read_only=True with TypeError")
+    def test_read_only_raises_type_error(self) -> None:
+        """deprecated_class does not accept read_only; passing it must raise TypeError.
+
+        deprecated_instance supports read_only; deprecated_class does not. This test
+        makes the limitation explicit so it is not accidentally introduced later.
+        """

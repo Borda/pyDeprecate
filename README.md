@@ -485,6 +485,8 @@ from deprecate import deprecated_instance
 
 # Legacy threshold constant — migrate to new_config.threshold
 LEGACY_THRESHOLD = deprecated_instance(0.5, deprecated_in="1.0", remove_in="2.0")
+# Note: arithmetic dunder methods (float +, -, *) are NOT proxied — use repr() to read the value:
+print(repr(LEGACY_THRESHOLD))  # 0.5
 
 # Legacy config dict — read-only so accidental mutations are blocked
 LEGACY_CONFIG = deprecated_instance(
