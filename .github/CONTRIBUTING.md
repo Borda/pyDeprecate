@@ -373,6 +373,8 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > [!IMPORTANT]
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 
+**Acceptable exception — intentionally misconfigured one-off fixtures**: a deliberately broken or invalid deprecation (e.g. a malformed `remove_in` string) that is used by exactly one test and has no reuse value may be defined inline in the test function. Do **not** apply this exception to valid deprecations or to fixtures shared across multiple tests — those always belong in a collection module.
+
 **Docstrings in test collections:**
 
 Functions in `collection_deprecate.py` and `collection_misconfigured.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
