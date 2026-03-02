@@ -509,6 +509,8 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     """
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
         return
+    if not hasattr(wrapped_fn, "__deprecated__"):
+        return
     lines = wrapped_fn.__doc__.splitlines()
     dep_info = cast(DeprecationInfo, getattr(wrapped_fn, "__deprecated__"))
     remove_in_val = dep_info.remove_in
