@@ -194,7 +194,10 @@ class TestFindDeprecatedCallables:
         assert "DeprecatedColorEnum" in by_name
 
         enum_info = by_name["DeprecatedColorEnum"]
-        assert enum_info.deprecated_info.get("target").__name__ == "TargetColorEnum"
+        assert hasattr(enum_info, "deprecated_info")
+        enum_target = enum_info.deprecated_info.get("target")
+        assert enum_target is not None
+        assert enum_target.__name__ == "TargetColorEnum"
 
         mapped_enum = by_name.get("MappedColorEnum")
         assert mapped_enum is not None
