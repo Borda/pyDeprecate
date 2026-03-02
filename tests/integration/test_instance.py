@@ -148,7 +148,7 @@ class TestReadOnlyMode:
         ids=["setitem", "delitem", "setattr"],
     )
     def test_mutations_raise(self, mutation: Callable[[object], None]) -> None:
-        """Read-only proxy should reject item assignment, item deletion, and attribute assignment with one error path."""
+        """Read-only proxy should reject item assignment, item deletion, and attribute assignment."""
         proxy = deprecated_instance({"x": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True)
         with pytest.raises(AttributeError, match="read-only"):
             mutation(proxy)
