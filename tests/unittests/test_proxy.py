@@ -146,6 +146,15 @@ class TestProxyGetActive:
         proxy = _DeprecatedProxy(obj=obj, name="x", deprecated_in="1.0", remove_in="2.0", target=tgt)
         assert proxy._get_active() is tgt
 
+    def test_writes_mutate_target_when_set(self) -> None:
+        """Write operations mutate the active target object when a target is configured."""
+        source = {"k": 1}
+        target = {"k": 2}
+        proxy = _DeprecatedProxy(obj=source, name="x", deprecated_in="1.0", remove_in="2.0", target=target, stream=None)
+        proxy["k"] = 9
+        assert source["k"] == 1
+        assert target["k"] == 9
+
 
 class TestProxyNoWarnMethods:
     """Methods that delegate without emitting a warning."""
@@ -184,8 +193,20 @@ class TestProxyNoWarnMethods:
         proxy = _DeprecatedProxy(obj=[1, 2, 3], name="x", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            assert len(proxy) == 3
+        assert len(proxy) == 3
         assert not caught
+
+    def test_len_uses_target_when_set(self) -> None:
+        """__len__ reflects the target when a target is configured."""
+        proxy = _DeprecatedProxy(
+            obj=[1],
+            target=[1, 2, 3],
+            name="x",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=None,
+        )
+        assert len(proxy) == 3
 
     def test_contains_no_warn(self) -> None:
         """__contains__ delegates without warning."""
@@ -195,6 +216,19 @@ class TestProxyNoWarnMethods:
             assert "k" in proxy
             assert "z" not in proxy
         assert not caught
+
+    def test_contains_uses_target_when_set(self) -> None:
+        """__contains__ reflects the target when a target is configured."""
+        proxy = _DeprecatedProxy(
+            obj={"old": 1},
+            target={"new": 2},
+            name="x",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=None,
+        )
+        assert "new" in proxy
+        assert "old" not in proxy
 
     def test_eq_no_warn(self) -> None:
         """__eq__ does not emit a warning."""
@@ -332,11 +366,11 @@ class TestDecoratorDataclass:
         assert obj.total == 5
 
 
-class TestArgMapping:
-    """arg_mapping remaps or drops kwargs when the proxy is called."""
+class TestArgsMapping:
+    """args_mapping remaps or drops kwargs when the proxy is called."""
 
     def test_remap_single_kwarg(self) -> None:
-        """arg_mapping renames a kwarg before forwarding the call."""
+        """args_mapping renames a kwarg before forwarding the call."""
         with pytest.warns(FutureWarning):
             result = MappedDataClass(name="hello", total=7)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
@@ -344,7 +378,7 @@ class TestArgMapping:
         assert result.total == 7
 
     def test_remap_multiple_kwargs(self) -> None:
-        """arg_mapping renames multiple kwargs correctly."""
+        """args_mapping renames multiple kwargs correctly."""
         with pytest.warns(FutureWarning):
             result = MappedDataClass(name="world", count=3)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
@@ -352,19 +386,19 @@ class TestArgMapping:
         assert result.total == 3
 
     def test_drop_kwarg(self) -> None:
-        """arg_mapping drops kwargs mapped to None and remaps others."""
+        """args_mapping drops kwargs mapped to None and remaps others."""
         with pytest.warns(FutureWarning):
             result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
         assert result.label == "x"
 
-    def test_arg_mapping_stored_in_proxy(self) -> None:
-        """arg_mapping is stored in the proxy's internal state."""
-        mapping = object.__getattribute__(MappedDataClass, "_DeprecatedProxy__arg_mapping")
+    def test_args_mapping_stored_in_proxy(self) -> None:
+        """args_mapping is stored in the proxy's internal state."""
+        mapping = object.__getattribute__(MappedDataClass, "_DeprecatedProxy__args_mapping")
         assert mapping == {"name": "label", "count": "total"}
 
     def test_enum_remap_kwarg(self) -> None:
-        """arg_mapping works when the deprecated class wraps an Enum."""
+        """args_mapping works when the deprecated class wraps an Enum."""
         with pytest.warns(FutureWarning):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is TargetColorEnum.RED

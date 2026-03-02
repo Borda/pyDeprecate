@@ -29,7 +29,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 # FIXME: Proxy objects are not fully covered by audit utilities (GitHub issue needed).
-# :class:`~deprecate.proxy.deprecated_class` and :func:`~deprecate.proxy.deprecated_instance`
+# :func:`~deprecate.proxy.deprecated_class` and :func:`~deprecate.proxy.deprecated_instance`
 # are discoverable via the generic ``callable(obj)`` + ``hasattr(obj, "__deprecated__")``
 # scan in :func:`find_deprecated_callables` and :func:`validate_deprecation_expiry`,
 # but two gaps remain:

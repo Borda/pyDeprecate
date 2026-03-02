@@ -516,11 +516,11 @@ with pytest.raises(AttributeError, match="read-only"):
 ### 🗂 Deprecating Enums and dataclasses
 
 <details>
-<summary>Example: <code>@deprecated_class</code> with optional <code>arg_mapping</code></summary>
+<summary>Example: <code>@deprecated_class</code> with optional <code>args_mapping</code></summary>
 
 `@deprecated_class` wraps an entire Enum or dataclass in a transparent proxy that warns on every
 access and forwards attribute, item, and call operations to the replacement class.
-Use `arg_mapping` to rename or drop kwargs when the deprecated class is called.
+Use `args_mapping` to rename or drop kwargs when the deprecated class is called.
 
 ```python
 from enum import Enum
@@ -552,12 +552,12 @@ class NewPoint:
     y: float
 
 
-# arg_mapping renames 'left'→'x' and 'top'→'y'; pass None to drop a kwarg entirely
+# args_mapping renames 'left'→'x' and 'top'→'y'; pass None to drop a kwarg entirely
 @deprecated_class(
     target=NewPoint,
     deprecated_in="1.0",
     remove_in="2.0",
-    arg_mapping={"left": "x", "top": "y"},
+    args_mapping={"left": "x", "top": "y"},
 )
 @dataclass
 class OldPoint:

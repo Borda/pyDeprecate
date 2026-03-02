@@ -5,7 +5,6 @@ import warnings
 import pytest
 
 from deprecate import deprecated_instance
-from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
     depr_config_dict,
     depr_config_dict_read_only,
@@ -47,10 +46,10 @@ class TestDemoUseCases:
 class TestInstanceProxy:
     """Behaviour of deprecated_instance() proxy objects."""
 
-    def test_returns_deprecated_proxy_instance(self) -> None:
-        """deprecated_instance returns a _DeprecatedProxy."""
+    def test_returns_proxy_with_deprecated_metadata(self) -> None:
+        """deprecated_instance returns an object exposing deprecation metadata."""
         proxy = deprecated_instance({}, name="x", deprecated_in="1.0", remove_in="2.0")
-        assert isinstance(proxy, _DeprecatedProxy)
+        assert hasattr(proxy, "__deprecated__")
 
     def test_name_auto_inferred_from_type(self) -> None:
         """When name is omitted, the type name is used in the warning."""

@@ -554,10 +554,10 @@ class WarnOnlyColorEnum(Enum):
     deprecated_in="1.0",
     remove_in="2.0",
     num_warns=-1,
-    arg_mapping={"val": "value"},
+    args_mapping={"val": "value"},
 )
 class MappedColorEnum(Enum):
-    """Deprecated enum with arg_mapping: remaps 'val' kwarg to 'value' when called.
+    """Deprecated enum with args_mapping: remaps 'val' kwarg to 'value' when called.
 
     Example:
         A user calling MappedColorEnum(val=1) receives TargetColorEnum.RED.
@@ -572,11 +572,11 @@ class MappedColorEnum(Enum):
     deprecated_in="1.0",
     remove_in="2.0",
     num_warns=-1,
-    arg_mapping={"name": "label", "count": "total"},
+    args_mapping={"name": "label", "count": "total"},
 )
 @dataclass
 class MappedDataClass:
-    """Deprecated dataclass with arg_mapping: remaps 'name'->'label' and 'count'->'total'.
+    """Deprecated dataclass with args_mapping: remaps 'name'->'label' and 'count'->'total'.
 
     Example:
         A user calling MappedDataClass(name="x", count=3) receives NewDataClass(label="x", total=3).
@@ -591,11 +591,11 @@ class MappedDataClass:
     deprecated_in="1.0",
     remove_in="2.0",
     num_warns=-1,
-    arg_mapping={"legacy_flag": None, "name": "label"},
+    args_mapping={"legacy_flag": None, "name": "label"},
 )
 @dataclass
 class MappedDropArgDataClass:
-    """Deprecated dataclass with arg_mapping: drops 'legacy_flag', remaps 'name'->'label'.
+    """Deprecated dataclass with args_mapping: drops 'legacy_flag', remaps 'name'->'label'.
 
     Example:
         A user calling MappedDropArgDataClass(name="x", legacy_flag=True) receives NewDataClass(label="x").

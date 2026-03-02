@@ -112,18 +112,6 @@ class TestValidateDeprecatedCallable:
         with pytest.raises(ValueError, match="does not have a __deprecated__ attribute"):
             validate_deprecated_callable(plain_function)
 
-    # TODO (FIXME in audit.py): for _DeprecatedProxy the .function field currently resolves
-    #  to the *target* class name instead of the deprecated source name.  Once the bug is
-    #  fixed (use dep_info.get("name") as primary source) add a test like:
-    #
-    #    @pytest.mark.skip(reason="TODO: fix audit.py FIXME first — proxy reports wrong .function name")
-    #    def test_proxy_function_name_is_source_not_target(self) -> None:
-    #        """validate_deprecated_callable on a deprecated_class proxy reports the source name."""
-    #        from tests.collection_deprecate import DeprecatedColorEnum
-    #        result = validate_deprecated_callable(DeprecatedColorEnum)
-    #        assert result.function == "DeprecatedColorEnum"   # NOT "TargetColorEnum"
-
-
 class TestFindDeprecatedCallables:
     """Tests for find_deprecated_callables()."""
 

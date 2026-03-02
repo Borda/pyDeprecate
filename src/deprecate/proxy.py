@@ -9,7 +9,7 @@ Typical use cases:
 
 - Deprecating module-level config dicts, constants, or legacy singletons
   while still allowing reads during a migration window.
-- Deprecating an Enum or dataclass in favour of a replacement type, with
+- Deprecating an Enum or dataclass in favor of a replacement type, with
   automatic forwarding of all attribute, item, and call access.
 
 Example:
@@ -59,7 +59,7 @@ class _DeprecatedProxy:
             attempt through the proxy.
         target: Optional replacement object.  When set, all attribute, item,
             and call access is forwarded to *target* instead of *obj*.
-        arg_mapping: Optional dict remapping keyword argument names when the
+        args_mapping: Optional dict remapping keyword argument names when the
             proxy is called.  Keys are old argument names; values are new names,
             or ``None`` to drop the argument entirely.
 
@@ -75,7 +75,7 @@ class _DeprecatedProxy:
         stream: Optional[Callable[..., None]] = deprecation_warning,
         read_only: bool = False,
         target: Any = None,  # noqa: ANN401
-        arg_mapping: Optional[dict] = None,
+        args_mapping: Optional[dict] = None,
     ) -> None:
         """Initialise the proxy, storing all configuration via object.__setattr__."""
         object.__setattr__(self, "_DeprecatedProxy__obj", obj)
@@ -87,7 +87,7 @@ class _DeprecatedProxy:
         object.__setattr__(self, "_DeprecatedProxy__stream", stream)
         object.__setattr__(self, "_DeprecatedProxy__read_only", read_only)
         object.__setattr__(self, "_DeprecatedProxy__warned", 0)
-        object.__setattr__(self, "_DeprecatedProxy__arg_mapping", arg_mapping)
+        object.__setattr__(self, "_DeprecatedProxy__args_mapping", args_mapping)
         object.__setattr__(
             self,
             "__deprecated__",
@@ -146,13 +146,13 @@ class _DeprecatedProxy:
             return target
         return object.__getattribute__(self, "_DeprecatedProxy__obj")
 
-    def _apply_arg_mapping(self, kwargs: dict) -> dict:
-        """Apply arg_mapping to *kwargs*, renaming or dropping keys as configured."""
-        arg_mapping: Optional[dict] = object.__getattribute__(self, "_DeprecatedProxy__arg_mapping")
-        if not arg_mapping or not kwargs:
+    def _apply_args_mapping(self, kwargs: dict) -> dict:
+        """Apply args_mapping to *kwargs*, renaming or dropping keys as configured."""
+        args_mapping: Optional[dict] = object.__getattribute__(self, "_DeprecatedProxy__args_mapping")
+        if not args_mapping or not kwargs:
             return kwargs
-        args_to_drop = {k for k, v in arg_mapping.items() if v is None}
-        return {arg_mapping.get(k, k): v for k, v in kwargs.items() if k not in args_to_drop}
+        args_to_drop = {k for k, v in args_mapping.items() if v is None}
+        return {args_mapping.get(k, k): v for k, v in kwargs.items() if k not in args_to_drop}
 
     @staticmethod
     def _is_potential_mutator(name: str) -> bool:
@@ -203,14 +203,14 @@ class _DeprecatedProxy:
         return attr
 
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
-        """Forward attribute mutation to the source object, raising in read-only mode."""
+        """Forward attribute mutation to the active object, raising in read-only mode."""
         self._check_read_only(f"Setting attribute '{name}'")
-        setattr(object.__getattribute__(self, "_DeprecatedProxy__obj"), name, value)
+        setattr(self._get_active(), name, value)
 
     def __delattr__(self, name: str) -> None:
-        """Forward attribute deletion to the source object, raising in read-only mode."""
+        """Forward attribute deletion to the active object, raising in read-only mode."""
         self._check_read_only(f"Deleting attribute '{name}'")
-        delattr(object.__getattribute__(self, "_DeprecatedProxy__obj"), name)
+        delattr(self._get_active(), name)
 
     # ------------------------------------------------------------------
     # Subscript access
@@ -222,22 +222,22 @@ class _DeprecatedProxy:
         return self._get_active()[key]
 
     def __setitem__(self, key: Any, value: Any) -> None:  # noqa: ANN401
-        """Forward subscript mutation to the source object, raising in read-only mode."""
+        """Forward subscript mutation to the active object, raising in read-only mode."""
         self._check_read_only(f"Setting item '{key}'")
-        object.__getattribute__(self, "_DeprecatedProxy__obj")[key] = value
+        self._get_active()[key] = value
 
     def __delitem__(self, key: Any) -> None:  # noqa: ANN401
-        """Forward subscript deletion to the source object, raising in read-only mode."""
+        """Forward subscript deletion to the active object, raising in read-only mode."""
         self._check_read_only(f"Deleting item '{key}'")
-        del object.__getattribute__(self, "_DeprecatedProxy__obj")[key]
+        del self._get_active()[key]
 
     # ------------------------------------------------------------------
     # Container protocol
     # ------------------------------------------------------------------
 
     def __len__(self) -> int:
-        """Return length of the wrapped object without emitting a warning."""
-        return len(object.__getattribute__(self, "_DeprecatedProxy__obj"))
+        """Return length of the active object without emitting a warning."""
+        return len(self._get_active())
 
     def __iter__(self) -> Iterator[Any]:
         """Iterate over the active object, emitting a deprecation warning."""
@@ -245,8 +245,8 @@ class _DeprecatedProxy:
         return iter(self._get_active())
 
     def __contains__(self, item: Any) -> bool:  # noqa: ANN401
-        """Check membership without emitting a warning."""
-        return item in object.__getattribute__(self, "_DeprecatedProxy__obj")
+        """Check membership in the active object without emitting a warning."""
+        return item in self._get_active()
 
     # ------------------------------------------------------------------
     # Callable protocol
@@ -255,7 +255,7 @@ class _DeprecatedProxy:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the active object, emitting a deprecation warning."""
         self._warn()
-        mapped_kwargs = self._apply_arg_mapping(kwargs)
+        mapped_kwargs = self._apply_args_mapping(kwargs)
         return self._get_active()(*args, **mapped_kwargs)
 
     # ------------------------------------------------------------------
@@ -300,7 +300,7 @@ def deprecated_class(
     remove_in: str = "",
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
-    arg_mapping: Optional[dict] = None,
+    args_mapping: Optional[dict] = None,
 ) -> Callable[[type], "_DeprecatedProxy"]:
     """Decorator factory for deprecating class definitions with optional target redirection.
 
@@ -317,7 +317,7 @@ def deprecated_class(
             ``1`` warns once; ``-1`` warns on every access.
         stream: Callable used to emit warnings.
             Defaults to :data:`~deprecate.deprecation.deprecation_warning`.
-        arg_mapping: Optional dict remapping keyword argument names when the
+        args_mapping: Optional dict remapping keyword argument names when the
             decorated class is called.  Keys are old argument names; values
             are new names, or ``None`` to drop the argument entirely.
 
@@ -348,7 +348,7 @@ def deprecated_class(
             stream=stream,
             read_only=False,
             target=target,
-            arg_mapping=arg_mapping,
+            args_mapping=args_mapping,
         )
 
     return decorator
