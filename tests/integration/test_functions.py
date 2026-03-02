@@ -18,7 +18,6 @@ Current test coverage:
 
 import pytest
 
-
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     depr_accuracy_extra,
