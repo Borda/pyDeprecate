@@ -159,7 +159,11 @@ class _DeprecatedProxy:
         cfg.warned += 1
 
     def _check_read_only(self, operation: str) -> None:
-        """Raise AttributeError when the proxy is in read-only mode."""
+        """Raise AttributeError when the proxy is in read-only mode.
+
+        Raises:
+            AttributeError: If ``read_only=True`` was set at construction time.
+        """
         if self._cfg.read_only:
             name: str = self._dep.name
             raise AttributeError(
@@ -226,12 +230,20 @@ class _DeprecatedProxy:
         return attr
 
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
-        """Forward attribute mutation to the active object, raising in read-only mode."""
+        """Forward attribute mutation to the active object, raising in read-only mode.
+
+        Raises:
+            AttributeError: If the proxy is in read-only mode.
+        """
         self._check_read_only(f"Setting attribute '{name}'")
         setattr(self._get_active(), name, value)
 
     def __delattr__(self, name: str) -> None:
-        """Forward attribute deletion to the active object, raising in read-only mode."""
+        """Forward attribute deletion to the active object, raising in read-only mode.
+
+        Raises:
+            AttributeError: If the proxy is in read-only mode.
+        """
         self._check_read_only(f"Deleting attribute '{name}'")
         delattr(self._get_active(), name)
 
@@ -245,12 +257,20 @@ class _DeprecatedProxy:
         return self._get_active()[key]
 
     def __setitem__(self, key: Any, value: Any) -> None:  # noqa: ANN401
-        """Forward subscript mutation to the active object, raising in read-only mode."""
+        """Forward subscript mutation to the active object, raising in read-only mode.
+
+        Raises:
+            AttributeError: If the proxy is in read-only mode.
+        """
         self._check_read_only(f"Setting item '{key}'")
         self._get_active()[key] = value
 
     def __delitem__(self, key: Any) -> None:  # noqa: ANN401
-        """Forward subscript deletion to the active object, raising in read-only mode."""
+        """Forward subscript deletion to the active object, raising in read-only mode.
+
+        Raises:
+            AttributeError: If the proxy is in read-only mode.
+        """
         self._check_read_only(f"Deleting item '{key}'")
         del self._get_active()[key]
 

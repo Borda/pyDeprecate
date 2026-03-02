@@ -507,12 +507,8 @@ class TestCheckModuleDeprecationExpiry:
 
     def test_auto_detect_requires_module_name(self) -> None:
         """Auto-detection raises ValueError when the module object has no __name__."""
-
-        class FakeModule:
-            pass
-
         with pytest.raises(ValueError, match="Cannot auto-detect version.*__name__"):
-            validate_deprecation_expiry(FakeModule(), None, recursive=False)
+            validate_deprecation_expiry(object(), None, recursive=False)
 
     def test_version_fallback_to_dunder_version(self) -> None:
         """_get_package_version falls back to module.__version__ when importlib.metadata fails."""

@@ -1,5 +1,6 @@
 """Unit tests for _DeprecatedProxy internals and deprecated_class decorator behaviour."""
 
+import inspect
 import warnings
 from collections.abc import Callable
 
@@ -514,14 +515,9 @@ class TestHashOnUnhashableType:
 class TestDeprecatedClassReadOnly:
     """Constraints on deprecated_class — unsupported parameters."""
 
-    def test_read_only_raises_type_error(self) -> None:
-        """deprecated_class does not accept read_only; passing it raises TypeError.
-
-        deprecated_instance supports read_only; deprecated_class does not. This test
-        makes the limitation explicit so it is not accidentally introduced later.
-        """
-        with pytest.raises(TypeError, match="read_only"):
-            deprecated_class(read_only=True, deprecated_in="1.0", remove_in="2.0")  # type: ignore[call-arg]
+    def test_read_only_not_in_signature(self) -> None:
+        """deprecated_class does not expose read_only in its public API."""
+        assert "read_only" not in inspect.signature(deprecated_class).parameters
 
 
 class TestDeprecatedInstance:
