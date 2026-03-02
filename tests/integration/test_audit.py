@@ -112,6 +112,7 @@ class TestValidateDeprecatedCallable:
         with pytest.raises(ValueError, match="does not have a __deprecated__ attribute"):
             validate_deprecated_callable(plain_function)
 
+
 class TestFindDeprecatedCallables:
     """Tests for find_deprecated_callables()."""
 
