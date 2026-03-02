@@ -335,7 +335,7 @@ class TestCheckDeprecationExpiry:
             removal in version 0.5. The check passes silently, allowing the release to proceed.
         """
         # Current version is less than remove_in - should not raise
-        _check_deprecated_callable_expiry(depr_pow_self, "0.4")  # remove_in="0.5"
+        _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.4")  # remove_in="0.5"
 
     def test_at_removal_version(self) -> None:
         """Callable at exact removal version triggers AssertionError.
@@ -348,7 +348,7 @@ class TestCheckDeprecationExpiry:
         with pytest.raises(
             AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.5"
         ):
-            _check_deprecated_callable_expiry(depr_pow_self, "0.5")  # remove_in="0.5"
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.5")  # remove_in="0.5"
 
     def test_past_removal_version(self) -> None:
         """Callable past removal deadline triggers AssertionError.
@@ -361,7 +361,7 @@ class TestCheckDeprecationExpiry:
         with pytest.raises(
             AssertionError, match=r"was scheduled for removal in version 0\.5.*still exists in version 0\.6"
         ):
-            _check_deprecated_callable_expiry(depr_pow_self, "0.6")  # remove_in="0.5"
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "0.6")  # remove_in="0.5"
 
     def test_error_message(self) -> None:
         """Error message includes callable name, versions, and actionable guidance.
@@ -372,7 +372,7 @@ class TestCheckDeprecationExpiry:
         """
         # Test the error message contains all expected information
         with pytest.raises(AssertionError) as exc_info:
-            _check_deprecated_callable_expiry(depr_pow_self, "1.0")  # remove_in="0.5"
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "1.0")  # remove_in="0.5"
 
         error_msg = str(exc_info.value)
         assert "depr_pow_self" in error_msg
@@ -401,7 +401,7 @@ class TestCheckDeprecationExpiry:
             removal deadline. Error message indicates remove_in parameter is required for enforcement.
         """
         with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
-            _check_deprecated_callable_expiry(depr_func_no_remove_in, "2.0")
+            _check_deprecated_callable_expiry(proxy_module.depr_func_no_remove_in, "2.0")
 
     @pytest.mark.parametrize(
         "current_version",
@@ -415,7 +415,7 @@ class TestCheckDeprecationExpiry:
             Expiry check passes because these versions come before the 0.5 removal deadline.
         """
         # Test with semantic versions (depr_sum has remove_in="0.5")
-        _check_deprecated_callable_expiry(depr_sum, current_version)
+        _check_deprecated_callable_expiry(proxy_module.depr_sum, current_version)
 
     @pytest.mark.parametrize(
         "current_version",
@@ -430,7 +430,7 @@ class TestCheckDeprecationExpiry:
         """
         # Should raise at 0.5.0 or later
         with pytest.raises(AssertionError):
-            _check_deprecated_callable_expiry(depr_sum, current_version)
+            _check_deprecated_callable_expiry(proxy_module.depr_sum, current_version)
 
     def test_parse_version_stage_ordering(self) -> None:
         """Pre-release stages order correctly per PEP 440.
@@ -459,7 +459,7 @@ class TestCheckDeprecationExpiry:
         """
         # Invalid version format should raise ValueError
         with pytest.raises(ValueError, match="Invalid current_version"):
-            _check_deprecated_callable_expiry(depr_pow_self, "invalid-version")
+            _check_deprecated_callable_expiry(proxy_module.depr_pow_self, "invalid-version")
 
 
 @_requires_packaging
