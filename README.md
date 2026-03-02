@@ -486,6 +486,7 @@ directly, since arithmetic and other primitive protocol operations are not inter
 ```python
 import pytest
 from deprecate import deprecated_instance
+
 # Legacy config dict — read-only so accidental mutations are blocked
 LEGACY_CONFIG = deprecated_instance(
     {"threshold": 0.5, "enabled": True},
