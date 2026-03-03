@@ -19,12 +19,12 @@ Core Components:
     - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
 **Audit** (:mod:`deprecate.audit`):
-    - :func:`~deprecate.audit.validate_deprecated_callable`: Validate a single wrapper's configuration
-    - :func:`~deprecate.audit.find_deprecated_callables`: Scan a package for all deprecated wrappers
+    - :func:`~deprecate.audit.validate_deprecation_wrapper`: Validate a single wrapper's configuration
+    - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
     - :func:`~deprecate.audit.validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
-    - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated functions chaining to
-      other deprecated functions
-    - :class:`~deprecate.audit.DeprecatedCallableInfo`: Structured result returned by the audit functions
+    - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated wrappers chaining to
+      other deprecated wrappers
+    - :class:`~deprecate.audit.DeprecatedWrapperInfo`: Structured result returned by the audit functions
     - :class:`~deprecate.audit.ChainType`: Enum describing the kind of deprecation chain detected
 
 **Proxy** (:mod:`deprecate.proxy`):
@@ -70,11 +70,14 @@ Complete Documentation:
 
 from deprecate.__about__ import *  # noqa: F403
 from deprecate.audit import (
-    DeprecatedCallableInfo,
-    find_deprecated_callables,
-    validate_deprecated_callable,
+    DeprecatedCallableInfo,  # noqa: F401  # backward-compat alias for DeprecatedWrapperInfo
+    DeprecatedWrapperInfo,
+    find_deprecated_callables,  # noqa: F401  # deprecated since 0.6, use find_deprecation_wrappers
+    find_deprecation_wrappers,
+    validate_deprecated_callable,  # noqa: F401  # deprecated since 0.6, use validate_deprecation_wrapper
     validate_deprecation_chains,
     validate_deprecation_expiry,
+    validate_deprecation_wrapper,
 )
 from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class, deprecated_instance
@@ -82,11 +85,11 @@ from deprecate.utils import no_warning_call, void
 
 __all__ = [
     "deprecated",
-    "DeprecatedCallableInfo",
+    "DeprecatedWrapperInfo",
     "deprecated_class",
     "deprecated_instance",
-    "find_deprecated_callables",
-    "validate_deprecated_callable",
+    "find_deprecation_wrappers",
+    "validate_deprecation_wrapper",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
     "no_warning_call",

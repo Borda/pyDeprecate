@@ -9,7 +9,7 @@ They simulate common mistakes developers make when setting up deprecation wrappe
 - Mixing identity and valid mappings
 - Creating a self-referencing deprecation (wrapper targets itself)
 
-Used by `validate_deprecated_callable()` and `find_deprecated_callables()` to verify
+Used by `validate_deprecated_wrapper()` and `find_deprecation_wrappers()` to verify
 that the validation tooling correctly detects these misconfigurations.
 
 Copyright (C) 2020-2026 Jiri Borovec <...>.

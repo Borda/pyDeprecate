@@ -579,3 +579,67 @@ class TestDeprecatedInstance:
             warnings.simplefilter("always")
             _ = proxy["k"]
         assert not caught
+
+
+class TestTypeProtocol:
+    """Tests for __instancecheck__ and __subclasscheck__ on _DeprecatedProxy."""
+
+    def test_isinstance_delegates_to_target_class(self) -> None:
+        """isinstance(x, proxy) returns True when x is an instance of the target class."""
+
+        class NewConfig:
+            pass
+
+        @deprecated_class(target=NewConfig, deprecated_in="1.0", remove_in="2.0", stream=None)
+        class OldConfig:
+            pass
+
+        obj = NewConfig()
+        assert isinstance(obj, OldConfig)
+
+    def test_isinstance_returns_false_for_unrelated_type(self) -> None:
+        """isinstance(x, proxy) returns False when x is not an instance of the target."""
+
+        class NewConfig:
+            pass
+
+        @deprecated_class(target=NewConfig, deprecated_in="1.0", remove_in="2.0", stream=None)
+        class OldConfig:
+            pass
+
+        assert not isinstance(42, OldConfig)
+
+    def test_isinstance_no_warning_emitted(self) -> None:
+        """isinstance(x, proxy) is a structural check — must not consume the warning budget."""
+
+        class Target:
+            pass
+
+        proxy = _DeprecatedProxy(obj=Target, name="old", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        obj = Target()
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            isinstance(obj, proxy)  # type: ignore[arg-type]
+
+        assert not caught  # no warning from isinstance
+
+    def test_issubclass_delegates_to_target_class(self) -> None:
+        """issubclass(Sub, proxy) returns True when Sub is a subclass of the target."""
+
+        class Base:
+            pass
+
+        class Sub(Base):
+            pass
+
+        @deprecated_class(target=Base, deprecated_in="1.0", remove_in="2.0", stream=None)
+        class OldBase:
+            pass
+
+        assert issubclass(Sub, OldBase)
+
+    def test_isinstance_returns_false_for_non_type_active(self) -> None:
+        """isinstance(x, proxy) returns False when the active object is not a type."""
+        proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
+        assert not isinstance(42, proxy)  # type: ignore[arg-type]

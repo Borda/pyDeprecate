@@ -4,10 +4,10 @@ This module provides three complementary utilities for verifying the health of
 deprecated callables across a codebase. All three are designed to be called from
 pytest or a CI script against an imported package.
 
-**Wrapper configuration** (:func:`~deprecate.audit.validate_deprecated_callable`,
-:func:`~deprecate.audit.find_deprecated_callables`):
+**Wrapper configuration** (:func:`~deprecate.audit.validate_deprecation_wrapper`,
+:func:`~deprecate.audit.find_deprecation_wrappers`):
     Detect wrappers that have zero impact — invalid ``args_mapping`` keys, identity
-    mappings, empty mappings, or a ``target`` pointing back to the same function.
+    mappings, empty mappings, or a ``target`` pointing back to the same wrapper.
 
 **Expiry enforcement** (:func:`~deprecate.audit.validate_deprecation_expiry`):
     Detect wrappers whose ``remove_in`` version has been reached or passed, preventing
@@ -18,7 +18,7 @@ pytest or a CI script against an imported package.
     that users traverse unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`:
     ``TARGET`` (forwarding chain) and ``STACKED`` (composed argument mappings).
 
-Results are returned as :class:`~deprecate.audit.DeprecatedCallableInfo` dataclasses, which carry both
+Results are returned as :class:`~deprecate.audit.DeprecatedWrapperInfo` dataclasses, which carry both
 identification info and structured validation results for programmatic processing.
 
 .. note::
@@ -29,11 +29,11 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 # Note: Proxy objects are discoverable via the generic ``callable(obj)`` +
-# ``hasattr(obj, "__deprecated__")`` scan in :func:`find_deprecated_callables` and
+# ``hasattr(obj, "__deprecated__")`` scan in :func:`find_deprecation_wrappers` and
 # :func:`validate_deprecation_expiry`. The ``__deprecated__`` schema is now unified
 # across ``@deprecated`` and :class:`~deprecate.proxy._DeprecatedProxy` via
 # :class:`~deprecate._types.DeprecationInfo` — both always populate the ``name`` field,
-# so ``validate_deprecated_callable`` can read it correctly for proxy objects too.
+# so ``validate_deprecation_wrapper`` can read it correctly for proxy objects too.
 
 import inspect
 from contextlib import suppress
@@ -45,8 +45,8 @@ if TYPE_CHECKING:
     from packaging.version import Version
 
 from deprecate._types import DeprecationInfo, _has_deprecation_meta
-from deprecate.proxy import _DeprecatedProxy
-from deprecate.utils import get_func_arguments_types_defaults
+from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from deprecate.utils import get_func_arguments_types_defaults, void
 
 
 def _parse_version(version_string: str) -> "Version":
@@ -120,28 +120,29 @@ class ChainType(Enum):
 
 
 @dataclass(frozen=True)
-class DeprecatedCallableInfo:
-    """Information about a deprecated callable and its validation results.
+class DeprecatedWrapperInfo:
+    """Information about a deprecated wrapper and its validation results.
 
-    This dataclass represents a deprecated function or method, containing both
-    identification info and validation results from ``validate_deprecated_callable()``
-    or ``find_deprecated_callables()``.
+    This dataclass represents a deprecated wrapper (a ``@deprecated``-decorated function
+    or a ``deprecated_class()``/``deprecated_instance()`` proxy), containing both
+    identification info and validation results from ``validate_deprecation_wrapper()``
+    or ``find_deprecation_wrappers()``.
 
     Attributes:
-        module: Module name where the function is defined (empty for direct validation).
-        function: Function name.
+        module: Module name where the wrapper is defined (empty for direct validation).
+        function: Wrapper name.
         deprecated_info: The ``__deprecated__`` attribute from the decorator,
             as a :class:`~deprecate._types.DeprecationInfo`.
-        invalid_args: List of ``args_mapping`` keys that don't exist in the function signature.
+        invalid_args: List of ``args_mapping`` keys that don't exist in the wrapper's signature.
         empty_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
         identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
-        self_reference: True if target points to the same function.
+        self_reference: True if target points to the same wrapper.
         no_effect: True if wrapper has zero impact (combines all checks).
         chain_type: The kind of deprecation chain detected, or ``None`` if no chain.
             See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
 
     Example:
-        >>> info = DeprecatedCallableInfo(
+        >>> info = DeprecatedWrapperInfo(
         ...     module="my_package.module",
         ...     function="old_function",
         ...     deprecated_info=DeprecationInfo(deprecated_in="1.0", remove_in="2.0"),
@@ -184,7 +185,7 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
     return sorted(members, key=lambda item: item[0])
 
 
-def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
+def validate_deprecation_wrapper(func: Callable) -> DeprecatedWrapperInfo:
     """Validate if a deprecated wrapper configuration is effective.
 
     This is a development tool to check if deprecated wrappers are configured correctly
@@ -203,22 +204,22 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
             attribute set by the ``@deprecated`` decorator.
 
     Returns:
-        DeprecatedCallableInfo: Dataclass with validation results:
-            - function: Name of the function being validated
+        DeprecatedWrapperInfo: Dataclass with validation results:
+            - function: Name of the wrapper being validated
             - deprecated_info: The typed :class:`~deprecate._types.DeprecationInfo`
               metadata from ``__deprecated__``
-            - invalid_args: List of args_mapping keys not in function signature
+            - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of args where key equals value (no effect)
-            - self_reference: True if target is the same as func
+            - self_reference: True if target is the same as the wrapper
             - no_effect: True if wrapper has zero impact (all checks combined)
 
     Raises:
-        ValueError: If the function has missing or invalid ``__deprecated__``
+        ValueError: If the wrapper has missing or invalid ``__deprecated__``
             metadata (expected :class:`~deprecate._types.DeprecationInfo`).
 
     Example:
-        >>> from deprecate import deprecated, validate_deprecated_callable
+        >>> from deprecate import deprecated, validate_deprecation_wrapper
         >>> def new_implementation(value: int) -> int:
         ...     return value * 2
         >>>
@@ -227,7 +228,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         ...     pass
         >>>
         >>> # Valid mapping to different function - has effect
-        >>> result = validate_deprecated_callable(old_func)
+        >>> result = validate_deprecation_wrapper(old_func)
         >>> result.no_effect
         False
         >>> result.invalid_args
@@ -238,7 +239,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
         ...     return arg
         >>>
         >>> # Identity mapping with self-deprecation - no effect
-        >>> result = validate_deprecated_callable(identity_func)
+        >>> result = validate_deprecation_wrapper(identity_func)
         >>> result.identity_mapping
         ['arg']
         >>> result.no_effect
@@ -303,7 +304,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     function = dep_info.name or getattr(func, "__name__", str(func))
 
-    return DeprecatedCallableInfo(
+    return DeprecatedWrapperInfo(
         function=function,
         deprecated_info=dep_info,
         invalid_args=invalid_args,
@@ -315,14 +316,14 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     )
 
 
-def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> None:
-    """Check if a deprecated callable has passed its scheduled removal version.
+def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> None:
+    """Check if a deprecated wrapper has passed its scheduled removal version.
 
     This is an internal helper function used by ``validate_deprecation_expiry()``.
     It verifies that deprecated code is actually removed when it reaches its
     scheduled removal deadline.
 
-    The function validates that the callable is properly decorated, extracts the
+    The function validates that the wrapper is properly decorated, extracts the
     removal version from its metadata, and compares it against the current version
     using semantic versioning. If the current version is greater than or equal to
     the scheduled removal version, it raises an AssertionError indicating the code
@@ -335,15 +336,15 @@ def _check_deprecated_callable_expiry(func: Callable, current_version: str) -> N
             Should follow PEP 440 versioning conventions.
 
     Raises:
-        ValueError: If the function has missing or invalid ``__deprecated__``
+        ValueError: If the wrapper has missing or invalid ``__deprecated__``
             metadata (expected :class:`~deprecate._types.DeprecationInfo`).
         ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
         AssertionError: If the current version is greater than or equal to the
             scheduled removal version, indicating the code should have been removed.
 
     """
-    # First validate that the function has proper deprecation metadata
-    info = validate_deprecated_callable(func)
+    # First validate that the wrapper has proper deprecation metadata
+    info = validate_deprecation_wrapper(func)
 
     # Extract the remove_in version from the metadata
     remove_in = info.deprecated_info.remove_in
@@ -422,8 +423,8 @@ def validate_deprecation_expiry(
     and checks if any have passed their scheduled removal version. It's designed for
     CI/CD pipelines to automatically detect and report zombie code across a codebase.
 
-    The function uses ``find_deprecated_callables`` to discover all deprecated functions,
-    then applies ``_check_deprecated_callable_expiry`` to each one. Any callables that have
+    The function uses ``find_deprecation_wrappers`` to discover all deprecated wrappers,
+    then checks each one against the current version. Any wrappers that have
     reached or passed their removal deadline are collected and reported.
 
     Args:
@@ -488,8 +489,8 @@ def validate_deprecation_expiry(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    # Find all deprecated callables in the module
-    deprecated_callables = find_deprecated_callables(module, recursive=recursive)
+    # Find all deprecated wrappers in the module
+    deprecated_callables = find_deprecation_wrappers(module, recursive=recursive)
 
     expired_callables = []
 
@@ -518,46 +519,47 @@ def validate_deprecation_expiry(
     return expired_callables
 
 
-def find_deprecated_callables(
+def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
-) -> list[DeprecatedCallableInfo]:
+) -> list[DeprecatedWrapperInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
 
-    This is a development/CI tool to scan a codebase for all functions decorated
-    with @deprecated and validate that each wrapper configuration is meaningful.
-    Returns comprehensive information about each deprecated function including
+    This is a development/CI tool to scan a codebase for all wrappers created with
+    ``@deprecated``, ``deprecated_class()``, or ``deprecated_instance()`` and validate
+    that each wrapper configuration is meaningful.
+    Returns comprehensive information about each deprecated wrapper including
     validation results that help identify misconfigured wrappers.
 
     Args:
-        module: A Python module or package to scan for deprecated decorators.
+        module: A Python module or package to scan for deprecated wrappers.
             Can be:
-            - Imported module object (e.g., ``import my_package; find_deprecated_callables(my_package)``)
-            - String module path (e.g., ``find_deprecated_callables("my_package.submodule")``)
+            - Imported module object (e.g., ``import my_package; find_deprecation_wrappers(my_package)``)
+            - String module path (e.g., ``find_deprecation_wrappers("my_package.submodule")``)
         recursive: If True (default), recursively scan submodules. If False, only
             scan the top-level module.
 
     Returns:
-        List of DeprecatedCallableInfo dataclasses, one per deprecated function found.
+        List of DeprecatedWrapperInfo dataclasses, one per deprecated wrapper found.
         Each contains:
-            - module: Module name where the function is defined
-            - function: Function name
+            - module: Module name where the wrapper is defined
+            - function: Wrapper name
             - deprecated_info: The __deprecated__ attribute dict from the decorator
-            - invalid_args: List of args_mapping keys not in function signature
+            - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of identity mappings (key == value)
-            - self_reference: True if target points to same function
+            - self_reference: True if target points to same wrapper
             - no_effect: True if wrapper has zero impact
 
     Example:
-        >>> from deprecate import find_deprecated_callables
+        >>> from deprecate import find_deprecation_wrappers
         >>> from tests import collection_deprecate as my_package
         >>>
-        >>> results = find_deprecated_callables(my_package)
-        >>> print(len(results) > 0)  # Should find deprecated functions
+        >>> results = find_deprecation_wrappers(my_package)
+        >>> print(len(results) > 0)  # Should find deprecated wrappers
         True
         >>> # Also works with string module paths
-        >>> results = find_deprecated_callables("tests.collection_deprecate")
+        >>> results = find_deprecation_wrappers("tests.collection_deprecate")
         >>> print(len(results) > 0)
         True
 
@@ -576,7 +578,7 @@ def find_deprecated_callables(
     import importlib
     import pkgutil
 
-    results: list[DeprecatedCallableInfo] = []
+    results: list[DeprecatedWrapperInfo] = []
 
     # Handle string module path
     if isinstance(module, str):
@@ -598,7 +600,7 @@ def find_deprecated_callables(
             # Check if it's a function or method with __deprecated__ attribute
             if callable(obj) and hasattr(obj, "__deprecated__"):
                 # Validate the wrapper - extracts config from __deprecated__
-                info = validate_deprecated_callable(obj)
+                info = validate_deprecation_wrapper(obj)
                 # Update with module-level info
                 info = replace(info, module=mod.__name__ if hasattr(mod, "__name__") else str(mod), function=name)
 
@@ -627,7 +629,7 @@ def find_deprecated_callables(
 def validate_deprecation_chains(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
-) -> list[DeprecatedCallableInfo]:
+) -> list[DeprecatedWrapperInfo]:
     """Validate that deprecated functions don't form chains with other deprecated code.
 
     This is a developer utility that scans a module or package for deprecated
@@ -655,8 +657,8 @@ def validate_deprecation_chains(
             scan the top-level module.
 
     Returns:
-        List of :class:`~deprecate.audit.DeprecatedCallableInfo` where ``chain_type`` is not ``None``,
-        i.e. every deprecated function that forms a chain (``ChainType.TARGET`` or
+        List of :class:`~deprecate.audit.DeprecatedWrapperInfo` where ``chain_type`` is not ``None``,
+        i.e. every deprecated wrapper that forms a chain (``ChainType.TARGET`` or
         ``ChainType.STACKED``).
 
     Example:
@@ -669,7 +671,36 @@ def validate_deprecation_chains(
 
     Note:
         - Only flags callees using the pyDeprecate ``@deprecated`` decorator
-        - Uses :func:`~deprecate.audit.find_deprecated_callables` and inspects ``chain_type`` to detect chains
+        - Uses :func:`~deprecate.audit.find_deprecation_wrappers` and inspects ``chain_type`` to detect chains
 
     """
-    return [info for info in find_deprecated_callables(module, recursive=recursive) if info.chain_type is not None]
+    return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.chain_type is not None]
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatibility shims — deprecated since 0.6, removed in 1.0
+# ---------------------------------------------------------------------------
+
+# Import delayed to avoid a module-level circular import cycle:
+# audit.py is imported by __init__.py before deprecation.py is available.
+from deprecate.deprecation import deprecated  # noqa: E402
+
+
+@deprecated(target=validate_deprecation_wrapper, deprecated_in="0.6", remove_in="1.0")
+def validate_deprecated_callable(func: Callable) -> DeprecatedWrapperInfo:
+    """Use :func:`validate_deprecation_wrapper` instead."""
+    return void(func)
+
+
+@deprecated(target=find_deprecation_wrappers, deprecated_in="0.6", remove_in="1.0")
+def find_deprecated_callables(
+    module: Union[Any, str],  # noqa: ANN401
+    recursive: bool = True,
+) -> list[DeprecatedWrapperInfo]:
+    """Use :func:`find_deprecation_wrappers` instead."""
+    return void(module, recursive)
+
+
+@deprecated_class(target=DeprecatedWrapperInfo, deprecated_in="0.6", remove_in="1.0")
+class DeprecatedCallableInfo:
+    """Deprecated name for :class:`DeprecatedWrapperInfo`. Use that instead."""

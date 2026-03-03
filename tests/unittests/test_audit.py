@@ -12,8 +12,8 @@ from deprecate._types import DeprecationInfo, _has_deprecation_meta
 from deprecate.audit import (
     _get_package_version,
     _parse_version,
-    find_deprecated_callables,
-    validate_deprecated_callable,
+    find_deprecation_wrappers,
+    validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy
 
@@ -152,7 +152,7 @@ class TestParseVersion:
 
 @_requires_packaging
 class TestValidateDeprecatedCallableWithProxy:
-    """Unit tests for validate_deprecated_callable with inline _DeprecatedProxy objects.
+    """Unit tests for validate_deprecation_wrapper with inline _DeprecatedProxy objects.
 
     Uses _DeprecatedProxy directly (not collection fixtures) for true isolation.
     """
@@ -160,7 +160,7 @@ class TestValidateDeprecatedCallableWithProxy:
     def test_proxy_without_target_no_effect_false(self) -> None:
         """Proxy with no forwarding target is effective (still emits warnings) → no_effect=False."""
         proxy = _DeprecatedProxy(obj={}, name="legacy_cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        result = validate_deprecated_callable(proxy)
+        result = validate_deprecation_wrapper(proxy)
         assert result.function == "legacy_cfg"
         assert result.no_effect is False
         assert result.chain_type is None
@@ -172,7 +172,7 @@ class TestValidateDeprecatedCallableWithProxy:
         proxy = _DeprecatedProxy(
             obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=TargetColorEnum, stream=None
         )
-        result = validate_deprecated_callable(proxy)
+        result = validate_deprecation_wrapper(proxy)
         assert result.function == "old_enum"
         assert result.deprecated_info.target is TargetColorEnum
         assert result.no_effect is False
@@ -190,7 +190,7 @@ class TestValidateDeprecatedCallableWithProxy:
             args_mapping={"old_key": "value"},
             stream=None,
         )
-        result = validate_deprecated_callable(proxy)
+        result = validate_deprecation_wrapper(proxy)
         assert result.deprecated_info.args_mapping == {"old_key": "value"}
         assert result.invalid_args == []
 
@@ -207,7 +207,7 @@ class TestValidateDeprecatedCallableWithProxy:
             args_mapping={"value": "value"},
             stream=None,
         )
-        result = validate_deprecated_callable(proxy)
+        result = validate_deprecation_wrapper(proxy)
         assert result.identity_mapping == ["value"]
         assert result.invalid_args == []
 
@@ -222,7 +222,7 @@ class TestValidateDeprecatedCallableWithProxy:
             args_mapping={"x": "y"},
             stream=None,
         )
-        result = validate_deprecated_callable(proxy)
+        result = validate_deprecation_wrapper(proxy)
         assert result.invalid_args == []
         assert result.no_effect is False
 
@@ -236,14 +236,14 @@ class TestValidateDeprecatedCallableWithProxy:
         proxy = _DeprecatedProxy(
             obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=TargetColorEnum, stream=None
         )
-        result = validate_deprecated_callable(proxy)
+        result = validate_deprecation_wrapper(proxy)
         assert result.function == "SourceName"
         assert result.function != TargetColorEnum.__name__
 
     def test_proxy_empty_mapping_true_when_no_args_mapping(self) -> None:
         """Proxy with args_mapping=None reports empty_mapping=True."""
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
-        result = validate_deprecated_callable(proxy)
+        result = validate_deprecation_wrapper(proxy)
         assert result.deprecated_info.args_mapping is None
         assert result.empty_mapping is True
 
@@ -251,7 +251,7 @@ class TestValidateDeprecatedCallableWithProxy:
 class TestFindDeprecatedCallablesWarningBudget:
     """Scanning must not consume proxy warning budgets."""
 
-    def test_find_deprecated_callables_does_not_consume_warning_budget(self) -> None:
+    def test_find_deprecation_wrappers_does_not_consume_warning_budget(self) -> None:
         """Scanning must avoid dynamic attribute access paths that burn warn budget.
 
         ``inspect.getmembers()`` triggers ``getattr()`` for names from ``__dir__``, which can
@@ -262,7 +262,7 @@ class TestFindDeprecatedCallablesWarningBudget:
         proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
         fake_mod = _SideEffectScanModule(proxy)
 
-        find_deprecated_callables(fake_mod, recursive=False)
+        find_deprecation_wrappers(fake_mod, recursive=False)
 
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
