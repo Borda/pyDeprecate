@@ -83,10 +83,10 @@ class TestHasDeprecationMeta:
 
         assert _has_deprecation_meta(plain) is False
 
-    def test_returns_false_for_non_callable(self) -> None:
+    @pytest.mark.parametrize("obj", ["string", 42], ids=["str", "int"])
+    def test_returns_false_for_non_callable(self, obj: object) -> None:
         """Non-callables without __deprecated__ return False."""
-        assert _has_deprecation_meta("string") is False
-        assert _has_deprecation_meta(42) is False
+        assert _has_deprecation_meta(obj) is False
 
     def test_meta_is_deprecation_info_instance(self) -> None:
         """The __deprecated__ attribute on a proxy is a typed DeprecationInfo dataclass."""

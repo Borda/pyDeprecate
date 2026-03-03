@@ -64,6 +64,40 @@ def plain_function_target(x: int) -> int:
     return x
 
 
+def cross_guard_standalone_increment(x: int) -> int:
+    """Module-level target used by cross-class guard tests."""
+    return x + 1
+
+
+def call_signature_source(value: str) -> object:
+    """Source signature helper for _prepare_target_call tests."""
+    raise NotImplementedError
+
+
+class KeywordCallMeta(type):
+    """Metaclass exposing a keyword-only value in __call__ for signature-validation tests."""
+
+    def __call__(cls, *, value: str) -> object:
+        """Create a target instance using keyword-only `value`."""
+        return super().__call__(raw=value)
+
+
+class KeywordCallTarget(metaclass=KeywordCallMeta):
+    """Target class whose metaclass __call__ differs from __init__."""
+
+    def __init__(self, raw: str) -> None:
+        """Store the raw payload passed through metaclass __call__."""
+        self.raw = raw
+
+
+class CrossGuardClassTargetNew:
+    """Constructor-forwarding target class used by cross-class guard tests."""
+
+    def __init__(self, x: int) -> None:
+        """Store constructor argument for assertions."""
+        self.x = x
+
+
 @dataclass
 class NewDataClass:
     """Target dataclass for deprecation forwarding tests."""
