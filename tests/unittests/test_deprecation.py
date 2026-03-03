@@ -377,7 +377,7 @@ class TestCrossClassMethodGuard:
 
         with pytest.raises(TypeError, match="only supported on `__init__`"):
 
-            class Owner:
+            class _Owner:
                 @deprecated(target=Target, deprecated_in="1.0", remove_in="2.0")
                 def some_method(self) -> None:
                     pass
