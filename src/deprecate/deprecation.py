@@ -641,9 +641,10 @@ def deprecated(
                 return source(**kwargs)
             target_func = _prepare_target_call(source, target, kwargs)
 
-            # For class targets, preserve positional arguments and avoid passing `self`
-            # as a keyword argument. This keeps positional-only class signatures working
-            # and matches the original behavior of the deprecation wrapper.
+            # Constructor-forwarding path: ``@deprecated(target=NewCls)`` applied to
+            # ``__init__``.  Regular class methods only accept ``target=None``,
+            # ``target=True`` (self-rename), or a same-class method — none of which
+            # are classes.  Module-level functions may also target a class directly.
             if inspect.isclass(target):
                 init_forward = source.__name__ == "__init__" and "self" in kwargs
                 if init_forward:
@@ -672,7 +673,6 @@ def deprecated(
 
                 return target_func(*call_args, **kwargs)
 
-            target_func = _prepare_target_call(source, target, kwargs)
             return target_func(**kwargs)
 
         # Static deprecation metadata — consumed by audit tools and docstring helpers.

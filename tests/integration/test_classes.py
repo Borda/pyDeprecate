@@ -158,11 +158,16 @@ class TestDeprecatedClassMethod:
 
     @pytest.fixture(autouse=True)
     def _reset_method_state(self) -> None:
-        """Reset warned_calls so each test gets a fresh warning budget."""
-        getattr(ServiceCls.old_warn_method, "_state").warned_calls = 0
-        getattr(ServiceCls.old_redirect_method, "_state").warned_calls = 0
-        getattr(ServiceCls.old_mapped_method, "_state").warned_calls = 0
-        getattr(ServiceCls.self_renamed_method, "_state").warned_calls = 0
+        """Reset warned_calls and called so each test gets a fresh warning budget."""
+        for method in (
+            ServiceCls.old_warn_method,
+            ServiceCls.old_redirect_method,
+            ServiceCls.old_mapped_method,
+            ServiceCls.self_renamed_method,
+        ):
+            state = getattr(method, "_state")
+            state.called = 0
+            state.warned_calls = 0
 
     def test_warn_only_method_emits_warning(self) -> None:
         """@deprecated(target=None) on a method emits FutureWarning."""
