@@ -544,7 +544,7 @@ def find_deprecation_wrappers(
         Each contains:
             - module: Module name where the wrapper is defined
             - function: Wrapper name
-            - deprecated_info: The __deprecated__ attribute dict from the decorator
+            - deprecated_info: DeprecationInfo metadata from the decorator (``__deprecated__`` attribute)
             - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of identity mappings (key == value)

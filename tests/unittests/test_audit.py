@@ -151,7 +151,7 @@ class TestParseVersion:
 
 
 @_requires_packaging
-class TestValidateDeprecatedCallableWithProxy:
+class TestValidateDeprecationWrapperWithProxy:
     """Unit tests for validate_deprecation_wrapper with inline _DeprecatedProxy objects.
 
     Uses _DeprecatedProxy directly (not collection fixtures) for true isolation.
