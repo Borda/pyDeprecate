@@ -590,11 +590,21 @@ def deprecated(
                 return source(**kwargs)
 
             target_func = _prepare_target_call(source, target, kwargs)
-            # For class targets, preserve original positional arguments to avoid
-            # forcing keyword-only construction, which can break positional-only
-            # or var-positional signatures (e.g., Enum on newer Python versions).
             if inspect.isclass(target):
-                return target_func(*args, **kwargs)
+                init_forward = source.__name__ == "__init__" and "self" in kwargs
+                if init_forward:
+                    # Constructor-to-constructor forwarding: call bound __init__
+                    # with explicit kwargs including the source instance as self.
+                    return target_func(**kwargs)
+
+                call_kwargs = dict(kwargs)
+                call_kwargs.pop("self", None)
+                # Avoid double-binding values supplied positionally.
+                source_params = list(_get_signature(source).parameters.values())
+                positional_names = [param.name for param in _get_positional_params(source_params)]
+                for name in positional_names[: len(args)]:
+                    call_kwargs.pop(name, None)
+                return target_func(*args, **call_kwargs)
             return target_func(**kwargs)
 
         # Static deprecation metadata — consumed by audit tools and docstring helpers.
