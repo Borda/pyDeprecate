@@ -34,6 +34,7 @@ from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, deprecated_class, deprecated_instance, void
 from tests.collection_targets import (
+    CrossGuardClassTargetNew,
     NewCls,
     NewDataClass,
     NewEnum,
@@ -42,6 +43,7 @@ from tests.collection_targets import (
     TimerDecorator,
     base_pow_args,
     base_sum_kwargs,
+    cross_guard_standalone_increment,
     timing_wrapper,
 )
 
@@ -581,6 +583,37 @@ class ServiceCls:
             transparently remaps `old_x` -> `x` before running the body.
         """
         return self.compute(x)
+
+
+class CrossGuardSameClass:
+    """Class used by cross-class guard tests for same-class method forwarding."""
+
+    def new_method(self, x: int) -> int:
+        """Current implementation on the same class."""
+        return x * 2
+
+    @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
+    def old_method(self, x: int) -> int:
+        """Deprecated method that forwards to `new_method`."""
+        return void(x)
+
+
+class CrossGuardModuleLevel:
+    """Class used by cross-class guard tests for module-level function forwarding."""
+
+    @deprecated(target=cross_guard_standalone_increment, deprecated_in="1.0", remove_in="2.0")
+    def old_method(self, x: int) -> int:
+        """Deprecated method that forwards to module-level function target."""
+        return void(x)
+
+
+class CrossGuardOldClass(CrossGuardClassTargetNew):
+    """Class used by cross-class guard tests for constructor-to-constructor forwarding."""
+
+    @deprecated(target=CrossGuardClassTargetNew, deprecated_in="1.0", remove_in="2.0")
+    def __init__(self, x: int) -> None:
+        """Deprecated constructor forwarding to `CrossGuardClassTargetNew.__init__`."""
+        void(x)
 
 
 # ========== Instance and class-level proxy deprecation examples ==========

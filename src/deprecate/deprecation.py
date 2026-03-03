@@ -90,7 +90,9 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
         if not src_prefix.endswith("<locals>") and not tgt_prefix.endswith("<locals>"):
             src_class = src_prefix.rsplit(".", 1)[-1]
             tgt_class = tgt_prefix.rsplit(".", 1)[-1]
-            if src_class != tgt_class:
+            src_owner = f"{getattr(source, '__module__', '')}.{src_prefix}"
+            tgt_owner = f"{getattr(target, '__module__', '')}.{tgt_prefix}"
+            if src_owner != tgt_owner:
                 raise TypeError(
                     f"Cannot use @deprecated on '{source.__qualname__}' with target "
                     f"'{target.__qualname__}': cross-class method forwarding is not supported "
@@ -636,12 +638,16 @@ def deprecated(
                 if source_has_var_positional:
                     call_kwargs = original_kwargs if not reason_argument else kwargs
                     return source(*args, **call_kwargs)
+                return source(**kwargs)
             target_func = _prepare_target_call(source, target, kwargs)
 
             # For class targets, preserve positional arguments and avoid passing `self`
             # as a keyword argument. This keeps positional-only class signatures working
             # and matches the original behavior of the deprecation wrapper.
             if inspect.isclass(target):
+                init_forward = source.__name__ == "__init__" and "self" in kwargs
+                if init_forward:
+                    return target_func(**kwargs)
                 call_args = list(args)
                 try:
                     source_sig = inspect.signature(source)
@@ -655,6 +661,14 @@ def deprecated(
 
                 # Also remove any `self` kwarg if present to avoid unexpected kwarg errors
                 kwargs.pop("self", None)
+                source_params = list(_get_signature(source).parameters.values())
+                positional_names = [param.name for param in _get_positional_params(source_params)]
+                for name in positional_names[: len(args)]:
+                    kwargs.pop(name, None)
+                    if args_mapping:
+                        mapped_name = args_mapping.get(name, name)
+                        if mapped_name:
+                            kwargs.pop(mapped_name, None)
 
                 return target_func(*call_args, **kwargs)
 

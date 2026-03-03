@@ -15,6 +15,9 @@ from deprecate.deprecation import (
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
 )
+from tests.collection_deprecate import CrossGuardModuleLevel, CrossGuardOldClass, CrossGuardSameClass
+from tests.collection_misconfigured import define_cross_class_method_target
+from tests.collection_targets import KeywordCallTarget, call_signature_source
 
 
 class TestGetPositionalParams:
@@ -114,19 +117,7 @@ class TestUpdateKwargsWithArgs:
 
 def test_class_target_uses_call_signature_for_validation() -> None:
     """Class targets validate against metaclass __call__ when not forwarding __init__."""
-
-    def source(value: str) -> object:  # pragma: no cover - helper signature only
-        raise NotImplementedError
-
-    class _KeywordCallMeta(type):
-        def __call__(cls, *, value: str) -> object:
-            return super().__call__(raw=value)
-
-    class KeywordCallTarget(metaclass=_KeywordCallMeta):
-        def __init__(self, raw: str) -> None:
-            self.raw = raw
-
-    target_callable = _prepare_target_call(source, KeywordCallTarget, {"value": "red"})
+    target_callable = _prepare_target_call(call_signature_source, KeywordCallTarget, {"value": "red"})
     assert target_callable is KeywordCallTarget
 
 
@@ -362,62 +353,21 @@ class TestCrossClassMethodGuard:
 
     def test_raises_for_cross_class_method_target(self) -> None:
         """Forwarding to a method on a different class raises TypeError at decoration time."""
-        from deprecate import deprecated, void
-
-        class OtherClass:
-            def other_method(self, x: int) -> int:
-                return x
-
         with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
-
-            class _UnusedMyClass:
-                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
-                def old_method(self, x: int) -> int:
-                    return void(x)
+            define_cross_class_method_target()
 
     def test_does_not_raise_for_same_class_method_target(self) -> None:
         """Forwarding to a method on the same class does not raise."""
-        from deprecate import deprecated, void
-
-        class MyClass:
-            def new_method(self, x: int) -> int:
-                return x * 2
-
-            @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
-            def old_method(self, x: int) -> int:
-                return void(x)
-
         with pytest.warns(FutureWarning):
-            assert MyClass().old_method(5) == 10
+            assert CrossGuardSameClass().old_method(5) == 10
 
     def test_does_not_raise_for_module_level_function_target(self) -> None:
         """Forwarding a class method to a module-level function is allowed (no self passed)."""
-        from deprecate import deprecated, void
-
-        def standalone(x: int) -> int:
-            return x + 1
-
-        class MyClass:
-            @deprecated(target=standalone, deprecated_in="1.0", remove_in="2.0")
-            def old_method(self, x: int) -> int:
-                return void(x)
-
-        assert callable(MyClass.old_method)
+        assert callable(CrossGuardModuleLevel.old_method)
 
     def test_does_not_raise_for_class_target(self) -> None:
         """Forwarding a method to a full class (constructor forwarding) is allowed."""
-        from deprecate import deprecated, void
-
-        class NewClass:
-            def __init__(self, x: int) -> None:
-                self.x = x
-
-        class OldClass(NewClass):
-            @deprecated(target=NewClass, deprecated_in="1.0", remove_in="2.0")
-            def __init__(self, x: int) -> None:
-                void(x)
-
         with pytest.warns(FutureWarning):
-            old = OldClass(3)
-        assert isinstance(old, OldClass)
+            old = CrossGuardOldClass(3)
+        assert isinstance(old, CrossGuardOldClass)
         assert old.x == 3
