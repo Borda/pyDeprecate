@@ -16,7 +16,11 @@ class TestWarningCall:
         [
             ((), {}, "While catching all warnings, these were found:"),
             ((UserWarning,), {}, r"While catching `UserWarning` warnings, these were found:"),
-            ((UserWarning,), {"match": "you!"}, r'While catching `UserWarning` warnings with "you!", these were found:'),
+            (
+                (UserWarning,),
+                {"match": "you!"},
+                r'While catching `UserWarning` warnings with "you!", these were found:',
+            ),
         ],
         ids=["all-warnings", "UserWarning", "UserWarning-with-match"],
     )
