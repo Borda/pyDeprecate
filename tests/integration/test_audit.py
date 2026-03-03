@@ -322,7 +322,7 @@ class TestFindDeprecatedCallables:
 
     def test_scan_handles_uninspectable_module(self) -> None:
         """Scan skips a module whose member inspection raises rather than crashing."""
-        with patch.object(inspect, "getmembers", side_effect=AttributeError("bad module")):
+        with patch.object(inspect, "getattr_static", side_effect=TypeError("bad module")):
             results = find_deprecated_callables(proxy_module, recursive=False)
         assert results == []
 

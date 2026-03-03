@@ -21,6 +21,26 @@ _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
 
 
+class _SideEffectScanModule:
+    """Test double that mimics module-level dynamic attribute side effects."""
+
+    def __init__(self, proxy: _DeprecatedProxy) -> None:
+        """Store proxy and expose a module-like name."""
+        self.__name__ = "fake_scan_mod"
+        self.scan_proxy = proxy
+
+    def __dir__(self) -> list[str]:
+        """Expose one dynamic name that would trigger __getattr__ under getmembers()."""
+        return ["__name__", "scan_proxy", "trigger_side_effect"]
+
+    def __getattr__(self, name: str) -> str:
+        """Trigger proxy access when dynamic attr lookup is attempted."""
+        if name == "trigger_side_effect":
+            self.scan_proxy.get("x")
+            return "triggered"
+        raise AttributeError(name)
+
+
 class TestGetPackageVersion:
     """Tests for _get_package_version — resolves a package version string via two fallback strategies."""
 
@@ -232,15 +252,15 @@ class TestFindDeprecatedCallablesWarningBudget:
     """Scanning must not consume proxy warning budgets."""
 
     def test_find_deprecated_callables_does_not_consume_warning_budget(self) -> None:
-        """Scanning a module must not trigger __getattr__ on proxies or burn their warn budget.
+        """Scanning must avoid dynamic attribute access paths that burn warn budget.
 
-        Creates a proxy with num_warns=1, runs find_deprecated_callables, then asserts
-        the warning is still emitted (i.e. cfg.warned was not incremented during the scan).
+        ``inspect.getmembers()`` triggers ``getattr()`` for names from ``__dir__``, which can
+        execute module-level ``__getattr__`` side effects. This fixture reproduces that pattern:
+        a dynamic name touches the proxy during lookup. Static inspection must avoid consuming
+        the proxy warning budget.
         """
         proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
-
-        fake_mod = types.ModuleType("fake_scan_mod")
-        fake_mod.scan_proxy = proxy  # type: ignore[attr-defined]
+        fake_mod = _SideEffectScanModule(proxy)
 
         find_deprecated_callables(fake_mod, recursive=False)
 
