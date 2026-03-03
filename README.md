@@ -718,9 +718,9 @@ Deprecations are only as good as the hygiene around them. The `deprecate.audit` 
 
 ### Validating Wrapper Configuration
 
-During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this: `validate_deprecated_callable()` for inspecting a single function, and `find_deprecated_callables()` for scanning an entire package.
+During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this: `validate_deprecation_wrapper()` for inspecting a single function, and `find_deprecation_wrappers()` for scanning an entire package.
 
-The `DeprecatedCallableInfo` dataclass contains:
+The `DeprecatedWrapperInfo` dataclass contains:
 
 - `module`: Module name where the function is defined (empty for direct validation)
 - `function`: Function name
@@ -734,10 +734,10 @@ The `DeprecatedCallableInfo` dataclass contains:
 <details>
 <summary><b>Validating a Single Function</b></summary>
 
-The `validate_deprecated_callable()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedCallableInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
+The `validate_deprecation_wrapper()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedWrapperInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
-from deprecate import validate_deprecated_callable, deprecated, DeprecatedCallableInfo
+from deprecate import validate_deprecation_wrapper, deprecated, DeprecatedWrapperInfo
 
 
 # Define your deprecated function
@@ -747,8 +747,8 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
 
 
 # Validate the configuration - automatically extracts `args_mapping` and target from the decorator
-result = validate_deprecated_callable(my_func)
-# DeprecatedCallableInfo(
+result = validate_deprecation_wrapper(my_func)
+# DeprecatedWrapperInfo(
 #   function='my_func',
 #   invalid_args=[],
 #   empty_mapping=False,
@@ -764,7 +764,7 @@ def bad_func(real_arg: int = 0) -> int:
     return real_arg
 
 
-result = validate_deprecated_callable(bad_func)
+result = validate_deprecation_wrapper(bad_func)
 # result.invalid_args == ['nonexistent']
 print(result)
 
@@ -775,7 +775,7 @@ def empty_func(arg: int = 0) -> int:
     return arg
 
 
-result = validate_deprecated_callable(empty_func)
+result = validate_deprecation_wrapper(empty_func)
 # result.empty_mapping == True, result.no_effect == True
 print(result)
 
@@ -789,21 +789,21 @@ if result.no_effect:
 <details>
 <summary><b>Scanning a Package for Deprecated Wrappers</b></summary>
 
-The `find_deprecated_callables()` utility scans an entire package or module and returns a list of `DeprecatedCallableInfo` dataclasses:
+The `find_deprecation_wrappers()` utility scans an entire package or module and returns a list of `DeprecatedWrapperInfo` dataclasses:
 
 ```python
-from deprecate import find_deprecated_callables
+from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
 # Scan an entire package for deprecated wrappers
-results = find_deprecated_callables(my_package)
+results = find_deprecation_wrappers(my_package)
 
 # Or scan using a string module path
-results = find_deprecated_callables("tests.collection_deprecate")
+results = find_deprecation_wrappers("tests.collection_deprecate")
 
-# Check results - each item is a DeprecatedCallableInfo dataclass
+# Check results - each item is a DeprecatedWrapperInfo dataclass
 for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
@@ -824,12 +824,12 @@ if ineffective:
 Group validation results by issue type for better reporting:
 
 ```python
-from deprecate import find_deprecated_callables
+from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
 
-results = find_deprecated_callables(my_package)
+results = find_deprecation_wrappers(my_package)
 
 # Group by issue type (using dataclass attribute access)
 wrong_args = [r for r in results if r.invalid_args]
@@ -853,7 +853,7 @@ Use in pytest to validate your package's deprecation wrappers:
 import warnings
 
 import pytest
-from deprecate import find_deprecated_callables
+from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_deprecate as my_package
@@ -861,7 +861,7 @@ from tests import collection_deprecate as my_package
 
 def test_deprecated_wrappers_are_valid():
     """Validate all deprecated wrappers have proper configuration."""
-    results = find_deprecated_callables(my_package)
+    results = find_deprecation_wrappers(my_package)
 
     # Collect issues — wrong arg names are errors, identity mappings are worth a warning
     wrong_args = [r for r in results if r.invalid_args]
@@ -993,7 +993,7 @@ The `validate_deprecation_chains()` utility scans a module or package for deprec
 <summary><b>Example: Detecting Both Chain Types</b></summary>
 
 ```python
-from deprecate import deprecated, validate_deprecated_callable, void
+from deprecate import deprecated, validate_deprecation_wrapper, void
 
 
 def new_power(base: float, exponent: float = 2) -> float:
@@ -1034,7 +1034,7 @@ def caller_direct(base: float, power: float = 2) -> float:  # ✅
 
 
 for func in (caller_target_chain, caller_stacked_chain, caller_direct):
-    info = validate_deprecated_callable(func)
+    info = validate_deprecation_wrapper(func)
     print(f"{func.__name__}: {info.chain_type}")
 ```
 
@@ -1090,8 +1090,8 @@ def enforce_no_deprecation_chains():
 
 > [!TIP]
 >
-> - The function scans all deprecated functions found by `find_deprecated_callables()`
-> - Returns `list[DeprecatedCallableInfo]` — each entry has `chain_type` set to a `ChainType` enum value
+> - The function scans all deprecated functions found by `find_deprecation_wrappers()`
+> - Returns `list[DeprecatedWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
 > - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
 > - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
 >   - Callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming) — mappings compose across hops

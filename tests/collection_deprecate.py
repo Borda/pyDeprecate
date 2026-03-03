@@ -445,7 +445,7 @@ def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
 
     Examples:
         Positive control — both arg renames are valid and the target accepts
-        them. Used by validation tests (`find_deprecated_callables`) to verify correct configs.
+        them. Used by validation tests (`find_deprecation_wrappers`) to verify correct configs.
     """
     return void(preds, truth)
 
