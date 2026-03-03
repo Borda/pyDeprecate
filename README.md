@@ -178,7 +178,7 @@ In particular the target values (cases):
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
 > [!IMPORTANT]
-> The `@deprecated` decorator is designed for **callables only** (functions and methods). Applying it to any class (including Enums, dataclasses, or plain classes) will raise a `TypeError`. For class-level deprecation, use `@deprecated_class()` from `deprecate.proxy`.
+> The `@deprecated` decorator is designed for **callables only** (functions and methods). Applying it to any class (including Enums, dataclasses, or plain classes) will raise a `TypeError`. For class-level deprecation, use `@deprecated_class()` (imported via `from deprecate import deprecated_class`).
 
 ### ➡ Simple function forwarding
 
@@ -890,7 +890,7 @@ print(f"Found {len(expired)} expired")
 
 ```
 Found 12 expired
-Found 20 expired
+Found 21 expired
 Found 14 expired
 Found 0 expired
 ```
@@ -1180,7 +1180,7 @@ class MyEnum(Enum):
 from deprecate import deprecated
 
 
-class MyClass:
+class MyInitDeprecatedClass:
     @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
     def __init__(self):
         pass  # warns at instantiation time
