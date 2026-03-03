@@ -579,3 +579,104 @@ class TestDeprecatedInstance:
             warnings.simplefilter("always")
             _ = proxy["k"]
         assert not caught
+
+
+class TestTypeProtocol:
+    """Tests for __instancecheck__ and __subclasscheck__ on _DeprecatedProxy."""
+
+    def test_isinstance_delegates_to_target_class(self) -> None:
+        """isinstance(x, proxy) returns True when x is an instance of the target class."""
+
+        class NewConfig:
+            pass
+
+        @deprecated_class(target=NewConfig, deprecated_in="1.0", remove_in="2.0", stream=None)
+        class OldConfig:
+            pass
+
+        obj = NewConfig()
+        assert isinstance(obj, OldConfig)
+
+    def test_isinstance_returns_false_for_unrelated_type(self) -> None:
+        """isinstance(x, proxy) returns False when x is not an instance of the target."""
+
+        class NewConfig:
+            pass
+
+        @deprecated_class(target=NewConfig, deprecated_in="1.0", remove_in="2.0", stream=None)
+        class OldConfig:
+            pass
+
+        assert not isinstance(42, OldConfig)
+
+    def test_isinstance_no_warning_emitted(self) -> None:
+        """isinstance(x, proxy) is a structural check — must not consume the warning budget."""
+
+        class Target:
+            pass
+
+        proxy = _DeprecatedProxy(obj=Target, name="old", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        obj = Target()
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            isinstance(obj, proxy)  # type: ignore[arg-type]
+
+        assert not caught  # no warning from isinstance
+        with pytest.warns(FutureWarning):
+            proxy()  # warning budget remains untouched
+
+    def test_issubclass_delegates_to_target_class(self) -> None:
+        """issubclass(Sub, proxy) returns True when Sub is a subclass of the target."""
+
+        class Base:
+            pass
+
+        class Sub(Base):
+            pass
+
+        @deprecated_class(target=Base, deprecated_in="1.0", remove_in="2.0", stream=None)
+        class OldBase:
+            pass
+
+        assert issubclass(Sub, OldBase)
+
+    def test_issubclass_respects_metaclass_semantics(self) -> None:
+        """Issubclass uses the target metaclass logic (including virtual subclasses)."""
+        import abc
+
+        class AbstractBase(metaclass=abc.ABCMeta):
+            pass
+
+        class VirtualSubclass:
+            pass
+
+        AbstractBase.register(VirtualSubclass)
+
+        @deprecated_class(target=AbstractBase, deprecated_in="1.0", remove_in="2.0", stream=None)
+        class OldAbstractBase:
+            pass
+
+        assert issubclass(VirtualSubclass, OldAbstractBase)
+
+    def test_issubclass_no_warning_emitted(self) -> None:
+        """issubclass(Sub, proxy) is structural and must not consume warning budget."""
+
+        class Base:
+            pass
+
+        class Sub(Base):
+            pass
+
+        proxy = _DeprecatedProxy(obj=Base, name="old_cls", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            issubclass(Sub, proxy)  # type: ignore[arg-type]
+        assert not caught
+        with pytest.warns(FutureWarning):
+            proxy()  # warning budget remains untouched
+
+    def test_isinstance_returns_false_for_non_type_active(self) -> None:
+        """isinstance(x, proxy) returns False when the active object is not a type."""
+        proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
+        assert not isinstance(42, proxy)  # type: ignore[arg-type]

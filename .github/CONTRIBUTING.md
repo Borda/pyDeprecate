@@ -310,7 +310,7 @@ pyDeprecate/
 │   ├── __init__.py             # Public API exports
 │   ├── _types.py               # Shared type definitions: DeprecationInfo, _ProxyConfig
 │   ├── deprecation.py          # @deprecated decorator and warning logic
-│   ├── audit.py                # Audit tools: validate_*, find_deprecated_callables()
+│   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
 │   └── utils.py                # Low-level helpers: void(), no_warning_call()
 ├── tests/                      # Test suite
@@ -374,7 +374,14 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > [!IMPORTANT]
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 
-**Acceptable exception — intentionally misconfigured one-off fixtures**: a deliberately broken or invalid deprecation (e.g. a malformed `remove_in` string) that is used by exactly one test and has no reuse value may be defined inline in the test function. Do **not** apply this exception to valid deprecations or to fixtures shared across multiple tests — those always belong in a collection module.
+> [!NOTE]
+> **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
+>
+> - **Single use** — used by exactly one test and not reused elsewhere
+> - **Non-representational** — does not model real API migration behavior or a named deprecation pattern
+> - **Purely mechanical** — exists only to drive a protocol or edge case (for example a malformed `remove_in` string, or a tiny local class used solely for `isinstance`/`issubclass` behavior)
+>
+> If in doubt, extract. Move to a collection module when the fixture is shared across tests, models real migration behavior, or represents a reusable deprecated wrapper or target.
 
 **Docstrings in test collections:**
 

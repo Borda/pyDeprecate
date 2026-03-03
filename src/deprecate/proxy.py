@@ -336,6 +336,39 @@ class _DeprecatedProxy:
         """Return bool of the active object without emitting a warning."""
         return bool(self._get_active())
 
+    # ------------------------------------------------------------------
+    # Type protocol — supports isinstance/issubclass against a proxy
+    # ------------------------------------------------------------------
+
+    def __instancecheck__(self, instance: object) -> bool:
+        """Support ``isinstance(x, proxy)`` by delegating to the active class.
+
+        Allows a proxy used as a deprecated class alias to work transparently
+        with ``isinstance`` without emitting a warning — type checks are
+        structural, not a use of the deprecated API.
+
+        Returns False when the active object is not a type.
+        """
+        active = self._get_active()
+        if isinstance(active, type):
+            # Delegate via isinstance to preserve metaclass-defined instance checks.
+            return isinstance(instance, active)
+        return False
+
+    def __subclasscheck__(self, subclass: type) -> bool:
+        """Support ``issubclass(X, proxy)`` by delegating to the active class.
+
+        Same rationale as :meth:`__instancecheck__` — no warning emitted.
+
+        Returns False when the active object is not a type.
+        """
+        active = self._get_active()
+        if isinstance(active, type):
+            # Delegate via issubclass so that any metaclass-defined
+            # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
+            return issubclass(subclass, active)
+        return False
+
 
 def deprecated_class(
     target: Any = None,  # noqa: ANN401
