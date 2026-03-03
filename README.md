@@ -454,7 +454,7 @@ class PastCls(NewCls):
         """
         You place the decorator around __init__ as you want
          to warn user just at the time of creating object.
-        
+
         Note: This decorates the __init__ method, not the class itself.
         For full class deprecation, use @deprecated_class() instead.
         """
@@ -1163,18 +1163,22 @@ Use `@deprecated_class()` for class-level deprecation:
 from deprecate import deprecated_class
 from enum import Enum
 
+
 # Correct: use @deprecated_class for classes
 @deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
+
 
 @deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
 
+
 # Alternative: decorate __init__ method instead of the class
 from deprecate import deprecated
+
 
 class MyClass:
     @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
