@@ -376,7 +376,6 @@ class TestCrossClassMethodGuard:
             pass
 
         with pytest.raises(TypeError, match="only supported on `__init__`"):
-
             type(
                 "_Owner",
                 (object,),
