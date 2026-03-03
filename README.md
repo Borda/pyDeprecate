@@ -178,7 +178,7 @@ In particular the target values (cases):
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
 > [!NOTE]
-> `@deprecated` works on functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)).
+> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)).
 
 ### ➡ Simple function forwarding
 
