@@ -588,6 +588,11 @@ def deprecated(
                 return source(**kwargs)
 
             target_func = _prepare_target_call(source, target, kwargs)
+            # For class targets, preserve original positional arguments to avoid
+            # forcing keyword-only construction, which can break positional-only
+            # or var-positional signatures (e.g., Enum on newer Python versions).
+            if inspect.isclass(target):
+                return target_func(*args, **kwargs)
             return target_func(**kwargs)
 
         # Static deprecation metadata — consumed by audit tools and docstring helpers.
