@@ -8,6 +8,7 @@ import pytest
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
+    _prepare_target_call,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
@@ -109,6 +110,24 @@ class TestUpdateKwargsWithArgs:
 
         with pytest.raises(TypeError, match="takes 2 positional"):
             _update_kwargs_with_args(my_func, (1, 2, 3), {})
+
+
+def test_class_target_uses_call_signature_for_validation() -> None:
+    """Class targets validate against metaclass __call__ when not forwarding __init__."""
+
+    def source(value: str) -> object:  # pragma: no cover - helper signature only
+        raise NotImplementedError
+
+    class _KeywordCallMeta(type):
+        def __call__(cls, *, value: str) -> object:
+            return super().__call__(raw=value)
+
+    class KeywordCallTarget(metaclass=_KeywordCallMeta):
+        def __init__(self, raw: str) -> None:
+            self.raw = raw
+
+    target_callable = _prepare_target_call(source, KeywordCallTarget, {"value": "red"})
+    assert target_callable is KeywordCallTarget
 
 
 class TestUpdateKwargsWithDefaults:
