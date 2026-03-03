@@ -140,7 +140,7 @@ class MappedValueEnum(Enum):
     BETA = "old-beta"
 
 
-class SelfMappedEnum(Enum):
+class _SelfMappedEnum(Enum):
     """Deprecated enum with old_value->value mapping that forwards to itself.
 
     Example:
@@ -151,13 +151,13 @@ class SelfMappedEnum(Enum):
     BETA = "beta"
 
 
-SelfMappedEnum = deprecated_class(  # type: ignore[assignment]
-    target=SelfMappedEnum,
+SelfMappedEnum = deprecated_class(
+    target=_SelfMappedEnum,
     deprecated_in="0.1",
     remove_in="0.2",
     num_warns=-1,
     args_mapping={"old_value": "value"},
-)(SelfMappedEnum)
+)(_SelfMappedEnum)
 
 
 @deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)

@@ -106,7 +106,7 @@ class TestDeprecatedEnums:
     def test_enum_argument_mapping_forwards(self) -> None:
         """Test argument mapping when forwarding deprecated Enum to replacement."""
         with pytest.warns(FutureWarning):
-            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA
+            assert MappedEnum(old_value="alpha") is NewEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_argument_mapping_positional_value(self) -> None:
         """Test mapped Enum forwards positional value to replacement."""
@@ -116,12 +116,12 @@ class TestDeprecatedEnums:
     def test_enum_argument_mapping_int_forwards(self) -> None:
         """Test argument mapping for int enums forwarding to NewIntEnum."""
         with pytest.warns(FutureWarning):
-            assert MappedIntEnum(old_value=1) is NewIntEnum.ALPHA
+            assert MappedIntEnum(old_value=1) is NewIntEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_argument_mapping_value_differs(self) -> None:
         """Test mapping when enum values differ from the new enum."""
         with pytest.warns(FutureWarning):
-            assert MappedValueEnum(old_value="alpha") is NewEnum.ALPHA
+            assert MappedValueEnum(old_value="alpha") is NewEnum.ALPHA  # type: ignore[call-arg]
 
     def test_enum_self_argument_mapping(self) -> None:
         """Test argument mapping when deprecating within the same enum."""
