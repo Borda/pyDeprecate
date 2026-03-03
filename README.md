@@ -177,6 +177,9 @@ In particular the target values (cases):
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
+> [!NOTE]
+> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)).
+
 ### ➡ Simple function forwarding
 
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
@@ -484,6 +487,10 @@ class PastCls(NewCls):
         """
         You place the decorator around __init__ as you want
          to warn user just at the time of creating object.
+
+        Decorating __init__ warns at instantiation time and optionally
+        forwards to another class. For deprecating the class itself
+        (name change, Enum, dataclass), use @deprecated_class() instead.
         """
         void(c, d)
 
@@ -1171,6 +1178,46 @@ def old_func_warn_n_times(x: int) -> int:
 </details>
 
 ## 🔧 Troubleshooting
+
+### ❗ TypeError: `Cannot apply @deprecated to class`
+
+**Problem:** `TypeError: Cannot apply @deprecated to class 'MyClass'. For class-level deprecation use @deprecated_class() from deprecate.proxy.`
+
+**Cause:** You tried to apply `@deprecated` directly to a class. The `@deprecated` decorator is designed for functions and methods only.
+
+<details>
+<summary>Solution</summary>
+
+Use `@deprecated_class()` for class-level deprecation:
+
+```python
+from deprecate import deprecated_class
+from enum import Enum
+
+
+# Correct: use @deprecated_class for classes
+@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+class MyClass:
+    pass
+
+
+@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+class MyEnum(Enum):
+    A = 1
+    B = 2
+
+
+# Alternative: decorate __init__ to warn at instantiation while keeping the class name
+from deprecate import deprecated
+
+
+class MyClass:
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    def __init__(self, x: int) -> None:
+        self.x = x  # body still executes; warning fires on every new MyClass(...)
+```
+
+</details>
 
 ### ❗ TypeError: `Failed mapping`
 
