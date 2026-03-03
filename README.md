@@ -563,6 +563,9 @@ with pytest.raises(AttributeError, match="read-only"):
 access and forwards attribute, item, and call operations to the replacement class.
 Use `args_mapping` to rename or drop kwargs when the deprecated class is called.
 
+> [!NOTE]
+> Type checks with `isinstance()` and `issubclass()` work transparently with `@deprecated_class` proxies and do not emit deprecation warnings, as these are structural checks rather than actual usage of the deprecated API.
+
 ```python
 from enum import Enum
 from dataclasses import dataclass
