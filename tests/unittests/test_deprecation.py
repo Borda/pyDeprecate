@@ -8,6 +8,7 @@ import pytest
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
+    _prepare_target_call,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
@@ -109,6 +110,24 @@ class TestUpdateKwargsWithArgs:
 
         with pytest.raises(TypeError, match="takes 2 positional"):
             _update_kwargs_with_args(my_func, (1, 2, 3), {})
+
+
+class TestPrepareTargetCall:
+    """Tests for _prepare_target_call — validates kwargs against the effective target call signature."""
+
+    def test_enum_class_target_accepts_value_keyword(self) -> None:
+        """Enum class targets should validate against class-call signature, not __init__."""
+        from enum import Enum
+
+        def source(value: str) -> Enum:  # pragma: no cover - helper signature only
+            raise NotImplementedError
+
+        class Color(Enum):
+            RED = "red"
+            BLUE = "blue"
+
+        target_callable = _prepare_target_call(source, Color, {"value": "red"})
+        assert target_callable is Color
 
 
 class TestUpdateKwargsWithDefaults:

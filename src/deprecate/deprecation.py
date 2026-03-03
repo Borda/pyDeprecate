@@ -88,8 +88,10 @@ def _prepare_target_call(
 
     """
     target_is_class = inspect.isclass(target)
-    # Always validate class kwargs against constructor signature.
-    target_for_signature = target.__init__ if target_is_class else target
+    # For class targets, only validate against __init__ when forwarding constructor-to-constructor.
+    # Otherwise validate against the class call signature (e.g., EnumMeta.__call__).
+    init_forward = target_is_class and source.__name__ == "__init__" and "self" in kwargs
+    target_for_signature = target.__init__ if init_forward else target
     target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_for_signature)]
 
     target_full_arg_spec = inspect.getfullargspec(target_for_signature)
@@ -106,7 +108,7 @@ def _prepare_target_call(
         )
     # Keep __init__ forwarding for deprecated constructors (self is provided),
     # but instantiate class targets for normal function/method forwarding.
-    if target_is_class and source.__name__ == "__init__" and "self" in kwargs:
+    if init_forward:
         return target.__init__
     return target
 
