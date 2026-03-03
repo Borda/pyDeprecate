@@ -636,7 +636,27 @@ def deprecated(
                 if source_has_var_positional:
                     call_kwargs = original_kwargs if not reason_argument else kwargs
                     return source(*args, **call_kwargs)
-                return source(**kwargs)
+            target_func = _prepare_target_call(source, target, kwargs)
+
+            # For class targets, preserve positional arguments and avoid passing `self`
+            # as a keyword argument. This keeps positional-only class signatures working
+            # and matches the original behavior of the deprecation wrapper.
+            if inspect.isclass(target):
+                call_args = list(args)
+                try:
+                    source_sig = inspect.signature(source)
+                    params = list(source_sig.parameters.values())
+                    if params and params[0].name in {"self", "cls"} and call_args:
+                        # Drop the bound instance/class argument when forwarding to class
+                        call_args = call_args[1:]
+                except (TypeError, ValueError):
+                    # If we cannot inspect the source signature, fall back to original args
+                    pass
+
+                # Also remove any `self` kwarg if present to avoid unexpected kwarg errors
+                kwargs.pop("self", None)
+
+                return target_func(*call_args, **kwargs)
 
             target_func = _prepare_target_call(source, target, kwargs)
             return target_func(**kwargs)
