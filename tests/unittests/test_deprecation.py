@@ -416,3 +416,8 @@ class TestCrossClassMethodGuard:
             @deprecated(target=NewClass, deprecated_in="1.0", remove_in="2.0")
             def __init__(self, x: int) -> None:
                 void(x)
+
+        with pytest.warns(FutureWarning):
+            old = OldClass(3)
+        assert isinstance(old, OldClass)
+        assert old.x == 3
