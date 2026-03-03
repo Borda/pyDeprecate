@@ -129,7 +129,7 @@ class TestValidateDeprecatedWrapper:
             validate_deprecation_wrapper(plain_function)
 
 
-class TestValidateDeprecatedCallableProxy:
+class TestValidateDeprecatedWrapperCallableProxy:
     """validate_deprecation_wrapper with deprecated_class and deprecated_instance proxies."""
 
     @pytest.mark.parametrize(

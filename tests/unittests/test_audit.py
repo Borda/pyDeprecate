@@ -151,7 +151,7 @@ class TestParseVersion:
 
 
 @_requires_packaging
-class TestValidateDeprecatedCallableWithProxy:
+class TestValidateDeprecationWrapperWithProxy:
     """Unit tests for validate_deprecation_wrapper with inline _DeprecatedProxy objects.
 
     Uses _DeprecatedProxy directly (not collection fixtures) for true isolation.
@@ -248,7 +248,7 @@ class TestValidateDeprecatedCallableWithProxy:
         assert result.empty_mapping is True
 
 
-class TestFindDeprecatedCallablesWarningBudget:
+class TestFindDeprecationWrappersWarningBudget:
     """Scanning must not consume proxy warning budgets."""
 
     def test_find_deprecation_wrappers_does_not_consume_warning_budget(self) -> None:

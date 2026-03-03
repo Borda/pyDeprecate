@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
 from deprecate._types import DeprecationInfo, _has_deprecation_meta
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
-from deprecate.utils import get_func_arguments_types_defaults, void
+from deprecate.utils import get_func_arguments_types_defaults
 
 
 def _parse_version(version_string: str) -> "Version":
@@ -544,7 +544,7 @@ def find_deprecation_wrappers(
         Each contains:
             - module: Module name where the wrapper is defined
             - function: Wrapper name
-            - deprecated_info: The __deprecated__ attribute dict from the decorator
+            - deprecated_info: DeprecationInfo metadata from the decorator (``__deprecated__`` attribute)
             - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of identity mappings (key == value)
@@ -689,7 +689,7 @@ from deprecate.deprecation import deprecated  # noqa: E402
 @deprecated(target=validate_deprecation_wrapper, deprecated_in="0.6", remove_in="1.0")
 def validate_deprecated_callable(func: Callable) -> DeprecatedWrapperInfo:
     """Use :func:`validate_deprecation_wrapper` instead."""
-    return void(func)
+    return validate_deprecation_wrapper(func)
 
 
 @deprecated(target=find_deprecation_wrappers, deprecated_in="0.6", remove_in="1.0")
@@ -698,7 +698,7 @@ def find_deprecated_callables(
     recursive: bool = True,
 ) -> list[DeprecatedWrapperInfo]:
     """Use :func:`find_deprecation_wrappers` instead."""
-    return void(module, recursive)
+    return find_deprecation_wrappers(module, recursive)
 
 
 @deprecated_class(target=DeprecatedWrapperInfo, deprecated_in="0.6", remove_in="1.0")
