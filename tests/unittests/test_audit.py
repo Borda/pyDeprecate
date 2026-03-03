@@ -9,7 +9,12 @@ import pytest
 
 from deprecate import deprecated
 from deprecate._types import DeprecationInfo, _has_deprecation_meta
-from deprecate.audit import _get_package_version, _parse_version, validate_deprecated_callable
+from deprecate.audit import (
+    _get_package_version,
+    _parse_version,
+    find_deprecated_callables,
+    validate_deprecated_callable,
+)
 from deprecate.proxy import _DeprecatedProxy
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -152,8 +157,8 @@ class TestValidateDeprecatedCallableWithProxy:
         assert result.deprecated_info.target is TargetColorEnum
         assert result.no_effect is False
 
-    def test_proxy_with_args_mapping_reports_invalid_args(self) -> None:
-        """Proxy args_mapping keys absent from the callable signature appear in invalid_args."""
+    def test_proxy_with_args_mapping_skips_signature_validation(self) -> None:
+        """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
         from tests.collection_targets import TargetColorEnum
 
         proxy = _DeprecatedProxy(
@@ -167,7 +172,39 @@ class TestValidateDeprecatedCallableWithProxy:
         )
         result = validate_deprecated_callable(proxy)
         assert result.deprecated_info.args_mapping == {"old_key": "value"}
-        assert "old_key" in result.invalid_args
+        assert result.invalid_args == []
+
+    def test_proxy_with_identity_mapping_detected(self) -> None:
+        """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
+        from tests.collection_targets import TargetColorEnum
+
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="identity_mapped",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            target=TargetColorEnum,
+            args_mapping={"value": "value"},
+            stream=None,
+        )
+        result = validate_deprecated_callable(proxy)
+        assert result.identity_mapping == ["value"]
+        assert result.invalid_args == []
+
+    def test_proxy_no_target_with_args_mapping(self) -> None:
+        """Proxy with target=None and args_mapping: invalid_args=[] and no_effect=False (still warns)."""
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="warn_only_mapped",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            target=None,
+            args_mapping={"x": "y"},
+            stream=None,
+        )
+        result = validate_deprecated_callable(proxy)
+        assert result.invalid_args == []
+        assert result.no_effect is False
 
     def test_proxy_function_name_from_dep_info(self) -> None:
         """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
@@ -189,3 +226,24 @@ class TestValidateDeprecatedCallableWithProxy:
         result = validate_deprecated_callable(proxy)
         assert result.deprecated_info.args_mapping is None
         assert result.empty_mapping is True
+
+
+class TestFindDeprecatedCallablesWarningBudget:
+    """Scanning must not consume proxy warning budgets."""
+
+    def test_find_deprecated_callables_does_not_consume_warning_budget(self) -> None:
+        """Scanning a module must not trigger __getattr__ on proxies or burn their warn budget.
+
+        Creates a proxy with num_warns=1, runs find_deprecated_callables, then asserts
+        the warning is still emitted (i.e. cfg.warned was not incremented during the scan).
+        """
+        proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+
+        fake_mod = types.ModuleType("fake_scan_mod")
+        fake_mod.scan_proxy = proxy  # type: ignore[attr-defined]
+
+        find_deprecated_callables(fake_mod, recursive=False)
+
+        # Budget should be untouched — scanning must not consume it
+        with pytest.warns(FutureWarning):
+            proxy.get("x")  # triggers __getattr__ → _warn() → should still fire

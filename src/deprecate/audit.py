@@ -36,6 +36,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 # so ``validate_deprecated_callable`` can read it correctly for proxy objects too.
 
 import inspect
+import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from enum import Enum
@@ -45,6 +46,7 @@ if TYPE_CHECKING:
     from packaging.version import Version
 
 from deprecate._types import DeprecationInfo, _has_deprecation_meta
+from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import get_func_arguments_types_defaults
 
 
@@ -264,8 +266,11 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     all_identity = False
     if args_mapping:
-        func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
-        invalid_args = [arg for arg in args_mapping if arg not in func_args]
+        if isinstance(func, _DeprecatedProxy):
+            invalid_args = []  # proxy __call__ is (*args, **kwargs); skip signature check
+        else:
+            func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
+            invalid_args = [arg for arg in args_mapping if arg not in func_args]
         identity_mapping = [arg for arg, val in args_mapping.items() if arg == val]
         # Check if ALL mappings are identity (complete no-op)
         all_identity = len(identity_mapping) == len(args_mapping) and len(args_mapping) > 0
@@ -563,7 +568,9 @@ def find_deprecated_callables(
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
         try:
-            members = inspect.getmembers(mod)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                members = inspect.getmembers(mod)
         except (AttributeError, TypeError, ImportError):
             return
 

@@ -218,14 +218,14 @@ class TestValidateDeprecatedCallableProxy:
     @pytest.mark.parametrize(
         ("proxy_obj", "fn_name", "has_target", "has_mapping", "invalid_args"),
         [
-            # deprecated_class — no args_mapping: old arg names can't be verified against signature
+            # deprecated_class — no args_mapping
             (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", True, False, []),
             (proxy_module.DeprecatedColorDataClass, "DeprecatedColorDataClass", True, False, []),
             (proxy_module.WarnOnlyColorEnum, "WarnOnlyColorEnum", False, False, []),
-            # deprecated_class — with args_mapping: old arg keys absent from proxy signature → invalid_args
-            (proxy_module.MappedColorEnum, "MappedColorEnum", True, True, ["val"]),
-            (proxy_module.MappedDataClass, "MappedDataClass", True, True, ["name", "count"]),
-            (proxy_module.MappedDropArgDataClass, "MappedDropArgDataClass", True, True, ["legacy_flag", "name"]),
+            # deprecated_class — with args_mapping: signature check is skipped for proxies → invalid_args == []
+            (proxy_module.MappedColorEnum, "MappedColorEnum", True, True, []),
+            (proxy_module.MappedDataClass, "MappedDataClass", True, True, []),
+            (proxy_module.MappedDropArgDataClass, "MappedDropArgDataClass", True, True, []),
             # deprecated_instance — no args_mapping
             (proxy_module.depr_config_dict, "dict", False, False, []),
             (proxy_module.depr_config_dict_read_only, "dict", False, False, []),
@@ -242,8 +242,8 @@ class TestValidateDeprecatedCallableProxy:
         """All 8 proxy objects (6 deprecated_class + 2 deprecated_instance) pass validate_deprecated_callable.
 
         Verifies the unified DeprecationInfo schema — function name, version fields, and
-        chain_type — for every proxy variant. Mapped proxies report their old arg keys as
-        ``invalid_args`` because the proxy callable has no inspectable signature with those names.
+        chain_type — for every proxy variant. Proxy __call__ is (*args, **kwargs) so the
+        signature check is skipped and invalid_args is always [] for proxy objects.
         """
         result = validate_deprecated_callable(proxy_obj)
         assert result.function == fn_name
@@ -381,6 +381,25 @@ class TestValidateDeprecationChains:
         assert isinstance(chain_issues, list)
         assert len(chain_issues) > 0
         assert all(isinstance(i, DeprecatedCallableInfo) and i.chain_type is not None for i in chain_issues)
+
+    def test_detects_proxy_to_proxy_chain(self) -> None:
+        """deprecated_class proxy whose target is itself a proxy is flagged as TARGET chain."""
+        result = validate_deprecated_callable(proxy_module.ChainedProxyColorEnum)
+        assert result.chain_type is ChainType.TARGET
+
+    def test_detects_function_to_proxy_chain(self) -> None:
+        """@deprecated function whose target is a proxy is flagged as TARGET chain."""
+        result = validate_deprecated_callable(proxy_module.depr_func_targeting_proxy)
+        assert result.chain_type is ChainType.TARGET
+
+    def test_chains_scan_includes_proxies(self) -> None:
+        """validate_deprecation_chains finds proxy-based chains when scanning a module."""
+        chains = validate_deprecation_chains(proxy_module, recursive=False)
+        by_name = {i.function: i for i in chains}
+        assert "ChainedProxyColorEnum" in by_name
+        assert "depr_func_targeting_proxy" in by_name
+        assert by_name["ChainedProxyColorEnum"].chain_type is ChainType.TARGET
+        assert by_name["depr_func_targeting_proxy"].chain_type is ChainType.TARGET
 
 
 @_requires_packaging
