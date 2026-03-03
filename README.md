@@ -177,8 +177,8 @@ In particular the target values (cases):
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
-> [!IMPORTANT]
-> The `@deprecated` decorator is designed for **callables only** (functions and methods). Applying it to any class (including Enums, dataclasses, or plain classes) will raise a `TypeError`. For class-level deprecation, use `@deprecated_class()` (imported via `from deprecate import deprecated_class`).
+> [!NOTE]
+> `@deprecated` works on functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)).
 
 ### ➡ Simple function forwarding
 
@@ -488,8 +488,9 @@ class PastCls(NewCls):
         You place the decorator around __init__ as you want
          to warn user just at the time of creating object.
 
-        Note: This decorates the __init__ method, not the class itself.
-        For full class deprecation, use @deprecated_class() instead.
+        Decorating __init__ warns at instantiation time and optionally
+        forwards to another class. For deprecating the class itself
+        (name change, Enum, dataclass), use @deprecated_class() instead.
         """
         void(c, d)
 
@@ -554,9 +555,6 @@ with pytest.raises(AttributeError, match="read-only"):
 </details>
 
 ### 🗂 Deprecating Enums and dataclasses
-
-> [!WARNING]
-> Use `@deprecated_class()` for class-level deprecation. The `@deprecated` decorator **cannot** be applied to classes and will raise `TypeError` if attempted. This applies to all classes including Enums, dataclasses, and plain classes.
 
 <details>
 <summary>Example: <code>@deprecated_class</code> with optional <code>args_mapping</code></summary>
@@ -1209,14 +1207,14 @@ class MyEnum(Enum):
     B = 2
 
 
-# Alternative: decorate __init__ method instead of the class
+# Alternative: decorate __init__ to warn at instantiation while keeping the class name
 from deprecate import deprecated
 
 
-class MyInitDeprecatedClass:
+class MyClass:
     @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
-    def __init__(self):
-        pass  # warns at instantiation time
+    def __init__(self, x: int) -> None:
+        self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```
 
 </details>
