@@ -376,6 +376,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 
 > [!NOTE]
 > **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
+>
 > - **Single use** — used by exactly one test and not reused elsewhere
 > - **Non-representational** — does not model real API migration behavior or a named deprecation pattern
 > - **Purely mechanical** — exists only to drive a protocol or edge case (for example a malformed `remove_in` string, or a tiny local class used solely for `isinstance`/`issubclass` behavior)
