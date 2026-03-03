@@ -363,7 +363,9 @@ class _DeprecatedProxy:
         """
         active = self._get_active()
         if isinstance(active, type):
-            return type.__subclasscheck__(active, subclass)
+            # Delegate via issubclass so that any metaclass-defined
+            # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
+            return issubclass(subclass, active)
         return False
 
 
