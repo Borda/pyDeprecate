@@ -370,7 +370,7 @@ class TestCrossClassMethodGuard:
 
         with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
 
-            class MyClass:
+            class _UnusedMyClass:
                 @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
                 def old_method(self, x: int) -> int:
                     return void(x)
