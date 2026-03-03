@@ -177,6 +177,9 @@ In particular the target values (cases):
 - _True_ - deprecate some argument of itself (argument mapping should be specified)
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
+> [!IMPORTANT]
+> The `@deprecated` decorator is designed for **callables only** (functions and methods). Applying it to any class (including Enums, dataclasses, or plain classes) will raise a `TypeError`. For class-level deprecation, use `@deprecated_class()` from `deprecate.proxy`.
+
 ### ➡ Simple function forwarding
 
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
@@ -418,7 +421,10 @@ This can be beneficial with multiple deprecation levels shown above...
 
 ### 🏗 Class deprecation
 
-This case can be quite complex as you may deprecate just some methods, here we show full class deprecation:
+> [!IMPORTANT]
+> The `@deprecated` decorator is for **functions and methods only**. To deprecate an entire class, use `@deprecated_class()` from `deprecate.proxy` instead.
+
+The example below shows how to deprecate a class by applying `@deprecated` to its `__init__` method. This approach is useful when you want to maintain inheritance from the new class while warning users at instantiation time:
 
 <details>
 <summary>Example: forwarding <code>__init__</code> to a successor class</summary>
@@ -448,6 +454,9 @@ class PastCls(NewCls):
         """
         You place the decorator around __init__ as you want
          to warn user just at the time of creating object.
+        
+        Note: This decorates the __init__ method, not the class itself.
+        For full class deprecation, use @deprecated_class() instead.
         """
         void(c, d)
 
@@ -512,6 +521,9 @@ with pytest.raises(AttributeError, match="read-only"):
 </details>
 
 ### 🗂 Deprecating Enums and dataclasses
+
+> [!WARNING]
+> Use `@deprecated_class()` for class-level deprecation. The `@deprecated` decorator **cannot** be applied to classes and will raise `TypeError` if attempted. This applies to all classes including Enums, dataclasses, and plain classes.
 
 <details>
 <summary>Example: <code>@deprecated_class</code> with optional <code>args_mapping</code></summary>
@@ -878,7 +890,7 @@ print(f"Found {len(expired)} expired")
 
 ```
 Found 12 expired
-Found 21 expired
+Found 20 expired
 Found 14 expired
 Found 0 expired
 ```
@@ -1135,6 +1147,42 @@ def old_func_warn_n_times(x: int) -> int:
 </details>
 
 ## 🔧 Troubleshooting
+
+### ❗ TypeError: `Cannot apply @deprecated to class`
+
+**Problem:** `TypeError: Cannot apply @deprecated to class 'MyClass'. For class-level deprecation use @deprecated_class() from deprecate.proxy.`
+
+**Cause:** You tried to apply `@deprecated` directly to a class. The `@deprecated` decorator is designed for functions and methods only.
+
+<details>
+<summary>Solution</summary>
+
+Use `@deprecated_class()` for class-level deprecation:
+
+```python
+from deprecate import deprecated_class
+from enum import Enum
+
+# Correct: use @deprecated_class for classes
+@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+class MyClass:
+    pass
+
+@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+class MyEnum(Enum):
+    A = 1
+    B = 2
+
+# Alternative: decorate __init__ method instead of the class
+from deprecate import deprecated
+
+class MyClass:
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    def __init__(self):
+        pass  # warns at instantiation time
+```
+
+</details>
 
 ### ❗ TypeError: `Failed mapping`
 
