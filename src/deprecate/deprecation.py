@@ -142,7 +142,7 @@ def _normalize_target(
     src_parts = src_qualname.rsplit(".", 1)
     source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
     if source.__name__ == "__init__":
-        return target.__init__  # type: ignore[return-value]
+        return target.__init__
     if source_is_class_method:
         raise TypeError(
             f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
