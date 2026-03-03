@@ -751,3 +751,30 @@ class MappedDropArgDataClass:
 
     label: str
     total: int = 0
+
+
+# ========== Proxy chain fixtures for chain detection tests ==========
+
+
+@deprecated_class(target=DeprecatedColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+class ChainedProxyColorEnum(Enum):
+    """Deprecated color enum whose target is itself a deprecated proxy (proxy→proxy chain).
+
+    Example:
+        This creates a two-hop chain: ChainedProxyColorEnum → DeprecatedColorEnum → TargetColorEnum.
+        Used to test that validate_deprecation_chains detects proxy-to-proxy chains.
+    """
+
+    RED = 1
+    BLUE = 2
+
+
+@deprecated(target=DeprecatedColorEnum, deprecated_in="1.0", remove_in="2.0")
+def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
+    """Deprecated function whose target is a deprecated proxy (function→proxy chain).
+
+    Examples:
+        This creates a cross-kind chain: a @deprecated function forwards to a _DeprecatedProxy.
+        Used to test that validate_deprecation_chains detects function-to-proxy chains.
+    """
+    void(value)

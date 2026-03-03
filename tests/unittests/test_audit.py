@@ -9,11 +9,36 @@ import pytest
 
 from deprecate import deprecated
 from deprecate._types import DeprecationInfo, _has_deprecation_meta
-from deprecate.audit import _get_package_version, _parse_version, validate_deprecated_callable
+from deprecate.audit import (
+    _get_package_version,
+    _parse_version,
+    find_deprecated_callables,
+    validate_deprecated_callable,
+)
 from deprecate.proxy import _DeprecatedProxy
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
+
+
+class _SideEffectScanModule:
+    """Test double that mimics module-level dynamic attribute side effects."""
+
+    def __init__(self, proxy: _DeprecatedProxy) -> None:
+        """Store proxy and expose a module-like name."""
+        self.__name__ = "fake_scan_mod"
+        self.scan_proxy = proxy
+
+    def __dir__(self) -> list[str]:
+        """Expose one dynamic name that would trigger __getattr__ under getmembers()."""
+        return ["__name__", "scan_proxy", "trigger_side_effect"]
+
+    def __getattr__(self, name: str) -> str:
+        """Trigger proxy access when dynamic attr lookup is attempted."""
+        if name == "trigger_side_effect":
+            self.scan_proxy.get("x")
+            return "triggered"
+        raise AttributeError(name)
 
 
 class TestGetPackageVersion:
@@ -152,8 +177,8 @@ class TestValidateDeprecatedCallableWithProxy:
         assert result.deprecated_info.target is TargetColorEnum
         assert result.no_effect is False
 
-    def test_proxy_with_args_mapping_reports_invalid_args(self) -> None:
-        """Proxy args_mapping keys absent from the callable signature appear in invalid_args."""
+    def test_proxy_with_args_mapping_skips_signature_validation(self) -> None:
+        """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
         from tests.collection_targets import TargetColorEnum
 
         proxy = _DeprecatedProxy(
@@ -167,7 +192,39 @@ class TestValidateDeprecatedCallableWithProxy:
         )
         result = validate_deprecated_callable(proxy)
         assert result.deprecated_info.args_mapping == {"old_key": "value"}
-        assert "old_key" in result.invalid_args
+        assert result.invalid_args == []
+
+    def test_proxy_with_identity_mapping_detected(self) -> None:
+        """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
+        from tests.collection_targets import TargetColorEnum
+
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="identity_mapped",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            target=TargetColorEnum,
+            args_mapping={"value": "value"},
+            stream=None,
+        )
+        result = validate_deprecated_callable(proxy)
+        assert result.identity_mapping == ["value"]
+        assert result.invalid_args == []
+
+    def test_proxy_no_target_with_args_mapping(self) -> None:
+        """Proxy with target=None and args_mapping: invalid_args=[] and no_effect=False (still warns)."""
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="warn_only_mapped",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            target=None,
+            args_mapping={"x": "y"},
+            stream=None,
+        )
+        result = validate_deprecated_callable(proxy)
+        assert result.invalid_args == []
+        assert result.no_effect is False
 
     def test_proxy_function_name_from_dep_info(self) -> None:
         """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
@@ -189,3 +246,24 @@ class TestValidateDeprecatedCallableWithProxy:
         result = validate_deprecated_callable(proxy)
         assert result.deprecated_info.args_mapping is None
         assert result.empty_mapping is True
+
+
+class TestFindDeprecatedCallablesWarningBudget:
+    """Scanning must not consume proxy warning budgets."""
+
+    def test_find_deprecated_callables_does_not_consume_warning_budget(self) -> None:
+        """Scanning must avoid dynamic attribute access paths that burn warn budget.
+
+        ``inspect.getmembers()`` triggers ``getattr()`` for names from ``__dir__``, which can
+        execute module-level ``__getattr__`` side effects. This fixture reproduces that pattern:
+        a dynamic name touches the proxy during lookup. Static inspection must avoid consuming
+        the proxy warning budget.
+        """
+        proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        fake_mod = _SideEffectScanModule(proxy)
+
+        find_deprecated_callables(fake_mod, recursive=False)
+
+        # Budget should be untouched — scanning must not consume it
+        with pytest.warns(FutureWarning):
+            proxy.get("x")  # triggers __getattr__ → _warn() → should still fire

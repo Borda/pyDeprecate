@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from packaging.version import Version
 
 from deprecate._types import DeprecationInfo, _has_deprecation_meta
+from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import get_func_arguments_types_defaults
 
 
@@ -165,6 +166,24 @@ class DeprecatedCallableInfo:
     chain_type: Optional[ChainType] = None
 
 
+def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN401
+    """Return members without triggering dynamic ``getattr`` side effects.
+
+    Uses ``inspect.getmembers_static`` when available (Python 3.11+). For Python
+    3.9/3.10 compatibility, falls back to ``dir()`` + ``inspect.getattr_static``.
+    """
+    getmembers_static = getattr(inspect, "getmembers_static", None)
+    if callable(getmembers_static):
+        return getmembers_static(obj)
+
+    names = dir(obj)
+    members: list[tuple[str, Any]] = []
+    for name in names:
+        with suppress(AttributeError):
+            members.append((name, inspect.getattr_static(obj, name)))
+    return sorted(members, key=lambda item: item[0])
+
+
 def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
     """Validate if a deprecated wrapper configuration is effective.
 
@@ -264,8 +283,11 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedCallableInfo:
 
     all_identity = False
     if args_mapping:
-        func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
-        invalid_args = [arg for arg in args_mapping if arg not in func_args]
+        if isinstance(func, _DeprecatedProxy):
+            invalid_args = []  # proxy __call__ is (*args, **kwargs); skip signature check
+        else:
+            func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
+            invalid_args = [arg for arg in args_mapping if arg not in func_args]
         identity_mapping = [arg for arg, val in args_mapping.items() if arg == val]
         # Check if ALL mappings are identity (complete no-op)
         all_identity = len(identity_mapping) == len(args_mapping) and len(args_mapping) > 0
@@ -548,7 +570,7 @@ def find_deprecated_callables(
         - Requires that the module be importable
         - Inspects the ``__deprecated__`` attribute set by the @deprecated decorator
         - Skips private/magic attributes and imports from other modules
-        - Handles import errors gracefully (warnings are suppressed)
+        - Uses static member inspection to avoid scan-time side effects from dynamic attribute access
 
     """
     import importlib
@@ -563,7 +585,8 @@ def find_deprecated_callables(
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
         try:
-            members = inspect.getmembers(mod)
+            # Static inspection avoids dynamic getattr/descriptor evaluation while scanning.
+            members = _getmembers_static_compat(mod)
         except (AttributeError, TypeError, ImportError):
             return
 
