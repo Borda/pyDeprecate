@@ -48,7 +48,7 @@ jobs:
         continue-on-error: true
         with:
           # token: ${{ secrets.CODECOV_TOKEN }}
-          file: coverage.xml
+          files: coverage.xml
           flags: pytest,python${{ matrix.python-version }}
           fail_ci_if_error: false
 
