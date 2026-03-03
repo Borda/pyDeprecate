@@ -165,7 +165,7 @@ def _prepare_target_call(
 
     Args:
         source: Deprecated callable being wrapped.
-        target: Target callable to invoke (never a class).
+        target: Target callable to invoke (shall not be a class).
         kwargs: Keyword arguments after mapping and defaults.
 
     Returns:
