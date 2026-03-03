@@ -19,6 +19,7 @@ This module contains deprecated wrappers covering real-world use cases:
 - Conditional skip (skip_if with bool and callable)
 - Deprecating decorator/wrapper functions
 - Deprecating class-based decorators via __init__
+- Deprecating individual class methods (warn-only and redirect)
 - Instance deprecation via deprecated_instance()
 - Class-level deprecation with deprecated_class (Enum and dataclass)
 """
@@ -33,6 +34,7 @@ from sklearn.metrics import accuracy_score
 
 from deprecate import deprecated, deprecated_class, deprecated_instance, void
 from tests.collection_targets import (
+    CrossGuardClassTargetNew,
     NewCls,
     NewDataClass,
     NewEnum,
@@ -41,6 +43,7 @@ from tests.collection_targets import (
     TimerDecorator,
     base_pow_args,
     base_sum_kwargs,
+    cross_guard_standalone_increment,
     timing_wrapper,
 )
 
@@ -216,6 +219,16 @@ def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noq
         Users call the old function but receive a ``NewCls`` instance.
     """
     return void(c, d, kwargs)
+
+
+@deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"})
+def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noqa: ANN401
+    """Forward a deprecated factory function to a class constructor with argument renaming.
+
+    Examples:
+        Old argument ``old_c`` is renamed to ``c`` before forwarding to ``NewCls``.
+    """
+    return void(old_c, d, kwargs)
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)
@@ -494,6 +507,17 @@ class PastCls(NewCls):
         super().__init__(c)
 
 
+class PastClsMapped(NewCls):
+    """Deprecated class forwarding to NewCls with argument renaming via args_mapping."""
+
+    @deprecated(
+        target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"}, stream=_deprecation_warning
+    )
+    def __init__(self, old_c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialize PastClsMapped."""
+        super().__init__(old_c)
+
+
 class ThisCls(NewCls):
     """Class with deprecated __init__ remapping argument via self-deprecation."""
 
@@ -503,6 +527,114 @@ class ThisCls(NewCls):
     def __init__(self, c: int = 3, nc: int = 5) -> None:
         """Initialize ThisCls."""
         super().__init__(c=nc)
+
+
+# ========== Class method deprecation examples ==========
+
+
+class ServiceCls:
+    """Class with deprecated individual methods for integration testing.
+
+    Demonstrates @deprecated on non-__init__ methods — warn-only, redirect,
+    and argument renaming via args_mapping.
+
+    Note on target syntax for class methods:
+        Use ``target=method_name`` (bare name in the class body) to capture the
+        unbound function at decoration time.  The target must be a method on the
+        **same** class; cross-class method forwarding is rejected at decoration time
+        because ``self`` would carry the wrong type.  To forward to a different class
+        entirely, use ``target=NewClass`` (constructor forwarding via ``__init__``).
+        String targets (``target="compute"``) are **not** supported.
+    """
+
+    def compute(self, x: int) -> int:
+        """Current implementation."""
+        return x * 2
+
+    def compute_scaled(self, value: int, scale: int = 1) -> int:
+        """Current implementation with renamed and extended signature."""
+        return value * 2 * scale
+
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    def old_warn_method(self, x: int) -> int:
+        """Deprecated — warns only, body still executes.
+
+        Examples:
+            User is notified the method is going away but it keeps working
+            (`target=None`). Body delegates to the current implementation.
+        """
+        return self.compute(x)
+
+    @deprecated(target=compute, deprecated_in="1.0", remove_in="2.0")
+    def old_redirect_method(self, x: int) -> int:
+        """Deprecated — forwards to compute().
+
+        Examples:
+            User calls the old name; the decorator transparently remaps the
+            call to `compute()` on the same object (`target=compute`).
+        """
+        return void(x)
+
+    @deprecated(
+        target=compute_scaled,
+        deprecated_in="1.0",
+        remove_in="2.0",
+        args_mapping={"x": "value"},
+    )
+    def old_mapped_method(self, x: int) -> int:
+        """Deprecated — args_mapping renames x->value when forwarding to compute_scaled().
+
+        Examples:
+            User calls `old_mapped_method(x=5)` and receives the result of
+            `compute_scaled(value=5)` after the argument is renamed transparently.
+        """
+        return void(x)
+
+    @deprecated(
+        target=True,
+        deprecated_in="1.0",
+        remove_in="2.0",
+        args_mapping={"old_x": "x"},
+    )
+    def self_renamed_method(self, old_x: int = 0, x: int = 0) -> int:
+        """Deprecated argument renamed within the same method (target=True).
+
+        Examples:
+            User calls `self_renamed_method(old_x=5)` and the decorator
+            transparently remaps `old_x` -> `x` before running the body.
+        """
+        return self.compute(x)
+
+
+class CrossGuardSameClass:
+    """Class used by cross-class guard tests for same-class method forwarding."""
+
+    def new_method(self, x: int) -> int:
+        """Current implementation on the same class."""
+        return x * 2
+
+    @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
+    def old_method(self, x: int) -> int:
+        """Deprecated method that forwards to `new_method`."""
+        return void(x)
+
+
+class CrossGuardModuleLevel:
+    """Class used by cross-class guard tests for module-level function forwarding."""
+
+    @deprecated(target=cross_guard_standalone_increment, deprecated_in="1.0", remove_in="2.0")
+    def old_method(self, x: int) -> int:
+        """Deprecated method that forwards to module-level function target."""
+        return void(x)
+
+
+class CrossGuardOldClass(CrossGuardClassTargetNew):
+    """Class used by cross-class guard tests for constructor-to-constructor forwarding."""
+
+    @deprecated(target=CrossGuardClassTargetNew, deprecated_in="1.0", remove_in="2.0")
+    def __init__(self, x: int) -> None:
+        """Deprecated constructor forwarding to `CrossGuardClassTargetNew.__init__`."""
+        void(x)
 
 
 # ========== Instance and class-level proxy deprecation examples ==========

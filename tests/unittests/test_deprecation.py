@@ -1,10 +1,13 @@
 """Unit tests for private helpers in deprecate.deprecation."""
 
 import inspect
+from dataclasses import dataclass
+from enum import Enum
 from unittest.mock import MagicMock
 
 import pytest
 
+from deprecate import deprecated, void
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
@@ -15,6 +18,8 @@ from deprecate.deprecation import (
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
 )
+from tests.collection_deprecate import CrossGuardModuleLevel, CrossGuardOldClass, CrossGuardSameClass
+from tests.collection_targets import KeywordCallTarget, call_signature_source
 
 
 class TestGetPositionalParams:
@@ -112,25 +117,10 @@ class TestUpdateKwargsWithArgs:
             _update_kwargs_with_args(my_func, (1, 2, 3), {})
 
 
-class TestPrepareTargetCall:
-    """Tests for _prepare_target_call — validates kwargs against the effective target call signature."""
-
-    def test_class_target_uses_call_signature_for_validation(self) -> None:
-        """Class targets validate against metaclass __call__ when not forwarding __init__."""
-
-        def source(value: str) -> object:  # pragma: no cover - helper signature only
-            raise NotImplementedError
-
-        class _KeywordCallMeta(type):
-            def __call__(cls, *, value: str) -> object:
-                return super().__call__(raw=value)
-
-        class KeywordCallTarget(metaclass=_KeywordCallMeta):
-            def __init__(self, raw: str) -> None:
-                self.raw = raw
-
-        target_callable = _prepare_target_call(source, KeywordCallTarget, {"value": "red"})
-        assert target_callable is KeywordCallTarget
+def test_class_target_uses_call_signature_for_validation() -> None:
+    """Class targets validate against metaclass __call__ when not forwarding __init__."""
+    target_callable = _prepare_target_call(call_signature_source, KeywordCallTarget, {"value": "red"})
+    assert target_callable is KeywordCallTarget
 
 
 class TestUpdateKwargsWithDefaults:
@@ -302,8 +292,6 @@ class TestDeprecatedClassGuard:
 
     def test_raises_for_plain_class(self) -> None:
         """Applying @deprecated to a plain class raises TypeError."""
-        from deprecate import deprecated
-
         with pytest.raises(TypeError, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
@@ -312,10 +300,6 @@ class TestDeprecatedClassGuard:
 
     def test_raises_for_enum_class(self) -> None:
         """Applying @deprecated to an Enum class raises TypeError."""
-        from enum import Enum
-
-        from deprecate import deprecated
-
         with pytest.raises(TypeError, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
@@ -324,10 +308,6 @@ class TestDeprecatedClassGuard:
 
     def test_raises_for_dataclass(self) -> None:
         """Applying @deprecated to a dataclass raises TypeError."""
-        from dataclasses import dataclass
-
-        from deprecate import deprecated
-
         with pytest.raises(TypeError, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
@@ -337,7 +317,6 @@ class TestDeprecatedClassGuard:
 
     def test_does_not_raise_for_function(self) -> None:
         """Applying @deprecated to a regular function does not raise."""
-        from deprecate import deprecated
 
         @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
         def my_func() -> None:
@@ -348,7 +327,6 @@ class TestDeprecatedClassGuard:
 
     def test_does_not_raise_for_init_method(self) -> None:
         """Applying @deprecated to __init__ (not the class itself) does not raise."""
-        from deprecate import deprecated
 
         class MyClass:
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
@@ -358,3 +336,64 @@ class TestDeprecatedClassGuard:
         with pytest.warns(FutureWarning):
             instance = MyClass()
         assert isinstance(instance, MyClass)
+
+
+class TestCrossClassMethodGuard:
+    """@deprecated raises TypeError when target is a method on a different class."""
+
+    def test_raises_for_cross_class_method_target(self) -> None:
+        """Forwarding to a method on a different class raises TypeError at decoration time.
+
+        The misconfigured classes are defined inline (not in collection_deprecate.py)
+        because placing ``@deprecated`` with an invalid cross-class target at module
+        level would raise ``TypeError`` at import time, breaking every test that
+        imports the collection module.
+        """
+
+        class OtherClass:
+            def other_method(self, x: int) -> int:
+                return x
+
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+
+            class MyClass:
+                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
+    def test_raises_for_class_target_on_non_init_method(self) -> None:
+        """@deprecated(target=SomeClass) on a non-__init__ class method raises TypeError.
+
+        Passing a class directly as target for a bound method would silently forward
+        ``self`` of the wrong type.  Only ``__init__`` supports ``target=SomeClass``
+        (auto-remapped to ``target=SomeClass.__init__``); for any other class method
+        the caller must use a same-class method target or ``target=None``/``True``.
+
+        Defined inline for the same import-time reason as the cross-class test above.
+        """
+
+        class Target:
+            pass
+
+        with pytest.raises(TypeError, match="only supported on `__init__`"):
+
+            class _Owner:
+                @deprecated(target=Target, deprecated_in="1.0", remove_in="2.0")
+                def some_method(self) -> None:
+                    pass
+
+    def test_does_not_raise_for_same_class_method_target(self) -> None:
+        """Forwarding to a method on the same class does not raise."""
+        with pytest.warns(FutureWarning):
+            assert CrossGuardSameClass().old_method(5) == 10
+
+    def test_does_not_raise_for_module_level_function_target(self) -> None:
+        """Forwarding a class method to a module-level function is allowed (no self passed)."""
+        assert callable(CrossGuardModuleLevel.old_method)
+
+    def test_does_not_raise_for_class_target(self) -> None:
+        """Forwarding __init__ to a full class (constructor forwarding) is allowed."""
+        with pytest.warns(FutureWarning):
+            old = CrossGuardOldClass(3)
+        assert isinstance(old, CrossGuardOldClass)
+        assert old.x == 3

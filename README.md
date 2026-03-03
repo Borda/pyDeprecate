@@ -421,10 +421,43 @@ This can be beneficial with multiple deprecation levels shown above...
 
 ### 🏗 Class deprecation
 
-> [!IMPORTANT]
-> The `@deprecated` decorator is for **functions and methods only**. To deprecate an entire class, use `@deprecated_class()` from `deprecate.proxy` instead.
+Two common patterns: deprecating a single method (rename within the same class) or deprecating the whole class by forwarding `__init__` to a successor.
 
-The example below shows how to deprecate a class by applying `@deprecated` to its `__init__` method. This approach is useful when you want to maintain inheritance from the new class while warning users at instantiation time:
+<details>
+<summary>Example: renaming a method within the same class</summary>
+
+```python
+from deprecate import deprecated, void
+
+
+class MyService:
+    def compute(self, x: int) -> int:
+        """Current method."""
+        return x * 2
+
+    @deprecated(target=compute, deprecated_in="1.0", remove_in="2.0")
+    def old_compute(self, x: int) -> int:
+        """Deprecated — renamed to compute()."""
+        return void(x)
+
+
+svc = MyService()
+# calling this method will raise a deprecation warning:
+#   The `old_compute` was deprecated since v1.0 in favor of `__main__.compute`.
+#   It will be removed in v2.0.
+print(svc.old_compute(5))
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>svc.old_compute(5)</code></summary>
+
+```
+10
+```
+
+</details>
 
 <details>
 <summary>Example: forwarding <code>__init__</code> to a successor class</summary>
@@ -890,7 +923,7 @@ print(f"Found {len(expired)} expired")
 
 ```
 Found 12 expired
-Found 21 expired
+Found 22 expired
 Found 14 expired
 Found 0 expired
 ```
