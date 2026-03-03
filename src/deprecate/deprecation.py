@@ -80,6 +80,11 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
             contains a class-prefix component) and those class names differ.
 
     """
+    # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
+    # including across different classes, because PastCls inherits NewCls so `self`
+    # is a valid NewCls instance.
+    if source.__name__ == "__init__" and getattr(target, "__name__", "") == "__init__":
+        return
     src_qualname = getattr(source, "__qualname__", "")
     tgt_qualname = getattr(target, "__qualname__", "")
     src_parts = src_qualname.rsplit(".", 1)
@@ -107,19 +112,19 @@ def _prepare_target_call(
     target: Callable,
     kwargs: dict[str, Any],
 ) -> Callable:
-    """Resolve the target callable and validate mapped keyword arguments.
+    """Validate mapped keyword arguments and return the target callable.
+
+    ``packing()`` normalises the target before ``wrapped_fn`` runs — class
+    targets are remapped to ``target.__init__`` — so by the time this function
+    is called, ``target`` is always a plain callable, never a class.
 
     Args:
         source: Deprecated callable being wrapped.
-        target: Target callable to invoke.
+        target: Target callable to invoke (never a class).
         kwargs: Keyword arguments after mapping and defaults.
 
     Returns:
-        The callable to invoke. For class targets this validates keyword compatibility
-        against ``target.__init__`` and then:
-        - returns ``target.__init__`` for ``__init__``-to-``__init__`` forwarding
-          (source instance is passed via ``self`` in ``kwargs``),
-        - otherwise returns the class itself for normal instantiation.
+        ``target`` unchanged, after validating that it accepts ``kwargs``.
 
     Example:
         >>> from deprecate.deprecation import _prepare_target_call
@@ -133,14 +138,8 @@ def _prepare_target_call(
         TypeError: Failed mapping of `source`, arguments not accepted by target: ['c']
 
     """
-    target_is_class = inspect.isclass(target)
-    # For class targets, only validate against __init__ when forwarding constructor-to-constructor.
-    # Otherwise validate against the class call signature (e.g., metaclass __call__).
-    init_forward = target_is_class and source.__name__ == "__init__" and "self" in kwargs
-    target_for_signature = target.__init__ if init_forward else target
-    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_for_signature)]
-
-    target_full_arg_spec = inspect.getfullargspec(target_for_signature)
+    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target)]
+    target_full_arg_spec = inspect.getfullargspec(target)
     var_args = target_full_arg_spec.varargs
     var_kw = target_full_arg_spec.varkw
 
@@ -152,10 +151,6 @@ def _prepare_target_call(
             f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
             f"these keyword arguments are not allowed): {missed}"
         )
-    # Keep __init__ forwarding for deprecated constructors (self is provided),
-    # but instantiate class targets for normal function/method forwarding.
-    if init_forward:
-        return target.__init__
     return target
 
 
@@ -570,8 +565,34 @@ def deprecated(
                 f"Cannot apply @deprecated to class '{source.__name__}'. "
                 "For class-level deprecation use @deprecated_class() from deprecate.proxy."
             )
+        # Cross-class guard runs before remapping; class targets skip it because
+        # constructor forwarding (target=NewCls on __init__) is always valid.
         if callable(target) and not inspect.isclass(target):
             _check_cross_class_method_target(source, target)
+        # Normalise class target.  Three cases:
+        #   1. source is __init__  → remap target=NewCls to target=NewCls.__init__
+        #      (constructor forwarding; self is the new instance, so the call is valid).
+        #   2. source is a class method (non-__init__)  → raise TypeError;
+        #      passing a class as target for a bound method silently passes `self`
+        #      of the wrong type.
+        #   3. source is a module-level function  → keep target=NewCls as-is;
+        #      calling NewCls(**kwargs) creates a new instance directly.
+        if inspect.isclass(target):
+            src_qualname = getattr(source, "__qualname__", "")
+            src_parts = src_qualname.rsplit(".", 1)
+            source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
+            if source.__name__ == "__init__":
+                _target: Union[bool, None, Callable] = target.__init__
+            elif source_is_class_method:
+                raise TypeError(
+                    f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
+                    f"Constructor forwarding via target=ClassName is only supported on `__init__`. "
+                    f"Use target={target.__name__}.__init__ explicitly, or apply the decorator to `__init__`."
+                )
+            else:
+                _target = target  # module-level function: instantiate directly
+        else:
+            _target = target
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
@@ -592,9 +613,9 @@ def deprecated(
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
-            reason_callable = target is None or callable(target)
+            reason_callable = _target is None or callable(_target)
             reason_argument = {}
-            if args_mapping and target:
+            if args_mapping and _target:
                 # Find which deprecated arguments were actually used in this call
                 reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
             # short cycle with no reason for redirect
@@ -614,6 +635,8 @@ def deprecated(
             # warn user only N times in lifetime or infinitely...
             if stream and (num_warns < 0 or nb_warned < num_warns):
                 if reason_callable:
+                    # Use original `target` (not remapped _target) so the warning
+                    # names the class (e.g. "NewCls") rather than "__init__".
                     _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs)
                     state.warned_calls += 1
                 elif reason_argument:
@@ -623,56 +646,23 @@ def deprecated(
 
             if reason_callable:
                 kwargs = _update_kwargs_with_defaults(source, kwargs)
-            if args_mapping and target:  # covers target as True and callable
+            if args_mapping and _target:  # covers _target as True and callable
                 # Filter out arguments that should be skipped (mapped to None)
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
                 # Apply argument renaming: use mapped name if exists, otherwise keep original
                 # Skip any arguments that were marked for skipping
                 kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
-            if args_extra and target:  # covers target as True and callable
+            if args_extra and _target:  # covers _target as True and callable
                 # update target argument by extra arguments
                 kwargs.update(args_extra)
 
-            if not callable(target):
+            if not callable(_target):
                 if source_has_var_positional:
                     call_kwargs = original_kwargs if not reason_argument else kwargs
                     return source(*args, **call_kwargs)
                 return source(**kwargs)
-            target_func = _prepare_target_call(source, target, kwargs)
-
-            # Constructor-forwarding path: ``@deprecated(target=NewCls)`` applied to
-            # ``__init__``.  Regular class methods only accept ``target=None``,
-            # ``target=True`` (self-rename), or a same-class method — none of which
-            # are classes.  Module-level functions may also target a class directly.
-            if inspect.isclass(target):
-                init_forward = source.__name__ == "__init__" and "self" in kwargs
-                if init_forward:
-                    return target_func(**kwargs)
-                call_args = list(args)
-                try:
-                    source_sig = inspect.signature(source)
-                    params = list(source_sig.parameters.values())
-                    if params and params[0].name in {"self", "cls"} and call_args:
-                        # Drop the bound instance/class argument when forwarding to class
-                        call_args = call_args[1:]
-                except (TypeError, ValueError):
-                    # If we cannot inspect the source signature, fall back to original args
-                    pass
-
-                # Also remove any `self` kwarg if present to avoid unexpected kwarg errors
-                kwargs.pop("self", None)
-                source_params = list(_get_signature(source).parameters.values())
-                positional_names = [param.name for param in _get_positional_params(source_params)]
-                for name in positional_names[: len(args)]:
-                    kwargs.pop(name, None)
-                    if args_mapping:
-                        mapped_name = args_mapping.get(name, name)
-                        if mapped_name:
-                            kwargs.pop(mapped_name, None)
-
-                return target_func(*call_args, **kwargs)
-
+            target_func = _prepare_target_call(source, _target, kwargs)
             return target_func(**kwargs)
 
         # Static deprecation metadata — consumed by audit tools and docstring helpers.

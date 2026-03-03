@@ -105,16 +105,3 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
 # Manually update the __deprecated__ attribute to make it self-referencing
 deprecated_info = getattr(self_referencing_deprecation, "__deprecated__")
 setattr(self_referencing_deprecation, "__deprecated__", replace(deprecated_info, target=self_referencing_deprecation))
-
-
-def define_cross_class_method_target() -> None:
-    """Trigger decoration-time TypeError for cross-class method forwarding misconfiguration."""
-
-    class OtherClass:
-        def other_method(self, x: int) -> int:
-            return x
-
-    class MyClass:
-        @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
-        def old_method(self, x: int) -> int:
-            return void(x)
