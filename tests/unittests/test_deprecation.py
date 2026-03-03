@@ -377,10 +377,17 @@ class TestCrossClassMethodGuard:
 
         with pytest.raises(TypeError, match="only supported on `__init__`"):
 
-            class _Owner:
-                @deprecated(target=Target, deprecated_in="1.0", remove_in="2.0")
-                def some_method(self) -> None:
-                    pass
+            type(
+                "_Owner",
+                (object,),
+                {
+                    "some_method": deprecated(
+                        target=Target,
+                        deprecated_in="1.0",
+                        remove_in="2.0",
+                    )(lambda self: None),
+                },
+            )
 
     def test_does_not_raise_for_same_class_method_target(self) -> None:
         """Forwarding to a method on the same class does not raise."""
