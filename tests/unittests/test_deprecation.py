@@ -115,19 +115,22 @@ class TestUpdateKwargsWithArgs:
 class TestPrepareTargetCall:
     """Tests for _prepare_target_call — validates kwargs against the effective target call signature."""
 
-    def test_enum_class_target_accepts_value_keyword(self) -> None:
-        """Enum class targets should validate against class-call signature, not __init__."""
-        from enum import Enum
+    def test_class_target_uses_call_signature_for_validation(self) -> None:
+        """Class targets validate against metaclass __call__ when not forwarding __init__."""
 
-        def source(value: str) -> Enum:  # pragma: no cover - helper signature only
+        def source(value: str) -> object:  # pragma: no cover - helper signature only
             raise NotImplementedError
 
-        class Color(Enum):
-            RED = "red"
-            BLUE = "blue"
+        class _KeywordCallMeta(type):
+            def __call__(cls, *, value: str) -> object:
+                return super().__call__(raw=value)
 
-        target_callable = _prepare_target_call(source, Color, {"value": "red"})
-        assert target_callable is Color
+        class KeywordCallTarget(metaclass=_KeywordCallMeta):
+            def __init__(self, raw: str) -> None:
+                self.raw = raw
+
+        target_callable = _prepare_target_call(source, KeywordCallTarget, {"value": "red"})
+        assert target_callable is KeywordCallTarget
 
 
 class TestUpdateKwargsWithDefaults:
