@@ -383,6 +383,8 @@ class TestCrossClassMethodGuard:
             def old_method(self, x: int) -> int:
                 return void(x)
 
+        assert callable(MyClass.old_method)
+
     def test_does_not_raise_for_class_target(self) -> None:
         """Forwarding a method to a full class (constructor forwarding) is allowed."""
         from deprecate import deprecated, void
