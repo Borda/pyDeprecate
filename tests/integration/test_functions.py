@@ -25,6 +25,7 @@ from tests.collection_deprecate import (
     depr_accuracy_map,
     depr_accuracy_skip,
     depr_make_new_cls,
+    depr_make_new_cls_mapped,
     depr_pow_args,
     depr_pow_mix,
     depr_pow_self,
@@ -80,6 +81,23 @@ class TestDeprecationWarnings:
         assert instance.my_c == 2
         assert instance.my_d == "abc"
         assert instance.my_e == 0.9
+
+    def test_function_to_class_forwarding_with_args_mapping(self) -> None:
+        """Deprecated function with args_mapping should rename old_c→c before forwarding to NewCls."""
+        from tests.collection_targets import NewCls
+
+        getattr(depr_make_new_cls_mapped, "_state").warned_calls = 0
+        with pytest.warns(
+            FutureWarning,
+            match="The `depr_make_new_cls_mapped` was deprecated since v0.2 in favor of"
+            " `tests.collection_targets.NewCls`. It will be removed in v0.4.",
+        ):
+            instance = depr_make_new_cls_mapped(old_c=3, e=0.7)
+
+        assert isinstance(instance, NewCls)
+        assert instance.my_c == 3
+        assert instance.my_d == "abc"
+        assert instance.my_e == 0.7
 
     def test_default_once(self) -> None:
         """Check that the warning is raised only once per function."""

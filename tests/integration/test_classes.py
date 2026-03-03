@@ -12,6 +12,7 @@ from tests.collection_deprecate import (
     MappedIntEnum,
     MappedValueEnum,
     PastCls,
+    PastClsMapped,
     RedirectedDataClass,
     RedirectedEnum,
     SelfMappedEnum,
@@ -26,8 +27,9 @@ class TestDeprecatedClass:
 
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
-        """Reset deprecation state for PastCls.__init__."""
+        """Reset deprecation state for PastCls and PastClsMapped __init__."""
         getattr(PastCls.__init__, "_state").warned_calls = 0
+        getattr(PastClsMapped.__init__, "_state").warned_calls = 0
 
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
@@ -50,6 +52,19 @@ class TestDeprecatedClass:
             PastCls(2)
         with no_warning_call():
             assert PastCls(c=2, d="", e=0.9999)
+
+    def test_class_forward_with_args_mapping(self) -> None:
+        """Test deprecated class with args_mapping forwarding old_c→c to NewCls."""
+        with pytest.warns(
+            DeprecationWarning,
+            match="The `PastClsMapped` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
+            " It will be removed in v0.4.",
+        ):
+            past = PastClsMapped(old_c=7, e=0.3)
+        assert past.my_c == 7
+        assert past.my_e == 0.3
+        assert isinstance(past, NewCls)
+        assert isinstance(past, PastClsMapped)
 
     def test_class_self_new_args(self) -> None:
         """Test deprecated class with self-referencing __init__, using new arguments."""

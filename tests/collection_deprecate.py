@@ -221,6 +221,16 @@ def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noq
     return void(c, d, kwargs)
 
 
+@deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"})
+def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noqa: ANN401
+    """Forward a deprecated factory function to a class constructor with argument renaming.
+
+    Examples:
+        Old argument ``old_c`` is renamed to ``c`` before forwarding to ``NewCls``.
+    """
+    return void(old_c, d, kwargs)
+
+
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)
 def depr_sum_no_stream(a: int, b: int = 5) -> int:
     """Silent forwarding with no warning emitted.
@@ -495,6 +505,17 @@ class PastCls(NewCls):
     def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
         """Initialize PastCls."""
         super().__init__(c)
+
+
+class PastClsMapped(NewCls):
+    """Deprecated class forwarding to NewCls with argument renaming via args_mapping."""
+
+    @deprecated(
+        target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"}, stream=_deprecation_warning
+    )
+    def __init__(self, old_c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialize PastClsMapped."""
+        super().__init__(old_c)
 
 
 class ThisCls(NewCls):

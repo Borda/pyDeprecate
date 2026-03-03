@@ -107,6 +107,51 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
                 )
 
 
+def _normalize_target(
+    source: Callable,
+    target: Union[bool, None, Callable],
+) -> Union[bool, None, Callable]:
+    """Normalise the effective target callable before the wrapper closure captures it.
+
+    Handles three cases when ``target`` is a class:
+
+    1. ``source`` is ``__init__`` → remap ``target=NewCls`` to ``target=NewCls.__init__``
+       (constructor forwarding; ``self`` is the new instance so the call is valid).
+    2. ``source`` is a class method (non-``__init__``) → raise :exc:`TypeError`;
+       passing a class as target for a bound method silently passes ``self``
+       of the wrong type.
+    3. ``source`` is a module-level function → keep ``target=NewCls`` as-is;
+       calling ``NewCls(**kwargs)`` creates a new instance directly.
+
+    When ``target`` is not a class it is returned unchanged.
+
+    Args:
+        source: The callable being decorated with ``@deprecated``.
+        target: Raw ``target`` argument from the ``@deprecated`` call.
+
+    Returns:
+        Normalised target suitable for use inside ``wrapped_fn``.
+
+    Raises:
+        TypeError: When a class target is used on a non-``__init__`` class method.
+
+    """
+    if not inspect.isclass(target):
+        return target
+    src_qualname = getattr(source, "__qualname__", "")
+    src_parts = src_qualname.rsplit(".", 1)
+    source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
+    if source.__name__ == "__init__":
+        return target.__init__  # type: ignore[return-value]
+    if source_is_class_method:
+        raise TypeError(
+            f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
+            f"Constructor forwarding via target=ClassName is only supported on `__init__`. "
+            f"Use target={target.__name__}.__init__ explicitly, or apply the decorator to `__init__`."
+        )
+    return target  # module-level function: instantiate directly
+
+
 def _prepare_target_call(
     source: Callable,
     target: Callable,
@@ -569,30 +614,7 @@ def deprecated(
         # constructor forwarding (target=NewCls on __init__) is always valid.
         if callable(target) and not inspect.isclass(target):
             _check_cross_class_method_target(source, target)
-        # Normalise class target.  Three cases:
-        #   1. source is __init__  → remap target=NewCls to target=NewCls.__init__
-        #      (constructor forwarding; self is the new instance, so the call is valid).
-        #   2. source is a class method (non-__init__)  → raise TypeError;
-        #      passing a class as target for a bound method silently passes `self`
-        #      of the wrong type.
-        #   3. source is a module-level function  → keep target=NewCls as-is;
-        #      calling NewCls(**kwargs) creates a new instance directly.
-        if inspect.isclass(target):
-            src_qualname = getattr(source, "__qualname__", "")
-            src_parts = src_qualname.rsplit(".", 1)
-            source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
-            if source.__name__ == "__init__":
-                _target: Union[bool, None, Callable] = target.__init__
-            elif source_is_class_method:
-                raise TypeError(
-                    f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
-                    f"Constructor forwarding via target=ClassName is only supported on `__init__`. "
-                    f"Use target={target.__name__}.__init__ explicitly, or apply the decorator to `__init__`."
-                )
-            else:
-                _target = target  # module-level function: instantiate directly
-        else:
-            _target = target
+        _target = _normalize_target(source, target)
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
