@@ -3,7 +3,7 @@
 We're excited to announce pyDeprecate 0.5.0 — the **deprecation lifecycle release**!
 This version ships a brand-new `audit` module that brings CI-grade tooling for keeping your deprecated APIs healthy, discoverable, and eventually removed on schedule.
 
----
+______________________________________________________________________
 
 ## ✨ What's New
 
@@ -70,14 +70,14 @@ chains = validate_deprecation_chains(mypackage)
 assert not chains, f"Chained deprecations found: {chains}"
 ```
 
----
+______________________________________________________________________
 
 ### 🐛 Bug Fixes
 
 - **Class deprecation guard** (#120): Applying `@deprecated` to a class now raises `TypeError` immediately at decoration time, preventing silent misuse.
 - **Cross-class method guard** (#121): Forwarding a deprecated method to a method on a different class is now detected and rejected at decoration time, preventing incorrect call routing.
 
----
+______________________________________________________________________
 
 ## 🔧 Under the Hood
 
@@ -87,7 +87,7 @@ assert not chains, f"Chained deprecations found: {chains}"
 - Link checker added to CI to catch broken documentation references (#91)
 - Linting, type hint, and code quality improvements throughout (#85, #86, #98)
 
----
+______________________________________________________________________
 
 ## 📦 Installation
 
@@ -98,12 +98,12 @@ pip install --upgrade pyDeprecate
 pip install --upgrade "pyDeprecate[audit]"
 ```
 
----
+______________________________________________________________________
 
 ## 🙏 Thank You
 
 A big thank you to everyone who contributed to this release!
 
----
+______________________________________________________________________
 
 **Full Changelog**: [`v0.4.0...v0.5.0`](https://github.com/Borda/pyDeprecate/compare/v0.4.0...v0.5.0)
