@@ -1,16 +1,14 @@
 """Unit tests for private helpers in deprecate.deprecation."""
 
 import inspect
-from enum import Enum
 from unittest.mock import MagicMock
 
 import pytest
 
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
-    _convert_enum_value_args,
     _get_positional_params,
-    _is_enum_value_case,
+    _prepare_target_call,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
@@ -112,6 +110,27 @@ class TestUpdateKwargsWithArgs:
 
         with pytest.raises(TypeError, match="takes 2 positional"):
             _update_kwargs_with_args(my_func, (1, 2, 3), {})
+
+
+class TestPrepareTargetCall:
+    """Tests for _prepare_target_call — validates kwargs against the effective target call signature."""
+
+    def test_class_target_uses_call_signature_for_validation(self) -> None:
+        """Class targets validate against metaclass __call__ when not forwarding __init__."""
+
+        def source(value: str) -> object:  # pragma: no cover - helper signature only
+            raise NotImplementedError
+
+        class _KeywordCallMeta(type):
+            def __call__(cls, *, value: str) -> object:
+                return super().__call__(raw=value)
+
+        class KeywordCallTarget(metaclass=_KeywordCallMeta):
+            def __init__(self, raw: str) -> None:
+                self.raw = raw
+
+        target_callable = _prepare_target_call(source, KeywordCallTarget, {"value": "red"})
+        assert target_callable is KeywordCallTarget
 
 
 class TestUpdateKwargsWithDefaults:
@@ -278,81 +297,64 @@ class TestRaiseWarnArguments:
         assert stream.call_args[0][0].startswith("map: ")
 
 
-class TestIsEnumValueCase:
-    """Tests for _is_enum_value_case — predicate that detects the Enum.__new__(value) call pattern."""
+class TestDeprecatedClassGuard:
+    """@deprecated raises TypeError when applied to a class; use @deprecated_class instead."""
 
-    class _OldEnum(Enum):
-        A = "a"
+    def test_raises_for_plain_class(self) -> None:
+        """Applying @deprecated to a plain class raises TypeError."""
+        from deprecate import deprecated
 
-    class _NewEnum(Enum):
-        A = "a"
+        with pytest.raises(TypeError, match="deprecated_class"):
 
-    def test_returns_true_for_enum_to_enum_with_value_missed(self) -> None:
-        """Returns True when both source and target are Enums and the sole missed arg is 'value'."""
-        assert _is_enum_value_case(self._OldEnum, self._NewEnum, ["value"], True, True) is True
+            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            class _MyClass:
+                pass
 
-    def test_returns_false_when_source_not_enum(self) -> None:
-        """Returns False when the source callable is not an Enum subclass."""
+    def test_raises_for_enum_class(self) -> None:
+        """Applying @deprecated to an Enum class raises TypeError."""
+        from enum import Enum
 
-        def plain_func() -> None:
+        from deprecate import deprecated
+
+        with pytest.raises(TypeError, match="deprecated_class"):
+
+            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            class _MyEnum(Enum):
+                A = "a"
+
+    def test_raises_for_dataclass(self) -> None:
+        """Applying @deprecated to a dataclass raises TypeError."""
+        from dataclasses import dataclass
+
+        from deprecate import deprecated
+
+        with pytest.raises(TypeError, match="deprecated_class"):
+
+            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @dataclass
+            class _MyData:
+                x: int
+
+    def test_does_not_raise_for_function(self) -> None:
+        """Applying @deprecated to a regular function does not raise."""
+        from deprecate import deprecated
+
+        @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+        def my_func() -> None:
             pass
 
-        assert _is_enum_value_case(plain_func, self._NewEnum, ["value"], False, True) is False
+        with pytest.warns(FutureWarning):
+            my_func()
 
-    def test_returns_false_when_target_not_enum(self) -> None:
-        """Returns False when the target callable is not an Enum subclass."""
+    def test_does_not_raise_for_init_method(self) -> None:
+        """Applying @deprecated to __init__ (not the class itself) does not raise."""
+        from deprecate import deprecated
 
-        def plain_target() -> None:
-            pass
+        class MyClass:
+            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            def __init__(self) -> None:
+                pass
 
-        assert _is_enum_value_case(self._OldEnum, plain_target, ["value"], True, False) is False
-
-    def test_returns_false_when_missed_arg_not_value(self) -> None:
-        """Returns False when the missed argument name is not 'value' — not the Enum pattern."""
-        assert _is_enum_value_case(self._OldEnum, self._NewEnum, ["other_arg"], True, True) is False
-
-    def test_returns_false_when_multiple_missed_args(self) -> None:
-        """Returns False when more than one arg is missed — the Enum pattern requires exactly one."""
-        assert _is_enum_value_case(self._OldEnum, self._NewEnum, ["value", "extra"], True, True) is False
-
-    def test_returns_false_when_no_missed_args(self) -> None:
-        """Returns False when no args are missed — the Enum value arg must be the one missing."""
-        assert _is_enum_value_case(self._OldEnum, self._NewEnum, [], True, True) is False
-
-
-class TestConvertEnumValueArgs:
-    """Tests for _convert_enum_value_args — adapts call args/kwargs for Enum.__new__(value) invocation."""
-
-    class _SampleEnum(Enum):
-        ALPHA = "alpha"
-        BETA = "beta"
-
-    def test_moves_value_kwarg_to_positional(self) -> None:
-        """The 'value' kwarg is extracted and prepended as a positional arg for Enum lookup."""
-        args, kwargs = _convert_enum_value_args(self._SampleEnum, (), {"value": "alpha"})
-        assert args == ("alpha",)
-        assert kwargs == {}
-
-    def test_non_enum_target_returns_unchanged(self) -> None:
-        """When the target is not an Enum, args and kwargs are returned without modification."""
-
-        def plain_func(value: str) -> None:
-            pass
-
-        original_args = (1, 2)
-        original_kwargs = {"value": "x"}
-        args, kwargs = _convert_enum_value_args(plain_func, original_args, original_kwargs)
-        assert args == original_args
-        assert kwargs == original_kwargs
-
-    def test_no_value_kwarg_returns_unchanged(self) -> None:
-        """When 'value' is not in kwargs, args and kwargs are returned without modification."""
-        args, kwargs = _convert_enum_value_args(self._SampleEnum, (), {"other": "x"})
-        assert args == ()
-        assert kwargs == {"other": "x"}
-
-    def test_existing_positional_args_not_overwritten(self) -> None:
-        """When positional args already exist, 'value' is removed from kwargs but not prepended again."""
-        args, kwargs = _convert_enum_value_args(self._SampleEnum, ("alpha",), {"value": "alpha"})
-        assert args == ("alpha",)
-        assert "value" not in kwargs
+        with pytest.warns(FutureWarning):
+            instance = MyClass()
+        assert isinstance(instance, MyClass)
