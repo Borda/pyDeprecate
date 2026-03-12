@@ -41,6 +41,7 @@ from tests.collection_targets import (
     NewIntEnum,
     TargetColorEnum,
     TimerDecorator,
+    base_add,
     base_pow_args,
     base_sum_kwargs,
     cross_guard_standalone_increment,
@@ -478,6 +479,43 @@ class DeprTimerDecorator(TimerDecorator):
     def __init__(self, func: Callable) -> None:
         """Initialize deprecated timer."""
         void(func)
+
+
+# ========== Assignment (wrapper) form of @deprecated ==========
+
+
+def original_add(a: int, b: int = 0) -> int:
+    """Source function for wrapper-form deprecation — replaced by base_add.
+
+    Examples:
+        The wrapper form ``wrapper_add = deprecated(...)(original_add)``
+        is functionally equivalent to ``@deprecated(...) def original_add: ...``
+        but uses explicit assignment instead of decorator syntax.
+    """
+    return void(a, b)
+
+
+# assign form — equivalent to @deprecated but without decorator syntax
+wrapper_add = deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0")(original_add)
+
+
+def original_add_mapped(x: int, y: int = 0) -> int:
+    """Source function for wrapper-form deprecation with args_mapping.
+
+    Examples:
+        The wrapper form ``wrapper_add_mapped = deprecated(...)(original_add_mapped)``
+        renames x->a and y->b before forwarding to base_add.
+    """
+    return void(x, y)
+
+
+# assign form with args_mapping — renames x->a and y->b before forwarding
+wrapper_add_mapped = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    args_mapping={"x": "a", "y": "b"},
+)(original_add_mapped)
 
 
 # ========== Testing Expiry Enforcement Examples ==========

@@ -43,6 +43,8 @@ from tests.collection_deprecate import (
     depr_sum_msg,
     depr_sum_no_stream,
     depr_sum_warn_only,
+    wrapper_add,
+    wrapper_add_mapped,
 )
 
 
@@ -483,3 +485,77 @@ class TestDeprecatedClassWrappers:
         assert hasattr(sample_function, "total_time")
         assert hasattr(sample_function, "calls")
         assert sample_function.calls == 1
+
+
+class TestDeprecatedWrapperForm:
+    """Tests for deprecated() used in assignment (wrapper) form instead of @decorator syntax.
+
+    The wrapper form ``new = deprecated(...)(old)`` is functionally equivalent to
+    ``@deprecated(...) def old: ...`` but exercises a different code path in user
+    code. These tests verify that the contract is identical for both forms.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_wrapper_state(self) -> None:
+        """Reset warning counters before each test for independence."""
+        getattr(wrapper_add, "_state").warned_calls = 0
+        getattr(wrapper_add_mapped, "_state").warned_calls = 0
+
+    def test_wrapper_form_produces_warning(self) -> None:
+        """Wrapper form emits the same FutureWarning as decorator form."""
+        with pytest.warns(
+            FutureWarning,
+            match="The `original_add` was deprecated since v0.5"
+            " in favor of `tests.collection_targets.base_add`."
+            " It will be removed in v1.0.",
+        ):
+            wrapper_add(1, 2)
+
+    def test_wrapper_form_forwards_call(self) -> None:
+        """Wrapper form correctly forwards the call to the target function."""
+        with pytest.warns(FutureWarning):
+            result = wrapper_add(3, 4)
+        assert result == 7, f"Expected base_add(3, 4) == 7, got {result}"
+
+    def test_wrapper_form_forwards_kwargs(self) -> None:
+        """Wrapper form passes keyword arguments through to the target."""
+        with pytest.warns(FutureWarning):
+            result = wrapper_add(a=10, b=20)
+        assert result == 30, f"Expected base_add(a=10, b=20) == 30, got {result}"
+
+    def test_wrapper_form_uses_target_defaults(self) -> None:
+        """Wrapper form inherits the target's default argument values."""
+        with pytest.warns(FutureWarning):
+            result = wrapper_add(5)
+        assert result == 5, f"Expected base_add(5, b=0) == 5, got {result}"
+
+    def test_wrapper_form_deprecated_attribute(self) -> None:
+        """Wrapper form sets __deprecated__ with correct DeprecationInfo."""
+        from tests.collection_targets import base_add
+
+        assert hasattr(wrapper_add, "__deprecated__"), (
+            "wrapper_add must have __deprecated__ attribute set at decoration time"
+        )
+        info = wrapper_add.__deprecated__
+        assert isinstance(info, DeprecationInfo)
+        assert info.deprecated_in == "0.5"
+        assert info.remove_in == "1.0"
+        assert info.target is base_add
+
+    def test_wrapper_form_warns_only_once_by_default(self) -> None:
+        """Wrapper form with default num_warns=1 warns only on the first call."""
+        with pytest.warns(FutureWarning):
+            assert wrapper_add(1, 2) == 3
+        with no_warning_call(FutureWarning):
+            assert wrapper_add(3, 4) == 7
+
+    def test_wrapper_form_with_args_mapping(self) -> None:
+        """Wrapper form with args_mapping renames x->a and y->b before forwarding."""
+        with pytest.warns(FutureWarning):
+            result = wrapper_add_mapped(x=10, y=20)
+        assert result == 30, f"Expected base_add(a=10, b=20) == 30, got {result}"
+
+    def test_wrapper_form_with_args_mapping_attribute(self) -> None:
+        """Wrapper form with args_mapping records the mapping in __deprecated__."""
+        info = wrapper_add_mapped.__deprecated__
+        assert info.args_mapping == {"x": "a", "y": "b"}

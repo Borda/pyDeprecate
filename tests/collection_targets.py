@@ -12,6 +12,11 @@ from enum import Enum
 from typing import Any, Callable
 
 
+def base_add(a: int, b: int = 0) -> int:
+    """Base addition function used as target for wrapper-form deprecation tests."""
+    return a + b
+
+
 def raise_pow(base: float, coef: float) -> float:
     """Compute base**coef while emitting a UserWarning — used to test no_warning_call."""
     warnings.warn("warning you!", UserWarning)
