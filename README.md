@@ -200,6 +200,7 @@ from deprecate import deprecated
 # def calculate(a: int, b: int = 5) -> int:
 #     return a + b
 
+
 # DEPRECATED API — `calculate` was the original name before the rename
 @deprecated(target=compute, deprecated_in="0.1", remove_in="0.5")
 def calculate(a: int, b: int = 5) -> int:
@@ -606,6 +607,7 @@ print(Color["RED"] is StatusColor.RED)
 # - PointV1 used integer pixel coordinates.
 # - PointV2 supports float coordinates for sub-pixel precision and smoother transforms.
 
+
 # NEW/FUTURE API — extended to float precision
 @dataclass
 class PointV2:
@@ -662,10 +664,12 @@ from deprecate import deprecated_class
 #     RED = 1
 #     BLUE = 2
 
+
 # After: the class was renamed to NewColor (more specific, lives in the same file).
 class NewColor(Enum):
     RED = 1
     BLUE = 2
+
 
 # Keep the original name working as a deprecated alias.
 # Existing callers importing `Color` don't break immediately.
