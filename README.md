@@ -234,13 +234,16 @@ When the deprecated name already exists as a callable (for example, imported fro
 ```python
 from deprecate import deprecated
 
+
 # NEW/FUTURE API — in real usage this would be imported from another module
 def compute_sum(a: int, b: int = 0) -> int:
     return a + b
 
+
 # LEGACY — already-existing callable that is being deprecated
 def addition(a: int, b: int = 0) -> int:
     return a + b
+
 
 # DEPRECATED API — `calculate` was the original name in this package;
 # wrap it without redefining a function body
