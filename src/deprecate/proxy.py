@@ -372,6 +372,7 @@ class _DeprecatedProxy:
 
 def deprecated_class(
     target: Any = None,  # noqa: ANN401
+    *,
     deprecated_in: str = "",
     remove_in: str = "",
     num_warns: int = 1,
@@ -432,6 +433,7 @@ def deprecated_class(
 
 def deprecated_instance(
     obj: Any,  # noqa: ANN401
+    *,
     name: str = "",
     deprecated_in: str = "",
     remove_in: str = "",

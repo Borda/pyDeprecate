@@ -1,5 +1,7 @@
 """Tests for deprecated classes and methods."""
 
+import warnings
+
 import pytest
 
 from deprecate._types import DeprecationInfo
@@ -18,6 +20,8 @@ from tests.collection_deprecate import (
     SelfMappedEnum,
     ServiceCls,
     ThisCls,
+    WrapperDataClass,
+    WrapperEnum,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
 
@@ -267,3 +271,99 @@ def test_deprecated_class_attribute_set_at_decoration_time() -> None:
         target=NewCls,
         args_mapping=None,
     )
+
+
+class TestDeprecatedClassWrapperForm:
+    """Tests for deprecated_class() used in assignment (wrapper) form instead of @decorator syntax.
+
+    The wrapper form ``Wrapper = deprecated_class(...)(OriginalCls)`` is functionally
+    equivalent to ``@deprecated_class(...) class OriginalCls: ...`` but exercises the
+    explicit-assignment code path.  These tests verify that the contract is identical
+    for both forms: warnings, forwarding, isinstance/issubclass, and metadata.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_proxy_state(self) -> None:
+        """Reset the proxy warn counter before each test for independence."""
+        # _DeprecatedProxy stores warned count in _ProxyConfig via _cfg.warned
+        WrapperEnum._cfg.warned = 0
+        WrapperDataClass._cfg.warned = 0
+
+    # ------------------------------------------------------------------
+    # Enum wrapper-form tests
+    # ------------------------------------------------------------------
+
+    def test_wrapper_enum_emits_warning(self) -> None:
+        """Accessing WrapperEnum.ALPHA emits a FutureWarning with version info."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"_OriginalEnum.*deprecated since v0\.5.*removed in v1\.0",
+        ):
+            _ = WrapperEnum.ALPHA
+
+    def test_wrapper_enum_attribute_forwarding(self) -> None:
+        """WrapperEnum.ALPHA forwards to NewEnum.ALPHA and exposes the correct value."""
+        with pytest.warns(FutureWarning):
+            member = WrapperEnum.ALPHA
+        assert member.value == "alpha", f"Expected WrapperEnum.ALPHA.value == 'alpha', got {member.value!r}"
+        assert member is NewEnum.ALPHA, "WrapperEnum.ALPHA should be the same object as NewEnum.ALPHA"
+
+    def test_wrapper_enum_isinstance_check(self) -> None:
+        """isinstance(NewEnum.ALPHA, WrapperEnum) is True via __instancecheck__."""
+        assert isinstance(NewEnum.ALPHA, WrapperEnum), (  # type: ignore[arg-type]
+            "isinstance(NewEnum.ALPHA, WrapperEnum) must be True — "
+            "the proxy delegates to the target class via __instancecheck__"
+        )
+
+    def test_wrapper_enum_issubclass_check(self) -> None:
+        """issubclass(NewEnum, WrapperEnum) is True via __subclasscheck__."""
+        assert issubclass(NewEnum, WrapperEnum), (  # type: ignore[arg-type]
+            "issubclass(NewEnum, WrapperEnum) must be True — "
+            "the proxy delegates to the target class via __subclasscheck__"
+        )
+
+    def test_wrapper_enum_deprecated_metadata(self) -> None:
+        """WrapperEnum.__deprecated__ is a DeprecationInfo with correct fields."""
+        dep = object.__getattribute__(WrapperEnum, "__deprecated__")
+        assert isinstance(dep, DeprecationInfo), f"Expected DeprecationInfo, got {type(dep).__name__}"
+        assert dep.deprecated_in == "0.5"
+        assert dep.remove_in == "1.0"
+        assert dep.target is NewEnum
+        assert dep.name == "_OriginalEnum"
+
+    def test_wrapper_enum_warn_once(self) -> None:
+        """With num_warns=1, two attribute accesses emit exactly one warning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = WrapperEnum.ALPHA
+            _ = WrapperEnum.BETA
+        assert len(caught) == 1, f"Expected exactly 1 warning (num_warns=1), got {len(caught)}"
+
+    # ------------------------------------------------------------------
+    # Dataclass wrapper-form tests
+    # ------------------------------------------------------------------
+
+    def test_wrapper_dataclass_emits_warning(self) -> None:
+        """Instantiating WrapperDataClass emits a FutureWarning with version info."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"_OriginalDataClass.*deprecated since v0\.5.*removed in v1\.0",
+        ):
+            WrapperDataClass(label="x")
+
+    def test_wrapper_dataclass_forwarding(self) -> None:
+        """WrapperDataClass(label='x') returns a NewDataClass instance with correct fields."""
+        with pytest.warns(FutureWarning):
+            instance = WrapperDataClass(label="x")
+        assert isinstance(instance, NewDataClass), f"Expected NewDataClass instance, got {type(instance).__name__}"
+        assert instance.label == "x", f"Expected label='x', got {instance.label!r}"
+        assert instance.total == 0, f"Expected total=0, got {instance.total}"
+
+    def test_wrapper_dataclass_deprecated_metadata(self) -> None:
+        """WrapperDataClass.__deprecated__ is a DeprecationInfo with correct fields."""
+        dep = object.__getattribute__(WrapperDataClass, "__deprecated__")
+        assert isinstance(dep, DeprecationInfo), f"Expected DeprecationInfo, got {type(dep).__name__}"
+        assert dep.deprecated_in == "0.5"
+        assert dep.remove_in == "1.0"
+        assert dep.target is NewDataClass
+        assert dep.name == "_OriginalDataClass"

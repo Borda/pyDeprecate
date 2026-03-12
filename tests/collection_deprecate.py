@@ -22,6 +22,20 @@ This module contains deprecated wrappers covering real-world use cases:
 - Deprecating individual class methods (warn-only and redirect)
 - Instance deprecation via deprecated_instance()
 - Class-level deprecation with deprecated_class (Enum and dataclass)
+
+Wrapper-form fixtures (assignment form of @deprecated):
+- wrapper_add: basic forwarding
+- wrapper_add_mapped: forwarding with args_mapping
+- wrapper_add_warn_inf: num_warns=-1 (warn every call)
+- wrapper_add_warn_2: num_warns=2 (warn N times)
+- wrapper_add_silent: stream=None (silent forwarding)
+- wrapper_add_custom_msg: custom template_mgs
+- wrapper_add_extra: args_extra injection
+- wrapper_add_skip_true: skip_if=True (static bypass)
+- wrapper_add_skip_func: skip_if=callable (runtime bypass)
+- wrapper_warn_only: target=None (warn-only, no forwarding)
+- wrapper_self_depr: target=True with args_mapping (self-deprecation)
+- wrapper_add_docstring: update_docstring=True
 """
 
 from dataclasses import dataclass
@@ -45,6 +59,8 @@ from tests.collection_targets import (
     base_pow_args,
     base_sum_kwargs,
     cross_guard_standalone_increment,
+    self_rename_pow,
+    standalone_sum,
     timing_wrapper,
 )
 
@@ -162,6 +178,38 @@ SelfMappedEnum = deprecated_class(
     num_warns=-1,
     args_mapping={"old_value": "value"},
 )(_SelfMappedEnum)
+
+
+# Wrapper-form: deprecated_class used as a factory (not as @decorator)
+class _OriginalEnum(Enum):
+    """Original enum class that gets wrapped by deprecated_class in wrapper form."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+WrapperEnum = deprecated_class(
+    target=NewEnum,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    num_warns=1,
+)(_OriginalEnum)
+
+
+@dataclass
+class _OriginalDataClass:
+    """Original dataclass that gets wrapped by deprecated_class in wrapper form."""
+
+    label: str
+    total: int = 0
+
+
+WrapperDataClass = deprecated_class(
+    target=NewDataClass,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    num_warns=1,
+)(_OriginalDataClass)
 
 
 @deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
@@ -516,6 +564,119 @@ wrapper_add_mapped = deprecated(
     remove_in="1.0",
     args_mapping={"x": "a", "y": "b"},
 )(original_add_mapped)
+
+
+# wrapper form — num_warns=-1 (warn every call)
+wrapper_add_warn_inf = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    num_warns=-1,
+)(original_add)
+
+# wrapper form — num_warns=2 (warn N times)
+wrapper_add_warn_2 = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    num_warns=2,
+)(original_add)
+
+# wrapper form — stream=None (silent forwarding)
+wrapper_add_silent = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    stream=None,
+)(original_add)
+
+# wrapper form — custom warning template
+wrapper_add_custom_msg = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    template_mgs="v%(deprecated_in)s: `%(source_name)s` is old, use `%(target_name)s`",
+)(original_add)
+
+# wrapper form — args_extra injects b=100 into forwarded call
+wrapper_add_extra = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    args_extra={"b": 100},
+)(original_add)
+
+# wrapper form — skip_if=True (deprecation entirely disabled)
+wrapper_add_skip_true = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    skip_if=True,
+)(original_add)
+
+# wrapper form — skip_if=callable (runtime bypass)
+wrapper_add_skip_func = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    skip_if=lambda: True,
+)(original_add)
+
+
+def original_warn_only(a: int, b: int = 0) -> int:
+    """Source function for wrapper-form target=None (warn-only, body executes).
+
+    Examples:
+        ``wrapper_warn_only = deprecated(target=None, ...)(original_warn_only)``
+        emits a warning but executes the original body since there is no target.
+    """
+    return standalone_sum(a, b)
+
+
+# wrapper form — target=None (warn-only, no forwarding)
+wrapper_warn_only = deprecated(
+    target=None,
+    deprecated_in="0.5",
+    remove_in="1.0",
+)(original_warn_only)
+
+
+def original_self_rename(base: float, old_exp: float = 0, new_exp: float = 0) -> float:
+    """Source function for wrapper-form target=True (self-deprecation / arg rename).
+
+    Examples:
+        ``wrapper_self_depr = deprecated(target=True, ...)(original_self_rename)``
+        remaps old_exp -> new_exp within the same function body.
+    """
+    return self_rename_pow(base, new_exp=new_exp)
+
+
+# wrapper form — target=True with args_mapping (self-deprecation)
+wrapper_self_depr = deprecated(
+    target=True,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    args_mapping={"old_exp": "new_exp"},
+)(original_self_rename)
+
+
+def original_add_with_docstring(a: int, b: int = 0) -> int:
+    """Original add function with a docstring to test update_docstring.
+
+    Examples:
+        ``wrapper_add_docstring = deprecated(..., update_docstring=True)(original_add_with_docstring)``
+        appends a deprecation notice to this docstring.
+    """
+    return void(a, b)
+
+
+# wrapper form — update_docstring=True
+wrapper_add_docstring = deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    update_docstring=True,
+)(original_add_with_docstring)
 
 
 # ========== Testing Expiry Enforcement Examples ==========

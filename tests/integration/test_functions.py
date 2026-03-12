@@ -44,7 +44,17 @@ from tests.collection_deprecate import (
     depr_sum_no_stream,
     depr_sum_warn_only,
     wrapper_add,
+    wrapper_add_custom_msg,
+    wrapper_add_docstring,
+    wrapper_add_extra,
     wrapper_add_mapped,
+    wrapper_add_silent,
+    wrapper_add_skip_func,
+    wrapper_add_skip_true,
+    wrapper_add_warn_2,
+    wrapper_add_warn_inf,
+    wrapper_self_depr,
+    wrapper_warn_only,
 )
 
 
@@ -498,8 +508,23 @@ class TestDeprecatedWrapperForm:
     @pytest.fixture(autouse=True)
     def _reset_wrapper_state(self) -> None:
         """Reset warning counters before each test for independence."""
-        getattr(wrapper_add, "_state").warned_calls = 0
-        getattr(wrapper_add_mapped, "_state").warned_calls = 0
+        for wrapper in (
+            wrapper_add,
+            wrapper_add_mapped,
+            wrapper_add_warn_inf,
+            wrapper_add_warn_2,
+            wrapper_add_silent,
+            wrapper_add_custom_msg,
+            wrapper_add_extra,
+            wrapper_add_skip_true,
+            wrapper_add_skip_func,
+            wrapper_warn_only,
+            wrapper_add_docstring,
+        ):
+            getattr(wrapper, "_state").warned_calls = 0
+        # Also reset per-argument warning counters for self-deprecation wrapper
+        getattr(wrapper_self_depr, "_state").warned_calls = 0
+        getattr(wrapper_self_depr, "_state").warned_args.clear()
 
     def test_wrapper_form_produces_warning(self) -> None:
         """Wrapper form emits the same FutureWarning as decorator form."""
@@ -541,6 +566,7 @@ class TestDeprecatedWrapperForm:
         assert info.deprecated_in == "0.5"
         assert info.remove_in == "1.0"
         assert info.target is base_add
+        assert info.name == "original_add"
 
     def test_wrapper_form_warns_only_once_by_default(self) -> None:
         """Wrapper form with default num_warns=1 warns only on the first call."""
@@ -557,5 +583,133 @@ class TestDeprecatedWrapperForm:
 
     def test_wrapper_form_with_args_mapping_attribute(self) -> None:
         """Wrapper form with args_mapping records the mapping in __deprecated__."""
-        info = wrapper_add_mapped.__deprecated__
+        info: DeprecationInfo = getattr(wrapper_add_mapped, "__deprecated__")
         assert info.args_mapping == {"x": "a", "y": "b"}
+
+    # ---------- num_warns=-1 (warn every call) ----------
+
+    def test_wrapper_form_num_warns_inf(self) -> None:
+        """Wrapper form with num_warns=-1 warns on every call."""
+
+        def _call_wrapper() -> None:
+            for _ in range(5):
+                assert wrapper_add_warn_inf(1, 2) == 3
+
+        with pytest.warns(FutureWarning) as record:
+            _call_wrapper()
+        assert len(record) == 5, f"Expected 5 warnings for num_warns=-1, got {len(record)}"
+
+    # ---------- num_warns=2 (warn N times) ----------
+
+    def test_wrapper_form_num_warns_limited(self) -> None:
+        """Wrapper form with num_warns=2 warns only the first 2 calls."""
+
+        def _call_wrapper() -> None:
+            for _ in range(5):
+                assert wrapper_add_warn_2(1, 2) == 3
+
+        with pytest.warns(FutureWarning) as record:
+            _call_wrapper()
+        assert len(record) == 2, f"Expected 2 warnings for num_warns=2, got {len(record)}"
+
+    # ---------- stream=None (silent mode) ----------
+
+    def test_wrapper_form_stream_none(self) -> None:
+        """Wrapper form with stream=None forwards without emitting any warning."""
+        with no_warning_call(FutureWarning):
+            result = wrapper_add_silent(3, 4)
+        assert result == 7, f"Expected base_add(3, 4) == 7, got {result}"
+
+    # ---------- template_mgs (custom warning text) ----------
+
+    def test_wrapper_form_custom_template(self) -> None:
+        """Wrapper form with template_mgs emits the custom-formatted warning."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"v0\.5: `original_add` is old, use `base_add`",
+        ):
+            result = wrapper_add_custom_msg(2, 3)
+        assert result == 5, f"Expected base_add(2, 3) == 5, got {result}"
+
+    # ---------- args_extra (inject extra args) ----------
+
+    def test_wrapper_form_args_extra(self) -> None:
+        """Wrapper form with args_extra overrides b=100 in the forwarded call."""
+        with pytest.warns(FutureWarning):
+            result = wrapper_add_extra(1, b=5)
+        # args_extra={"b": 100} overrides user-provided b=5
+        assert result == 101, f"Expected base_add(a=1, b=100) == 101 (args_extra overrides b), got {result}"
+
+    def test_wrapper_form_args_extra_default(self) -> None:
+        """Wrapper form with args_extra injects b=100 even when b is not passed."""
+        with pytest.warns(FutureWarning):
+            result = wrapper_add_extra(1)
+        assert result == 101, f"Expected base_add(a=1, b=100) == 101, got {result}"
+
+    # ---------- skip_if=True (static bypass) ----------
+
+    def test_wrapper_form_skip_if_true(self) -> None:
+        """Wrapper form with skip_if=True executes source body without warning or forwarding."""
+        with no_warning_call(FutureWarning):
+            result = wrapper_add_skip_true(3, 4)
+        # skip_if=True means source body executes — original_add returns void(3, 4) = None
+        assert result is None, f"Expected None from source body (void), got {result}"
+
+    # ---------- skip_if=callable (dynamic bypass) ----------
+
+    def test_wrapper_form_skip_if_callable(self) -> None:
+        """Wrapper form with skip_if=lambda: True bypasses deprecation at runtime."""
+        with no_warning_call(FutureWarning):
+            result = wrapper_add_skip_func(5, 6)
+        assert result is None, f"Expected None from source body (void), got {result}"
+
+    # ---------- target=None (warn-only, no forwarding) ----------
+
+    def test_wrapper_form_target_none_warns(self) -> None:
+        """Wrapper form with target=None emits warning but executes the original body."""
+        with pytest.warns(
+            FutureWarning,
+            match="The `original_warn_only` was deprecated since v0.5. It will be removed in v1.0.",
+        ):
+            result = wrapper_warn_only(3, 4)
+        assert result == 7, f"Expected original body to execute and return 3+4==7, got {result}"
+
+    def test_wrapper_form_target_none_attribute(self) -> None:
+        """Wrapper form with target=None records target=None in __deprecated__."""
+        info: DeprecationInfo = getattr(wrapper_warn_only, "__deprecated__")
+        assert info.target is None, f"Expected __deprecated__.target is None, got {info.target!r}"
+
+    # ---------- target=True (self-deprecation / arg rename) ----------
+
+    def test_wrapper_form_self_deprecation_new_arg(self) -> None:
+        """Wrapper form with target=True passes through when new arg is used (no warning)."""
+        with no_warning_call():
+            result = wrapper_self_depr(2.0, new_exp=3.0)
+        assert result == 8.0, f"Expected 2.0**3.0 == 8.0, got {result}"
+
+    def test_wrapper_form_self_deprecation_old_arg(self) -> None:
+        """Wrapper form with target=True warns and remaps old_exp -> new_exp."""
+        with pytest.warns(
+            FutureWarning,
+            match=r"`original_self_rename` uses deprecated arguments: `old_exp` -> `new_exp`",
+        ):
+            result = wrapper_self_depr(2.0, old_exp=3.0)
+        assert result == 8.0, f"Expected 2.0**3.0 == 8.0 after remapping old_exp->new_exp, got {result}"
+
+    def test_wrapper_form_self_deprecation_attribute(self) -> None:
+        """Wrapper form with target=True records target=True in __deprecated__."""
+        info: DeprecationInfo = getattr(wrapper_self_depr, "__deprecated__")
+        assert info.target is True, f"Expected __deprecated__.target is True, got {info.target!r}"
+        assert info.args_mapping == {"old_exp": "new_exp"}, (
+            f"Expected args_mapping == {{'old_exp': 'new_exp'}}, got {info.args_mapping!r}"
+        )
+
+    # ---------- update_docstring=True ----------
+
+    def test_wrapper_form_update_docstring(self) -> None:
+        """Wrapper form with update_docstring=True appends deprecation notice to docstring."""
+        doc = wrapper_add_docstring.__doc__
+        assert doc is not None, "Expected docstring to be set"
+        assert ".. deprecated:: 0.5" in doc, f"Expected '.. deprecated:: 0.5' in docstring, got:\n{doc}"
+        assert "Will be removed in 1.0." in doc, f"Expected 'Will be removed in 1.0.' in docstring, got:\n{doc}"
+        assert "base_add" in doc, f"Expected target name 'base_add' in docstring, got:\n{doc}"

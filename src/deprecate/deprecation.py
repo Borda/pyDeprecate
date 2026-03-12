@@ -513,6 +513,7 @@ def deprecated(
     target: Union[bool, None, Callable],
     deprecated_in: str = "",
     remove_in: str = "",
+    *,
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
     template_mgs: Optional[str] = None,
