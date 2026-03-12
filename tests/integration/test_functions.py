@@ -56,24 +56,29 @@ from tests.collection_deprecate import (
     wrapped_sum_warn_only,
 )
 
+
 class TestDeprecationWarnings:
     """Tests for basic deprecation warning behavior."""
 
-    @pytest.mark.parametrize(("func", "name"), [
-        pytest.param(depr_sum_warn_only, "depr_sum_warn_only", id="depr-form"),
-        pytest.param(wrapped_sum_warn_only, "original_sum_warn_only", id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(depr_sum_warn_only, "depr_sum_warn_only", id="depr-form"),
+            pytest.param(wrapped_sum_warn_only, "original_sum_warn_only", id="wrapped-form"),
+        ],
+    )
     def test_warn_only(self, func: Callable, name: str) -> None:
         """Test deprecated function that only warns."""
-        with pytest.warns(
-            FutureWarning, match=f"The `{name}` was deprecated since v0.2. It will be removed in v0.3."
-        ):
+        with pytest.warns(FutureWarning, match=f"The `{name}` was deprecated since v0.2. It will be removed in v0.3."):
             assert func(2) is None
 
-    @pytest.mark.parametrize(("func", "name"), [
-        pytest.param(depr_sum, "depr_sum", id="depr-form"),
-        pytest.param(wrapped_sum, "original_sum", id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(depr_sum, "depr_sum", id="depr-form"),
+            pytest.param(wrapped_sum, "original_sum", id="wrapped-form"),
+        ],
+    )
     def test_default(self, func: Callable, name: str) -> None:
         """Testing some base/default configurations."""
         with pytest.warns(
@@ -117,10 +122,13 @@ class TestDeprecationWarnings:
         assert instance.my_d == "abc"
         assert instance.my_e == 0.7
 
-    @pytest.mark.parametrize("func", [
-        pytest.param(depr_sum, id="depr-form"),
-        pytest.param(wrapped_sum, id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_sum, id="depr-form"),
+            pytest.param(wrapped_sum, id="wrapped-form"),
+        ],
+    )
     def test_default_once(self, func: Callable) -> None:
         """Check that the warning is raised only once per function."""
         getattr(func, "_state").warned_calls = 0
@@ -138,19 +146,25 @@ class TestDeprecationWarnings:
         ):
             assert depr_pow_mix(2, 1) == 2
 
-    @pytest.mark.parametrize("func", [
-        pytest.param(depr_sum_no_stream, id="depr-form"),
-        pytest.param(wrapped_sum_no_stream, id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_sum_no_stream, id="depr-form"),
+            pytest.param(wrapped_sum_no_stream, id="wrapped-form"),
+        ],
+    )
     def test_stream_calls_no_stream(self, func: Callable) -> None:
         """Check that the warning is NOT raised when stream is None."""
         with no_warning_call(FutureWarning):
             assert func(3) == 8
 
-    @pytest.mark.parametrize("func", [
-        pytest.param(depr_sum_calls_2, id="depr-form"),
-        pytest.param(wrapped_sum_calls_2, id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_sum_calls_2, id="depr-form"),
+            pytest.param(wrapped_sum_calls_2, id="wrapped-form"),
+        ],
+    )
     def test_stream_calls_limit(self, func: Callable) -> None:
         """Check that the warning is raised only N times."""
 
@@ -162,10 +176,13 @@ class TestDeprecationWarnings:
             _call()
         assert len(record) == 2
 
-    @pytest.mark.parametrize("func", [
-        pytest.param(depr_sum_calls_inf, id="depr-form"),
-        pytest.param(wrapped_sum_calls_inf, id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_sum_calls_inf, id="depr-form"),
+            pytest.param(wrapped_sum_calls_inf, id="wrapped-form"),
+        ],
+    )
     def test_stream_calls_inf(self, func: Callable) -> None:
         """Check that the warning is raised infinitely."""
 
@@ -177,10 +194,13 @@ class TestDeprecationWarnings:
             _call()
         assert len(record) == 5
 
-    @pytest.mark.parametrize(("func", "name"), [
-        pytest.param(depr_sum_msg, "depr_sum_msg", id="depr-form"),
-        pytest.param(wrapped_sum_msg, "original_sum", id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(depr_sum_msg, "depr_sum_msg", id="depr-form"),
+            pytest.param(wrapped_sum_msg, "original_sum", id="wrapped-form"),
+        ],
+    )
     def test_stream_calls_msg(self, func: Callable, name: str) -> None:
         """Test deprecated function with custom message."""
         with pytest.warns(FutureWarning, match=f"v0.1: `{name}` was deprecated, use `base_sum_kwargs`"):
@@ -198,19 +218,25 @@ class TestArgumentMapping:
             state.warned_calls = 0
             state.warned_args.clear()
 
-    @pytest.mark.parametrize("func", [
-        pytest.param(depr_pow_self, id="depr-form"),
-        pytest.param(wrapped_pow_self, id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_pow_self, id="depr-form"),
+            pytest.param(wrapped_pow_self, id="wrapped-form"),
+        ],
+    )
     def test_arguments_new_only(self, func: Callable) -> None:
         """Test calling with new arguments only (no warning)."""
         with no_warning_call():
             assert func(2, new_coef=3) == 8
 
-    @pytest.mark.parametrize(("func", "name"), [
-        pytest.param(depr_pow_self, "depr_pow_self", id="depr-form"),
-        pytest.param(wrapped_pow_self, "original_pow_self", id="wrapped-form"),
-    ])
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(depr_pow_self, "depr_pow_self", id="depr-form"),
+            pytest.param(wrapped_pow_self, "original_pow_self", id="wrapped-form"),
+        ],
+    )
     def test_arguments_deprecated(self, func: Callable, name: str) -> None:
         """Test calling with deprecated argument (should warn)."""
         with pytest.warns(
@@ -266,20 +292,26 @@ class TestArgumentMapping:
             assert depr_pow_self_twice(2, c1=3) == 8
 
 
-@pytest.mark.parametrize("func", [
-    pytest.param(depr_pow_skip_if_true, id="depr-form"),
-    pytest.param(wrapped_pow_skip_if_true, id="wrapped-form"),
-])
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(depr_pow_skip_if_true, id="depr-form"),
+        pytest.param(wrapped_pow_skip_if_true, id="wrapped-form"),
+    ],
+)
 def test_skip_if_true(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if=True."""
     with no_warning_call():
         assert func(2, c1=2) == 2
 
 
-@pytest.mark.parametrize("func", [
-    pytest.param(depr_pow_skip_if_func, id="depr-form"),
-    pytest.param(wrapped_pow_skip_if_func, id="wrapped-form"),
-])
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(depr_pow_skip_if_func, id="depr-form"),
+        pytest.param(wrapped_pow_skip_if_func, id="wrapped-form"),
+    ],
+)
 def test_skip_if_func(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if is a function returning True."""
     with no_warning_call():
@@ -532,5 +564,3 @@ class TestDeprecatedClassWrappers:
         assert hasattr(sample_function, "total_time")
         assert hasattr(sample_function, "calls")
         assert sample_function.calls == 1
-
-
