@@ -451,7 +451,7 @@ def validate_deprecation_expiry(
         >>> # Check with version past some removal deadlines
         >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
         >>> print(len(expired))  # Some functions have remove_in="0.5"
-        22
+        28
 
     .. note::
        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
