@@ -530,37 +530,38 @@ efg
 
 Use `deprecated_instance` to wrap objects accessed via attribute/item/call operations (for example, dicts,
 lists, or custom objects) with transparent deprecation warnings. Primitive protocol methods (such as numeric
-arithmetic on `float` or concatenation on `str`) are not proxied. The `name` parameter is optional; when omitted
-it defaults to the type name of the wrapped object (e.g. `"dict"`). For primitive constants like floats or
+arithmetic on `float` or concatenation on `str`) are not proxied. For primitive constants like floats or
 strings, prefer wrapping them in a container (such as a dict or configuration object) or updating call sites
 directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper.
 
 ```python
-import pytest
 from deprecate import deprecated_instance
 
-# Legacy config dict — read-only so accidental mutations are blocked
-LEGACY_CONFIG = deprecated_instance(
-    {"threshold": 0.5, "enabled": True},
-    deprecated_in="1.0",
+# NEW/FUTURE API — renamed to be more explicit about its scope
+TRAINING_CONFIG = {"lr": 0.001, "batch_size": 32, "epochs": 10}
+
+# What it looked like before the rename:
+# DEFAULTS = {"lr": 0.001, "batch_size": 32, "epochs": 10}
+
+# DEPRECATED API — `DEFAULTS` was the original name; read-only so
+# callers cannot mutate shared state through the deprecated alias
+DEFAULTS = deprecated_instance(
+    TRAINING_CONFIG,
+    deprecated_in="1.2",
     remove_in="2.0",
     read_only=True,
 )
 
-# Any read triggers a FutureWarning and returns the value:
-#   The `dict` was deprecated since v1.0. It will be removed in v2.0.
-print(LEGACY_CONFIG["threshold"])
-
-# Writes are blocked in read-only mode — wrap with pytest.raises so the example runs cleanly:
-with pytest.raises(AttributeError, match="read-only"):
-    LEGACY_CONFIG["threshold"] = 0.9
+# Reading still works but emits a FutureWarning once:
+#   The `dict` was deprecated since v1.2. It will be removed in v2.0.
+print(DEFAULTS["lr"])   # 0.001
 ```
 
 <details>
-  <summary>Output: <code>print(LEGACY_CONFIG["threshold"])</code></summary>
+  <summary>Output: <code>print(DEFAULTS["lr"])</code></summary>
 
 ```
-0.5
+0.001
 ```
 
 </details>
@@ -568,45 +569,45 @@ with pytest.raises(AttributeError, match="read-only"):
 ### 🗂 Deprecating Enums and dataclasses
 
 <details>
-<summary>Example: <code>@deprecated_class</code> with optional <code>args_mapping</code></summary>
+<summary>Example: <code>deprecated_class()</code> for Enum and dataclass</summary>
 
-`@deprecated_class` wraps an entire Enum or dataclass in a transparent proxy that warns on every
+`deprecated_class()` wraps an entire Enum or dataclass in a transparent proxy that warns on every
 access and forwards attribute, item, and call operations to the replacement class.
 Use `args_mapping` to rename or drop kwargs when the deprecated class is called.
 
 > [!NOTE]
-> Type checks with `isinstance()` and `issubclass()` work transparently with `@deprecated_class` proxies and do not emit deprecation warnings, as these are structural checks rather than actual usage of the deprecated API.
+> Type checks with `isinstance()` and `issubclass()` work transparently with `deprecated_class()` proxies and do not emit deprecation warnings, as these are structural checks rather than actual usage of the deprecated API.
 
 ```python
 from enum import Enum
 from dataclasses import dataclass
 from deprecate import deprecated_class
 
+# mypackage/theme.py — what it looked like before the rename:
+#
+# class Color(Enum):
+#     RED = 1
+#     BLUE = 2
 
 # NEW/FUTURE API — renamed to be more descriptive
-class StatusColor(Enum):
+class ThemeColor(Enum):
     RED = 1
     BLUE = 2
 
+# DEPRECATED API — `Color` was the original name; no class body needed,
+# the proxy forwards all access to ThemeColor
+Color = deprecated_class(ThemeColor, deprecated_in="1.0", remove_in="2.0")
 
-# DEPRECATED API — `Color` was the original name before the rename
-@deprecated_class(target=StatusColor, deprecated_in="1.0", remove_in="2.0")
-class Color(Enum):
-    RED = 1
-    BLUE = 2
-
-
-# All access is forwarded to StatusColor — a FutureWarning is emitted once:
+# All access is forwarded to ThemeColor — a FutureWarning is emitted once:
 #   The `Color` was deprecated since v1.0. It will be removed in v2.0.
-print(Color.RED is StatusColor.RED)
-print(Color(1) is StatusColor.RED)
-print(Color["RED"] is StatusColor.RED)
+print(Color.RED is ThemeColor.RED)    # True
+print(Color(1) is ThemeColor.RED)     # True
+print(Color["RED"] is ThemeColor.RED) # True
 
 
 # Precision migration story:
 # - PointV1 used integer pixel coordinates.
 # - PointV2 supports float coordinates for sub-pixel precision and smoother transforms.
-
 
 # NEW/FUTURE API — extended to float precision
 @dataclass
@@ -645,39 +646,6 @@ True
 True
 (3, 4)
 (3.25, 4.75)
-```
-
-</details>
-
-<details>
-<summary>Real-world pattern: renaming a class you didn't expect to rename</summary>
-
-When you originally wrote `Color`, you didn't know it would later be renamed — so you didn't call it `OldColor`. You only add the "old" framing *after* the rename. The assignment form of `deprecated_class()` captures this naturally:
-
-```python
-from enum import Enum
-from deprecate import deprecated_class
-
-# mypackage/colors.py — what the file looked like before the rename:
-#
-# class Color(Enum):
-#     RED = 1
-#     BLUE = 2
-
-
-# After: the class was renamed to ThemeColor (more specific, lives in the same file).
-class ThemeColor(Enum):
-    RED = 1
-    BLUE = 2
-
-
-# Keep the original name working as a deprecated alias.
-# Existing callers importing `Color` don't break immediately.
-Color = deprecated_class(
-    ThemeColor,
-    deprecated_in="0.6",
-    remove_in="1.0",
-)
 ```
 
 </details>
