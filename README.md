@@ -140,24 +140,24 @@ Here's the simplest way to get started with deprecating a function:
 from deprecate import deprecated
 
 
-# Your new function
-def new_sum(a: int = 0, b: int = 3) -> int:
+# NEW/FUTURE API — renamed to be more explicit about what it computes
+def compute_sum(a: int = 0, b: int = 3) -> int:
     return a + b
 
 
-# Mark the old one as deprecated and forward calls automatically
-@deprecated(target=new_sum, deprecated_in="1.0", remove_in="2.0")
-def old_sum(a: int, b: int = 5) -> int:
-    pass  # Implementation not needed - calls are forwarded to new_sum
+# DEPRECATED API — `addition` was the original name before the rename
+@deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")
+def addition(a: int, b: int = 5) -> int:
+    pass  # body is not needed — calls are forwarded to compute_sum
 
 
-# Using the old function works but shows a warning
-result = old_sum(1, 2)  # Returns 3
-# Warning: The `old_sum` was deprecated since v1.0 in favor of `__main__.new_sum`.
+# Using the original name still works but shows a warning
+result = addition(1, 2)  # Returns 3
+# Warning: The `addition` was deprecated since v1.0 in favor of `__main__.compute_sum`.
 #          It will be removed in v2.0.
 ```
 
-That's it! All calls to `old_sum()` are automatically forwarded to `new_sum()` with a deprecation warning.
+That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
 ## 📚 Use-cases and Applications
 
@@ -185,8 +185,9 @@ In particular the target values (cases):
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
 
 ```python
-def base_sum(a: int = 0, b: int = 3) -> int:
-    """My new function anywhere in the codebase or even other package."""
+# NEW/FUTURE API — renamed to be more explicit about what it computes
+def compute(a: int = 0, b: int = 3) -> int:
+    """New function anywhere in the codebase or even other package."""
     return a + b
 
 
@@ -195,8 +196,13 @@ def base_sum(a: int = 0, b: int = 3) -> int:
 from deprecate import deprecated
 
 
-@deprecated(target=base_sum, deprecated_in="0.1", remove_in="0.5")
-def depr_sum(a: int, b: int = 5) -> int:
+# What this module looked like before the rename:
+# def calculate(a: int, b: int = 5) -> int:
+#     return a + b
+
+# DEPRECATED API — `calculate` was the original name before the rename
+@deprecated(target=compute, deprecated_in="0.1", remove_in="0.5")
+def calculate(a: int, b: int = 5) -> int:
     """
     My deprecated function which now has an empty body
      as all calls are routed to the new function.
@@ -205,13 +211,13 @@ def depr_sum(a: int, b: int = 5) -> int:
 
 
 # calling this function will raise a deprecation warning:
-#   The `depr_sum` was deprecated since v0.1 in favor of `__main__.base_sum`.
+#   The `calculate` was deprecated since v0.1 in favor of `__main__.compute`.
 #   It will be removed in v0.5.
-print(depr_sum(1, 2))
+print(calculate(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(depr_sum(1, 2))</code></summary>
+  <summary>Output: <code>print(calculate(1, 2))</code></summary>
 
 ```
 3
@@ -431,27 +437,29 @@ from deprecate import deprecated, void
 
 
 class MyService:
-    def compute(self, x: int) -> int:
+    # NEW/FUTURE API — renamed from run() for clarity
+    def execute(self, x: int) -> int:
         """Current method."""
         return x * 2
 
-    @deprecated(target=compute, deprecated_in="1.0", remove_in="2.0")
-    def old_compute(self, x: int) -> int:
-        """Deprecated — renamed to compute()."""
+    # DEPRECATED API — `run` was the original name before the rename
+    @deprecated(target=execute, deprecated_in="1.0", remove_in="2.0")
+    def run(self, x: int) -> int:
+        """Deprecated — renamed to execute()."""
         return void(x)
 
 
 svc = MyService()
 # calling this method will raise a deprecation warning:
-#   The `old_compute` was deprecated since v1.0 in favor of `__main__.compute`.
+#   The `run` was deprecated since v1.0 in favor of `__main__.execute`.
 #   It will be removed in v2.0.
-print(svc.old_compute(5))
+print(svc.run(5))
 ```
 
 </details>
 
 <details>
-  <summary>Output: <code>svc.old_compute(5)</code></summary>
+  <summary>Output: <code>svc.run(5)</code></summary>
 
 ```
 10
@@ -463,7 +471,8 @@ print(svc.old_compute(5))
 <summary>Example: forwarding <code>__init__</code> to a successor class</summary>
 
 ```python
-class NewCls:
+# NEW/FUTURE API — renamed to be more descriptive
+class HttpClient:
     """My new class anywhere in the codebase or other package."""
 
     def __init__(self, c: float, d: str = "abc"):
@@ -476,13 +485,14 @@ class NewCls:
 from deprecate import deprecated, void
 
 
-class PastCls(NewCls):
+# DEPRECATED API — `Client` was the original name before it was renamed to HttpClient
+class Client(HttpClient):
     """
     The deprecated class should be inherited from the successor class
      to hold all methods and properties.
     """
 
-    @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
+    @deprecated(target=HttpClient, deprecated_in="0.2", remove_in="0.4")
     def __init__(self, c: int, d: str = "efg"):
         """
         You place the decorator around __init__ as you want
@@ -496,9 +506,9 @@ class PastCls(NewCls):
 
 
 # calling this function will raise a deprecation warning:
-#   The `PastCls` was deprecated since v0.2 in favor of `__main__.NewCls`.
+#   The `Client` was deprecated since v0.2 in favor of `__main__.HttpClient`.
 #   It will be removed in v0.4.
-inst = PastCls(7)
+inst = Client(7)
 print(inst.my_c)  # returns: 7
 print(inst.my_d)  # returns: "efg"
 ```
@@ -506,7 +516,7 @@ print(inst.my_d)  # returns: "efg"
 </details>
 
 <details>
-  <summary>Output: <code>PastCls</code> instance attributes</summary>
+  <summary>Output: <code>Client</code> instance attributes</summary>
 
 ```
 7
@@ -572,33 +582,38 @@ from dataclasses import dataclass
 from deprecate import deprecated_class
 
 
-class NewColor(Enum):
+# NEW/FUTURE API — renamed to be more descriptive
+class StatusColor(Enum):
     RED = 1
     BLUE = 2
 
 
-@deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0")
-class OldColor(Enum):
+# DEPRECATED API — `Color` was the original name before the rename
+@deprecated_class(target=StatusColor, deprecated_in="1.0", remove_in="2.0")
+class Color(Enum):
     RED = 1
     BLUE = 2
 
 
-# All access is forwarded to NewColor — a FutureWarning is emitted once:
-#   The `OldColor` was deprecated since v1.0. It will be removed in v2.0.
-print(OldColor.RED is NewColor.RED)
-print(OldColor(1) is NewColor.RED)
-print(OldColor["RED"] is NewColor.RED)
+# All access is forwarded to StatusColor — a FutureWarning is emitted once:
+#   The `Color` was deprecated since v1.0. It will be removed in v2.0.
+print(Color.RED is StatusColor.RED)
+print(Color(1) is StatusColor.RED)
+print(Color["RED"] is StatusColor.RED)
 
 
 # Precision migration story:
 # - PointV1 used integer pixel coordinates.
 # - PointV2 supports float coordinates for sub-pixel precision and smoother transforms.
+
+# NEW/FUTURE API — extended to float precision
 @dataclass
 class PointV2:
     x: float
     y: float
 
 
+# DEPRECATED API — PointV1 was the original integer-coordinate implementation
 @deprecated_class(target=PointV2, deprecated_in="1.8", remove_in="2.0")
 @dataclass
 class PointV1:
@@ -619,7 +634,7 @@ print((p_new.x, p_new.y))
 </details>
 
 <details>
-  <summary>Output: <code>OldColor</code> forwarding and <code>PointV1</code> precision migration</summary>
+  <summary>Output: <code>Color</code> forwarding and <code>PointV1</code> precision migration</summary>
 
 ```
 True
@@ -632,6 +647,40 @@ True
 
 </details>
 
+<details>
+<summary>Real-world pattern: renaming a class you didn't expect to rename</summary>
+
+When you originally wrote `Color`, you didn't know it would later be renamed — so you didn't call it `OldColor`. You only add the "old" framing *after* the rename. The assignment form of `deprecated_class()` captures this naturally:
+
+```python
+from enum import Enum
+from deprecate import deprecated_class
+
+# mypackage/colors.py — what the file looked like before the rename:
+#
+# class Color(Enum):
+#     RED = 1
+#     BLUE = 2
+
+# After: the class was renamed to NewColor (more specific, lives in the same file).
+class NewColor(Enum):
+    RED = 1
+    BLUE = 2
+
+# Keep the original name working as a deprecated alias.
+# Existing callers importing `Color` don't break immediately.
+Color = deprecated_class(
+    NewColor,
+    deprecated_in="0.6",
+    remove_in="1.0",
+    migration_hint="Use `NewColor` directly.",
+)
+```
+
+`Color` was never named "Old" — it was just `Color` until the rename happened. The deprecated proxy is created after the fact, with no need to duplicate the class body.
+
+</details>
+
 ### 📝 Automatic docstring updates
 
 You can automatically append deprecation information to your function's docstring:
@@ -640,7 +689,8 @@ You can automatically append deprecation information to your function's docstrin
 <summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
 
 ```python
-def new_function(x: int) -> int:
+# NEW/FUTURE API — renamed to be more explicit about what it does
+def transform(x: int) -> int:
     """New implementation of the function."""
     return x * 2
 
@@ -650,14 +700,15 @@ def new_function(x: int) -> int:
 from deprecate import deprecated
 
 
+# DEPRECATED API — `process` was the original name before the rename
 @deprecated(
-    target=new_function,
+    target=transform,
     deprecated_in="1.0",
     remove_in="2.0",
     update_docstring=True,  # Enable automatic docstring updates
 )
-def old_function(x: int) -> int:
-    """Old implementation that will be removed.
+def process(x: int) -> int:
+    """Transforms the input value.
 
     Args:
         x: Input value
@@ -669,11 +720,11 @@ def old_function(x: int) -> int:
 
 
 # The docstring now includes deprecation information
-print(old_function.__doc__)
+print(process.__doc__)
 # Output includes:
 # .. deprecated:: 1.0
 #    Will be removed in 2.0.
-#    Use `__main__.new_function` instead.
+#    Use `__main__.transform` instead.
 ```
 
 </details>
