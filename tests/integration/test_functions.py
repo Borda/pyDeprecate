@@ -23,9 +23,6 @@ import pytest
 from deprecate._types import DeprecationInfo
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
-    depr_accuracy_extra,
-    depr_accuracy_map,
-    depr_accuracy_skip,
     decorated_add,
     decorated_add_custom_msg,
     decorated_add_docstring,
@@ -38,6 +35,9 @@ from tests.collection_deprecate import (
     decorated_add_warn_inf,
     decorated_self_depr,
     decorated_warn_only,
+    depr_accuracy_extra,
+    depr_accuracy_map,
+    depr_accuracy_skip,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_pow_args,
@@ -572,17 +572,28 @@ class _WrapperFormBase:
     def _reset_wrapper_state(self) -> None:
         """Reset warning counters before each test for independence."""
         for func in (
-            wrapped_add, decorated_add,
-            wrapped_add_mapped, decorated_add_mapped,
-            wrapped_add_warn_inf, decorated_add_warn_inf,
-            wrapped_add_warn_2, decorated_add_warn_2,
-            wrapped_add_silent, decorated_add_silent,
-            wrapped_add_custom_msg, decorated_add_custom_msg,
-            wrapped_add_extra, decorated_add_extra,
-            wrapped_add_skip_true, decorated_add_skip_true,
-            wrapped_add_skip_func, decorated_add_skip_func,
-            wrapped_warn_only, decorated_warn_only,
-            wrapped_add_docstring, decorated_add_docstring,
+            wrapped_add,
+            decorated_add,
+            wrapped_add_mapped,
+            decorated_add_mapped,
+            wrapped_add_warn_inf,
+            decorated_add_warn_inf,
+            wrapped_add_warn_2,
+            decorated_add_warn_2,
+            wrapped_add_silent,
+            decorated_add_silent,
+            wrapped_add_custom_msg,
+            decorated_add_custom_msg,
+            wrapped_add_extra,
+            decorated_add_extra,
+            wrapped_add_skip_true,
+            decorated_add_skip_true,
+            wrapped_add_skip_func,
+            decorated_add_skip_func,
+            wrapped_warn_only,
+            decorated_warn_only,
+            wrapped_add_docstring,
+            decorated_add_docstring,
         ):
             getattr(func, "_state").warned_calls = 0
         for func in (wrapped_self_depr, decorated_self_depr):
