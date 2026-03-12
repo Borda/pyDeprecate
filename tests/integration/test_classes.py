@@ -1,11 +1,11 @@
 """Tests for deprecated classes and methods."""
 
 import warnings
-from typing import Any
 
 import pytest
 
 from deprecate._types import DeprecationInfo
+from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     DeprecatedDataClass,
@@ -296,11 +296,11 @@ class _ClassFormBase:
             proxy._cfg.warned = 0
 
 
-@pytest.mark.parametrize("proxy,name", _ENUM_CASES)
+@pytest.mark.parametrize(("proxy", "name"), _ENUM_CASES)
 class TestEnumFormEquivalence(_ClassFormBase):
     """Both decorator and wrapper form of deprecated_class() produce identical behaviour for Enums."""
 
-    def test_emits_warning(self, proxy: Any, name: str) -> None:
+    def test_emits_warning(self, proxy: _DeprecatedProxy, name: str) -> None:
         """Accessing proxy.ALPHA emits a FutureWarning with class name and version info."""
         with pytest.warns(
             FutureWarning,
@@ -308,22 +308,22 @@ class TestEnumFormEquivalence(_ClassFormBase):
         ):
             _ = proxy.ALPHA
 
-    def test_attribute_forwarding(self, proxy: Any, name: str) -> None:
+    def test_attribute_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:
         """proxy.ALPHA forwards to NewEnum.ALPHA."""
         with pytest.warns(FutureWarning):
             member = proxy.ALPHA
         assert member.value == "alpha"
         assert member is NewEnum.ALPHA
 
-    def test_isinstance_check(self, proxy: Any, name: str) -> None:
+    def test_isinstance_check(self, proxy: _DeprecatedProxy, name: str) -> None:
         """isinstance(NewEnum.ALPHA, proxy) is True via __instancecheck__."""
         assert isinstance(NewEnum.ALPHA, proxy)  # type: ignore[arg-type]
 
-    def test_issubclass_check(self, proxy: Any, name: str) -> None:
+    def test_issubclass_check(self, proxy: _DeprecatedProxy, name: str) -> None:
         """issubclass(NewEnum, proxy) is True via __subclasscheck__."""
         assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
 
-    def test_deprecated_metadata(self, proxy: Any, name: str) -> None:
+    def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
         """__deprecated__ records correct DeprecationInfo for both forms."""
         dep = object.__getattribute__(proxy, "__deprecated__")
         assert isinstance(dep, DeprecationInfo)
@@ -332,7 +332,7 @@ class TestEnumFormEquivalence(_ClassFormBase):
         assert dep.target is NewEnum
         assert dep.name == name
 
-    def test_warn_once(self, proxy: Any, name: str) -> None:
+    def test_warn_once(self, proxy: _DeprecatedProxy, name: str) -> None:
         """With num_warns=1, two attribute accesses emit exactly one warning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -341,11 +341,11 @@ class TestEnumFormEquivalence(_ClassFormBase):
         assert len(caught) == 1
 
 
-@pytest.mark.parametrize("proxy,name", _DATACLASS_CASES)
+@pytest.mark.parametrize(("proxy", "name"), _DATACLASS_CASES)
 class TestDataclassFormEquivalence(_ClassFormBase):
     """Both decorator and wrapper form of deprecated_class() produce identical behaviour for dataclasses."""
 
-    def test_emits_warning(self, proxy: Any, name: str) -> None:
+    def test_emits_warning(self, proxy: _DeprecatedProxy, name: str) -> None:
         """Instantiating proxy emits a FutureWarning with class name and version info."""
         with pytest.warns(
             FutureWarning,
@@ -353,7 +353,7 @@ class TestDataclassFormEquivalence(_ClassFormBase):
         ):
             proxy(label="x")
 
-    def test_forwarding(self, proxy: Any, name: str) -> None:
+    def test_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:
         """proxy(label='x') returns a NewDataClass instance with correct fields."""
         with pytest.warns(FutureWarning):
             instance = proxy(label="x")
@@ -361,7 +361,7 @@ class TestDataclassFormEquivalence(_ClassFormBase):
         assert instance.label == "x"
         assert instance.total == 0
 
-    def test_deprecated_metadata(self, proxy: Any, name: str) -> None:
+    def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
         """__deprecated__ records correct DeprecationInfo for both forms."""
         dep = object.__getattribute__(proxy, "__deprecated__")
         assert isinstance(dep, DeprecationInfo)

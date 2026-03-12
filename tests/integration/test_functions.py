@@ -26,18 +26,18 @@ from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
-    wrap_depr_add,
-    wrap_depr_add_custom_msg,
-    wrap_depr_add_docstring,
-    wrap_depr_add_extra,
-    wrap_depr_add_mapped,
-    wrap_depr_add_silent,
-    wrap_depr_add_skip_func,
-    wrap_depr_add_skip_true,
-    wrap_depr_add_warn_2,
-    wrap_depr_add_warn_inf,
-    wrap_depr_self_depr,
-    wrap_depr_warn_only,
+    decorated_add,
+    decorated_add_custom_msg,
+    decorated_add_docstring,
+    decorated_add_extra,
+    decorated_add_mapped,
+    decorated_add_silent,
+    decorated_add_skip_func,
+    decorated_add_skip_true,
+    decorated_add_warn_2,
+    decorated_add_warn_inf,
+    decorated_self_depr,
+    decorated_warn_only,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_pow_args,
@@ -57,18 +57,18 @@ from tests.collection_deprecate import (
     depr_sum_msg,
     depr_sum_no_stream,
     depr_sum_warn_only,
-    wrapper_add,
-    wrapper_add_custom_msg,
-    wrapper_add_docstring,
-    wrapper_add_extra,
-    wrapper_add_mapped,
-    wrapper_add_silent,
-    wrapper_add_skip_func,
-    wrapper_add_skip_true,
-    wrapper_add_warn_2,
-    wrapper_add_warn_inf,
-    wrapper_self_depr,
-    wrapper_warn_only,
+    wrapped_add,
+    wrapped_add_custom_msg,
+    wrapped_add_docstring,
+    wrapped_add_extra,
+    wrapped_add_mapped,
+    wrapped_add_silent,
+    wrapped_add_skip_func,
+    wrapped_add_skip_true,
+    wrapped_add_warn_2,
+    wrapped_add_warn_inf,
+    wrapped_self_depr,
+    wrapped_warn_only,
 )
 
 # ---------------------------------------------------------------------------
@@ -77,52 +77,52 @@ from tests.collection_deprecate import (
 # the source function name (reflected in warnings and __deprecated__.name).
 # ---------------------------------------------------------------------------
 _BASIC_CASES = [
-    pytest.param(wrapper_add, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add, "wrap_depr_add", id="decorator-form"),
+    pytest.param(wrapped_add, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add, "decorated_add", id="decorated-form"),
 ]
 _MAPPED_CASES = [
-    pytest.param(wrapper_add_mapped, "original_add_mapped", id="wrapper-form"),
-    pytest.param(wrap_depr_add_mapped, "wrap_depr_add_mapped", id="decorator-form"),
+    pytest.param(wrapped_add_mapped, "original_add_mapped", id="wrapped-form"),
+    pytest.param(decorated_add_mapped, "decorated_add_mapped", id="decorated-form"),
 ]
 _WARN_INF_CASES = [
-    pytest.param(wrapper_add_warn_inf, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add_warn_inf, "wrap_depr_add_warn_inf", id="decorator-form"),
+    pytest.param(wrapped_add_warn_inf, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add_warn_inf, "decorated_add_warn_inf", id="decorated-form"),
 ]
 _WARN_2_CASES = [
-    pytest.param(wrapper_add_warn_2, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add_warn_2, "wrap_depr_add_warn_2", id="decorator-form"),
+    pytest.param(wrapped_add_warn_2, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add_warn_2, "decorated_add_warn_2", id="decorated-form"),
 ]
 _SILENT_CASES = [
-    pytest.param(wrapper_add_silent, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add_silent, "wrap_depr_add_silent", id="decorator-form"),
+    pytest.param(wrapped_add_silent, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add_silent, "decorated_add_silent", id="decorated-form"),
 ]
 _CUSTOM_MSG_CASES = [
-    pytest.param(wrapper_add_custom_msg, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add_custom_msg, "wrap_depr_add_custom_msg", id="decorator-form"),
+    pytest.param(wrapped_add_custom_msg, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add_custom_msg, "decorated_add_custom_msg", id="decorated-form"),
 ]
 _EXTRA_CASES = [
-    pytest.param(wrapper_add_extra, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add_extra, "wrap_depr_add_extra", id="decorator-form"),
+    pytest.param(wrapped_add_extra, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add_extra, "decorated_add_extra", id="decorated-form"),
 ]
 _SKIP_TRUE_CASES = [
-    pytest.param(wrapper_add_skip_true, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add_skip_true, "wrap_depr_add_skip_true", id="decorator-form"),
+    pytest.param(wrapped_add_skip_true, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add_skip_true, "decorated_add_skip_true", id="decorated-form"),
 ]
 _SKIP_FUNC_CASES = [
-    pytest.param(wrapper_add_skip_func, "original_add", id="wrapper-form"),
-    pytest.param(wrap_depr_add_skip_func, "wrap_depr_add_skip_func", id="decorator-form"),
+    pytest.param(wrapped_add_skip_func, "original_add", id="wrapped-form"),
+    pytest.param(decorated_add_skip_func, "decorated_add_skip_func", id="decorated-form"),
 ]
 _WARN_ONLY_CASES = [
-    pytest.param(wrapper_warn_only, "original_warn_only", id="wrapper-form"),
-    pytest.param(wrap_depr_warn_only, "wrap_depr_warn_only", id="decorator-form"),
+    pytest.param(wrapped_warn_only, "original_warn_only", id="wrapped-form"),
+    pytest.param(decorated_warn_only, "decorated_warn_only", id="decorated-form"),
 ]
 _SELF_DEPR_CASES = [
-    pytest.param(wrapper_self_depr, "original_self_rename", id="wrapper-form"),
-    pytest.param(wrap_depr_self_depr, "wrap_depr_self_depr", id="decorator-form"),
+    pytest.param(wrapped_self_depr, "original_self_rename", id="wrapped-form"),
+    pytest.param(decorated_self_depr, "decorated_self_depr", id="decorated-form"),
 ]
 _DOCSTRING_CASES = [
-    pytest.param(wrapper_add_docstring, "original_add_with_docstring", id="wrapper-form"),
-    pytest.param(wrap_depr_add_docstring, "wrap_depr_add_docstring", id="decorator-form"),
+    pytest.param(wrapped_add_docstring, "original_add_with_docstring", id="wrapped-form"),
+    pytest.param(decorated_add_docstring, "decorated_add_docstring", id="decorated-form"),
 ]
 
 
@@ -572,25 +572,25 @@ class _WrapperFormBase:
     def _reset_wrapper_state(self) -> None:
         """Reset warning counters before each test for independence."""
         for func in (
-            wrapper_add, wrap_depr_add,
-            wrapper_add_mapped, wrap_depr_add_mapped,
-            wrapper_add_warn_inf, wrap_depr_add_warn_inf,
-            wrapper_add_warn_2, wrap_depr_add_warn_2,
-            wrapper_add_silent, wrap_depr_add_silent,
-            wrapper_add_custom_msg, wrap_depr_add_custom_msg,
-            wrapper_add_extra, wrap_depr_add_extra,
-            wrapper_add_skip_true, wrap_depr_add_skip_true,
-            wrapper_add_skip_func, wrap_depr_add_skip_func,
-            wrapper_warn_only, wrap_depr_warn_only,
-            wrapper_add_docstring, wrap_depr_add_docstring,
+            wrapped_add, decorated_add,
+            wrapped_add_mapped, decorated_add_mapped,
+            wrapped_add_warn_inf, decorated_add_warn_inf,
+            wrapped_add_warn_2, decorated_add_warn_2,
+            wrapped_add_silent, decorated_add_silent,
+            wrapped_add_custom_msg, decorated_add_custom_msg,
+            wrapped_add_extra, decorated_add_extra,
+            wrapped_add_skip_true, decorated_add_skip_true,
+            wrapped_add_skip_func, decorated_add_skip_func,
+            wrapped_warn_only, decorated_warn_only,
+            wrapped_add_docstring, decorated_add_docstring,
         ):
             getattr(func, "_state").warned_calls = 0
-        for func in (wrapper_self_depr, wrap_depr_self_depr):
+        for func in (wrapped_self_depr, decorated_self_depr):
             getattr(func, "_state").warned_calls = 0
             getattr(func, "_state").warned_args.clear()
 
 
-@pytest.mark.parametrize("func,name", _BASIC_CASES)
+@pytest.mark.parametrize(("func", "name"), _BASIC_CASES)
 class TestWrapperFormBasic(_WrapperFormBase):
     """Both decorator and wrapper form produce identical behavior for basic forwarding."""
 
@@ -642,7 +642,7 @@ class TestWrapperFormBasic(_WrapperFormBase):
             assert func(3, 4) == 7
 
 
-@pytest.mark.parametrize("func,name", _MAPPED_CASES)
+@pytest.mark.parametrize(("func", "name"), _MAPPED_CASES)
 class TestWrapperFormMapped(_WrapperFormBase):
     """Both forms apply args_mapping to rename kwargs before forwarding."""
 
@@ -658,10 +658,13 @@ class TestWrapperFormMapped(_WrapperFormBase):
         assert info.args_mapping == {"x": "a", "y": "b"}
 
 
-@pytest.mark.parametrize("func,name", _WARN_INF_CASES)
-class TestWrapperFormNumWarnsInf(_WrapperFormBase):
-    """Both forms with num_warns=-1 emit a warning on every call."""
+class TestWrapperFormOptions(_WrapperFormBase):
+    """Tests for individual deprecated() options — num_warns, stream, template_mgs, skip_if.
 
+    Each method covers one option variant, parametrized over both decorator and wrapper form.
+    """
+
+    @pytest.mark.parametrize(("func", "name"), _WARN_INF_CASES)
     def test_num_warns_inf(self, func: Callable, name: str) -> None:
         """Both forms with num_warns=-1 warn on every call."""
 
@@ -673,11 +676,7 @@ class TestWrapperFormNumWarnsInf(_WrapperFormBase):
             _call()
         assert len(record) == 5
 
-
-@pytest.mark.parametrize("func,name", _WARN_2_CASES)
-class TestWrapperFormNumWarnsCapped(_WrapperFormBase):
-    """Both forms with num_warns=N warn only on the first N calls."""
-
+    @pytest.mark.parametrize(("func", "name"), _WARN_2_CASES)
     def test_num_warns_limited(self, func: Callable, name: str) -> None:
         """Both forms with num_warns=2 warn only the first 2 calls."""
 
@@ -689,22 +688,14 @@ class TestWrapperFormNumWarnsCapped(_WrapperFormBase):
             _call()
         assert len(record) == 2
 
-
-@pytest.mark.parametrize("func,name", _SILENT_CASES)
-class TestWrapperFormSilent(_WrapperFormBase):
-    """Both forms with stream=None forward without emitting any warning."""
-
+    @pytest.mark.parametrize(("func", "name"), _SILENT_CASES)
     def test_stream_none(self, func: Callable, name: str) -> None:
         """Both forms with stream=None forward without emitting any warning."""
         with no_warning_call(FutureWarning):
             result = func(3, 4)
         assert result == 7
 
-
-@pytest.mark.parametrize("func,name", _CUSTOM_MSG_CASES)
-class TestWrapperFormCustomMsg(_WrapperFormBase):
-    """Both forms with template_mgs emit the custom-formatted warning."""
-
+    @pytest.mark.parametrize(("func", "name"), _CUSTOM_MSG_CASES)
     def test_custom_template(self, func: Callable, name: str) -> None:
         """Both forms with template_mgs emit the custom-formatted warning."""
         with pytest.warns(
@@ -714,8 +705,31 @@ class TestWrapperFormCustomMsg(_WrapperFormBase):
             result = func(2, 3)
         assert result == 5
 
+    @pytest.mark.parametrize(("func", "name"), _SKIP_TRUE_CASES)
+    def test_skip_if_true(self, func: Callable, name: str) -> None:
+        """Both forms with skip_if=True execute source body without warning or forwarding."""
+        with no_warning_call(FutureWarning):
+            result = func(3, 4)
+        assert result is None  # source body calls void() → None
 
-@pytest.mark.parametrize("func,name", _EXTRA_CASES)
+    @pytest.mark.parametrize(("func", "name"), _SKIP_FUNC_CASES)
+    def test_skip_if_callable(self, func: Callable, name: str) -> None:
+        """Both forms with skip_if=lambda: True bypass deprecation at runtime."""
+        with no_warning_call(FutureWarning):
+            result = func(5, 6)
+        assert result is None
+
+    @pytest.mark.parametrize(("func", "name"), _DOCSTRING_CASES)
+    def test_update_docstring(self, func: Callable, name: str) -> None:
+        """Both forms with update_docstring=True append deprecation notice to docstring."""
+        doc = func.__doc__
+        assert doc is not None
+        assert ".. deprecated:: 0.5" in doc
+        assert "Will be removed in 1.0." in doc
+        assert "base_add" in doc
+
+
+@pytest.mark.parametrize(("func", "name"), _EXTRA_CASES)
 class TestWrapperFormArgsExtra(_WrapperFormBase):
     """Both forms inject and override call arguments via args_extra."""
 
@@ -732,29 +746,7 @@ class TestWrapperFormArgsExtra(_WrapperFormBase):
         assert result == 101
 
 
-@pytest.mark.parametrize("func,name", _SKIP_TRUE_CASES)
-class TestWrapperFormSkipTrue(_WrapperFormBase):
-    """Both forms with skip_if=True execute the source body, bypassing deprecation."""
-
-    def test_skip_if_true(self, func: Callable, name: str) -> None:
-        """Both forms with skip_if=True execute source body without warning or forwarding."""
-        with no_warning_call(FutureWarning):
-            result = func(3, 4)
-        assert result is None  # source body calls void() → None
-
-
-@pytest.mark.parametrize("func,name", _SKIP_FUNC_CASES)
-class TestWrapperFormSkipCallable(_WrapperFormBase):
-    """Both forms with skip_if=callable bypass deprecation when the callable returns True."""
-
-    def test_skip_if_callable(self, func: Callable, name: str) -> None:
-        """Both forms with skip_if=lambda: True bypass deprecation at runtime."""
-        with no_warning_call(FutureWarning):
-            result = func(5, 6)
-        assert result is None
-
-
-@pytest.mark.parametrize("func,name", _WARN_ONLY_CASES)
+@pytest.mark.parametrize(("func", "name"), _WARN_ONLY_CASES)
 class TestWrapperFormWarnOnly(_WrapperFormBase):
     """Both forms with target=None warn but still execute the original body."""
 
@@ -773,7 +765,7 @@ class TestWrapperFormWarnOnly(_WrapperFormBase):
         assert info.target is None
 
 
-@pytest.mark.parametrize("func,name", _SELF_DEPR_CASES)
+@pytest.mark.parametrize(("func", "name"), _SELF_DEPR_CASES)
 class TestWrapperFormSelfDepr(_WrapperFormBase):
     """Both forms with target=True remap deprecated argument names in-place."""
 
@@ -797,16 +789,3 @@ class TestWrapperFormSelfDepr(_WrapperFormBase):
         info: DeprecationInfo = getattr(func, "__deprecated__")
         assert info.target is True
         assert info.args_mapping == {"old_exp": "new_exp"}
-
-
-@pytest.mark.parametrize("func,name", _DOCSTRING_CASES)
-class TestWrapperFormDocstring(_WrapperFormBase):
-    """Both forms with update_docstring=True append a Sphinx-style deprecation notice."""
-
-    def test_update_docstring(self, func: Callable, name: str) -> None:
-        """Both forms with update_docstring=True append deprecation notice to docstring."""
-        doc = func.__doc__
-        assert doc is not None
-        assert ".. deprecated:: 0.5" in doc
-        assert "Will be removed in 1.0." in doc
-        assert "base_add" in doc
