@@ -293,6 +293,7 @@ class _ClassFormBase:
     def _reset_proxy_state(self) -> None:
         """Reset the proxy warn counter before each test for independence."""
         for proxy in (WrappedEnum, EquivEnum, WrappedDataClass, EquivDataClass):
+            assert isinstance(proxy, _DeprecatedProxy)
             proxy._cfg.warned = 0
 
 
