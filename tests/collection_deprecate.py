@@ -36,6 +36,24 @@ Wrapper-form fixtures (assignment form of @deprecated):
 - wrapper_warn_only: target=None (warn-only, no forwarding)
 - wrapper_self_depr: target=True with args_mapping (self-deprecation)
 - wrapper_add_docstring: update_docstring=True
+
+Decorator-form equivalents (same deprecated_class config as Wrapped* — for parametrize comparison):
+- EquivEnum: decorator-form enum equivalent of WrappedEnum
+- EquivDataClass: decorator-form dataclass equivalent of WrappedDataClass
+
+Decorator-form equivalents of wrapper_* (same deprecated() config — for parametrize comparison):
+- wrap_depr_add: basic forwarding
+- wrap_depr_add_mapped: forwarding with args_mapping
+- wrap_depr_add_warn_inf: num_warns=-1 (warn every call)
+- wrap_depr_add_warn_2: num_warns=2 (warn N times)
+- wrap_depr_add_silent: stream=None (silent forwarding)
+- wrap_depr_add_custom_msg: custom template_mgs
+- wrap_depr_add_extra: args_extra injection
+- wrap_depr_add_skip_true: skip_if=True (static bypass)
+- wrap_depr_add_skip_func: skip_if=callable (runtime bypass)
+- wrap_depr_warn_only: target=None (warn-only, no forwarding)
+- wrap_depr_self_depr: target=True with args_mapping (self-deprecation)
+- wrap_depr_add_docstring: update_docstring=True
 """
 
 from dataclasses import dataclass
@@ -188,7 +206,7 @@ class _OriginalEnum(Enum):
     BETA = "beta"
 
 
-WrapperEnum = deprecated_class(
+WrappedEnum = deprecated_class(
     target=NewEnum,
     deprecated_in="0.5",
     remove_in="1.0",
@@ -204,12 +222,30 @@ class _OriginalDataClass:
     total: int = 0
 
 
-WrapperDataClass = deprecated_class(
+WrappedDataClass = deprecated_class(
     target=NewDataClass,
     deprecated_in="0.5",
     remove_in="1.0",
     num_warns=1,
 )(_OriginalDataClass)
+
+
+# Decorator-form equivalents — same deprecated_class config, @decorator syntax
+@deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
+class EquivEnum(Enum):
+    """Decorator-form enum with same config as WrappedEnum, for form-equivalence tests."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+@deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
+@dataclass
+class EquivDataClass:
+    """Decorator-form dataclass with same config as WrappedDataClass, for form-equivalence tests."""
+
+    label: str
+    total: int = 0
 
 
 @deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
@@ -677,6 +713,86 @@ wrapper_add_docstring = deprecated(
     remove_in="1.0",
     update_docstring=True,
 )(original_add_with_docstring)
+
+
+# ========== Decorator-form equivalents of wrapper_* (same deprecated() config) ==========
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0")
+def wrap_depr_add(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add — basic forwarding."""
+    return void(a, b)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", args_mapping={"x": "a", "y": "b"})
+def wrap_depr_add_mapped(x: int, y: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_mapped — forwarding with args_mapping."""
+    return void(x, y)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", num_warns=-1)
+def wrap_depr_add_warn_inf(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_warn_inf — num_warns=-1."""
+    return void(a, b)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", num_warns=2)
+def wrap_depr_add_warn_2(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_warn_2 — num_warns=2."""
+    return void(a, b)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", stream=None)
+def wrap_depr_add_silent(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_silent — stream=None."""
+    return void(a, b)
+
+
+@deprecated(
+    target=base_add,
+    deprecated_in="0.5",
+    remove_in="1.0",
+    template_mgs="v%(deprecated_in)s: `%(source_name)s` is old, use `%(target_name)s`",
+)
+def wrap_depr_add_custom_msg(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_custom_msg — custom template_mgs."""
+    return void(a, b)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", args_extra={"b": 100})
+def wrap_depr_add_extra(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_extra — args_extra injection."""
+    return void(a, b)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", skip_if=True)
+def wrap_depr_add_skip_true(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_skip_true — skip_if=True."""
+    return void(a, b)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", skip_if=lambda: True)
+def wrap_depr_add_skip_func(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_skip_func — skip_if=callable."""
+    return void(a, b)
+
+
+@deprecated(target=None, deprecated_in="0.5", remove_in="1.0")
+def wrap_depr_warn_only(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_warn_only — target=None."""
+    return standalone_sum(a, b)
+
+
+@deprecated(target=True, deprecated_in="0.5", remove_in="1.0", args_mapping={"old_exp": "new_exp"})
+def wrap_depr_self_depr(base: float, old_exp: float = 0, new_exp: float = 0) -> float:
+    """Decorator-form equivalent of wrapper_self_depr — target=True with args_mapping."""
+    return self_rename_pow(base, new_exp=new_exp)
+
+
+@deprecated(target=base_add, deprecated_in="0.5", remove_in="1.0", update_docstring=True)
+def wrap_depr_add_docstring(a: int, b: int = 0) -> int:
+    """Decorator-form equivalent of wrapper_add_docstring — update_docstring=True."""
+    return void(a, b)
 
 
 # ========== Testing Expiry Enforcement Examples ==========
