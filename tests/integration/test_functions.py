@@ -23,18 +23,6 @@ import pytest
 from deprecate._types import DeprecationInfo
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
-    decorated_add,
-    decorated_add_custom_msg,
-    decorated_add_docstring,
-    decorated_add_extra,
-    decorated_add_mapped,
-    decorated_add_silent,
-    decorated_add_skip_func,
-    decorated_add_skip_true,
-    decorated_add_warn_2,
-    decorated_add_warn_inf,
-    decorated_self_depr,
-    decorated_warn_only,
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
@@ -57,93 +45,43 @@ from tests.collection_deprecate import (
     depr_sum_msg,
     depr_sum_no_stream,
     depr_sum_warn_only,
-    wrapped_add,
-    wrapped_add_custom_msg,
-    wrapped_add_docstring,
-    wrapped_add_extra,
-    wrapped_add_mapped,
-    wrapped_add_silent,
-    wrapped_add_skip_func,
-    wrapped_add_skip_true,
-    wrapped_add_warn_2,
-    wrapped_add_warn_inf,
-    wrapped_self_depr,
-    wrapped_warn_only,
+    wrapped_pow_self,
+    wrapped_pow_skip_if_func,
+    wrapped_pow_skip_if_true,
+    wrapped_sum,
+    wrapped_sum_calls_2,
+    wrapped_sum_calls_inf,
+    wrapped_sum_msg,
+    wrapped_sum_no_stream,
+    wrapped_sum_warn_only,
 )
-
-# ---------------------------------------------------------------------------
-# Parametrize cases for TestDeprecatedWrapperForm: (wrapper-form, decorator-form)
-# Each pair shares the same deprecated() configuration; the only difference is
-# the source function name (reflected in warnings and __deprecated__.name).
-# ---------------------------------------------------------------------------
-_BASIC_CASES = [
-    pytest.param(wrapped_add, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add, "decorated_add", id="decorated-form"),
-]
-_MAPPED_CASES = [
-    pytest.param(wrapped_add_mapped, "original_add_mapped", id="wrapped-form"),
-    pytest.param(decorated_add_mapped, "decorated_add_mapped", id="decorated-form"),
-]
-_WARN_INF_CASES = [
-    pytest.param(wrapped_add_warn_inf, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add_warn_inf, "decorated_add_warn_inf", id="decorated-form"),
-]
-_WARN_2_CASES = [
-    pytest.param(wrapped_add_warn_2, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add_warn_2, "decorated_add_warn_2", id="decorated-form"),
-]
-_SILENT_CASES = [
-    pytest.param(wrapped_add_silent, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add_silent, "decorated_add_silent", id="decorated-form"),
-]
-_CUSTOM_MSG_CASES = [
-    pytest.param(wrapped_add_custom_msg, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add_custom_msg, "decorated_add_custom_msg", id="decorated-form"),
-]
-_EXTRA_CASES = [
-    pytest.param(wrapped_add_extra, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add_extra, "decorated_add_extra", id="decorated-form"),
-]
-_SKIP_TRUE_CASES = [
-    pytest.param(wrapped_add_skip_true, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add_skip_true, "decorated_add_skip_true", id="decorated-form"),
-]
-_SKIP_FUNC_CASES = [
-    pytest.param(wrapped_add_skip_func, "original_add", id="wrapped-form"),
-    pytest.param(decorated_add_skip_func, "decorated_add_skip_func", id="decorated-form"),
-]
-_WARN_ONLY_CASES = [
-    pytest.param(wrapped_warn_only, "original_warn_only", id="wrapped-form"),
-    pytest.param(decorated_warn_only, "decorated_warn_only", id="decorated-form"),
-]
-_SELF_DEPR_CASES = [
-    pytest.param(wrapped_self_depr, "original_self_rename", id="wrapped-form"),
-    pytest.param(decorated_self_depr, "decorated_self_depr", id="decorated-form"),
-]
-_DOCSTRING_CASES = [
-    pytest.param(wrapped_add_docstring, "original_add_with_docstring", id="wrapped-form"),
-    pytest.param(decorated_add_docstring, "decorated_add_docstring", id="decorated-form"),
-]
-
 
 class TestDeprecationWarnings:
     """Tests for basic deprecation warning behavior."""
 
-    def test_warn_only(self) -> None:
+    @pytest.mark.parametrize(("func", "name"), [
+        pytest.param(depr_sum_warn_only, "depr_sum_warn_only", id="depr-form"),
+        pytest.param(wrapped_sum_warn_only, "original_sum_warn_only", id="wrapped-form"),
+    ])
+    def test_warn_only(self, func: Callable, name: str) -> None:
         """Test deprecated function that only warns."""
         with pytest.warns(
-            FutureWarning, match="The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3."
+            FutureWarning, match=f"The `{name}` was deprecated since v0.2. It will be removed in v0.3."
         ):
-            assert depr_sum_warn_only(2) is None
+            assert func(2) is None
 
-    def test_default(self) -> None:
+    @pytest.mark.parametrize(("func", "name"), [
+        pytest.param(depr_sum, "depr_sum", id="depr-form"),
+        pytest.param(wrapped_sum, "original_sum", id="wrapped-form"),
+    ])
+    def test_default(self, func: Callable, name: str) -> None:
         """Testing some base/default configurations."""
         with pytest.warns(
             FutureWarning,
-            match="The `depr_sum` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
+            match=f"The `{name}` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
             " It will be removed in v0.5.",
         ):
-            assert depr_sum(2) == 7
+            assert func(2) == 7
 
     def test_function_to_class_forwarding(self) -> None:
         """Deprecated function targeting a class should instantiate and return the class."""
@@ -179,17 +117,17 @@ class TestDeprecationWarnings:
         assert instance.my_d == "abc"
         assert instance.my_e == 0.7
 
-    def test_default_once(self) -> None:
+    @pytest.mark.parametrize("func", [
+        pytest.param(depr_sum, id="depr-form"),
+        pytest.param(wrapped_sum, id="wrapped-form"),
+    ])
+    def test_default_once(self, func: Callable) -> None:
         """Check that the warning is raised only once per function."""
-        # Pre-call to trigger the warning if it wasn't already triggered (though tests should be independent)
-        # However, depr_sum might have been called in previous test if not careful,
-        # but here we want to ensure that WITHIN a clean state it only warns once.
-        # Note: depr_sum is imported from collection_deprecate, it might share state if not reset.
-        getattr(depr_sum, "_state").warned_calls = 0
+        getattr(func, "_state").warned_calls = 0
         with pytest.warns(FutureWarning):
-            assert depr_sum(2) == 7
+            assert func(2) == 7
         with no_warning_call(FutureWarning):
-            assert depr_sum(3) == 8
+            assert func(3) == 8
 
     def test_default_independent(self) -> None:
         """Check that it does not affect other functions when called with positional args."""
@@ -200,37 +138,53 @@ class TestDeprecationWarnings:
         ):
             assert depr_pow_mix(2, 1) == 2
 
-    def test_stream_calls_no_stream(self) -> None:
+    @pytest.mark.parametrize("func", [
+        pytest.param(depr_sum_no_stream, id="depr-form"),
+        pytest.param(wrapped_sum_no_stream, id="wrapped-form"),
+    ])
+    def test_stream_calls_no_stream(self, func: Callable) -> None:
         """Check that the warning is NOT raised when stream is None."""
         with no_warning_call(FutureWarning):
-            assert depr_sum_no_stream(3) == 8
+            assert func(3) == 8
 
-    def test_stream_calls_limit(self) -> None:
+    @pytest.mark.parametrize("func", [
+        pytest.param(depr_sum_calls_2, id="depr-form"),
+        pytest.param(wrapped_sum_calls_2, id="wrapped-form"),
+    ])
+    def test_stream_calls_limit(self, func: Callable) -> None:
         """Check that the warning is raised only N times."""
 
-        def _call_depr_sum_calls_2() -> None:
+        def _call() -> None:
             for _ in range(5):
-                assert depr_sum_calls_2(3) == 8
+                assert func(3) == 8
 
         with pytest.warns(FutureWarning) as record:
-            _call_depr_sum_calls_2()
+            _call()
         assert len(record) == 2
 
-    def test_stream_calls_inf(self) -> None:
+    @pytest.mark.parametrize("func", [
+        pytest.param(depr_sum_calls_inf, id="depr-form"),
+        pytest.param(wrapped_sum_calls_inf, id="wrapped-form"),
+    ])
+    def test_stream_calls_inf(self, func: Callable) -> None:
         """Check that the warning is raised infinitely."""
 
-        def _call_depr_sum_calls_inf() -> None:
+        def _call() -> None:
             for _ in range(5):
-                assert depr_sum_calls_inf(3) == 8
+                assert func(3) == 8
 
         with pytest.warns(FutureWarning) as record:
-            _call_depr_sum_calls_inf()
+            _call()
         assert len(record) == 5
 
-    def test_stream_calls_msg(self) -> None:
+    @pytest.mark.parametrize(("func", "name"), [
+        pytest.param(depr_sum_msg, "depr_sum_msg", id="depr-form"),
+        pytest.param(wrapped_sum_msg, "original_sum", id="wrapped-form"),
+    ])
+    def test_stream_calls_msg(self, func: Callable, name: str) -> None:
         """Test deprecated function with custom message."""
-        with pytest.warns(FutureWarning, match="v0.1: `depr_sum_msg` was deprecated, use `base_sum_kwargs`"):
-            assert depr_sum_msg(3) == 8
+        with pytest.warns(FutureWarning, match=f"v0.1: `{name}` was deprecated, use `base_sum_kwargs`"):
+            assert func(3) == 8
 
 
 class TestArgumentMapping:
@@ -239,25 +193,32 @@ class TestArgumentMapping:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for functions with chained or multiple deprecations."""
-        # List of functions and their warning attributes to reset
-        for func in (depr_pow_self_double, depr_pow_self_twice):
+        for func in (depr_pow_self, depr_pow_self_double, depr_pow_self_twice, wrapped_pow_self):
             state = getattr(func, "_state")
             state.warned_calls = 0
             state.warned_args.clear()
 
-    def test_arguments_new_only(self) -> None:
+    @pytest.mark.parametrize("func", [
+        pytest.param(depr_pow_self, id="depr-form"),
+        pytest.param(wrapped_pow_self, id="wrapped-form"),
+    ])
+    def test_arguments_new_only(self, func: Callable) -> None:
         """Test calling with new arguments only (no warning)."""
         with no_warning_call():
-            assert depr_pow_self(2, new_coef=3) == 8
+            assert func(2, new_coef=3) == 8
 
-    def test_arguments_deprecated(self) -> None:
+    @pytest.mark.parametrize(("func", "name"), [
+        pytest.param(depr_pow_self, "depr_pow_self", id="depr-form"),
+        pytest.param(wrapped_pow_self, "original_pow_self", id="wrapped-form"),
+    ])
+    def test_arguments_deprecated(self, func: Callable, name: str) -> None:
         """Test calling with deprecated argument (should warn)."""
         with pytest.warns(
             FutureWarning,
-            match="The `depr_pow_self` uses deprecated arguments: `coef` -> `new_coef`."
+            match=f"The `{name}` uses deprecated arguments: `coef` -> `new_coef`."
             " They were deprecated since v0.1 and will be removed in v0.5.",
         ):
-            assert depr_pow_self(2, 3) == 8
+            assert func(2, 3) == 8
 
     def test_arguments_double_deprecated_c1(self) -> None:
         """Test double mapping, calling with first deprecated argument."""
@@ -305,16 +266,24 @@ class TestArgumentMapping:
             assert depr_pow_self_twice(2, c1=3) == 8
 
 
-def test_skip_if_true() -> None:
+@pytest.mark.parametrize("func", [
+    pytest.param(depr_pow_skip_if_true, id="depr-form"),
+    pytest.param(wrapped_pow_skip_if_true, id="wrapped-form"),
+])
+def test_skip_if_true(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if=True."""
     with no_warning_call():
-        assert depr_pow_skip_if_true(2, c1=2) == 2
+        assert func(2, c1=2) == 2
 
 
-def test_skip_if_func() -> None:
+@pytest.mark.parametrize("func", [
+    pytest.param(depr_pow_skip_if_func, id="depr-form"),
+    pytest.param(wrapped_pow_skip_if_func, id="wrapped-form"),
+])
+def test_skip_if_func(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if is a function returning True."""
     with no_warning_call():
-        assert depr_pow_skip_if_func(2, c1=2) == 2
+        assert func(2, c1=2) == 2
 
 
 def test_skip_if_true_false() -> None:
@@ -565,238 +534,3 @@ class TestDeprecatedClassWrappers:
         assert sample_function.calls == 1
 
 
-class _WrapperFormBase:
-    """Shared autouse reset fixture for both-form equivalence tests."""
-
-    @pytest.fixture(autouse=True)
-    def _reset_wrapper_state(self) -> None:
-        """Reset warning counters before each test for independence."""
-        for func in (
-            wrapped_add,
-            decorated_add,
-            wrapped_add_mapped,
-            decorated_add_mapped,
-            wrapped_add_warn_inf,
-            decorated_add_warn_inf,
-            wrapped_add_warn_2,
-            decorated_add_warn_2,
-            wrapped_add_silent,
-            decorated_add_silent,
-            wrapped_add_custom_msg,
-            decorated_add_custom_msg,
-            wrapped_add_extra,
-            decorated_add_extra,
-            wrapped_add_skip_true,
-            decorated_add_skip_true,
-            wrapped_add_skip_func,
-            decorated_add_skip_func,
-            wrapped_warn_only,
-            decorated_warn_only,
-            wrapped_add_docstring,
-            decorated_add_docstring,
-        ):
-            getattr(func, "_state").warned_calls = 0
-        for func in (wrapped_self_depr, decorated_self_depr):
-            getattr(func, "_state").warned_calls = 0
-            getattr(func, "_state").warned_args.clear()
-
-
-@pytest.mark.parametrize(("func", "name"), _BASIC_CASES)
-class TestWrapperFormBasic(_WrapperFormBase):
-    """Both decorator and wrapper form produce identical behavior for basic forwarding."""
-
-    def test_produces_warning(self, func: Callable, name: str) -> None:
-        """Both forms emit FutureWarning with source name, version, and target path."""
-        with pytest.warns(
-            FutureWarning,
-            match=f"The `{name}` was deprecated since v0.5"
-            " in favor of `tests.collection_targets.base_add`."
-            " It will be removed in v1.0.",
-        ):
-            func(1, 2)
-
-    def test_forwards_call(self, func: Callable, name: str) -> None:
-        """Both forms correctly forward positional arguments to the target."""
-        with pytest.warns(FutureWarning):
-            result = func(3, 4)
-        assert result == 7
-
-    def test_forwards_kwargs(self, func: Callable, name: str) -> None:
-        """Both forms pass keyword arguments through to the target."""
-        with pytest.warns(FutureWarning):
-            result = func(a=10, b=20)
-        assert result == 30
-
-    def test_uses_target_defaults(self, func: Callable, name: str) -> None:
-        """Both forms inherit default argument values from the source signature."""
-        with pytest.warns(FutureWarning):
-            result = func(5)
-        assert result == 5
-
-    def test_deprecated_attribute(self, func: Callable, name: str) -> None:
-        """Both forms set __deprecated__ with correct DeprecationInfo at decoration time."""
-        from tests.collection_targets import base_add
-
-        assert hasattr(func, "__deprecated__")
-        info: DeprecationInfo = getattr(func, "__deprecated__")
-        assert isinstance(info, DeprecationInfo)
-        assert info.deprecated_in == "0.5"
-        assert info.remove_in == "1.0"
-        assert info.target is base_add
-        assert info.name == name
-
-    def test_warns_only_once_by_default(self, func: Callable, name: str) -> None:
-        """Both forms with default num_warns=1 warn only on the first call."""
-        with pytest.warns(FutureWarning):
-            assert func(1, 2) == 3
-        with no_warning_call(FutureWarning):
-            assert func(3, 4) == 7
-
-
-@pytest.mark.parametrize(("func", "name"), _MAPPED_CASES)
-class TestWrapperFormMapped(_WrapperFormBase):
-    """Both forms apply args_mapping to rename kwargs before forwarding."""
-
-    def test_with_args_mapping(self, func: Callable, name: str) -> None:
-        """Both forms with args_mapping rename x->a and y->b before forwarding."""
-        with pytest.warns(FutureWarning):
-            result = func(x=10, y=20)
-        assert result == 30
-
-    def test_with_args_mapping_attribute(self, func: Callable, name: str) -> None:
-        """Both forms with args_mapping record the mapping in __deprecated__."""
-        info: DeprecationInfo = getattr(func, "__deprecated__")
-        assert info.args_mapping == {"x": "a", "y": "b"}
-
-
-class TestWrapperFormOptions(_WrapperFormBase):
-    """Tests for individual deprecated() options — num_warns, stream, template_mgs, skip_if.
-
-    Each method covers one option variant, parametrized over both decorator and wrapper form.
-    """
-
-    @pytest.mark.parametrize(("func", "name"), _WARN_INF_CASES)
-    def test_num_warns_inf(self, func: Callable, name: str) -> None:
-        """Both forms with num_warns=-1 warn on every call."""
-
-        def _call() -> None:
-            for _ in range(5):
-                assert func(1, 2) == 3
-
-        with pytest.warns(FutureWarning) as record:
-            _call()
-        assert len(record) == 5
-
-    @pytest.mark.parametrize(("func", "name"), _WARN_2_CASES)
-    def test_num_warns_limited(self, func: Callable, name: str) -> None:
-        """Both forms with num_warns=2 warn only the first 2 calls."""
-
-        def _call() -> None:
-            for _ in range(5):
-                assert func(1, 2) == 3
-
-        with pytest.warns(FutureWarning) as record:
-            _call()
-        assert len(record) == 2
-
-    @pytest.mark.parametrize(("func", "name"), _SILENT_CASES)
-    def test_stream_none(self, func: Callable, name: str) -> None:
-        """Both forms with stream=None forward without emitting any warning."""
-        with no_warning_call(FutureWarning):
-            result = func(3, 4)
-        assert result == 7
-
-    @pytest.mark.parametrize(("func", "name"), _CUSTOM_MSG_CASES)
-    def test_custom_template(self, func: Callable, name: str) -> None:
-        """Both forms with template_mgs emit the custom-formatted warning."""
-        with pytest.warns(
-            FutureWarning,
-            match=rf"v0\.5: `{name}` is old, use `base_add`",
-        ):
-            result = func(2, 3)
-        assert result == 5
-
-    @pytest.mark.parametrize(("func", "name"), _SKIP_TRUE_CASES)
-    def test_skip_if_true(self, func: Callable, name: str) -> None:
-        """Both forms with skip_if=True execute source body without warning or forwarding."""
-        with no_warning_call(FutureWarning):
-            result = func(3, 4)
-        assert result is None  # source body calls void() → None
-
-    @pytest.mark.parametrize(("func", "name"), _SKIP_FUNC_CASES)
-    def test_skip_if_callable(self, func: Callable, name: str) -> None:
-        """Both forms with skip_if=lambda: True bypass deprecation at runtime."""
-        with no_warning_call(FutureWarning):
-            result = func(5, 6)
-        assert result is None
-
-    @pytest.mark.parametrize(("func", "name"), _DOCSTRING_CASES)
-    def test_update_docstring(self, func: Callable, name: str) -> None:
-        """Both forms with update_docstring=True append deprecation notice to docstring."""
-        doc = func.__doc__
-        assert doc is not None
-        assert ".. deprecated:: 0.5" in doc
-        assert "Will be removed in 1.0." in doc
-        assert "base_add" in doc
-
-
-@pytest.mark.parametrize(("func", "name"), _EXTRA_CASES)
-class TestWrapperFormArgsExtra(_WrapperFormBase):
-    """Both forms inject and override call arguments via args_extra."""
-
-    def test_args_extra_overrides(self, func: Callable, name: str) -> None:
-        """Both forms with args_extra override a user-provided argument."""
-        with pytest.warns(FutureWarning):
-            result = func(1, b=5)
-        assert result == 101  # args_extra={"b": 100} overrides b=5
-
-    def test_args_extra_default(self, func: Callable, name: str) -> None:
-        """Both forms with args_extra inject b=100 even when b is not passed."""
-        with pytest.warns(FutureWarning):
-            result = func(1)
-        assert result == 101
-
-
-@pytest.mark.parametrize(("func", "name"), _WARN_ONLY_CASES)
-class TestWrapperFormWarnOnly(_WrapperFormBase):
-    """Both forms with target=None warn but still execute the original body."""
-
-    def test_target_none_warns(self, func: Callable, name: str) -> None:
-        """Both forms with target=None emit warning but execute the original body."""
-        with pytest.warns(
-            FutureWarning,
-            match=f"The `{name}` was deprecated since v0.5. It will be removed in v1.0.",
-        ):
-            result = func(3, 4)
-        assert result == 7
-
-    def test_target_none_attribute(self, func: Callable, name: str) -> None:
-        """Both forms with target=None record target=None in __deprecated__."""
-        info: DeprecationInfo = getattr(func, "__deprecated__")
-        assert info.target is None
-
-
-@pytest.mark.parametrize(("func", "name"), _SELF_DEPR_CASES)
-class TestWrapperFormSelfDepr(_WrapperFormBase):
-    """Both forms with target=True remap deprecated argument names in-place."""
-
-    def test_self_deprecation_new_arg(self, func: Callable, name: str) -> None:
-        """Both forms with target=True pass through silently when the new arg is used."""
-        with no_warning_call():
-            result = func(2.0, new_exp=3.0)
-        assert result == 8.0
-
-    def test_self_deprecation_old_arg(self, func: Callable, name: str) -> None:
-        """Both forms with target=True warn and remap old_exp -> new_exp."""
-        with pytest.warns(
-            FutureWarning,
-            match=rf"`{name}` uses deprecated arguments: `old_exp` -> `new_exp`",
-        ):
-            result = func(2.0, old_exp=3.0)
-        assert result == 8.0
-
-    def test_self_deprecation_attribute(self, func: Callable, name: str) -> None:
-        """Both forms with target=True record target=True and args_mapping in __deprecated__."""
-        info: DeprecationInfo = getattr(func, "__deprecated__")
-        assert info.target is True
-        assert info.args_mapping == {"old_exp": "new_exp"}
