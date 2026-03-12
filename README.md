@@ -232,22 +232,26 @@ print(calculate(1, 2))
 When the deprecated name already exists as a callable (for example, imported from another package), you can apply `deprecated()` directly without redefining the function:
 
 ```python
-import another_pkg
 from deprecate import deprecated
 
-# NEW/FUTURE API — the replacement lives in another_pkg
-# another_pkg.compute_sum(a, b) → int
+# NEW/FUTURE API — in real usage this would be imported from another module
+def compute_sum(a: int, b: int = 0) -> int:
+    return a + b
+
+# LEGACY — already-existing callable that is being deprecated
+def addition(a: int, b: int = 0) -> int:
+    return a + b
 
 # DEPRECATED API — `calculate` was the original name in this package;
 # wrap it without redefining a function body
 calculate = deprecated(
-    target=another_pkg.compute_sum,
+    target=compute_sum,
     deprecated_in="0.5",
     remove_in="1.0",
-)(another_pkg.old_calculate)
+)(addition)
 ```
 
-This is equivalent to the `@deprecated(...)` decorator form but applied to an already-existing callable — useful when the deprecated function lives in a dependency you don't control.
+This is an equivalent to the `@deprecated(...)` decorator form but applied to an already-existing callable — useful when the deprecated function lives in a dependency you don't control.
 
 </details>
 
