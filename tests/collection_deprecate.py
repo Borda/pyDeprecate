@@ -567,9 +567,15 @@ def original_sum_warn_only(a: int, b: int = 5) -> int:
 
 
 wrapped_sum_warn_only = deprecated(target=None, deprecated_in="0.2", remove_in="0.3")(original_sum_warn_only)
-wrapped_sum_no_stream = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)(original_sum)
-wrapped_sum_calls_2 = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)(original_sum)
-wrapped_sum_calls_inf = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)(original_sum)
+wrapped_sum_no_stream = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)(
+    original_sum
+)
+wrapped_sum_calls_2 = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)(
+    original_sum
+)
+wrapped_sum_calls_inf = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)(
+    original_sum
+)
 wrapped_sum_msg = deprecated(
     target=base_sum_kwargs,
     deprecated_in="0.1",
