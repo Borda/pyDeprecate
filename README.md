@@ -532,7 +532,8 @@ Use `deprecated_instance` to wrap objects accessed via attribute/item/call opera
 lists, or custom objects) with transparent deprecation warnings. Primitive protocol methods (such as numeric
 arithmetic on `float` or concatenation on `str`) are not proxied. For primitive constants like floats or
 strings, prefer wrapping them in a container (such as a dict or configuration object) or updating call sites
-directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper.
+directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
+`name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
 
 ```python
 from deprecate import deprecated_instance
