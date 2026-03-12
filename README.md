@@ -665,8 +665,8 @@ from deprecate import deprecated_class
 #     BLUE = 2
 
 
-# After: the class was renamed to NewColor (more specific, lives in the same file).
-class NewColor(Enum):
+# After: the class was renamed to ThemeColor (more specific, lives in the same file).
+class ThemeColor(Enum):
     RED = 1
     BLUE = 2
 
@@ -674,14 +674,11 @@ class NewColor(Enum):
 # Keep the original name working as a deprecated alias.
 # Existing callers importing `Color` don't break immediately.
 Color = deprecated_class(
-    NewColor,
+    ThemeColor,
     deprecated_in="0.6",
     remove_in="1.0",
-    migration_hint="Use `NewColor` directly.",
 )
 ```
-
-`Color` was never named "Old" — it was just `Color` until the rename happened. The deprecated proxy is created after the fact, with no need to duplicate the class body.
 
 </details>
 
