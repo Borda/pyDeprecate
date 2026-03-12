@@ -12,11 +12,6 @@ from enum import Enum
 from typing import Any, Callable
 
 
-def base_add(a: int, b: int = 0) -> int:
-    """Base addition function used as target for wrapper-form deprecation tests."""
-    return a + b
-
-
 def raise_pow(base: float, coef: float) -> float:
     """Compute base**coef while emitting a UserWarning — used to test no_warning_call."""
     warnings.warn("warning you!", UserWarning)
@@ -146,13 +141,3 @@ class TimerDecorator:
         self.calls += 1
         print(f"'{self.func.__name__}' executed in {execution_time:.4f}s")
         return result
-
-
-def standalone_sum(a: int, b: int = 0) -> int:
-    """Standalone sum function used as source body for target=None wrapper-form tests."""
-    return a + b
-
-
-def self_rename_pow(base: float, old_exp: float = 0, new_exp: float = 0) -> float:
-    """Self-deprecation target: body uses new_exp, old_exp is the deprecated name."""
-    return base**new_exp

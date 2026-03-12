@@ -60,8 +60,6 @@ from tests.collection_targets import (
     base_pow_args,
     base_sum_kwargs,
     cross_guard_standalone_increment,
-    self_rename_pow,
-    standalone_sum,
     timing_wrapper,
 )
 
