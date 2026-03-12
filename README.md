@@ -554,7 +554,7 @@ DEFAULTS = deprecated_instance(
 
 # Reading still works but emits a FutureWarning once:
 #   The `dict` was deprecated since v1.2. It will be removed in v2.0.
-print(DEFAULTS["lr"])   # 0.001
+print(DEFAULTS["lr"])  # 0.001
 ```
 
 <details>
@@ -589,10 +589,12 @@ from deprecate import deprecated_class
 #     RED = 1
 #     BLUE = 2
 
+
 # NEW/FUTURE API — renamed to be more descriptive
 class ThemeColor(Enum):
     RED = 1
     BLUE = 2
+
 
 # DEPRECATED API — `Color` was the original name; no class body needed,
 # the proxy forwards all access to ThemeColor
@@ -600,14 +602,15 @@ Color = deprecated_class(ThemeColor, deprecated_in="1.0", remove_in="2.0")
 
 # All access is forwarded to ThemeColor — a FutureWarning is emitted once:
 #   The `Color` was deprecated since v1.0. It will be removed in v2.0.
-print(Color.RED is ThemeColor.RED)    # True
-print(Color(1) is ThemeColor.RED)     # True
-print(Color["RED"] is ThemeColor.RED) # True
+print(Color.RED is ThemeColor.RED)  # True
+print(Color(1) is ThemeColor.RED)  # True
+print(Color["RED"] is ThemeColor.RED)  # True
 
 
 # Precision migration story:
 # - PointV1 used integer pixel coordinates.
 # - PointV2 supports float coordinates for sub-pixel precision and smoother transforms.
+
 
 # NEW/FUTURE API — extended to float precision
 @dataclass
