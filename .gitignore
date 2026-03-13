@@ -136,5 +136,8 @@ dmypy.json
 # Jetbrain's IDEs and editors
 .idea/
 
+# Generated files with Claude
+tasks/
+
 # release notes and other complemntary files for releases
 releases/

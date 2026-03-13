@@ -1,10 +1,15 @@
 """Tests for deprecated classes and methods."""
 
+import warnings
+
 import pytest
 
 from deprecate._types import DeprecationInfo
+from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
+    DecoratedDataClass,
+    DecoratedEnum,
     DeprecatedDataClass,
     DeprecatedEnum,
     DeprecatedIntEnum,
@@ -18,8 +23,20 @@ from tests.collection_deprecate import (
     SelfMappedEnum,
     ServiceCls,
     ThisCls,
+    WrappedDataClass,
+    WrappedEnum,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
+
+# Parametrize cases: (proxy, expected_name) for each form of deprecated_class()
+_ENUM_CASES = [
+    pytest.param(WrappedEnum, "_OriginalEnum", id="wrapper-form"),
+    pytest.param(DecoratedEnum, "DecoratedEnum", id="decorator-form"),
+]
+_DATACLASS_CASES = [
+    pytest.param(WrappedDataClass, "_OriginalDataClass", id="wrapper-form"),
+    pytest.param(DecoratedDataClass, "DecoratedDataClass", id="decorator-form"),
+]
 
 
 class TestDeprecatedClass:
@@ -267,3 +284,89 @@ def test_deprecated_class_attribute_set_at_decoration_time() -> None:
         target=NewCls,
         args_mapping=None,
     )
+
+
+class _ClassFormBase:
+    """Shared autouse reset fixture for deprecated_class() form-equivalence tests."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_proxy_state(self) -> None:
+        """Reset the proxy warn counter before each test for independence."""
+        for proxy in (WrappedEnum, DecoratedEnum, WrappedDataClass, DecoratedDataClass):
+            assert isinstance(proxy, _DeprecatedProxy)
+            proxy._cfg.warned = 0
+
+
+@pytest.mark.parametrize(("proxy", "name"), _ENUM_CASES)
+class TestEnumFormEquivalence(_ClassFormBase):
+    """Both decorator and wrapper form of deprecated_class() produce identical behaviour for Enums."""
+
+    def test_emits_warning(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """Accessing proxy.ALPHA emits a FutureWarning with class name and version info."""
+        with pytest.warns(
+            FutureWarning,
+            match=rf"{name}.*deprecated since v0\.5.*removed in v1\.0",
+        ):
+            _ = proxy.ALPHA
+
+    def test_attribute_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """proxy.ALPHA forwards to NewEnum.ALPHA."""
+        with pytest.warns(FutureWarning):
+            member = proxy.ALPHA
+        assert member.value == "alpha"
+        assert member is NewEnum.ALPHA
+
+    def test_isinstance_check(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """isinstance(NewEnum.ALPHA, proxy) is True via __instancecheck__."""
+        assert isinstance(NewEnum.ALPHA, proxy)  # type: ignore[arg-type]
+
+    def test_issubclass_check(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """issubclass(NewEnum, proxy) is True via __subclasscheck__."""
+        assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
+
+    def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """__deprecated__ records correct DeprecationInfo for both forms."""
+        dep = object.__getattribute__(proxy, "__deprecated__")
+        assert isinstance(dep, DeprecationInfo)
+        assert dep.deprecated_in == "0.5"
+        assert dep.remove_in == "1.0"
+        assert dep.target is NewEnum
+        assert dep.name == name
+
+    def test_warn_once(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """With num_warns=1, two attribute accesses emit exactly one warning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = proxy.ALPHA
+            _ = proxy.BETA
+        assert len(caught) == 1
+
+
+@pytest.mark.parametrize(("proxy", "name"), _DATACLASS_CASES)
+class TestDataclassFormEquivalence(_ClassFormBase):
+    """Both decorator and wrapper form of deprecated_class() produce identical behaviour for dataclasses."""
+
+    def test_emits_warning(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """Instantiating proxy emits a FutureWarning with class name and version info."""
+        with pytest.warns(
+            FutureWarning,
+            match=rf"{name}.*deprecated since v0\.5.*removed in v1\.0",
+        ):
+            proxy(label="x")
+
+    def test_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """proxy(label='x') returns a NewDataClass instance with correct fields."""
+        with pytest.warns(FutureWarning):
+            instance = proxy(label="x")
+        assert isinstance(instance, NewDataClass)
+        assert instance.label == "x"
+        assert instance.total == 0
+
+    def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
+        """__deprecated__ records correct DeprecationInfo for both forms."""
+        dep = object.__getattribute__(proxy, "__deprecated__")
+        assert isinstance(dep, DeprecationInfo)
+        assert dep.deprecated_in == "0.5"
+        assert dep.remove_in == "1.0"
+        assert dep.target is NewDataClass
+        assert dep.name == name

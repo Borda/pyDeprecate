@@ -39,7 +39,7 @@ class TestValidateDeprecatedWrapper:
 
     def test_valid_deprecation(self) -> None:
         """Properly configured deprecated function returns a clean validation result."""
-        result = validate_deprecation_wrapper(proxy_module.depr_pow_self)
+        result = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
         assert isinstance(result, DeprecatedWrapperInfo)
         assert result.invalid_args == []
         assert result.empty_mapping is False
@@ -409,9 +409,9 @@ class TestCheckDeprecationExpiry:
     @pytest.mark.parametrize(
         ("callable_", "current_version"),
         [
-            (proxy_module.depr_pow_self, "0.4"),  # @deprecated, remove_in="0.5", before deadline
-            (proxy_module.depr_sum, "0.4.9"),  # @deprecated, pre-release
-            (proxy_module.depr_sum, "0.5.0a1"),  # @deprecated, alpha before stable deadline
+            (proxy_module.decorated_pow_self, "0.4"),  # @deprecated, remove_in="0.5", before deadline
+            (proxy_module.decorated_sum, "0.4.9"),  # @deprecated, pre-release
+            (proxy_module.decorated_sum, "0.5.0a1"),  # @deprecated, alpha before stable deadline
             (proxy_module.DeprecatedColorEnum, "1.9"),  # deprecated_class, with target
             (proxy_module.WarnOnlyColorEnum, "1.9"),  # deprecated_class, no target
             (proxy_module.MappedColorEnum, "1.9"),  # deprecated_class, with args_mapping
@@ -426,10 +426,10 @@ class TestCheckDeprecationExpiry:
     @pytest.mark.parametrize(
         ("callable_", "current_version", "remove_in"),
         [
-            (proxy_module.depr_pow_self, "0.5", "0.5"),  # @deprecated, at deadline
-            (proxy_module.depr_pow_self, "0.6", "0.5"),  # @deprecated, past deadline
-            (proxy_module.depr_sum, "0.5.0", "0.5"),  # @deprecated, at deadline (patch)
-            (proxy_module.depr_sum, "0.5.1", "0.5"),  # @deprecated, past deadline (patch)
+            (proxy_module.decorated_pow_self, "0.5", "0.5"),  # @deprecated, at deadline
+            (proxy_module.decorated_pow_self, "0.6", "0.5"),  # @deprecated, past deadline
+            (proxy_module.decorated_sum, "0.5.0", "0.5"),  # @deprecated, at deadline (patch)
+            (proxy_module.decorated_sum, "0.5.1", "0.5"),  # @deprecated, past deadline (patch)
             (proxy_module.DeprecatedColorEnum, "2.0", "2.0"),  # deprecated_class, with target
             (proxy_module.WarnOnlyColorEnum, "2.0", "2.0"),  # deprecated_class, no target
             (proxy_module.MappedColorEnum, "2.0", "2.0"),  # deprecated_class, with args_mapping
@@ -448,9 +448,9 @@ class TestCheckDeprecationExpiry:
     def test_error_message_content(self) -> None:
         """Error message includes callable name, both versions, and actionable guidance."""
         with pytest.raises(AssertionError) as exc_info:
-            _check_deprecated_wrapper_expiry(proxy_module.depr_pow_self, "1.0")  # remove_in="0.5"
+            _check_deprecated_wrapper_expiry(proxy_module.decorated_pow_self, "1.0")  # remove_in="0.5"
         msg = str(exc_info.value)
-        assert "depr_pow_self" in msg
+        assert "decorated_pow_self" in msg
         assert "0.5" in msg
         assert "1.0" in msg
         assert "scheduled for removal" in msg
@@ -469,7 +469,7 @@ class TestCheckDeprecationExpiry:
     def test_invalid_current_version_raises_value_error(self) -> None:
         """Malformed current_version raises ValueError with clear message."""
         with pytest.raises(ValueError, match="Invalid current_version"):
-            _check_deprecated_wrapper_expiry(proxy_module.depr_pow_self, "invalid-version")
+            _check_deprecated_wrapper_expiry(proxy_module.decorated_pow_self, "invalid-version")
 
     def test_invalid_remove_in_raises_value_error(self) -> None:
         """Callable with a malformed remove_in string raises ValueError naming the callable."""

@@ -979,9 +979,9 @@ print(f"Found {len(expired)} expired")
   <summary>Output: expired count per scanned version</summary>
 
 ```
-Found 12 expired
-Found 22 expired
 Found 14 expired
+Found 28 expired
+Found 17 expired
 Found 0 expired
 ```
 
