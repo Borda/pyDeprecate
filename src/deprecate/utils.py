@@ -175,9 +175,7 @@ def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Opti
 
 
 @contextmanager
-def no_warning_call(
-    warning_type: Optional[type[Warning]] = None, match: Optional[str] = None
-) -> Generator:
+def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
     """Deprecated alias for :func:`assert_no_warnings`.
 
     This context manager is kept for backward compatibility so that existing
