@@ -176,7 +176,7 @@ def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Opti
 
 @contextmanager
 def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
-    """Deprecated alias for :func:`deprecate.utils.assert_no_warnings`.
+    """Deprecated alias for :func:`~deprecate.utils.assert_no_warnings`.
 
     This context manager is kept for backward compatibility so that existing
     imports like ``from deprecate.utils import no_warning_call`` continue to
