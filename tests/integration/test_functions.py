@@ -23,6 +23,15 @@ import pytest
 from deprecate._types import DeprecationInfo
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
+    decorated_pow_self,
+    decorated_pow_skip_if_func,
+    decorated_pow_skip_if_true,
+    decorated_sum,
+    decorated_sum_calls_2,
+    decorated_sum_calls_inf,
+    decorated_sum_msg,
+    decorated_sum_no_stream,
+    decorated_sum_warn_only,
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
@@ -30,21 +39,12 @@ from tests.collection_deprecate import (
     depr_make_new_cls_mapped,
     depr_pow_args,
     depr_pow_mix,
-    depr_pow_self,
     depr_pow_self_double,
     depr_pow_self_twice,
     depr_pow_skip_if_false_true,
-    depr_pow_skip_if_func,
     depr_pow_skip_if_func_int,
-    depr_pow_skip_if_true,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
-    depr_sum,
-    depr_sum_calls_2,
-    depr_sum_calls_inf,
-    depr_sum_msg,
-    depr_sum_no_stream,
-    depr_sum_warn_only,
     wrapped_pow_self,
     wrapped_pow_skip_if_func,
     wrapped_pow_skip_if_true,
@@ -63,7 +63,7 @@ class TestDeprecationWarnings:
     @pytest.mark.parametrize(
         ("func", "name"),
         [
-            pytest.param(depr_sum_warn_only, "depr_sum_warn_only", id="depr-form"),
+            pytest.param(decorated_sum_warn_only, "decorated_sum_warn_only", id="decorated-form"),
             pytest.param(wrapped_sum_warn_only, "original_sum_warn_only", id="wrapped-form"),
         ],
     )
@@ -75,7 +75,7 @@ class TestDeprecationWarnings:
     @pytest.mark.parametrize(
         ("func", "name"),
         [
-            pytest.param(depr_sum, "depr_sum", id="depr-form"),
+            pytest.param(decorated_sum, "decorated_sum", id="decorated-form"),
             pytest.param(wrapped_sum, "original_sum", id="wrapped-form"),
         ],
     )
@@ -125,7 +125,7 @@ class TestDeprecationWarnings:
     @pytest.mark.parametrize(
         "func",
         [
-            pytest.param(depr_sum, id="depr-form"),
+            pytest.param(decorated_sum, id="decorated-form"),
             pytest.param(wrapped_sum, id="wrapped-form"),
         ],
     )
@@ -149,7 +149,7 @@ class TestDeprecationWarnings:
     @pytest.mark.parametrize(
         "func",
         [
-            pytest.param(depr_sum_no_stream, id="depr-form"),
+            pytest.param(decorated_sum_no_stream, id="decorated-form"),
             pytest.param(wrapped_sum_no_stream, id="wrapped-form"),
         ],
     )
@@ -161,7 +161,7 @@ class TestDeprecationWarnings:
     @pytest.mark.parametrize(
         "func",
         [
-            pytest.param(depr_sum_calls_2, id="depr-form"),
+            pytest.param(decorated_sum_calls_2, id="decorated-form"),
             pytest.param(wrapped_sum_calls_2, id="wrapped-form"),
         ],
     )
@@ -179,7 +179,7 @@ class TestDeprecationWarnings:
     @pytest.mark.parametrize(
         "func",
         [
-            pytest.param(depr_sum_calls_inf, id="depr-form"),
+            pytest.param(decorated_sum_calls_inf, id="decorated-form"),
             pytest.param(wrapped_sum_calls_inf, id="wrapped-form"),
         ],
     )
@@ -197,7 +197,7 @@ class TestDeprecationWarnings:
     @pytest.mark.parametrize(
         ("func", "name"),
         [
-            pytest.param(depr_sum_msg, "depr_sum_msg", id="depr-form"),
+            pytest.param(decorated_sum_msg, "decorated_sum_msg", id="decorated-form"),
             pytest.param(wrapped_sum_msg, "original_sum", id="wrapped-form"),
         ],
     )
@@ -213,7 +213,7 @@ class TestArgumentMapping:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for functions with chained or multiple deprecations."""
-        for func in (depr_pow_self, depr_pow_self_double, depr_pow_self_twice, wrapped_pow_self):
+        for func in (decorated_pow_self, depr_pow_self_double, depr_pow_self_twice, wrapped_pow_self):
             state = getattr(func, "_state")
             state.warned_calls = 0
             state.warned_args.clear()
@@ -221,7 +221,7 @@ class TestArgumentMapping:
     @pytest.mark.parametrize(
         "func",
         [
-            pytest.param(depr_pow_self, id="depr-form"),
+            pytest.param(decorated_pow_self, id="decorated-form"),
             pytest.param(wrapped_pow_self, id="wrapped-form"),
         ],
     )
@@ -233,7 +233,7 @@ class TestArgumentMapping:
     @pytest.mark.parametrize(
         ("func", "name"),
         [
-            pytest.param(depr_pow_self, "depr_pow_self", id="depr-form"),
+            pytest.param(decorated_pow_self, "decorated_pow_self", id="decorated-form"),
             pytest.param(wrapped_pow_self, "original_pow_self", id="wrapped-form"),
         ],
     )
@@ -295,7 +295,7 @@ class TestArgumentMapping:
 @pytest.mark.parametrize(
     "func",
     [
-        pytest.param(depr_pow_skip_if_true, id="depr-form"),
+        pytest.param(decorated_pow_skip_if_true, id="decorated-form"),
         pytest.param(wrapped_pow_skip_if_true, id="wrapped-form"),
     ],
 )
@@ -308,7 +308,7 @@ def test_skip_if_true(func: Callable) -> None:
 @pytest.mark.parametrize(
     "func",
     [
-        pytest.param(depr_pow_skip_if_func, id="depr-form"),
+        pytest.param(decorated_pow_skip_if_func, id="decorated-form"),
         pytest.param(wrapped_pow_skip_if_func, id="wrapped-form"),
     ],
 )
@@ -392,12 +392,12 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     """
     from tests.collection_targets import base_sum_kwargs
 
-    # Verify __deprecated__ is set WITHOUT calling the function (using depr_sum from collection_deprecate)
-    assert hasattr(depr_sum, "__deprecated__")
-    assert depr_sum.__deprecated__ == DeprecationInfo(
+    # Verify __deprecated__ is set WITHOUT calling the function (using decorated_sum from collection_deprecate)
+    assert hasattr(decorated_sum, "__deprecated__")
+    assert decorated_sum.__deprecated__ == DeprecationInfo(
         deprecated_in="0.1",
         remove_in="0.5",
-        name="depr_sum",
+        name="decorated_sum",
         target=base_sum_kwargs,
         args_mapping=None,
     )
@@ -477,35 +477,35 @@ class TestDeprecatedClassWrappers:
     @pytest.fixture(autouse=True)
     def reset_warnings(self) -> None:
         """Reset warning counters before each test for independence."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
-        getattr(DeprTimerDecorator.__init__, "_state").warned_calls = 0
+        getattr(DeprecatedTimerDecorator.__init__, "_state").warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
-            wrapped_func = DeprTimerDecorator(sample_function)
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
+            wrapped_func = DeprecatedTimerDecorator(sample_function)
 
         # Verify the wrapper was applied correctly
         assert callable(wrapped_func)
 
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
         # Expect warning on first use
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
-            wrapped_func = DeprTimerDecorator(sample_function)
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
+            wrapped_func = DeprecatedTimerDecorator(sample_function)
 
         # Verify the wrapped function executes correctly
         result = wrapped_func(3)
@@ -513,15 +513,15 @@ class TestDeprecatedClassWrappers:
 
     def test_preserves_attributes(self) -> None:
         """Test that wrapper preserves tracking attributes."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
         # Expect warning on first use, then test attributes
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
-            wrapped_func = DeprTimerDecorator(sample_function)
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
+            wrapped_func = DeprecatedTimerDecorator(sample_function)
 
         # Call the function once
         wrapped_func(3)
@@ -547,11 +547,11 @@ class TestDeprecatedClassWrappers:
 
     def test_with_decorator_syntax(self) -> None:
         """Test warning when applied using @ decorator syntax."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
 
-            @DeprTimerDecorator
+            @DeprecatedTimerDecorator
             def sample_function(x: int) -> int:
                 """A simple function for testing class-based wrappers with @ syntax."""
                 return x + 5

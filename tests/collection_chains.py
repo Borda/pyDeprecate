@@ -9,12 +9,12 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ chain (2) | caller_sum_via_depr_sum    ║
     ║-----------|----------------------------║
-    ║ target    |  depr_sum                  ║
+    ║ target    |  decorated_sum                  ║
     ╚════════════════════╤═══════════════════╝
                          │  [deprecated ← chain]
                          ▼
     ╔════════════════════════════════════════╗
-    ║ chain (1) | depr_sum                   ║
+    ║ chain (1) | decorated_sum                   ║
     ║-----------|----------------------------║
     ║ target    |  base_sum_kwargs           ║
     ╚════════════════════╤═══════════════════╝
@@ -93,18 +93,18 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ chain (2) | caller_pow_via_self_depr   ║
     ║-----------|----------------------------║
-    ║ target    |  depr_pow_self             ║
+    ║ target    |  decorated_pow_self             ║
     ║ mapping   |  "exp" -> "coef"           ║
     ╚════════════════════╤═══════════════════╝
                          │  [stacked ← chain, target is self-depr]
                          ▼
     ╔════════════════════════════════════════╗
-    ║ self-depr | depr_pow_self              ║
+    ║ self-depr | decorated_pow_self              ║
     ║-----------|----------------------------║
     ║ target    |  True (self)               ║
     ║ mapping   |  "coef" -> "new_coef"      ║
     ╚════════════════════════════════════════╝
-    # Solution: target=depr_pow_self.__wrapped__,
+    # Solution: target=decorated_pow_self.__wrapped__,
     #   args_mapping={"exp": "new_coef"}
 
     GOOD — outer target is not deprecated (no chain):
@@ -132,17 +132,17 @@ Deprecation Chain Schema:
 """
 
 from deprecate import deprecated, void
-from tests.collection_deprecate import depr_accuracy_map, depr_pow_self, depr_sum
+from tests.collection_deprecate import decorated_pow_self, decorated_sum, depr_accuracy_map
 from tests.collection_targets import base_sum_kwargs
 
 
-@deprecated(target=depr_sum, deprecated_in="1.5", remove_in="2.5")
+@deprecated(target=decorated_sum, deprecated_in="1.5", remove_in="2.5")
 def caller_sum_via_depr_sum(a: int, b: int = 5) -> int:
     """Deprecated wrapper whose target is itself deprecated (chain).
 
     Examples:
         Instead of pointing directly to ``base_sum_kwargs``, this wrapper
-        routes through ``depr_sum`` (also deprecated). The outer wrapper
+        routes through ``decorated_sum`` (also deprecated). The outer wrapper
         should skip the intermediate step and target ``base_sum_kwargs`` directly.
     """
     return void(a, b)
@@ -193,12 +193,12 @@ def caller_stacked_args_map(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) 
     return void(base, c1, nc1, nc2)
 
 
-@deprecated(target=depr_pow_self, deprecated_in="1.5", remove_in="2.5", args_mapping={"exp": "coef"})
+@deprecated(target=decorated_pow_self, deprecated_in="1.5", remove_in="2.5", args_mapping={"exp": "coef"})
 def caller_pow_via_self_depr(base: float, exp: float = 2) -> float:
     """Deprecated wrapper whose target is itself a self-deprecation with arg renaming.
 
     Examples:
-        Routes through ``depr_pow_self`` (deprecated with ``target=True, args_mapping={"coef": "new_coef"}``).
+        Routes through ``decorated_pow_self`` (deprecated with ``target=True, args_mapping={"coef": "new_coef"}``).
         The two arg renames compose: ``exp -> coef -> new_coef``. The fix is to target the
         final implementation directly with the collapsed mapping ``{"exp": "new_coef"}``.
     """

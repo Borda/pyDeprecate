@@ -25,15 +25,15 @@ This module contains deprecated wrappers covering real-world use cases:
 
 Assignment (wrapper) form fixtures — same config as their depr_* counterparts,
 applied via deprecated(...)(source_fn) for decorator vs assignment form-equivalence tests:
-- wrapped_sum: basic forwarding (depr_sum equivalent)
-- wrapped_sum_warn_only: target=None warn-only (depr_sum_warn_only equivalent)
-- wrapped_sum_no_stream: stream=None silent forwarding (depr_sum_no_stream equivalent)
-- wrapped_sum_calls_2: num_warns=2 (depr_sum_calls_2 equivalent)
-- wrapped_sum_calls_inf: num_warns=-1 (depr_sum_calls_inf equivalent)
-- wrapped_sum_msg: custom template_mgs (depr_sum_msg equivalent)
-- wrapped_pow_self: target=True with args_mapping (depr_pow_self equivalent)
-- wrapped_pow_skip_if_true: skip_if=True (depr_pow_skip_if_true equivalent)
-- wrapped_pow_skip_if_func: skip_if=callable (depr_pow_skip_if_func equivalent)
+- wrapped_sum: basic forwarding (decorated_sum equivalent)
+- wrapped_sum_warn_only: target=None warn-only (decorated_sum_warn_only equivalent)
+- wrapped_sum_no_stream: stream=None silent forwarding (decorated_sum_no_stream equivalent)
+- wrapped_sum_calls_2: num_warns=2 (decorated_sum_calls_2 equivalent)
+- wrapped_sum_calls_inf: num_warns=-1 (decorated_sum_calls_inf equivalent)
+- wrapped_sum_msg: custom template_mgs (decorated_sum_msg equivalent)
+- wrapped_pow_self: target=True with args_mapping (decorated_pow_self equivalent)
+- wrapped_pow_skip_if_true: skip_if=True (decorated_pow_skip_if_true equivalent)
+- wrapped_pow_skip_if_func: skip_if=callable (decorated_pow_skip_if_func equivalent)
 
 Decorator-form equivalents (same deprecated_class config as Wrapped* — for parametrize comparison):
 - DecoratedEnum: decorator-form enum equivalent of WrappedEnum
@@ -256,7 +256,7 @@ class RedirectedDataClass:
 
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
-def depr_sum_warn_only(a: int, b: int = 5) -> int:
+def decorated_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
 
     Examples:
@@ -267,7 +267,7 @@ def depr_sum_warn_only(a: int, b: int = 5) -> int:
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
-def depr_sum(a: int, b: int = 5) -> int:
+def decorated_sum(a: int, b: int = 5) -> int:
     """Basic call forwarding to a replacement function.
 
     Examples:
@@ -298,7 +298,7 @@ def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> New
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)
-def depr_sum_no_stream(a: int, b: int = 5) -> int:
+def decorated_sum_no_stream(a: int, b: int = 5) -> int:
     """Silent forwarding with no warning emitted.
 
     Examples:
@@ -309,7 +309,7 @@ def depr_sum_no_stream(a: int, b: int = 5) -> int:
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)
-def depr_sum_calls_2(a: int, b: int = 5) -> int:
+def decorated_sum_calls_2(a: int, b: int = 5) -> int:
     """Limited warning frequency to avoid log spam.
 
     Examples:
@@ -319,7 +319,7 @@ def depr_sum_calls_2(a: int, b: int = 5) -> int:
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)
-def depr_sum_calls_inf(a: int, b: int = 5) -> int:
+def decorated_sum_calls_inf(a: int, b: int = 5) -> int:
     """Warn on every single call for maximum visibility.
 
     Examples:
@@ -334,7 +334,7 @@ def depr_sum_calls_inf(a: int, b: int = 5) -> int:
     remove_in="0.5",
     template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`",
 )
-def depr_sum_msg(a: int, b: int = 5) -> int:
+def decorated_sum_msg(a: int, b: int = 5) -> int:
     """Custom warning message template.
 
     Examples:
@@ -411,7 +411,7 @@ def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
 
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
-def depr_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
+def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """Self-deprecation: renaming a parameter within the same function.
 
     Examples:
@@ -473,7 +473,7 @@ def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> f
 
 
 @deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
-def depr_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> float:
+def decorated_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Deprecation entirely disabled via static flag.
 
     Examples:
@@ -484,7 +484,7 @@ def depr_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> float:
 
 
 @deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True)
-def depr_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> float:
+def decorated_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Deprecation controlled by a runtime callable.
 
     Examples:
@@ -532,12 +532,12 @@ def depr_timing_wrapper(func: Callable) -> Callable:
 
 
 # Deprecate a class-based timer decorator in favor of the improved TimerDecorator
-class DeprTimerDecorator(TimerDecorator):
+class DeprecatedTimerDecorator(TimerDecorator):
     """Deprecating a class-based decorator via __init__.
 
     Examples:
         Library replaces a class-based decorator with an improved version.
-        User's code uses `DeprTimerDecorator(func)` — the `__init__` forwards to `TimerDecorator`.
+        User's code uses `DeprecatedTimerDecorator(func)` — the `__init__` forwards to `TimerDecorator`.
     """
 
     @deprecated(target=TimerDecorator, deprecated_in="1.0", remove_in="2.0")
