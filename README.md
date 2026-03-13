@@ -115,6 +115,8 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 ## 💾 Installation
 
+Requires **Python 3.9 or later**.
+
 Simple installation from PyPI:
 
 ```bash
@@ -771,6 +773,9 @@ def old_add_v2(a: int, b: int) -> int:
 ## 🔍 Audit
 
 Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, and that chains of deprecated-to-deprecated calls don't silently pile up. These tools are designed to run in CI pipelines and test suites, catching problems before they reach users.
+
+> [!NOTE]
+> **Renamed in v0.6**: `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecatedWrapperInfo`. The old names are still exported for backwards compatibility but will be removed in v1.0.
 
 ### Validating Wrapper Configuration
 

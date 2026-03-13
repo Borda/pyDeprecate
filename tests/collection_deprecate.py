@@ -178,9 +178,6 @@ SelfMappedEnum = deprecated_class(
 
 
 # Form-equivalence pairs — shared instance ensures decorator and wrapper form use identical config
-_class_deprecation_enum = deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
-
-
 class _OriginalEnum(Enum):
     """Original enum class that gets wrapped by deprecated_class in wrapper form."""
 
@@ -188,7 +185,7 @@ class _OriginalEnum(Enum):
     BETA = "beta"
 
 
-WrappedEnum = _class_deprecation_enum(_OriginalEnum)
+_class_deprecation_enum = deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
 
 
 @_class_deprecation_enum
@@ -199,7 +196,7 @@ class DecoratedEnum(Enum):
     BETA = "beta"
 
 
-_class_deprecation_dataclass = deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
+WrappedEnum = _class_deprecation_enum(_OriginalEnum)
 
 
 @dataclass
@@ -210,7 +207,7 @@ class _OriginalDataClass:
     total: int = 0
 
 
-WrappedDataClass = _class_deprecation_dataclass(_OriginalDataClass)
+_class_deprecation_dataclass = deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
 
 
 @_class_deprecation_dataclass
@@ -220,6 +217,9 @@ class DecoratedDataClass:
 
     label: str
     total: int = 0
+
+
+WrappedDataClass = _class_deprecation_dataclass(_OriginalDataClass)
 
 
 @deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)

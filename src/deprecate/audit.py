@@ -72,7 +72,7 @@ def _parse_version(version_string: str) -> "Version":
             (wraps ``packaging.version.InvalidVersion`` with additional context).
 
     Example:
-        >>> import pytest; pytest.importorskip("packaging")  # doctest: +ELLIPSIS
+        >>> import importlib; importlib.import_module("packaging")  # doctest: +ELLIPSIS
         <module 'packaging' ...>
         >>> v1 = _parse_version("1.2.3")
         >>> v2 = _parse_version("2.0")

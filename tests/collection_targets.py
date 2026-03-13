@@ -98,6 +98,11 @@ class CrossGuardClassTargetNew:
         self.x = x
 
 
+def sample_function(x: int) -> int:
+    """Simple callable used as input to deprecated function-wrapper tests."""
+    return x * 2
+
+
 @dataclass
 class NewDataClass:
     """Target dataclass for deprecation forwarding tests."""

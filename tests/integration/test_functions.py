@@ -55,6 +55,7 @@ from tests.collection_deprecate import (
     wrapped_sum_no_stream,
     wrapped_sum_warn_only,
 )
+from tests.collection_targets import sample_function
 
 
 class TestDeprecationWarnings:
@@ -417,10 +418,6 @@ class TestDeprecatedFunctionWrappers:
         """Test that deprecated wrapper shows deprecation warning."""
         from tests.collection_deprecate import depr_timing_wrapper
 
-        def sample_function(x: int) -> int:
-            """A simple function for testing wrappers."""
-            return x * 2
-
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
 
@@ -430,10 +427,6 @@ class TestDeprecatedFunctionWrappers:
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
         from tests.collection_deprecate import depr_timing_wrapper
-
-        def sample_function(x: int) -> int:
-            """A simple function for testing wrappers."""
-            return x * 2
 
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
@@ -445,10 +438,6 @@ class TestDeprecatedFunctionWrappers:
     def test_new_implementation_no_warning(self) -> None:
         """Test that new implementation works without warnings."""
         from tests.collection_targets import timing_wrapper
-
-        def sample_function(x: int) -> int:
-            """A simple function for testing wrappers."""
-            return x * 2
 
         with no_warning_call(FutureWarning):
             new_wrapped = timing_wrapper(sample_function)

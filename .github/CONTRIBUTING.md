@@ -432,7 +432,7 @@ The same pattern applies to `deprecated_class()` pairs — define `_class_deprec
 
 **Docstrings in test collections:**
 
-Functions in `collection_deprecate.py` and `collection_misconfigured.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
+Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collection_chains.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
 
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
