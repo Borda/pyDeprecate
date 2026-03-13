@@ -13,8 +13,14 @@ from typing import Any, Callable
 
 
 def raise_pow(base: float, coef: float) -> float:
-    """Compute base**coef while emitting a UserWarning — used to test no_warning_call."""
+    """Compute base**coef while emitting a UserWarning — used to test assert_no_warnings."""
     warnings.warn("warning you!", UserWarning)
+    return base**coef
+
+
+def raise_pow_future(base: float, coef: float) -> float:
+    """Compute base**coef while emitting a FutureWarning — used to test assert_no_warnings."""
+    warnings.warn("future warning!", FutureWarning)
     return base**coef
 
 

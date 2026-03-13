@@ -12,7 +12,7 @@ This module provides two kinds of helpers:
       function stubs to satisfy IDEs and mypy about unused parameters.
 
 **Public — testing** (exported via :mod:`deprecate`):
-    - :func:`~deprecate.utils.no_warning_call`: Context manager that asserts no warnings are raised
+    - :func:`~deprecate.utils.assert_no_warnings`: Context manager that asserts no warnings are raised
       during a block — the inverse of ``pytest.warns()``.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
@@ -102,45 +102,44 @@ def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str
 
 
 @contextmanager
-def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
-    """Context manager to assert that no warnings are raised during execution.
+def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
+    """Context manager asserting that no warnings are raised — the inverse of ``pytest.warns()``.
 
-    This is the inverse of ``pytest.warns()`` - it ensures that specified warnings
-    are NOT raised. Useful for testing that refactored code properly avoids
-    deprecated functionality or that new implementations don't trigger warnings.
+    Useful for testing that refactored code properly avoids deprecated functionality
+    or that new implementations don't trigger warnings.
 
     Args:
-        warning_type: The type of warning to catch (e.g., :class:`FutureWarning`,
-            :class:`DeprecationWarning`). If None, checks that NO warnings of any
+        warning_type: The warning type that must NOT be raised (e.g., :class:`FutureWarning`,
+            :class:`DeprecationWarning`). If ``None``, asserts that no warnings of any
             type are raised.
-        match: If specified, only fail if a warning message contains this string.
-            If None, fails on any warning of the specified type.
+        match: If given, only fail if a warning message contains this string.
+            If ``None``, fails on any warning of the specified type.
 
     Raises:
         AssertionError: If a warning of the specified type (and optionally matching
             the message pattern) was raised during the context.
 
     Example:
-        >>> # Test that new function doesn't trigger FutureWarning
+        >>> # Assert new function doesn't trigger FutureWarning
         >>> import warnings
         >>> def new_func(x: int) -> int:
         ...     return x * 2
-        >>> with no_warning_call(FutureWarning):
+        >>> with assert_no_warnings(FutureWarning):
         ...     result = new_func(42)
         >>> result
         84
 
-        >>> # Test that NO warnings at all are raised
+        >>> # Assert NO warnings at all are raised
         >>> def clean_function():
         ...     pass
-        >>> with no_warning_call():
+        >>> with assert_no_warnings():
         ...     clean_function()
 
         >>> # Only fail if warning message matches pattern
         >>> def some_function():
         ...     warnings.warn("deprecated feature", FutureWarning)
         >>> # Passes because warning contains "feature", not "other"
-        >>> with no_warning_call(FutureWarning, match="other"):
+        >>> with assert_no_warnings(FutureWarning, match="other"):
         ...     some_function()
 
     Note:

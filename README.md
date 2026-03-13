@@ -66,7 +66,7 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🔍 Preserves original function signature, annotations and metadata for introspection
 - ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
 - 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
-- 🧪 Includes testing helpers (e.g., `no_warning_call`) for deterministic tests
+- 🧪 Includes testing helpers (e.g., `assert_no_warnings`) for deterministic tests
 - 🔗 Compatible with methods, class constructors and cross‑module moves
 
 ### 📊 Comparison with Other Tools
@@ -91,7 +91,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 - **Prevent Log Spam**: Prevents log spam by showing warnings only once per function (or N times) by default.
 - **Zero Extra Depend.**: Lightweight and easy to install, relying solely on the Python standard library.
 - **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
-- **Testing Helpers**: Built-in tools like `no_warning_call()` ensure your deprecations are testable and deterministic.
+- **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 
 </details>
 
@@ -1166,7 +1166,7 @@ def enforce_no_deprecation_chains():
 pyDeprecate provides utilities to help you test deprecated code properly:
 
 ```python
-from deprecate import deprecated, no_warning_call, void
+from deprecate import deprecated, assert_no_warnings, void
 import pytest
 
 
@@ -1193,7 +1193,7 @@ def test_deprecated_function_shows_warning():
 
 def test_new_function_no_warning():
     """Verify new function doesn't trigger warnings."""
-    with no_warning_call(FutureWarning):
+    with assert_no_warnings(FutureWarning):
         result = new_func(42)
     assert result == 84
 
@@ -1205,7 +1205,7 @@ def test_no_warning_after_first_call():
         old_func2(1)
 
     # Subsequent calls don't show warning (by default num_warns=1)
-    with no_warning_call(FutureWarning):
+    with assert_no_warnings(FutureWarning):
         old_func2(2)
 
 
