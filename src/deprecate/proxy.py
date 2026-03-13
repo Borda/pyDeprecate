@@ -27,7 +27,7 @@ Example:
 from collections.abc import Iterator
 from typing import Any, Callable, Optional, cast
 
-from deprecate._types import DeprecationInfo, _ProxyConfig
+from deprecate._types import DeprecationConfig, _ProxyConfig
 from deprecate.deprecation import TEMPLATE_WARNING_CALLABLE, TEMPLATE_WARNING_NO_TARGET, deprecation_warning
 
 
@@ -86,7 +86,7 @@ class _DeprecatedProxy:
 
         ``__deprecated__`` is the public metadata interface consumed by audit tools
         (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) as a
-        :class:`~deprecate._types.DeprecationInfo` instance aligned with the
+        :class:`~deprecate._types.DeprecationConfig` instance aligned with the
         ``@deprecated`` schema.
         """
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object.
@@ -98,7 +98,7 @@ class _DeprecatedProxy:
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
         # Static deprecation metadata stored as a dunder attribute — readable by audit tools via __deprecated__.
-        dep_meta = DeprecationInfo(
+        dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             name=name,
@@ -121,13 +121,13 @@ class _DeprecatedProxy:
         return cast(_ProxyConfig, object.__getattribute__(self, "_DeprecatedProxy__config"))
 
     @property
-    def _dep(self) -> DeprecationInfo:
+    def _dep(self) -> DeprecationConfig:
         """Static deprecation metadata (versions, name, target, args_mapping).
 
         Stored as ``__deprecated__`` (dunder, not name-mangled) — audit tools and external
         code may read it directly; this property simply provides a typed view of the same object.
         """
-        return cast(DeprecationInfo, object.__getattribute__(self, "__deprecated__"))
+        return cast(DeprecationConfig, object.__getattribute__(self, "__deprecated__"))
 
     def _warn(self) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted."""

@@ -553,7 +553,7 @@ class TestDeprecatedInstance:
         assert dep.name == "my_config"
 
     def test_version_metadata_stored(self) -> None:
-        """deprecated_in and remove_in are stored verbatim in DeprecationInfo."""
+        """deprecated_in and remove_in are stored verbatim in DeprecationConfig."""
         proxy = deprecated_instance([], deprecated_in="2.0", remove_in="3.5", stream=None)
         dep = object.__getattribute__(proxy, "__deprecated__")
         assert dep.deprecated_in == "2.0"

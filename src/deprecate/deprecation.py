@@ -18,7 +18,7 @@ from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationInfo, _WrapperState
+from deprecate._types import DeprecationConfig, _WrapperState
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 #: Default template warning message for redirecting callable
@@ -458,7 +458,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
 
     Metadata Used:
         The function's ``__deprecated__`` attribute should be a
-        :class:`~deprecate._types.DeprecationInfo` instance with:
+        :class:`~deprecate._types.DeprecationConfig` instance with:
         - deprecated_in: Version when deprecated
         - remove_in: Version when will be removed
         - target: Replacement callable (optional)
@@ -468,7 +468,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         >>> def old_func():
         ...     '''Original docstring.'''
         ...     pass
-        >>> old_func.__deprecated__ = DeprecationInfo(
+        >>> old_func.__deprecated__ = DeprecationConfig(
         ...     deprecated_in='1.0',
         ...     remove_in='2.0',
         ...     target=new_func,
@@ -490,7 +490,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     if not hasattr(wrapped_fn, "__deprecated__"):
         return
     lines = wrapped_fn.__doc__.splitlines()
-    dep_info = cast(DeprecationInfo, getattr(wrapped_fn, "__deprecated__"))
+    dep_info = cast(DeprecationConfig, getattr(wrapped_fn, "__deprecated__"))
     remove_in_val = dep_info.remove_in
     target_val = dep_info.target
     remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
@@ -688,7 +688,7 @@ def deprecated(
             return target_func(**kwargs)
 
         # Static deprecation metadata — consumed by audit tools and docstring helpers.
-        dep_meta = DeprecationInfo(
+        dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             name=source.__name__,

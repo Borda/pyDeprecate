@@ -8,7 +8,7 @@ import types
 import pytest
 
 from deprecate import deprecated
-from deprecate._types import DeprecationInfo, _has_deprecation_meta
+from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     _get_package_version,
     _parse_version,
@@ -87,7 +87,7 @@ class TestHasDeprecationMeta:
     """Tests for _has_deprecation_meta TypeGuard."""
 
     def test_returns_true_for_deprecated_proxy(self) -> None:
-        """_DeprecatedProxy objects carry DeprecationInfo, so the guard returns True."""
+        """_DeprecatedProxy objects carry DeprecationConfig, so the guard returns True."""
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         assert _has_deprecation_meta(proxy) is True
 
@@ -114,9 +114,9 @@ class TestHasDeprecationMeta:
         assert _has_deprecation_meta(obj) is False
 
     def test_meta_is_deprecation_info_instance(self) -> None:
-        """The __deprecated__ attribute on a proxy is a typed DeprecationInfo dataclass."""
+        """The __deprecated__ attribute on a proxy is a typed DeprecationConfig dataclass."""
         proxy = _DeprecatedProxy(obj={}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        assert isinstance(object.__getattribute__(proxy, "__deprecated__"), DeprecationInfo)
+        assert isinstance(object.__getattribute__(proxy, "__deprecated__"), DeprecationConfig)
 
 
 @_requires_packaging

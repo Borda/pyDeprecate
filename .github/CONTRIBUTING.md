@@ -308,7 +308,7 @@ pyDeprecate/
 ├── src/deprecate/              # Core library code
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
-│   ├── _types.py               # Shared type definitions: DeprecationInfo, _ProxyConfig
+│   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # @deprecated decorator and warning logic
 │   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()

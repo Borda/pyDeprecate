@@ -4,7 +4,7 @@ import warnings
 
 import pytest
 
-from deprecate._types import DeprecationInfo
+from deprecate._types import DeprecationConfig
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
@@ -277,7 +277,7 @@ def test_deprecated_class_attribute_set_at_decoration_time() -> None:
     """
     # Verify __deprecated__ is set on the __init__ WITHOUT instantiating the class
     assert hasattr(PastCls.__init__, "__deprecated__")
-    assert PastCls.__init__.__deprecated__ == DeprecationInfo(
+    assert PastCls.__init__.__deprecated__ == DeprecationConfig(
         deprecated_in="0.2",
         remove_in="0.4",
         name="__init__",
@@ -325,9 +325,9 @@ class TestEnumFormEquivalence(_ClassFormBase):
         assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """__deprecated__ records correct DeprecationInfo for both forms."""
+        """__deprecated__ records correct DeprecationConfig for both forms."""
         dep = object.__getattribute__(proxy, "__deprecated__")
-        assert isinstance(dep, DeprecationInfo)
+        assert isinstance(dep, DeprecationConfig)
         assert dep.deprecated_in == "0.5"
         assert dep.remove_in == "1.0"
         assert dep.target is NewEnum
@@ -363,9 +363,9 @@ class TestDataclassFormEquivalence(_ClassFormBase):
         assert instance.total == 0
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """__deprecated__ records correct DeprecationInfo for both forms."""
+        """__deprecated__ records correct DeprecationConfig for both forms."""
         dep = object.__getattribute__(proxy, "__deprecated__")
-        assert isinstance(dep, DeprecationInfo)
+        assert isinstance(dep, DeprecationConfig)
         assert dep.deprecated_in == "0.5"
         assert dep.remove_in == "1.0"
         assert dep.target is NewDataClass

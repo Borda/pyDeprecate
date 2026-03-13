@@ -20,7 +20,7 @@ from typing import Callable
 
 import pytest
 
-from deprecate._types import DeprecationInfo
+from deprecate._types import DeprecationConfig
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     decorated_pow_self,
@@ -395,7 +395,7 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
 
     # Verify __deprecated__ is set WITHOUT calling the function (using decorated_sum from collection_deprecate)
     assert hasattr(decorated_sum, "__deprecated__")
-    assert decorated_sum.__deprecated__ == DeprecationInfo(
+    assert decorated_sum.__deprecated__ == DeprecationConfig(
         deprecated_in="0.1",
         remove_in="0.5",
         name="decorated_sum",

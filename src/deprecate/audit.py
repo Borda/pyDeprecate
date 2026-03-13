@@ -32,7 +32,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 # ``hasattr(obj, "__deprecated__")`` scan in :func:`find_deprecation_wrappers` and
 # :func:`validate_deprecation_expiry`. The ``__deprecated__`` schema is now unified
 # across ``@deprecated`` and :class:`~deprecate.proxy._DeprecatedProxy` via
-# :class:`~deprecate._types.DeprecationInfo` — both always populate the ``name`` field,
+# :class:`~deprecate._types.DeprecationConfig` — both always populate the ``name`` field,
 # so ``validate_deprecation_wrapper`` can read it correctly for proxy objects too.
 
 import inspect
@@ -44,7 +44,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
-from deprecate._types import DeprecationInfo, _has_deprecation_meta
+from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 
@@ -132,7 +132,7 @@ class DeprecationWrapperInfo:
         module: Module name where the wrapper is defined (empty for direct validation).
         function: Wrapper name.
         deprecated_info: The ``__deprecated__`` attribute from the decorator,
-            as a :class:`~deprecate._types.DeprecationInfo`.
+            as a :class:`~deprecate._types.DeprecationConfig`.
         invalid_args: List of ``args_mapping`` keys that don't exist in the wrapper's signature.
         empty_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
         identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
@@ -145,7 +145,7 @@ class DeprecationWrapperInfo:
         >>> info = DeprecationWrapperInfo(
         ...     module="my_package.module",
         ...     function="old_function",
-        ...     deprecated_info=DeprecationInfo(deprecated_in="1.0", remove_in="2.0"),
+        ...     deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
         ...     invalid_args=["nonexistent"],
         ...     no_effect=True,
         ... )
@@ -158,7 +158,7 @@ class DeprecationWrapperInfo:
 
     module: str = ""
     function: str = ""
-    deprecated_info: DeprecationInfo = field(default_factory=DeprecationInfo)
+    deprecated_info: DeprecationConfig = field(default_factory=DeprecationConfig)
     invalid_args: list[str] = field(default_factory=list)
     empty_mapping: bool = False
     identity_mapping: list[str] = field(default_factory=list)
@@ -206,7 +206,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     Returns:
         DeprecationWrapperInfo: Dataclass with validation results:
             - function: Name of the wrapper being validated
-            - deprecated_info: The typed :class:`~deprecate._types.DeprecationInfo`
+            - deprecated_info: The typed :class:`~deprecate._types.DeprecationConfig`
               metadata from ``__deprecated__``
             - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_mapping: True if args_mapping is None or empty
@@ -216,7 +216,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
 
     Raises:
         ValueError: If the wrapper has missing or invalid ``__deprecated__``
-            metadata (expected :class:`~deprecate._types.DeprecationInfo`).
+            metadata (expected :class:`~deprecate._types.DeprecationConfig`).
 
     Example:
         >>> from deprecate import deprecated, validate_deprecation_wrapper
@@ -255,7 +255,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     if not _has_deprecation_meta(func):
         raise ValueError(
             f"Function {getattr(func, '__name__', func)} has missing or invalid `__deprecated__` metadata. "
-            "Expected `DeprecationInfo`; ensure it is decorated with `@deprecated`."
+            "Expected `DeprecationConfig`; ensure it is decorated with `@deprecated`."
         )
 
     dep_info = func.__deprecated__
@@ -337,7 +337,7 @@ def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> No
 
     Raises:
         ValueError: If the wrapper has missing or invalid ``__deprecated__``
-            metadata (expected :class:`~deprecate._types.DeprecationInfo`).
+            metadata (expected :class:`~deprecate._types.DeprecationConfig`).
         ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
         AssertionError: If the current version is greater than or equal to the
             scheduled removal version, indicating the code should have been removed.
@@ -544,7 +544,7 @@ def find_deprecation_wrappers(
         Each contains:
             - module: Module name where the wrapper is defined
             - function: Wrapper name
-            - deprecated_info: DeprecationInfo metadata from the decorator (``__deprecated__`` attribute)
+            - deprecated_info: DeprecationConfig metadata from the decorator (``__deprecated__`` attribute)
             - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_mapping: True if args_mapping is None or empty
             - identity_mapping: List of identity mappings (key == value)

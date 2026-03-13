@@ -16,7 +16,7 @@ import tests.collection_chains as chain_module
 import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
 from deprecate import deprecated, validate_deprecation_expiry
-from deprecate._types import DeprecationInfo
+from deprecate._types import DeprecationConfig
 from deprecate.audit import (
     ChainType,
     DeprecationWrapperInfo,
@@ -206,7 +206,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         assert result.no_effect is False  # still emits warnings
 
     def test_deprecated_instance_read_only_same_audit_result(self) -> None:
-        """read_only flag is a runtime proxy concern and does not appear in DeprecationInfo."""
+        """read_only flag is a runtime proxy concern and does not appear in DeprecationConfig."""
         read_only = validate_deprecation_wrapper(proxy_module.depr_config_dict_read_only)
         read_write = validate_deprecation_wrapper(proxy_module.depr_config_dict)
         assert read_only.function == read_write.function == "dict"
@@ -241,7 +241,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
     ) -> None:
         """All 8 proxy objects (6 deprecated_class + 2 deprecated_instance) pass validate_deprecation_wrapper.
 
-        Verifies the unified DeprecationInfo schema — function name, version fields, and
+        Verifies the unified DeprecationConfig schema — function name, version fields, and
         chain_type — for every proxy variant. Proxy __call__ is (*args, **kwargs) so the
         signature check is skipped and invalid_args is always [] for proxy objects.
         """
@@ -554,7 +554,7 @@ class TestCheckModuleDeprecationExpiry:
         bad_info = DeprecationWrapperInfo(
             module="tests.collection_deprecate",
             function="bad_version_fn",
-            deprecated_info=DeprecationInfo(deprecated_in="1.0", remove_in="not-semver"),
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not-semver"),
         )
         with patch("deprecate.audit.find_deprecation_wrappers", return_value=[bad_info]):
             result = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)

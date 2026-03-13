@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class DeprecationInfo:
+class DeprecationConfig:
     """Static deprecation metadata attached to deprecated callables as ``__deprecated__``.
 
     All five fields are always set — both ``@deprecated``-decorated functions and
@@ -22,7 +22,7 @@ class DeprecationInfo:
     Attributes:
         deprecated_in: Version string when the callable was deprecated.
         remove_in: Version string when the callable will be removed.
-        name: Display name of the deprecated source (function or class name).
+        name: Display the name of the deprecated source (function or class name).
         target: Replacement target — a callable, ``True`` for self-deprecation, or ``None``.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
@@ -47,7 +47,7 @@ class _HasDeprecationMeta(Protocol):
     the need for a ``cast`` after the guard.
     """
 
-    __deprecated__: DeprecationInfo
+    __deprecated__: DeprecationConfig
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the deprecated object."""
@@ -55,7 +55,7 @@ class _HasDeprecationMeta(Protocol):
 
 
 def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
-    """Return ``True`` if *obj* carries typed :class:`DeprecationInfo` metadata.
+    """Return ``True`` if *obj* carries typed :class:`DeprecationConfig` metadata.
 
     Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to
     :class:`_HasDeprecationMeta`, allowing direct typed access to ``obj.__deprecated__``
@@ -66,10 +66,10 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
 
     Returns:
         ``True`` if ``__deprecated__`` exists and is a
-        :class:`~deprecate._types.DeprecationInfo`; ``False`` otherwise.
+        :class:`~deprecate._types.DeprecationConfig`; ``False`` otherwise.
 
     """
-    return isinstance(getattr(obj, "__deprecated__", None), DeprecationInfo)
+    return isinstance(getattr(obj, "__deprecated__", None), DeprecationConfig)
 
 
 @dataclass
