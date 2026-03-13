@@ -414,7 +414,7 @@ from deprecate import deprecated
 
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
-def depr_sum_warn_only(a: int, b: int = 5) -> int:
+def decorated_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
 
     Examples:
