@@ -32,7 +32,7 @@ Core Components:
     - :func:`~deprecate.proxy.deprecated_class`: Decorator for deprecating Enum/dataclass definitions
 
 **Testing** (:mod:`deprecate.utils`):
-    - :func:`~deprecate.utils.no_warning_call`: Context manager asserting that no warnings are raised
+    - :func:`~deprecate.utils.assert_no_warnings`: Context manager asserting that no warnings are raised
 
 Quick Example:
     >>> from deprecate import deprecated
@@ -81,7 +81,11 @@ from deprecate.audit import (
 )
 from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class, deprecated_instance
-from deprecate.utils import no_warning_call, void
+from deprecate.utils import (
+    assert_no_warnings,
+    no_warning_call,  # noqa: F401 # deprecated since 0.6, use assert_no_warnings
+    void,
+)
 
 __all__ = [
     "deprecated",
@@ -92,6 +96,6 @@ __all__ = [
     "validate_deprecation_wrapper",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
-    "no_warning_call",
+    "assert_no_warnings",
     "void",
 ]

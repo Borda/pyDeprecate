@@ -20,8 +20,8 @@ from typing import Callable
 
 import pytest
 
+from deprecate import assert_no_warnings
 from deprecate._types import DeprecationConfig
-from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     decorated_pow_self,
     decorated_pow_skip_if_func,
@@ -135,7 +135,7 @@ class TestDeprecationWarnings:
         getattr(func, "_state").warned_calls = 0
         with pytest.warns(FutureWarning):
             assert func(2) == 7
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             assert func(3) == 8
 
     def test_default_independent(self) -> None:
@@ -156,7 +156,7 @@ class TestDeprecationWarnings:
     )
     def test_stream_calls_no_stream(self, func: Callable) -> None:
         """Check that the warning is NOT raised when stream is None."""
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             assert func(3) == 8
 
     @pytest.mark.parametrize(
@@ -228,7 +228,7 @@ class TestArgumentMapping:
     )
     def test_arguments_new_only(self, func: Callable) -> None:
         """Test calling with new arguments only (no warning)."""
-        with no_warning_call():
+        with assert_no_warnings():
             assert func(2, new_coef=3) == 8
 
     @pytest.mark.parametrize(
@@ -262,7 +262,7 @@ class TestArgumentMapping:
         # Reset warning state to ensure test independence
         getattr(depr_pow_self_double, "_state").warned_args.clear()
 
-        with no_warning_call():
+        with assert_no_warnings():
             assert depr_pow_self_double(2, nc1=1, nc2=2) == 8
 
         # When both c1 and c2 are provided, warns about both together
@@ -289,7 +289,7 @@ class TestArgumentMapping:
         with pytest.warns(FutureWarning):
             assert depr_pow_self_twice(2, 3) == 8
         # After the initial warning, calling with the new argument should be quiet.
-        with no_warning_call():
+        with assert_no_warnings():
             assert depr_pow_self_twice(2, c1=3) == 8
 
 
@@ -302,7 +302,7 @@ class TestArgumentMapping:
 )
 def test_skip_if_true(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if=True."""
-    with no_warning_call():
+    with assert_no_warnings():
         assert func(2, c1=2) == 2
 
 
@@ -315,7 +315,7 @@ def test_skip_if_true(func: Callable) -> None:
 )
 def test_skip_if_func(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if is a function returning True."""
-    with no_warning_call():
+    with assert_no_warnings():
         assert func(2, c1=2) == 2
 
 
@@ -351,7 +351,7 @@ class TestErrorHandling:
         getattr(depr_pow_args, "_state").warned_calls = 0
         with pytest.warns(FutureWarning):
             depr_pow_args(2, 1)
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             assert depr_pow_args(2, 1) == 2
 
     def test_incomplete_independent(self) -> None:
@@ -439,7 +439,7 @@ class TestDeprecatedFunctionWrappers:
         """Test that new implementation works without warnings."""
         from tests.collection_targets import timing_wrapper
 
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             new_wrapped = timing_wrapper(sample_function)
             result = new_wrapped(7)
             assert result == 14
@@ -528,7 +528,7 @@ class TestDeprecatedClassWrappers:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             new_wrapped = TimerDecorator(sample_function)
             result = new_wrapped(4)
             assert result == 9

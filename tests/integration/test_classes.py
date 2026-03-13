@@ -4,9 +4,9 @@ import warnings
 
 import pytest
 
+from deprecate import assert_no_warnings
 from deprecate._types import DeprecationConfig
 from deprecate.proxy import _DeprecatedProxy
-from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
     DecoratedDataClass,
     DecoratedEnum,
@@ -67,7 +67,7 @@ class TestDeprecatedClass:
         getattr(PastCls.__init__, "_state").warned_calls = 0
         with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
             PastCls(2)
-        with no_warning_call():
+        with assert_no_warnings():
             assert PastCls(c=2, d="", e=0.9999)
 
     def test_class_forward_with_args_mapping(self) -> None:
@@ -85,7 +85,7 @@ class TestDeprecatedClass:
 
     def test_class_self_new_args(self) -> None:
         """Test deprecated class with self-referencing __init__, using new arguments."""
-        with no_warning_call():
+        with assert_no_warnings():
             this = ThisCls(nc=1)
         assert this.my_c == 1
         assert isinstance(this, ThisCls)
@@ -264,7 +264,7 @@ class TestDeprecatedClassMethod:
     def test_self_rename_with_new_arg_no_warning(self) -> None:
         """Calling with the new arg name (x) does not trigger a deprecation warning."""
         svc = ServiceCls()
-        with no_warning_call():
+        with assert_no_warnings():
             result = svc.self_renamed_method(x=3)
         assert result == 6
 

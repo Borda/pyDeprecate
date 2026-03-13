@@ -67,11 +67,10 @@ class TestReadOnlyMode:
     @pytest.mark.parametrize(
         "mutation",
         [
-            lambda proxy: proxy.__setitem__("x", 99),
-            lambda proxy: proxy.__delitem__("x"),
-            lambda proxy: setattr(proxy, "new_attr", 42),
+            pytest.param(lambda proxy: proxy.__setitem__("x", 99), id="setitem"),
+            pytest.param(lambda proxy: proxy.__delitem__("x"), id="delitem"),
+            pytest.param(lambda proxy: setattr(proxy, "new_attr", 42), id="setattr"),
         ],
-        ids=["setitem", "delitem", "setattr"],
     )
     def test_mutations_raise(self, mutation: Callable[[object], None]) -> None:
         """Read-only proxy should reject item assignment, item deletion, and attribute assignment."""

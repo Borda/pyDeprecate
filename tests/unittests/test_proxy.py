@@ -381,11 +381,10 @@ class TestDecoratorEnum:
     @pytest.mark.parametrize(
         "action",
         [
-            lambda: DeprecatedColorEnum(1),
-            lambda: DeprecatedColorEnum.RED,
-            lambda: DeprecatedColorEnum["RED"],
+            pytest.param(lambda: DeprecatedColorEnum(1), id="call"),
+            pytest.param(lambda: DeprecatedColorEnum.RED, id="attribute"),
+            pytest.param(lambda: DeprecatedColorEnum["RED"], id="item"),
         ],
-        ids=["call", "attribute", "item"],
     )
     def test_warns_and_redirects_to_target_member(self, action: Callable[[], object]) -> None:
         """Deprecated Enum call, attribute, and item access should warn and resolve to target member."""

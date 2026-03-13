@@ -108,7 +108,7 @@ class TestHasDeprecationMeta:
 
         assert _has_deprecation_meta(plain) is False
 
-    @pytest.mark.parametrize("obj", ["string", 42], ids=["str", "int"])
+    @pytest.mark.parametrize("obj", [pytest.param("string", id="str"), pytest.param(42, id="int")])
     def test_returns_false_for_non_callable(self, obj: object) -> None:
         """Non-callables without __deprecated__ return False."""
         assert _has_deprecation_meta(obj) is False
