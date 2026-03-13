@@ -19,7 +19,7 @@ from deprecate import deprecated, validate_deprecation_expiry
 from deprecate._types import DeprecationInfo
 from deprecate.audit import (
     ChainType,
-    DeprecatedWrapperInfo,
+    DeprecationWrapperInfo,
     _check_deprecated_wrapper_expiry,
     _get_package_version,
     _parse_version,
@@ -40,7 +40,7 @@ class TestValidateDeprecatedWrapper:
     def test_valid_deprecation(self) -> None:
         """Properly configured deprecated function returns a clean validation result."""
         result = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
-        assert isinstance(result, DeprecatedWrapperInfo)
+        assert isinstance(result, DeprecationWrapperInfo)
         assert result.invalid_args == []
         assert result.empty_mapping is False
         assert result.identity_mapping == []
@@ -259,10 +259,10 @@ class TestFindDeprecatedWrappers:
     """Tests for find_deprecation_wrappers()."""
 
     def test_finds_decorated_functions(self) -> None:
-        """Scans a module and returns DeprecatedWrapperInfo for every @deprecated function."""
+        """Scans a module and returns DeprecationWrapperInfo for every @deprecated function."""
         results = find_deprecation_wrappers(sample_module, recursive=False)
         assert len(results) > 0
-        assert all(isinstance(r, DeprecatedWrapperInfo) for r in results)
+        assert all(isinstance(r, DeprecationWrapperInfo) for r in results)
         func_names = [r.function for r in results]
         assert "invalid_args_deprecation" in func_names
         assert "empty_mapping_deprecation" in func_names
@@ -278,7 +278,7 @@ class TestFindDeprecatedWrappers:
         """String module paths are accepted in addition to module objects."""
         results = find_deprecation_wrappers("tests.collection_deprecate", recursive=False)
         assert len(results) > 0
-        assert all(isinstance(r, DeprecatedWrapperInfo) for r in results)
+        assert all(isinstance(r, DeprecationWrapperInfo) for r in results)
 
     def test_results_groupable_by_issue_type(self) -> None:
         """Results can be filtered by invalid_args, empty_mapping, and identity_mapping."""
@@ -338,7 +338,7 @@ class TestValidateDeprecationChains:
     """Tests for validate_deprecation_chains()."""
 
     @pytest.fixture(scope="class")
-    def chain_issues(self) -> list[DeprecatedWrapperInfo]:
+    def chain_issues(self) -> list[DeprecationWrapperInfo]:
         """Run validate_deprecation_chains once for the class and share the result."""
         return validate_deprecation_chains(chain_module, recursive=False)
 
@@ -377,10 +377,10 @@ class TestValidateDeprecationChains:
         assert all("caller_sum_direct" not in i.function for i in chain_issues)
 
     def test_returns_list_of_infos(self, chain_issues: list) -> None:
-        """Return value is a non-empty list of DeprecatedWrapperInfo with chain_type set."""
+        """Return value is a non-empty list of DeprecationWrapperInfo with chain_type set."""
         assert isinstance(chain_issues, list)
         assert len(chain_issues) > 0
-        assert all(isinstance(i, DeprecatedWrapperInfo) and i.chain_type is not None for i in chain_issues)
+        assert all(isinstance(i, DeprecationWrapperInfo) and i.chain_type is not None for i in chain_issues)
 
     def test_detects_proxy_to_proxy_chain(self) -> None:
         """deprecated_class proxy whose target is itself a proxy is flagged as TARGET chain."""
@@ -551,7 +551,7 @@ class TestCheckModuleDeprecationExpiry:
 
     def test_silently_skips_invalid_remove_in_version(self) -> None:
         """Callables with a malformed remove_in are silently skipped, not raised."""
-        bad_info = DeprecatedWrapperInfo(
+        bad_info = DeprecationWrapperInfo(
             module="tests.collection_deprecate",
             function="bad_version_fn",
             deprecated_info=DeprecationInfo(deprecated_in="1.0", remove_in="not-semver"),

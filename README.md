@@ -775,13 +775,13 @@ def old_add_v2(a: int, b: int) -> int:
 Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, and that chains of deprecated-to-deprecated calls don't silently pile up. These tools are designed to run in CI pipelines and test suites, catching problems before they reach users.
 
 > [!NOTE]
-> **Renamed in v0.6**: `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecatedWrapperInfo`. The old names are still exported for backwards compatibility but will be removed in v1.0.
+> **Renamed in v0.6**: `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecationWrapperInfo`. The old names are still exported for backwards compatibility but will be removed in v1.0.
 
 ### Validating Wrapper Configuration
 
 During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this: `validate_deprecation_wrapper()` for inspecting a single function, and `find_deprecation_wrappers()` for scanning an entire package.
 
-The `DeprecatedWrapperInfo` dataclass contains:
+The `DeprecationWrapperInfo` dataclass contains:
 
 - `module`: Module name where the function is defined (empty for direct validation)
 - `function`: Function name
@@ -795,10 +795,10 @@ The `DeprecatedWrapperInfo` dataclass contains:
 <details>
 <summary><b>Validating a Single Function</b></summary>
 
-The `validate_deprecation_wrapper()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecatedWrapperInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
+The `validate_deprecation_wrapper()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
-from deprecate import validate_deprecation_wrapper, deprecated, DeprecatedWrapperInfo
+from deprecate import validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
 
 
 # Define your deprecated function
@@ -809,7 +809,9 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
 
 # Validate the configuration - automatically extracts `args_mapping` and target from the decorator
 result = validate_deprecation_wrapper(my_func)
-# DeprecatedWrapperInfo(
+
+
+# DeprecationWrapperInfo(
 #   function='my_func',
 #   invalid_args=[],
 #   empty_mapping=False,
@@ -850,7 +852,7 @@ if result.no_effect:
 <details>
 <summary><b>Scanning a Package for Deprecated Wrappers</b></summary>
 
-The `find_deprecation_wrappers()` utility scans an entire package or module and returns a list of `DeprecatedWrapperInfo` dataclasses:
+The `find_deprecation_wrappers()` utility scans an entire package or module and returns a list of `DeprecationWrapperInfo` dataclasses:
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -864,7 +866,7 @@ results = find_deprecation_wrappers(my_package)
 # Or scan using a string module path
 results = find_deprecation_wrappers("tests.collection_deprecate")
 
-# Check results - each item is a DeprecatedWrapperInfo dataclass
+# Check results - each item is a DeprecationWrapperInfo dataclass
 for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
@@ -1152,7 +1154,7 @@ def enforce_no_deprecation_chains():
 > [!TIP]
 >
 > - The function scans all deprecated functions found by `find_deprecation_wrappers()`
-> - Returns `list[DeprecatedWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
+> - Returns `list[DeprecationWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
 > - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
 > - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
 >   - Callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming) — mappings compose across hops

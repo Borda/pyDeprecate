@@ -18,7 +18,7 @@ pytest or a CI script against an imported package.
     that users traverse unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`:
     ``TARGET`` (forwarding chain) and ``STACKED`` (composed argument mappings).
 
-Results are returned as :class:`~deprecate.audit.DeprecatedWrapperInfo` dataclasses, which carry both
+Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, which carry both
 identification info and structured validation results for programmatic processing.
 
 .. note::
@@ -120,7 +120,7 @@ class ChainType(Enum):
 
 
 @dataclass(frozen=True)
-class DeprecatedWrapperInfo:
+class DeprecationWrapperInfo:
     """Information about a deprecated wrapper and its validation results.
 
     This dataclass represents a deprecated wrapper (a ``@deprecated``-decorated function
@@ -142,7 +142,7 @@ class DeprecatedWrapperInfo:
             See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
 
     Example:
-        >>> info = DeprecatedWrapperInfo(
+        >>> info = DeprecationWrapperInfo(
         ...     module="my_package.module",
         ...     function="old_function",
         ...     deprecated_info=DeprecationInfo(deprecated_in="1.0", remove_in="2.0"),
@@ -185,7 +185,7 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
     return sorted(members, key=lambda item: item[0])
 
 
-def validate_deprecation_wrapper(func: Callable) -> DeprecatedWrapperInfo:
+def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     """Validate if a deprecated wrapper configuration is effective.
 
     This is a development tool to check if deprecated wrappers are configured correctly
@@ -204,7 +204,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecatedWrapperInfo:
             attribute set by the ``@deprecated`` decorator.
 
     Returns:
-        DeprecatedWrapperInfo: Dataclass with validation results:
+        DeprecationWrapperInfo: Dataclass with validation results:
             - function: Name of the wrapper being validated
             - deprecated_info: The typed :class:`~deprecate._types.DeprecationInfo`
               metadata from ``__deprecated__``
@@ -304,7 +304,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecatedWrapperInfo:
 
     function = dep_info.name or getattr(func, "__name__", str(func))
 
-    return DeprecatedWrapperInfo(
+    return DeprecationWrapperInfo(
         function=function,
         deprecated_info=dep_info,
         invalid_args=invalid_args,
@@ -522,7 +522,7 @@ def validate_deprecation_expiry(
 def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
-) -> list[DeprecatedWrapperInfo]:
+) -> list[DeprecationWrapperInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
 
     This is a development/CI tool to scan a codebase for all wrappers created with
@@ -540,7 +540,7 @@ def find_deprecation_wrappers(
             scan the top-level module.
 
     Returns:
-        List of DeprecatedWrapperInfo dataclasses, one per deprecated wrapper found.
+        List of DeprecationWrapperInfo dataclasses, one per deprecated wrapper found.
         Each contains:
             - module: Module name where the wrapper is defined
             - function: Wrapper name
@@ -578,7 +578,7 @@ def find_deprecation_wrappers(
     import importlib
     import pkgutil
 
-    results: list[DeprecatedWrapperInfo] = []
+    results: list[DeprecationWrapperInfo] = []
 
     # Handle string module path
     if isinstance(module, str):
@@ -629,7 +629,7 @@ def find_deprecation_wrappers(
 def validate_deprecation_chains(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
-) -> list[DeprecatedWrapperInfo]:
+) -> list[DeprecationWrapperInfo]:
     """Validate that deprecated functions don't form chains with other deprecated code.
 
     This is a developer utility that scans a module or package for deprecated
@@ -657,7 +657,7 @@ def validate_deprecation_chains(
             scan the top-level module.
 
     Returns:
-        List of :class:`~deprecate.audit.DeprecatedWrapperInfo` where ``chain_type`` is not ``None``,
+        List of :class:`~deprecate.audit.DeprecationWrapperInfo` where ``chain_type`` is not ``None``,
         i.e. every deprecated wrapper that forms a chain (``ChainType.TARGET`` or
         ``ChainType.STACKED``).
 
@@ -687,7 +687,7 @@ from deprecate.deprecation import deprecated  # noqa: E402
 
 
 @deprecated(target=validate_deprecation_wrapper, deprecated_in="0.6", remove_in="1.0")
-def validate_deprecated_callable(func: Callable) -> DeprecatedWrapperInfo:
+def validate_deprecated_callable(func: Callable) -> DeprecationWrapperInfo:
     """Use :func:`validate_deprecation_wrapper` instead."""
     return validate_deprecation_wrapper(func)
 
@@ -696,11 +696,11 @@ def validate_deprecated_callable(func: Callable) -> DeprecatedWrapperInfo:
 def find_deprecated_callables(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
-) -> list[DeprecatedWrapperInfo]:
+) -> list[DeprecationWrapperInfo]:
     """Use :func:`find_deprecation_wrappers` instead."""
     return find_deprecation_wrappers(module, recursive)
 
 
-@deprecated_class(target=DeprecatedWrapperInfo, deprecated_in="0.6", remove_in="1.0")
+@deprecated_class(target=DeprecationWrapperInfo, deprecated_in="0.6", remove_in="1.0")
 class DeprecatedCallableInfo:
-    """Deprecated name for :class:`DeprecatedWrapperInfo`. Use that instead."""
+    """Deprecated name for :class:`DeprecationWrapperInfo`. Use that instead."""
