@@ -66,7 +66,7 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🔍 Preserves original function signature, annotations and metadata for introspection
 - ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
 - 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
-- 🧪 Includes testing helpers (e.g., `assert_no_warnings`) for deterministic tests
+- 🧪 Includes testing helpers (e.g., `assert_no_warnings`, formerly `no_warning_call`) for deterministic tests
 - 🔗 Compatible with methods, class constructors and cross‑module moves
 
 ### 📊 Comparison with Other Tools

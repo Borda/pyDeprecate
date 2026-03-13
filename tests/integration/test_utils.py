@@ -67,7 +67,7 @@ class TestNoWarningCallAlias:
 
     def test_emits_deprecation_warning(self) -> None:
         """Calling no_warning_call emits FutureWarning naming the replacement."""
-        with pytest.warns(FutureWarning, match="no_warning_call"), no_warning_call():
+        with pytest.warns(FutureWarning, match=r"no_warning_call.*assert_no_warnings"), no_warning_call():
             pass
 
     def test_passes_when_no_warning_raised(self) -> None:
