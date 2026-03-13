@@ -8,11 +8,11 @@ from deprecate._types import DeprecationInfo
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import no_warning_call
 from tests.collection_deprecate import (
+    DecoratedDataClass,
+    DecoratedEnum,
     DeprecatedDataClass,
     DeprecatedEnum,
     DeprecatedIntEnum,
-    EquivDataClass,
-    EquivEnum,
     MappedEnum,
     MappedIntEnum,
     MappedValueEnum,
@@ -31,11 +31,11 @@ from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
 # Parametrize cases: (proxy, expected_name) for each form of deprecated_class()
 _ENUM_CASES = [
     pytest.param(WrappedEnum, "_OriginalEnum", id="wrapper-form"),
-    pytest.param(EquivEnum, "EquivEnum", id="decorator-form"),
+    pytest.param(DecoratedEnum, "DecoratedEnum", id="decorator-form"),
 ]
 _DATACLASS_CASES = [
     pytest.param(WrappedDataClass, "_OriginalDataClass", id="wrapper-form"),
-    pytest.param(EquivDataClass, "EquivDataClass", id="decorator-form"),
+    pytest.param(DecoratedDataClass, "DecoratedDataClass", id="decorator-form"),
 ]
 
 
@@ -292,7 +292,7 @@ class _ClassFormBase:
     @pytest.fixture(autouse=True)
     def _reset_proxy_state(self) -> None:
         """Reset the proxy warn counter before each test for independence."""
-        for proxy in (WrappedEnum, EquivEnum, WrappedDataClass, EquivDataClass):
+        for proxy in (WrappedEnum, DecoratedEnum, WrappedDataClass, DecoratedDataClass):
             assert isinstance(proxy, _DeprecatedProxy)
             proxy._cfg.warned = 0
 

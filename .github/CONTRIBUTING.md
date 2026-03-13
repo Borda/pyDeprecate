@@ -383,6 +383,26 @@ Tests live in `tests/` and follow a **three-layer separation**:
 >
 > If in doubt, extract. Move to a collection module when the fixture is shared across tests, models real migration behavior, or represents a reusable deprecated wrapper or target.
 
+**Fixture naming convention in `collection_deprecate.py`:**
+
+The prefix encodes whether the fixture exists in one form or two:
+
+- **Single form** (only one way the deprecation is applied — no decorator/wrapper comparison needed): use `depr_<name>` for functions and `Deprecated<Name>` for classes.
+- **Both forms** (decorator and wrapper, used together in a parametrized test): reflect the form in the name:
+
+| Form                         | Functions/methods  | Classes (PascalCase) |
+| ---------------------------- | ------------------ | -------------------- |
+| Decorator (`@deprecated...`) | `decorated_<name>` | `Decorated<Name>`    |
+| Wrapper (assignment form)    | `wrapped_<name>`   | `Wrapped<Name>`      |
+
+Examples:
+
+- `DeprecatedEnum` — single form, no wrapper counterpart
+- `decorated_sum_warn_only` / `wrapped_sum_warn_only` — paired for parametrize; `depr_` signals decorator form
+- `DecoratedEnum` / `WrappedEnum` — paired class fixtures for the same parametrized comparison
+
+When adding a parametrized test that covers both forms, always add both fixtures.
+
 **Docstrings in test collections:**
 
 Functions in `collection_deprecate.py` and `collection_misconfigured.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.

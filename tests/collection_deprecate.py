@@ -36,8 +36,8 @@ applied via deprecated(...)(source_fn) for decorator vs assignment form-equivale
 - wrapped_pow_skip_if_func: skip_if=callable (depr_pow_skip_if_func equivalent)
 
 Decorator-form equivalents (same deprecated_class config as Wrapped* — for parametrize comparison):
-- EquivEnum: decorator-form enum equivalent of WrappedEnum
-- EquivDataClass: decorator-form dataclass equivalent of WrappedDataClass
+- DecoratedEnum: decorator-form enum equivalent of WrappedEnum
+- DecoratedDataClass: decorator-form dataclass equivalent of WrappedDataClass
 """
 
 from dataclasses import dataclass
@@ -213,7 +213,7 @@ WrappedDataClass = deprecated_class(
 
 # Decorator-form equivalents — same deprecated_class config, @decorator syntax
 @deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
-class EquivEnum(Enum):
+class DecoratedEnum(Enum):
     """Decorator-form enum with same config as WrappedEnum, for form-equivalence tests."""
 
     ALPHA = "alpha"
@@ -222,7 +222,7 @@ class EquivEnum(Enum):
 
 @deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
 @dataclass
-class EquivDataClass:
+class DecoratedDataClass:
     """Decorator-form dataclass with same config as WrappedDataClass, for form-equivalence tests."""
 
     label: str
