@@ -183,8 +183,8 @@ def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optiona
     work until v1.0.
     """
     warnings.warn(
-        "deprecate.utils.no_warning_call is deprecated in 0.6 and will be removed in 1.0; "
-        "use deprecate.utils.assert_no_warnings instead.",
+        "`deprecate.utils.no_warning_call` is deprecated in `0.6` and will be removed in `1.0`; "
+        "use `deprecate.utils.assert_no_warnings` instead.",
         DeprecationWarning,
         stacklevel=2,
     )
