@@ -176,17 +176,21 @@ def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Opti
 
 @contextmanager
 def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
-    """Deprecated alias for :func:`assert_no_warnings`.
+    """Deprecated alias for :func:`deprecate.utils.assert_no_warnings`.
 
     This context manager is kept for backward compatibility so that existing
     imports like ``from deprecate.utils import no_warning_call`` continue to
     work until v1.0.
     """
-    warnings.warn(
-        "`deprecate.utils.no_warning_call` is deprecated and will be removed in v1.0; "
-        "use `deprecate.utils.assert_no_warnings` instead.",
-        DeprecationWarning,
-        stacklevel=2,
+    # lazy import — avoids circular dep at module load
+    from deprecate.deprecation import _raise_warn_callable, deprecation_warning
+
+    _raise_warn_callable(
+        deprecation_warning,
+        no_warning_call,
+        assert_no_warnings,
+        deprecated_in="0.6",
+        remove_in="1.0",
     )
     with assert_no_warnings(warning_type=warning_type, match=match):
         yield

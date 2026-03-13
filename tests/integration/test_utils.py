@@ -5,6 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from deprecate import assert_no_warnings
+from deprecate.utils import no_warning_call
 from tests.collection_targets import raise_pow, raise_pow_future
 
 
@@ -59,3 +60,22 @@ class TestWarningCall:
         """assert_no_warnings does not raise when the specific warning category or pattern is not triggered."""
         with assert_no_warnings(*ctx_args, **ctx_kwargs):
             assert call_fn(3, 2) == 9
+
+
+class TestNoWarningCallAlias:
+    """no_warning_call is a deprecated alias — it still works but emits FutureWarning on call."""
+
+    def test_emits_deprecation_warning(self) -> None:
+        """Calling no_warning_call emits FutureWarning naming the replacement."""
+        with pytest.warns(FutureWarning, match="no_warning_call"), no_warning_call():
+            pass
+
+    def test_passes_when_no_warning_raised(self) -> None:
+        """no_warning_call does not raise AssertionError when the block is clean."""
+        with pytest.warns(FutureWarning), no_warning_call():
+            assert pow(3, 2) == 9
+
+    def test_raises_when_warning_raised(self) -> None:
+        """no_warning_call raises AssertionError when a watched warning is emitted."""
+        with pytest.warns(FutureWarning), pytest.raises(AssertionError), no_warning_call(UserWarning):
+            raise_pow(3, 2)

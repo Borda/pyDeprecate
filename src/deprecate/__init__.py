@@ -81,9 +81,11 @@ from deprecate.audit import (
 )
 from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class, deprecated_instance
-from deprecate.utils import assert_no_warnings, void
-
-no_warning_call = deprecated(target=assert_no_warnings, deprecated_in="0.6", remove_in="1.0")(assert_no_warnings)
+from deprecate.utils import (
+    assert_no_warnings,
+    no_warning_call,  # noqa: F401 # deprecated since 0.6, use assert_no_warnings
+    void,
+)
 
 __all__ = [
     "deprecated",
