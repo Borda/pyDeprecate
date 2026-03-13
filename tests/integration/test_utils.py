@@ -63,19 +63,19 @@ class TestWarningCall:
 
 
 class TestNoWarningCallAlias:
-    """no_warning_call is a deprecated alias — it still works but emits FutureWarning on call."""
+    """no_warning_call is a deprecated alias — it still works but emits DeprecationWarning on call."""
 
     def test_emits_deprecation_warning(self) -> None:
-        """Calling no_warning_call emits FutureWarning naming the replacement."""
-        with pytest.warns(FutureWarning, match=r"no_warning_call.*assert_no_warnings"), no_warning_call():
+        """Calling no_warning_call emits DeprecationWarning naming the replacement."""
+        with pytest.warns(DeprecationWarning, match=r"no_warning_call.*assert_no_warnings"), no_warning_call():
             pass
 
     def test_passes_when_no_warning_raised(self) -> None:
         """no_warning_call does not raise AssertionError when the block is clean."""
-        with pytest.warns(FutureWarning), no_warning_call():
+        with pytest.warns(DeprecationWarning), no_warning_call():
             assert pow(3, 2) == 9
 
     def test_raises_when_warning_raised(self) -> None:
         """no_warning_call raises AssertionError when a watched warning is emitted."""
-        with pytest.warns(FutureWarning), pytest.raises(AssertionError), no_warning_call(UserWarning):
+        with pytest.warns(DeprecationWarning), pytest.raises(AssertionError), no_warning_call(UserWarning):
             raise_pow(3, 2)
