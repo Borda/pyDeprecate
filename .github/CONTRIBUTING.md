@@ -398,10 +398,37 @@ The prefix encodes whether the fixture exists in one form or two:
 Examples:
 
 - `DeprecatedEnum` — single form, no wrapper counterpart
-- `decorated_sum_warn_only` / `wrapped_sum_warn_only` — paired for parametrize; `depr_` signals decorator form
+- `decorated_sum_warn_only` / `wrapped_sum_warn_only` — paired for parametrize
 - `DecoratedEnum` / `WrappedEnum` — paired class fixtures for the same parametrized comparison
 
-When adding a parametrized test that covers both forms, always add both fixtures.
+When adding a parametrized test that covers both forms, always add both fixtures and share the same `deprecated(...)` instance to guarantee identical configuration:
+
+```python
+from deprecate import deprecated, void
+
+
+# original_* is declared first — _deprecation_* refers to it immediately after.
+def original_sum_warn_only(a: int, b: int = 5) -> int:
+    """Source function for the wrapper form."""
+    return void(a, b)
+
+
+# The _deprecation_* variable is the deprecation tool (the decorator instance),
+# NOT a deprecated callable — that distinction is why it's named _deprecation_*
+# rather than _depr_* (which would imply the thing being deprecated).
+_deprecation_warn_only = deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+
+
+@_deprecation_warn_only
+def decorated_sum_warn_only(a: int, b: int = 5) -> int:
+    """..."""
+    return void(a, b)
+
+
+wrapped_sum_warn_only = _deprecation_warn_only(original_sum_warn_only)
+```
+
+The same pattern applies to `deprecated_class()` pairs — define `_class_deprecation_<name> = deprecated_class(...)` once and reuse it for both `Wrapped<Name>` and `@Decorated<Name>`.
 
 **Docstrings in test collections:**
 

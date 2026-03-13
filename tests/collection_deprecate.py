@@ -23,17 +23,11 @@ This module contains deprecated wrappers covering real-world use cases:
 - Instance deprecation via deprecated_instance()
 - Class-level deprecation with deprecated_class (Enum and dataclass)
 
-Assignment (wrapper) form fixtures — same config as their depr_* counterparts,
-applied via deprecated(...)(source_fn) for decorator vs assignment form-equivalence tests:
-- wrapped_sum: basic forwarding (decorated_sum equivalent)
-- wrapped_sum_warn_only: target=None warn-only (decorated_sum_warn_only equivalent)
-- wrapped_sum_no_stream: stream=None silent forwarding (decorated_sum_no_stream equivalent)
-- wrapped_sum_calls_2: num_warns=2 (decorated_sum_calls_2 equivalent)
-- wrapped_sum_calls_inf: num_warns=-1 (decorated_sum_calls_inf equivalent)
-- wrapped_sum_msg: custom template_mgs (decorated_sum_msg equivalent)
-- wrapped_pow_self: target=True with args_mapping (decorated_pow_self equivalent)
-- wrapped_pow_skip_if_true: skip_if=True (decorated_pow_skip_if_true equivalent)
-- wrapped_pow_skip_if_func: skip_if=callable (decorated_pow_skip_if_func equivalent)
+Each decorator/wrapper pair is co-located as a four-element group:
+  original_* — source callable (declared first)
+  _deprecation_* — shared deprecated() instance
+  @_deprecation_* decorated_* — decorator form
+  wrapped_* = _deprecation_*(original_*) — assignment (wrapper) form
 
 Decorator-form equivalents (same deprecated_class config as Wrapped* — for parametrize comparison):
 - DecoratedEnum: decorator-form enum equivalent of WrappedEnum
@@ -179,7 +173,10 @@ SelfMappedEnum = deprecated_class(
 )(_SelfMappedEnum)
 
 
-# Wrapper-form: deprecated_class used as a factory (not as @decorator)
+# Form-equivalence pairs — shared instance ensures decorator and wrapper form use identical config
+_class_deprecation_enum = deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
+
+
 class _OriginalEnum(Enum):
     """Original enum class that gets wrapped by deprecated_class in wrapper form."""
 
@@ -187,12 +184,18 @@ class _OriginalEnum(Enum):
     BETA = "beta"
 
 
-WrappedEnum = deprecated_class(
-    target=NewEnum,
-    deprecated_in="0.5",
-    remove_in="1.0",
-    num_warns=1,
-)(_OriginalEnum)
+WrappedEnum = _class_deprecation_enum(_OriginalEnum)
+
+
+@_class_deprecation_enum
+class DecoratedEnum(Enum):
+    """Decorator-form enum with same config as WrappedEnum, for form-equivalence tests."""
+
+    ALPHA = "alpha"
+    BETA = "beta"
+
+
+_class_deprecation_dataclass = deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
 
 
 @dataclass
@@ -203,24 +206,10 @@ class _OriginalDataClass:
     total: int = 0
 
 
-WrappedDataClass = deprecated_class(
-    target=NewDataClass,
-    deprecated_in="0.5",
-    remove_in="1.0",
-    num_warns=1,
-)(_OriginalDataClass)
+WrappedDataClass = _class_deprecation_dataclass(_OriginalDataClass)
 
 
-# Decorator-form equivalents — same deprecated_class config, @decorator syntax
-@deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
-class DecoratedEnum(Enum):
-    """Decorator-form enum with same config as WrappedEnum, for form-equivalence tests."""
-
-    ALPHA = "alpha"
-    BETA = "beta"
-
-
-@deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
+@_class_deprecation_dataclass
 @dataclass
 class DecoratedDataClass:
     """Decorator-form dataclass with same config as WrappedDataClass, for form-equivalence tests."""
@@ -255,7 +244,15 @@ class RedirectedDataClass:
     total: int = 0
 
 
-@deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+def original_sum_warn_only(a: int, b: int = 5) -> int:
+    """Source function for the assignment-form warn-only pair."""
+    return void(a, b)
+
+
+_deprecation_sum_warn_only = deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+
+
+@_deprecation_sum_warn_only
 def decorated_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
 
@@ -266,7 +263,18 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
     return void(a, b)
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
+wrapped_sum_warn_only = _deprecation_sum_warn_only(original_sum_warn_only)
+
+
+def original_sum(a: int, b: int = 5) -> int:
+    """Source function for the assignment-form sum pairs."""
+    return void(a, b)
+
+
+_deprecation_sum = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
+
+
+@_deprecation_sum
 def decorated_sum(a: int, b: int = 5) -> int:
     """Basic call forwarding to a replacement function.
 
@@ -275,6 +283,9 @@ def decorated_sum(a: int, b: int = 5) -> int:
         transparently forwards the call to `base_sum_kwargs`.
     """
     return void(a, b)
+
+
+wrapped_sum = _deprecation_sum(original_sum)
 
 
 @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
@@ -297,7 +308,10 @@ def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> New
     return void(old_c, d, kwargs)
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)
+_deprecation_sum_no_stream = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)
+
+
+@_deprecation_sum_no_stream
 def decorated_sum_no_stream(a: int, b: int = 5) -> int:
     """Silent forwarding with no warning emitted.
 
@@ -308,7 +322,13 @@ def decorated_sum_no_stream(a: int, b: int = 5) -> int:
     return void(a, b)
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)
+wrapped_sum_no_stream = _deprecation_sum_no_stream(original_sum)
+
+
+_deprecation_sum_calls_2 = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)
+
+
+@_deprecation_sum_calls_2
 def decorated_sum_calls_2(a: int, b: int = 5) -> int:
     """Limited warning frequency to avoid log spam.
 
@@ -318,7 +338,13 @@ def decorated_sum_calls_2(a: int, b: int = 5) -> int:
     return void(a, b)
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)
+wrapped_sum_calls_2 = _deprecation_sum_calls_2(original_sum)
+
+
+_deprecation_sum_calls_inf = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)
+
+
+@_deprecation_sum_calls_inf
 def decorated_sum_calls_inf(a: int, b: int = 5) -> int:
     """Warn on every single call for maximum visibility.
 
@@ -328,12 +354,18 @@ def decorated_sum_calls_inf(a: int, b: int = 5) -> int:
     return void(a, b)
 
 
-@deprecated(
+wrapped_sum_calls_inf = _deprecation_sum_calls_inf(original_sum)
+
+
+_deprecation_sum_msg = deprecated(
     target=base_sum_kwargs,
     deprecated_in="0.1",
     remove_in="0.5",
     template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`",
 )
+
+
+@_deprecation_sum_msg
 def decorated_sum_msg(a: int, b: int = 5) -> int:
     """Custom warning message template.
 
@@ -342,6 +374,9 @@ def decorated_sum_msg(a: int, b: int = 5) -> int:
         template. Uses `template_mgs` with format specifiers.
     """
     return void(a, b)
+
+
+wrapped_sum_msg = _deprecation_sum_msg(original_sum)
 
 
 @deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3", template_mgs=_SHORT_MSG_FUNC)
@@ -410,7 +445,15 @@ def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
     return void(y_pred, y_true)
 
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
+def original_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
+    """Source function for the assignment-form self-deprecation pair."""
+    return base**new_coef
+
+
+_deprecation_pow_self = deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
+
+
+@_deprecation_pow_self
 def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """Self-deprecation: renaming a parameter within the same function.
 
@@ -419,6 +462,9 @@ def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> flo
         body uses the new name; the decorator transparently remaps the old name (`target=True`).
     """
     return base**new_coef
+
+
+wrapped_pow_self = _deprecation_pow_self(original_pow_self)
 
 
 @deprecated(
@@ -472,7 +518,17 @@ def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> f
     return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+def original_pow_skip(base: float, c1: float = 1, nc1: float = 1) -> float:
+    """Source function for the assignment-form skip_if pairs."""
+    return base ** (c1 - nc1)
+
+
+_deprecation_pow_skip_if_true = deprecated(
+    True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
+)
+
+
+@_deprecation_pow_skip_if_true
 def decorated_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Deprecation entirely disabled via static flag.
 
@@ -483,7 +539,15 @@ def decorated_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> fl
     return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True)
+wrapped_pow_skip_if_true = _deprecation_pow_skip_if_true(original_pow_skip)
+
+
+_deprecation_pow_skip_if_func = deprecated(
+    True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True
+)
+
+
+@_deprecation_pow_skip_if_func
 def decorated_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Deprecation controlled by a runtime callable.
 
@@ -492,6 +556,9 @@ def decorated_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> fl
         returns `True`, so the deprecation is bypassed dynamically.
     """
     return base ** (c1 - nc1)
+
+
+wrapped_pow_skip_if_func = _deprecation_pow_skip_if_func(original_pow_skip)
 
 
 @deprecated(True, "0.1", "0.3", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42)
@@ -544,65 +611,6 @@ class DeprecatedTimerDecorator(TimerDecorator):
     def __init__(self, func: Callable) -> None:
         """Initialize deprecated timer."""
         void(func)
-
-
-# ========== Assignment (wrapper) form — equivalents of depr_sum_* and depr_pow_* ==========
-# Same deprecated() config as their depr_* counterparts; only the source function differs.
-# Used to parametrize existing tests over both decorator form and assignment form.
-
-
-def original_sum(a: int, b: int = 5) -> int:
-    """Source function for assignment-form equivalents of depr_sum_* fixtures."""
-    return void(a, b)
-
-
-wrapped_sum = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")(original_sum)
-
-
-def original_sum_warn_only(a: int, b: int = 5) -> int:
-    """Source function for assignment-form target=None (warn-only, body executes)."""
-    return void(a, b)
-
-
-wrapped_sum_warn_only = deprecated(target=None, deprecated_in="0.2", remove_in="0.3")(original_sum_warn_only)
-wrapped_sum_no_stream = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.6", stream=None)(
-    original_sum
-)
-wrapped_sum_calls_2 = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=2)(
-    original_sum
-)
-wrapped_sum_calls_inf = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.7", num_warns=-1)(
-    original_sum
-)
-wrapped_sum_msg = deprecated(
-    target=base_sum_kwargs,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`",
-)(original_sum)
-
-
-def original_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
-    """Source function for assignment-form self-deprecation (target=True)."""
-    return base**new_coef
-
-
-wrapped_pow_self = deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})(
-    original_pow_self
-)
-
-
-def original_pow_skip(base: float, c1: float = 1, nc1: float = 1) -> float:
-    """Source function for assignment-form skip_if fixtures."""
-    return base ** (c1 - nc1)
-
-
-wrapped_pow_skip_if_true = deprecated(
-    True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
-)(original_pow_skip)
-wrapped_pow_skip_if_func = deprecated(
-    True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True
-)(original_pow_skip)
 
 
 # ========== Testing Expiry Enforcement Examples ==========
