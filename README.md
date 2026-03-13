@@ -140,24 +140,24 @@ Here's the simplest way to get started with deprecating a function:
 from deprecate import deprecated
 
 
-# Your new function
-def new_sum(a: int = 0, b: int = 3) -> int:
+# NEW/FUTURE API — renamed to be more explicit about what it computes
+def compute_sum(a: int = 0, b: int = 3) -> int:
     return a + b
 
 
-# Mark the old one as deprecated and forward calls automatically
-@deprecated(target=new_sum, deprecated_in="1.0", remove_in="2.0")
-def old_sum(a: int, b: int = 5) -> int:
-    pass  # Implementation not needed - calls are forwarded to new_sum
+# DEPRECATED API — `addition` was the original name before the rename
+@deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")
+def addition(a: int, b: int = 5) -> int:
+    pass  # body is not needed — calls are forwarded to compute_sum
 
 
-# Using the old function works but shows a warning
-result = old_sum(1, 2)  # Returns 3
-# Warning: The `old_sum` was deprecated since v1.0 in favor of `__main__.new_sum`.
+# Using the original name still works but shows a warning
+result = addition(1, 2)  # Returns 3
+# Warning: The `addition` was deprecated since v1.0 in favor of `__main__.compute_sum`.
 #          It will be removed in v2.0.
 ```
 
-That's it! All calls to `old_sum()` are automatically forwarded to `new_sum()` with a deprecation warning.
+That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
 ## 📚 Use-cases and Applications
 
@@ -185,8 +185,9 @@ In particular the target values (cases):
 It is very straightforward: you forward your function call to a new function and all arguments are mapped:
 
 ```python
-def base_sum(a: int = 0, b: int = 3) -> int:
-    """My new function anywhere in the codebase or even other package."""
+# NEW/FUTURE API — renamed to be more explicit about what it computes
+def compute(a: int = 0, b: int = 3) -> int:
+    """New function anywhere in the codebase or even other package."""
     return a + b
 
 
@@ -195,8 +196,14 @@ def base_sum(a: int = 0, b: int = 3) -> int:
 from deprecate import deprecated
 
 
-@deprecated(target=base_sum, deprecated_in="0.1", remove_in="0.5")
-def depr_sum(a: int, b: int = 5) -> int:
+# What this module looked like before the rename:
+# def calculate(a: int, b: int = 5) -> int:
+#     return a + b
+
+
+# DEPRECATED API — `calculate` was the original name before the rename
+@deprecated(target=compute, deprecated_in="0.1", remove_in="0.5")
+def calculate(a: int, b: int = 5) -> int:
     """
     My deprecated function which now has an empty body
      as all calls are routed to the new function.
@@ -205,17 +212,49 @@ def depr_sum(a: int, b: int = 5) -> int:
 
 
 # calling this function will raise a deprecation warning:
-#   The `depr_sum` was deprecated since v0.1 in favor of `__main__.base_sum`.
+#   The `calculate` was deprecated since v0.1 in favor of `__main__.compute`.
 #   It will be removed in v0.5.
-print(depr_sum(1, 2))
+print(calculate(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(depr_sum(1, 2))</code></summary>
+  <summary>Output: <code>print(calculate(1, 2))</code></summary>
 
 ```
 3
 ```
+
+</details>
+
+<details>
+<summary>Wrapper form: applying <code>@deprecated</code> without the decorator syntax</summary>
+
+When the deprecated name already exists as a callable (for example, imported from another package), you can apply `deprecated()` directly without redefining the function:
+
+```python
+from deprecate import deprecated
+
+
+# NEW/FUTURE API — in real usage this would be imported from another module
+def compute_sum(a: int, b: int = 0) -> int:
+    return a + b
+
+
+# LEGACY — already-existing callable that is being deprecated
+def addition(a: int, b: int = 0) -> int:
+    return a + b
+
+
+# DEPRECATED API — `calculate` was the original name in this package;
+# wrap it without redefining a function body
+calculate = deprecated(
+    target=compute_sum,
+    deprecated_in="0.5",
+    remove_in="1.0",
+)(addition)
+```
+
+This is an equivalent to the `@deprecated(...)` decorator form but applied to an already-existing callable — useful when the deprecated function lives in a dependency you don't control.
 
 </details>
 
@@ -431,27 +470,29 @@ from deprecate import deprecated, void
 
 
 class MyService:
-    def compute(self, x: int) -> int:
+    # NEW/FUTURE API — renamed from run() for clarity
+    def execute(self, x: int) -> int:
         """Current method."""
         return x * 2
 
-    @deprecated(target=compute, deprecated_in="1.0", remove_in="2.0")
-    def old_compute(self, x: int) -> int:
-        """Deprecated — renamed to compute()."""
+    # DEPRECATED API — `run` was the original name before the rename
+    @deprecated(target=execute, deprecated_in="1.0", remove_in="2.0")
+    def run(self, x: int) -> int:
+        """Deprecated — renamed to execute()."""
         return void(x)
 
 
 svc = MyService()
 # calling this method will raise a deprecation warning:
-#   The `old_compute` was deprecated since v1.0 in favor of `__main__.compute`.
+#   The `run` was deprecated since v1.0 in favor of `__main__.execute`.
 #   It will be removed in v2.0.
-print(svc.old_compute(5))
+print(svc.run(5))
 ```
 
 </details>
 
 <details>
-  <summary>Output: <code>svc.old_compute(5)</code></summary>
+  <summary>Output: <code>svc.run(5)</code></summary>
 
 ```
 10
@@ -463,7 +504,8 @@ print(svc.old_compute(5))
 <summary>Example: forwarding <code>__init__</code> to a successor class</summary>
 
 ```python
-class NewCls:
+# NEW/FUTURE API — renamed to be more descriptive
+class HttpClient:
     """My new class anywhere in the codebase or other package."""
 
     def __init__(self, c: float, d: str = "abc"):
@@ -476,13 +518,14 @@ class NewCls:
 from deprecate import deprecated, void
 
 
-class PastCls(NewCls):
+# DEPRECATED API — `Client` was the original name before it was renamed to HttpClient
+class Client(HttpClient):
     """
     The deprecated class should be inherited from the successor class
      to hold all methods and properties.
     """
 
-    @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
+    @deprecated(target=HttpClient, deprecated_in="0.2", remove_in="0.4")
     def __init__(self, c: int, d: str = "efg"):
         """
         You place the decorator around __init__ as you want
@@ -496,9 +539,9 @@ class PastCls(NewCls):
 
 
 # calling this function will raise a deprecation warning:
-#   The `PastCls` was deprecated since v0.2 in favor of `__main__.NewCls`.
+#   The `Client` was deprecated since v0.2 in favor of `__main__.HttpClient`.
 #   It will be removed in v0.4.
-inst = PastCls(7)
+inst = Client(7)
 print(inst.my_c)  # returns: 7
 print(inst.my_d)  # returns: "efg"
 ```
@@ -506,7 +549,7 @@ print(inst.my_d)  # returns: "efg"
 </details>
 
 <details>
-  <summary>Output: <code>PastCls</code> instance attributes</summary>
+  <summary>Output: <code>Client</code> instance attributes</summary>
 
 ```
 7
@@ -519,37 +562,39 @@ efg
 
 Use `deprecated_instance` to wrap objects accessed via attribute/item/call operations (for example, dicts,
 lists, or custom objects) with transparent deprecation warnings. Primitive protocol methods (such as numeric
-arithmetic on `float` or concatenation on `str`) are not proxied. The `name` parameter is optional; when omitted
-it defaults to the type name of the wrapped object (e.g. `"dict"`). For primitive constants like floats or
+arithmetic on `float` or concatenation on `str`) are not proxied. For primitive constants like floats or
 strings, prefer wrapping them in a container (such as a dict or configuration object) or updating call sites
-directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper.
+directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
+`name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
 
 ```python
-import pytest
 from deprecate import deprecated_instance
 
-# Legacy config dict — read-only so accidental mutations are blocked
-LEGACY_CONFIG = deprecated_instance(
-    {"threshold": 0.5, "enabled": True},
-    deprecated_in="1.0",
+# NEW/FUTURE API — renamed to be more explicit about its scope
+TRAINING_CONFIG = {"lr": 0.001, "batch_size": 32, "epochs": 10}
+
+# What it looked like before the rename:
+# DEFAULTS = {"lr": 0.001, "batch_size": 32, "epochs": 10}
+
+# DEPRECATED API — `DEFAULTS` was the original name; read-only so
+# callers cannot mutate shared state through the deprecated alias
+DEFAULTS = deprecated_instance(
+    TRAINING_CONFIG,
+    deprecated_in="1.2",
     remove_in="2.0",
     read_only=True,
 )
 
-# Any read triggers a FutureWarning and returns the value:
-#   The `dict` was deprecated since v1.0. It will be removed in v2.0.
-print(LEGACY_CONFIG["threshold"])
-
-# Writes are blocked in read-only mode — wrap with pytest.raises so the example runs cleanly:
-with pytest.raises(AttributeError, match="read-only"):
-    LEGACY_CONFIG["threshold"] = 0.9
+# Reading still works but emits a FutureWarning once:
+#   The `dict` was deprecated since v1.2. It will be removed in v2.0.
+print(DEFAULTS["lr"])  # 0.001
 ```
 
 <details>
-  <summary>Output: <code>print(LEGACY_CONFIG["threshold"])</code></summary>
+  <summary>Output: <code>print(DEFAULTS["lr"])</code></summary>
 
 ```
-0.5
+0.001
 ```
 
 </details>
@@ -557,48 +602,57 @@ with pytest.raises(AttributeError, match="read-only"):
 ### 🗂 Deprecating Enums and dataclasses
 
 <details>
-<summary>Example: <code>@deprecated_class</code> with optional <code>args_mapping</code></summary>
+<summary>Example: <code>deprecated_class()</code> for Enum and dataclass</summary>
 
-`@deprecated_class` wraps an entire Enum or dataclass in a transparent proxy that warns on every
+`deprecated_class()` wraps an entire Enum or dataclass in a transparent proxy that warns on every
 access and forwards attribute, item, and call operations to the replacement class.
 Use `args_mapping` to rename or drop kwargs when the deprecated class is called.
 
 > [!NOTE]
-> Type checks with `isinstance()` and `issubclass()` work transparently with `@deprecated_class` proxies and do not emit deprecation warnings, as these are structural checks rather than actual usage of the deprecated API.
+> Type checks with `isinstance()` and `issubclass()` work transparently with `deprecated_class()` proxies and do not emit deprecation warnings, as these are structural checks rather than actual usage of the deprecated API.
 
 ```python
 from enum import Enum
 from dataclasses import dataclass
 from deprecate import deprecated_class
 
+# mypackage/theme.py — what it looked like before the rename:
+#
+# class Color(Enum):
+#     RED = 1
+#     BLUE = 2
 
-class NewColor(Enum):
+
+# NEW/FUTURE API — renamed to be more descriptive
+class ThemeColor(Enum):
     RED = 1
     BLUE = 2
 
 
-@deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0")
-class OldColor(Enum):
-    RED = 1
-    BLUE = 2
+# DEPRECATED API — `Color` was the original name; no class body needed,
+# the proxy forwards all access to ThemeColor
+Color = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
 
-
-# All access is forwarded to NewColor — a FutureWarning is emitted once:
-#   The `OldColor` was deprecated since v1.0. It will be removed in v2.0.
-print(OldColor.RED is NewColor.RED)
-print(OldColor(1) is NewColor.RED)
-print(OldColor["RED"] is NewColor.RED)
+# All access is forwarded to ThemeColor — a FutureWarning is emitted once:
+#   The `Color` was deprecated since v1.0. It will be removed in v2.0.
+print(Color.RED is ThemeColor.RED)  # True
+print(Color(1) is ThemeColor.RED)  # True
+print(Color["RED"] is ThemeColor.RED)  # True
 
 
 # Precision migration story:
 # - PointV1 used integer pixel coordinates.
 # - PointV2 supports float coordinates for sub-pixel precision and smoother transforms.
+
+
+# NEW/FUTURE API — extended to float precision
 @dataclass
 class PointV2:
     x: float
     y: float
 
 
+# DEPRECATED API — PointV1 was the original integer-coordinate implementation
 @deprecated_class(target=PointV2, deprecated_in="1.8", remove_in="2.0")
 @dataclass
 class PointV1:
@@ -619,7 +673,7 @@ print((p_new.x, p_new.y))
 </details>
 
 <details>
-  <summary>Output: <code>OldColor</code> forwarding and <code>PointV1</code> precision migration</summary>
+  <summary>Output: <code>Color</code> forwarding and <code>PointV1</code> precision migration</summary>
 
 ```
 True
@@ -640,7 +694,8 @@ You can automatically append deprecation information to your function's docstrin
 <summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
 
 ```python
-def new_function(x: int) -> int:
+# NEW/FUTURE API — renamed to be more explicit about what it does
+def transform(x: int) -> int:
     """New implementation of the function."""
     return x * 2
 
@@ -650,14 +705,15 @@ def new_function(x: int) -> int:
 from deprecate import deprecated
 
 
+# DEPRECATED API — `process` was the original name before the rename
 @deprecated(
-    target=new_function,
+    target=transform,
     deprecated_in="1.0",
     remove_in="2.0",
     update_docstring=True,  # Enable automatic docstring updates
 )
-def old_function(x: int) -> int:
-    """Old implementation that will be removed.
+def process(x: int) -> int:
+    """Transforms the input value.
 
     Args:
         x: Input value
@@ -669,11 +725,11 @@ def old_function(x: int) -> int:
 
 
 # The docstring now includes deprecation information
-print(old_function.__doc__)
+print(process.__doc__)
 # Output includes:
 # .. deprecated:: 1.0
 #    Will be removed in 2.0.
-#    Use `__main__.new_function` instead.
+#    Use `__main__.transform` instead.
 ```
 
 </details>
