@@ -23,11 +23,15 @@ This module contains deprecated wrappers covering real-world use cases:
 - Instance deprecation via deprecated_instance()
 - Class-level deprecation with deprecated_class (Enum and dataclass)
 
-Each decorator/wrapper pair is co-located as a four-element group:
-  original_* — source callable (declared first)
+For functions, each decorator/wrapper pair is co-located as a four-element group:
+  original_* — source callable
   _deprecation_* — shared deprecated() instance
   @_deprecation_* decorated_* — decorator form
   wrapped_* = _deprecation_*(original_*) — assignment (wrapper) form
+
+Class-level form-equivalence groups follow the same conceptual pattern, but may declare
+the shared deprecated_class instance (for example, _class_deprecation_*) before the
+corresponding _Original* type.
 
 Decorator-form equivalents (same deprecated_class config as Wrapped* — for parametrize comparison):
 - DecoratedEnum: decorator-form enum equivalent of WrappedEnum
