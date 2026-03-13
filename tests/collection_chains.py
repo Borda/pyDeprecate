@@ -9,12 +9,12 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ chain (2) | caller_sum_via_depr_sum    ║
     ║-----------|----------------------------║
-    ║ target    |  decorated_sum                  ║
+    ║ target    |  decorated_sum             ║
     ╚════════════════════╤═══════════════════╝
                          │  [deprecated ← chain]
                          ▼
     ╔════════════════════════════════════════╗
-    ║ chain (1) | decorated_sum                   ║
+    ║ chain (1) | decorated_sum              ║
     ║-----------|----------------------------║
     ║ target    |  base_sum_kwargs           ║
     ╚════════════════════╤═══════════════════╝
@@ -93,13 +93,13 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ chain (2) | caller_pow_via_self_depr   ║
     ║-----------|----------------------------║
-    ║ target    |  decorated_pow_self             ║
+    ║ target    |  decorated_pow_self        ║
     ║ mapping   |  "exp" -> "coef"           ║
     ╚════════════════════╤═══════════════════╝
                          │  [stacked ← chain, target is self-depr]
                          ▼
     ╔════════════════════════════════════════╗
-    ║ self-depr | decorated_pow_self              ║
+    ║ self-depr | decorated_pow_self         ║
     ║-----------|----------------------------║
     ║ target    |  True (self)               ║
     ║ mapping   |  "coef" -> "new_coef"      ║
