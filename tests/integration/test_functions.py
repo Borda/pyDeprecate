@@ -20,8 +20,8 @@ from typing import Callable
 
 import pytest
 
-from deprecate._types import DeprecationConfig
 from deprecate import assert_no_warnings
+from deprecate._types import DeprecationConfig
 from tests.collection_deprecate import (
     decorated_pow_self,
     decorated_pow_skip_if_func,

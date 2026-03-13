@@ -4,9 +4,9 @@ import warnings
 
 import pytest
 
+from deprecate import assert_no_warnings
 from deprecate._types import DeprecationConfig
 from deprecate.proxy import _DeprecatedProxy
-from deprecate import assert_no_warnings
 from tests.collection_deprecate import (
     DecoratedDataClass,
     DecoratedEnum,
