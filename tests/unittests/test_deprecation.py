@@ -292,7 +292,7 @@ class TestDeprecatedClassGuard:
 
     def test_warns_for_plain_class(self) -> None:
         """Applying @deprecated to a plain class emits UserWarning and still works."""
-        with pytest.warns(FutureWarning, match="deprecated_class"):
+        with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyClass:
@@ -300,7 +300,7 @@ class TestDeprecatedClassGuard:
 
     def test_warns_for_enum_class(self) -> None:
         """Applying @deprecated to an Enum class emits UserWarning and still works."""
-        with pytest.warns(FutureWarning, match="deprecated_class"):
+        with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyEnum(Enum):
@@ -308,7 +308,7 @@ class TestDeprecatedClassGuard:
 
     def test_warns_for_dataclass(self) -> None:
         """Applying @deprecated to a dataclass emits UserWarning and still works."""
-        with pytest.warns(FutureWarning, match="deprecated_class"):
+        with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             @dataclass

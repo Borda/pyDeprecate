@@ -621,7 +621,7 @@ def deprecated(
                 )
             warnings.warn(
                 message,
-                FutureWarning,
+                UserWarning,
                 stacklevel=2,
             )
             return deprecated_class(
