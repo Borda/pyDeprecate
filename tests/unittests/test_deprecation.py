@@ -288,27 +288,27 @@ class TestRaiseWarnArguments:
 
 
 class TestDeprecatedClassGuard:
-    """@deprecated raises TypeError when applied to a class; use @deprecated_class instead."""
+    """@deprecated emits UserWarning and delegates to @deprecated_class when applied to a class."""
 
-    def test_raises_for_plain_class(self) -> None:
-        """Applying @deprecated to a plain class raises TypeError."""
-        with pytest.raises(TypeError, match="deprecated_class"):
+    def test_warns_for_plain_class(self) -> None:
+        """Applying @deprecated to a plain class emits UserWarning and still works."""
+        with pytest.warns(FutureWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyClass:
                 pass
 
-    def test_raises_for_enum_class(self) -> None:
-        """Applying @deprecated to an Enum class raises TypeError."""
-        with pytest.raises(TypeError, match="deprecated_class"):
+    def test_warns_for_enum_class(self) -> None:
+        """Applying @deprecated to an Enum class emits UserWarning and still works."""
+        with pytest.warns(FutureWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyEnum(Enum):
                 A = "a"
 
-    def test_raises_for_dataclass(self) -> None:
-        """Applying @deprecated to a dataclass raises TypeError."""
-        with pytest.raises(TypeError, match="deprecated_class"):
+    def test_warns_for_dataclass(self) -> None:
+        """Applying @deprecated to a dataclass emits UserWarning and still works."""
+        with pytest.warns(FutureWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             @dataclass

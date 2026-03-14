@@ -1245,11 +1245,11 @@ def old_func_warn_n_times(x: int) -> int:
 
 ## 🔧 Troubleshooting
 
-### ❗ TypeError: `Cannot apply @deprecated to class`
+### ⚠ UserWarning: `Applying @deprecated to class … is deprecated itself`
 
-**Problem:** `TypeError: Cannot apply @deprecated to class 'MyClass'. For class-level deprecation use @deprecated_class() from deprecate.proxy.`
+**Problem:** `FutureWarning: Applying @deprecated to class MyClass is not supported since v0.6.0. Use @deprecated_class() from deprecate.proxy instead.`
 
-**Cause:** You tried to apply `@deprecated` directly to a class. The `@deprecated` decorator is designed for functions and methods only.
+**Cause:** You applied `@deprecated` directly to a class. This still works (it delegates to `@deprecated_class()` under the hood) but is itself deprecated — `@deprecated` is designed for functions and methods only.
 
 <details>
 <summary>Solution</summary>

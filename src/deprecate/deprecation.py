@@ -575,8 +575,6 @@ def deprecated(
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function
             and target doesn't accept **kwargs.
-        TypeError: If applied directly to a class. Use :func:`deprecate.proxy.deprecated_class`
-            for class-level deprecation.
         TypeError: If the source is a class method and target is a method on a *different*
             class (cross-class method forwarding). The target must be a method on the same
             class, or a full class (``target=NewClass``) for constructor forwarding.
@@ -606,10 +604,24 @@ def deprecated(
 
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
-            raise TypeError(
-                f"Cannot apply @deprecated to class '{source.__name__}'. "
-                "For class-level deprecation use @deprecated_class() from deprecate.proxy."
+            import warnings
+
+            from deprecate.proxy import deprecated_class
+
+            warnings.warn(
+                f"Applying `@deprecated` to class `{source.__name__}` is not supported since `v0.6.0`."
+                " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release.",
+                FutureWarning,
+                stacklevel=2,
             )
+            return deprecated_class(  # type: ignore[return-value]
+                target=target if callable(target) and inspect.isclass(target) else None,
+                deprecated_in=deprecated_in,
+                remove_in=remove_in,
+                num_warns=num_warns,
+                stream=stream,
+                args_mapping=args_mapping or {},
+            )(source)
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
         if callable(target) and not inspect.isclass(target):
