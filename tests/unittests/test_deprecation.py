@@ -1,6 +1,7 @@
 """Unit tests for private helpers in deprecate.deprecation."""
 
 import inspect
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from unittest.mock import MagicMock
@@ -8,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from deprecate import deprecated, void
+from deprecate.proxy import _DeprecatedProxy
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
@@ -291,29 +293,46 @@ class TestDeprecatedClassGuard:
     """@deprecated emits UserWarning and delegates to @deprecated_class when applied to a class."""
 
     def test_warns_for_plain_class(self) -> None:
-        """Applying @deprecated to a plain class emits UserWarning and still works."""
+        """Applying @deprecated to a plain class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyClass:
                 pass
 
+        assert isinstance(_MyClass, _DeprecatedProxy)
+
     def test_warns_for_enum_class(self) -> None:
-        """Applying @deprecated to an Enum class emits UserWarning and still works."""
+        """Applying @deprecated to an Enum class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyEnum(Enum):
                 A = "a"
 
+        assert isinstance(_MyEnum, _DeprecatedProxy)
+
     def test_warns_for_dataclass(self) -> None:
-        """Applying @deprecated to a dataclass emits UserWarning and still works."""
+        """Applying @deprecated to a dataclass emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             @dataclass
             class _MyData:
                 x: int
+
+        assert isinstance(_MyData, _DeprecatedProxy)
+
+    def test_stream_none_suppresses_meta_warning(self) -> None:
+        """stream=None suppresses the UserWarning when @deprecated is applied to a class."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0", stream=None)
+            class _MyClass:
+                pass
+
+        assert isinstance(_MyClass, _DeprecatedProxy)
 
     def test_does_not_raise_for_function(self) -> None:
         """Applying @deprecated to a regular function does not raise."""
