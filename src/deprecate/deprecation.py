@@ -13,6 +13,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import importlib
 from functools import partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
@@ -606,7 +607,8 @@ def deprecated(
         if inspect.isclass(source):
             import warnings
 
-            from deprecate.proxy import deprecated_class
+            proxy_module = importlib.import_module("deprecate.proxy")
+            deprecated_class = getattr(proxy_module, "deprecated_class")
 
             warnings.warn(
                 f"Applying `@deprecated` to class `{source.__name__}` is not supported since `v0.6.0`."
