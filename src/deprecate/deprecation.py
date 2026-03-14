@@ -616,7 +616,7 @@ def deprecated(
                 FutureWarning,
                 stacklevel=2,
             )
-            return deprecated_class(  # type: ignore[return-value]
+            return deprecated_class(
                 target=target if callable(target) and inspect.isclass(target) else None,
                 deprecated_in=deprecated_in,
                 remove_in=remove_in,
