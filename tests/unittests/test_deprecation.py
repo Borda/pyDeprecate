@@ -9,7 +9,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from deprecate import deprecated, void
-from deprecate.proxy import _DeprecatedProxy
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
@@ -20,6 +19,7 @@ from deprecate.deprecation import (
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
 )
+from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import CrossGuardModuleLevel, CrossGuardOldClass, CrossGuardSameClass
 from tests.collection_targets import KeywordCallTarget, call_signature_source
 
