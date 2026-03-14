@@ -571,12 +571,15 @@ def deprecated(
     Returns:
         Decorator function that wraps the source function/method.
 
+    Warns:
+        UserWarning: If applied directly to a class. The decorator delegates to
+            :func:`~deprecate.proxy.deprecated_class` and emits this warning.
+            Use ``@deprecated_class()`` directly to suppress it. Suppressed when ``stream=None``.
+
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function
             and target doesn't accept **kwargs.
-        TypeError: If applied directly to a class. Use :func:`deprecate.proxy.deprecated_class`
-            for class-level deprecation.
         TypeError: If the source is a class method and target is a method on a *different*
             class (cross-class method forwarding). The target must be a method on the same
             class, or a full class (``target=NewClass``) for constructor forwarding.
@@ -606,10 +609,31 @@ def deprecated(
 
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
-            raise TypeError(
-                f"Cannot apply @deprecated to class '{source.__name__}'. "
-                "For class-level deprecation use @deprecated_class() from deprecate.proxy."
+            import importlib
+            import warnings
+
+            proxy_module = importlib.import_module("deprecate.proxy")
+            deprecated_class = getattr(proxy_module, "deprecated_class")
+
+            message = (
+                f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
+                " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release."
             )
+            if target is not None and not inspect.isclass(target):
+                message += (
+                    " Note: non-class `target` values are ignored when deprecating classes;"
+                    " use `@deprecated_class(target=...)` instead."
+                )
+            if stream is not None:
+                warnings.warn(message, UserWarning, stacklevel=2)
+            return deprecated_class(
+                target=target if callable(target) and inspect.isclass(target) else None,
+                deprecated_in=deprecated_in,
+                remove_in=remove_in,
+                num_warns=num_warns,
+                stream=stream,
+                args_mapping=args_mapping,
+            )(source)
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
         if callable(target) and not inspect.isclass(target):

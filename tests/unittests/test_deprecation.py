@@ -1,6 +1,7 @@
 """Unit tests for private helpers in deprecate.deprecation."""
 
 import inspect
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from unittest.mock import MagicMock
@@ -18,6 +19,7 @@ from deprecate.deprecation import (
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
 )
+from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import CrossGuardModuleLevel, CrossGuardOldClass, CrossGuardSameClass
 from tests.collection_targets import KeywordCallTarget, call_signature_source
 
@@ -288,32 +290,49 @@ class TestRaiseWarnArguments:
 
 
 class TestDeprecatedClassGuard:
-    """@deprecated raises TypeError when applied to a class; use @deprecated_class instead."""
+    """@deprecated emits UserWarning and delegates to @deprecated_class when applied to a class."""
 
-    def test_raises_for_plain_class(self) -> None:
-        """Applying @deprecated to a plain class raises TypeError."""
-        with pytest.raises(TypeError, match="deprecated_class"):
+    def test_warns_for_plain_class(self) -> None:
+        """Applying @deprecated to a plain class emits UserWarning and returns a proxy."""
+        with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyClass:
                 pass
 
-    def test_raises_for_enum_class(self) -> None:
-        """Applying @deprecated to an Enum class raises TypeError."""
-        with pytest.raises(TypeError, match="deprecated_class"):
+        assert isinstance(_MyClass, _DeprecatedProxy)
+
+    def test_warns_for_enum_class(self) -> None:
+        """Applying @deprecated to an Enum class emits UserWarning and returns a proxy."""
+        with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             class _MyEnum(Enum):
                 A = "a"
 
-    def test_raises_for_dataclass(self) -> None:
-        """Applying @deprecated to a dataclass raises TypeError."""
-        with pytest.raises(TypeError, match="deprecated_class"):
+        assert isinstance(_MyEnum, _DeprecatedProxy)
+
+    def test_warns_for_dataclass(self) -> None:
+        """Applying @deprecated to a dataclass emits UserWarning and returns a proxy."""
+        with pytest.warns(UserWarning, match="deprecated_class"):
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
             @dataclass
             class _MyData:
                 x: int
+
+        assert isinstance(_MyData, _DeprecatedProxy)
+
+    def test_stream_none_suppresses_meta_warning(self) -> None:
+        """stream=None suppresses the UserWarning when @deprecated is applied to a class."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0", stream=None)
+            class _MyClass:
+                pass
+
+        assert isinstance(_MyClass, _DeprecatedProxy)
 
     def test_does_not_raise_for_function(self) -> None:
         """Applying @deprecated to a regular function does not raise."""
