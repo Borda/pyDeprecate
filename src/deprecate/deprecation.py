@@ -12,8 +12,8 @@ Key Components:
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
-import inspect
 import importlib
+import inspect
 from functools import partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
