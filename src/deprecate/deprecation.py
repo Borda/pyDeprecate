@@ -625,11 +625,7 @@ def deprecated(
                     " use `@deprecated_class(target=...)` instead."
                 )
             if stream is not None:
-                warnings.warn(
-                    message,
-                    UserWarning,
-                    stacklevel=2,
-                )
+                warnings.warn(message, UserWarning, stacklevel=2)
             return deprecated_class(
                 target=target if callable(target) and inspect.isclass(target) else None,
                 deprecated_in=deprecated_in,
