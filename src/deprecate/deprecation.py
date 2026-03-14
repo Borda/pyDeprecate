@@ -12,7 +12,6 @@ Key Components:
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
-import importlib
 import inspect
 from functools import partial, wraps
 from inspect import Parameter
@@ -605,6 +604,7 @@ def deprecated(
 
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
+            import importlib
             import warnings
 
             proxy_module = importlib.import_module("deprecate.proxy")
