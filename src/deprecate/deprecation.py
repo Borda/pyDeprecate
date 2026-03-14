@@ -610,9 +610,17 @@ def deprecated(
             proxy_module = importlib.import_module("deprecate.proxy")
             deprecated_class = getattr(proxy_module, "deprecated_class")
 
-            warnings.warn(
+            message = (
                 f"Applying `@deprecated` to class `{source.__name__}` is not supported since `v0.6.0`."
-                " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release.",
+                " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release."
+            )
+            if target is not None and not inspect.isclass(target):
+                message += (
+                    " Note: non-class `target` values are ignored when deprecating classes;"
+                    " use `@deprecated_class(target=...)` instead."
+                )
+            warnings.warn(
+                message,
                 FutureWarning,
                 stacklevel=2,
             )
