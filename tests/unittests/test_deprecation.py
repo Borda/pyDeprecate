@@ -9,8 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from deprecate import deprecated, void
-from deprecate._docs import find_docstring_insertion_index as _find_docstring_insertion_index
-from deprecate._docs import is_numpy_underline as _is_numpy_underline
+from deprecate import _docs as docs
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
@@ -454,7 +453,7 @@ class TestNumpyUnderlineDetection:
     )
     def test_is_numpy_underline(self, line: str, expected: bool) -> None:
         """Underline helper should accept only 3+ dashes."""
-        assert _is_numpy_underline(line) is expected
+        assert docs.is_numpy_underline(line) is expected
 
 
 class TestDocstringInsertionIndex:
@@ -463,19 +462,19 @@ class TestDocstringInsertionIndex:
     def test_detects_google_header_with_whitespace_and_case(self) -> None:
         """Google headers are detected case-insensitively with surrounding whitespace."""
         lines = ["Summary", "", "  ArGs:  ", "    a: value"]
-        assert _find_docstring_insertion_index(lines) == 2
+        assert docs.find_docstring_insertion_index(lines) == 2
 
     def test_detects_numpy_header_with_underline(self) -> None:
         """NumPy header should be detected only when followed by dashed underline."""
         lines = ["Summary", "", "Parameters", "----------", "a : int"]
-        assert _find_docstring_insertion_index(lines) == 2
+        assert docs.find_docstring_insertion_index(lines) == 2
 
     def test_does_not_detect_numpy_header_without_underline(self) -> None:
         """NumPy-like header without underline should fall back to append-at-end."""
         lines = ["Summary", "", "Parameters", "a : int"]
-        assert _find_docstring_insertion_index(lines) == len(lines)
+        assert docs.find_docstring_insertion_index(lines) == len(lines)
 
     def test_boundary_header_last_line_does_not_crash(self) -> None:
         """Header on final line should not index past bounds and should append at end."""
         lines = ["Summary", "Parameters"]
-        assert _find_docstring_insertion_index(lines) == len(lines)
+        assert docs.find_docstring_insertion_index(lines) == len(lines)
