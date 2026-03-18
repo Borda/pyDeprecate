@@ -416,6 +416,7 @@ class TestValidateDeprecationChains:
 class TestGenerateDeprecationReports:
     """Tests for markdown and Mermaid deprecation report generation."""
 
+    @_requires_packaging
     def test_markdown_includes_top_level_and_class_members(self) -> None:
         """Markdown report includes functions, methods, and deprecated constructors."""
         report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
