@@ -18,7 +18,7 @@ from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
 from warnings import warn
 
-from deprecate import _docs
+from deprecate._docs import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate._types import DeprecationConfig, _WrapperState
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -534,7 +534,7 @@ def deprecated(
         ...     return new_arg * 2
 
     """
-    normalized_docstring_style = _docs.normalize_docstring_style(docstring_style)
+    normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
@@ -654,7 +654,7 @@ def deprecated(
         setattr(wrapped_fn, "_state", _WrapperState())
 
         if update_docstring:
-            _docs._update_docstring_with_deprecation(wrapped_fn)
+            _update_docstring_with_deprecation(wrapped_fn)
 
         return wrapped_fn
 
