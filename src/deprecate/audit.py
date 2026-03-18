@@ -842,17 +842,6 @@ def _get_report_section(info: DeprecationWrapperInfo) -> str:
     return info.module.rsplit(".", maxsplit=1)[-1] if info.module else "root"
 
 
-def _collect_report_wrappers(
-    module: Union[Any, str],  # noqa: ANN401
-    current_version: Optional[str],
-    recursive: bool,
-) -> tuple[Optional[str], list[tuple[DeprecationWrapperInfo, str]]]:
-    """Resolve report context once and pair each wrapper with its derived status."""
-    resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
-    wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=True)
-    return resolved_version, [(info, _get_report_status(info, parsed_version)) for info in wrappers]
-
-
 def generate_deprecation_markdown(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
@@ -880,19 +869,19 @@ def generate_deprecation_markdown(
         >>> "| Symbol | Deprecated In | Removal Target | Current Status |" in report
         True
     """
-    resolved_version, wrappers = _collect_report_wrappers(module, current_version=current_version, recursive=recursive)
+    resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
     rows = [
         "| Symbol | Deprecated In | Removal Target | Current Status |",
         "| :--- | :---: | :---: | :--- |",
     ]
 
-    for info, status in wrappers:
+    for info in find_deprecation_wrappers(module, recursive=recursive, include_members=True):
         rows.append(
             "| "
             f"`{_format_report_symbol(info)}` | "
             f"{_format_report_version(info.deprecated_info.deprecated_in)} | "
             f"{_format_report_version(info.deprecated_info.remove_in)} | "
-            f"{status} |"
+            f"{_get_report_status(info, parsed_version)} |"
         )
 
     if resolved_version is not None:
@@ -923,20 +912,23 @@ def generate_deprecation_timeline(
         >>> report.startswith("timeline")
         True
     """
-    _resolved_version, wrappers = _collect_report_wrappers(module, current_version=current_version, recursive=recursive)
+    _resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
     timeline = [
         "timeline",
         "    title Deprecation Lifecycle",
     ]
 
     section_entries: dict[str, list[str]] = {}
-    for info, status in wrappers:
+    for info in find_deprecation_wrappers(module, recursive=recursive, include_members=True):
         section = _get_report_section(info)
         range_label = (
             f"{_format_report_version(info.deprecated_info.deprecated_in, missing='v?')} → "
             f"{_format_report_version(info.deprecated_info.remove_in, missing='open-ended')}"
         )
-        entry = f"        {range_label} : {_format_report_symbol(info)} ({status})"
+        entry = (
+            f"        {range_label} : {_format_report_symbol(info)} "
+            f"({_get_report_status(info, parsed_version)})"
+        )
         section_entries.setdefault(section, []).append(entry)
 
     for section in sorted(section_entries):
