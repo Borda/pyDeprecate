@@ -35,13 +35,12 @@ class RuntimeDocstrings(griffe.Extension):
 
         try:
             runtime_mod = importlib.import_module(mod.name)
-        except Exception:
+        except (ImportError, ModuleNotFoundError):
             return
 
         for path, obj in mod.members.items():
             self._update_obj(obj, runtime_mod, path)
 
-    # ------------------------------------------------------------------
     def _update_obj(self, obj: griffe.Object, parent: object, name: str) -> None:
         runtime_obj = getattr(parent, name, None)
         if runtime_obj is None:
