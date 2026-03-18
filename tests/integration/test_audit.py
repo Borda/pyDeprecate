@@ -447,6 +447,7 @@ class TestGenerateDeprecationReports:
         assert "⚠️ Active Warning" in report
         assert "ℹ️ No Removal Target" in report
 
+    @_requires_packaging
     def test_invalid_current_version_raises_for_reports(self) -> None:
         """Explicit invalid current_version raises a clear ValueError."""
         with pytest.raises(ValueError, match="Invalid current_version"):
