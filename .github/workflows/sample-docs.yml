@@ -1,4 +1,4 @@
-name: Build Test Docs
+name: Build Demo Docs
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  build-docs:
+  sphinx-docs:
+    name: Sphinx (RST)
     runs-on: ubuntu-latest
 
     steps:
@@ -19,9 +20,29 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 📦 Install package
+      - name: 📦 Install package + Sphinx dependencies
         run: pip install -e . -r temp_docs/requirements.txt
 
-      - name: 📖 Build documentation
+      - name: 📖 Build Sphinx documentation
         working-directory: temp_docs
         run: make html
+
+  mkdocs:
+    name: MkDocs (Markdown)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: 📦 Install package + MkDocs dependencies
+        run: pip install -e . -r docs/requirements.txt
+
+      - name: 📖 Build MkDocs documentation
+        working-directory: docs
+        run: mkdocs build --strict

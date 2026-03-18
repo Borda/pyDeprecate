@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deprecate import deprecated, void
 from deprecate import _docs as docs
+from deprecate import deprecated, void
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,

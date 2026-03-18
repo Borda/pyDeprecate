@@ -50,6 +50,18 @@ def is_numpy_underline(line: str) -> bool:
     return len(stripped) >= 3 and all(char == "-" for char in stripped)
 
 
+def _detect_body_indent(lines: list[str]) -> str:
+    """Return the common indentation prefix used in the docstring body.
+
+    Examines lines after the first (which is always unindented in ``__doc__``)
+    and returns the leading whitespace of the first non-empty body line.
+    """
+    for line in lines[1:]:
+        if line.strip():
+            return line[: len(line) - len(line.lstrip())]
+    return ""
+
+
 def find_docstring_insertion_index(lines: list[str]) -> int:
     """Find insertion index before first Google/NumPy section header."""
     for idx, line in enumerate(lines):
@@ -175,6 +187,8 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             }
         )
     insert_idx = find_docstring_insertion_index(lines)
+    body_indent = _detect_body_indent(lines)
+    deprecation_lines = [body_indent + ln for ln in deprecation_lines]
     prefix = lines[:insert_idx]
     suffix = lines[insert_idx:]
     if prefix and prefix[-1].strip():
