@@ -639,8 +639,10 @@ def find_deprecation_wrappers(
 
             _record_wrapper(mod, name, obj)
 
-            if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == getattr(
-                mod, "__name__", None
+            if (
+                include_members
+                and inspect.isclass(obj)
+                and getattr(obj, "__module__", None) == getattr(mod, "__name__", None)
             ):
                 _scan_class(mod, obj, prefix=f"{name}.")
 
@@ -838,7 +840,6 @@ def _get_report_section(info: DeprecationWrapperInfo) -> str:
     if "." in info.function:
         return info.function.split(".", maxsplit=1)[0]
     return info.module.rsplit(".", maxsplit=1)[-1] if info.module else "root"
-
 
 
 def generate_deprecation_markdown(
