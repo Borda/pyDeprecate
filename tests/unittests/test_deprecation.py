@@ -9,11 +9,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from deprecate import deprecated, void
+from deprecate._docs import find_docstring_insertion_index as _find_docstring_insertion_index
+from deprecate._docs import is_numpy_underline as _is_numpy_underline
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
-    _find_docstring_insertion_index,
     _get_positional_params,
-    _is_numpy_underline,
     _prepare_target_call,
     _raise_warn,
     _raise_warn_arguments,

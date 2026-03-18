@@ -44,11 +44,6 @@ POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
-# Backward compatibility aliases for private docstring helpers.
-_unused_find_docstring_insertion_index = _docs.find_docstring_insertion_index
-_unused_is_numpy_underline = _docs.is_numpy_underline
-_normalize_docstring_style = _docs.normalize_docstring_style
-_update_docstring_with_deprecation = _docs._update_docstring_with_deprecation
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
@@ -539,7 +534,7 @@ def deprecated(
         ...     return new_arg * 2
 
     """
-    normalized_docstring_style = _normalize_docstring_style(docstring_style)
+    normalized_docstring_style = _docs.normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
@@ -659,7 +654,7 @@ def deprecated(
         setattr(wrapped_fn, "_state", _WrapperState())
 
         if update_docstring:
-            _update_docstring_with_deprecation(wrapped_fn)
+            _docs._update_docstring_with_deprecation(wrapped_fn)
 
         return wrapped_fn
 
