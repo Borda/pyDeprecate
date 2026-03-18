@@ -45,7 +45,7 @@ deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
 # Backward compatibility aliases for private docstring helpers.
-_find_docstring_insertion_index = _docs.find_docstring_insertion_index
+_unused_find_docstring_insertion_index = _docs.find_docstring_insertion_index
 _is_numpy_underline = _docs.is_numpy_underline
 _normalize_docstring_style = _docs.normalize_docstring_style
 _update_docstring_with_deprecation = _docs._update_docstring_with_deprecation
