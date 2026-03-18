@@ -840,6 +840,7 @@ def _get_report_section(info: DeprecationWrapperInfo) -> str:
     return info.module.rsplit(".", maxsplit=1)[-1] if info.module else "root"
 
 
+
 def generate_deprecation_markdown(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
