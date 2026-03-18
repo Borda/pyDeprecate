@@ -51,6 +51,7 @@ TEMPLATE_DOC_DEPRECATED_MKDOCS = [
     "    %(target_text)s",
 ]
 DOCSTRING_STYLE_ALIASES = {"rst": "rst", "mkdocs": "mkdocs", "markdown": "mkdocs"}
+SUPPORTED_DOCSTRING_STYLES = "', '".join(sorted(DOCSTRING_STYLE_ALIASES))
 GOOGLE_DOCSTRING_SECTIONS = {
     "args:",
     "arguments:",
@@ -64,16 +65,16 @@ GOOGLE_DOCSTRING_SECTIONS = {
     "yields:",
 }
 NUMPY_DOCSTRING_SECTIONS = {
-    "Attributes",
-    "Examples",
-    "Methods",
-    "Notes",
-    "Other Parameters",
-    "Parameters",
-    "Raises",
-    "Returns",
-    "Warns",
-    "Yields",
+    "attributes",
+    "examples",
+    "methods",
+    "notes",
+    "other parameters",
+    "parameters",
+    "raises",
+    "returns",
+    "warns",
+    "yields",
 }
 
 deprecation_warning = partial(warn, category=FutureWarning)
@@ -540,24 +541,27 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         target_text_rst = f"Use :{ref_type}:`{full_target_name}` instead."
         target_text_mkdocs = f"Use `{full_target_name}` instead."
 
-    docstring_style = _normalize_docstring_style(getattr(dep_info, "docstring_style", "rst"))
+    docstring_style = _normalize_docstring_style(dep_info.docstring_style)
     docstring_template = TEMPLATE_DOC_DEPRECATED_RST
     target_text = target_text_rst
     if docstring_style == "mkdocs":
         docstring_template = TEMPLATE_DOC_DEPRECATED_MKDOCS
         target_text = target_text_mkdocs
 
-    deprecation_lines = [
-        line
-        % {
-            "deprecated_in": dep_info.deprecated_in,
-            "remove_text": remove_text,
-            "target_text": target_text,
-        }
-        for line in docstring_template
-        if not (line.strip().endswith("%(remove_text)s") and not remove_text)
-        if not (line.strip().endswith("%(target_text)s") and not target_text)
-    ]
+    deprecation_lines = []
+    for line in docstring_template:
+        if line.strip().endswith("%(remove_text)s") and not remove_text:
+            continue
+        if line.strip().endswith("%(target_text)s") and not target_text:
+            continue
+        deprecation_lines.append(
+            line
+            % {
+                "deprecated_in": dep_info.deprecated_in,
+                "remove_text": remove_text,
+                "target_text": target_text,
+            }
+        )
     insert_idx = _find_docstring_insertion_index(lines)
     prefix = lines[:insert_idx]
     suffix = lines[insert_idx:]
@@ -573,14 +577,18 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
 
 def _is_numpy_underline(line: str) -> bool:
     stripped = line.strip()
-    return len(stripped) >= 3 and set(stripped) == {"-"}
+    return len(stripped) >= 3 and all(char == "-" for char in stripped)
 
 
 def _find_docstring_insertion_index(lines: list[str]) -> int:
     for idx, line in enumerate(lines):
         if line.strip().lower() in GOOGLE_DOCSTRING_SECTIONS:
             return idx
-        if idx + 1 < len(lines) and line.strip() in NUMPY_DOCSTRING_SECTIONS and _is_numpy_underline(lines[idx + 1]):
+        if (
+            idx + 1 < len(lines)
+            and line.strip().lower() in NUMPY_DOCSTRING_SECTIONS
+            and _is_numpy_underline(lines[idx + 1])
+        ):
             return idx
     return len(lines)
 
@@ -589,13 +597,13 @@ def _normalize_docstring_style(docstring_style: str) -> Literal["rst", "mkdocs"]
     if not isinstance(docstring_style, str):
         raise ValueError(
             "Invalid `docstring_style` value "
-            f"{docstring_style!r}. Supported styles are: {sorted(DOCSTRING_STYLE_ALIASES)}."
+            f"{docstring_style!r}. Supported styles are: '{SUPPORTED_DOCSTRING_STYLES}'."
         )
     normalized_style = DOCSTRING_STYLE_ALIASES.get(docstring_style.lower())
     if normalized_style is None:
         raise ValueError(
             "Invalid `docstring_style` value "
-            f"{docstring_style!r}. Supported styles are: {sorted(DOCSTRING_STYLE_ALIASES)}."
+            f"{docstring_style!r}. Supported styles are: '{SUPPORTED_DOCSTRING_STYLES}'."
         )
     return cast(Literal["rst", "mkdocs"], normalized_style)
 

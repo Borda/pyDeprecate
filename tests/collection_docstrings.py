@@ -28,6 +28,18 @@ def old_function_plain(a: int, b: str = "old") -> str:  # noqa: D103
 
 
 @deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+def old_google_no_sections_function(a: int, b: str = "old") -> str:
+    """Old Google-style function without explicit sections."""
+    return f"old {a} {b}"
+
+
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+def old_numpy_no_sections_function(a: int, b: str = "old") -> str:
+    """Old NumPy-style function without explicit sections."""
+    return f"old {a} {b}"
+
+
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
 def old_google_style_function(a: int, b: str = "old") -> str:
     """An old Google-style function.
 
@@ -52,6 +64,18 @@ def old_numpy_style_function(a: int, b: str = "old") -> str:
     b : str
         Text argument.
     """
+    return f"old {a} {b}"
+
+
+@deprecated(target=new_function, deprecated_in="0.1", update_docstring=True)
+def old_no_remove_version_function(a: int, b: str = "old") -> str:
+    """Old function without remove version."""
+    return f"old {a} {b}"
+
+
+@deprecated(target=None, deprecated_in="0.1", update_docstring=True)
+def old_no_target_function(a: int, b: str = "old") -> str:
+    """Old function without target."""
     return f"old {a} {b}"
 
 
