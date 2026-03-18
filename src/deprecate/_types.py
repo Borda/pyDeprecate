@@ -26,6 +26,7 @@ class DeprecationConfig:
         target: Replacement target — a callable, ``True`` for self-deprecation, or ``None``.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
+        docstring_style: Docstring notice output style when ``update_docstring=True``.
     """
 
     deprecated_in: str = ""
@@ -33,6 +34,7 @@ class DeprecationConfig:
     name: str = ""
     target: Any = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
+    docstring_style: str = "rst"
 
 
 @runtime_checkable

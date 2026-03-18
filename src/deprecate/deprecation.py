@@ -15,7 +15,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 from functools import partial, wraps
 from inspect import Parameter
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
 from deprecate._types import DeprecationConfig, _WrapperState
@@ -39,12 +39,42 @@ TEMPLATE_WARNING_NO_TARGET = (
 )
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
-#: Default template for documentation with deprecated callable
-TEMPLATE_DOC_DEPRECATED = """
-.. deprecated:: %(deprecated_in)s
-   %(remove_text)s
-   %(target_text)s
-"""
+#: Default templates for documentation with deprecated callable
+TEMPLATE_DOC_DEPRECATED_RST = [
+    ".. deprecated:: %(deprecated_in)s",
+    "   %(remove_text)s",
+    "   %(target_text)s",
+]
+TEMPLATE_DOC_DEPRECATED_MKDOCS = [
+    '!!! warning "Deprecated in %(deprecated_in)s"',
+    "    %(remove_text)s",
+    "    %(target_text)s",
+]
+DOCSTRING_STYLE_ALIASES = {"rst": "rst", "mkdocs": "mkdocs", "markdown": "mkdocs"}
+GOOGLE_DOCSTRING_SECTIONS = {
+    "args:",
+    "arguments:",
+    "attributes:",
+    "examples:",
+    "notes:",
+    "parameters:",
+    "raises:",
+    "returns:",
+    "warns:",
+    "yields:",
+}
+NUMPY_DOCSTRING_SECTIONS = {
+    "Attributes",
+    "Examples",
+    "Methods",
+    "Notes",
+    "Other Parameters",
+    "Parameters",
+    "Raises",
+    "Returns",
+    "Warns",
+    "Yields",
+}
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
@@ -438,16 +468,22 @@ def _raise_warn_arguments(
 
 
 def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
-    """Append deprecation notice to function's docstring in reStructuredText format.
+    """Inject deprecation notice into function's docstring.
 
-    This helper automatically generates and appends a Sphinx-compatible deprecation
-    notice to the wrapped function's docstring. The notice includes version information
-    and target replacement (if applicable), making it visible in generated API documentation.
+    This helper automatically generates and injects a deprecation notice into the
+    wrapped function's docstring. The notice includes version information and target
+    replacement (if applicable), making it visible in generated API documentation.
 
-    The appended notice follows the Sphinx deprecated directive format:
+    By default, the notice uses Sphinx's deprecated directive format:
         .. deprecated:: <version>
            Will be removed in <version>.
            Use `<target>` instead.
+
+    When ``docstring_style`` is set to ``"mkdocs"``/``"markdown"``, it emits a
+    Markdown admonition:
+        !!! warning "Deprecated in <version>"
+            Will be removed in <version>.
+            Use `<target>` instead.
 
     Args:
         wrapped_fn: Function whose docstring should be updated. Must have
@@ -482,7 +518,9 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
            Use :func:`deprecate.deprecation.new_func` instead.
 
     Note:
-        Does nothing if the function has no docstring or no __deprecated__ attribute.
+        Does nothing if the function has no docstring or no ``__deprecated__`` attribute.
+        To preserve Google/NumPy parsing, insertion happens before the first
+        section header (for example ``Args:`` or ``Parameters``) when detected.
 
     """
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
@@ -494,19 +532,72 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     remove_in_val = dep_info.remove_in
     target_val = dep_info.target
     remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
-    target_text = ""
+    target_text_rst = ""
+    target_text_mkdocs = ""
     if callable(target_val):
+        full_target_name = f"{target_val.__module__}.{target_val.__name__}"
         ref_type = "class" if inspect.isclass(target_val) else "func"
-        target_text = f"Use :{ref_type}:`{target_val.__module__}.{target_val.__name__}` instead."
-    lines.append(
-        TEMPLATE_DOC_DEPRECATED
+        target_text_rst = f"Use :{ref_type}:`{full_target_name}` instead."
+        target_text_mkdocs = f"Use `{full_target_name}` instead."
+
+    docstring_style = _normalize_docstring_style(getattr(dep_info, "docstring_style", "rst"))
+    docstring_template = TEMPLATE_DOC_DEPRECATED_RST
+    target_text = target_text_rst
+    if docstring_style == "mkdocs":
+        docstring_template = TEMPLATE_DOC_DEPRECATED_MKDOCS
+        target_text = target_text_mkdocs
+
+    deprecation_lines = [
+        line
         % {
             "deprecated_in": dep_info.deprecated_in,
             "remove_text": remove_text,
             "target_text": target_text,
         }
-    )
-    wrapped_fn.__doc__ = "\n".join(lines)
+        for line in docstring_template
+        if not (line.strip().endswith("%(remove_text)s") and not remove_text)
+        if not (line.strip().endswith("%(target_text)s") and not target_text)
+    ]
+    insert_idx = _find_docstring_insertion_index(lines)
+    prefix = lines[:insert_idx]
+    suffix = lines[insert_idx:]
+    if prefix and prefix[-1].strip():
+        prefix.append("")
+    prefix.extend(deprecation_lines)
+    if suffix:
+        if suffix[0].strip():
+            prefix.append("")
+        prefix.extend(suffix)
+    wrapped_fn.__doc__ = "\n".join(prefix)
+
+
+def _is_numpy_underline(line: str) -> bool:
+    stripped = line.strip()
+    return len(stripped) >= 3 and set(stripped) == {"-"}
+
+
+def _find_docstring_insertion_index(lines: list[str]) -> int:
+    for idx, line in enumerate(lines):
+        if line.strip().lower() in GOOGLE_DOCSTRING_SECTIONS:
+            return idx
+        if idx + 1 < len(lines) and line.strip() in NUMPY_DOCSTRING_SECTIONS and _is_numpy_underline(lines[idx + 1]):
+            return idx
+    return len(lines)
+
+
+def _normalize_docstring_style(docstring_style: str) -> Literal["rst", "mkdocs"]:
+    if not isinstance(docstring_style, str):
+        raise ValueError(
+            "Invalid `docstring_style` value "
+            f"{docstring_style!r}. Supported styles are: {sorted(DOCSTRING_STYLE_ALIASES)}."
+        )
+    normalized_style = DOCSTRING_STYLE_ALIASES.get(docstring_style.lower())
+    if normalized_style is None:
+        raise ValueError(
+            "Invalid `docstring_style` value "
+            f"{docstring_style!r}. Supported styles are: {sorted(DOCSTRING_STYLE_ALIASES)}."
+        )
+    return cast(Literal["rst", "mkdocs"], normalized_style)
 
 
 def deprecated(
@@ -520,6 +611,7 @@ def deprecated(
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
+    docstring_style: str = "rst",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target.
 
@@ -565,8 +657,12 @@ def deprecated(
             - ``Callable``: Function returning bool (checked at runtime, must return bool)
             If condition is True, original function executes without warning.
         update_docstring: If True, automatically append deprecation information to
-            the function's docstring in reStructuredText format. Useful for documentation
-            generation tools like Sphinx.
+            the function's docstring. By default, notices use reStructuredText (Sphinx).
+        docstring_style: Output style for injected deprecation notice when
+            ``update_docstring=True``. Supported values:
+            - ``"rst"``: Sphinx-style ``.. deprecated::`` directive (default)
+            - ``"mkdocs"`` or ``"markdown"``: Markdown admonition
+              ``!!! warning "Deprecated in X"``
 
     Returns:
         Decorator function that wraps the source function/method.
@@ -606,6 +702,7 @@ def deprecated(
         ...     return new_arg * 2
 
     """
+    normalized_docstring_style = _normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
@@ -718,6 +815,7 @@ def deprecated(
             name=source.__name__,
             target=target,
             args_mapping=args_mapping,
+            docstring_style=normalized_docstring_style,
         )
         setattr(wrapped_fn, "__deprecated__", dep_meta)
         # Private mutable runtime state — call counter, warning counters.

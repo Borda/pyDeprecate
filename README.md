@@ -690,10 +690,10 @@ True
 
 ### 📝 Automatic docstring updates
 
-You can automatically append deprecation information to your function's docstring:
+You can automatically inject deprecation information into your function's docstring:
 
 <details>
-<summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
+<summary>Example: <code>update_docstring=True</code> inserts a Sphinx deprecation notice before <code>Args:</code>/<code>Parameters</code></summary>
 
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it does
@@ -726,7 +726,7 @@ def process(x: int) -> int:
     pass
 
 
-# The docstring now includes deprecation information
+# The docstring now includes deprecation information (inserted before "Args:")
 print(process.__doc__)
 # Output includes:
 # .. deprecated:: 1.0
@@ -736,7 +736,35 @@ print(process.__doc__)
 
 </details>
 
-This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
+If you build docs with MkDocs/Markdown, you can switch to admonition output:
+
+```python
+from deprecate import deprecated
+
+
+def transform(x: int) -> int:
+    return x * 2
+
+
+@deprecated(
+    target=transform,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    update_docstring=True,
+    docstring_style="mkdocs",  # alias: "markdown"
+)
+def process(x: int) -> int:
+    """Transforms the input value."""
+    pass
+
+
+print(process.__doc__)
+# !!! warning "Deprecated in 1.0"
+#     Will be removed in 2.0.
+#     Use `__main__.transform` instead.
+```
+
+This is useful for generating API docs with Sphinx, MkDocs, and strict Google/NumPy docstring parsers.
 
 ![Documentation Sample](assets/docs-sample.png)
 

@@ -27,6 +27,54 @@ def old_function_plain(a: int, b: str = "old") -> str:  # noqa: D103
     return f"old {a} {b}"
 
 
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+def old_google_style_function(a: int, b: str = "old") -> str:
+    """An old Google-style function.
+
+    Args:
+        a: Number argument.
+        b: Text argument.
+
+    Returns:
+        A formatted output.
+    """
+    return f"old {a} {b}"
+
+
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+def old_numpy_style_function(a: int, b: str = "old") -> str:
+    """An old NumPy-style function.
+
+    Parameters
+    ----------
+    a : int
+        Number argument.
+    b : str
+        Text argument.
+    """
+    return f"old {a} {b}"
+
+
+@deprecated(
+    target=new_function,
+    deprecated_in="0.1",
+    remove_in="0.3",
+    update_docstring=True,
+    docstring_style="mkdocs",
+)
+def old_mkdocs_style_function(a: int, b: str = "old") -> str:
+    """An old MkDocs-style function.
+
+    Args:
+        a: Number argument.
+        b: Text argument.
+
+    Returns:
+        A formatted output.
+    """
+    return f"old {a} {b}"
+
+
 class OldClass:
     """An old class that is deprecated."""
 

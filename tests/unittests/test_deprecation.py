@@ -416,3 +416,22 @@ class TestCrossClassMethodGuard:
             old = CrossGuardOldClass(3)
         assert isinstance(old, CrossGuardOldClass)
         assert old.x == 3
+
+
+class TestDocstringStyleValidation:
+    """Validation for ``docstring_style`` values."""
+
+    def test_invalid_docstring_style_raises_value_error(self) -> None:
+        """Unsupported ``docstring_style`` values should fail fast at decoration time."""
+        with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
+
+            @deprecated(
+                target=None,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                update_docstring=True,
+                docstring_style="unsupported-style",
+            )
+            def some_func() -> None:
+                """A function."""
+                pass
