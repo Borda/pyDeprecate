@@ -15,9 +15,20 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 from functools import partial, wraps
 from inspect import Parameter
-from typing import Any, Callable, Literal, Optional, Union, cast
+from typing import Any, Callable, Optional, Union, cast
 from warnings import warn
 
+from deprecate._docs import (
+    TEMPLATE_DOC_DEPRECATED_MKDOCS,
+    TEMPLATE_DOC_DEPRECATED_RST,
+    is_numpy_underline,
+)
+from deprecate._docs import (
+    find_docstring_insertion_index as _find_docstring_insertion_index,
+)
+from deprecate._docs import (
+    normalize_docstring_style as _normalize_docstring_style,
+)
 from deprecate._types import DeprecationConfig, _WrapperState
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -39,43 +50,6 @@ TEMPLATE_WARNING_NO_TARGET = (
 )
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
-#: Default templates for documentation with deprecated callable
-TEMPLATE_DOC_DEPRECATED_RST = [
-    ".. deprecated:: %(deprecated_in)s",
-    "   %(remove_text)s",
-    "   %(target_text)s",
-]
-TEMPLATE_DOC_DEPRECATED_MKDOCS = [
-    '!!! warning "Deprecated in %(deprecated_in)s"',
-    "    %(remove_text)s",
-    "    %(target_text)s",
-]
-DOCSTRING_STYLE_ALIASES = {"rst": "rst", "mkdocs": "mkdocs", "markdown": "mkdocs"}
-SUPPORTED_DOCSTRING_STYLES = "', '".join(sorted(DOCSTRING_STYLE_ALIASES))
-GOOGLE_DOCSTRING_SECTIONS = {
-    "args:",
-    "arguments:",
-    "attributes:",
-    "examples:",
-    "notes:",
-    "parameters:",
-    "raises:",
-    "returns:",
-    "warns:",
-    "yields:",
-}
-NUMPY_DOCSTRING_SECTIONS = {
-    "attributes",
-    "examples",
-    "methods",
-    "notes",
-    "other parameters",
-    "parameters",
-    "raises",
-    "returns",
-    "warns",
-    "yields",
-}
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
@@ -576,38 +550,8 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
 
 
 def _is_numpy_underline(line: str) -> bool:
-    stripped = line.strip()
-    return len(stripped) >= 3 and all(char == "-" for char in stripped)
-
-
-def _find_docstring_insertion_index(lines: list[str]) -> int:
-    for idx, line in enumerate(lines):
-        if line.strip().lower() in GOOGLE_DOCSTRING_SECTIONS:
-            return idx
-        if (
-            idx + 1 < len(lines)
-            and line.strip().lower() in NUMPY_DOCSTRING_SECTIONS
-            and _is_numpy_underline(lines[idx + 1])
-        ):
-            return idx
-    return len(lines)
-
-
-def _normalize_docstring_style(docstring_style: str) -> Literal["rst", "mkdocs"]:
-    if not isinstance(docstring_style, str):
-        raise ValueError(
-            "Invalid `docstring_style` value "
-            f"{docstring_style!r}. Supported styles are: '{SUPPORTED_DOCSTRING_STYLES}'."
-        )
-    normalized_style = DOCSTRING_STYLE_ALIASES.get(docstring_style.lower())
-    if normalized_style is None:
-        raise ValueError(
-            "Invalid `docstring_style` value "
-            f"{docstring_style!r}. Supported styles are: '{SUPPORTED_DOCSTRING_STYLES}'."
-        )
-    return cast(Literal["rst", "mkdocs"], normalized_style)
-
-
+    """Backward-compatible alias for private helper tests importing this symbol."""
+    return is_numpy_underline(line)
 def deprecated(
     target: Union[bool, None, Callable],
     deprecated_in: str = "",
