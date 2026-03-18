@@ -322,6 +322,15 @@ class TestFindDeprecatedWrappers:
         assert "depr_config_dict" in by_name
         assert by_name["depr_config_dict"].deprecated_info.name == "dict"
 
+    def test_include_members_discovers_deprecated_class_members(self) -> None:
+        """Optional member scanning reuses find_deprecation_wrappers for methods and constructors."""
+        by_name = {
+            r.function: r for r in find_deprecation_wrappers(proxy_module, recursive=False, include_members=True)
+        }
+        assert "ServiceCls.old_warn_method" in by_name
+        assert "ServiceCls.old_redirect_method" in by_name
+        assert "PastCls.__init__" in by_name
+
     def test_scan_handles_uninspectable_module(self) -> None:
         """Scan skips a module whose member inspection raises rather than crashing."""
         with patch.object(inspect, "getattr_static", side_effect=TypeError("bad module")):
