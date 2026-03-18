@@ -18,6 +18,11 @@ pytest or a CI script against an imported package.
     that users traverse unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`:
     ``TARGET`` (forwarding chain) and ``STACKED`` (composed argument mappings).
 
+**Timeline/report generation** (:func:`~deprecate.audit.generate_deprecation_markdown`,
+:func:`~deprecate.audit.generate_deprecation_timeline`):
+    Generate markdown and Mermaid summaries directly from deprecated wrapper metadata,
+    including nested deprecated methods and constructors defined on classes.
+
 Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, which carry both
 identification info and structured validation results for programmatic processing.
 
@@ -675,6 +680,222 @@ def validate_deprecation_chains(
 
     """
     return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.chain_type is not None]
+
+
+def _iter_modules(module: Union[Any, str], recursive: bool) -> list[Any]:  # noqa: ANN401
+    """Resolve a module/package input into concrete imported modules."""
+    import importlib
+    import pkgutil
+
+    if isinstance(module, str):
+        module = importlib.import_module(module)
+
+    modules = [module]
+    if recursive and hasattr(module, "__path__"):
+        try:
+            packages = list(
+                pkgutil.walk_packages(path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None)
+            )
+        except (OSError, ImportError):
+            packages = []
+
+        for _importer, modname, _ispkg in packages:
+            with suppress(ImportError, ModuleNotFoundError):
+                modules.append(importlib.import_module(modname))
+
+    return modules
+
+
+def _find_class_deprecation_wrappers(cls: type, module_name: str, prefix: str) -> list[DeprecationWrapperInfo]:
+    """Find deprecated methods/constructors declared directly on a class."""
+    results: list[DeprecationWrapperInfo] = []
+
+    for name, obj in vars(cls).items():
+        if name.startswith("_") and name != "__init__":
+            continue
+
+        if callable(obj) and hasattr(obj, "__deprecated__"):
+            info = validate_deprecation_wrapper(obj)
+            results.append(replace(info, module=module_name, function=f"{prefix}{name}"))
+
+        if inspect.isclass(obj) and getattr(obj, "__module__", None) == module_name:
+            results.extend(
+                _find_class_deprecation_wrappers(obj, module_name=module_name, prefix=f"{prefix}{obj.__name__}.")
+            )
+
+    return results
+
+
+def _collect_deprecation_report_items(
+    module: Union[Any, str],  # noqa: ANN401
+    recursive: bool,
+) -> list[DeprecationWrapperInfo]:
+    """Collect deprecated top-level wrappers plus nested deprecated class members."""
+    results: list[DeprecationWrapperInfo] = []
+    seen: set[tuple[str, str]] = set()
+
+    for mod in _iter_modules(module, recursive=recursive):
+        for info in find_deprecation_wrappers(mod, recursive=False):
+            key = (info.module, info.function)
+            if key not in seen:
+                results.append(info)
+                seen.add(key)
+
+        try:
+            members = _getmembers_static_compat(mod)
+        except (AttributeError, TypeError, ImportError):
+            continue
+
+        module_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
+        for class_name, obj in members:
+            if class_name.startswith("_") or not inspect.isclass(obj):
+                continue
+            if getattr(obj, "__module__", None) != module_name:
+                continue
+
+            for info in _find_class_deprecation_wrappers(obj, module_name=module_name, prefix=f"{class_name}."):
+                key = (info.module, info.function)
+                if key not in seen:
+                    results.append(info)
+                    seen.add(key)
+
+    return sorted(results, key=lambda info: (info.module, info.function))
+
+
+def _resolve_report_version(
+    module: Union[Any, str],  # noqa: ANN401
+    current_version: Optional[str],
+) -> tuple[Optional[str], Optional["Version"]]:
+    """Resolve the current version for reporting, falling back to unknown status."""
+    module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
+
+    if current_version is None and module_name:
+        with suppress(ImportError):
+            package_name = module_name.split(".")[0]
+            current_version = _get_package_version(package_name)
+
+    if current_version is None:
+        return None, None
+
+    try:
+        return current_version, _parse_version(current_version)
+    except ImportError:
+        return current_version, None
+    except ValueError as err:
+        raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
+
+
+def _safe_parse_report_version(version: Optional[str]) -> Optional["Version"]:
+    """Parse a version string for reporting without failing the entire report."""
+    if not version:
+        return None
+
+    with suppress(ImportError, ValueError):
+        return _parse_version(version)
+    return None
+
+
+def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
+    """Return a stable, fully-qualified symbol label for reports."""
+    return f"{info.module}.{info.function}" if info.module else info.function
+
+
+def _format_report_version(version: Optional[str], *, missing: str = "—") -> str:
+    """Format a version value for report output."""
+    if not version:
+        return missing
+    return f"v{version}"
+
+
+def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> str:
+    """Return a human-readable lifecycle status for a deprecated wrapper."""
+    if current_version is None:
+        return "ℹ️ No Removal Target" if not info.deprecated_info.remove_in else "⚪ Status Unknown"
+
+    deprecated_in = _safe_parse_report_version(info.deprecated_info.deprecated_in)
+    if deprecated_in is not None and current_version < deprecated_in:
+        return "🕒 Scheduled Deprecation"
+
+    remove_in = info.deprecated_info.remove_in
+    if not remove_in:
+        return "ℹ️ No Removal Target"
+
+    remove_version = _safe_parse_report_version(remove_in)
+    if remove_version is None:
+        return "⚪ Invalid Removal Target"
+
+    if current_version >= remove_version:
+        return "❌ Past Removal Date"
+
+    return "⚠️ Active Warning"
+
+
+def _get_report_section(info: DeprecationWrapperInfo) -> str:
+    """Derive a readable Mermaid section label for a deprecated symbol."""
+    if "." in info.function:
+        return info.function.split(".", maxsplit=1)[0]
+    return info.module.rsplit(".", maxsplit=1)[-1] if info.module else "root"
+
+
+def generate_deprecation_markdown(
+    module: Union[Any, str],  # noqa: ANN401
+    current_version: Optional[str] = None,
+    recursive: bool = True,
+) -> str:
+    """Generate a markdown table summarizing deprecated wrappers in a module/package.
+
+    The report is derived from decorator metadata and includes both top-level
+    deprecated wrappers and nested deprecated class members such as methods and
+    constructors.
+    """
+    resolved_version, current_ver = _resolve_report_version(module, current_version=current_version)
+    rows = [
+        "| Symbol | Deprecated In | Removal Target | Current Status |",
+        "| :--- | :---: | :---: | :--- |",
+    ]
+
+    for info in _collect_deprecation_report_items(module, recursive=recursive):
+        rows.append(
+            "| "
+            f"`{_format_report_symbol(info)}` | "
+            f"{_format_report_version(info.deprecated_info.deprecated_in)} | "
+            f"{_format_report_version(info.deprecated_info.remove_in)} | "
+            f"{_get_report_status(info, current_ver)} |"
+        )
+
+    if resolved_version is not None:
+        rows.insert(0, f"<!-- Current version: {resolved_version} -->")
+
+    return "\n".join(rows)
+
+
+def generate_deprecation_timeline(
+    module: Union[Any, str],  # noqa: ANN401
+    current_version: Optional[str] = None,
+    recursive: bool = True,
+) -> str:
+    """Generate a Mermaid timeline summarizing deprecated wrappers in a module/package."""
+    _resolved_version, current_ver = _resolve_report_version(module, current_version=current_version)
+    timeline = [
+        "timeline",
+        "    title Deprecation Lifecycle",
+    ]
+
+    section_entries: dict[str, list[str]] = {}
+    for info in _collect_deprecation_report_items(module, recursive=recursive):
+        section = _get_report_section(info)
+        range_label = (
+            f"{_format_report_version(info.deprecated_info.deprecated_in, missing='v?')} → "
+            f"{_format_report_version(info.deprecated_info.remove_in, missing='open-ended')}"
+        )
+        entry = f"        {range_label} : {_format_report_symbol(info)} ({_get_report_status(info, current_ver)})"
+        section_entries.setdefault(section, []).append(entry)
+
+    for section in sorted(section_entries):
+        timeline.append(f"    section {section}")
+        timeline.extend(section_entries[section])
+
+    return "\n".join(timeline)
 
 
 # ---------------------------------------------------------------------------

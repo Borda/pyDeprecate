@@ -24,6 +24,8 @@ from deprecate.audit import (
     _get_package_version,
     _parse_version,
     find_deprecation_wrappers,
+    generate_deprecation_markdown,
+    generate_deprecation_timeline,
     validate_deprecation_chains,
     validate_deprecation_wrapper,
 )
@@ -400,6 +402,45 @@ class TestValidateDeprecationChains:
         assert "depr_func_targeting_proxy" in by_name
         assert by_name["ChainedProxyColorEnum"].chain_type is ChainType.TARGET
         assert by_name["depr_func_targeting_proxy"].chain_type is ChainType.TARGET
+
+
+class TestGenerateDeprecationReports:
+    """Tests for markdown and Mermaid deprecation report generation."""
+
+    def test_markdown_includes_top_level_and_class_members(self) -> None:
+        """Markdown report includes functions, methods, and deprecated constructors."""
+        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
+        assert "| Symbol | Deprecated In | Removal Target | Current Status |" in report
+        assert "`tests.collection_deprecate.depr_pow_args` | v1.0 | v1.3 | ❌ Past Removal Date |" in report
+        assert "`tests.collection_deprecate.ServiceCls.old_warn_method` | v1.0 | v2.0 | ⚠️ Active Warning |" in report
+        assert "`tests.collection_deprecate.PastCls.__init__` | v0.2 | v0.4 | ❌ Past Removal Date |" in report
+
+    def test_markdown_handles_missing_or_unknown_version_status(self) -> None:
+        """Missing remove_in and non-package modules degrade to informational statuses."""
+        report = generate_deprecation_markdown("tests.collection_deprecate", recursive=False)
+        assert "`tests.collection_deprecate.depr_func_no_remove_in` | v1.0 | — | ℹ️ No Removal Target |" in report
+        assert "⚪ Status Unknown" in report
+
+    def test_timeline_groups_symbols_into_sections(self) -> None:
+        """Mermaid timeline groups methods by class and includes status labels."""
+        report = generate_deprecation_timeline(proxy_module, current_version="1.5", recursive=False)
+        assert report.startswith("timeline\n    title Deprecation Lifecycle")
+        assert "    section ServiceCls" in report
+        assert (
+            "        v1.0 → v2.0 : tests.collection_deprecate.ServiceCls.old_redirect_method (⚠️ Active Warning)"
+            in report
+        )
+        assert (
+            "        v1.0 → open-ended : tests.collection_deprecate.depr_func_no_remove_in (ℹ️ No Removal Target)"
+            in report
+        )
+
+    def test_invalid_current_version_raises_for_reports(self) -> None:
+        """Explicit invalid current_version raises a clear ValueError."""
+        with pytest.raises(ValueError, match="Invalid current_version"):
+            generate_deprecation_markdown(proxy_module, current_version="not-a-version", recursive=False)
+        with pytest.raises(ValueError, match="Invalid current_version"):
+            generate_deprecation_timeline(proxy_module, current_version="not-a-version", recursive=False)
 
 
 @_requires_packaging
