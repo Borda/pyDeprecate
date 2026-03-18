@@ -601,6 +601,14 @@ def find_deprecation_wrappers(
             return
 
         module_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
+
+        # Skip imported objects from other modules, except for proxy instances
+        # which may report a different __module__ than the module being scanned.
+        if not isinstance(obj, _DeprecatedProxy):
+            obj_module = getattr(obj, "__module__", None)
+            if obj_module is not None and obj_module != module_name:
+                return
+
         function_name = f"{prefix}{name}" if prefix else name
         key = (module_name, function_name)
         if key in seen:
