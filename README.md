@@ -867,6 +867,9 @@ results = find_deprecation_wrappers(my_package)
 # Or scan using a string module path
 results = find_deprecation_wrappers("tests.collection_deprecate")
 
+# Include deprecated methods and constructors defined on classes in that module
+results = find_deprecation_wrappers("tests.collection_deprecate", include_members=True)
+
 # Check results - each item is a DeprecationWrapperInfo dataclass
 for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")

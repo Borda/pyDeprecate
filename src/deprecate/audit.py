@@ -527,6 +527,7 @@ def validate_deprecation_expiry(
 def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
+    include_members: bool = False,
 ) -> list[DeprecationWrapperInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
 
@@ -543,6 +544,8 @@ def find_deprecation_wrappers(
             - String module path (e.g., ``find_deprecation_wrappers("my_package.submodule")``)
         recursive: If True (default), recursively scan submodules. If False, only
             scan the top-level module.
+        include_members: If True, also scan deprecated methods and constructors
+            defined on classes declared in the scanned module(s).
 
     Returns:
         List of DeprecationWrapperInfo dataclasses, one per deprecated wrapper found.
@@ -578,16 +581,48 @@ def find_deprecation_wrappers(
         - Inspects the ``__deprecated__`` attribute set by the @deprecated decorator
         - Skips private/magic attributes and imports from other modules
         - Uses static member inspection to avoid scan-time side effects from dynamic attribute access
+        - Set ``include_members=True`` to include deprecated class members in addition
+          to top-level wrappers
 
     """
     import importlib
     import pkgutil
 
     results: list[DeprecationWrapperInfo] = []
+    seen: set[tuple[str, str]] = set()
 
     # Handle string module path
     if isinstance(module, str):
         module = importlib.import_module(module)
+
+    def _record_wrapper(mod: Any, name: str, obj: Any, *, prefix: str = "") -> None:  # noqa: ANN401
+        """Validate and append a discovered wrapper while deduplicating report keys."""
+        if not callable(obj) or not hasattr(obj, "__deprecated__"):
+            return
+
+        module_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
+        function_name = f"{prefix}{name}" if prefix else name
+        key = (module_name, function_name)
+        if key in seen:
+            return
+
+        info = validate_deprecation_wrapper(obj)
+        results.append(replace(info, module=module_name, function=function_name))
+        seen.add(key)
+
+    def _scan_class(mod: Any, cls: type, *, prefix: str) -> None:  # noqa: ANN401
+        """Scan deprecated methods/constructors declared on a class and nested classes."""
+        for name, obj in vars(cls).items():
+            # Include ``__init__`` because constructor deprecations are a primary
+            # migration path, but skip other dunder/private members to keep the
+            # public scan focused on user-facing deprecated APIs.
+            if name.startswith("_") and name != "__init__":
+                continue
+
+            _record_wrapper(mod, name, obj, prefix=prefix)
+
+            if inspect.isclass(obj) and getattr(obj, "__module__", None) == getattr(mod, "__name__", None):
+                _scan_class(mod, obj, prefix=f"{prefix}{obj.__name__}.")
 
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
@@ -602,14 +637,12 @@ def find_deprecation_wrappers(
             if name.startswith("_"):
                 continue
 
-            # Check if it's a function or method with __deprecated__ attribute
-            if callable(obj) and hasattr(obj, "__deprecated__"):
-                # Validate the wrapper - extracts config from __deprecated__
-                info = validate_deprecation_wrapper(obj)
-                # Update with module-level info
-                info = replace(info, module=mod.__name__ if hasattr(mod, "__name__") else str(mod), function=name)
+            _record_wrapper(mod, name, obj)
 
-                results.append(info)
+            if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == getattr(
+                mod, "__name__", None
+            ):
+                _scan_class(mod, obj, prefix=f"{name}.")
 
     # Scan the main module
     _scan_module(module)
@@ -680,117 +713,6 @@ def validate_deprecation_chains(
 
     """
     return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.chain_type is not None]
-
-
-def _collect_modules(module: Union[Any, str], recursive: bool) -> list[Any]:  # noqa: ANN401
-    """Resolve a module/package input into concrete imported modules.
-
-    Args:
-        module: Imported module/package object or string module path to scan.
-        recursive: If True, include importable submodules discovered via
-            ``pkgutil.walk_packages``.
-
-    Returns:
-        A list containing the root module and, when requested, any successfully
-        imported submodules.
-    """
-    import importlib
-    import pkgutil
-
-    if isinstance(module, str):
-        module = importlib.import_module(module)
-
-    modules = [module]
-    if recursive and hasattr(module, "__path__"):
-        try:
-            packages = list(
-                pkgutil.walk_packages(path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None)
-            )
-        except (OSError, ImportError):
-            packages = []
-
-        for _importer, modname, _ispkg in packages:
-            with suppress(ImportError, ModuleNotFoundError):
-                modules.append(importlib.import_module(modname))
-
-    return modules
-
-
-def _find_class_deprecation_wrappers(cls: type, module_name: str, prefix: str) -> list[DeprecationWrapperInfo]:
-    """Find deprecated methods and constructors declared directly on a class tree.
-
-    Args:
-        cls: Class whose direct members should be inspected.
-        module_name: Name of the owning module used in report records.
-        prefix: Symbol prefix to prepend to discovered member names.
-
-    Returns:
-        A list of report-ready wrapper info objects for deprecated methods,
-        constructors, and deprecated members of nested classes.
-    """
-    results: list[DeprecationWrapperInfo] = []
-
-    for name, obj in vars(cls).items():
-        # Include ``__init__`` because constructor deprecations are a primary migration
-        # path, but skip other dunder/private members to keep reports user-facing.
-        if name.startswith("_") and name != "__init__":
-            continue
-
-        if callable(obj) and hasattr(obj, "__deprecated__"):
-            info = validate_deprecation_wrapper(obj)
-            results.append(replace(info, module=module_name, function=f"{prefix}{name}"))
-
-        if inspect.isclass(obj) and getattr(obj, "__module__", None) == module_name:
-            results.extend(
-                _find_class_deprecation_wrappers(obj, module_name=module_name, prefix=f"{prefix}{obj.__name__}.")
-            )
-
-    return results
-
-
-def _collect_deprecation_report_items(
-    module: Union[Any, str],  # noqa: ANN401
-    recursive: bool,
-) -> list[DeprecationWrapperInfo]:
-    """Collect deprecated top-level wrappers plus nested deprecated class members.
-
-    Args:
-        module: Imported module/package object or string module path to scan.
-        recursive: If True, include importable submodules.
-
-    Returns:
-        A deduplicated, sorted list of deprecated wrapper records suitable for
-        report generation.
-    """
-    results: list[DeprecationWrapperInfo] = []
-    seen: set[tuple[str, str]] = set()
-
-    for mod in _collect_modules(module, recursive=recursive):
-        for info in find_deprecation_wrappers(mod, recursive=False):
-            key = (info.module, info.function)
-            if key not in seen:
-                results.append(info)
-                seen.add(key)
-
-        try:
-            members = _getmembers_static_compat(mod)
-        except (AttributeError, TypeError, ImportError):
-            continue
-
-        module_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
-        for class_name, obj in members:
-            if class_name.startswith("_") or not inspect.isclass(obj):
-                continue
-            if getattr(obj, "__module__", None) != module_name:
-                continue
-
-            for info in _find_class_deprecation_wrappers(obj, module_name=module_name, prefix=f"{class_name}."):
-                key = (info.module, info.function)
-                if key not in seen:
-                    results.append(info)
-                    seen.add(key)
-
-    return sorted(results, key=lambda info: (info.module, info.function))
 
 
 def _resolve_report_version(
@@ -951,7 +873,7 @@ def generate_deprecation_markdown(
         "| :--- | :---: | :---: | :--- |",
     ]
 
-    for info in _collect_deprecation_report_items(module, recursive=recursive):
+    for info in find_deprecation_wrappers(module, recursive=recursive, include_members=True):
         rows.append(
             "| "
             f"`{_format_report_symbol(info)}` | "
@@ -995,7 +917,7 @@ def generate_deprecation_timeline(
     ]
 
     section_entries: dict[str, list[str]] = {}
-    for info in _collect_deprecation_report_items(module, recursive=recursive):
+    for info in find_deprecation_wrappers(module, recursive=recursive, include_members=True):
         section = _get_report_section(info)
         range_label = (
             f"{_format_report_version(info.deprecated_info.deprecated_in, missing='v?')} → "
