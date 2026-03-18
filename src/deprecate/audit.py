@@ -933,10 +933,7 @@ def generate_deprecation_timeline(
             f"{_format_report_version(info.deprecated_info.deprecated_in, missing='v?')} → "
             f"{_format_report_version(info.deprecated_info.remove_in, missing='open-ended')}"
         )
-        entry = (
-            f"        {range_label} : {_format_report_symbol(info)} "
-            f"({_get_report_status(info, parsed_version)})"
-        )
+        entry = f"        {range_label} : {_format_report_symbol(info)} ({_get_report_status(info, parsed_version)})"
         section_entries.setdefault(section, []).append(entry)
 
     for section in sorted(section_entries):
