@@ -21,11 +21,11 @@
 
 - **Audit API renamed for consistency.** Old names remain as `@deprecated` shims until v1.0. ([#125](https://github.com/Borda/pyDeprecate/pull/125))
 
-  | Old name | New name |
-  |---|---|
-  | `find_deprecated_callables` | `find_deprecation_wrappers` |
+  | Old name                       | New name                       |
+  | ------------------------------ | ------------------------------ |
+  | `find_deprecated_callables`    | `find_deprecation_wrappers`    |
   | `validate_deprecated_callable` | `validate_deprecation_wrapper` |
-  | `DeprecatedCallableInfo` | `DeprecationWrapperInfo` |
+  | `DeprecatedCallableInfo`       | `DeprecationWrapperInfo`       |
 
 - **`no_warning_call` renamed to `assert_no_warnings`.** The new name mirrors `assertWarns` / `assertRaises` from the standard library, making test intent immediately obvious. Old name kept as a deprecated alias until v1.0. ([#131](https://github.com/Borda/pyDeprecate/pull/131))
 
