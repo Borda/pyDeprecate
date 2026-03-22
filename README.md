@@ -28,6 +28,7 @@ ______________________________________________________________________
   - [Comparison with Other Tools](#-comparison-with-other-tools)
 - [💾 Installation](#-installation)
 - [🚀 Quick Start](#-quick-start)
+- [🗺 API at a Glance](#-api-at-a-glance)
 - [📚 Use-cases and Applications](#-use-cases-and-applications)
   - [Simple function forwarding](#-simple-function-forwarding)
   - [Advanced target argument mapping](#-advanced-target-argument-mapping)
@@ -39,6 +40,7 @@ ______________________________________________________________________
   - [Deprecating constants and instances](#-deprecating-constants-and-instances)
   - [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)
   - [Automatic docstring updates](#-automatic-docstring-updates)
+  - [Injecting new required arguments](#-injecting-new-required-arguments)
 - [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
 - [🔍 Audit](#-audit)
   - [Validating Wrapper Configuration](#-validating-wrapper-configuration)
@@ -160,6 +162,38 @@ result = addition(1, 2)  # Returns 3
 ```
 
 That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
+
+## 🗺 API at a Glance
+
+Not sure which API to reach for? Start here.
+
+**Pick the right decorator:**
+
+| Scenario | API to use |
+| -------- | ---------- |
+| Renaming a function or method | `@deprecated(target=new_func)` |
+| Renaming an argument within the same function | `@deprecated(target=True, args_mapping={"old": "new"})` |
+| Warn only — original body still runs | `@deprecated(target=None)` |
+| Deprecating a class, Enum, or dataclass name | `@deprecated_class(target=NewClass)` |
+| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)` |
+
+**All `@deprecated` parameters at a glance:**
+
+| Param | Default | Purpose |
+| ----- | ------- | ------- |
+| `target` | — | `Callable` to forward to · `True` to remap args in-place · `None` warn-only |
+| `deprecated_in` | `""` | Version when deprecated (e.g. `"1.0"`) |
+| `remove_in` | `""` | Version when removed (e.g. `"2.0"`) |
+| `stream` | `FutureWarning` | Warning sink; set to `None` to silence entirely |
+| `num_warns` | `1` | `1` once · `-1` always · `N` exactly N times |
+| `args_mapping` | `None` | `{"old": "new"}` rename · `{"old": None}` drop |
+| `args_extra` | `None` | Fixed kwargs injected into the target call |
+| `skip_if` | `False` | `bool` or `Callable → bool`; skip deprecation when true |
+| `update_docstring` | `False` | Append Sphinx `.. deprecated::` notice to docstring |
+
+> [!TIP]
+> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, and `args_mapping`.
+> `deprecated_instance()` shares all except `args_mapping`; it adds `name` (display name) and `read_only`.
 
 ## 📚 Use-cases and Applications
 
@@ -739,6 +773,50 @@ print(process.__doc__)
 This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
 
 ![Documentation Sample](assets/docs-sample.png)
+
+### ➕ Injecting new required arguments
+
+When the target function gains a new parameter that callers of the old API never passed, use `args_extra` to inject a fixed value at the wrapper level:
+
+```python
+from deprecate import deprecated, void
+
+
+# NEW/FUTURE API — `send_email` adds an explicit `priority` field
+def send_email(to: str, subject: str, priority: str = "normal") -> str:
+    return f"Sent to {to!r}: {subject!r} [{priority}]"
+
+
+# DEPRECATED API — `notify` was the original name; it had no `priority` concept
+@deprecated(
+    target=send_email,
+    deprecated_in="1.5",
+    remove_in="2.0",
+    # callers of `notify` never passed `priority`, so inject a sensible default
+    args_extra={"priority": "normal"},
+)
+def notify(to: str, subject: str) -> str:
+    """Deprecated — use send_email() with an explicit priority instead."""
+    return void(to, subject)
+
+
+# calling this function will raise a deprecation warning:
+#   The `notify` was deprecated since v1.5 in favor of `__main__.send_email`.
+#   It will be removed in v2.0.
+print(notify("alice@example.com", "Hello"))
+```
+
+<details>
+  <summary>Output: <code>notify("alice@example.com", "Hello")</code></summary>
+
+```
+Sent to 'alice@example.com': 'Hello' [normal]
+```
+
+</details>
+
+> [!NOTE]
+> `args_extra` only applies when `target` is a `Callable`. It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones.
 
 ## 🔇 Understanding the `void()` Helper
 
