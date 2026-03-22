@@ -179,21 +179,21 @@ Not sure which API to reach for? Start here.
 
 **All `@deprecated` parameters at a glance:**
 
-| Param              | Default         | Purpose                                                                     |
-| ------------------ | --------------- | --------------------------------------------------------------------------- |
-| `target`           | —               | `Callable` to forward to · `True` to remap args in-place · `None` warn-only |
-| `deprecated_in`    | `""`            | Version when deprecated (e.g. `"1.0"`)                                      |
-| `remove_in`        | `""`            | Version when removed (e.g. `"2.0"`)                                         |
-| `stream`           | `FutureWarning` | Warning sink; set to `None` to silence entirely                             |
-| `num_warns`        | `1`             | `1` once · `-1` always · `N` exactly N times                                |
-| `args_mapping`     | `None`          | `{"old": "new"}` rename · `{"old": None}` drop                              |
-| `args_extra`       | `None`          | Fixed kwargs injected into the target call                                  |
-| `skip_if`          | `False`         | `bool` or `Callable → bool`; skip deprecation when true                     |
-| `update_docstring` | `False`         | Append Sphinx `.. deprecated::` notice to docstring                         |
+| Param              | Default                      | Purpose                                                                     |
+| ------------------ | ---------------------------- | --------------------------------------------------------------------------- |
+| `target`           | —                            | `Callable` to forward to · `True` to remap args in-place · `None` warn-only |
+| `deprecated_in`    | `""`                         | Version when deprecated (e.g. `"1.0"`)                                      |
+| `remove_in`        | `""`                         | Version when removed (e.g. `"2.0"`)                                         |
+| `stream`           | deprecation warning callable | Warning sink; defaults to `warnings.warn(..., category=FutureWarning)`      |
+| `num_warns`        | `1`                          | `1` once · `-1` always · `N` exactly N times                                |
+| `args_mapping`     | `None`                       | `{"old": "new"}` rename · `{"old": None}` drop                              |
+| `args_extra`       | `None`                       | Fixed kwargs injected into the target call                                  |
+| `skip_if`          | `False`                      | `bool` or `Callable → bool`; skip deprecation when true                     |
+| `update_docstring` | `False`                      | Append Sphinx `.. deprecated::` notice to docstring                         |
 
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, and `args_mapping`.
-> `deprecated_instance()` shares all except `args_mapping`; it adds `name` (display name) and `read_only`.
+> `deprecated_instance()` accepts `name`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, and `read_only`.
 
 ## 📚 Use-cases and Applications
 
@@ -816,7 +816,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 </details>
 
 > [!NOTE]
-> `args_extra` only applies when `target` is a `Callable`. It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones.
+> `args_extra` applies whenever `target` is truthy, including both forwarding to a `Callable` and in-place remapping with `target=True`. It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones.
 
 ## 🔇 Understanding the `void()` Helper
 
