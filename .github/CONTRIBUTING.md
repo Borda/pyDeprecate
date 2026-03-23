@@ -308,8 +308,8 @@ pyDeprecate/
 ├── src/deprecate/              # Core library code
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
+│   ├── _docs.py                # Docstring annotation helpers: TEMPLATE_DOC_*, _update_docstring_*()
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
-│   ├── _docs.py                # Docstring annotation helpers: TEMPLATE_DOC_*, _update_docstring_with_deprecation()
 │   ├── deprecation.py          # @deprecated decorator and warning logic
 │   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
