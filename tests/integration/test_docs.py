@@ -19,6 +19,7 @@ from tests.collection_docstrings import (
     old_function_plain,
     old_google_no_sections_function,
     old_google_style_function,
+    old_markdown_alias_function,
     old_mkdocs_style_function,
     old_no_remove_version_function,
     old_no_target_function,
@@ -118,6 +119,15 @@ class TestDeprecationDocstrings:
         assert "Args:" in old_mkdocs_style_function.__doc__
         notice_idx = old_mkdocs_style_function.__doc__.index('!!! warning "Deprecated in 0.1"')
         args_idx = old_mkdocs_style_function.__doc__.index("Args:")
+        assert notice_idx < args_idx
+
+    def test_markdown_alias_produces_mkdocs_admonition(self) -> None:
+        """``docstring_style="markdown"`` is an alias for ``"mkdocs"`` and renders the same admonition."""
+        assert old_markdown_alias_function.__doc__ is not None
+        assert '!!! warning "Deprecated in 0.1"' in old_markdown_alias_function.__doc__
+        assert "Args:" in old_markdown_alias_function.__doc__
+        notice_idx = old_markdown_alias_function.__doc__.index('!!! warning "Deprecated in 0.1"')
+        args_idx = old_markdown_alias_function.__doc__.index("Args:")
         assert notice_idx < args_idx
 
     def test_remove_version_line_omitted_when_remove_in_is_empty(self) -> None:

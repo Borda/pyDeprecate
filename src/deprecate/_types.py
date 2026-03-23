@@ -6,7 +6,7 @@ than silently returning ``None`` at runtime.
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
@@ -34,7 +34,7 @@ class DeprecationConfig:
     name: str = ""
     target: Any = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
-    docstring_style: str = "rst"
+    docstring_style: Literal["rst", "mkdocs"] = "rst"
 
 
 @runtime_checkable

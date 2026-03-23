@@ -30,6 +30,9 @@ class RuntimeDocstrings(griffe.Extension):
         runtime value so that mkdocstrings renders the injected notice.
         """
         # Add the module's parent directory to sys.path so importlib can find it.
+        # NOTE: this permanently mutates the process-wide sys.path for every module
+        # Griffe visits.  Safe for this demo (known, isolated paths), but not suitable
+        # for large packages where name collisions with stdlib/site-packages are possible.
         if mod.filepath:
             mod_dir = str(Path(mod.filepath).parent)
             if mod_dir not in sys.path:

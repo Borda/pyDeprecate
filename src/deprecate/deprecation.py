@@ -15,7 +15,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 from functools import partial, wraps
 from inspect import Parameter
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
 from deprecate._docs import _update_docstring_with_deprecation, normalize_docstring_style
@@ -442,7 +442,7 @@ def deprecated(
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
-    docstring_style: str = "rst",
+    docstring_style: Literal["rst", "mkdocs", "markdown"] = "rst",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target.
 
@@ -495,6 +495,7 @@ def deprecated(
             - ``"rst"``: Sphinx-style ``.. deprecated::`` directive (default)
             - ``"mkdocs"`` or ``"markdown"``: Markdown admonition
               ``!!! warning "Deprecated in X"``
+            Validated eagerly at decoration time regardless of ``update_docstring``.
 
     Returns:
         Decorator function that wraps the source function/method.

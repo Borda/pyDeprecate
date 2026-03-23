@@ -431,10 +431,28 @@ class TestDocstringStyleValidation:
                 deprecated_in="1.0",
                 remove_in="2.0",
                 update_docstring=True,
-                docstring_style="unsupported-style",
+                docstring_style="unsupported-style",  # type: ignore[arg-type]
             )
             def some_func() -> None:
                 """A function."""
+
+    @pytest.mark.parametrize("style", ["RST", "MKDOCS", "Markdown", "MkDocs"])
+    def test_case_insensitive_normalization(self, style: str) -> None:
+        """``docstring_style`` values are matched case-insensitively."""
+        from deprecate._docs import normalize_docstring_style
+
+        assert normalize_docstring_style(style) in ("rst", "mkdocs")
+
+    def test_update_docstring_idempotent(self) -> None:
+        """Calling ``_update_docstring_with_deprecation`` twice must not duplicate the notice."""
+
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True)
+        def some_func() -> None:
+            """A function."""
+
+        original_doc = some_func.__doc__
+        docs._update_docstring_with_deprecation(some_func)
+        assert some_func.__doc__ == original_doc
 
 
 class TestNumpyUnderlineDetection:

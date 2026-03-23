@@ -519,6 +519,9 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
                 "target_text": target_text,
             }
         )
+    # Idempotency guard: skip if the general notice is already present.
+    if deprecation_lines and any(deprecation_lines[0].strip() in ln for ln in lines):
+        return
     # When args_mapping is involved, always append at the end (preserving section order).
     # For pure function deprecations (no args_mapping), insert before the first section.
     if dep_info.args_mapping:
