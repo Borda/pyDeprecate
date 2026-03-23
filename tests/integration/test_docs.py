@@ -24,168 +24,226 @@ class TestDeprecationDocstrings:
     """Tests for deprecation documentation strings."""
 
     def test_deprecated_func_docstring(self) -> None:
-        """Test that deprecated functions have deprecation warning in their docstring."""
+        """Deprecated function docstring gets a ``.. deprecated::`` block appended."""
         assert old_function.__doc__ == (
-            "An old function that is deprecated.\n\n"
+            "An old function that is deprecated.\n"
+            "\n"
             ".. deprecated:: 0.1\n"
             "   Will be removed in 0.3.\n"
             "   Use :func:`tests.collection_docstrings.new_function` instead.\n"
         )
 
     def test_deprecated_func_docstring_plain(self) -> None:
-        """Test that deprecated functions without docstrings do not have docstrings added."""
+        """Function without docstring is left with ``__doc__ = None``."""
         assert old_function_plain.__doc__ is None
 
     def test_deprecated_class_docstring(self) -> None:
-        """Test that deprecated classes have deprecation warning in their __init__ docstring."""
+        """Deprecated __init__ gets a ``.. deprecated::`` block appended."""
         assert OldClass.__init__.__doc__ == (
-            "Initialize the old class.\n\n"
+            "Initialize the old class.\n"
+            "\n"
             ".. deprecated:: 0.2\n"
             "   Will be removed in 0.4.\n"
             "   Use :class:`tests.collection_docstrings.NewClass` instead.\n"
         )
 
     def test_deprecated_class_docstring_plain(self) -> None:
-        """Test that deprecated classes without docstrings do not have docstrings added."""
+        """__init__ without docstring is left with ``__doc__ = None``."""
         assert getattr(OldClassPlain.__init__, "__doc__") is None
 
 
 class TestArgsDocstringAnnotation:
-    """Tests for inline arg deprecation annotations in docstrings."""
+    """Full-docstring equality checks for inline arg deprecation annotations."""
 
-    def test_google_args_removed_inlines_note(self) -> None:
-        """Removed arg gets an inline note in the Google-style Args section."""
-        doc = google_args_removed.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-        # The note should appear after the train_config entry
-        tc_pos = doc.index("train_config")
-        note_pos = doc.index("Deprecated since v1.8")
-        assert note_pos > tc_pos
+    def test_google_args_removed(self) -> None:
+        """Removed arg: inline note inserted under the arg; no general block appended."""
+        assert google_args_removed.__doc__ == (
+            "Train the model.\n"
+            "\n"
+            "    Args:\n"
+            "        lr: Learning rate for training.\n"
+            "        train_config: Training configuration object.\n"
+            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "\n"
+            "    Returns:\n"
+            "        Training result.\n"
+            "    "
+        )
 
-    def test_google_args_removed_no_general_notice(self) -> None:
-        """When all args are found inline, no general ``.. deprecated::`` notice is appended."""
-        doc = google_args_removed.__doc__
-        assert doc is not None
-        assert ".. deprecated::" not in doc
+    def test_google_args_renamed(self) -> None:
+        """Renamed arg: inline note names the replacement; no general block appended."""
+        assert google_args_renamed.__doc__ == (
+            "Train the model.\n"
+            "\n"
+            "    Args:\n"
+            "        lr: Learning rate for training.\n"
+            "        train_config: Old configuration parameter.\n"
+            "            Deprecated since v1.8 — use `config` instead. Will be removed in v1.9.\n"
+            "        config: New configuration parameter.\n"
+            "\n"
+            "    Returns:\n"
+            "        Training result.\n"
+            "    "
+        )
 
-    def test_google_args_renamed_inlines_note(self) -> None:
-        """Renamed arg gets an inline note referencing the new arg name."""
-        doc = google_args_renamed.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — use `config` instead. Will be removed in v1.9." in doc
+    def test_sphinx_args_removed(self) -> None:
+        """Sphinx-style: note inserted under ``:param``; no general block appended."""
+        assert sphinx_args_removed.__doc__ == (
+            "Train the model.\n"
+            "\n"
+            "    :param lr: Learning rate for training.\n"
+            "    :param train_config: Training configuration object.\n"
+            "        Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "    :returns: Training result.\n"
+            "    "
+        )
 
-    def test_google_args_renamed_no_general_notice(self) -> None:
-        """When all args are found inline, no general ``.. deprecated::`` notice is appended."""
-        doc = google_args_renamed.__doc__
-        assert doc is not None
-        assert ".. deprecated::" not in doc
+    def test_args_not_in_docstring(self) -> None:
+        """Arg absent from the docstring falls back to a general ``.. deprecated::`` block."""
+        assert args_not_in_docstring.__doc__ == (
+            "Train the model.\n"
+            "\n"
+            "    Args:\n"
+            "        lr: Learning rate for training.\n"
+            "    \n"
+            "\n"
+            ".. deprecated:: 1.8\n"
+            "   Will be removed in 1.9.\n"
+            "   \n"
+        )
 
-    def test_sphinx_args_removed_inlines_note(self) -> None:
-        """Removed arg gets an inline note beneath its ``:param`` field."""
-        doc = sphinx_args_removed.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-        param_pos = doc.index(":param train_config:")
-        note_pos = doc.index("Deprecated since v1.8")
-        assert note_pos > param_pos
+    def test_google_multi_args_all_found(self) -> None:
+        """Both deprecated args annotated inline in declaration order; no general block."""
+        assert google_multi_args_all_found.__doc__ == (
+            "Run with two deprecated args, both present in the docstring.\n"
+            "\n"
+            "    Args:\n"
+            "        new_a (int): The replacement for old_a.\n"
+            "        old_a (int): The first deprecated argument.\n"
+            "            Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9.\n"
+            "        old_b (str): The second deprecated argument.\n"
+            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "\n"
+            "    Returns:\n"
+            "        Result.\n"
+            "    "
+        )
 
-    def test_sphinx_args_removed_no_general_notice(self) -> None:
-        """When all args are found inline, no general ``.. deprecated::`` notice is appended."""
-        doc = sphinx_args_removed.__doc__
-        assert doc is not None
-        assert ".. deprecated::" not in doc
+    def test_google_partial_annotation(self) -> None:
+        """One arg found inline, one missing: inline note present AND general block appended."""
+        assert google_partial_annotation.__doc__ == (
+            "Run with two deprecated args, only one present in the docstring.\n"
+            "\n"
+            "    Args:\n"
+            "        new_a: The replacement for old_a.\n"
+            "        old_a: The first deprecated argument.\n"
+            "            Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9.\n"
+            "\n"
+            "    Returns:\n"
+            "        Result.\n"
+            "    \n"
+            "\n"
+            ".. deprecated:: 1.8\n"
+            "   Will be removed in 1.9.\n"
+            "   \n"
+        )
 
-    def test_fallback_for_arg_not_in_docstring(self) -> None:
-        """Arg not found in docstring triggers the general ``.. deprecated::`` fallback notice."""
-        doc = args_not_in_docstring.__doc__
-        assert doc is not None
-        assert ".. deprecated:: 1.8" in doc
-        assert "Will be removed in 1.9." in doc
+    def test_google_arguments_header(self) -> None:
+        """``Arguments:`` header treated identically to ``Args:``."""
+        assert google_arguments_header.__doc__ == (
+            "Train the model using the ``Arguments:`` section header variant.\n"
+            "\n"
+            "    Arguments:\n"
+            "        lr: Learning rate for training.\n"
+            "        train_config: Training configuration object.\n"
+            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "\n"
+            "    Returns:\n"
+            "        Training result.\n"
+            "    "
+        )
 
-    def test_multi_args_all_found_inline(self) -> None:
-        """Both deprecated args annotated inline; no general notice appended."""
-        doc = google_multi_args_all_found.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9." in doc
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-        assert ".. deprecated::" not in doc
-        # Each note appears after its own arg entry
-        old_a_pos = doc.index("old_a")
-        old_b_pos = doc.index("old_b")
-        new_a_note_pos = doc.index("use `new_a`")
-        removed_note_pos = doc.index("no longer used")
-        assert new_a_note_pos > old_a_pos
-        assert removed_note_pos > old_b_pos
+    def test_sphinx_arg_not_in_docstring(self) -> None:
+        """Sphinx-style: absent param falls back to a general ``.. deprecated::`` block."""
+        assert sphinx_arg_not_in_docstring.__doc__ == (
+            "Train the model.\n"
+            "\n"
+            "    :param lr: Learning rate for training.\n"
+            "    :returns: Training result.\n"
+            "    \n"
+            "\n"
+            ".. deprecated:: 1.8\n"
+            "   Will be removed in 1.9.\n"
+            "   \n"
+        )
 
-    def test_partial_annotation_mixed_state(self) -> None:
-        """First arg found inline; second arg missing triggers the general notice on top."""
-        doc = google_partial_annotation.__doc__
-        assert doc is not None
-        # The found arg (old_a) gets an inline note
-        assert "Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9." in doc
-        # The missing arg (missing_b) triggers the general .. deprecated:: block
-        assert ".. deprecated:: 1.8" in doc
+    def test_google_args_multiline(self) -> None:
+        """Note appended after all continuation lines of a multiline arg description."""
+        assert google_args_multiline.__doc__ == (
+            "Train the model with a multiline arg description.\n"
+            "\n"
+            "    Args:\n"
+            "        lr: Learning rate for training.\n"
+            "            Must be a positive float.\n"
+            "        train_config: Training configuration object.\n"
+            "            Passed directly to the trainer.\n"
+            "            Ignored when ``None``.\n"
+            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "\n"
+            "    Returns:\n"
+            "        Training result.\n"
+            "    "
+        )
 
-    def test_arguments_header_variant(self) -> None:
-        """``Arguments:`` section header is handled identically to ``Args:``."""
-        doc = google_arguments_header.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-        assert ".. deprecated::" not in doc
+    def test_sphinx_args_multiline(self) -> None:
+        """Note appended after all continuation lines of a multiline Sphinx param."""
+        assert sphinx_args_multiline.__doc__ == (
+            "Train the model with a multiline Sphinx param description.\n"
+            "\n"
+            "    :param lr: Learning rate for training.\n"
+            "        Must be a positive float.\n"
+            "    :param train_config: Training configuration object.\n"
+            "        Passed directly to the trainer.\n"
+            "        Ignored when ``None``.\n"
+            "        Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "    :returns: Training result.\n"
+            "    "
+        )
 
-    def test_sphinx_fallback_for_arg_not_in_docstring(self) -> None:
-        """Sphinx-style: arg absent from ``:param`` fields falls back to general notice."""
-        doc = sphinx_arg_not_in_docstring.__doc__
-        assert doc is not None
-        assert ".. deprecated:: 1.8" in doc
-        assert "Will be removed in 1.9." in doc
+    def test_callable_target_with_args_mapping(self) -> None:
+        """Callable target: inline note inserted AND general block appended with :func: ref."""
+        assert callable_target_with_args_mapping.__doc__ == (
+            "Forward calls to new_function with a deprecated argument removed.\n"
+            "\n"
+            "    Args:\n"
+            "        a: The main integer input.\n"
+            "        b: Deprecated configuration string — will be removed.\n"
+            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "\n"
+            "    Returns:\n"
+            "        Forwarded result.\n"
+            "    \n"
+            "\n"
+            ".. deprecated:: 1.8\n"
+            "   Will be removed in 1.9.\n"
+            "   Use :func:`tests.collection_docstrings.new_function` instead.\n"
+        )
 
-    def test_callable_target_with_args_mapping_has_inline_note(self) -> None:
-        """Callable target + args_mapping: deprecated arg gets inline annotation."""
-        doc = callable_target_with_args_mapping.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-
-    def test_callable_target_with_args_mapping_keeps_general_notice(self) -> None:
-        """Callable target + args_mapping: general ``.. deprecated::`` block is still present."""
-        doc = callable_target_with_args_mapping.__doc__
-        assert doc is not None
-        assert ".. deprecated:: 1.8" in doc
-        assert "Will be removed in 1.9." in doc
-        assert "Use :func:" in doc
-
-    def test_no_target_with_args_mapping_has_inline_note(self) -> None:
-        """target=None + args_mapping: deprecated arg gets inline annotation."""
-        doc = no_target_with_args_mapping.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-
-    def test_no_target_with_args_mapping_keeps_general_notice(self) -> None:
-        """target=None + args_mapping: general ``.. deprecated::`` block is still present."""
-        doc = no_target_with_args_mapping.__doc__
-        assert doc is not None
-        assert ".. deprecated:: 1.8" in doc
-        assert "Will be removed in 1.9." in doc
-
-    def test_google_args_multiline_inlines_note_after_continuation(self) -> None:
-        """Deprecated arg with multiline description gets the note after the last continuation line."""
-        doc = google_args_multiline.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-        # Note must appear after the last continuation line of the train_config entry
-        last_continuation_pos = doc.index("Ignored when")
-        note_pos = doc.index("Deprecated since v1.8")
-        assert note_pos > last_continuation_pos
-        assert ".. deprecated::" not in doc
-
-    def test_sphinx_args_multiline_inlines_note_after_continuation(self) -> None:
-        """Sphinx deprecated param with multiline description gets the note after the last continuation line."""
-        doc = sphinx_args_multiline.__doc__
-        assert doc is not None
-        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
-        # Note must appear after the last continuation line of the train_config param
-        last_continuation_pos = doc.index("Ignored when")
-        note_pos = doc.index("Deprecated since v1.8")
-        assert note_pos > last_continuation_pos
-        assert ".. deprecated::" not in doc
+    def test_no_target_with_args_mapping(self) -> None:
+        """target=None: inline note inserted AND general block appended (no :func: ref)."""
+        assert no_target_with_args_mapping.__doc__ == (
+            "Warning-only deprecation with a deprecated argument.\n"
+            "\n"
+            "    Args:\n"
+            "        a: The main integer input.\n"
+            "        b: Deprecated configuration string — will be removed.\n"
+            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
+            "\n"
+            "    Returns:\n"
+            "        Result.\n"
+            "    \n"
+            "\n"
+            ".. deprecated:: 1.8\n"
+            "   Will be removed in 1.9.\n"
+            "   \n"
+        )
