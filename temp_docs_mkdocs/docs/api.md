@@ -1,14 +1,14 @@
 # API Reference
 
 The examples below are rendered directly from the `demo` module included in
-this documentation tree.  Each function carries `@deprecated(update_docstring=True)`
+this documentation tree. Each function carries `@deprecated(update_docstring=True)`
 so you can see exactly how the injected notice looks once rendered.
 
----
+______________________________________________________________________
 
 ## RST / Sphinx style (default)
 
-These functions use `docstring_style="rst"` (the default).  The injected
+These functions use `docstring_style="rst"` (the default). The injected
 `.. deprecated::` directive will render as a *Deprecated* box in Sphinx but
 appears as plain text here – that is expected when viewing in MkDocs.
 
@@ -24,11 +24,11 @@ appears as plain text here – that is expected when viewing in MkDocs.
 
 ::: demo.old_rst_numpy_sections
 
----
+______________________________________________________________________
 
 ## MkDocs / Markdown style
 
-These functions use `docstring_style="mkdocs"`.  The injected
+These functions use `docstring_style="mkdocs"`. The injected
 `!!! warning` admonition renders as a highlighted warning box in
 MkDocs Material.
 
