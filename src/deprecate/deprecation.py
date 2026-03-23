@@ -474,6 +474,127 @@ def _build_arg_deprecation_note(new_arg: Optional[str], deprecated_in: str, remo
     return note
 
 
+def _find_google_args_section(lines: list[str]) -> tuple[int, int]:
+    """Return ``(section_start, section_indent)`` for a Google-style ``Args:`` header.
+
+    Scans *lines* for an ``Args:`` or ``Arguments:`` header and returns its line
+    index and leading indentation.  Returns ``(-1, 0)`` when not found.
+
+    Args:
+        lines: Docstring already split into individual lines.
+
+    Returns:
+        A 2-tuple ``(section_start, section_indent)``.
+
+    """
+    for i, line in enumerate(lines):
+        if line.strip() in ("Args:", "Arguments:"):
+            return i, len(line) - len(line.lstrip())
+    return -1, 0
+
+
+def _get_google_arg_indents(lines: list[str], section_start: int, section_indent: int) -> tuple[int, int]:
+    """Return ``(arg_indent, continuation_indent)`` for a Google-style Args section.
+
+    *arg_indent* is the column at which individual argument entries begin.
+    *continuation_indent* is the column used for continuation lines within an
+    argument entry (defaults to ``arg_indent + 4`` when not detectable).
+    Returns ``(-1, -1)`` when the section has no non-empty child lines.
+
+    Args:
+        lines: Docstring already split into individual lines.
+        section_start: Line index of the ``Args:`` / ``Arguments:`` header.
+        section_indent: Leading indentation of that header line.
+
+    Returns:
+        A 2-tuple ``(arg_indent, continuation_indent)``.
+
+    """
+    arg_indent = -1
+    for i in range(section_start + 1, len(lines)):
+        if lines[i].strip():
+            current_indent = len(lines[i]) - len(lines[i].lstrip())
+            if current_indent > section_indent:
+                arg_indent = current_indent
+            break
+
+    if arg_indent == -1:
+        return -1, -1
+
+    continuation_indent = arg_indent + 4
+    for i in range(section_start + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            continue
+        current_indent = len(line) - len(line.lstrip())
+        if current_indent <= section_indent:
+            break
+        if current_indent > arg_indent:
+            continuation_indent = current_indent
+            break
+
+    return arg_indent, continuation_indent
+
+
+def _find_google_arg_line(
+    lines: list[str], section_start: int, section_indent: int, arg_indent: int, arg_name: str
+) -> int:
+    """Return the line index of *arg_name* inside a Google-style Args section.
+
+    Returns ``-1`` when *arg_name* is not found within the section.
+
+    Args:
+        lines: Docstring already split into individual lines.
+        section_start: Line index of the ``Args:`` / ``Arguments:`` header.
+        section_indent: Leading indentation of that header line.
+        arg_indent: Leading indentation of argument entry lines.
+        arg_name: Name of the argument to locate.
+
+    Returns:
+        Line index of the matching argument entry, or ``-1``.
+
+    """
+    for i in range(section_start + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            continue
+        current_indent = len(line) - len(line.lstrip())
+        if current_indent <= section_indent:
+            break
+        if current_indent == arg_indent:
+            rest = line[arg_indent:]
+            has_arg_boundary = len(rest) > len(arg_name) and rest[len(arg_name)] in " :(,"
+            if rest == arg_name or (rest.startswith(arg_name) and has_arg_boundary):
+                return i
+    return -1
+
+
+def _find_entry_end(lines: list[str], entry_idx: int, entry_indent: int) -> int:
+    """Return the index of the last continuation line for a docstring entry.
+
+    Scans forward from *entry_idx + 1* and stops at the first blank line or
+    the first line whose indentation is ``<= entry_indent``.
+
+    Args:
+        lines: Docstring already split into individual lines.
+        entry_idx: Line index of the entry's opening line.
+        entry_indent: Leading indentation of that opening line.
+
+    Returns:
+        Index of the last line belonging to the entry (>= *entry_idx*).
+
+    """
+    end_idx = entry_idx
+    for i in range(entry_idx + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            break
+        if len(line) - len(line.lstrip()) <= entry_indent:
+            break
+        end_idx = i
+    return end_idx
+
+
 def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tuple[list[str], bool]:
     """Find *arg_name* in a Google-style ``Args:`` section and insert *note* below it.
 
@@ -490,74 +611,19 @@ def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tu
         argument was located and the note was successfully inserted.
 
     """
-    # Locate the Args: / Arguments: section header.
-    section_start = -1
-    section_indent = 0
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped in ("Args:", "Arguments:"):
-            section_indent = len(line) - len(line.lstrip())
-            section_start = i
-            break
-
+    section_start, section_indent = _find_google_args_section(lines)
     if section_start == -1:
         return lines, False
 
-    # Determine indentation used for arg entries (first non-empty child line).
-    arg_indent = -1
-    for i in range(section_start + 1, len(lines)):
-        if lines[i].strip():
-            current_indent = len(lines[i]) - len(lines[i].lstrip())
-            if current_indent > section_indent:
-                arg_indent = current_indent
-            break  # stop after the first non-empty child line to establish arg indentation
-
+    arg_indent, continuation_indent = _get_google_arg_indents(lines, section_start, section_indent)
     if arg_indent == -1:
         return lines, False
 
-    # Detect continuation indent from the first continuation line we can find.
-    continuation_indent = arg_indent + 4
-    for i in range(section_start + 1, len(lines)):
-        line = lines[i]
-        if not line.strip():
-            continue
-        current_indent = len(line) - len(line.lstrip())
-        if current_indent <= section_indent:
-            break
-        if current_indent > arg_indent:
-            continuation_indent = current_indent
-            break
-
-    # Find the target arg entry line.
-    arg_line_idx = -1
-    for i in range(section_start + 1, len(lines)):
-        line = lines[i]
-        if not line.strip():
-            continue
-        current_indent = len(line) - len(line.lstrip())
-        if current_indent <= section_indent:
-            break  # left the Args section
-        if current_indent == arg_indent:
-            rest = line[arg_indent:]
-            has_arg_boundary = len(rest) > len(arg_name) and rest[len(arg_name)] in " :(,"
-            if rest == arg_name or (rest.startswith(arg_name) and has_arg_boundary):
-                arg_line_idx = i
-                break
-
+    arg_line_idx = _find_google_arg_line(lines, section_start, section_indent, arg_indent, arg_name)
     if arg_line_idx == -1:
         return lines, False
 
-    # Find the last continuation line belonging to this arg entry.
-    end_idx = arg_line_idx
-    for i in range(arg_line_idx + 1, len(lines)):
-        line = lines[i]
-        if not line.strip():
-            break  # blank line terminates the entry
-        current_indent = len(line) - len(line.lstrip())
-        if current_indent <= arg_indent:
-            break  # next arg or new section
-        end_idx = i
-
+    end_idx = _find_entry_end(lines, arg_line_idx, arg_indent)
     note_line = " " * continuation_indent + note
     new_lines = lines[: end_idx + 1] + [note_line] + lines[end_idx + 1 :]
     return new_lines, True
@@ -593,17 +659,7 @@ def _annotate_sphinx_style_arg(lines: list[str], arg_name: str, note: str) -> tu
     if param_line_idx == -1:
         return lines, False
 
-    # Find the last continuation line of this :param field.
-    end_idx = param_line_idx
-    for i in range(param_line_idx + 1, len(lines)):
-        line = lines[i]
-        if not line.strip():
-            break
-        current_indent = len(line) - len(line.lstrip())
-        if current_indent <= param_indent:
-            break
-        end_idx = i
-
+    end_idx = _find_entry_end(lines, param_line_idx, param_indent)
     note_line = " " * (param_indent + 4) + note
     new_lines = lines[: end_idx + 1] + [note_line] + lines[end_idx + 1 :]
     return new_lines, True
