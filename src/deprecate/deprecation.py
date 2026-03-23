@@ -13,6 +13,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import re
 from functools import partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
@@ -437,6 +438,166 @@ def _raise_warn_arguments(
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
 
 
+def _build_arg_deprecation_note(new_arg: Optional[str], deprecated_in: str, remove_in: str) -> str:
+    """Build an inline deprecation note string for a single deprecated argument.
+
+    Args:
+        new_arg: Replacement argument name, or ``None`` when the argument is simply removed.
+        deprecated_in: Version string when the argument was deprecated (e.g. ``"1.8"``).
+        remove_in: Version string when the argument will be removed (e.g. ``"1.9"``).
+
+    Returns:
+        A one-line deprecation note suitable for embedding in a docstring.
+
+    Example:
+        >>> _build_arg_deprecation_note(None, "1.8", "1.9")
+        'Deprecated since v1.8 — no longer used. Will be removed in v1.9.'
+        >>> _build_arg_deprecation_note("new_arg", "1.8", "1.9")
+        'Deprecated since v1.8 — use `new_arg` instead. Will be removed in v1.9.'
+
+    """
+    reason = f"use `{new_arg}` instead" if new_arg else "no longer used"
+    note = f"Deprecated since v{deprecated_in} \u2014 {reason}." if deprecated_in else f"Deprecated \u2014 {reason}."
+    if remove_in:
+        note += f" Will be removed in v{remove_in}."
+    return note
+
+
+def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tuple[list[str], bool]:
+    """Find *arg_name* in a Google-style ``Args:`` section and insert *note* below it.
+
+    Supports both ``Args:`` and ``Arguments:`` section headers.  Returns the
+    original list unchanged when no matching section or argument entry is found.
+
+    Args:
+        lines: Docstring already split into individual lines.
+        arg_name: Name of the deprecated argument to locate.
+        note: Text to insert as a continuation line under the matched entry.
+
+    Returns:
+        A 2-tuple ``(new_lines, found)`` where *found* is ``True`` when the
+        argument was located and the note was successfully inserted.
+
+    """
+    # Locate the Args: / Arguments: section header.
+    section_start = -1
+    section_indent = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped in ("Args:", "Arguments:"):
+            section_indent = len(line) - len(line.lstrip())
+            section_start = i
+            break
+
+    if section_start == -1:
+        return lines, False
+
+    # Determine indentation used for arg entries (first non-empty child line).
+    arg_indent = -1
+    for i in range(section_start + 1, len(lines)):
+        if lines[i].strip():
+            current_indent = len(lines[i]) - len(lines[i].lstrip())
+            if current_indent > section_indent:
+                arg_indent = current_indent
+            break  # stop after the first non-empty child line to establish arg indentation
+
+    if arg_indent == -1:
+        return lines, False
+
+    # Detect continuation indent from the first continuation line we can find.
+    continuation_indent = arg_indent + 4
+    for i in range(section_start + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            continue
+        current_indent = len(line) - len(line.lstrip())
+        if current_indent <= section_indent:
+            break
+        if current_indent > arg_indent:
+            continuation_indent = current_indent
+            break
+
+    # Find the target arg entry line.
+    arg_line_idx = -1
+    for i in range(section_start + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            continue
+        current_indent = len(line) - len(line.lstrip())
+        if current_indent <= section_indent:
+            break  # left the Args section
+        if current_indent == arg_indent:
+            rest = line[arg_indent:]
+            has_arg_boundary = len(rest) > len(arg_name) and rest[len(arg_name)] in " :(,"
+            if rest == arg_name or (rest.startswith(arg_name) and has_arg_boundary):
+                arg_line_idx = i
+                break
+
+    if arg_line_idx == -1:
+        return lines, False
+
+    # Find the last continuation line belonging to this arg entry.
+    end_idx = arg_line_idx
+    for i in range(arg_line_idx + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            break  # blank line terminates the entry
+        current_indent = len(line) - len(line.lstrip())
+        if current_indent <= arg_indent:
+            break  # next arg or new section
+        end_idx = i
+
+    note_line = " " * continuation_indent + note
+    new_lines = lines[: end_idx + 1] + [note_line] + lines[end_idx + 1 :]
+    return new_lines, True
+
+
+def _annotate_sphinx_style_arg(lines: list[str], arg_name: str, note: str) -> tuple[list[str], bool]:
+    """Find ``:param arg_name:`` in a Sphinx-style docstring and insert *note* below it.
+
+    Supports both ``:param arg_name:`` and ``:param SomeType arg_name:`` forms.
+    Returns the original list unchanged when no matching ``:param`` field is found.
+
+    Args:
+        lines: Docstring already split into individual lines.
+        arg_name: Name of the deprecated argument to locate.
+        note: Text to insert as a continuation line under the matched field.
+
+    Returns:
+        A 2-tuple ``(new_lines, found)`` where *found* is ``True`` when the
+        parameter was located and the note was successfully inserted.
+
+    """
+    pattern = re.compile(r"^(\s*):param\s+(?:\S+\s+)?" + re.escape(arg_name) + r"\s*:")
+
+    param_line_idx = -1
+    param_indent = 0
+    for i, line in enumerate(lines):
+        m = pattern.match(line)
+        if m:
+            param_line_idx = i
+            param_indent = len(m.group(1))
+            break
+
+    if param_line_idx == -1:
+        return lines, False
+
+    # Find the last continuation line of this :param field.
+    end_idx = param_line_idx
+    for i in range(param_line_idx + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            break
+        current_indent = len(line) - len(line.lstrip())
+        if current_indent <= param_indent:
+            break
+        end_idx = i
+
+    note_line = " " * (param_indent + 4) + note
+    new_lines = lines[: end_idx + 1] + [note_line] + lines[end_idx + 1 :]
+    return new_lines, True
+
+
 def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     """Append deprecation notice to function's docstring in reStructuredText format.
 
@@ -491,6 +652,22 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         return
     lines = wrapped_fn.__doc__.splitlines()
     dep_info = cast(DeprecationConfig, getattr(wrapped_fn, "__deprecated__"))
+
+    # When args_mapping is present, try to annotate each deprecated argument inline.
+    if dep_info.args_mapping:
+        needs_general_notice = False
+        for arg_name, new_arg in dep_info.args_mapping.items():
+            note = _build_arg_deprecation_note(new_arg, dep_info.deprecated_in, dep_info.remove_in)
+            lines, found = _annotate_google_style_arg(lines, arg_name, note)
+            if not found:
+                lines, found = _annotate_sphinx_style_arg(lines, arg_name, note)
+            if not found:
+                # Arg not found in docstring — fall back to the general notice.
+                needs_general_notice = True
+        if not needs_general_notice:
+            wrapped_fn.__doc__ = "\n".join(lines)
+            return
+
     remove_in_val = dep_info.remove_in
     target_val = dep_info.target
     remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
