@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 class DeprecationConfig:
     """Static deprecation metadata attached to deprecated callables as ``__deprecated__``.
 
-    All five fields are always set — both ``@deprecated``-decorated functions and
+    All fields are always set — both ``@deprecated``-decorated functions and
     :class:`~deprecate.proxy._DeprecatedProxy` objects use this unified schema.
 
     Attributes:

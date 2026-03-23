@@ -140,7 +140,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         <BLANKLINE>
         .. deprecated:: 1.0
            Will be removed in 2.0.
-           Use :func:`deprecate._docs.new_func` instead.
+           Use :func:`...new_func` instead.
 
     Note:
         Does nothing if the function has no docstring or no ``__deprecated__`` attribute.

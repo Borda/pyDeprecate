@@ -488,8 +488,9 @@ def deprecated(
             - ``bool``: Static condition (True = skip deprecation)
             - ``Callable``: Function returning bool (checked at runtime, must return bool)
             If condition is True, original function executes without warning.
-        update_docstring: If True, automatically append deprecation information to
-            the function's docstring. By default, notices use reStructuredText (Sphinx).
+        update_docstring: If True, automatically inject a deprecation notice into
+            the function's docstring (inserted before Google/NumPy-style sections when present,
+            otherwise appended at the end). By default, notices use reStructuredText (Sphinx).
         docstring_style: Output style for injected deprecation notice when
             ``update_docstring=True``. Supported values:
             - ``"rst"``: Sphinx-style ``.. deprecated::`` directive (default)
