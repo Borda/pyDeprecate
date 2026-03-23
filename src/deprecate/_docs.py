@@ -205,7 +205,7 @@ def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tu
 
     The note is inserted as a continuation line directly after the matched entry::
 
-        Args:
+    Args:
             lr (float): Learning rate.
             old_cfg (object): Old config.
                 Deprecated — use cfg instead.  # <-- inserted here

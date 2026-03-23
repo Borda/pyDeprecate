@@ -416,5 +416,3 @@ class TestCrossClassMethodGuard:
             old = CrossGuardOldClass(3)
         assert isinstance(old, CrossGuardOldClass)
         assert old.x == 3
-
-
