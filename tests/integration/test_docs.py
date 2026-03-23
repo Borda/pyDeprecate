@@ -30,7 +30,7 @@ def _normalize_doc(doc: Optional[str]) -> Optional[str]:
     earlier versions preserve it.  ``inspect.cleandoc`` alone cannot normalise a
     docstring that already contains a ``.. deprecated::`` directive at column 0,
     because that zero-indent line sets the minimum and prevents any stripping.
-    This helper splits on the notice separator, cleansdocs the body, then
+    This helper splits on the notice separator, cleandocs the body, then
     re-attaches the notice so both halves are handled correctly.
     """
     if doc is None:
@@ -47,15 +47,13 @@ class TestDeprecationDocstrings:
 
     def test_deprecated_func_docstring(self) -> None:
         """Deprecated function docstring gets a ``.. deprecated::`` block appended."""
-        assert (
-            _normalize_doc(old_function.__doc__)
-            == """An old function that is deprecated.
+        expected = """An old function that is deprecated.
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
    Use :func:`tests.collection_docstrings.new_function` instead.
 """
-        )
+        assert _normalize_doc(old_function.__doc__) == expected
 
     def test_deprecated_func_docstring_plain(self) -> None:
         """Function without docstring is left with ``__doc__ = None``."""
@@ -63,15 +61,13 @@ class TestDeprecationDocstrings:
 
     def test_deprecated_class_docstring(self) -> None:
         """Deprecated __init__ gets a ``.. deprecated::`` block appended."""
-        assert (
-            _normalize_doc(OldClass.__init__.__doc__)
-            == """Initialize the old class.
+        expected = """Initialize the old class.
 
 .. deprecated:: 0.2
    Will be removed in 0.4.
    Use :class:`tests.collection_docstrings.NewClass` instead.
 """
-        )
+        assert _normalize_doc(OldClass.__init__.__doc__) == expected
 
     def test_deprecated_class_docstring_plain(self) -> None:
         """__init__ without docstring is left with ``__doc__ = None``."""
@@ -83,9 +79,7 @@ class TestArgsDocstringAnnotation:
 
     def test_google_args_removed(self) -> None:
         """Removed arg: inline note inserted under the arg; no general block appended."""
-        assert (
-            _normalize_doc(google_args_removed.__doc__)
-            == """Train the model.
+        expected = """Train the model.
 
 Args:
     lr: Learning rate for training.
@@ -94,13 +88,11 @@ Args:
 
 Returns:
     Training result."""
-        )
+        assert _normalize_doc(google_args_removed.__doc__) == expected
 
     def test_google_args_renamed(self) -> None:
         """Renamed arg: inline note names the replacement; no general block appended."""
-        assert (
-            _normalize_doc(google_args_renamed.__doc__)
-            == """Train the model.
+        expected = """Train the model.
 
 Args:
     lr: Learning rate for training.
@@ -110,25 +102,21 @@ Args:
 
 Returns:
     Training result."""
-        )
+        assert _normalize_doc(google_args_renamed.__doc__) == expected
 
     def test_sphinx_args_removed(self) -> None:
         """Sphinx-style: note inserted under ``:param``; no general block appended."""
-        assert (
-            _normalize_doc(sphinx_args_removed.__doc__)
-            == """Train the model.
+        expected = """Train the model.
 
 :param lr: Learning rate for training.
 :param train_config: Training configuration object.
     Deprecated since v1.8 — no longer used. Will be removed in v1.9.
 :returns: Training result."""
-        )
+        assert _normalize_doc(sphinx_args_removed.__doc__) == expected
 
     def test_args_not_in_docstring(self) -> None:
         """Arg absent from the docstring falls back to a general ``.. deprecated::`` block."""
-        assert (
-            _normalize_doc(args_not_in_docstring.__doc__)
-            == """Train the model.
+        expected = """Train the model.
 
 Args:
     lr: Learning rate for training.
@@ -136,13 +124,11 @@ Args:
 .. deprecated:: 1.8
    Will be removed in 1.9.
 """
-        )
+        assert _normalize_doc(args_not_in_docstring.__doc__) == expected
 
     def test_google_multi_args_all_found(self) -> None:
         """Both deprecated args annotated inline in declaration order; no general block."""
-        assert (
-            _normalize_doc(google_multi_args_all_found.__doc__)
-            == """Run with two deprecated args, both present in the docstring.
+        expected = """Run with two deprecated args, both present in the docstring.
 
 Args:
     new_a (int): The replacement for old_a.
@@ -153,13 +139,11 @@ Args:
 
 Returns:
     Result."""
-        )
+        assert _normalize_doc(google_multi_args_all_found.__doc__) == expected
 
     def test_google_partial_annotation(self) -> None:
         """One arg found inline, one missing: inline note present AND general block appended."""
-        assert (
-            _normalize_doc(google_partial_annotation.__doc__)
-            == """Run with two deprecated args, only one present in the docstring.
+        expected = """Run with two deprecated args, only one present in the docstring.
 
 Args:
     new_a: The replacement for old_a.
@@ -172,13 +156,11 @@ Returns:
 .. deprecated:: 1.8
    Will be removed in 1.9.
 """
-        )
+        assert _normalize_doc(google_partial_annotation.__doc__) == expected
 
     def test_google_arguments_header(self) -> None:
         """``Arguments:`` header treated identically to ``Args:``."""
-        assert (
-            _normalize_doc(google_arguments_header.__doc__)
-            == """Train the model using the ``Arguments:`` section header variant.
+        expected = """Train the model using the ``Arguments:`` section header variant.
 
 Arguments:
     lr: Learning rate for training.
@@ -187,13 +169,11 @@ Arguments:
 
 Returns:
     Training result."""
-        )
+        assert _normalize_doc(google_arguments_header.__doc__) == expected
 
     def test_sphinx_arg_not_in_docstring(self) -> None:
         """Sphinx-style: absent param falls back to a general ``.. deprecated::`` block."""
-        assert (
-            _normalize_doc(sphinx_arg_not_in_docstring.__doc__)
-            == """Train the model.
+        expected = """Train the model.
 
 :param lr: Learning rate for training.
 :returns: Training result.
@@ -201,13 +181,11 @@ Returns:
 .. deprecated:: 1.8
    Will be removed in 1.9.
 """
-        )
+        assert _normalize_doc(sphinx_arg_not_in_docstring.__doc__) == expected
 
     def test_google_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline arg description."""
-        assert (
-            _normalize_doc(google_args_multiline.__doc__)
-            == """Train the model with a multiline arg description.
+        expected = """Train the model with a multiline arg description.
 
 Args:
     lr: Learning rate for training.
@@ -219,13 +197,11 @@ Args:
 
 Returns:
     Training result."""
-        )
+        assert _normalize_doc(google_args_multiline.__doc__) == expected
 
     def test_sphinx_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline Sphinx param."""
-        assert (
-            _normalize_doc(sphinx_args_multiline.__doc__)
-            == """Train the model with a multiline Sphinx param description.
+        expected = """Train the model with a multiline Sphinx param description.
 
 :param lr: Learning rate for training.
     Must be a positive float.
@@ -234,12 +210,11 @@ Returns:
     Ignored when ``None``.
     Deprecated since v1.8 — no longer used. Will be removed in v1.9.
 :returns: Training result."""
-        )
+        assert _normalize_doc(sphinx_args_multiline.__doc__) == expected
 
     def test_callable_target_with_args_mapping(self) -> None:
         """Callable target: inline note inserted AND general block appended with :func: ref."""
-        assert _normalize_doc(callable_target_with_args_mapping.__doc__) == (
-            """Forward calls to new_function with a deprecated argument removed.
+        expected = """Forward calls to new_function with a deprecated argument removed.
 
 Args:
     a: The main integer input.
@@ -253,13 +228,11 @@ Returns:
    Will be removed in 1.9.
    Use :func:`tests.collection_docstrings.new_function` instead.
 """
-        )
+        assert _normalize_doc(callable_target_with_args_mapping.__doc__) == expected
 
     def test_no_target_with_args_mapping(self) -> None:
         """target=None: inline note inserted AND general block appended (no :func: ref)."""
-        assert (
-            _normalize_doc(no_target_with_args_mapping.__doc__)
-            == """Warning-only deprecation with a deprecated argument.
+        expected = """Warning-only deprecation with a deprecated argument.
 
 Args:
     a: The main integer input.
@@ -272,4 +245,4 @@ Returns:
 .. deprecated:: 1.8
    Will be removed in 1.9.
 """
-        )
+        assert _normalize_doc(no_target_with_args_mapping.__doc__) == expected
