@@ -807,7 +807,7 @@ from deprecate import deprecated, void
 
 
 # NEW/FUTURE API — `send_email` adds an explicit `priority` field
-def send_email(to: str, subject: str, priority: str = "normal") -> str:
+def send_email(to: str, subject: str, priority: str) -> str:
     return f"Sent to {to!r}: {subject!r} [{priority}]"
 
 
