@@ -18,6 +18,7 @@ from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
 from warnings import warn
 
+from deprecate._docs import _update_docstring_with_deprecation
 from deprecate._types import DeprecationConfig, _WrapperState
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -39,13 +40,6 @@ TEMPLATE_WARNING_NO_TARGET = (
 )
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
-#: Default template for documentation with deprecated callable
-TEMPLATE_DOC_DEPRECATED = """
-.. deprecated:: %(deprecated_in)s
-   %(remove_text)s
-   %(target_text)s
-"""
-
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
@@ -435,78 +429,6 @@ def _raise_warn_arguments(
     args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
     template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
-
-
-def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
-    """Append deprecation notice to function's docstring in reStructuredText format.
-
-    This helper automatically generates and appends a Sphinx-compatible deprecation
-    notice to the wrapped function's docstring. The notice includes version information
-    and target replacement (if applicable), making it visible in generated API documentation.
-
-    The appended notice follows the Sphinx deprecated directive format:
-        .. deprecated:: <version>
-           Will be removed in <version>.
-           Use `<target>` instead.
-
-    Args:
-        wrapped_fn: Function whose docstring should be updated. Must have
-            __deprecated__ attribute set with deprecation metadata.
-
-    Returns:
-        None. Modifies the function's __doc__ attribute in-place.
-
-    Metadata Used:
-        The function's ``__deprecated__`` attribute should be a
-        :class:`~deprecate._types.DeprecationConfig` instance with:
-        - deprecated_in: Version when deprecated
-        - remove_in: Version when will be removed
-        - target: Replacement callable (optional)
-
-    Example:
-        >>> def new_func(): pass
-        >>> def old_func():
-        ...     '''Original docstring.'''
-        ...     pass
-        >>> old_func.__deprecated__ = DeprecationConfig(
-        ...     deprecated_in='1.0',
-        ...     remove_in='2.0',
-        ...     target=new_func,
-        ... )
-        >>> _update_docstring_with_deprecation(old_func)
-        >>> print(old_func.__doc__) # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
-        Original docstring.
-        <BLANKLINE>
-        .. deprecated:: 1.0
-           Will be removed in 2.0.
-           Use :func:`deprecate.deprecation.new_func` instead.
-
-    Note:
-        Does nothing if the function has no docstring or no __deprecated__ attribute.
-
-    """
-    if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
-        return
-    if not hasattr(wrapped_fn, "__deprecated__"):
-        return
-    lines = wrapped_fn.__doc__.splitlines()
-    dep_info = cast(DeprecationConfig, getattr(wrapped_fn, "__deprecated__"))
-    remove_in_val = dep_info.remove_in
-    target_val = dep_info.target
-    remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
-    target_text = ""
-    if callable(target_val):
-        ref_type = "class" if inspect.isclass(target_val) else "func"
-        target_text = f"Use :{ref_type}:`{target_val.__module__}.{target_val.__name__}` instead."
-    lines.append(
-        TEMPLATE_DOC_DEPRECATED
-        % {
-            "deprecated_in": dep_info.deprecated_in,
-            "remove_text": remove_text,
-            "target_text": target_text,
-        }
-    )
-    wrapped_fn.__doc__ = "\n".join(lines)
 
 
 def deprecated(
