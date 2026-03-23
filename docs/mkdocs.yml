@@ -22,8 +22,8 @@ plugins:
       handlers:
         python:
           paths:
-            - .         # demo.py lives here
-            - ../src    # deprecate package
+            - . # demo.py lives here
+            - ../src # deprecate package
           options:
             show_source: false
             show_root_heading: true
