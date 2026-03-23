@@ -25,13 +25,16 @@ class TestDeprecationDocstrings:
 
     def test_deprecated_func_docstring(self) -> None:
         """Deprecated function docstring gets a ``.. deprecated::`` block appended."""
-        assert old_function.__doc__ == """\
+        assert (
+            old_function.__doc__
+            == """\
 An old function that is deprecated.
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
    Use :func:`tests.collection_docstrings.new_function` instead.
 """
+        )
 
     def test_deprecated_func_docstring_plain(self) -> None:
         """Function without docstring is left with ``__doc__ = None``."""
@@ -39,13 +42,16 @@ An old function that is deprecated.
 
     def test_deprecated_class_docstring(self) -> None:
         """Deprecated __init__ gets a ``.. deprecated::`` block appended."""
-        assert OldClass.__init__.__doc__ == """\
+        assert (
+            OldClass.__init__.__doc__
+            == """\
 Initialize the old class.
 
 .. deprecated:: 0.2
    Will be removed in 0.4.
    Use :class:`tests.collection_docstrings.NewClass` instead.
 """
+        )
 
     def test_deprecated_class_docstring_plain(self) -> None:
         """__init__ without docstring is left with ``__doc__ = None``."""
@@ -55,16 +61,17 @@ Initialize the old class.
 class TestArgsDocstringAnnotation:
     """Full-docstring equality checks for inline arg deprecation annotations.
 
-    Fixtures with trailing whitespace inside the docstring body (``"    \\n"``
-    from the original function's closing ``\"\"\"`` indentation, or ``"   \\n"``
-    from ``TEMPLATE_DOC_DEPRECATED`` when ``target_text`` is empty) use explicit
-    ``\\n`` string concatenation so that the ``trailing-whitespace`` pre-commit
-    hook cannot strip those characters from this source file.
+    Each test asserts the complete ``__doc__`` string produced by
+    ``_update_docstring_with_deprecation``.  Fixtures whose expected value
+    contains trailing-whitespace lines use explicit string concatenation (see
+    inline comments) to survive the ``trailing-whitespace`` pre-commit hook.
     """
 
     def test_google_args_removed(self) -> None:
         """Removed arg: inline note inserted under the arg; no general block appended."""
-        assert google_args_removed.__doc__ == """\
+        assert (
+            google_args_removed.__doc__
+            == """\
 Train the model.
 
     Args:
@@ -75,10 +82,13 @@ Train the model.
     Returns:
         Training result.
     """
+        )
 
     def test_google_args_renamed(self) -> None:
         """Renamed arg: inline note names the replacement; no general block appended."""
-        assert google_args_renamed.__doc__ == """\
+        assert (
+            google_args_renamed.__doc__
+            == """\
 Train the model.
 
     Args:
@@ -90,10 +100,13 @@ Train the model.
     Returns:
         Training result.
     """
+        )
 
     def test_sphinx_args_removed(self) -> None:
         """Sphinx-style: note inserted under ``:param``; no general block appended."""
-        assert sphinx_args_removed.__doc__ == """\
+        assert (
+            sphinx_args_removed.__doc__
+            == """\
 Train the model.
 
     :param lr: Learning rate for training.
@@ -101,6 +114,7 @@ Train the model.
         Deprecated since v1.8 — no longer used. Will be removed in v1.9.
     :returns: Training result.
     """
+        )
 
     def test_args_not_in_docstring(self) -> None:
         """Arg absent from the docstring falls back to a general ``.. deprecated::`` block."""
@@ -120,7 +134,9 @@ Train the model.
 
     def test_google_multi_args_all_found(self) -> None:
         """Both deprecated args annotated inline in declaration order; no general block."""
-        assert google_multi_args_all_found.__doc__ == """\
+        assert (
+            google_multi_args_all_found.__doc__
+            == """\
 Run with two deprecated args, both present in the docstring.
 
     Args:
@@ -133,6 +149,7 @@ Run with two deprecated args, both present in the docstring.
     Returns:
         Result.
     """
+        )
 
     def test_google_partial_annotation(self) -> None:
         """One arg found inline, one missing: inline note present AND general block appended."""
@@ -155,7 +172,9 @@ Run with two deprecated args, both present in the docstring.
 
     def test_google_arguments_header(self) -> None:
         """``Arguments:`` header treated identically to ``Args:``."""
-        assert google_arguments_header.__doc__ == """\
+        assert (
+            google_arguments_header.__doc__
+            == """\
 Train the model using the ``Arguments:`` section header variant.
 
     Arguments:
@@ -166,6 +185,7 @@ Train the model using the ``Arguments:`` section header variant.
     Returns:
         Training result.
     """
+        )
 
     def test_sphinx_arg_not_in_docstring(self) -> None:
         """Sphinx-style: absent param falls back to a general ``.. deprecated::`` block."""
@@ -183,7 +203,9 @@ Train the model using the ``Arguments:`` section header variant.
 
     def test_google_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline arg description."""
-        assert google_args_multiline.__doc__ == """\
+        assert (
+            google_args_multiline.__doc__
+            == """\
 Train the model with a multiline arg description.
 
     Args:
@@ -197,10 +219,13 @@ Train the model with a multiline arg description.
     Returns:
         Training result.
     """
+        )
 
     def test_sphinx_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline Sphinx param."""
-        assert sphinx_args_multiline.__doc__ == """\
+        assert (
+            sphinx_args_multiline.__doc__
+            == """\
 Train the model with a multiline Sphinx param description.
 
     :param lr: Learning rate for training.
@@ -211,6 +236,7 @@ Train the model with a multiline Sphinx param description.
         Deprecated since v1.8 — no longer used. Will be removed in v1.9.
     :returns: Training result.
     """
+        )
 
     def test_callable_target_with_args_mapping(self) -> None:
         """Callable target: inline note inserted AND general block appended with :func: ref."""
