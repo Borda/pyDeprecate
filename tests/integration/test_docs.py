@@ -25,13 +25,13 @@ class TestDeprecationDocstrings:
 
     def test_deprecated_func_docstring(self) -> None:
         """Deprecated function docstring gets a ``.. deprecated::`` block appended."""
-        assert old_function.__doc__ == (
-            "An old function that is deprecated.\n"
-            "\n"
-            ".. deprecated:: 0.1\n"
-            "   Will be removed in 0.3.\n"
-            "   Use :func:`tests.collection_docstrings.new_function` instead.\n"
-        )
+        assert old_function.__doc__ == """\
+An old function that is deprecated.
+
+.. deprecated:: 0.1
+   Will be removed in 0.3.
+   Use :func:`tests.collection_docstrings.new_function` instead.
+"""
 
     def test_deprecated_func_docstring_plain(self) -> None:
         """Function without docstring is left with ``__doc__ = None``."""
@@ -39,13 +39,13 @@ class TestDeprecationDocstrings:
 
     def test_deprecated_class_docstring(self) -> None:
         """Deprecated __init__ gets a ``.. deprecated::`` block appended."""
-        assert OldClass.__init__.__doc__ == (
-            "Initialize the old class.\n"
-            "\n"
-            ".. deprecated:: 0.2\n"
-            "   Will be removed in 0.4.\n"
-            "   Use :class:`tests.collection_docstrings.NewClass` instead.\n"
-        )
+        assert OldClass.__init__.__doc__ == """\
+Initialize the old class.
+
+.. deprecated:: 0.2
+   Will be removed in 0.4.
+   Use :class:`tests.collection_docstrings.NewClass` instead.
+"""
 
     def test_deprecated_class_docstring_plain(self) -> None:
         """__init__ without docstring is left with ``__doc__ = None``."""
@@ -53,53 +53,59 @@ class TestDeprecationDocstrings:
 
 
 class TestArgsDocstringAnnotation:
-    """Full-docstring equality checks for inline arg deprecation annotations."""
+    """Full-docstring equality checks for inline arg deprecation annotations.
+
+    Fixtures with trailing whitespace inside the docstring body (``"    \\n"``
+    from the original function's closing ``\"\"\"`` indentation, or ``"   \\n"``
+    from ``TEMPLATE_DOC_DEPRECATED`` when ``target_text`` is empty) use explicit
+    ``\\n`` string concatenation so that the ``trailing-whitespace`` pre-commit
+    hook cannot strip those characters from this source file.
+    """
 
     def test_google_args_removed(self) -> None:
         """Removed arg: inline note inserted under the arg; no general block appended."""
-        assert google_args_removed.__doc__ == (
-            "Train the model.\n"
-            "\n"
-            "    Args:\n"
-            "        lr: Learning rate for training.\n"
-            "        train_config: Training configuration object.\n"
-            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
-            "\n"
-            "    Returns:\n"
-            "        Training result.\n"
-            "    "
-        )
+        assert google_args_removed.__doc__ == """\
+Train the model.
+
+    Args:
+        lr: Learning rate for training.
+        train_config: Training configuration object.
+            Deprecated since v1.8 — no longer used. Will be removed in v1.9.
+
+    Returns:
+        Training result.
+    """
 
     def test_google_args_renamed(self) -> None:
         """Renamed arg: inline note names the replacement; no general block appended."""
-        assert google_args_renamed.__doc__ == (
-            "Train the model.\n"
-            "\n"
-            "    Args:\n"
-            "        lr: Learning rate for training.\n"
-            "        train_config: Old configuration parameter.\n"
-            "            Deprecated since v1.8 — use `config` instead. Will be removed in v1.9.\n"
-            "        config: New configuration parameter.\n"
-            "\n"
-            "    Returns:\n"
-            "        Training result.\n"
-            "    "
-        )
+        assert google_args_renamed.__doc__ == """\
+Train the model.
+
+    Args:
+        lr: Learning rate for training.
+        train_config: Old configuration parameter.
+            Deprecated since v1.8 — use `config` instead. Will be removed in v1.9.
+        config: New configuration parameter.
+
+    Returns:
+        Training result.
+    """
 
     def test_sphinx_args_removed(self) -> None:
         """Sphinx-style: note inserted under ``:param``; no general block appended."""
-        assert sphinx_args_removed.__doc__ == (
-            "Train the model.\n"
-            "\n"
-            "    :param lr: Learning rate for training.\n"
-            "    :param train_config: Training configuration object.\n"
-            "        Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
-            "    :returns: Training result.\n"
-            "    "
-        )
+        assert sphinx_args_removed.__doc__ == """\
+Train the model.
+
+    :param lr: Learning rate for training.
+    :param train_config: Training configuration object.
+        Deprecated since v1.8 — no longer used. Will be removed in v1.9.
+    :returns: Training result.
+    """
 
     def test_args_not_in_docstring(self) -> None:
         """Arg absent from the docstring falls back to a general ``.. deprecated::`` block."""
+        # String concat preserves the "    \n" and "   \n" lines that
+        # trailing-whitespace pre-commit would strip from a triple-quoted literal.
         assert args_not_in_docstring.__doc__ == (
             "Train the model.\n"
             "\n"
@@ -114,20 +120,19 @@ class TestArgsDocstringAnnotation:
 
     def test_google_multi_args_all_found(self) -> None:
         """Both deprecated args annotated inline in declaration order; no general block."""
-        assert google_multi_args_all_found.__doc__ == (
-            "Run with two deprecated args, both present in the docstring.\n"
-            "\n"
-            "    Args:\n"
-            "        new_a (int): The replacement for old_a.\n"
-            "        old_a (int): The first deprecated argument.\n"
-            "            Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9.\n"
-            "        old_b (str): The second deprecated argument.\n"
-            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
-            "\n"
-            "    Returns:\n"
-            "        Result.\n"
-            "    "
-        )
+        assert google_multi_args_all_found.__doc__ == """\
+Run with two deprecated args, both present in the docstring.
+
+    Args:
+        new_a (int): The replacement for old_a.
+        old_a (int): The first deprecated argument.
+            Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9.
+        old_b (str): The second deprecated argument.
+            Deprecated since v1.8 — no longer used. Will be removed in v1.9.
+
+    Returns:
+        Result.
+    """
 
     def test_google_partial_annotation(self) -> None:
         """One arg found inline, one missing: inline note present AND general block appended."""
@@ -150,18 +155,17 @@ class TestArgsDocstringAnnotation:
 
     def test_google_arguments_header(self) -> None:
         """``Arguments:`` header treated identically to ``Args:``."""
-        assert google_arguments_header.__doc__ == (
-            "Train the model using the ``Arguments:`` section header variant.\n"
-            "\n"
-            "    Arguments:\n"
-            "        lr: Learning rate for training.\n"
-            "        train_config: Training configuration object.\n"
-            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
-            "\n"
-            "    Returns:\n"
-            "        Training result.\n"
-            "    "
-        )
+        assert google_arguments_header.__doc__ == """\
+Train the model using the ``Arguments:`` section header variant.
+
+    Arguments:
+        lr: Learning rate for training.
+        train_config: Training configuration object.
+            Deprecated since v1.8 — no longer used. Will be removed in v1.9.
+
+    Returns:
+        Training result.
+    """
 
     def test_sphinx_arg_not_in_docstring(self) -> None:
         """Sphinx-style: absent param falls back to a general ``.. deprecated::`` block."""
@@ -179,36 +183,34 @@ class TestArgsDocstringAnnotation:
 
     def test_google_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline arg description."""
-        assert google_args_multiline.__doc__ == (
-            "Train the model with a multiline arg description.\n"
-            "\n"
-            "    Args:\n"
-            "        lr: Learning rate for training.\n"
-            "            Must be a positive float.\n"
-            "        train_config: Training configuration object.\n"
-            "            Passed directly to the trainer.\n"
-            "            Ignored when ``None``.\n"
-            "            Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
-            "\n"
-            "    Returns:\n"
-            "        Training result.\n"
-            "    "
-        )
+        assert google_args_multiline.__doc__ == """\
+Train the model with a multiline arg description.
+
+    Args:
+        lr: Learning rate for training.
+            Must be a positive float.
+        train_config: Training configuration object.
+            Passed directly to the trainer.
+            Ignored when ``None``.
+            Deprecated since v1.8 — no longer used. Will be removed in v1.9.
+
+    Returns:
+        Training result.
+    """
 
     def test_sphinx_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline Sphinx param."""
-        assert sphinx_args_multiline.__doc__ == (
-            "Train the model with a multiline Sphinx param description.\n"
-            "\n"
-            "    :param lr: Learning rate for training.\n"
-            "        Must be a positive float.\n"
-            "    :param train_config: Training configuration object.\n"
-            "        Passed directly to the trainer.\n"
-            "        Ignored when ``None``.\n"
-            "        Deprecated since v1.8 — no longer used. Will be removed in v1.9.\n"
-            "    :returns: Training result.\n"
-            "    "
-        )
+        assert sphinx_args_multiline.__doc__ == """\
+Train the model with a multiline Sphinx param description.
+
+    :param lr: Learning rate for training.
+        Must be a positive float.
+    :param train_config: Training configuration object.
+        Passed directly to the trainer.
+        Ignored when ``None``.
+        Deprecated since v1.8 — no longer used. Will be removed in v1.9.
+    :returns: Training result.
+    """
 
     def test_callable_target_with_args_mapping(self) -> None:
         """Callable target: inline note inserted AND general block appended with :func: ref."""
