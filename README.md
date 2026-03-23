@@ -405,6 +405,29 @@ print(any_pow(2, 3))
 
 </details>
 
+To **drop** an argument entirely (warn when it's passed, then discard it), map it to `None`:
+
+```python
+from deprecate import deprecated
+
+
+@deprecated(
+    target=True,
+    args_mapping={"legacy_param": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+)
+def my_func(value: int, legacy_param: str = None) -> int:
+    """legacy_param is no longer used; pass None or omit it."""
+    return value * 2
+
+
+# Passing the removed argument triggers a warning and the argument is silently discarded:
+#   The `my_func` uses deprecated arguments: `legacy_param` -> `None`.
+#   They were deprecated since v1.8 and will be removed in v1.9.
+my_func(value=42, legacy_param="old")
+```
+
 ### 🔗 Multiple deprecation levels
 
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
