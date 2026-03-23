@@ -73,6 +73,15 @@ def _find_google_args_section(lines: list[str]) -> tuple[int, int]:
     Scans *lines* for an ``Args:`` or ``Arguments:`` header and returns its line
     index and leading indentation.  Returns ``(-1, 0)`` when not found.
 
+    The match is intentionally strict: a line qualifies only when it consists
+    of optional leading spaces followed by exactly ``Args:`` or ``Arguments:``
+    with nothing else on the line (no trailing text).  This avoids accidental
+    matches inside prose paragraphs.
+
+    See `Google Python Style Guide — Functions and Methods
+    <https://google.github.io/styleguide/pyguide.html#383-functions-and-methods>`_
+    for the ``Args:`` section specification.
+
     Args:
         lines: Docstring already split into individual lines.
 
@@ -80,8 +89,9 @@ def _find_google_args_section(lines: list[str]) -> tuple[int, int]:
         A 2-tuple ``(section_start, section_indent)``.
 
     """
+    _section_re = re.compile(r"^\s*(Args|Arguments):\s*$")
     for i, line in enumerate(lines):
-        if line.strip() in ("Args:", "Arguments:"):
+        if _section_re.match(line):
             return i, len(line) - len(line.lstrip())
     return -1, 0
 
@@ -203,9 +213,11 @@ def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tu
         A 2-tuple ``(new_lines, found)`` where *found* is ``True`` when the
         argument was located and the note was successfully inserted.
 
-    The note is inserted as a continuation line directly after the matched entry::
+    The note is inserted as a continuation line directly after the matched entry:
 
-    Args:
+    .. code-block:: text
+
+        Args:
             lr (float): Learning rate.
             old_cfg (object): Old config.
                 Deprecated — use cfg instead.  # <-- inserted here

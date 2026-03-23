@@ -5,6 +5,7 @@ from tests.collection_docstrings import (
     OldClassPlain,
     args_not_in_docstring,
     callable_target_with_args_mapping,
+    google_args_multiline,
     google_args_removed,
     google_args_renamed,
     google_arguments_header,
@@ -14,6 +15,7 @@ from tests.collection_docstrings import (
     old_function,
     old_function_plain,
     sphinx_arg_not_in_docstring,
+    sphinx_args_multiline,
     sphinx_args_removed,
 )
 
@@ -165,3 +167,25 @@ class TestArgsDocstringAnnotation:
         assert doc is not None
         assert ".. deprecated:: 1.8" in doc
         assert "Will be removed in 1.9." in doc
+
+    def test_google_args_multiline_inlines_note_after_continuation(self) -> None:
+        """Deprecated arg with multiline description gets the note after the last continuation line."""
+        doc = google_args_multiline.__doc__
+        assert doc is not None
+        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
+        # Note must appear after the last continuation line of the train_config entry
+        last_continuation_pos = doc.index("Ignored when")
+        note_pos = doc.index("Deprecated since v1.8")
+        assert note_pos > last_continuation_pos
+        assert ".. deprecated::" not in doc
+
+    def test_sphinx_args_multiline_inlines_note_after_continuation(self) -> None:
+        """Sphinx deprecated param with multiline description gets the note after the last continuation line."""
+        doc = sphinx_args_multiline.__doc__
+        assert doc is not None
+        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
+        # Note must appear after the last continuation line of the train_config param
+        last_continuation_pos = doc.index("Ignored when")
+        note_pos = doc.index("Deprecated since v1.8")
+        assert note_pos > last_continuation_pos
+        assert ".. deprecated::" not in doc

@@ -197,6 +197,49 @@ def sphinx_arg_not_in_docstring(lr: float = 0.01) -> str:
 
 
 @deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model with a multiline arg description.
+
+    Args:
+        lr: Learning rate for training.
+            Must be a positive float.
+        train_config: Training configuration object.
+            Passed directly to the trainer.
+            Ignored when ``None``.
+
+    Returns:
+        Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def sphinx_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model with a multiline Sphinx param description.
+
+    :param lr: Learning rate for training.
+        Must be a positive float.
+    :param train_config: Training configuration object.
+        Passed directly to the trainer.
+        Ignored when ``None``.
+    :returns: Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
     target=new_function,
     args_mapping={"b": None},
     deprecated_in="1.8",
