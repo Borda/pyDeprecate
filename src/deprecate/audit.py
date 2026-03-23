@@ -704,3 +704,8 @@ def find_deprecated_callables(
 @deprecated_class(target=DeprecationWrapperInfo, deprecated_in="0.6", remove_in="1.0")
 class DeprecatedCallableInfo:
     """Deprecated name for :class:`DeprecationWrapperInfo`. Use that instead."""
+
+
+@deprecated_class(target=DeprecationWrapperInfo, deprecated_in="0.6", remove_in="1.0")
+class DeprecatedWrapperInfo:
+    """Deprecated RC-era name for :class:`DeprecationWrapperInfo`. Use that instead."""

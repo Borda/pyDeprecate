@@ -1,12 +1,12 @@
 # Changelog
 
-## [0.6.0.post0] — 2026-03-15 — Deprecation Proxy for class/instances
+## [0.6.0.post0] — 2026-03-14 — Deprecation Proxy for class/instances
 
 ### Changed
 
 - **Softer class-deprecation fallback.** `@deprecated` applied directly to a class (Enum, dataclass, or plain class) now emits a `UserWarning` at decoration time and delegates to `deprecated_class()` internally, instead of raising `TypeError`. Code using the old pattern continues to work; the warning points to the recommended API. ([#132](https://github.com/Borda/pyDeprecate/pull/132))
 
-## [0.6.0] — 2026-03-12
+## [0.6.0] — 2026-03-13
 
 ### Added
 
@@ -51,7 +51,7 @@
 
 ### Added
 
-- **`update_docstring` parameter — automatic Sphinx deprecation notices.** Set `update_docstring=True` on `@deprecated` to automatically append a `.. deprecated::` reStructuredText block to the function's docstring. IDE tooltips and Sphinx-generated API docs show the notice without any manual edits.
+- **`update_docstring` parameter — automatic Sphinx deprecation notices.** Set `update_docstring=True` on `@deprecated` to automatically append a `.. deprecated::` reStructuredText block to the function's docstring. IDE tooltips and Sphinx-generated API docs show the notice without any manual edits. ([#31](https://github.com/Borda/pyDeprecate/pull/31))
 - **Python 3.9, 3.11, and 3.13 CI coverage.** All supported interpreter versions are tested in CI. ([#66](https://github.com/Borda/pyDeprecate/pull/66))
 
 ### Changed
@@ -102,6 +102,7 @@
 
 - **`@deprecated(target=callable)` decorator.** Marks a function as deprecated and automatically forwards all calls — including argument mapping — to a replacement function. The deprecated function body is never executed when `target` is a callable.
 - **Automatic argument mapping.** Positional arguments are resolved to keyword arguments and forwarded to the target's signature. `args_mapping` renames (`{"old": "new"}`) or drops (`{"old": None}`) individual arguments during forwarding.
+- **`args_extra` — inject additional kwargs into the target call.** Pass a `dict` of extra keyword arguments to merge into every forwarded call. Useful for providing default values or adapter arguments that the deprecated API never accepted.
 - **Configurable warning count (`num_warns`).** Warnings fire once per function by default; set to any positive integer to limit the total count per function lifetime.
 - **Custom warning message template (`template_mgs`).** Format string with `%(source_name)s`, `%(target_path)s`, `%(deprecated_in)s`, `%(remove_in)s`, and `%(argument_map)s` placeholders.
 - **Custom warning stream (`stream`).** Route warnings to `logging.warning`, `warnings.warn`, or any callable.
