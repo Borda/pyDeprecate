@@ -487,7 +487,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
                 all_args_found = False
         # Only skip the general notice block for self-deprecation (target=True).
         # When target is a callable or None the function itself is deprecated and
-        # the general directive must be kept.
+        # the general notice block must be kept.
         if all_args_found and dep_info.target is True:
             wrapped_fn.__doc__ = "\n".join(lines)
             return
