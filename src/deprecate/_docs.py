@@ -2,7 +2,7 @@
 
 This module owns all logic that reads or modifies a callable's ``__doc__``
 attribute during deprecation decoration.  It supports both Google-style
-(``Args:`` / ``Arguments:``) and Sphinx-style (``:param ...::``) docstrings.
+(``Args:`` / ``Arguments:``) and Sphinx-style (``:param ...:``) docstrings.
 
 Key Components:
     - String constants (``TEMPLATE_DOC_*``) for reusable message fragments.
