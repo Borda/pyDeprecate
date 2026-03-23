@@ -29,4 +29,4 @@ plugins:
             show_root_heading: true
             docstring_style: google
             extensions:
-              - _griffe_docstring_ext:RuntimeDocstrings
+              - deprecate._griffe_ext:RuntimeDocstrings
