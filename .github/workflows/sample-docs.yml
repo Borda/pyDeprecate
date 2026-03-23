@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHON_DEFAULT: "3.13"
+
 jobs:
   sphinx-docs:
     name: Sphinx (RST)
@@ -21,7 +24,7 @@ jobs:
       - name: 🐍 Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_DEFAULT }}
 
       - name: 📦 Install package + Sphinx dependencies
         run: pip install -e . -r temp_docs_sphinx/requirements.txt
@@ -41,7 +44,7 @@ jobs:
       - name: 🐍 Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_DEFAULT }}
 
       - name: 📦 Install package + MkDocs dependencies
         run: pip install -e . -r temp_docs_mkdocs/requirements.txt

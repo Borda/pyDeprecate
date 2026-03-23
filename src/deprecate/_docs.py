@@ -519,16 +519,31 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
                 "target_text": target_text,
             }
         )
-    insert_idx = find_docstring_insertion_index(lines)
-    body_indent = _detect_body_indent(lines)
-    deprecation_lines = [body_indent + ln for ln in deprecation_lines]
-    prefix = lines[:insert_idx]
-    suffix = lines[insert_idx:]
-    if prefix and prefix[-1].strip():
-        prefix.append("")
-    prefix.extend(deprecation_lines)
-    if suffix:
-        if suffix[0].strip():
+    # When args_mapping is involved, always append at the end (preserving section order).
+    # For pure function deprecations (no args_mapping), insert before the first section.
+    if dep_info.args_mapping:
+        # Append path: strip trailing blank lines, then append notice without body
+        # indentation so the "\n\n.. deprecated::" separator is at column 0.  This
+        # makes _normalize_doc's split path work correctly and preserves the trailing
+        # newline in the final string.
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines.append("\n" + "\n".join(deprecation_lines) + "\n")
+        wrapped_fn.__doc__ = "\n".join(lines)
+    else:
+        # Insert-before-sections path: add body indentation so inspect.cleandoc
+        # normalises the injected lines together with the rest of the docstring.
+        body_indent = _detect_body_indent(lines)
+        deprecation_lines = [body_indent + ln for ln in deprecation_lines]
+        insert_idx = find_docstring_insertion_index(lines)
+        prefix = lines[:insert_idx]
+        suffix = lines[insert_idx:]
+        if prefix and prefix[-1].strip():
             prefix.append("")
-        prefix.extend(suffix)
-    wrapped_fn.__doc__ = "\n".join(prefix)
+        prefix.extend(deprecation_lines)
+        if suffix:
+            if suffix[0].strip():
+                prefix.append("")
+            prefix.extend(suffix)
+        prefix.append("")  # trailing newline
+        wrapped_fn.__doc__ = "\n".join(prefix)
