@@ -410,7 +410,7 @@ To **drop** an argument entirely (warn when it's passed, then discard it), map i
 
 ```python
 from deprecate import deprecated
-
+from typing import Optional
 
 @deprecated(
     target=True,
@@ -418,7 +418,7 @@ from deprecate import deprecated
     deprecated_in="1.8",
     remove_in="1.9",
 )
-def my_func(value: int, legacy_param: str | None = None) -> int:
+def my_func(value: int, legacy_param: Optional[str] = None) -> int:
     """legacy_param is no longer used; pass None or omit it."""
     return value * 2
 
