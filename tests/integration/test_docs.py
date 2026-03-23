@@ -14,6 +14,7 @@ from tests.collection_docstrings import (
     google_arguments_header,
     google_multi_args_all_found,
     google_partial_annotation,
+    mkdocs_no_target_with_args_mapping,
     no_target_with_args_mapping,
     old_function,
     old_function_plain,
@@ -314,3 +315,13 @@ Returns:
    Will be removed in 1.9.
 """
         assert _normalize_doc(no_target_with_args_mapping.__doc__) == expected
+
+    def test_mkdocs_no_target_with_args_mapping(self) -> None:
+        """MkDocs style: inline note inserted AND general block uses ``!!! warning``."""
+        doc = mkdocs_no_target_with_args_mapping.__doc__
+        assert doc is not None
+        # Inline annotation is RST-style (arg-level notes are style-agnostic)
+        assert "Deprecated since v1.8" in doc
+        # General notice block must use MkDocs admonition, not RST directive
+        assert "!!! warning" in doc
+        assert ".. deprecated::" not in doc

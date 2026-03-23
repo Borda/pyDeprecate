@@ -369,3 +369,24 @@ def no_target_with_args_mapping(a: int, b: str = "old") -> str:
         Result.
     """
     return f"{a}"
+
+
+@deprecated(
+    target=None,
+    args_mapping={"b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+    docstring_style="mkdocs",
+)
+def mkdocs_no_target_with_args_mapping(a: int, b: str = "old") -> str:
+    """Warning-only deprecation with a deprecated argument (MkDocs style).
+
+    Args:
+        a: The main integer input.
+        b: Deprecated configuration string — will be removed.
+
+    Returns:
+        Result.
+    """
+    return f"{a}"

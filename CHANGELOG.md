@@ -4,6 +4,8 @@
 
 ### Added
 
+- **MkDocs admonition output.** `@deprecated` now accepts `docstring_style="mkdocs"` (alias: `"markdown"`). When `update_docstring=True`, the deprecation notice is injected as a `!!! warning "Deprecated in X"` admonition instead of a Sphinx `.. deprecated::` directive. ([#134](https://github.com/Borda/pyDeprecate/pull/134))
+- **Google / NumPy section-aware docstring injection.** The `update_docstring=True` path now detects Google-style (`Args:`, `Returns:`, …) and NumPy-style (`Parameters`, `Returns`, underline) section headers and inserts the deprecation notice *before* the first section rather than appending it at the end, preserving parser compatibility. ([#134](https://github.com/Borda/pyDeprecate/pull/134))
 - **Inline arg deprecation in docstrings.** When `args_mapping` is set and `update_docstring=True`, `@deprecated` now annotates each deprecated argument directly in the `Args:` / `Arguments:` (Google style) or `:param` (Sphinx style) section of the docstring rather than appending a general `.. deprecated::` block. The general block is still appended as a fallback when an argument is not found in the docstring. ([#136](https://github.com/Borda/pyDeprecate/pull/136))
 
 ## [0.6.0.post0] — 2026-03-14 — Deprecation Proxy for class/instances

@@ -436,6 +436,18 @@ class TestDocstringStyleValidation:
             def some_func() -> None:
                 """A function."""
 
+    def test_invalid_docstring_style_raises_even_without_update_docstring(self) -> None:
+        """``docstring_style`` is validated eagerly regardless of ``update_docstring``."""
+        with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
+
+            @deprecated(
+                target=None,
+                deprecated_in="1.0",
+                docstring_style="unsupported-style",  # type: ignore[arg-type]
+            )
+            def some_func() -> None:
+                """A function."""
+
     @pytest.mark.parametrize("style", ["RST", "MKDOCS", "Markdown", "MkDocs"])
     def test_case_insensitive_normalization(self, style: str) -> None:
         """``docstring_style`` values are matched case-insensitively."""
@@ -453,6 +465,22 @@ class TestDocstringStyleValidation:
         original_doc = some_func.__doc__
         docs._update_docstring_with_deprecation(some_func)
         assert some_func.__doc__ == original_doc
+
+    def test_idempotency_guard_no_false_positive_on_version_prefix(self) -> None:
+        """Guard must not suppress injection when the docstring mentions a longer version.
+
+        ``deprecated_in="1"`` should inject ``.. deprecated:: 1`` even when the
+        existing docstring contains ``.. deprecated:: 1.0`` in prose — the "1"
+        string is a substring of "1.0" so a naive ``in`` check would cause a
+        false positive.
+        """
+
+        @deprecated(target=None, deprecated_in="1", update_docstring=True)
+        def some_func() -> None:
+            """Summary. See also .. deprecated:: 1.0 handling."""
+
+        assert some_func.__doc__ is not None
+        assert ".. deprecated:: 1\n" in some_func.__doc__
 
 
 class TestNumpyUnderlineDetection:

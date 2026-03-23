@@ -51,7 +51,7 @@ TEMPLATE_DOC_ARG_REASON_REMOVED = "no longer used"
 TEMPLATE_DOC_ARG_REASON_RENAMED = "use `%(new_arg)s` instead"
 
 DOCSTRING_STYLE_ALIASES = {"rst": "rst", "mkdocs": "mkdocs", "markdown": "mkdocs"}
-SUPPORTED_DOCSTRING_STYLES = "', '".join(sorted(DOCSTRING_STYLE_ALIASES))
+SUPPORTED_DOCSTRING_STYLES: frozenset[str] = frozenset(DOCSTRING_STYLE_ALIASES)
 GOOGLE_DOCSTRING_SECTIONS = {
     "args:",
     "arguments:",
@@ -115,13 +115,13 @@ def normalize_docstring_style(docstring_style: str) -> Literal["rst", "mkdocs"]:
     if not isinstance(docstring_style, str):
         raise ValueError(
             "Invalid `docstring_style` value "
-            f"{docstring_style!r}. Supported styles are: '{SUPPORTED_DOCSTRING_STYLES}'."
+            f"{docstring_style!r}. Supported styles are: {sorted(SUPPORTED_DOCSTRING_STYLES)!r}."
         )
     normalized_style = DOCSTRING_STYLE_ALIASES.get(docstring_style.lower())
     if normalized_style is None:
         raise ValueError(
             "Invalid `docstring_style` value "
-            f"{docstring_style!r}. Supported styles are: '{SUPPORTED_DOCSTRING_STYLES}'."
+            f"{docstring_style!r}. Supported styles are: {sorted(SUPPORTED_DOCSTRING_STYLES)!r}."
         )
     return cast(Literal["rst", "mkdocs"], normalized_style)
 
@@ -262,6 +262,12 @@ def _find_entry_end(lines: list[str], entry_idx: int, entry_indent: int) -> int:
 
     Scans forward from *entry_idx + 1* and stops at the first blank line or
     the first line whose indentation is ``<= entry_indent``.
+
+    Note:
+        A blank line within a multi-paragraph argument description is treated
+        as the entry boundary.  Only the content up to that blank line receives
+        the deprecation note; subsequent paragraphs are considered outside the
+        entry.
 
     Args:
         lines: Docstring already split into individual lines.
@@ -520,7 +526,9 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             }
         )
     # Idempotency guard: skip if the general notice is already present.
-    if deprecation_lines and any(deprecation_lines[0].strip() in ln for ln in lines):
+    # Use exact-line equality to avoid false positives when a version string like "1"
+    # is a substring of another version in the docstring (e.g. "1.0").
+    if deprecation_lines and any(ln.strip() == deprecation_lines[0].strip() for ln in lines):
         return
     # When args_mapping is involved, always append at the end (preserving section order).
     # For pure function deprecations (no args_mapping), insert before the first section.
