@@ -1,4 +1,4 @@
-"""Unit tests for private helpers in deprecate.deprecation."""
+"""Unit tests for private helpers in deprecate.deprecation and deprecate._docs."""
 
 import inspect
 import warnings
@@ -9,11 +9,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from deprecate import deprecated, void
-from deprecate.deprecation import (
-    POSITIONAL_OR_KEYWORD,
+from deprecate._docs import (
     _annotate_google_style_arg,
     _annotate_sphinx_style_arg,
     _build_arg_deprecation_note,
+)
+from deprecate.deprecation import (
+    POSITIONAL_OR_KEYWORD,
     _get_positional_params,
     _prepare_target_call,
     _raise_warn,
