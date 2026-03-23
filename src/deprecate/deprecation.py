@@ -46,6 +46,16 @@ TEMPLATE_DOC_DEPRECATED = """
    %(remove_text)s
    %(target_text)s
 """
+#: Inline docstring note for a deprecated argument — with ``deprecated_in`` version
+TEMPLATE_DOC_ARG_DEPRECATED_SINCE = "Deprecated since v%(deprecated_in)s \u2014 %(reason)s."
+#: Inline docstring note for a deprecated argument — without version information
+TEMPLATE_DOC_ARG_DEPRECATED = "Deprecated \u2014 %(reason)s."
+#: Suffix appended to arg deprecation note when ``remove_in`` is provided
+TEMPLATE_DOC_ARG_REMOVE = " Will be removed in v%(remove_in)s."
+#: Reason phrase used when the deprecated argument is simply removed
+TEMPLATE_DOC_ARG_REASON_REMOVED = "no longer used"
+#: Reason phrase used when the deprecated argument is renamed; ``%(new_arg)s`` is substituted
+TEMPLATE_DOC_ARG_REASON_RENAMED = "use `%(new_arg)s` instead"
 
 deprecation_warning = partial(warn, category=FutureWarning)
 
@@ -456,10 +466,11 @@ def _build_arg_deprecation_note(new_arg: Optional[str], deprecated_in: str, remo
         'Deprecated since v1.8 — use `new_arg` instead. Will be removed in v1.9.'
 
     """
-    reason = f"use `{new_arg}` instead" if new_arg else "no longer used"
-    note = f"Deprecated since v{deprecated_in} \u2014 {reason}." if deprecated_in else f"Deprecated \u2014 {reason}."
+    reason = TEMPLATE_DOC_ARG_REASON_RENAMED % {"new_arg": new_arg} if new_arg else TEMPLATE_DOC_ARG_REASON_REMOVED
+    template = TEMPLATE_DOC_ARG_DEPRECATED_SINCE if deprecated_in else TEMPLATE_DOC_ARG_DEPRECATED
+    note = template % {"deprecated_in": deprecated_in, "reason": reason}
     if remove_in:
-        note += f" Will be removed in v{remove_in}."
+        note += TEMPLATE_DOC_ARG_REMOVE % {"remove_in": remove_in}
     return note
 
 
