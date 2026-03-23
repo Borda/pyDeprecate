@@ -52,7 +52,7 @@
 ### Added
 
 - **`update_docstring` parameter — automatic Sphinx deprecation notices.** Set `update_docstring=True` on `@deprecated` to automatically append a `.. deprecated::` reStructuredText block to the function's docstring. IDE tooltips and Sphinx-generated API docs show the notice without any manual edits.
-- **Python 3.12, 3.13, and 3.14 support.** All new interpreter versions are tested in CI. ([#66](https://github.com/Borda/pyDeprecate/pull/66))
+- **Python 3.9, 3.11, and 3.13 CI coverage.** All supported interpreter versions are tested in CI. ([#66](https://github.com/Borda/pyDeprecate/pull/66))
 
 ### Changed
 

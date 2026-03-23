@@ -418,7 +418,7 @@ from deprecate import deprecated
     deprecated_in="1.8",
     remove_in="1.9",
 )
-def my_func(value: int, legacy_param: str = None) -> int:
+def my_func(value: int, legacy_param: str | None = None) -> int:
     """legacy_param is no longer used; pass None or omit it."""
     return value * 2
 
@@ -840,7 +840,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 </details>
 
 > [!NOTE]
-> `args_extra` applies whenever `target` is truthy, including both forwarding to a `Callable` and in-place remapping with `target=True`. It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones.
+> `args_extra` is only used when `target` is a `Callable` (i.e., when calls are forwarded to a replacement). It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones. It is ignored for `target=True` self-deprecation, where no forwarding occurs.
 
 ## 🔇 Understanding the `void()` Helper
 
