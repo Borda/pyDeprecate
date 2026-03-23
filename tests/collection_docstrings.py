@@ -194,3 +194,43 @@ def sphinx_arg_not_in_docstring(lr: float = 0.01) -> str:
     :returns: Training result.
     """
     return f"lr={lr}"
+
+
+@deprecated(
+    target=new_function,
+    args_mapping={"b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def callable_target_with_args_mapping(a: int, b: str = "old") -> str:
+    """Forward calls to new_function with a deprecated argument removed.
+
+    Args:
+        a (int): The main integer input.
+        b (str): Deprecated configuration string — will be removed.
+
+    Returns:
+        str: Forwarded result.
+    """
+    return new_function(a, b)
+
+
+@deprecated(
+    target=None,
+    args_mapping={"b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def no_target_with_args_mapping(a: int, b: str = "old") -> str:
+    """Warning-only deprecation with a deprecated argument.
+
+    Args:
+        a (int): The main integer input.
+        b (str): Deprecated configuration string — will be removed.
+
+    Returns:
+        str: Result.
+    """
+    return f"{a}"

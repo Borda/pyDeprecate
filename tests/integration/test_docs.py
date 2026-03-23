@@ -4,11 +4,13 @@ from tests.collection_docstrings import (
     OldClass,
     OldClassPlain,
     args_not_in_docstring,
+    callable_target_with_args_mapping,
     google_args_removed,
     google_args_renamed,
     google_arguments_header,
     google_multi_args_all_found,
     google_partial_annotation,
+    no_target_with_args_mapping,
     old_function,
     old_function_plain,
     sphinx_arg_not_in_docstring,
@@ -133,6 +135,33 @@ class TestArgsDocstringAnnotation:
     def test_sphinx_fallback_for_arg_not_in_docstring(self) -> None:
         """Sphinx-style: arg absent from ``:param`` fields falls back to general notice."""
         doc = sphinx_arg_not_in_docstring.__doc__
+        assert doc is not None
+        assert ".. deprecated:: 1.8" in doc
+        assert "Will be removed in 1.9." in doc
+
+    def test_callable_target_with_args_mapping_has_inline_note(self) -> None:
+        """Callable target + args_mapping: deprecated arg gets inline annotation."""
+        doc = callable_target_with_args_mapping.__doc__
+        assert doc is not None
+        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
+
+    def test_callable_target_with_args_mapping_keeps_general_notice(self) -> None:
+        """Callable target + args_mapping: general ``.. deprecated::`` block is still present."""
+        doc = callable_target_with_args_mapping.__doc__
+        assert doc is not None
+        assert ".. deprecated:: 1.8" in doc
+        assert "Will be removed in 1.9." in doc
+        assert "Use :func:" in doc
+
+    def test_no_target_with_args_mapping_has_inline_note(self) -> None:
+        """target=None + args_mapping: deprecated arg gets inline annotation."""
+        doc = no_target_with_args_mapping.__doc__
+        assert doc is not None
+        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
+
+    def test_no_target_with_args_mapping_keeps_general_notice(self) -> None:
+        """target=None + args_mapping: general ``.. deprecated::`` block is still present."""
+        doc = no_target_with_args_mapping.__doc__
         assert doc is not None
         assert ".. deprecated:: 1.8" in doc
         assert "Will be removed in 1.9." in doc

@@ -266,8 +266,11 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     - **Inline arg path** (``args_mapping`` present): each deprecated argument is
       located in the ``Args:`` / ``Arguments:`` (Google style) or ``:param``
       (Sphinx style) section and a one-line deprecation note is inserted directly
-      beneath it.  If all deprecated args are found, the function returns early and
-      no general ``.. deprecated::`` block is appended.
+      beneath it.  When ``target`` is ``True`` (self-deprecation) and all deprecated
+      args are found, the function returns early and no general ``.. deprecated::``
+      block is appended.  When ``target`` is a callable or ``None``, the general
+      block is always appended after the inline annotations because the function
+      itself is deprecated and Sphinx tooling expects the directive.
     - **General notice path** (no ``args_mapping``, or at least one arg was not
       found in the docstring): a Sphinx ``.. deprecated::`` directive is appended
       at the end of the docstring.
@@ -307,7 +310,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
            Will be removed in 2.0.
            Use :func:`deprecate._docs.new_func` instead.
 
-        Inline arg path — ``args_mapping`` with all args present in the docstring:
+        Inline arg path — self-deprecation (``target=True``) with all args found:
 
         >>> def fn_with_args(x: int, old_arg: str = "") -> str:
         ...     '''Do something.
@@ -320,6 +323,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         >>> fn_with_args.__deprecated__ = DeprecationConfig(
         ...     deprecated_in='1.0',
         ...     remove_in='2.0',
+        ...     target=True,
         ...     args_mapping={'old_arg': None},
         ... )
         >>> _update_docstring_with_deprecation(fn_with_args)
@@ -341,19 +345,22 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
 
     # When args_mapping is present, try to annotate each deprecated argument inline.
     if dep_info.args_mapping:
-        needs_general_notice = False
+        all_args_found = True
         for arg_name, new_arg in dep_info.args_mapping.items():
             note = _build_arg_deprecation_note(new_arg, dep_info.deprecated_in, dep_info.remove_in)
             lines, found = _annotate_google_style_arg(lines, arg_name, note)
             if not found:
                 lines, found = _annotate_sphinx_style_arg(lines, arg_name, note)
             if not found:
-                # Arg not found in docstring — fall back to the general notice.
+                # Arg not found in docstring — the general notice is needed.
                 # Note: `lines` may already contain inline notes from earlier
                 # iterations (args that *were* found).  The general notice is
                 # appended on top of those partial annotations.
-                needs_general_notice = True
-        if not needs_general_notice:
+                all_args_found = False
+        # Only skip the general .. deprecated:: block for self-deprecation
+        # (target=True).  When target is a callable or None the function
+        # itself is deprecated and the general directive must be kept.
+        if all_args_found and dep_info.target is True:
             wrapped_fn.__doc__ = "\n".join(lines)
             return
 
