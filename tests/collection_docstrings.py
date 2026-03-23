@@ -56,11 +56,11 @@ def google_args_removed(lr: float = 0.01, train_config: object = None) -> str:
     """Train the model.
 
     Args:
-        lr (float): Learning rate for training.
-        train_config (object): Training configuration object.
+        lr: Learning rate for training.
+        train_config: Training configuration object.
 
     Returns:
-        str: Training result.
+        Training result.
     """
     return f"lr={lr}"
 
@@ -76,12 +76,12 @@ def google_args_renamed(lr: float = 0.01, train_config: object = None, config: o
     """Train the model.
 
     Args:
-        lr (float): Learning rate for training.
-        train_config (object): Old configuration parameter.
-        config (object): New configuration parameter.
+        lr: Learning rate for training.
+        train_config: Old configuration parameter.
+        config: New configuration parameter.
 
     Returns:
-        str: Training result.
+        Training result.
     """
     return f"lr={lr}"
 
@@ -114,7 +114,7 @@ def args_not_in_docstring(lr: float = 0.01) -> str:
     """Train the model.
 
     Args:
-        lr (float): Learning rate for training.
+        lr: Learning rate for training.
     """
     return f"lr={lr}"
 
@@ -135,7 +135,7 @@ def google_multi_args_all_found(new_a: int = 0, old_a: int = 0, old_b: str = "")
         old_b (str): The second deprecated argument.
 
     Returns:
-        str: Result.
+        Result.
     """
     return f"{new_a}"
 
@@ -151,11 +151,11 @@ def google_partial_annotation(new_a: int = 0, old_a: int = 0) -> str:
     """Run with two deprecated args, only one present in the docstring.
 
     Args:
-        new_a (int): The replacement for old_a.
-        old_a (int): The first deprecated argument.
+        new_a: The replacement for old_a.
+        old_a: The first deprecated argument.
 
     Returns:
-        str: Result.
+        Result.
     """
     return f"{new_a}"
 
@@ -171,11 +171,11 @@ def google_arguments_header(lr: float = 0.01, train_config: object = None) -> st
     """Train the model using the ``Arguments:`` section header variant.
 
     Arguments:
-        lr (float): Learning rate for training.
-        train_config (object): Training configuration object.
+        lr: Learning rate for training.
+        train_config: Training configuration object.
 
     Returns:
-        str: Training result.
+        Training result.
     """
     return f"lr={lr}"
 
@@ -207,11 +207,11 @@ def callable_target_with_args_mapping(a: int, b: str = "old") -> str:
     """Forward calls to new_function with a deprecated argument removed.
 
     Args:
-        a (int): The main integer input.
-        b (str): Deprecated configuration string — will be removed.
+        a: The main integer input.
+        b: Deprecated configuration string — will be removed.
 
     Returns:
-        str: Forwarded result.
+        Forwarded result.
     """
     return new_function(a, b)
 
@@ -227,10 +227,10 @@ def no_target_with_args_mapping(a: int, b: str = "old") -> str:
     """Warning-only deprecation with a deprecated argument.
 
     Args:
-        a (int): The main integer input.
-        b (str): Deprecated configuration string — will be removed.
+        a: The main integer input.
+        b: Deprecated configuration string — will be removed.
 
     Returns:
-        str: Result.
+        Result.
     """
     return f"{a}"
