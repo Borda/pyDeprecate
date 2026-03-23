@@ -71,7 +71,7 @@ instance/
 .scrapy
 
 # Sphinx documentation
-temp_docs/build/
+temp_docs_sphinx/build/
 
 # PyBuilder
 target/
@@ -121,7 +121,7 @@ venv.bak/
 
 # mkdocs documentation
 /site
-docs/site/
+temp_docs_mkdocs/site/
 
 # mypy
 .mypy_cache/

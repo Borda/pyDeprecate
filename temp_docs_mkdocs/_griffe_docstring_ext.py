@@ -9,6 +9,8 @@ the docstring value for every callable whose ``__doc__`` was changed by a
 decorator (detected via the ``__deprecated__`` marker set by pyDeprecate).
 """
 
+from __future__ import annotations
+
 import importlib
 import inspect
 import sys

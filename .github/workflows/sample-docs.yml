@@ -24,10 +24,10 @@ jobs:
           python-version: "3.12"
 
       - name: 📦 Install package + Sphinx dependencies
-        run: pip install -e . -r temp_docs/requirements.txt
+        run: pip install -e . -r temp_docs_sphinx/requirements.txt
 
       - name: 📖 Build Sphinx documentation
-        working-directory: temp_docs
+        working-directory: temp_docs_sphinx
         run: make html
 
   mkdocs:
@@ -44,8 +44,8 @@ jobs:
           python-version: "3.12"
 
       - name: 📦 Install package + MkDocs dependencies
-        run: pip install -e . -r docs/requirements.txt
+        run: pip install -e . -r temp_docs_mkdocs/requirements.txt
 
       - name: 📖 Build MkDocs documentation
-        working-directory: docs
+        working-directory: temp_docs_mkdocs
         run: mkdocs build --strict
