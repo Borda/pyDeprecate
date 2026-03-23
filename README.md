@@ -412,6 +412,7 @@ To **drop** an argument entirely (warn when it's passed, then discard it), map i
 from deprecate import deprecated
 from typing import Optional
 
+
 @deprecated(
     target=True,
     args_mapping={"legacy_param": None},
