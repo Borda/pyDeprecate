@@ -217,6 +217,9 @@ def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tu
         return lines, False
 
     end_idx = _find_entry_end(lines, arg_line_idx, arg_indent)
+    # Idempotency guard: skip insertion when the note is already present under this arg entry.
+    if any(note in ln for ln in lines[arg_line_idx : end_idx + 1]):
+        return lines, True
     note_line = " " * continuation_indent + note
     new_lines = lines[: end_idx + 1] + [note_line] + lines[end_idx + 1 :]
     return new_lines, True
@@ -253,6 +256,9 @@ def _annotate_sphinx_style_arg(lines: list[str], arg_name: str, note: str) -> tu
         return lines, False
 
     end_idx = _find_entry_end(lines, param_line_idx, param_indent)
+    # Idempotency guard: skip insertion when the note is already present under this param entry.
+    if any(note in ln for ln in lines[param_line_idx : end_idx + 1]):
+        return lines, True
     note_line = " " * (param_indent + 4) + note
     new_lines = lines[: end_idx + 1] + [note_line] + lines[end_idx + 1 :]
     return new_lines, True
