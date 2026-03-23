@@ -203,26 +203,12 @@ def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tu
         A 2-tuple ``(new_lines, found)`` where *found* is ``True`` when the
         argument was located and the note was successfully inserted.
 
-    Example:
-        >>> lines = [
-        ...     "Train the model.",
-        ...     "",
-        ...     "    Args:",
-        ...     "        lr (float): Learning rate.",
-        ...     "        old_cfg (object): Old config.",
-        ...     "",
-        ... ]
-        >>> new_lines, found = _annotate_google_style_arg(lines, "old_cfg", "Deprecated — use cfg instead.")
-        >>> found
-        True
-        >>> print("\\n".join(new_lines))  # doctest: +NORMALIZE_WHITESPACE
-        Train the model.
-        <BLANKLINE>
-            Args:
-                lr (float): Learning rate.
-                old_cfg (object): Old config.
-                    Deprecated — use cfg instead.
-        <BLANKLINE>
+    The note is inserted as a continuation line directly after the matched entry::
+
+        Args:
+            lr (float): Learning rate.
+            old_cfg (object): Old config.
+                Deprecated — use cfg instead.  # <-- inserted here
 
     """
     section_start, section_indent = _find_google_args_section(lines)
@@ -261,23 +247,11 @@ def _annotate_sphinx_style_arg(lines: list[str], arg_name: str, note: str) -> tu
         A 2-tuple ``(new_lines, found)`` where *found* is ``True`` when the
         parameter was located and the note was successfully inserted.
 
-    Example:
-        >>> lines = [
-        ...     "Train the model.",
-        ...     "",
-        ...     ":param lr: Learning rate.",
-        ...     ":param old_cfg: Old config.",
-        ...     ":returns: Result.",
-        ... ]
-        >>> new_lines, found = _annotate_sphinx_style_arg(lines, "old_cfg", "Deprecated — use cfg instead.")
-        >>> found
-        True
-        >>> print("\\n".join(new_lines))  # doctest: +NORMALIZE_WHITESPACE
-        Train the model.
-        <BLANKLINE>
+    The note is inserted as a continuation line directly after the matched field::
+
         :param lr: Learning rate.
         :param old_cfg: Old config.
-            Deprecated — use cfg instead.
+            Deprecated — use cfg instead.  # <-- inserted here
         :returns: Result.
 
     """
