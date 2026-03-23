@@ -138,7 +138,10 @@ dmypy.json
 .idea/
 
 # Generated files with Claude
+.claude/logs/
+.claude/state/
 tasks/
+*.local.*
 
 # release notes and other complemntary files for releases
 releases/

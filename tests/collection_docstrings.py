@@ -112,3 +112,240 @@ class OldClassPlain:  # noqa: D101
     @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
     def __init__(self, x: int) -> None:  # noqa: D107
         self.x = x
+
+
+# ── args_mapping + update_docstring fixtures ─────────────────────────────────
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_args_removed(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model.
+
+    Args:
+        lr: Learning rate for training.
+        train_config: Training configuration object.
+
+    Returns:
+        Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": "config"},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_args_renamed(lr: float = 0.01, train_config: object = None, config: object = None) -> str:
+    """Train the model.
+
+    Args:
+        lr: Learning rate for training.
+        train_config: Old configuration parameter.
+        config: New configuration parameter.
+
+    Returns:
+        Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def sphinx_args_removed(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model.
+
+    :param lr: Learning rate for training.
+    :param train_config: Training configuration object.
+    :returns: Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"missing_arg": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def args_not_in_docstring(lr: float = 0.01) -> str:
+    """Train the model.
+
+    Args:
+        lr: Learning rate for training.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"old_a": "new_a", "old_b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_multi_args_all_found(new_a: int = 0, old_a: int = 0, old_b: str = "") -> str:
+    """Run with two deprecated args, both present in the docstring.
+
+    Args:
+        new_a (int): The replacement for old_a.
+        old_a (int): The first deprecated argument.
+        old_b (str): The second deprecated argument.
+
+    Returns:
+        Result.
+    """
+    return f"{new_a}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"old_a": "new_a", "missing_b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_partial_annotation(new_a: int = 0, old_a: int = 0) -> str:
+    """Run with two deprecated args, only one present in the docstring.
+
+    Args:
+        new_a: The replacement for old_a.
+        old_a: The first deprecated argument.
+
+    Returns:
+        Result.
+    """
+    return f"{new_a}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_arguments_header(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model using the ``Arguments:`` section header variant.
+
+    Arguments:
+        lr: Learning rate for training.
+        train_config: Training configuration object.
+
+    Returns:
+        Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"missing_arg": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def sphinx_arg_not_in_docstring(lr: float = 0.01) -> str:
+    """Train the model.
+
+    :param lr: Learning rate for training.
+    :returns: Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model with a multiline arg description.
+
+    Args:
+        lr: Learning rate for training.
+            Must be a positive float.
+        train_config: Training configuration object.
+            Passed directly to the trainer.
+            Ignored when ``None``.
+
+    Returns:
+        Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def sphinx_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model with a multiline Sphinx param description.
+
+    :param lr: Learning rate for training.
+        Must be a positive float.
+    :param train_config: Training configuration object.
+        Passed directly to the trainer.
+        Ignored when ``None``.
+    :returns: Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=new_function,
+    args_mapping={"b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def callable_target_with_args_mapping(a: int, b: str = "old") -> str:
+    """Forward calls to new_function with a deprecated argument removed.
+
+    Args:
+        a: The main integer input.
+        b: Deprecated configuration string — will be removed.
+
+    Returns:
+        Forwarded result.
+    """
+    return new_function(a, b)
+
+
+@deprecated(
+    target=None,
+    args_mapping={"b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def no_target_with_args_mapping(a: int, b: str = "old") -> str:
+    """Warning-only deprecation with a deprecated argument.
+
+    Args:
+        a: The main integer input.
+        b: Deprecated configuration string — will be removed.
+
+    Returns:
+        Result.
+    """
+    return f"{a}"
