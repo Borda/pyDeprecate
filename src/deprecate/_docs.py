@@ -403,12 +403,12 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     if callable(target_val):
         ref_type = "class" if inspect.isclass(target_val) else "func"
         target_text = f"Use :{ref_type}:`{target_val.__module__}.{target_val.__name__}` instead."
-    lines.append(
-        TEMPLATE_DOC_DEPRECATED
-        % {
-            "deprecated_in": dep_info.deprecated_in,
-            "remove_text": remove_text,
-            "target_text": target_text,
-        }
-    )
+    # Drop trailing whitespace-only lines (e.g. the closing-indent of the original
+    # docstring's ``"""``) so the notice separator comes from its own leading newline.
+    while lines and not lines[-1].strip():
+        lines.pop()
+    notice = f"\n.. deprecated:: {dep_info.deprecated_in}\n   {remove_text}\n"
+    if target_text:
+        notice += f"   {target_text}\n"
+    lines.append(notice)
     wrapped_fn.__doc__ = "\n".join(lines)
