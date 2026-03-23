@@ -599,23 +599,25 @@ def _annotate_sphinx_style_arg(lines: list[str], arg_name: str, note: str) -> tu
 
 
 def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
-    """Append deprecation notice to function's docstring in reStructuredText format.
+    """Annotate a function's docstring with deprecation information.
 
-    This helper automatically generates and appends a Sphinx-compatible deprecation
-    notice to the wrapped function's docstring. The notice includes version information
-    and target replacement (if applicable), making it visible in generated API documentation.
+    Two paths are taken depending on whether ``args_mapping`` is set:
 
-    The appended notice follows the Sphinx deprecated directive format:
-        .. deprecated:: <version>
-           Will be removed in <version>.
-           Use `<target>` instead.
+    - **Inline arg path** (``args_mapping`` present): each deprecated argument is
+      located in the ``Args:`` / ``Arguments:`` (Google style) or ``:param``
+      (Sphinx style) section and a one-line deprecation note is inserted directly
+      beneath it.  If all deprecated args are found, the function returns early and
+      no general ``.. deprecated::`` block is appended.
+    - **General notice path** (no ``args_mapping``, or at least one arg was not
+      found in the docstring): a Sphinx ``.. deprecated::`` directive is appended
+      at the end of the docstring.
 
     Args:
         wrapped_fn: Function whose docstring should be updated. Must have
-            __deprecated__ attribute set with deprecation metadata.
+            ``__deprecated__`` attribute set with deprecation metadata.
 
     Returns:
-        None. Modifies the function's __doc__ attribute in-place.
+        None. Modifies the function's ``__doc__`` attribute in-place.
 
     Metadata Used:
         The function's ``__deprecated__`` attribute should be a
@@ -623,8 +625,11 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         - deprecated_in: Version when deprecated
         - remove_in: Version when will be removed
         - target: Replacement callable (optional)
+        - args_mapping: Mapping of old → new argument names (optional)
 
     Example:
+        General notice path — no ``args_mapping``:
+
         >>> def new_func(): pass
         >>> def old_func():
         ...     '''Original docstring.'''
@@ -642,8 +647,29 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
            Will be removed in 2.0.
            Use :func:`deprecate.deprecation.new_func` instead.
 
+        Inline arg path — ``args_mapping`` with all args present in the docstring:
+
+        >>> def fn_with_args(x: int, old_arg: str = "") -> str:
+        ...     '''Do something.
+        ...
+        ...     Args:
+        ...         x: The main input.
+        ...         old_arg: The old argument.
+        ...     '''
+        ...     return str(x)
+        >>> fn_with_args.__deprecated__ = DeprecationConfig(
+        ...     deprecated_in='1.0',
+        ...     remove_in='2.0',
+        ...     args_mapping={'old_arg': None},
+        ... )
+        >>> _update_docstring_with_deprecation(fn_with_args)
+        >>> 'Deprecated since v1.0' in fn_with_args.__doc__
+        True
+        >>> '.. deprecated::' in fn_with_args.__doc__
+        False
+
     Note:
-        Does nothing if the function has no docstring or no __deprecated__ attribute.
+        Does nothing if the function has no docstring or no ``__deprecated__`` attribute.
 
     """
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
@@ -663,6 +689,9 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
                 lines, found = _annotate_sphinx_style_arg(lines, arg_name, note)
             if not found:
                 # Arg not found in docstring — fall back to the general notice.
+                # Note: `lines` may already contain inline notes from earlier
+                # iterations (args that *were* found).  The general notice is
+                # appended on top of those partial annotations.
                 needs_general_notice = True
         if not needs_general_notice:
             wrapped_fn.__doc__ = "\n".join(lines)

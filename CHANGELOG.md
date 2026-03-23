@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Inline arg deprecation in docstrings.** When `args_mapping` is set and `update_docstring=True`, `@deprecated` now annotates each deprecated argument directly in the `Args:` / `Arguments:` (Google style) or `:param` (Sphinx style) section of the docstring rather than appending a general `.. deprecated::` block. The general block is still appended as a fallback when an argument is not found in the docstring. ([#136](https://github.com/Borda/pyDeprecate/pull/136))
+
 ## [0.6.0.post0] — 2026-03-14 — Deprecation Proxy for class/instances
 
 ### Changed

@@ -6,8 +6,12 @@ from tests.collection_docstrings import (
     args_not_in_docstring,
     google_args_removed,
     google_args_renamed,
+    google_arguments_header,
+    google_multi_args_all_found,
+    google_partial_annotation,
     old_function,
     old_function_plain,
+    sphinx_arg_not_in_docstring,
     sphinx_args_removed,
 )
 
@@ -91,6 +95,44 @@ class TestArgsDocstringAnnotation:
     def test_fallback_for_arg_not_in_docstring(self) -> None:
         """Arg not found in docstring triggers the general ``.. deprecated::`` fallback notice."""
         doc = args_not_in_docstring.__doc__
+        assert doc is not None
+        assert ".. deprecated:: 1.8" in doc
+        assert "Will be removed in 1.9." in doc
+
+    def test_multi_args_all_found_inline(self) -> None:
+        """Both deprecated args annotated inline; no general notice appended."""
+        doc = google_multi_args_all_found.__doc__
+        assert doc is not None
+        assert "Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9." in doc
+        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
+        assert ".. deprecated::" not in doc
+        # Each note appears after its own arg entry
+        old_a_pos = doc.index("old_a")
+        old_b_pos = doc.index("old_b")
+        new_a_note_pos = doc.index("use `new_a`")
+        removed_note_pos = doc.index("no longer used")
+        assert new_a_note_pos > old_a_pos
+        assert removed_note_pos > old_b_pos
+
+    def test_partial_annotation_mixed_state(self) -> None:
+        """First arg found inline; second arg missing triggers the general notice on top."""
+        doc = google_partial_annotation.__doc__
+        assert doc is not None
+        # The found arg (old_a) gets an inline note
+        assert "Deprecated since v1.8 — use `new_a` instead. Will be removed in v1.9." in doc
+        # The missing arg (missing_b) triggers the general .. deprecated:: block
+        assert ".. deprecated:: 1.8" in doc
+
+    def test_arguments_header_variant(self) -> None:
+        """``Arguments:`` section header is handled identically to ``Args:``."""
+        doc = google_arguments_header.__doc__
+        assert doc is not None
+        assert "Deprecated since v1.8 — no longer used. Will be removed in v1.9." in doc
+        assert ".. deprecated::" not in doc
+
+    def test_sphinx_fallback_for_arg_not_in_docstring(self) -> None:
+        """Sphinx-style: arg absent from ``:param`` fields falls back to general notice."""
+        doc = sphinx_arg_not_in_docstring.__doc__
         assert doc is not None
         assert ".. deprecated:: 1.8" in doc
         assert "Will be removed in 1.9." in doc

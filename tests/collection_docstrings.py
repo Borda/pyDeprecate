@@ -117,3 +117,80 @@ def args_not_in_docstring(lr: float = 0.01) -> str:
         lr (float): Learning rate for training.
     """
     return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"old_a": "new_a", "old_b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_multi_args_all_found(new_a: int = 0, old_a: int = 0, old_b: str = "") -> str:
+    """Run with two deprecated args, both present in the docstring.
+
+    Args:
+        new_a (int): The replacement for old_a.
+        old_a (int): The first deprecated argument.
+        old_b (str): The second deprecated argument.
+
+    Returns:
+        str: Result.
+    """
+    return f"{new_a}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"old_a": "new_a", "missing_b": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_partial_annotation(new_a: int = 0, old_a: int = 0) -> str:
+    """Run with two deprecated args, only one present in the docstring.
+
+    Args:
+        new_a (int): The replacement for old_a.
+        old_a (int): The first deprecated argument.
+
+    Returns:
+        str: Result.
+    """
+    return f"{new_a}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"train_config": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def google_arguments_header(lr: float = 0.01, train_config: object = None) -> str:
+    """Train the model using the ``Arguments:`` section header variant.
+
+    Arguments:
+        lr (float): Learning rate for training.
+        train_config (object): Training configuration object.
+
+    Returns:
+        str: Training result.
+    """
+    return f"lr={lr}"
+
+
+@deprecated(
+    target=True,
+    args_mapping={"missing_arg": None},
+    deprecated_in="1.8",
+    remove_in="1.9",
+    update_docstring=True,
+)
+def sphinx_arg_not_in_docstring(lr: float = 0.01) -> str:
+    """Train the model.
+
+    :param lr: Learning rate for training.
+    :returns: Training result.
+    """
+    return f"lr={lr}"
