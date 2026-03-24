@@ -72,7 +72,7 @@ def old_auto_numpy_sections(x: int, y: int) -> int:
     y : int
         Second operand.
 
-    Returns
+    Returns:
     -------
     int
         The sum of *x* and *y*.
