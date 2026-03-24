@@ -455,18 +455,15 @@ class TestDocstringStyleValidation:
 
         assert normalize_docstring_style(style) in ("rst", "mkdocs")
 
-    def test_auto_style_resolves_to_rst_by_default(self) -> None:
+    def test_auto_style_resolves_to_rst_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """``"auto"`` resolves to ``"rst"`` when no env var is set and argv is not mkdocs."""
         import sys
 
         from deprecate._docs import normalize_docstring_style
 
-        original_argv = sys.argv[:]
-        sys.argv = ["pytest"]
-        try:
-            result = normalize_docstring_style("auto")
-        finally:
-            sys.argv = original_argv
+        monkeypatch.setattr(sys, "argv", ["pytest"])
+        monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
+        result = normalize_docstring_style("auto")
         assert result == "rst"
 
     def test_auto_style_env_var_mkdocs(self, monkeypatch: pytest.MonkeyPatch) -> None:

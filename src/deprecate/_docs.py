@@ -546,8 +546,27 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             return
 
     deprecation_lines = _build_general_notice_lines(dep_info)
-    # Exact-line equality guards idempotency: a version like "1" must not match "1.0".
-    if deprecation_lines and any(ln.strip() == deprecation_lines[0].strip() for ln in lines):
+
+    def _has_deprecation_block(doc_lines: list[str], block_lines: list[str]) -> bool:
+        """Return True if ``block_lines`` appears as a contiguous block in ``doc_lines``.
+
+        Lines are compared using ``.strip()`` to ignore leading/trailing whitespace.
+        """
+        if not block_lines:
+            return False
+        max_start = len(doc_lines) - len(block_lines)
+        if max_start < 0:
+            return False
+        first = block_lines[0].strip()
+        for start in range(max_start + 1):
+            if doc_lines[start].strip() != first:
+                continue
+            if all(doc_lines[start + offset].strip() == block_lines[offset].strip() for offset in range(len(block_lines))):
+                return True
+        return False
+
+    # Guard idempotency by checking for the full deprecation block, not just the marker line.
+    if _has_deprecation_block(lines, deprecation_lines):
         return
     body_indent = next(
         (line[: len(line) - len(line.lstrip())] for line in lines[1:] if line.strip()),

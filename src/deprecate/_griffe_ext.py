@@ -27,7 +27,6 @@ Requirements:
 from __future__ import annotations
 
 import importlib
-import importlib.util
 import sys
 
 try:
