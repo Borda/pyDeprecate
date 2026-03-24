@@ -27,7 +27,6 @@ Requirements:
 from __future__ import annotations
 
 import importlib
-import inspect
 
 try:
     import griffe
@@ -77,7 +76,9 @@ if griffe is not None:
                 return
             if griffe_obj.docstring is None:
                 return
-            # inspect.cleandoc normalises leading indentation so Griffe receives
-            # clean text rather than a 4-space-indented block that would render
-            # as a Markdown code block.
-            griffe_obj.docstring.value = inspect.cleandoc(runtime_doc)
+            griffe_obj.docstring.value = runtime_doc
+            # Griffe caches parsed sections in docstring.__dict__["parsed"].
+            # If the cache was populated from the static source before this
+            # extension ran, it must be cleared so the next access re-parses
+            # from the updated value.
+            griffe_obj.docstring.__dict__.pop("parsed", None)
