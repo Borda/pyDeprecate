@@ -1,6 +1,6 @@
 Sandbox Module
 ==============
 
-.. automodule:: collection_docstrings
+.. automodule:: demo
    :members:
    :undoc-members:

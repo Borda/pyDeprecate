@@ -18,7 +18,7 @@ import sys
 PATH_HERE = os.path.abspath(os.path.dirname(__file__))
 
 sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "src")))
-sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "tests")))
+sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..")))
 
 from deprecate import __about__ as about  # noqa: E402
 
