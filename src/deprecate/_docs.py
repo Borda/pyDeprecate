@@ -553,8 +553,18 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             prefix.append("")
         prefix.extend(deprecation_lines)
         if suffix:
-            if suffix[0].strip():
+            # Strip trailing blank/whitespace-only elements from suffix.
+            # Python 3.13 pre-normalises __doc__ at compile time, leaving a
+            # trailing '' element that would produce an unwanted '\n' when the
+            # notice is inserted in the middle of the docstring.  Older versions
+            # leave a trailing indented-whitespace element; strip that too.
+            while suffix and not suffix[-1].strip():
+                suffix.pop()
+            if suffix and suffix[0].strip():
                 prefix.append("")
             prefix.extend(suffix)
-        prefix.append("")  # trailing newline
+        else:
+            # Notice is at the end of the docstring (no sections found).
+            # Add the trailing newline that the append path also produces.
+            prefix.append("")
         wrapped_fn.__doc__ = "\n".join(prefix)
