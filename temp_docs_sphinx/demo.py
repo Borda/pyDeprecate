@@ -1,6 +1,6 @@
 """Demo module showcasing pyDeprecate docstring injection styles for Sphinx."""
 
-from deprecate import deprecated
+from deprecate import deprecated, deprecated_class
 
 
 def new_add(x: int, y: int) -> int:
@@ -55,16 +55,10 @@ class NewCalculator:
         return round(x + y, self.precision)
 
 
+@deprecated_class(target=NewCalculator, deprecated_in="1.0", remove_in="2.0", update_docstring=True, docstring_style="rst")
 class OldCalculator:
     """Legacy calculator — use :class:`NewCalculator` instead."""
 
-    @deprecated(
-        target=NewCalculator,
-        deprecated_in="1.0",
-        remove_in="2.0",
-        update_docstring=True,
-        docstring_style="rst",
-    )
     def __init__(self, precision: int = 2) -> None:
         """Initialize OldCalculator.
 

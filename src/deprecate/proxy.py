@@ -24,9 +24,11 @@ Example:
 
 """
 
+import types
 from collections.abc import Iterator
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Literal, Optional, cast
 
+from deprecate._docs import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate._types import DeprecationConfig, _ProxyConfig
 from deprecate.deprecation import TEMPLATE_WARNING_CALLABLE, TEMPLATE_WARNING_NO_TARGET, deprecation_warning
 
@@ -78,6 +80,7 @@ class _DeprecatedProxy:
         read_only: bool = False,
         target: Any = None,  # noqa: ANN401
         args_mapping: Optional[dict] = None,
+        docstring_style: str = "auto",
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
 
@@ -104,8 +107,15 @@ class _DeprecatedProxy:
             name=name,
             target=target,
             args_mapping=args_mapping,
+            docstring_style=normalize_docstring_style(docstring_style),
         )
         object.__setattr__(self, "__deprecated__", dep_meta)
+        # Expose the wrapped object's docstring as an instance attribute so
+        # that external tools (autodoc, mkdocstrings/griffe) see the source
+        # class's documentation rather than _DeprecatedProxy's own class docstring.
+        _doc = getattr(obj, "__doc__", None)
+        if _doc:
+            object.__setattr__(self, "__doc__", _doc)
 
     # ------------------------------------------------------------------
     # Internal helpers — must use object.__getattribute__ / object.__setattr__
@@ -378,6 +388,8 @@ def deprecated_class(
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
     args_mapping: Optional[dict] = None,
+    update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
 ) -> Callable[[type], "_DeprecatedProxy"]:
     """Decorator factory for deprecating class definitions with optional target redirection.
 
@@ -416,7 +428,7 @@ def deprecated_class(
     """
 
     def decorator(cls: type) -> "_DeprecatedProxy":
-        return _DeprecatedProxy(
+        proxy = _DeprecatedProxy(
             obj=cls,
             name=cls.__name__,
             deprecated_in=deprecated_in,
@@ -426,7 +438,16 @@ def deprecated_class(
             read_only=False,
             target=target,
             args_mapping=args_mapping,
+            docstring_style=docstring_style,
         )
+        if update_docstring:
+            # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set
+            # __doc__ normally; then store the result on the proxy via object.__setattr__
+            # (bypassing the proxy's forwarding __setattr__).
+            shim = types.SimpleNamespace(__doc__=object.__getattribute__(proxy, "__doc__"), __deprecated__=proxy._dep)
+            _update_docstring_with_deprecation(shim)
+            object.__setattr__(proxy, "__doc__", shim.__doc__)
+        return proxy
 
     return decorator
 
