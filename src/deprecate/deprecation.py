@@ -489,12 +489,15 @@ def deprecated(
             If condition is True, original function executes without warning.
         update_docstring: If True, automatically inject a deprecation notice into
             the function's docstring (inserted before Google/NumPy-style sections when present,
-            otherwise appended at the end). By default, notices use reStructuredText (Sphinx).
+            otherwise appended at the end).
         docstring_style: Output style for injected deprecation notice when
             ``update_docstring=True``. Supported values:
-            - ``"rst"``: Sphinx-style ``.. deprecated::`` directive (default)
-            - ``"mkdocs"`` or ``"markdown"``: Markdown admonition
-              ``!!! warning "Deprecated in X"``
+            - ``"auto"`` (default): Automatically choose a style based on the current
+              environment (e.g., loaded modules, CLI/tooling context). This may resolve
+              to either ``"rst"`` or ``"mkdocs"``/``"markdown"`` at decoration time.
+            - ``"rst"``: Explicitly force Sphinx-style ``.. deprecated::`` directive.
+            - ``"mkdocs"`` or ``"markdown"``: Explicitly force a Markdown admonition
+              of the form ``!!! warning "Deprecated in X"``.
             Validated eagerly at decoration time regardless of ``update_docstring``.
 
     Returns:
