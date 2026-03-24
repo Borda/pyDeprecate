@@ -56,12 +56,14 @@ if griffe is not None:
 
         @staticmethod
         def _import_module(mod: griffe.Module) -> object:
-            """Import *mod* at runtime, adding its parent dir to sys.path if needed.
+            """Import *mod* at runtime, adding its package root to sys.path if needed.
 
             griffe loads modules via its own search_paths which are not on sys.path,
             so a plain ``importlib.import_module(mod.name)`` will fail for modules
             that live outside the installed packages (e.g. a local ``demo.py``).
-            We derive the parent directory from ``mod.filepath`` and temporarily
+            We derive the package root from ``mod.filepath`` — walking up one level
+            per dotted name component so that both single-file modules (``demo``) and
+            package sub-modules (``pkg.submod``) resolve correctly — and temporarily
             add it to sys.path so the import can succeed.
             """
             # Fast path: module is already importable (installed package, etc.)
@@ -70,14 +72,18 @@ if griffe is not None:
             except (ImportError, ModuleNotFoundError):
                 pass
 
-            # Slow path: add the source directory derived from mod.filepath.
+            # Slow path: add the package root derived from mod.filepath.
             filepath = getattr(mod, "filepath", None)
             if filepath is None:
                 return None
 
             import pathlib
 
-            source_dir = str(pathlib.Path(filepath).parent)
+            # For "pkg.submod" we need the directory that *contains* pkg/ on
+            # sys.path, not pkg/ itself.  Walk up one level per name component
+            # (depth=1 for "demo", depth=2 for "pkg.submod", etc.).
+            depth = len(mod.name.split(".")) - 1
+            source_dir = str(pathlib.Path(filepath).parents[depth])
             added = source_dir not in sys.path
             if added:
                 sys.path.insert(0, source_dir)
