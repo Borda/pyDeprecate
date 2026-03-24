@@ -480,7 +480,8 @@ class TestDocstringStyleValidation:
             """Summary. See also .. deprecated:: 1.0 handling."""
 
         assert some_func.__doc__ is not None
-        assert ".. deprecated:: 1" in some_func.__doc__
+        lines = [line.strip() for line in some_func.__doc__.splitlines()]
+        assert ".. deprecated:: 1" in lines
 
 
 class TestNumpyUnderlineDetection:

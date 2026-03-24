@@ -37,7 +37,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sphinx-docs
-          path: temp_docs_sphinx/_build/html/
+          path: temp_docs_sphinx/build/html/
           retention-days: 7
 
   mkdocs:
