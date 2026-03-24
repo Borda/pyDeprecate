@@ -22,7 +22,7 @@ def new_add(x: int, y: int) -> int:
 
 
 # ---------------------------------------------------------------------------
-# RST / Sphinx style (default)
+# Auto-detect style (renders as MkDocs admonition when built with mkdocs)
 # ---------------------------------------------------------------------------
 
 
@@ -31,13 +31,13 @@ def new_add(x: int, y: int) -> int:
     deprecated_in="1.0",
     remove_in="2.0",
     update_docstring=True,
+    docstring_style="auto",
 )
 def old_rst_no_sections(x: int, y: int) -> int:
     """Add two integers (legacy, no sections).
 
-    This is the default RST style — a ``.. deprecated::`` directive is
-    appended to the end of the docstring when there are no Google/NumPy
-    section headers.
+    The deprecation notice format is chosen automatically: ``!!! warning``
+    admonition when built with MkDocs, ``.. deprecated::`` otherwise.
     """
     return x + y
 
@@ -47,6 +47,7 @@ def old_rst_no_sections(x: int, y: int) -> int:
     deprecated_in="1.0",
     remove_in="2.0",
     update_docstring=True,
+    docstring_style="auto",
 )
 def old_rst_google_sections(x: int, y: int) -> int:
     """Add two integers (legacy, Google sections).
@@ -69,6 +70,7 @@ def old_rst_google_sections(x: int, y: int) -> int:
     deprecated_in="1.0",
     remove_in="2.0",
     update_docstring=True,
+    docstring_style="auto",
 )
 def old_rst_numpy_sections(x: int, y: int) -> int:
     """Add two integers (legacy, NumPy sections).

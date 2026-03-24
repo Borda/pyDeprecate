@@ -442,7 +442,7 @@ def deprecated(
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
-    docstring_style: Literal["rst", "mkdocs", "markdown"] = "rst",
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target.
 

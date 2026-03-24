@@ -448,12 +448,50 @@ class TestDocstringStyleValidation:
             def some_func() -> None:
                 """A function."""
 
-    @pytest.mark.parametrize("style", ["RST", "MKDOCS", "Markdown", "MkDocs"])
+    @pytest.mark.parametrize("style", ["RST", "MKDOCS", "Markdown", "MkDocs", "AUTO", "Auto"])
     def test_case_insensitive_normalization(self, style: str) -> None:
         """``docstring_style`` values are matched case-insensitively."""
         from deprecate._docs import normalize_docstring_style
 
         assert normalize_docstring_style(style) in ("rst", "mkdocs")
+
+    def test_auto_style_resolves_to_rst_by_default(self) -> None:
+        """``"auto"`` resolves to ``"rst"`` when no env var is set and argv is not mkdocs."""
+        import sys
+
+        from deprecate._docs import normalize_docstring_style
+
+        original_argv = sys.argv[:]
+        sys.argv = ["pytest"]
+        try:
+            result = normalize_docstring_style("auto")
+        finally:
+            sys.argv = original_argv
+        assert result == "rst"
+
+    def test_auto_style_env_var_mkdocs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``DEPRECATE_DOCSTRING_STYLE=mkdocs`` forces MkDocs format."""
+        from deprecate._docs import normalize_docstring_style
+
+        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "mkdocs")
+        assert normalize_docstring_style("auto") == "mkdocs"
+
+    def test_auto_style_env_var_rst(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``DEPRECATE_DOCSTRING_STYLE=rst`` forces RST format."""
+        from deprecate._docs import normalize_docstring_style
+
+        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "rst")
+        assert normalize_docstring_style("auto") == "rst"
+
+    def test_auto_style_detects_mkdocs_from_argv(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``sys.argv[0]`` containing ``mkdocs`` resolves ``"auto"`` to ``"mkdocs"``."""
+        import sys
+
+        from deprecate._docs import normalize_docstring_style
+
+        monkeypatch.setattr(sys, "argv", ["/usr/local/bin/mkdocs", "build"])
+        monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
+        assert normalize_docstring_style("auto") == "mkdocs"
 
     def test_update_docstring_idempotent(self) -> None:
         """Calling ``_update_docstring_with_deprecation`` twice must not duplicate the notice."""
@@ -525,3 +563,66 @@ class TestDocstringInsertionIndex:
         """Header on final line should not index past bounds and should append at end."""
         lines = ["Summary", "Parameters"]
         assert find_docstring_insertion_index(lines) == len(lines)
+
+
+class TestDocstringStyleOutput:
+    """Verify each docstring style alias produces the correct notice format."""
+
+    @pytest.mark.parametrize(
+        ("style", "expected_marker"),
+        [
+            ("rst", ".. deprecated:: 1.0"),
+            ("mkdocs", '!!! warning "Deprecated in 1.0"'),
+            ("markdown", '!!! warning "Deprecated in 1.0"'),
+        ],
+    )
+    def test_notice_marker_for_explicit_style(self, style: str, expected_marker: str) -> None:
+        """Each explicit style injects the expected notice format into the docstring."""
+
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        def _fn() -> None:
+            """A simple function."""
+
+        assert _fn.__doc__ is not None
+        assert expected_marker in _fn.__doc__
+
+    @pytest.mark.parametrize(
+        ("style", "expected_marker"),
+        [
+            ("rst", ".. deprecated:: 1.0"),
+            ("mkdocs", '!!! warning "Deprecated in 1.0"'),
+            ("markdown", '!!! warning "Deprecated in 1.0"'),
+        ],
+    )
+    def test_notice_inserted_before_google_args_for_style(self, style: str, expected_marker: str) -> None:
+        """Notice is placed before ``Args:`` regardless of style."""
+
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        def _fn(x: int) -> None:
+            """Summary.
+
+            Args:
+                x: A value.
+            """
+
+        assert _fn.__doc__ is not None
+        doc = _fn.__doc__
+        assert expected_marker in doc
+        assert doc.index(expected_marker) < doc.index("Args:")
+
+    @pytest.mark.parametrize(
+        ("style", "absent_marker"),
+        [
+            ("rst", "!!! warning"),
+            ("mkdocs", ".. deprecated::"),
+            ("markdown", ".. deprecated::"),
+        ],
+    )
+    def test_other_style_marker_absent(self, style: str, absent_marker: str) -> None:
+        """The notice uses exactly one format — the other style's marker is absent."""
+
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        def _fn() -> None:
+            """A simple function."""
+
+        assert absent_marker not in (_fn.__doc__ or "")

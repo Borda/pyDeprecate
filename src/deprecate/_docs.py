@@ -7,7 +7,7 @@ and Sphinx-style (``:param ...:``) docstrings, plus MkDocs/Markdown output.
 
 Key Components:
     - String constants (``TEMPLATE_DOC_*``) for reusable message fragments.
-    - Style normalizer: :func:`normalize_docstring_style`
+    - Style normalizer: :func:`normalize_docstring_style`, :func:`_auto_detect_style`
     - Section-aware insertion helpers: :func:`find_docstring_insertion_index`,
       :func:`is_numpy_underline`
     - Per-argument note builder: :func:`_build_arg_deprecation_note`
@@ -23,7 +23,9 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import os
 import re
+import sys
 from typing import Callable, Literal, Optional, cast
 
 from deprecate._types import DeprecationConfig
@@ -51,7 +53,7 @@ TEMPLATE_DOC_ARG_REASON_REMOVED = "no longer used"
 #: Reason phrase used when the deprecated argument is renamed; ``%(new_arg)s`` is substituted
 TEMPLATE_DOC_ARG_REASON_RENAMED = "use `%(new_arg)s` instead"
 
-DOCSTRING_STYLE_ALIASES = {"rst": "rst", "mkdocs": "mkdocs", "markdown": "mkdocs"}
+DOCSTRING_STYLE_ALIASES = {"auto": "auto", "rst": "rst", "mkdocs": "mkdocs", "markdown": "mkdocs"}
 SUPPORTED_DOCSTRING_STYLES: frozenset[str] = frozenset(DOCSTRING_STYLE_ALIASES)
 GOOGLE_DOCSTRING_SECTIONS = {
     "args:",
@@ -99,6 +101,29 @@ def find_docstring_insertion_index(lines: list[str]) -> int:
     return len(lines)
 
 
+def _auto_detect_style() -> Literal["rst", "mkdocs"]:
+    """Detect documentation engine from environment or process name.
+
+    Resolution order:
+
+    1. ``DEPRECATE_DOCSTRING_STYLE`` env var — explicit override, takes highest priority.
+    2. ``sys.modules`` — ``mkdocs`` imported → MkDocs build in progress.
+    3. ``sys.argv[0]`` full path — ``mkdocs`` anywhere in the path string.
+    4. Default → ``"rst"``.
+    """
+    env_style = os.environ.get("DEPRECATE_DOCSTRING_STYLE", "").lower()
+    if env_style in ("mkdocs", "markdown"):
+        return "mkdocs"
+    if env_style == "rst":
+        return "rst"
+    # sys.modules check catches `python -m mkdocs` where argv[0] is __main__.py
+    if "mkdocs" in sys.modules:
+        return "mkdocs"
+    if sys.argv and "mkdocs" in sys.argv[0].lower():
+        return "mkdocs"
+    return "rst"
+
+
 def normalize_docstring_style(docstring_style: str) -> Literal["rst", "mkdocs"]:
     """Validate and normalize docstring style aliases."""
     if not isinstance(docstring_style, str):
@@ -112,6 +137,8 @@ def normalize_docstring_style(docstring_style: str) -> Literal["rst", "mkdocs"]:
             "Invalid `docstring_style` value "
             f"{docstring_style!r}. Supported styles are: {sorted(SUPPORTED_DOCSTRING_STYLES)!r}."
         )
+    if normalized_style == "auto":
+        return _auto_detect_style()
     return cast(Literal["rst", "mkdocs"], normalized_style)
 
 

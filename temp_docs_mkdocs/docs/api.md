@@ -6,11 +6,11 @@ so you can see exactly how the injected notice looks once rendered.
 
 ______________________________________________________________________
 
-## RST / Sphinx style (default)
+## Auto-detected style
 
-These functions use `docstring_style="rst"` (the default). The injected
-`.. deprecated::` directive will render as a *Deprecated* box in Sphinx but
-appears as plain text here – that is expected when viewing in MkDocs.
+These functions use `docstring_style="auto"`. When built by MkDocs the
+notice is rendered as a `!!! warning` admonition; when built by Sphinx
+it falls back to a `.. deprecated::` RST directive.
 
 ### No section headers
 

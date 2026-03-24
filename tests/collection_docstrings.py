@@ -16,7 +16,7 @@ class NewClass:
         self.x = x
 
 
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True, docstring_style="rst")
 def old_function(a: int, b: str = "old") -> str:
     """An old function that is deprecated."""
     return f"old {a} {b}"
@@ -27,19 +27,19 @@ def old_function_plain(a: int, b: str = "old") -> str:  # noqa: D103
     return f"old {a} {b}"
 
 
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True, docstring_style="rst")
 def old_google_no_sections_function(a: int, b: str = "old") -> str:
     """Old Google-style function without explicit sections."""
     return f"old {a} {b}"
 
 
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True, docstring_style="rst")
 def old_numpy_no_sections_function(a: int, b: str = "old") -> str:
     """Old NumPy-style function without explicit sections."""
     return f"old {a} {b}"
 
 
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True, docstring_style="rst")
 def old_google_style_function(a: int, b: str = "old") -> str:
     """An old Google-style function.
 
@@ -53,7 +53,7 @@ def old_google_style_function(a: int, b: str = "old") -> str:
     return f"old {a} {b}"
 
 
-@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True, docstring_style="rst")
 def old_numpy_style_function(a: int, b: str = "old") -> str:
     """An old NumPy-style function.
 
@@ -67,13 +67,13 @@ def old_numpy_style_function(a: int, b: str = "old") -> str:
     return f"old {a} {b}"
 
 
-@deprecated(target=new_function, deprecated_in="0.1", update_docstring=True)
+@deprecated(target=new_function, deprecated_in="0.1", update_docstring=True, docstring_style="rst")
 def old_no_remove_version_function(a: int, b: str = "old") -> str:
     """Old function without remove version."""
     return f"old {a} {b}"
 
 
-@deprecated(target=None, deprecated_in="0.1", update_docstring=True)
+@deprecated(target=None, deprecated_in="0.1", update_docstring=True, docstring_style="rst")
 def old_no_target_function(a: int, b: str = "old") -> str:
     """Old function without target."""
     return f"old {a} {b}"
@@ -122,7 +122,7 @@ def old_markdown_alias_function(a: int, b: str = "old") -> str:
 class OldClass:
     """An old class that is deprecated."""
 
-    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
+    @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True, docstring_style="rst")
     def __init__(self, x: int) -> None:
         """Initialize the old class."""
         self.x = x
@@ -201,6 +201,7 @@ def sphinx_args_removed(lr: float = 0.01, train_config: object = None) -> str:
     deprecated_in="1.8",
     remove_in="1.9",
     update_docstring=True,
+    docstring_style="rst",
 )
 def args_not_in_docstring(lr: float = 0.01) -> str:
     """Train the model.
@@ -238,6 +239,7 @@ def google_multi_args_all_found(new_a: int = 0, old_a: int = 0, old_b: str = "")
     deprecated_in="1.8",
     remove_in="1.9",
     update_docstring=True,
+    docstring_style="rst",
 )
 def google_partial_annotation(new_a: int = 0, old_a: int = 0) -> str:
     """Run with two deprecated args, only one present in the docstring.
@@ -278,6 +280,7 @@ def google_arguments_header(lr: float = 0.01, train_config: object = None) -> st
     deprecated_in="1.8",
     remove_in="1.9",
     update_docstring=True,
+    docstring_style="rst",
 )
 def sphinx_arg_not_in_docstring(lr: float = 0.01) -> str:
     """Train the model.
@@ -337,6 +340,7 @@ def sphinx_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
     deprecated_in="1.8",
     remove_in="1.9",
     update_docstring=True,
+    docstring_style="rst",
 )
 def callable_target_with_args_mapping(a: int, b: str = "old") -> str:
     """Forward calls to new_function with a deprecated argument removed.
@@ -357,6 +361,7 @@ def callable_target_with_args_mapping(a: int, b: str = "old") -> str:
     deprecated_in="1.8",
     remove_in="1.9",
     update_docstring=True,
+    docstring_style="rst",
 )
 def no_target_with_args_mapping(a: int, b: str = "old") -> str:
     """Warning-only deprecation with a deprecated argument.

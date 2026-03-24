@@ -27,6 +27,8 @@ Requirements:
 from __future__ import annotations
 
 import importlib
+import importlib.util
+import sys
 
 try:
     import griffe
@@ -46,13 +48,47 @@ if griffe is not None:
             attribute (set by pyDeprecate), replace the Griffe docstring with the
             runtime value so that mkdocstrings renders the injected notice.
             """
-            try:
-                runtime_mod = importlib.import_module(mod.name)
-            except (ImportError, ModuleNotFoundError):
+            runtime_mod = self._import_module(mod)
+            if runtime_mod is None:
                 return
 
             for name, obj in mod.members.items():
                 self._update_obj(obj, runtime_mod, name)
+
+        @staticmethod
+        def _import_module(mod: griffe.Module) -> object:
+            """Import *mod* at runtime, adding its parent dir to sys.path if needed.
+
+            griffe loads modules via its own search_paths which are not on sys.path,
+            so a plain ``importlib.import_module(mod.name)`` will fail for modules
+            that live outside the installed packages (e.g. a local ``demo.py``).
+            We derive the parent directory from ``mod.filepath`` and temporarily
+            add it to sys.path so the import can succeed.
+            """
+            # Fast path: module is already importable (installed package, etc.)
+            try:
+                return importlib.import_module(mod.name)
+            except (ImportError, ModuleNotFoundError):
+                pass
+
+            # Slow path: add the source directory derived from mod.filepath.
+            filepath = getattr(mod, "filepath", None)
+            if filepath is None:
+                return None
+
+            import pathlib
+
+            source_dir = str(pathlib.Path(filepath).parent)
+            added = source_dir not in sys.path
+            if added:
+                sys.path.insert(0, source_dir)
+            try:
+                return importlib.import_module(mod.name)
+            except (ImportError, ModuleNotFoundError):
+                return None
+            finally:
+                if added:
+                    sys.path.remove(source_dir)
 
         def _update_obj(self, obj: griffe.Object, parent: object, name: str) -> None:
             runtime_obj = getattr(parent, name, None)
