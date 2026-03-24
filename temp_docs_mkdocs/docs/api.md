@@ -39,3 +39,24 @@ MkDocs Material.
 ### Google-style sections
 
 ::: demo.old_mkdocs_google_sections
+
+______________________________________________________________________
+
+## Combined: deprecated function + deprecated argument
+
+The function below is deprecated *and* has one argument (`verbose`) that
+has been removed. Both the inline argument annotation **and** the general
+deprecation notice are injected into the docstring.
+
+::: demo.old_add_with_verbose
+
+______________________________________________________________________
+
+## Deprecated class
+
+`OldCalculator` is deprecated in favour of `NewCalculator`. The
+deprecation notice is injected into `__init__`'s docstring.
+
+::: demo.NewCalculator
+
+::: demo.OldCalculator
