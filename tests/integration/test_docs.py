@@ -1,7 +1,6 @@
 """Tests for deprecation documentation strings."""
 
 import inspect
-from typing import Optional
 
 from tests.collection_docstrings import (
     OldClass,
@@ -32,18 +31,6 @@ from tests.collection_docstrings import (
 )
 
 
-def _normalize_doc(doc: Optional[str]) -> Optional[str]:
-    """Normalise docstring indentation for cross-version comparison.
-
-    Both injection paths use the same body indentation for the notice block,
-    so ``inspect.cleandoc`` normalises the whole docstring uniformly across
-    Python versions (3.13+ pre-strips at compile time; earlier versions do not).
-    """
-    if doc is None:
-        return None
-    return inspect.cleandoc(doc)
-
-
 class TestDeprecationDocstrings:
     """Tests for deprecation documentation strings."""
 
@@ -54,7 +41,7 @@ class TestDeprecationDocstrings:
 .. deprecated:: 0.1
    Will be removed in 0.3.
    Use :func:`tests.collection_docstrings.new_function` instead."""
-        assert _normalize_doc(old_function.__doc__) == expected
+        assert inspect.cleandoc(old_function.__doc__) == expected
 
     def test_deprecated_class_docstring(self) -> None:
         """Deprecated __init__ gets a ``.. deprecated::`` block appended."""
@@ -63,7 +50,7 @@ class TestDeprecationDocstrings:
 .. deprecated:: 0.2
    Will be removed in 0.4.
    Use :class:`tests.collection_docstrings.NewClass` instead."""
-        assert _normalize_doc(OldClass.__init__.__doc__) == expected
+        assert inspect.cleandoc(OldClass.__init__.__doc__) == expected
 
     def test_deprecated_func_docstring_plain(self) -> None:
         """Function without docstring is left with ``__doc__ = None``."""
@@ -87,7 +74,7 @@ Args:
 
 Returns:
     A formatted output."""
-        assert _normalize_doc(old_google_style_function.__doc__) == expected
+        assert inspect.cleandoc(old_google_style_function.__doc__) == expected
 
     def test_google_docstring_without_sections_appends_notice_to_end(self) -> None:
         """Without sections, deprecation notice is appended to the docstring tail."""
@@ -96,7 +83,7 @@ Returns:
 .. deprecated:: 0.1
    Will be removed in 0.3.
    Use :func:`tests.collection_docstrings.new_function` instead."""
-        assert _normalize_doc(old_google_no_sections_function.__doc__) == expected
+        assert inspect.cleandoc(old_google_no_sections_function.__doc__) == expected
 
     def test_numpy_docstring_inserts_before_parameters_section(self) -> None:
         """Deprecation notice is injected before NumPy-style ``Parameters`` section."""
@@ -112,7 +99,7 @@ a : int
     Number argument.
 b : str
     Text argument."""
-        assert _normalize_doc(old_numpy_style_function.__doc__) == expected
+        assert inspect.cleandoc(old_numpy_style_function.__doc__) == expected
 
     def test_numpy_docstring_without_sections_appends_notice_to_end(self) -> None:
         """Without NumPy headers, deprecation notice is appended to the docstring tail."""
@@ -121,7 +108,7 @@ b : str
 .. deprecated:: 0.1
    Will be removed in 0.3.
    Use :func:`tests.collection_docstrings.new_function` instead."""
-        assert _normalize_doc(old_numpy_no_sections_function.__doc__) == expected
+        assert inspect.cleandoc(old_numpy_no_sections_function.__doc__) == expected
 
     def test_mkdocs_docstring_uses_admonition_format(self) -> None:
         """MkDocs style emits admonition syntax inserted before ``Args:``."""
@@ -137,7 +124,7 @@ Args:
 
 Returns:
     A formatted output."""
-        assert _normalize_doc(old_mkdocs_style_function.__doc__) == expected
+        assert inspect.cleandoc(old_mkdocs_style_function.__doc__) == expected
 
     def test_markdown_alias_produces_mkdocs_admonition(self) -> None:
         """``docstring_style="markdown"`` is an alias for ``"mkdocs"`` and renders the same admonition."""
@@ -153,7 +140,7 @@ Args:
 
 Returns:
     A formatted output."""
-        assert _normalize_doc(old_markdown_alias_function.__doc__) == expected
+        assert inspect.cleandoc(old_markdown_alias_function.__doc__) == expected
 
     def test_remove_version_line_omitted_when_remove_in_is_empty(self) -> None:
         """Docstring notice omits remove-version line when remove_in is not provided."""
@@ -161,14 +148,14 @@ Returns:
 
 .. deprecated:: 0.1
    Use :func:`tests.collection_docstrings.new_function` instead."""
-        assert _normalize_doc(old_no_remove_version_function.__doc__) == expected
+        assert inspect.cleandoc(old_no_remove_version_function.__doc__) == expected
 
     def test_target_line_omitted_when_target_is_none(self) -> None:
         """Docstring notice omits target line when no target callable is provided."""
         expected = """Old function without target.
 
 .. deprecated:: 0.1"""
-        assert _normalize_doc(old_no_target_function.__doc__) == expected
+        assert inspect.cleandoc(old_no_target_function.__doc__) == expected
 
 
 class TestArgsDocstringAnnotation:
@@ -185,7 +172,7 @@ Args:
 
 Returns:
     Training result."""
-        assert _normalize_doc(google_args_removed.__doc__) == expected
+        assert inspect.cleandoc(google_args_removed.__doc__) == expected
 
     def test_google_args_renamed(self) -> None:
         """Renamed arg: inline note names the replacement; no general block appended."""
@@ -199,7 +186,7 @@ Args:
 
 Returns:
     Training result."""
-        assert _normalize_doc(google_args_renamed.__doc__) == expected
+        assert inspect.cleandoc(google_args_renamed.__doc__) == expected
 
     def test_sphinx_args_removed(self) -> None:
         """Sphinx-style: note inserted under ``:param``; no general block appended."""
@@ -209,7 +196,7 @@ Returns:
 :param train_config: Training configuration object.
     Deprecated since v1.8 — no longer used. Will be removed in v1.9.
 :returns: Training result."""
-        assert _normalize_doc(sphinx_args_removed.__doc__) == expected
+        assert inspect.cleandoc(sphinx_args_removed.__doc__) == expected
 
     def test_args_not_in_docstring(self) -> None:
         """Arg absent from the docstring falls back to a general ``.. deprecated::`` block."""
@@ -220,7 +207,7 @@ Args:
 
 .. deprecated:: 1.8
    Will be removed in 1.9."""
-        assert _normalize_doc(args_not_in_docstring.__doc__) == expected
+        assert inspect.cleandoc(args_not_in_docstring.__doc__) == expected
 
     def test_google_multi_args_all_found(self) -> None:
         """Both deprecated args annotated inline in declaration order; no general block."""
@@ -235,7 +222,7 @@ Args:
 
 Returns:
     Result."""
-        assert _normalize_doc(google_multi_args_all_found.__doc__) == expected
+        assert inspect.cleandoc(google_multi_args_all_found.__doc__) == expected
 
     def test_google_partial_annotation(self) -> None:
         """One arg found inline, one missing: inline note present AND general block appended."""
@@ -251,7 +238,7 @@ Returns:
 
 .. deprecated:: 1.8
    Will be removed in 1.9."""
-        assert _normalize_doc(google_partial_annotation.__doc__) == expected
+        assert inspect.cleandoc(google_partial_annotation.__doc__) == expected
 
     def test_google_arguments_header(self) -> None:
         """``Arguments:`` header treated identically to ``Args:``."""
@@ -264,7 +251,7 @@ Arguments:
 
 Returns:
     Training result."""
-        assert _normalize_doc(google_arguments_header.__doc__) == expected
+        assert inspect.cleandoc(google_arguments_header.__doc__) == expected
 
     def test_sphinx_arg_not_in_docstring(self) -> None:
         """Sphinx-style: absent param falls back to a general ``.. deprecated::`` block appended at end."""
@@ -275,7 +262,7 @@ Returns:
 
 .. deprecated:: 1.8
    Will be removed in 1.9."""
-        assert _normalize_doc(sphinx_arg_not_in_docstring.__doc__) == expected
+        assert inspect.cleandoc(sphinx_arg_not_in_docstring.__doc__) == expected
 
     def test_google_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline arg description."""
@@ -291,7 +278,7 @@ Args:
 
 Returns:
     Training result."""
-        assert _normalize_doc(google_args_multiline.__doc__) == expected
+        assert inspect.cleandoc(google_args_multiline.__doc__) == expected
 
     def test_sphinx_args_multiline(self) -> None:
         """Note appended after all continuation lines of a multiline Sphinx param."""
@@ -304,7 +291,7 @@ Returns:
     Ignored when ``None``.
     Deprecated since v1.8 — no longer used. Will be removed in v1.9.
 :returns: Training result."""
-        assert _normalize_doc(sphinx_args_multiline.__doc__) == expected
+        assert inspect.cleandoc(sphinx_args_multiline.__doc__) == expected
 
     def test_callable_target_with_args_mapping(self) -> None:
         """Callable target: inline note inserted AND general block appended with :func: ref."""
@@ -321,7 +308,7 @@ Returns:
 .. deprecated:: 1.8
    Will be removed in 1.9.
    Use :func:`tests.collection_docstrings.new_function` instead."""
-        assert _normalize_doc(callable_target_with_args_mapping.__doc__) == expected
+        assert inspect.cleandoc(callable_target_with_args_mapping.__doc__) == expected
 
     def test_no_target_with_args_mapping(self) -> None:
         """target=None: inline note inserted AND general block appended (no :func: ref)."""
@@ -337,7 +324,7 @@ Returns:
 
 .. deprecated:: 1.8
    Will be removed in 1.9."""
-        assert _normalize_doc(no_target_with_args_mapping.__doc__) == expected
+        assert inspect.cleandoc(no_target_with_args_mapping.__doc__) == expected
 
     def test_mkdocs_no_target_with_args_mapping(self) -> None:
         """MkDocs style: inline arg note inserted AND general block uses ``!!! warning``."""
@@ -353,4 +340,4 @@ Returns:
 
 !!! warning "Deprecated in 1.8"
     Will be removed in 1.9."""
-        assert _normalize_doc(mkdocs_no_target_with_args_mapping.__doc__) == expected
+        assert inspect.cleandoc(mkdocs_no_target_with_args_mapping.__doc__) == expected
