@@ -561,7 +561,9 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         for start in range(max_start + 1):
             if doc_lines[start].strip() != first:
                 continue
-            if all(doc_lines[start + offset].strip() == block_lines[offset].strip() for offset in range(len(block_lines))):
+            if all(
+                doc_lines[start + offset].strip() == block_lines[offset].strip() for offset in range(len(block_lines))
+            ):
                 return True
         return False
 
