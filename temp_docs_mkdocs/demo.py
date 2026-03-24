@@ -34,11 +34,7 @@ def new_add(x: int, y: int) -> int:
     docstring_style="auto",
 )
 def old_rst_no_sections(x: int, y: int) -> int:
-    """Add two integers (legacy, no sections).
-
-    The deprecation notice format is chosen automatically: ``!!! warning``
-    admonition when built with MkDocs, ``.. deprecated::`` otherwise.
-    """
+    """Add two integers (legacy, no sections)."""
     return x + y
 
 
@@ -51,9 +47,6 @@ def old_rst_no_sections(x: int, y: int) -> int:
 )
 def old_rst_google_sections(x: int, y: int) -> int:
     """Add two integers (legacy, Google sections).
-
-    The deprecation notice is injected **before** the ``Args:`` section
-    so that documentation parsers can still read the parameters.
 
     Args:
         x: First operand.
@@ -74,9 +67,6 @@ def old_rst_google_sections(x: int, y: int) -> int:
 )
 def old_rst_numpy_sections(x: int, y: int) -> int:
     """Add two integers (legacy, NumPy sections).
-
-    The deprecation notice is injected **before** the ``Parameters``
-    section underline so that NumPy-style parsers keep working.
 
     Parameters
     ----------
@@ -106,11 +96,7 @@ def old_rst_numpy_sections(x: int, y: int) -> int:
     docstring_style="mkdocs",
 )
 def old_mkdocs_no_sections(x: int, y: int) -> int:
-    """Add two integers (legacy, MkDocs style, no sections).
-
-    The ``!!! warning`` admonition is appended to the end of the
-    docstring when there are no Google/NumPy section headers.
-    """
+    """Add two integers (legacy, MkDocs style, no sections)."""
     return x + y
 
 
@@ -123,9 +109,6 @@ def old_mkdocs_no_sections(x: int, y: int) -> int:
 )
 def old_mkdocs_google_sections(x: int, y: int) -> int:
     """Add two integers (legacy, MkDocs style, Google sections).
-
-    The ``!!! warning`` admonition is injected **before** the ``Args:``
-    section so that the parameter table renders correctly.
 
     Args:
         x: First operand.
