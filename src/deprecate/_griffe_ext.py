@@ -79,11 +79,20 @@ if griffe is not None:
 
             import pathlib
 
-            # For "pkg.submod" we need the directory that *contains* pkg/ on
-            # sys.path, not pkg/ itself.  Walk up one level per name component
-            # (depth=1 for "demo", depth=2 for "pkg.submod", etc.).
+            # Walk up one level per name component so sys.path contains the
+            # *root* of the package tree, not a sub-directory.
+            # Examples (depth before __init__ adjustment):
+            #   "demo"     /project/demo.py           → depth=0, parents[0]=/project ✓
+            #   "pkg.sub"  /project/pkg/sub.py        → depth=1, parents[1]=/project ✓
+            # For packages the filepath points to __init__.py, adding one more
+            # level:
+            #   "pkg"      /project/pkg/__init__.py   → depth=0+1=1, parents[1]=/project ✓
+            #   "pkg.sub"  /project/pkg/sub/__init__.py → depth=1+1=2, parents[2]=/project ✓
+            p = pathlib.Path(filepath)
             depth = len(mod.name.split(".")) - 1
-            source_dir = str(pathlib.Path(filepath).parents[depth])
+            if p.name == "__init__.py":
+                depth += 1
+            source_dir = str(p.parents[depth])
             added = source_dir not in sys.path
             if added:
                 sys.path.insert(0, source_dir)
