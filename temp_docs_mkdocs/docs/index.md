@@ -5,10 +5,11 @@ deprecation notices for different documentation stacks.
 
 ## Available styles
 
-| `docstring_style`     | Output format                   | Best for         |
-| --------------------- | ------------------------------- | ---------------- |
-| `rst` *(default)*     | `.. deprecated::` RST directive | Sphinx / autodoc |
-| `mkdocs` / `markdown` | `!!! warning` admonition        | MkDocs Material  |
+| `docstring_style`     | Output format                                       | Best for                   |
+| --------------------- | --------------------------------------------------- | -------------------------- |
+| `auto` *(default)*    | Chooses `rst` for Sphinx/autodoc, `mkdocs` for MkDocs | General use / auto-detect  |
+| `rst`                 | `.. deprecated::` RST directive                    | Sphinx / autodoc (resolved default when not building MkDocs) |
+| `mkdocs` / `markdown` | `!!! warning` admonition                           | MkDocs Material            |
 
 ## Injection strategy
 
