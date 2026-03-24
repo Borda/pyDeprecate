@@ -504,7 +504,6 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     lines = wrapped_fn.__doc__.splitlines()
     dep_info = cast(DeprecationConfig, getattr(wrapped_fn, "__deprecated__"))
 
-    # Inline arg annotation path: annotate each deprecated argument under its docstring entry.
     if dep_info.args_mapping:
         all_args_found = True
         for arg_name, new_arg in dep_info.args_mapping.items():
@@ -513,44 +512,29 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             if not found:
                 lines, found = _annotate_sphinx_style_arg(lines, arg_name, note)
             if not found:
-                # Arg not found in docstring — the general notice is needed.
-                # Note: `lines` may already contain inline notes from earlier
-                # iterations (args that *were* found).  The general notice is
-                # added on top of those partial annotations.
-                all_args_found = False
-        # Only skip the general notice block for self-deprecation (target=True).
-        # When target is a callable or None the function itself is deprecated and
-        # the general notice block must be kept.
+                all_args_found = False  # missing arg → general notice still needed
+        # target=True means only individual args are deprecated, not the function itself.
         if all_args_found and dep_info.target is True:
             wrapped_fn.__doc__ = inspect.cleandoc("\n".join(lines))
             return
 
-    # General notice path: section-aware insertion with RST or MkDocs output.
     deprecation_lines = _build_general_notice_lines(dep_info)
-    # Idempotency guard: skip if the general notice is already present.
-    # Use exact-line equality to avoid false positives when a version string like "1"
-    # is a substring of another version in the docstring (e.g. "1.0").
+    # Exact-line equality guards idempotency: a version like "1" must not match "1.0".
     if deprecation_lines and any(ln.strip() == deprecation_lines[0].strip() for ln in lines):
         return
-    # Detect body indent from the first non-empty line after line 0.
     body_indent = next(
         (line[: len(line) - len(line.lstrip())] for line in lines[1:] if line.strip()),
         "",
     )
-    # When args_mapping is involved, always append at the end (preserving section order).
-    # For pure function deprecations (no args_mapping), insert before the first section.
     if dep_info.args_mapping:
-        # Append path: strip trailing blank lines, then append notice with the
-        # same body indentation so inspect.cleandoc normalises everything
-        # uniformly across Python versions.
+        # Append after inline arg notes to preserve existing section order.
         while lines and not lines[-1].strip():
             lines.pop()
-        lines.append("")  # blank separator line
+        lines.append("")
         lines.extend(body_indent + ln for ln in deprecation_lines)
         wrapped_fn.__doc__ = inspect.cleandoc("\n".join(lines))
     else:
-        # Insert-before-sections path: add body indentation so inspect.cleandoc
-        # normalises the injected lines together with the rest of the docstring.
+        # Insert before the first section so doc parsers see the notice first.
         deprecation_lines = [body_indent + ln for ln in deprecation_lines]
         insert_idx = find_docstring_insertion_index(lines)
         prefix = lines[:insert_idx]
@@ -559,12 +543,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             prefix.append("")
         prefix.extend(deprecation_lines)
         if suffix:
-            # Strip trailing blank/whitespace-only elements from suffix.
-            # Python 3.13 pre-normalises __doc__ at compile time, leaving a
-            # trailing '' element that would produce an unwanted '\n' when the
-            # notice is inserted in the middle of the docstring.  Older versions
-            # leave a trailing indented-whitespace element; strip that too.
-            while suffix and not suffix[-1].strip():
+            while suffix and not suffix[-1].strip():  # Python 3.13 may leave trailing blanks
                 suffix.pop()
             if suffix and suffix[0].strip():
                 prefix.append("")
