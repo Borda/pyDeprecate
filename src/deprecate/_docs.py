@@ -532,19 +532,19 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         return
     # When args_mapping is involved, always append at the end (preserving section order).
     # For pure function deprecations (no args_mapping), insert before the first section.
+    body_indent = _detect_body_indent(lines)
     if dep_info.args_mapping:
-        # Append path: strip trailing blank lines, then append notice without body
-        # indentation so the "\n\n.. deprecated::" separator is at column 0.  This
-        # makes _normalize_doc's split path work correctly and preserves the trailing
-        # newline in the final string.
+        # Append path: strip trailing blank lines, then append notice with the
+        # same body indentation so inspect.cleandoc normalises everything
+        # uniformly across Python versions.
         while lines and not lines[-1].strip():
             lines.pop()
-        lines.append("\n" + "\n".join(deprecation_lines) + "\n")
+        lines.append("")  # blank separator line
+        lines.extend(body_indent + ln for ln in deprecation_lines)
         wrapped_fn.__doc__ = "\n".join(lines)
     else:
         # Insert-before-sections path: add body indentation so inspect.cleandoc
         # normalises the injected lines together with the rest of the docstring.
-        body_indent = _detect_body_indent(lines)
         deprecation_lines = [body_indent + ln for ln in deprecation_lines]
         insert_idx = find_docstring_insertion_index(lines)
         prefix = lines[:insert_idx]
@@ -563,8 +563,4 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             if suffix and suffix[0].strip():
                 prefix.append("")
             prefix.extend(suffix)
-        else:
-            # Notice is at the end of the docstring (no sections found).
-            # Add the trailing newline that the append path also produces.
-            prefix.append("")
         wrapped_fn.__doc__ = "\n".join(prefix)

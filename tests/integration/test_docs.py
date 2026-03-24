@@ -35,20 +35,12 @@ from tests.collection_docstrings import (
 def _normalize_doc(doc: Optional[str]) -> Optional[str]:
     """Normalise docstring indentation for cross-version comparison.
 
-    Python 3.13+ strips common leading indent from ``__doc__`` at compile time;
-    earlier versions preserve it.  ``inspect.cleandoc`` alone cannot normalise a
-    docstring that already contains a notice block at column 0 (RST
-    ``.. deprecated::`` or MkDocs ``!!! warning``), because that zero-indent
-    line sets the minimum and prevents any stripping.
-    This helper splits on the notice separator, cleandocs the body, then
-    re-attaches the notice so both halves are handled correctly.
+    Both injection paths use the same body indentation for the notice block,
+    so ``inspect.cleandoc`` normalises the whole docstring uniformly across
+    Python versions (3.13+ pre-strips at compile time; earlier versions do not).
     """
     if doc is None:
         return None
-    for _notice in ("\n\n.. deprecated::", "\n\n!!! warning"):
-        if _notice in doc:
-            body, notice = doc.split(_notice, 1)
-            return inspect.cleandoc(body) + _notice + notice
     return inspect.cleandoc(doc)
 
 
@@ -61,8 +53,7 @@ class TestDeprecationDocstrings:
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead.
-"""
+   Use :func:`tests.collection_docstrings.new_function` instead."""
         assert _normalize_doc(old_function.__doc__) == expected
 
     def test_deprecated_class_docstring(self) -> None:
@@ -71,8 +62,7 @@ class TestDeprecationDocstrings:
 
 .. deprecated:: 0.2
    Will be removed in 0.4.
-   Use :class:`tests.collection_docstrings.NewClass` instead.
-"""
+   Use :class:`tests.collection_docstrings.NewClass` instead."""
         assert _normalize_doc(OldClass.__init__.__doc__) == expected
 
     def test_deprecated_func_docstring_plain(self) -> None:
@@ -105,8 +95,7 @@ Returns:
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead.
-"""
+   Use :func:`tests.collection_docstrings.new_function` instead."""
         assert _normalize_doc(old_google_no_sections_function.__doc__) == expected
 
     def test_numpy_docstring_inserts_before_parameters_section(self) -> None:
@@ -131,8 +120,7 @@ b : str
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead.
-"""
+   Use :func:`tests.collection_docstrings.new_function` instead."""
         assert _normalize_doc(old_numpy_no_sections_function.__doc__) == expected
 
     def test_mkdocs_docstring_uses_admonition_format(self) -> None:
@@ -172,16 +160,14 @@ Returns:
         expected = """Old function without remove version.
 
 .. deprecated:: 0.1
-   Use :func:`tests.collection_docstrings.new_function` instead.
-"""
+   Use :func:`tests.collection_docstrings.new_function` instead."""
         assert _normalize_doc(old_no_remove_version_function.__doc__) == expected
 
     def test_target_line_omitted_when_target_is_none(self) -> None:
         """Docstring notice omits target line when no target callable is provided."""
         expected = """Old function without target.
 
-.. deprecated:: 0.1
-"""
+.. deprecated:: 0.1"""
         assert _normalize_doc(old_no_target_function.__doc__) == expected
 
 
@@ -233,8 +219,7 @@ Args:
     lr: Learning rate for training.
 
 .. deprecated:: 1.8
-   Will be removed in 1.9.
-"""
+   Will be removed in 1.9."""
         assert _normalize_doc(args_not_in_docstring.__doc__) == expected
 
     def test_google_multi_args_all_found(self) -> None:
@@ -265,8 +250,7 @@ Returns:
     Result.
 
 .. deprecated:: 1.8
-   Will be removed in 1.9.
-"""
+   Will be removed in 1.9."""
         assert _normalize_doc(google_partial_annotation.__doc__) == expected
 
     def test_google_arguments_header(self) -> None:
@@ -290,8 +274,7 @@ Returns:
 :returns: Training result.
 
 .. deprecated:: 1.8
-   Will be removed in 1.9.
-"""
+   Will be removed in 1.9."""
         assert _normalize_doc(sphinx_arg_not_in_docstring.__doc__) == expected
 
     def test_google_args_multiline(self) -> None:
@@ -337,8 +320,7 @@ Returns:
 
 .. deprecated:: 1.8
    Will be removed in 1.9.
-   Use :func:`tests.collection_docstrings.new_function` instead.
-"""
+   Use :func:`tests.collection_docstrings.new_function` instead."""
         assert _normalize_doc(callable_target_with_args_mapping.__doc__) == expected
 
     def test_no_target_with_args_mapping(self) -> None:
@@ -354,8 +336,7 @@ Returns:
     Result.
 
 .. deprecated:: 1.8
-   Will be removed in 1.9.
-"""
+   Will be removed in 1.9."""
         assert _normalize_doc(no_target_with_args_mapping.__doc__) == expected
 
     def test_mkdocs_no_target_with_args_mapping(self) -> None:
@@ -371,6 +352,5 @@ Returns:
     Result.
 
 !!! warning "Deprecated in 1.8"
-    Will be removed in 1.9.
-"""
+    Will be removed in 1.9."""
         assert _normalize_doc(mkdocs_no_target_with_args_mapping.__doc__) == expected
