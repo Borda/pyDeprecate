@@ -37,17 +37,18 @@ def _normalize_doc(doc: Optional[str]) -> Optional[str]:
 
     Python 3.13+ strips common leading indent from ``__doc__`` at compile time;
     earlier versions preserve it.  ``inspect.cleandoc`` alone cannot normalise a
-    docstring that already contains a ``.. deprecated::`` directive at column 0,
-    because that zero-indent line sets the minimum and prevents any stripping.
+    docstring that already contains a notice block at column 0 (RST
+    ``.. deprecated::`` or MkDocs ``!!! warning``), because that zero-indent
+    line sets the minimum and prevents any stripping.
     This helper splits on the notice separator, cleandocs the body, then
     re-attaches the notice so both halves are handled correctly.
     """
     if doc is None:
         return None
-    _notice = "\n\n.. deprecated::"
-    if _notice in doc:
-        body, notice = doc.split(_notice, 1)
-        return inspect.cleandoc(body) + _notice + notice
+    for _notice in ("\n\n.. deprecated::", "\n\n!!! warning"):
+        if _notice in doc:
+            body, notice = doc.split(_notice, 1)
+            return inspect.cleandoc(body) + _notice + notice
     return inspect.cleandoc(doc)
 
 
@@ -83,64 +84,105 @@ class TestDeprecationDocstrings:
         assert getattr(OldClassPlain.__init__, "__doc__") is None
 
     def test_google_docstring_inserts_before_args_section(self) -> None:
-        """Deprecation notice should be injected before Google-style sections."""
-        assert old_google_style_function.__doc__ is not None
-        assert "Args:" in old_google_style_function.__doc__
-        notice_idx = old_google_style_function.__doc__.index(".. deprecated:: 0.1")
-        args_idx = old_google_style_function.__doc__.index("Args:")
-        assert notice_idx < args_idx
+        """Deprecation notice is injected before Google-style ``Args:`` section."""
+        expected = """An old Google-style function.
+
+.. deprecated:: 0.1
+   Will be removed in 0.3.
+   Use :func:`tests.collection_docstrings.new_function` instead.
+
+Args:
+    a: Number argument.
+    b: Text argument.
+
+Returns:
+    A formatted output."""
+        assert _normalize_doc(old_google_style_function.__doc__) == expected
 
     def test_google_docstring_without_sections_appends_notice_to_end(self) -> None:
         """Without sections, deprecation notice is appended to the docstring tail."""
-        assert old_google_no_sections_function.__doc__ is not None
-        summary = "Old Google-style function without explicit sections."
-        notice_idx = old_google_no_sections_function.__doc__.index(".. deprecated:: 0.1")
-        assert notice_idx > old_google_no_sections_function.__doc__.index(summary)
+        expected = """Old Google-style function without explicit sections.
+
+.. deprecated:: 0.1
+   Will be removed in 0.3.
+   Use :func:`tests.collection_docstrings.new_function` instead.
+"""
+        assert _normalize_doc(old_google_no_sections_function.__doc__) == expected
 
     def test_numpy_docstring_inserts_before_parameters_section(self) -> None:
-        """Deprecation notice should be injected before NumPy-style sections."""
-        assert old_numpy_style_function.__doc__ is not None
-        assert "Parameters" in old_numpy_style_function.__doc__
-        notice_idx = old_numpy_style_function.__doc__.index(".. deprecated:: 0.1")
-        params_idx = old_numpy_style_function.__doc__.index("Parameters")
-        assert notice_idx < params_idx
+        """Deprecation notice is injected before NumPy-style ``Parameters`` section."""
+        expected = """An old NumPy-style function.
+
+.. deprecated:: 0.1
+   Will be removed in 0.3.
+   Use :func:`tests.collection_docstrings.new_function` instead.
+
+Parameters
+----------
+a : int
+    Number argument.
+b : str
+    Text argument."""
+        assert _normalize_doc(old_numpy_style_function.__doc__) == expected
 
     def test_numpy_docstring_without_sections_appends_notice_to_end(self) -> None:
         """Without NumPy headers, deprecation notice is appended to the docstring tail."""
-        assert old_numpy_no_sections_function.__doc__ is not None
-        summary = "Old NumPy-style function without explicit sections."
-        notice_idx = old_numpy_no_sections_function.__doc__.index(".. deprecated:: 0.1")
-        assert notice_idx > old_numpy_no_sections_function.__doc__.index(summary)
+        expected = """Old NumPy-style function without explicit sections.
+
+.. deprecated:: 0.1
+   Will be removed in 0.3.
+   Use :func:`tests.collection_docstrings.new_function` instead.
+"""
+        assert _normalize_doc(old_numpy_no_sections_function.__doc__) == expected
 
     def test_mkdocs_docstring_uses_admonition_format(self) -> None:
-        """MkDocs style should emit Markdown admonition syntax."""
-        assert old_mkdocs_style_function.__doc__ is not None
-        assert '!!! warning "Deprecated in 0.1"' in old_mkdocs_style_function.__doc__
-        assert "Use `tests.collection_docstrings.new_function` instead." in old_mkdocs_style_function.__doc__
-        assert "Args:" in old_mkdocs_style_function.__doc__
-        notice_idx = old_mkdocs_style_function.__doc__.index('!!! warning "Deprecated in 0.1"')
-        args_idx = old_mkdocs_style_function.__doc__.index("Args:")
-        assert notice_idx < args_idx
+        """MkDocs style emits admonition syntax inserted before ``Args:``."""
+        expected = """An old MkDocs-style function.
+
+!!! warning "Deprecated in 0.1"
+    Will be removed in 0.3.
+    Use `tests.collection_docstrings.new_function` instead.
+
+Args:
+    a: Number argument.
+    b: Text argument.
+
+Returns:
+    A formatted output."""
+        assert _normalize_doc(old_mkdocs_style_function.__doc__) == expected
 
     def test_markdown_alias_produces_mkdocs_admonition(self) -> None:
         """``docstring_style="markdown"`` is an alias for ``"mkdocs"`` and renders the same admonition."""
-        assert old_markdown_alias_function.__doc__ is not None
-        assert '!!! warning "Deprecated in 0.1"' in old_markdown_alias_function.__doc__
-        assert "Args:" in old_markdown_alias_function.__doc__
-        notice_idx = old_markdown_alias_function.__doc__.index('!!! warning "Deprecated in 0.1"')
-        args_idx = old_markdown_alias_function.__doc__.index("Args:")
-        assert notice_idx < args_idx
+        expected = """An old function using the ``markdown`` style alias.
+
+!!! warning "Deprecated in 0.1"
+    Will be removed in 0.3.
+    Use `tests.collection_docstrings.new_function` instead.
+
+Args:
+    a: Number argument.
+    b: Text argument.
+
+Returns:
+    A formatted output."""
+        assert _normalize_doc(old_markdown_alias_function.__doc__) == expected
 
     def test_remove_version_line_omitted_when_remove_in_is_empty(self) -> None:
         """Docstring notice omits remove-version line when remove_in is not provided."""
-        assert old_no_remove_version_function.__doc__ is not None
-        assert "Will be removed in" not in old_no_remove_version_function.__doc__
+        expected = """Old function without remove version.
+
+.. deprecated:: 0.1
+   Use :func:`tests.collection_docstrings.new_function` instead.
+"""
+        assert _normalize_doc(old_no_remove_version_function.__doc__) == expected
 
     def test_target_line_omitted_when_target_is_none(self) -> None:
         """Docstring notice omits target line when no target callable is provided."""
-        assert old_no_target_function.__doc__ is not None
-        assert "Use :" not in old_no_target_function.__doc__
-        assert "Use `" not in old_no_target_function.__doc__
+        expected = """Old function without target.
+
+.. deprecated:: 0.1
+"""
+        assert _normalize_doc(old_no_target_function.__doc__) == expected
 
 
 class TestArgsDocstringAnnotation:
@@ -317,11 +359,18 @@ Returns:
         assert _normalize_doc(no_target_with_args_mapping.__doc__) == expected
 
     def test_mkdocs_no_target_with_args_mapping(self) -> None:
-        """MkDocs style: inline note inserted AND general block uses ``!!! warning``."""
-        doc = mkdocs_no_target_with_args_mapping.__doc__
-        assert doc is not None
-        # Inline annotation is RST-style (arg-level notes are style-agnostic)
-        assert "Deprecated since v1.8" in doc
-        # General notice block must use MkDocs admonition, not RST directive
-        assert "!!! warning" in doc
-        assert ".. deprecated::" not in doc
+        """MkDocs style: inline arg note inserted AND general block uses ``!!! warning``."""
+        expected = """Warning-only deprecation with a deprecated argument (MkDocs style).
+
+Args:
+    a: The main integer input.
+    b: Deprecated configuration string — will be removed.
+        Deprecated since v1.8 — no longer used. Will be removed in v1.9.
+
+Returns:
+    Result.
+
+!!! warning "Deprecated in 1.8"
+    Will be removed in 1.9.
+"""
+        assert _normalize_doc(mkdocs_no_target_with_args_mapping.__doc__) == expected
