@@ -827,7 +827,8 @@ This is useful for generating API docs with Sphinx, MkDocs, and strict Google/Nu
 
 ![Documentation Sample](assets/docs-sample.png)
 
-#### MkDocs integration
+<details>
+<summary>MkDocs integration: render injected notices with <code>mkdocstrings</code></summary>
 
 `@deprecated(update_docstring=True)` modifies `fn.__doc__` at **import time**. [mkdocstrings](https://mkdocstrings.github.io/) uses [Griffe](https://mkdocstrings.github.io/griffe/) to read docstrings from the **source AST**, so it never sees that runtime change. To bridge the gap, pyDeprecate ships a Griffe extension:
 
@@ -842,6 +843,8 @@ plugins:
 ```
 
 With the extension registered, mkdocstrings will render the injected `!!! warning` admonition for every `@deprecated` function in your docs. No extra dependencies are required — `griffe` is already a dependency of `mkdocstrings[python]`.
+
+</details>
 
 ### ➕ Injecting new required arguments
 
