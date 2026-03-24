@@ -33,6 +33,13 @@ jobs:
         working-directory: temp_docs_sphinx
         run: make html
 
+      - name: 📤 Upload Sphinx docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sphinx-docs
+          path: temp_docs_sphinx/_build/html/
+          retention-days: 7
+
   mkdocs:
     name: MkDocs (Markdown)
     runs-on: ubuntu-latest
@@ -52,3 +59,10 @@ jobs:
       - name: 📖 Build MkDocs documentation
         working-directory: temp_docs_mkdocs
         run: mkdocs build --strict
+
+      - name: 📤 Upload MkDocs docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkdocs-docs
+          path: temp_docs_mkdocs/site/
+          retention-days: 7
