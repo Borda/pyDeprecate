@@ -9,13 +9,14 @@ Key Components:
     - String constants (``TEMPLATE_DOC_*``) for reusable message fragments.
     - Style normalizer: :func:`normalize_docstring_style`
     - Section-aware insertion helpers: :func:`find_docstring_insertion_index`,
-      :func:`is_numpy_underline`, :func:`_detect_body_indent`
+      :func:`is_numpy_underline`
     - Per-argument note builder: :func:`_build_arg_deprecation_note`
     - Google-style section helpers: :func:`_find_google_args_section`,
       :func:`_get_google_arg_indents`, :func:`_find_google_arg_line`
     - Shared continuation-line helper: :func:`_find_entry_end`
     - Annotators: :func:`_annotate_google_style_arg`,
       :func:`_annotate_sphinx_style_arg`
+    - Notice builder: :func:`_build_general_notice_lines`
     - Orchestrator: :func:`_update_docstring_with_deprecation`
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
@@ -82,18 +83,6 @@ def is_numpy_underline(line: str) -> bool:
     """Return ``True`` when the line is a NumPy-style section underline."""
     stripped = line.strip()
     return len(stripped) >= 3 and all(char == "-" for char in stripped)
-
-
-def _detect_body_indent(lines: list[str]) -> str:
-    """Return the common indentation prefix used in the docstring body.
-
-    Examines lines after the first (which is always unindented in ``__doc__``)
-    and returns the leading whitespace of the first non-empty body line.
-    """
-    for line in lines[1:]:
-        if line.strip():
-            return line[: len(line) - len(line.lstrip())]
-    return ""
 
 
 def find_docstring_insertion_index(lines: list[str]) -> int:
@@ -381,6 +370,50 @@ def _annotate_sphinx_style_arg(lines: list[str], arg_name: str, note: str) -> tu
     return new_lines, True
 
 
+def _build_general_notice_lines(dep_info: DeprecationConfig) -> list[str]:
+    """Render the general deprecation notice lines for the given style.
+
+    Selects the RST (``.. deprecated::``) or MkDocs (``!!! warning``) template
+    based on ``dep_info.docstring_style``, substitutes ``deprecated_in``,
+    ``remove_in``, and the target reference, and omits template lines whose
+    placeholder resolves to an empty string.
+
+    Args:
+        dep_info: Frozen deprecation metadata attached to the decorated callable.
+
+    Returns:
+        A list of rendered notice lines (without leading body indentation).
+
+    """
+    remove_text = f"Will be removed in {dep_info.remove_in}." if dep_info.remove_in else ""
+    target_text_rst = ""
+    target_text_mkdocs = ""
+    if callable(dep_info.target):
+        full_target_name = f"{dep_info.target.__module__}.{dep_info.target.__name__}"
+        ref_type = "class" if inspect.isclass(dep_info.target) else "func"
+        target_text_rst = f"Use :{ref_type}:`{full_target_name}` instead."
+        target_text_mkdocs = f"Use `{full_target_name}` instead."
+
+    docstring_style = normalize_docstring_style(dep_info.docstring_style)
+    if docstring_style == "mkdocs":
+        template = TEMPLATE_DOC_DEPRECATED_MKDOCS
+        target_text = target_text_mkdocs
+    else:
+        template = TEMPLATE_DOC_DEPRECATED_RST
+        target_text = target_text_rst
+
+    result = []
+    for line in template:
+        if line.strip().endswith("%(remove_text)s") and not remove_text:
+            continue
+        if line.strip().endswith("%(target_text)s") and not target_text:
+            continue
+        result.append(
+            line % {"deprecated_in": dep_info.deprecated_in, "remove_text": remove_text, "target_text": target_text}
+        )
+    return result
+
+
 def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
     """Annotate a function's docstring with deprecation information.
 
@@ -489,50 +522,23 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
         # When target is a callable or None the function itself is deprecated and
         # the general notice block must be kept.
         if all_args_found and dep_info.target is True:
-            wrapped_fn.__doc__ = "\n".join(lines)
+            wrapped_fn.__doc__ = inspect.cleandoc("\n".join(lines))
             return
 
     # General notice path: section-aware insertion with RST or MkDocs output.
-    remove_in_val = dep_info.remove_in
-    target_val = dep_info.target
-    remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
-    target_text_rst = ""
-    target_text_mkdocs = ""
-    if callable(target_val):
-        full_target_name = f"{target_val.__module__}.{target_val.__name__}"
-        ref_type = "class" if inspect.isclass(target_val) else "func"
-        target_text_rst = f"Use :{ref_type}:`{full_target_name}` instead."
-        target_text_mkdocs = f"Use `{full_target_name}` instead."
-
-    docstring_style = normalize_docstring_style(dep_info.docstring_style)
-    docstring_template = TEMPLATE_DOC_DEPRECATED_RST
-    target_text = target_text_rst
-    if docstring_style == "mkdocs":
-        docstring_template = TEMPLATE_DOC_DEPRECATED_MKDOCS
-        target_text = target_text_mkdocs
-
-    deprecation_lines = []
-    for line in docstring_template:
-        if line.strip().endswith("%(remove_text)s") and not remove_text:
-            continue
-        if line.strip().endswith("%(target_text)s") and not target_text:
-            continue
-        deprecation_lines.append(
-            line
-            % {
-                "deprecated_in": dep_info.deprecated_in,
-                "remove_text": remove_text,
-                "target_text": target_text,
-            }
-        )
+    deprecation_lines = _build_general_notice_lines(dep_info)
     # Idempotency guard: skip if the general notice is already present.
     # Use exact-line equality to avoid false positives when a version string like "1"
     # is a substring of another version in the docstring (e.g. "1.0").
     if deprecation_lines and any(ln.strip() == deprecation_lines[0].strip() for ln in lines):
         return
+    # Detect body indent from the first non-empty line after line 0.
+    body_indent = next(
+        (line[: len(line) - len(line.lstrip())] for line in lines[1:] if line.strip()),
+        "",
+    )
     # When args_mapping is involved, always append at the end (preserving section order).
     # For pure function deprecations (no args_mapping), insert before the first section.
-    body_indent = _detect_body_indent(lines)
     if dep_info.args_mapping:
         # Append path: strip trailing blank lines, then append notice with the
         # same body indentation so inspect.cleandoc normalises everything
@@ -541,7 +547,7 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             lines.pop()
         lines.append("")  # blank separator line
         lines.extend(body_indent + ln for ln in deprecation_lines)
-        wrapped_fn.__doc__ = "\n".join(lines)
+        wrapped_fn.__doc__ = inspect.cleandoc("\n".join(lines))
     else:
         # Insert-before-sections path: add body indentation so inspect.cleandoc
         # normalises the injected lines together with the rest of the docstring.
@@ -563,4 +569,4 @@ def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
             if suffix and suffix[0].strip():
                 prefix.append("")
             prefix.extend(suffix)
-        wrapped_fn.__doc__ = "\n".join(prefix)
+        wrapped_fn.__doc__ = inspect.cleandoc("\n".join(prefix))
