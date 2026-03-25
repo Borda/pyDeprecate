@@ -80,17 +80,17 @@ jobs:
           python-version: ${{ env.PYTHON_DEFAULT }}
 
       - name: 📦 Install package + Sphinx dependencies
-        run: pip install -e . -r temp_docs_sphinx/requirements.txt
+        run: pip install -e . -r demo-docs/sphinx/requirements.txt
 
       - name: 📖 Build Sphinx documentation
-        working-directory: temp_docs_sphinx
+        working-directory: demo-docs/sphinx
         run: make html
 
       - name: 📤 Upload Sphinx docs artifact
         uses: actions/upload-artifact@v4
         with:
           name: sphinx-docs
-          path: temp_docs_sphinx/build/html/
+          path: demo-docs/sphinx/build/html/
           retention-days: 7
 
   build-demo-mkdocs:
@@ -107,17 +107,17 @@ jobs:
           python-version: ${{ env.PYTHON_DEFAULT }}
 
       - name: 📦 Install package + MkDocs dependencies
-        run: pip install -e . -r temp_docs_mkdocs/requirements.txt
+        run: pip install -e . -r demo-docs/mkdocs/requirements.txt
 
       - name: 📖 Build MkDocs documentation
-        working-directory: temp_docs_mkdocs
+        working-directory: demo-docs/mkdocs
         run: mkdocs build --strict
 
       - name: 📤 Upload MkDocs docs artifact
         uses: actions/upload-artifact@v4
         with:
           name: mkdocs-docs
-          path: temp_docs_mkdocs/site/
+          path: demo-docs/mkdocs/site/
           retention-days: 7
 
   deploy:
