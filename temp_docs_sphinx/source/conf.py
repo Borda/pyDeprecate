@@ -18,13 +18,13 @@ import sys
 PATH_HERE = os.path.abspath(os.path.dirname(__file__))
 
 sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "src")))
-sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "tests")))
+sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..")))
 
 from deprecate import __about__ as about  # noqa: E402
 
 # -- Project information -----------------------------------------------------
 
-project = "sandbox"
+project = "demo"
 copyright = about.__copyright__
 author = about.__author__
 
@@ -116,7 +116,7 @@ html_static_path = []  # '_static'
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "SandboxDoc"
+htmlhelp_basename = "Demo Doc"
 
 
 # -- Options for LaTeX output ------------------------------------------------

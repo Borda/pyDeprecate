@@ -1,11 +1,11 @@
-Welcome to Sandbox's documentation!
-==========================================
+Demo: automatically injecting deprecation notices
+=================================================
 
 .. toctree::
    :maxdepth: 3
    :caption: Contents
 
-   sandbox
+   api
 
 Indices and tables
 ==================

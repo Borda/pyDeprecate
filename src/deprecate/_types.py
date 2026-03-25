@@ -6,7 +6,7 @@ than silently returning ``None`` at runtime.
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 class DeprecationConfig:
     """Static deprecation metadata attached to deprecated callables as ``__deprecated__``.
 
-    All five fields are always set — both ``@deprecated``-decorated functions and
+    All fields are always set — both ``@deprecated``-decorated functions and
     :class:`~deprecate.proxy._DeprecatedProxy` objects use this unified schema.
 
     Attributes:
@@ -26,6 +26,7 @@ class DeprecationConfig:
         target: Replacement target — a callable, ``True`` for self-deprecation, or ``None``.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
+        docstring_style: Docstring notice output style when ``update_docstring=True``.
     """
 
     deprecated_in: str = ""
@@ -33,6 +34,7 @@ class DeprecationConfig:
     name: str = ""
     target: Any = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
+    docstring_style: Literal["rst", "mkdocs"] = "rst"
 
 
 @runtime_checkable
