@@ -1,5 +1,9 @@
 """Griffe extension: expose runtime-modified docstrings to mkdocstrings.
 
+.. note::
+    **Beta feature** — the public API of this module (class name, hook method
+    signatures) may change in a minor release while it stabilises.
+
 ``@deprecated(update_docstring=True)`` writes the deprecation notice into
 ``fn.__doc__`` at decoration time.  Griffe — the engine used by mkdocstrings —
 reads docstrings from the source AST, so it never sees that runtime change.
@@ -15,7 +19,7 @@ Usage in ``mkdocs.yml``::
           handlers:
             python:
               extensions:
-                - deprecate._griffe_ext:RuntimeDocstrings
+                - deprecate.docstring.griffe_ext:RuntimeDocstrings
 
 Requirements:
     ``griffe`` is a dependency of ``mkdocstrings[python]`` and will always be

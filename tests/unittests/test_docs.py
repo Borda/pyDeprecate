@@ -1,6 +1,7 @@
-"""Unit tests for private helpers in deprecate._docs."""
+"""Unit tests for private helpers in deprecate.docstring.inject."""
 
-from deprecate._docs import (
+from deprecate._types import DeprecationConfig
+from deprecate.docstring.inject import (
     _annotate_google_style_arg,
     _annotate_sphinx_style_arg,
     _build_arg_deprecation_note,
@@ -9,7 +10,6 @@ from deprecate._docs import (
     _get_google_arg_indents,
     _update_docstring_with_deprecation,
 )
-from deprecate._types import DeprecationConfig
 
 
 class TestBuildArgDeprecationNote:

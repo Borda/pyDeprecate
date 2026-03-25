@@ -839,7 +839,7 @@ plugins:
       handlers:
         python:
           extensions:
-            - deprecate._griffe_ext:RuntimeDocstrings
+            - deprecate.docstring.griffe_ext:RuntimeDocstrings
 ```
 
 With the extension registered, mkdocstrings will render the injected `!!! warning` admonition for every `@deprecated` function in your docs. No extra dependencies are required — `griffe` is already a dependency of `mkdocstrings[python]`.

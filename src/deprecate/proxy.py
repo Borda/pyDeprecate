@@ -28,9 +28,9 @@ import types
 from collections.abc import Iterator
 from typing import Any, Callable, Literal, Optional, cast
 
-from deprecate._docs import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate._types import DeprecationConfig, _ProxyConfig
 from deprecate.deprecation import TEMPLATE_WARNING_CALLABLE, TEMPLATE_WARNING_NO_TARGET, deprecation_warning
+from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 
 
 class _DeprecatedProxy:

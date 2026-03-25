@@ -54,6 +54,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     # "recommonmark",
+    "deprecate.docstring.sphinx_ext",  # bridges _DeprecatedProxy → ClassDocumenter
 ]
 
 # Add any paths that contain templates here, relative to this directory.
