@@ -94,6 +94,7 @@ jobs:
     # Only deploy on pushes to main — skip on pull requests.
     if: github.event_name == 'push'
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
