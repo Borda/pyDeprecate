@@ -2,17 +2,18 @@
 #
 # Flow:
 #
-#   push → main          pull_request → main
-#     │                        │
-#     ├─ sphinx-docs ──┐        ├─ sphinx-docs
-#     └─ mkdocs ───────┤        └─ mkdocs
-#                      │           (deploy skipped — if: push only)
-#                      ▼
-#                   deploy
-#                     ├─ download sphinx-docs  (same run, no run-id needed)
-#                     ├─ download mkdocs-docs  (same run, no run-id needed)
-#                     ├─ cp temp_docs/index.html → _site/
-#                     └─ actions/deploy-pages
+#   push → main / pull_request → main
+#     │
+#     ├─ build-portal ──┐
+#     ├─ build-sphinx ──┤
+#     └─ build-mkdocs ──┤
+#                       ▼
+#                    deploy (always runs — assembles _site/ for PR validation)
+#                      ├─ download portal, sphinx, mkdocs artifacts
+#                      ├─ assemble _site/{sphinx,mkdocs} + portal at root
+#                      ├─ [if push] actions/configure-pages
+#                      ├─ actions/upload-pages-artifact
+#                      └─ [if push] actions/deploy-pages
 #
 #   pages: write and id-token: write are scoped to the deploy job only —
 #   pull requests keep the minimal contents: read permission.
@@ -33,16 +34,48 @@ env:
   PYTHON_DEFAULT: "3.13"
 
 jobs:
-  sphinx-docs:
+  build-portal:
+    name: Portal (MkDocs)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+
+      - name: 📦 Install portal dependencies
+        run: pip install -r temp_docs/requirements.txt
+
+      - name: 📄 Copy README and assets into portal docs
+        run: |
+          cp README.md temp_docs/docs/index.md
+          cp -r assets temp_docs/docs/assets
+
+      - name: 📖 Build portal
+        working-directory: temp_docs
+        run: mkdocs build --strict
+
+      - name: 📤 Upload portal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-docs
+          path: temp_docs/site/
+          retention-days: 7
+
+  build-sphinx:
     name: Sphinx (RST)
     runs-on: ubuntu-latest
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
 
@@ -60,16 +93,16 @@ jobs:
           path: temp_docs_sphinx/build/html/
           retention-days: 7
 
-  mkdocs:
+  build-mkdocs:
     name: MkDocs (Markdown)
     runs-on: ubuntu-latest
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
 
@@ -88,11 +121,9 @@ jobs:
           retention-days: 7
 
   deploy:
-    name: Deploy to GitHub Pages
-    needs: [sphinx-docs, mkdocs]
+    name: Assemble & Deploy to GitHub Pages
+    needs: [build-portal, build-sphinx, build-mkdocs]
     runs-on: ubuntu-latest
-    # Only deploy on pushes to main — skip on pull requests.
-    if: github.event_name == 'push'
     permissions:
       contents: read
       pages: write
@@ -102,8 +133,11 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
-      - name: 🔀 Checkout repository (for portal page)
-        uses: actions/checkout@v6
+      - name: 📥 Download portal artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: portal-docs
+          path: _site
 
       - name: 📥 Download Sphinx artifact
         uses: actions/download-artifact@v4
@@ -117,10 +151,8 @@ jobs:
           name: mkdocs-docs
           path: _site/mkdocs
 
-      - name: 🗂️ Place portal page at root
-        run: cp temp_docs/index.html _site/index.html
-
       - name: ⚙️ Configure GitHub Pages
+        if: github.event_name == 'push'
         uses: actions/configure-pages@v5
 
       - name: 📤 Upload Pages artifact
@@ -129,5 +161,6 @@ jobs:
           path: _site/
 
       - name: 🚀 Deploy to GitHub Pages
+        if: github.event_name == 'push'
         id: deploy
         uses: actions/deploy-pages@v4

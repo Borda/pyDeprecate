@@ -1,0 +1,37 @@
+site_name: pyDeprecate
+site_description: Simple tooling for marking deprecated functions or classes and re-routing to their successors.
+site_url: https://borda.github.io/pyDeprecate/
+repo_url: https://github.com/Borda/pyDeprecate
+repo_name: Borda/pyDeprecate
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: cyan
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.grids
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+validation:
+  links:
+    not_found: ignore
+    unrecognized_links: ignore
+
+nav:
+  - Home: index.md
+  - Demos: demos.md
