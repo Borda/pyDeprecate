@@ -1,3 +1,22 @@
+# Build Demo Docs
+#
+# Flow:
+#
+#   push → main          pull_request → main
+#     │                        │
+#     ├─ sphinx-docs ──┐        ├─ sphinx-docs
+#     └─ mkdocs ───────┤        └─ mkdocs
+#                      │           (deploy skipped — if: push only)
+#                      ▼
+#                   deploy
+#                     ├─ download sphinx-docs  (same run, no run-id needed)
+#                     ├─ download mkdocs-docs  (same run, no run-id needed)
+#                     ├─ cp temp_docs/index.html → _site/
+#                     └─ actions/deploy-pages
+#
+#   pages: write and id-token: write are scoped to the deploy job only —
+#   pull requests keep the minimal contents: read permission.
+
 name: Build Demo Docs
 
 on:
@@ -6,6 +25,7 @@ on:
   pull_request:
     branches: [main]
 
+# Minimal default; deploy job overrides with pages + id-token.
 permissions:
   contents: read
 
@@ -66,3 +86,47 @@ jobs:
           name: mkdocs-docs
           path: temp_docs_mkdocs/site/
           retention-days: 7
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [sphinx-docs, mkdocs]
+    runs-on: ubuntu-latest
+    # Only deploy on pushes to main — skip on pull requests.
+    if: github.event_name == 'push'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: 🔀 Checkout repository (for portal page)
+        uses: actions/checkout@v6
+
+      - name: 📥 Download Sphinx artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sphinx-docs
+          path: _site/sphinx
+
+      - name: 📥 Download MkDocs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mkdocs-docs
+          path: _site/mkdocs
+
+      - name: 🗂️ Place portal page at root
+        run: cp temp_docs/index.html _site/index.html
+
+      - name: ⚙️ Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: 📤 Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site/
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
