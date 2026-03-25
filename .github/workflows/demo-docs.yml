@@ -11,6 +11,7 @@
 #                    deploy (always runs — assembles _site/ for PR validation)
 #                      ├─ download portal, sphinx, mkdocs artifacts
 #                      ├─ assemble _site/{sphinx,mkdocs} + portal at root
+#                      ├─ upload combined-site artifact (for inspection)
 #                      ├─ [if push] actions/configure-pages
 #                      ├─ actions/upload-pages-artifact
 #                      └─ [if push] actions/deploy-pages
@@ -48,22 +49,22 @@ jobs:
           python-version: ${{ env.PYTHON_DEFAULT }}
 
       - name: 📦 Install portal dependencies
-        run: pip install -r temp_docs/requirements.txt
+        run: pip install -r docs/requirements.txt
 
       - name: 📄 Copy README and assets into portal docs
         run: |
-          cp README.md temp_docs/docs/index.md
-          cp -r assets temp_docs/docs/assets
+          cp README.md docs/docs/index.md
+          cp -r assets docs/docs/assets
 
       - name: 📖 Build portal
-        working-directory: temp_docs
+        working-directory: docs
         run: mkdocs build --strict
 
       - name: 📤 Upload portal artifact
         uses: actions/upload-artifact@v4
         with:
           name: portal-docs
-          path: temp_docs/site/
+          path: docs/site/
           retention-days: 7
 
   build-sphinx:
@@ -150,6 +151,13 @@ jobs:
         with:
           name: mkdocs-docs
           path: _site/mkdocs
+
+      - name: 📤 Upload combined site artifact (for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-site
+          path: _site/
+          retention-days: 7
 
       - name: ⚙️ Configure GitHub Pages
         if: github.event_name == 'push'
