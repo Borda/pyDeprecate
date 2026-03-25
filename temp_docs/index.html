@@ -1,197 +1,236 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>pyDeprecate — Documentation Demos</title>
-  <style>
-    :root {
-      --sphinx-blue: #0a507a;
-      --mkdocs-indigo: #526cfe;
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --border: #334155;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    }
-    header {
-      text-align: center;
-      margin-bottom: 3rem;
-      max-width: 640px;
-    }
-    .eyebrow {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-      margin-bottom: 0.75rem;
-    }
-    h1 {
-      font-size: 2.75rem;
-      font-weight: 800;
-      margin-bottom: 1rem;
-      background: linear-gradient(135deg, #6366f1 0%, #22d3ee 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .tagline {
-      font-size: 1.05rem;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-    code {
-      font-family: 'Menlo', 'Consolas', monospace;
-      font-size: 0.88em;
-      background: #0f172a;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 0.1em 0.4em;
-      color: #7dd3fc;
-    }
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      max-width: 740px;
-      width: 100%;
-    }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 2rem;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-    }
-    .card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
-    }
-    .card.sphinx:hover  { border-color: var(--sphinx-blue); }
-    .card.mkdocs:hover  { border-color: var(--mkdocs-indigo); }
-    .logo {
-      width: 52px;
-      height: 52px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .logo.sphinx  { background: var(--sphinx-blue); }
-    .logo.mkdocs  { background: var(--mkdocs-indigo); }
-    /* Sphinx — stylised owl silhouette using CSS clip-path */
-    .logo-sphinx-icon {
-      width: 28px;
-      height: 28px;
-      background: #fff;
-      clip-path: polygon(50% 0%, 61% 18%, 80% 10%, 72% 30%,
-                         90% 35%, 75% 50%, 82% 70%, 62% 62%,
-                         50% 80%, 38% 62%, 18% 70%, 25% 50%,
-                         10% 35%, 28% 30%, 20% 10%, 39% 18%);
-    }
-    /* MkDocs Material — simple "M" glyph */
-    .logo-mkdocs-icon {
-      font-weight: 900;
-      font-size: 1.5rem;
-      color: #fff;
-      font-family: 'Georgia', serif;
-    }
-    .card h2 {
-      font-size: 1.25rem;
-      font-weight: 700;
-    }
-    .card p {
-      color: var(--muted);
-      font-size: 0.95rem;
-      line-height: 1.65;
-      flex: 1;
-    }
-    .cta {
-      font-size: 0.9rem;
-      color: var(--muted);
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      transition: color 0.2s, gap 0.2s;
-    }
-    .card:hover .cta { gap: 0.65rem; }
-    .card.sphinx:hover .cta  { color: #7eb8d4; }
-    .card.mkdocs:hover .cta  { color: #a5b4fc; }
-    footer {
-      margin-top: 3.5rem;
-      color: var(--muted);
-      font-size: 0.85rem;
-      text-align: center;
-    }
-    footer a { color: inherit; opacity: 0.8; }
-    footer a:hover { opacity: 1; }
-  </style>
-</head>
-<body>
-
-  <header>
-    <p class="eyebrow">Documentation Demo</p>
-    <h1>pyDeprecate</h1>
-    <p class="tagline">
-      Add <code>update_docstring=True</code> to <code>@deprecated(...)</code>
-      and the deprecation notice is injected into your rendered API docs
-      automatically — no manual docstring editing ever required.
-      <br><br>
-      Choose a documentation stack to see it live.
-    </p>
-  </header>
-
-  <div class="cards">
-
-    <a href="sphinx/" class="card sphinx">
-      <div class="logo sphinx">
-        <div class="logo-sphinx-icon"></div>
-      </div>
-      <h2>Sphinx</h2>
-      <p>
-        Injects a <code>.. deprecated::</code> RST directive rendered by
-        <code>sphinx.ext.autodoc</code> + Napoleon. Supports Google-style,
-        NumPy-style, and Sphinx field-list docstrings.
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pyDeprecate — Documentation Demos</title>
+    <style>
+      :root {
+        --sphinx-blue: #0a507a;
+        --mkdocs-indigo: #526cfe;
+        --bg: #0f172a;
+        --card-bg: #1e293b;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --border: #334155;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      header {
+        text-align: center;
+        margin-bottom: 3rem;
+        max-width: 640px;
+      }
+      .eyebrow {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        margin-bottom: 0.75rem;
+      }
+      h1 {
+        font-size: 2.75rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #6366f1 0%, #22d3ee 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .tagline {
+        font-size: 1.05rem;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      code {
+        font-family: "Menlo", "Consolas", monospace;
+        font-size: 0.88em;
+        background: #0f172a;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.1em 0.4em;
+        color: #7dd3fc;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        max-width: 740px;
+        width: 100%;
+      }
+      .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 2rem;
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        transition:
+          border-color 0.2s,
+          transform 0.2s,
+          box-shadow 0.2s;
+      }
+      .card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+      }
+      .card.sphinx:hover {
+        border-color: var(--sphinx-blue);
+      }
+      .card.mkdocs:hover {
+        border-color: var(--mkdocs-indigo);
+      }
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .logo.sphinx {
+        background: var(--sphinx-blue);
+      }
+      .logo.mkdocs {
+        background: var(--mkdocs-indigo);
+      }
+      /* Sphinx — stylised owl silhouette using CSS clip-path */
+      .logo-sphinx-icon {
+        width: 28px;
+        height: 28px;
+        background: #fff;
+        clip-path: polygon(
+          50% 0%,
+          61% 18%,
+          80% 10%,
+          72% 30%,
+          90% 35%,
+          75% 50%,
+          82% 70%,
+          62% 62%,
+          50% 80%,
+          38% 62%,
+          18% 70%,
+          25% 50%,
+          10% 35%,
+          28% 30%,
+          20% 10%,
+          39% 18%
+        );
+      }
+      /* MkDocs Material — simple "M" glyph */
+      .logo-mkdocs-icon {
+        font-weight: 900;
+        font-size: 1.5rem;
+        color: #fff;
+        font-family: "Georgia", serif;
+      }
+      .card h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+      }
+      .card p {
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.65;
+        flex: 1;
+      }
+      .cta {
+        font-size: 0.9rem;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition:
+          color 0.2s,
+          gap 0.2s;
+      }
+      .card:hover .cta {
+        gap: 0.65rem;
+      }
+      .card.sphinx:hover .cta {
+        color: #7eb8d4;
+      }
+      .card.mkdocs:hover .cta {
+        color: #a5b4fc;
+      }
+      footer {
+        margin-top: 3.5rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+        text-align: center;
+      }
+      footer a {
+        color: inherit;
+        opacity: 0.8;
+      }
+      footer a:hover {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">Documentation Demo</p>
+      <h1>pyDeprecate</h1>
+      <p class="tagline">
+        Add <code>update_docstring=True</code> to <code>@deprecated(...)</code>
+        and the deprecation notice is injected into your rendered API docs automatically — no manual docstring editing
+        ever required.
+        <br /><br />
+        Choose a documentation stack to see it live.
       </p>
-      <span class="cta">View Sphinx demo &rarr;</span>
-    </a>
+    </header>
 
-    <a href="mkdocs/" class="card mkdocs">
-      <div class="logo mkdocs">
-        <span class="logo-mkdocs-icon">M</span>
-      </div>
-      <h2>MkDocs Material</h2>
-      <p>
-        Injects a <code>!!! warning</code> admonition rendered by
-        <code>mkdocstrings</code>. A built-in Griffe extension bridges the
-        static AST parser with the runtime-modified <code>__doc__</code>.
-      </p>
-      <span class="cta">View MkDocs demo &rarr;</span>
-    </a>
+    <div class="cards">
+      <a href="sphinx/" class="card sphinx">
+        <div class="logo sphinx">
+          <div class="logo-sphinx-icon"></div>
+        </div>
+        <h2>Sphinx</h2>
+        <p>
+          Injects a <code>.. deprecated::</code> RST directive rendered by <code>sphinx.ext.autodoc</code> + Napoleon.
+          Supports Google-style, NumPy-style, and Sphinx field-list docstrings.
+        </p>
+        <span class="cta">View Sphinx demo &rarr;</span>
+      </a>
 
-  </div>
+      <a href="mkdocs/" class="card mkdocs">
+        <div class="logo mkdocs">
+          <span class="logo-mkdocs-icon">M</span>
+        </div>
+        <h2>MkDocs Material</h2>
+        <p>
+          Injects a <code>!!! warning</code> admonition rendered by <code>mkdocstrings</code>. A built-in Griffe
+          extension bridges the static AST parser with the runtime-modified <code>__doc__</code>.
+        </p>
+        <span class="cta">View MkDocs demo &rarr;</span>
+      </a>
+    </div>
 
-  <footer>
-    <a href="https://github.com/Borda/pyDeprecate">github.com/Borda/pyDeprecate</a>
-  </footer>
-
-</body>
+    <footer>
+      <a href="https://github.com/Borda/pyDeprecate">github.com/Borda/pyDeprecate</a>
+    </footer>
+  </body>
 </html>

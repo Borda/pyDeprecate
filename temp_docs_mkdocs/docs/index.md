@@ -23,7 +23,9 @@ time — before the documentation tool ever sees it.
 ```python
 from deprecate import deprecated
 
+
 def new_add(x: int, y: int) -> int: ...
+
 
 @deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0", update_docstring=True)
 def old_add(x: int, y: int) -> int:
@@ -59,11 +61,11 @@ the docstring at all — the notice appears automatically in every rendered outp
 
 ## Docstring styles
 
-| `docstring_style`     | Output                        | Use when                              |
-| --------------------- | ----------------------------- | ------------------------------------- |
-| `"auto"` *(default)*  | Detects engine at import time | Most projects — just works            |
-| `"rst"`               | `.. deprecated::` directive   | Sphinx / autodoc                      |
-| `"mkdocs"`            | `!!! warning` admonition      | MkDocs Material                       |
+| `docstring_style`    | Output                        | Use when                   |
+| -------------------- | ----------------------------- | -------------------------- |
+| `"auto"` *(default)* | Detects engine at import time | Most projects — just works |
+| `"rst"`              | `.. deprecated::` directive   | Sphinx / autodoc           |
+| `"mkdocs"`           | `!!! warning` admonition      | MkDocs Material            |
 
 `"auto"` checks `sys.modules` and `sys.argv` to detect whether MkDocs or Sphinx is driving
 the build, so the same decorator works in both stacks without changes.
