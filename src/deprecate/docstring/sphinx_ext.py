@@ -42,7 +42,7 @@ import contextlib
 from typing import Any
 
 try:
-    from sphinx.ext.autodoc import ClassDocumenter
+    from sphinx.ext.autodoc import ClassDocumenter, prepare_docstring
 
     _SPHINX_AVAILABLE = True
 except ImportError:  # pragma: no cover
@@ -123,7 +123,7 @@ if _SPHINX_AVAILABLE:
                 """Return the proxy docstring so the ``.. deprecated::`` block is rendered."""
                 proxy_doc: str = getattr(self, "_proxy_doc", "")
                 if proxy_doc:
-                    return [proxy_doc.splitlines()]
+                    return [prepare_docstring(proxy_doc)]
                 return super().get_doc()
 
 
