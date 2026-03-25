@@ -7,21 +7,10 @@ docs_dir: docs
 use_directory_urls: false
 
 theme:
-  name: material
-  palette:
-    primary: indigo
-    accent: cyan
-  features:
-    - navigation.sections
-    - navigation.top
-    - content.code.copy
+  name: readthedocs
 
 markdown_extensions:
   - admonition
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.highlight:
-      anchor_linenums: true
   - toc:
       permalink: true
 
