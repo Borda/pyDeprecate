@@ -152,13 +152,6 @@ jobs:
           name: mkdocs-docs
           path: _site/mkdocs
 
-      - name: 📤 Upload combined site artifact (for inspection)
-        uses: actions/upload-artifact@v4
-        with:
-          name: combined-site
-          path: _site/
-          retention-days: 7
-
       - name: ⚙️ Configure GitHub Pages
         if: github.event_name == 'push'
         uses: actions/configure-pages@v5

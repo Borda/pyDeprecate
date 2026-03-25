@@ -14,7 +14,6 @@ theme:
     - navigation.sections
     - navigation.top
     - content.code.copy
-    - content.grids
 
 markdown_extensions:
   - admonition
@@ -22,8 +21,6 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
-  - attr_list
-  - md_in_html
   - toc:
       permalink: true
 
@@ -34,4 +31,5 @@ validation:
 
 nav:
   - Home: index.md
-  - Demos: demos.md
+  - Demo as Sphinx: https://borda.github.io/pyDeprecate/sphinx/
+  - Demo as MkDocs: https://borda.github.io/pyDeprecate/mkdocs/
