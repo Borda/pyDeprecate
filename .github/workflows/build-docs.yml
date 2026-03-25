@@ -52,18 +52,17 @@ jobs:
 
       - name: 📄 Copy README and assets into portal docs
         run: |
-          cp README.md docs/docs/index.md
-          cp -r assets docs/docs/assets
+          cp README.md docs/index.md
+          cp -r assets docs/assets
 
       - name: 📖 Build portal
-        working-directory: docs
         run: mkdocs build --strict
 
       - name: 📤 Upload portal artifact
         uses: actions/upload-artifact@v4
         with:
           name: portal-docs
-          path: docs/site/
+          path: site/
           retention-days: 7
 
   build-demo-sphinx:
