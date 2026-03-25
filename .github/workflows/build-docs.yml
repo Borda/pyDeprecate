@@ -142,13 +142,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: sphinx-docs
-          path: _site/sphinx
+          path: _site/demo-sphinx
 
       - name: 📥 Download MkDocs artifact
         uses: actions/download-artifact@v4
         with:
           name: mkdocs-docs
-          path: _site/mkdocs
+          path: _site/demo-mkdocs
 
       - name: ⚙️ Configure GitHub Pages
         if: github.event_name == 'push'
