@@ -42,7 +42,7 @@ repos:
     hooks:
       - id: mypy
         name: typing
-        exclude: ^temp_docs_sphinx/|^temp_docs_mkdocs/ # exclude develop docs folders
+        exclude: ^demo-docs/ # exclude demo doc folders
 
   - repo: https://github.com/executablebooks/mdformat
     rev: 1.0.0
