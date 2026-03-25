@@ -4,6 +4,7 @@ site_url: https://borda.github.io/pyDeprecate/
 repo_url: https://github.com/Borda/pyDeprecate
 repo_name: Borda/pyDeprecate
 docs_dir: docs
+use_directory_urls: false
 
 theme:
   name: material
