@@ -126,6 +126,7 @@ uv.lock
 .ropeproject
 
 # mkdocs documentation
+docs/index.md
 /site
 
 # mypy

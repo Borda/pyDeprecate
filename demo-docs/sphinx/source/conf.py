@@ -54,6 +54,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     # "recommonmark",
+    "python_docs_theme",  # registers the theme
     "deprecate.docstring.sphinx_ext",  # bridges _DeprecatedProxy → ClassDocumenter
 ]
 
@@ -90,7 +91,7 @@ pygments_style = None
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 # http://www.sphinx-doc.org/en/master/usage/theming.html#builtin-themes
-html_theme = "sphinx_book_theme"
+html_theme = "python_docs_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
