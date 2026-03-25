@@ -1,5 +1,5 @@
-Welcome to Demo 's documentation!
-==========================================
+Demo: automatically injecting deprecation notices
+=================================================
 
 .. toctree::
    :maxdepth: 3
