@@ -18,7 +18,7 @@
 #   pages: write and id-token: write are scoped to the deploy job only —
 #   pull requests keep the minimal contents: read permission.
 
-name: Build Demo Docs
+name: Build & Deploy Docs
 
 on:
   push:
@@ -35,7 +35,7 @@ env:
 
 jobs:
   build-landing-docs:
-    name: Portal (MkDocs)
+    name: Portal (landing-docs)
     runs-on: ubuntu-latest
 
     steps:
@@ -67,7 +67,7 @@ jobs:
           retention-days: 7
 
   build-demo-sphinx:
-    name: Sphinx (RST)
+    name: Demo Sphinx (RST)
     runs-on: ubuntu-latest
 
     steps:
@@ -94,7 +94,7 @@ jobs:
           retention-days: 7
 
   build-demo-mkdocs:
-    name: MkDocs (Markdown)
+    name: Demo MkDocs (Markdown)
     runs-on: ubuntu-latest
 
     steps:
@@ -121,7 +121,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    name: Assemble & Deploy to GitHub Pages
+    name: Assemble & Deploy GH Pages
     needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
     runs-on: ubuntu-latest
     permissions:

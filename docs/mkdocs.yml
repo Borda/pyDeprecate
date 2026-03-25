@@ -31,5 +31,5 @@ validation:
 
 nav:
   - Home: index.md
-  - Demo as Sphinx: https://borda.github.io/pyDeprecate/sphinx/
-  - Demo as MkDocs: https://borda.github.io/pyDeprecate/mkdocs/
+  - Demo as Sphinx: demo-sphinx.md
+  - Demo as MkDocs: demo-mkdocs.md
