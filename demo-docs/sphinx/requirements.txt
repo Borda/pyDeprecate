@@ -1,3 +1,2 @@
 sphinx>=4.0
 pandoc
-furo
