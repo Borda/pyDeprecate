@@ -1,4 +1,4 @@
-# pyDeprecate – Docstring Style Demo
+# pyDeprecate – Demo
 
 This site demonstrates how `@deprecated(update_docstring=True)` injects
 deprecation notices for different documentation stacks.

@@ -1,11 +1,11 @@
-Welcome to Sandbox's documentation!
+Welcome to Demo 's documentation!
 ==========================================
 
 .. toctree::
    :maxdepth: 3
    :caption: Contents
 
-   sandbox
+   api
 
 Indices and tables
 ==================

@@ -566,6 +566,8 @@ def deprecated(
                 num_warns=num_warns,
                 stream=stream,
                 args_mapping=args_mapping,
+                update_docstring=update_docstring,
+                docstring_style=docstring_style,
             )(source)
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.

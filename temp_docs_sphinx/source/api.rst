@@ -1,5 +1,5 @@
-Sandbox Module
-==============
+Demo Module
+===========
 
 Deprecated function with deprecated argument
 --------------------------------------------

@@ -463,6 +463,7 @@ class TestDocstringStyleValidation:
 
         monkeypatch.setattr(sys, "argv", ["pytest"])
         monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
+        monkeypatch.delitem(sys.modules, "mkdocs", raising=False)
         result = normalize_docstring_style("auto")
         assert result == "rst"
 
@@ -510,7 +511,7 @@ class TestDocstringStyleValidation:
         false positive.
         """
 
-        @deprecated(target=None, deprecated_in="1", update_docstring=True)
+        @deprecated(target=None, deprecated_in="1", update_docstring=True, docstring_style="rst")
         def some_func() -> None:
             """Summary. See also .. deprecated:: 1.0 handling."""
 

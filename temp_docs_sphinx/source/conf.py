@@ -24,7 +24,7 @@ from deprecate import __about__ as about  # noqa: E402
 
 # -- Project information -----------------------------------------------------
 
-project = "sandbox"
+project = "demo"
 copyright = about.__copyright__
 author = about.__author__
 
@@ -116,7 +116,7 @@ html_static_path = []  # '_static'
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "SandboxDoc"
+htmlhelp_basename = "Demo Doc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
