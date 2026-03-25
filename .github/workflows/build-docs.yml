@@ -4,17 +4,16 @@
 #
 #   push → main / pull_request → main
 #     │
-#     ├─ build-portal ──┐
-#     ├─ build-sphinx ──┤
-#     └─ build-mkdocs ──┤
-#                       ▼
-#                    deploy (always runs — assembles _site/ for PR validation)
-#                      ├─ download portal, sphinx, mkdocs artifacts
-#                      ├─ assemble _site/{sphinx,mkdocs} + portal at root
-#                      ├─ upload combined-site artifact (for inspection)
-#                      ├─ [if push] actions/configure-pages
-#                      ├─ actions/upload-pages-artifact
-#                      └─ [if push] actions/deploy-pages
+#     ├─ build-landing-docs ──┐
+#     ├─ build-demo-sphinx ───┤
+#     └─ build-demo-mkdocs ───┤
+#                             ▼
+#                          deploy (always runs — assembles _site/ for PR validation)
+#                             ├─ download portal, sphinx, mkdocs artifacts
+#                             ├─ assemble _site/{sphinx,mkdocs} + portal at root
+#                             ├─ [if push] actions/configure-pages
+#                             ├─ actions/upload-pages-artifact
+#                             └─ [if push] actions/deploy-pages
 #
 #   pages: write and id-token: write are scoped to the deploy job only —
 #   pull requests keep the minimal contents: read permission.
@@ -35,7 +34,7 @@ env:
   PYTHON_DEFAULT: "3.13"
 
 jobs:
-  build-portal:
+  build-landing-docs:
     name: Portal (MkDocs)
     runs-on: ubuntu-latest
 
@@ -67,7 +66,7 @@ jobs:
           path: docs/site/
           retention-days: 7
 
-  build-sphinx:
+  build-demo-sphinx:
     name: Sphinx (RST)
     runs-on: ubuntu-latest
 
@@ -94,7 +93,7 @@ jobs:
           path: temp_docs_sphinx/build/html/
           retention-days: 7
 
-  build-mkdocs:
+  build-demo-mkdocs:
     name: MkDocs (Markdown)
     runs-on: ubuntu-latest
 
@@ -123,7 +122,7 @@ jobs:
 
   deploy:
     name: Assemble & Deploy to GitHub Pages
-    needs: [build-portal, build-sphinx, build-mkdocs]
+    needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
     runs-on: ubuntu-latest
     permissions:
       contents: read
