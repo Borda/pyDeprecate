@@ -1,3 +1,4 @@
 site/
 docs/assets/
 # index.md is copied from README.md during CI; a placeholder lives here in source control
+.claude/

@@ -31,5 +31,5 @@ validation:
 
 nav:
   - Home: index.md
-  - Demo as Sphinx: demo-sphinx.md
-  - Demo as MkDocs: demo-mkdocs.md
+  - Demo as Sphinx: demo-sphinx/index.md
+  - Demo as MkDocs: demo-mkdocs/index.md
