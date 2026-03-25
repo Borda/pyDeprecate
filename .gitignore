@@ -115,6 +115,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+# UV virtual environment
+uv.lock
 
 # Spyder project settings
 .spyderproject
