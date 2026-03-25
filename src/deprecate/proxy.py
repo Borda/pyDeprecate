@@ -409,6 +409,13 @@ def deprecated_class(
         args_mapping: Optional dict remapping keyword argument names when the
             decorated class is called.  Keys are old argument names; values
             are new names, or ``None`` to drop the argument entirely.
+        update_docstring: If ``True``, inject a deprecation notice into the
+            class docstring at decoration time (same behaviour as
+            ``@deprecated(update_docstring=True)``).
+        docstring_style: Output style for the injected notice when
+            ``update_docstring=True``.  ``"auto"`` detects the doc engine at
+            decoration time; ``"rst"`` emits a ``.. deprecated::`` directive;
+            ``"mkdocs"`` / ``"markdown"`` emit a ``!!! warning`` admonition.
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`.

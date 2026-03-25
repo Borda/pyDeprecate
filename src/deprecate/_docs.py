@@ -26,7 +26,7 @@ import inspect
 import os
 import re
 import sys
-from typing import Callable, Literal, Optional, cast
+from typing import Literal, Optional, cast
 
 from deprecate._types import DeprecationConfig
 
@@ -441,7 +441,7 @@ def _build_general_notice_lines(dep_info: DeprecationConfig) -> list[str]:
     return result
 
 
-def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
+def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
     """Annotate a function's docstring with deprecation information.
 
     Two paths are taken depending on whether ``args_mapping`` is set:

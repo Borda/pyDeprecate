@@ -55,7 +55,12 @@ class NewCalculator:
         return round(x + y, self.precision)
 
 
-@deprecated_class(target=NewCalculator, deprecated_in="1.0", remove_in="2.0", update_docstring=True, docstring_style="rst")
+@deprecated_class(
+    target=NewCalculator,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    update_docstring=True,
+)
 class OldCalculator:
     """Legacy calculator — use :class:`NewCalculator` instead."""
 
