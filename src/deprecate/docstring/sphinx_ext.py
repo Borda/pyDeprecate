@@ -102,14 +102,16 @@ if _SPHINX_AVAILABLE:
                 documented path, so ``doc_as_attr`` should be ``False``.
                 """
                 result = super().import_object(raiseerror=raiseerror)
-                obj: Any = self.object  # type: ignore[has-type]
+                # Use getattr/setattr to avoid mypy confusing the Sphinx-defined
+                # `object` attribute with the Python builtin `object` ([has-type]).
+                obj: Any = getattr(self, "object", None)
                 if result and isinstance(obj, _DeprecatedProxy):
                     # Capture the proxy docstring (contains the .. deprecated:: block).
                     self._proxy_doc: str = getattr(obj, "__doc__", "") or ""
                     # Swap the proxy for the original wrapped class so that
                     # ClassDocumenter can introspect members, __init__ signature, etc.
                     with contextlib.suppress(AttributeError):  # pragma: no cover
-                        self.object = obj._cfg.obj
+                        setattr(self, "object", obj._cfg.obj)
                     # Reset doc_as_attr: the base class set it to True because
                     # proxy.__name__ (forwarded to the target) differed from the
                     # documented name.  Now that we have swapped to the real class
