@@ -1,5 +1,5 @@
 site_name: pyDeprecate – Demo
-docs_dir: docs
+docs_dir: pages
 use_directory_urls: false
 
 theme:
