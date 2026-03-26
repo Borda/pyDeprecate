@@ -825,7 +825,13 @@ print(process.__doc__)
 
 This is useful for generating API docs with Sphinx, MkDocs, and strict Google/NumPy docstring parsers.
 
-![Documentation Sample](assets/docs-sample.png)
+**MkDocs** (via `mkdocstrings` + Griffe extension):
+
+![MkDocs demo — deprecation notice rendered as a warning admonition](assets/demo-docs-mkdocs.png)
+
+**Sphinx** (via `autodoc` + Sphinx extension):
+
+![Sphinx demo — deprecation notice rendered as a styled deprecated directive](assets/demo-docs-sphinx.png)
 
 <details>
 <summary>MkDocs integration: render injected notices with <code>mkdocstrings</code></summary>
