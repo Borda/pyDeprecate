@@ -17,13 +17,11 @@ coverage:
   status:
     project:
       default:
-        against: auto
         target: 99% # specify the target coverage for each commit status
         threshold: 40% # allow this little decrease on project
         if_ci_failed: error
     patch:
       default:
-        against: auto
         target: 50% # specify the target "X%" coverage to hit
         # threshold: 50% # allow this much decrease on patch
     changes: false
