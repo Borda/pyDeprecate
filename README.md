@@ -66,13 +66,13 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🔄 Arguments are automatically mapped to the target function
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
-- 🛠️ Supports deprecating functions, methods, classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class`, `deprecated_instance`)
+- 🛠️ Supports deprecating callables: functions, methods, and class constructors
+- 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class`, `deprecated_instance`)
 - 📝 Optionally, docstrings can be updated automatically to reflect deprecation
 - 🔍 Preserves original function signature, annotations and metadata for introspection
 - ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
 - 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
 - 🧪 Includes testing helpers (e.g., `assert_no_warnings`, formerly `no_warning_call`) for deterministic tests
-- 🔗 Compatible with methods, class constructors and cross‑module moves
 - 🔎 Audit tools for CI pipelines: validate wrapper config, enforce removal deadlines, and detect deprecated-to-deprecated chains
 
 ### 📊 Comparison with Other Tools
