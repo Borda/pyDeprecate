@@ -647,7 +647,7 @@ def find_deprecation_wrappers(
             _record_wrapper(mod, name, obj, prefix=prefix)
 
             if inspect.isclass(obj) and getattr(obj, "__module__", None) == getattr(mod, "__name__", None):
-                _scan_class(mod, obj, prefix=f"{prefix}{obj.__name__}.", seen_classes=seen_classes)
+                _scan_class(mod, obj, prefix=f"{prefix}{name}.", seen_classes=seen_classes)
 
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
