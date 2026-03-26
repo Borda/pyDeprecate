@@ -1,6 +1,12 @@
-"""Unit tests for private helpers in deprecate._docs."""
+"""Unit tests for private helpers in deprecate.docstring.inject."""
 
-from deprecate._docs import (
+import importlib
+from typing import cast
+
+import pytest
+
+from deprecate._types import DeprecationConfig, _DeprecatedCallable
+from deprecate.docstring.inject import (
     _annotate_google_style_arg,
     _annotate_sphinx_style_arg,
     _build_arg_deprecation_note,
@@ -9,7 +15,6 @@ from deprecate._docs import (
     _get_google_arg_indents,
     _update_docstring_with_deprecation,
 )
-from deprecate._types import DeprecationConfig
 
 
 class TestBuildArgDeprecationNote:
@@ -221,7 +226,7 @@ class TestUpdateDocstringIdempotent:
             target=True,
             args_mapping={"old": None},
         )
-        my_fn.__deprecated__ = config  # type: ignore[attr-defined]
+        cast(_DeprecatedCallable, my_fn).__deprecated__ = config
         _update_docstring_with_deprecation(my_fn)
         _update_docstring_with_deprecation(my_fn)
         assert my_fn.__doc__ is not None
@@ -244,8 +249,23 @@ class TestUpdateDocstringIdempotent:
             target=True,
             args_mapping={"old": None},
         )
-        my_fn.__deprecated__ = config  # type: ignore[attr-defined]
+        cast(_DeprecatedCallable, my_fn).__deprecated__ = config
         _update_docstring_with_deprecation(my_fn)
         _update_docstring_with_deprecation(my_fn)
         assert my_fn.__doc__ is not None
         assert my_fn.__doc__.count("Deprecated since v1.0") == 1
+
+
+class TestDocstringSubpackageImports:
+    """Smoke tests: docstring sub-modules are importable and expose expected symbols."""
+
+    def test_griffe_ext_importable(self) -> None:
+        """deprecate.docstring.griffe_ext imports without error and exposes RuntimeDocstrings."""
+        pytest.importorskip("griffe", reason="griffe not installed")
+        mod = importlib.import_module("deprecate.docstring.griffe_ext")
+        assert hasattr(mod, "RuntimeDocstrings")
+
+    def test_sphinx_ext_importable(self) -> None:
+        """deprecate.docstring.sphinx_ext imports without error and exposes setup()."""
+        mod = importlib.import_module("deprecate.docstring.sphinx_ext")
+        assert callable(mod.setup)

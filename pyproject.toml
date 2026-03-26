@@ -73,6 +73,7 @@ norecursedirs = [
   "dist",
   "build",
   "docs",
+  "demo-*",
 ]
 addopts = [
   "--strict-markers",

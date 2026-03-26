@@ -1,4 +1,4 @@
-"""Configuration file for demo docs."""
+"""Configuration file for demo pages."""
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -18,13 +18,13 @@ import sys
 PATH_HERE = os.path.abspath(os.path.dirname(__file__))
 
 sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "src")))
-sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..", "..", "tests")))
+sys.path.insert(0, os.path.abspath(os.path.join(PATH_HERE, "..")))
 
 from deprecate import __about__ as about  # noqa: E402
 
 # -- Project information -----------------------------------------------------
 
-project = "sandbox"
+project = "demo"
 copyright = about.__copyright__
 author = about.__author__
 
@@ -54,6 +54,8 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     # "recommonmark",
+    "python_docs_theme",  # registers the theme
+    "deprecate.docstring.sphinx_ext",  # bridges _DeprecatedProxy → ClassDocumenter
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -89,7 +91,7 @@ pygments_style = None
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 # http://www.sphinx-doc.org/en/master/usage/theming.html#builtin-themes
-html_theme = "furo"
+html_theme = "python_docs_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -116,7 +118,7 @@ html_static_path = []  # '_static'
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "SandboxDoc"
+htmlhelp_basename = "Demo Doc"
 
 
 # -- Options for LaTeX output ------------------------------------------------

@@ -308,7 +308,10 @@ pyDeprecate/
 ├── src/deprecate/              # Core library code
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
-│   ├── _docs.py                # Docstring annotation helpers: TEMPLATE_DOC_*, _update_docstring_*()
+│   ├── docstring/              # Docstring utilities subpackage
+│   │   ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
+│   │   ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
+│   │   └── sphinx_ext.py       # Sphinx autodoc extension (beta)
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # @deprecated decorator and warning logic
 │   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
@@ -370,7 +373,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `_docs.py`, `audit.py`, `utils.py`).
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `audit.py`, `utils.py`).
 
 > [!IMPORTANT]
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.

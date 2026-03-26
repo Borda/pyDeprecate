@@ -1,11 +1,12 @@
 """Tests for deprecated classes and methods."""
 
 import warnings
+from typing import cast
 
 import pytest
 
 from deprecate import assert_no_warnings
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
     DecoratedDataClass,
@@ -45,8 +46,8 @@ class TestDeprecatedClass:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for PastCls and PastClsMapped __init__."""
-        getattr(PastCls.__init__, "_state").warned_calls = 0
-        getattr(PastClsMapped.__init__, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, PastCls.__init__)._state.warned_calls = 0
+        cast(_DeprecatedCallable, PastClsMapped.__init__)._state.warned_calls = 0
 
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
@@ -64,7 +65,7 @@ class TestDeprecatedClass:
 
     def test_class_forward_once(self) -> None:
         """Check that the warning is raised only on the first call to the wrapped __init__."""
-        getattr(PastCls.__init__, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, PastCls.__init__)._state.warned_calls = 0
         with pytest.warns(DeprecationWarning, match="It will be removed in v0.4."):
             PastCls(2)
         with assert_no_warnings():
@@ -197,7 +198,7 @@ class TestDeprecatedClassMethod:
             ServiceCls.old_mapped_method,
             ServiceCls.self_renamed_method,
         ):
-            state = getattr(method, "_state")
+            state = cast(_DeprecatedCallable, method)._state
             state.called = 0
             state.warned_calls = 0
 

@@ -18,38 +18,39 @@
 [![Install pkg](https://github.com/Borda/pyDeprecate/actions/workflows/ci_install-pkg.yml/badge.svg?branch=main&event=push)](https://github.com/Borda/pyDeprecate/actions/workflows/ci_install-pkg.yml)
 [![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Borda/pyDeprecate/main.svg)](https://results.pre-commit.ci/latest/github/Borda/pyDeprecate/main)
+[![Documentation](https://img.shields.io/badge/docs-borda.github.io-blue)](https://borda.github.io/pyDeprecate/)
 
 ______________________________________________________________________
 
 ## 📋 Table of Contents
 
-- [📖 Overview](#-overview)
-- [✨ Features](#-features)
-  - [Comparison with Other Tools](#-comparison-with-other-tools)
-- [💾 Installation](#-installation)
-- [🚀 Quick Start](#-quick-start)
-- [🗺 API at a Glance](#-api-at-a-glance)
-- [📚 Use-cases and Applications](#-use-cases-and-applications)
-  - [Simple function forwarding](#-simple-function-forwarding)
-  - [Advanced target argument mapping](#-advanced-target-argument-mapping)
-  - [Deprecation warning only](#-deprecation-warning-only)
-  - [Self argument mapping](#-self-argument-mapping)
-  - [Multiple deprecation levels](#-multiple-deprecation-levels)
-  - [Conditional skip](#-conditional-skip)
-  - [Class deprecation](#-class-deprecation)
-  - [Deprecating constants and instances](#-deprecating-constants-and-instances)
-  - [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)
-  - [Automatic docstring updates](#-automatic-docstring-updates)
-  - [Injecting new required arguments](#-injecting-new-required-arguments)
-- [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
-- [🔍 Audit](#-audit)
-  - [Validating Wrapper Configuration](#-validating-wrapper-configuration)
-  - [Generating Deprecation Tables and Timelines](#generating-deprecation-tables-and-timelines)
-  - [Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
-  - [Detecting Deprecation Chains](#-detecting-deprecation-chains)
-- [🧪 Testing Deprecated Code](#-testing-deprecated-code)
-- [🔧 Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
+- [📖 Overview](#overview)
+- [✨ Features](#features)
+  - [Comparison with Other Tools](#comparison-with-other-tools)
+- [💾 Installation](#installation)
+- [🚀 Quick Start](#quick-start)
+- [🗺 API at a Glance](#api-at-a-glance)
+- [📚 Use-cases and Applications](#use-cases-and-applications)
+  - [Simple function forwarding](#simple-function-forwarding)
+  - [Advanced target argument mapping](#advanced-target-argument-mapping)
+  - [Deprecation warning only](#deprecation-warning-only)
+  - [Self argument mapping](#self-argument-mapping)
+  - [Multiple deprecation levels](#multiple-deprecation-levels)
+  - [Conditional skip](#conditional-skip)
+  - [Class deprecation](#class-deprecation)
+  - [Deprecating constants and instances](#deprecating-constants-and-instances)
+  - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
+  - [Automatic docstring updates](#automatic-docstring-updates)
+  - [Injecting new required arguments](#injecting-new-required-arguments)
+- [🔇 Understanding the void() Helper](#understanding-the-void-helper)
+- [🔍 Audit](#audit)
+  - [Validating Wrapper Configuration](#validating-wrapper-configuration)
+  - [Enforcing Deprecation Removal Deadlines](#enforcing-deprecation-removal-deadlines)
+  - [Detecting Deprecation Chains](#detecting-deprecation-chains)
+  - [Generating Deprecation Tables & Timelines](#generating-deprecation-tables-and-timelines)
+- [🧪 Testing Deprecated Code](#testing-deprecated-code)
+- [🔧 Troubleshooting](#troubleshooting)
+- [🤝 Contributing](#contributing)
 
 ## 📖 Overview
 
@@ -57,6 +58,8 @@ The common use-case is moving your functions across a codebase or outsourcing so
 For most of these cases, you want to maintain some compatibility, so you cannot simply remove the past function. You also want to warn users for some time that the functionality they have been using has moved and is now deprecated in favor of another function (which should be used instead) and will soon be removed completely.
 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
+
+> 📖 For a broader look at the API deprecation challenges this library addresses, see [_Mastering API Deprecation in Python_](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) on Medium.
 
 ## ✨ Features
 
@@ -216,7 +219,7 @@ In particular the target values (cases):
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
 > [!NOTE]
-> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)).
+> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)).
 
 ### ➡ Simple function forwarding
 
@@ -750,10 +753,10 @@ True
 
 ### 📝 Automatic docstring updates
 
-You can automatically append deprecation information to your function's docstring:
+You can automatically inject deprecation information into your function's docstring:
 
 <details>
-<summary>Example: <code>update_docstring=True</code> appends a Sphinx deprecation notice</summary>
+<summary>Example: <code>update_docstring=True</code> inserts a Sphinx deprecation notice before <code>Args:</code>/<code>Parameters</code></summary>
 
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it does
@@ -786,7 +789,7 @@ def process(x: int) -> int:
     pass
 
 
-# The docstring now includes deprecation information
+# The docstring now includes deprecation information (inserted before "Args:")
 print(process.__doc__)
 # Output includes:
 # .. deprecated:: 1.0
@@ -796,9 +799,64 @@ print(process.__doc__)
 
 </details>
 
-This is particularly useful for generating API documentation with tools like Sphinx, where the deprecation notice will appear in the generated docs.
+If you build docs with MkDocs/Markdown, you can switch to admonition output:
 
-![Documentation Sample](assets/docs-sample.png)
+```python
+from deprecate import deprecated
+
+
+def transform(x: int) -> int:
+    return x * 2
+
+
+@deprecated(
+    target=transform,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    update_docstring=True,
+    docstring_style="mkdocs",  # alias: "markdown"
+)
+def process(x: int) -> int:
+    """Transforms the input value."""
+    pass
+
+
+print(process.__doc__)
+# !!! warning "Deprecated in 1.0"
+#     Will be removed in 2.0.
+#     Use `__main__.transform` instead.
+```
+
+This is useful for generating API docs with Sphinx, MkDocs, and strict Google/NumPy docstring parsers.
+
+**MkDocs** (via `mkdocstrings` + Griffe extension):
+
+![MkDocs demo — deprecation notice rendered as a warning admonition](assets/demo-docs-mkdocs.png)
+
+**Sphinx** (via `autodoc` + Sphinx extension):
+
+![Sphinx demo — deprecation notice rendered as a styled deprecated directive](assets/demo-docs-sphinx.png)
+
+See the live rendered output in the online demos: [Sphinx demo](https://borda.github.io/pyDeprecate/demo-sphinx/api.html) · [MkDocs demo](https://borda.github.io/pyDeprecate/demo-mkdocs/api.html).
+
+<details>
+<summary>MkDocs integration: render injected notices with <code>mkdocstrings</code></summary>
+
+`@deprecated(update_docstring=True)` modifies `fn.__doc__` at **import time**. [mkdocstrings](https://mkdocstrings.github.io/) uses [Griffe](https://mkdocstrings.github.io/griffe/) to read docstrings from the **source AST**, so it never sees that runtime change. To bridge the gap, pyDeprecate ships a Griffe extension:
+
+```yaml
+# mkdocs.yml
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          extensions:
+            - deprecate.docstring.griffe_ext:RuntimeDocstrings
+```
+
+With the extension registered, mkdocstrings will render the injected `!!! warning` admonition for every `@deprecated` function in your docs. No extra dependencies are required — `griffe` is already a dependency of `mkdocstrings[python]`.
+
+</details>
 
 ### ➕ Injecting new required arguments
 

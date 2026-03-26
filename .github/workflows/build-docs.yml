@@ -1,0 +1,202 @@
+# Build Composite Docs
+#
+# Flow:
+#
+#   [push → main] / [pull_request → main]
+#     │
+#     ├─ build-landing-docs ──┐
+#     ├─ build-demo-sphinx ───┤
+#     └─ build-demo-mkdocs ───┤
+#                             ▼
+#                          assemble (always runs — merges artifacts into _site/, PR validation)
+#                             ├─ download portal, sphinx, mkdocs artifacts
+#                             ├─ assemble _site/{sphinx,mkdocs} + portal at root
+#                             └─ upload assembled-site artifact (contents: read only)
+#                             ▼ [push only]
+#                          deploy (pages: write + id-token: write)
+#                             ├─ download assembled-site artifact
+#                             ├─ actions/configure-pages
+#                             ├─ actions/upload-pages-artifact
+#                             └─ actions/deploy-pages
+#
+#   pages: write and id-token: write are scoped to the deploy job only —
+#   pull requests keep the minimal contents: read permission and never trigger deploy.
+
+name: Build & Deploy Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Minimal default; deploy job overrides with pages + id-token.
+permissions:
+  contents: read
+
+env:
+  PYTHON_DEFAULT: "3.13"
+
+jobs:
+  build-landing-docs:
+    name: Portal (landing-docs)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+
+      - name: 📦 Install portal dependencies
+        run: pip install -r docs/requirements.txt
+
+      - name: 📄 Copy README and assets into portal docs
+        run: |
+          cp README.md docs/index.md
+          cp -r assets docs/assets
+
+      - name: 📖 Build portal
+        run: mkdocs build --strict
+
+      - name: 📤 Upload portal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-docs
+          path: site/
+          retention-days: 7
+
+  build-demo-sphinx:
+    name: Demo Sphinx (RST)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+
+      - name: 📦 Install package + Sphinx dependencies
+        run: pip install . -r demo-docs/sphinx/requirements.txt
+
+      - name: 📖 Build Sphinx documentation
+        working-directory: demo-docs/sphinx
+        run: make html
+
+      - name: 📤 Upload Sphinx docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sphinx-docs
+          path: demo-docs/sphinx/build/html/
+          retention-days: 7
+
+  build-demo-mkdocs:
+    name: Demo MkDocs (Markdown)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+
+      - name: 📦 Install package + MkDocs dependencies
+        run: pip install . -r demo-docs/mkdocs/requirements.txt
+
+      - name: 📖 Build MkDocs documentation
+        working-directory: demo-docs/mkdocs
+        run: mkdocs build --strict
+
+      - name: 📤 Upload MkDocs docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkdocs-docs
+          path: demo-docs/mkdocs/site/
+          retention-days: 7
+
+  assemble-site:
+    name: Assemble Site
+    needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
+    runs-on: ubuntu-latest
+    # inherits minimal contents: read from top-level permissions
+
+    steps:
+      - name: 📥 Download portal artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: portal-docs
+          path: _site
+
+      - name: 📥 Download Sphinx artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sphinx-docs
+          path: _site/demo-sphinx
+
+      - name: 📥 Download MkDocs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mkdocs-docs
+          path: _site/demo-mkdocs
+
+      - name: 📤 Upload assembled site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: assembled-site
+          path: _site/
+          retention-days: 7
+
+  deploy-pages:
+    name: Deploy to GH Pages
+    needs: [assemble-site]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      pages: write # required by upload-pages-artifact and deploy-pages
+      id-token: write # required by deploy-pages (OIDC token for Pages API)
+    environment:
+      # Repo setting: Settings → Pages → Source → "GitHub Actions"
+      # Deployed URL is reported back via steps.deploy.outputs.page_url
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: 📥 Download assembled site artifact
+        # Download the _site/ directory assembled by the assemble job above.
+        # Layout after download:
+        #   _site/              ← portal (README → index.html via MkDocs)
+        #   _site/demo-sphinx/  ← Sphinx HTML build
+        #   _site/demo-mkdocs/  ← MkDocs HTML build
+        uses: actions/download-artifact@v4
+        with:
+          name: assembled-site
+          path: _site
+
+      - name: ⚙️ Configure GitHub Pages
+        # Reads repo Pages config and sets GITHUB_PAGES_* env vars used by upload-pages-artifact and deploy-pages.
+        uses: actions/configure-pages@v5
+
+      - name: 📤 Upload Pages artifact
+        # Packages _site/ into a specially formatted tarball and registers it under the reserved "github-pages" artifact name that deploy-pages expects.
+        # This is NOT the same as upload-artifact — deploy-pages cannot read regular artifacts; it only reads the "github-pages" artifact created here.
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site/
+
+      - name: 🚀 Deploy to GitHub Pages
+        # Reads the "github-pages" artifact and pushes it to the Pages CDN.
+        # Outputs: page_url (the live URL, surfaced in the environment block above).
+        id: deploy
+        uses: actions/deploy-pages@v4

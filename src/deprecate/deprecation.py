@@ -15,11 +15,11 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 from functools import partial, wraps
 from inspect import Parameter
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._docs import _update_docstring_with_deprecation
-from deprecate._types import DeprecationConfig, _WrapperState
+from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
+from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 #: Default template warning message for redirecting callable
@@ -442,6 +442,7 @@ def deprecated(
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target.
 
@@ -486,9 +487,18 @@ def deprecated(
             - ``bool``: Static condition (True = skip deprecation)
             - ``Callable``: Function returning bool (checked at runtime, must return bool)
             If condition is True, original function executes without warning.
-        update_docstring: If True, automatically append deprecation information to
-            the function's docstring in reStructuredText format. Useful for documentation
-            generation tools like Sphinx.
+        update_docstring: If True, automatically inject a deprecation notice into
+            the function's docstring (inserted before Google/NumPy-style sections when present,
+            otherwise appended at the end).
+        docstring_style: Output style for injected deprecation notice when
+            ``update_docstring=True``. Supported values:
+            - ``"auto"`` (default): Automatically choose a style based on the current
+              environment (e.g., loaded modules, CLI/tooling context). This may resolve
+              to either ``"rst"`` or ``"mkdocs"``/``"markdown"`` at decoration time.
+            - ``"rst"``: Explicitly force Sphinx-style ``.. deprecated::`` directive.
+            - ``"mkdocs"`` or ``"markdown"``: Explicitly force a Markdown admonition
+              of the form ``!!! warning "Deprecated in X"``.
+            Validated eagerly at decoration time regardless of ``update_docstring``.
 
     Returns:
         Decorator function that wraps the source function/method.
@@ -528,6 +538,7 @@ def deprecated(
         ...     return new_arg * 2
 
     """
+    normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
@@ -535,7 +546,7 @@ def deprecated(
             import warnings
 
             proxy_module = importlib.import_module("deprecate.proxy")
-            deprecated_class = getattr(proxy_module, "deprecated_class")
+            deprecated_class = proxy_module.deprecated_class
 
             message = (
                 f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
@@ -555,6 +566,8 @@ def deprecated(
                 num_warns=num_warns,
                 stream=stream,
                 args_mapping=args_mapping,
+                update_docstring=update_docstring,
+                docstring_style=docstring_style,
             )(source)
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
@@ -574,7 +587,7 @@ def deprecated(
             if shall_skip:
                 return source(*args, **kwargs)
 
-            state = cast(_WrapperState, getattr(wrapped_fn, "_state"))
+            state = cast(_DeprecatedCallable, wrapped_fn)._state
             state.called += 1
             # Preserve original kwargs for var-positional fallback before remapping.
             original_kwargs = dict(kwargs)
@@ -640,10 +653,12 @@ def deprecated(
             name=source.__name__,
             target=target,
             args_mapping=args_mapping,
+            docstring_style=normalized_docstring_style,
         )
-        setattr(wrapped_fn, "__deprecated__", dep_meta)
+        wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
+        wrapped_fn_typed.__deprecated__ = dep_meta
         # Private mutable runtime state — call counter, warning counters.
-        setattr(wrapped_fn, "_state", _WrapperState())
+        wrapped_fn_typed._state = _WrapperState()
 
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)

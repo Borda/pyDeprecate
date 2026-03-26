@@ -6,7 +6,7 @@ than silently returning ``None`` at runtime.
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 class DeprecationConfig:
     """Static deprecation metadata attached to deprecated callables as ``__deprecated__``.
 
-    All five fields are always set — both ``@deprecated``-decorated functions and
+    All fields are always set — both ``@deprecated``-decorated functions and
     :class:`~deprecate.proxy._DeprecatedProxy` objects use this unified schema.
 
     Attributes:
@@ -26,6 +26,7 @@ class DeprecationConfig:
         target: Replacement target — a callable, ``True`` for self-deprecation, or ``None``.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
+        docstring_style: Docstring notice output style when ``update_docstring=True``.
     """
 
     deprecated_in: str = ""
@@ -33,6 +34,7 @@ class DeprecationConfig:
     name: str = ""
     target: Any = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
+    docstring_style: Literal["rst", "mkdocs"] = "rst"
 
 
 @runtime_checkable
@@ -111,3 +113,22 @@ class _WrapperState:
     called: int = 0
     warned_calls: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
+
+
+@runtime_checkable
+class _DeprecatedCallable(Protocol):
+    """Structural type for a ``@deprecated``-decorated callable with mutable runtime state.
+
+    This protocol describes the shape of a function or method after the ``@deprecated``
+    decorator has been applied. It includes both static metadata (``__deprecated__``)
+    and mutable runtime state (``_state``).
+
+    Used to type-safely access ``_state`` on decorated callables without casting.
+    """
+
+    __deprecated__: DeprecationConfig
+    _state: _WrapperState
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        """Call the deprecated callable."""
+        raise NotImplementedError
