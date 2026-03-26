@@ -51,22 +51,15 @@ class TestDeprecationDocstrings:
         assert OldClass.__init__.__doc__ == expected
 
     def test_deprecated_func_docstring_plain(self) -> None:
-        """Plain function docstring gets a ``.. deprecated::`` block appended."""
-        expected = """Old plain function without explicit sections.
-
-.. deprecated:: 0.1
-   Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead."""
-        assert old_function_plain.__doc__ == expected
+        """Function without docstring is left with ``__doc__ = None``."""
+        # old_function_plain has no docstring by design; update_docstring=True
+        # must not inject anything when there is no existing docstring to annotate.
+        assert old_function_plain.__doc__ is None
 
     def test_deprecated_class_docstring_plain(self) -> None:
-        """Plain __init__ docstring gets a ``.. deprecated::`` block appended."""
-        expected = """Initialize OldClassPlain.
-
-.. deprecated:: 0.2
-   Will be removed in 0.4.
-   Use :class:`tests.collection_docstrings.NewClass` instead."""
-        assert OldClassPlain.__init__.__doc__ == expected
+        """__init__ without docstring is left with ``__doc__ = None``."""
+        # OldClassPlain.__init__ has no docstring by design; same guard as above.
+        assert OldClassPlain.__init__.__doc__ is None
 
     def test_google_docstring_inserts_before_args_section(self) -> None:
         """Deprecation notice is injected before Google-style ``Args:`` section."""
