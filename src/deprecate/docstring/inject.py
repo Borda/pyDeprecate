@@ -28,7 +28,7 @@ import re
 import sys
 from typing import Literal, Optional, cast
 
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, _has_deprecation_meta
 
 #: Default templates for documentation with deprecated callable — RST/Sphinx style
 TEMPLATE_DOC_DEPRECATED_RST = [
@@ -526,10 +526,10 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
     """
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
         return
-    if not hasattr(wrapped_fn, "__deprecated__"):
+    if not _has_deprecation_meta(wrapped_fn):
         return
     lines = wrapped_fn.__doc__.splitlines()
-    dep_info = cast(DeprecationConfig, getattr(wrapped_fn, "__deprecated__"))
+    dep_info = wrapped_fn.__deprecated__
 
     if dep_info.args_mapping:
         all_args_found = True

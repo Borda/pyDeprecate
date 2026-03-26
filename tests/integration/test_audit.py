@@ -116,7 +116,7 @@ class TestValidateDeprecatedWrapper:
         # Confirm the proxy leaks the wrong __name__ via __getattr__:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assert getattr(proxy_module.DeprecatedColorEnum, "__name__") == "TargetColorEnum"
+            assert proxy_module.DeprecatedColorEnum.__name__ == "TargetColorEnum"
         assert result.function != result.deprecated_info.target.__name__
 
     def test_no_deprecated_attr(self) -> None:

@@ -52,11 +52,14 @@ class TestDeprecationDocstrings:
 
     def test_deprecated_func_docstring_plain(self) -> None:
         """Function without docstring is left with ``__doc__ = None``."""
+        # old_function_plain has no docstring by design; update_docstring=True
+        # must not inject anything when there is no existing docstring to annotate.
         assert old_function_plain.__doc__ is None
 
     def test_deprecated_class_docstring_plain(self) -> None:
         """__init__ without docstring is left with ``__doc__ = None``."""
-        assert getattr(OldClassPlain.__init__, "__doc__") is None
+        # OldClassPlain.__init__ has no docstring by design; same guard as above.
+        assert OldClassPlain.__init__.__doc__ is None
 
     def test_google_docstring_inserts_before_args_section(self) -> None:
         """Deprecation notice is injected before Google-style ``Args:`` section."""

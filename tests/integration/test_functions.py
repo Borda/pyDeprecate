@@ -16,12 +16,12 @@ Current test coverage:
 - TestDeprecatedClassWrappers.test_with_decorator_syntax (line ~447)
 """
 
-from typing import Callable
+from typing import Callable, cast
 
 import pytest
 
 from deprecate import assert_no_warnings
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from tests.collection_deprecate import (
     decorated_pow_self,
     decorated_pow_skip_if_func,
@@ -93,7 +93,7 @@ class TestDeprecationWarnings:
         """Deprecated function targeting a class should instantiate and return the class."""
         from tests.collection_targets import NewCls
 
-        getattr(depr_make_new_cls, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, depr_make_new_cls)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
             match="The `depr_make_new_cls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
@@ -110,7 +110,7 @@ class TestDeprecationWarnings:
         """Deprecated function with args_mapping should rename old_c→c before forwarding to NewCls."""
         from tests.collection_targets import NewCls
 
-        getattr(depr_make_new_cls_mapped, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, depr_make_new_cls_mapped)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
             match="The `depr_make_new_cls_mapped` was deprecated since v0.2 in favor of"
@@ -132,7 +132,7 @@ class TestDeprecationWarnings:
     )
     def test_default_once(self, func: Callable) -> None:
         """Check that the warning is raised only once per function."""
-        getattr(func, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, func)._state.warned_calls = 0
         with pytest.warns(FutureWarning):
             assert func(2) == 7
         with assert_no_warnings(FutureWarning):
@@ -215,7 +215,7 @@ class TestArgumentMapping:
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for functions with chained or multiple deprecations."""
         for func in (decorated_pow_self, depr_pow_self_double, depr_pow_self_twice, wrapped_pow_self):
-            state = getattr(func, "_state")
+            state = cast(_DeprecatedCallable, func)._state
             state.warned_calls = 0
             state.warned_args.clear()
 
@@ -260,7 +260,7 @@ class TestArgumentMapping:
     def test_arguments_double_mixed(self) -> None:
         """Testing that preferable use the new arguments when both are provided."""
         # Reset warning state to ensure test independence
-        getattr(depr_pow_self_double, "_state").warned_args.clear()
+        cast(_DeprecatedCallable, depr_pow_self_double)._state.warned_args.clear()
 
         with assert_no_warnings():
             assert depr_pow_self_double(2, nc1=1, nc2=2) == 8
@@ -270,7 +270,7 @@ class TestArgumentMapping:
             assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
 
         # Need to reset after first warning because both counters were incremented
-        getattr(depr_pow_self_double, "_state").warned_args.clear()
+        cast(_DeprecatedCallable, depr_pow_self_double)._state.warned_args.clear()
 
         # When both c1 and c2 are provided, warns about both together
         # Result is 32 because: c1->nc1=3, c2->nc2=4, but nc2=2 (user wins), so 2**(0+0+3+2)=32
@@ -348,7 +348,7 @@ class TestErrorHandling:
 
     def test_incomplete_once(self) -> None:
         """Check that the warning is raised only once per function for incomplete mappings."""
-        getattr(depr_pow_args, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, depr_pow_args)._state.warned_calls = 0
         with pytest.warns(FutureWarning):
             depr_pow_args(2, 1)
         with assert_no_warnings(FutureWarning):
@@ -357,7 +357,7 @@ class TestErrorHandling:
     def test_incomplete_independent(self) -> None:
         """Check that it does not affect other functions for incomplete mappings when called with kwargs."""
         # reset the warning
-        getattr(depr_pow_args, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, depr_pow_args)._state.warned_calls = 0
         with pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3."):
             assert depr_pow_args(b=2, a=1) == 1
 
@@ -412,7 +412,7 @@ class TestDeprecatedFunctionWrappers:
         """Reset warning counters before each test for independence."""
         from tests.collection_deprecate import depr_timing_wrapper
 
-        getattr(depr_timing_wrapper, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, depr_timing_wrapper)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
@@ -468,7 +468,7 @@ class TestDeprecatedClassWrappers:
         """Reset warning counters before each test for independence."""
         from tests.collection_deprecate import DeprecatedTimerDecorator
 
-        getattr(DeprecatedTimerDecorator.__init__, "_state").warned_calls = 0
+        cast(_DeprecatedCallable, DeprecatedTimerDecorator.__init__)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""

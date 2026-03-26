@@ -55,7 +55,7 @@ class TestGetPackageVersion:
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: (_ for _ in ()).throw(Exception("no meta")))
 
         fake_module = types.ModuleType("fake_pkg")
-        fake_module.__version__ = "2.3.4"  # type: ignore[attr-defined]
+        setattr(fake_module, "__version__", "2.3.4")
         monkeypatch.setattr(importlib, "import_module", lambda _name: fake_module)
 
         assert _get_package_version("fake_pkg") == "2.3.4"

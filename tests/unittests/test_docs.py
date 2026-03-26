@@ -1,10 +1,11 @@
 """Unit tests for private helpers in deprecate.docstring.inject."""
 
 import importlib
+from typing import cast
 
 import pytest
 
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.docstring.inject import (
     _annotate_google_style_arg,
     _annotate_sphinx_style_arg,
@@ -225,7 +226,7 @@ class TestUpdateDocstringIdempotent:
             target=True,
             args_mapping={"old": None},
         )
-        my_fn.__deprecated__ = config  # type: ignore[attr-defined]
+        cast(_DeprecatedCallable, my_fn).__deprecated__ = config
         _update_docstring_with_deprecation(my_fn)
         _update_docstring_with_deprecation(my_fn)
         assert my_fn.__doc__ is not None
@@ -248,7 +249,7 @@ class TestUpdateDocstringIdempotent:
             target=True,
             args_mapping={"old": None},
         )
-        my_fn.__deprecated__ = config  # type: ignore[attr-defined]
+        cast(_DeprecatedCallable, my_fn).__deprecated__ = config
         _update_docstring_with_deprecation(my_fn)
         _update_docstring_with_deprecation(my_fn)
         assert my_fn.__doc__ is not None

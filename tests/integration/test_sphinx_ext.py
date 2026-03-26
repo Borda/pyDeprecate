@@ -1,5 +1,6 @@
 """Unit tests for deprecate.docstring.sphinx_ext."""
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,15 +63,15 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            setattr(self_inner, "object", proxy)
+        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+            self_inner.object = proxy
             return True
 
         with patch.object(base, "import_object", fake_super_import):
             result = doc.import_object()
 
         assert result is True
-        assert getattr(doc, "object") is wrapped
+        assert doc.object is wrapped
         assert ".. deprecated::" in doc._proxy_doc
         assert doc.doc_as_attr is False
 
@@ -86,15 +87,35 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            setattr(self_inner, "object", Regular)
+        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+            self_inner.object = Regular
             return True
 
         with patch.object(base, "import_object", fake_super_import):
             result = doc.import_object()
 
         assert result is True
-        assert getattr(doc, "object") is Regular
+        assert doc.object is Regular
+        assert not hasattr(doc, "_proxy_doc")
+
+    def test_super_returns_false_skips_proxy_swap(self) -> None:
+        """When super().import_object() returns False, no proxy swap occurs."""
+        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
+
+        proxy, _ = _make_proxy()
+        doc = object.__new__(_DeprecatedProxyClassDocumenter)
+
+        base = _DeprecatedProxyClassDocumenter.__bases__[0]
+
+        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+            self_inner.object = proxy
+            return False
+
+        with patch.object(base, "import_object", fake_super_import):
+            result = doc.import_object()
+
+        assert result is False
+        assert getattr(doc, "object") is proxy
         assert not hasattr(doc, "_proxy_doc")
 
 
@@ -120,6 +141,20 @@ class TestGetDoc:
 
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
         expected = [["fallback doc line"]]
+
+        base = _DeprecatedProxyClassDocumenter.__bases__[0]
+        with patch.object(base, "get_doc", return_value=expected):
+            result = doc.get_doc()
+
+        assert result == expected
+
+    def test_empty_proxy_doc_delegates_to_super(self) -> None:
+        """An empty _proxy_doc string is treated as absent and delegates to super."""
+        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
+
+        doc = object.__new__(_DeprecatedProxyClassDocumenter)
+        doc._proxy_doc = ""
+        expected = [["fallback from super"]]
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
         with patch.object(base, "get_doc", return_value=expected):

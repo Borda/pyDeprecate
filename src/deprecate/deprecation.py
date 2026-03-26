@@ -18,7 +18,7 @@ from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationConfig, _WrapperState
+from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -546,7 +546,7 @@ def deprecated(
             import warnings
 
             proxy_module = importlib.import_module("deprecate.proxy")
-            deprecated_class = getattr(proxy_module, "deprecated_class")
+            deprecated_class = proxy_module.deprecated_class
 
             message = (
                 f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
@@ -587,7 +587,7 @@ def deprecated(
             if shall_skip:
                 return source(*args, **kwargs)
 
-            state = cast(_WrapperState, getattr(wrapped_fn, "_state"))
+            state = cast(_DeprecatedCallable, wrapped_fn)._state
             state.called += 1
             # Preserve original kwargs for var-positional fallback before remapping.
             original_kwargs = dict(kwargs)
@@ -655,9 +655,10 @@ def deprecated(
             args_mapping=args_mapping,
             docstring_style=normalized_docstring_style,
         )
-        setattr(wrapped_fn, "__deprecated__", dep_meta)
+        wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
+        wrapped_fn_typed.__deprecated__ = dep_meta
         # Private mutable runtime state — call counter, warning counters.
-        setattr(wrapped_fn, "_state", _WrapperState())
+        wrapped_fn_typed._state = _WrapperState()
 
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)
