@@ -1,10 +1,7 @@
 pyDeprecate
 ===========
 
-**pyDeprecate** is a zero-dependency Python library that turns deprecation from a chore into
-a one-liner.  Decorate a function, method, or class with ``@deprecated(...)`` and the library
-handles everything else: runtime ``FutureWarning`` emission, transparent call forwarding to the
-replacement, and — crucially — automatic documentation.
+**pyDeprecate** is a zero-dependency Python library that turns deprecation from a chore into a one-liner. Decorate a function or method with ``@deprecated(...)``, or a class/Enum/dataclass with ``@deprecated_class(...)``, and the library handles everything else: runtime ``FutureWarning`` emission, transparent call forwarding to the replacement, and — crucially — automatic documentation.
 
 The problem it solves
 ---------------------
@@ -20,8 +17,7 @@ Steps 2 and 3 are easy to forget and tedious to maintain.  pyDeprecate automates
 Automatic docstring injection
 -----------------------------
 
-Pass ``update_docstring=True`` and pyDeprecate rewrites the function's ``__doc__`` at
-decoration time — before Sphinx ever sees it.
+Pass ``update_docstring=True`` and pyDeprecate rewrites the function's ``__doc__`` at decoration time — before Sphinx ever sees it.
 
 .. code-block:: python
 
@@ -50,9 +46,7 @@ The injected ``__doc__`` becomes::
    :param x: First operand.
    ...
 
-The notice is inserted **before** the first field list / ``Args:`` section so parameter
-tables render correctly.  Developers writing or reviewing the deprecation do not need to touch
-the docstring at all — the notice appears automatically in the rendered output.
+The notice is inserted **before** the first field list / ``Args:`` section so parameter tables render correctly. Developers writing or reviewing the deprecation do not need to touch the docstring at all — the notice appears automatically in the rendered output.
 
 Docstring styles
 ----------------
@@ -67,16 +61,14 @@ Docstring styles
 | ``"mkdocs"``       | ``!!! warning`` admonition   | MkDocs Material                  |
 +--------------------+------------------------------+----------------------------------+
 
-``"auto"`` checks ``sys.modules`` and ``sys.argv`` to detect whether MkDocs or Sphinx is
-driving the build, so the same decorator works in both stacks without changes.
+``"auto"`` checks ``sys.modules`` and ``sys.argv`` to detect whether MkDocs or Sphinx is driving the build, so the same decorator works in both stacks without changes.
 
 Live examples
 -------------
 
 The :doc:`api` page shows two real cases rendered by this Sphinx build:
 
-- **Deprecated function with a removed argument** — inline per-argument note *and* a general
-  deprecation block, both injected automatically.
+- **Deprecated function with a removed argument** — inline per-argument note *and* a general deprecation block, both injected automatically.
 - **Deprecated class** — notice injected into the class docstring via ``deprecated_class``.
 
 .. toctree::
