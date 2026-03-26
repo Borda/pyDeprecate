@@ -421,6 +421,7 @@ def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
+    include_members: bool = True,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.
 
@@ -441,6 +442,10 @@ def validate_deprecation_expiry(
             from the module path (e.g., ``"mypackage"`` extracts ``mypackage`` as package name).
         recursive: If True (default), recursively scan submodules. If False, only
             scan the top-level module.
+        include_members: If True (default), also scan deprecated methods and constructors
+            defined on classes in the module, matching the scope of
+            :func:`generate_deprecation_markdown` and :func:`generate_deprecation_timeline`.
+            Set to False to restrict the scan to top-level symbols only.
 
     Returns:
         List of error messages for callables that have expired (past their removal deadline).
@@ -455,8 +460,8 @@ def validate_deprecation_expiry(
 
         >>> # Check with version past some removal deadlines
         >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
-        >>> print(len(expired))  # Some functions have remove_in="0.5"
-        28
+        >>> print(len(expired))  # Includes top-level functions and class constructors
+        31
 
     .. note::
        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
@@ -495,7 +500,7 @@ def validate_deprecation_expiry(
         module = importlib.import_module(module)
 
     # Find all deprecated wrappers in the module
-    deprecated_callables = find_deprecation_wrappers(module, recursive=recursive)
+    deprecated_callables = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members)
 
     expired_callables = []
 
@@ -618,8 +623,20 @@ def find_deprecation_wrappers(
         results.append(replace(info, module=module_name, function=function_name))
         seen.add(key)
 
-    def _scan_class(mod: Any, cls: type, *, prefix: str) -> None:  # noqa: ANN401
+    def _scan_class(
+        mod: Any,  # noqa: ANN401
+        cls: type,
+        *,
+        prefix: str,
+        seen_classes: set[type] | None = None,
+    ) -> None:
         """Scan deprecated methods/constructors declared on a class and nested classes."""
+        if seen_classes is None:
+            seen_classes = set()
+        if cls in seen_classes:
+            return
+        seen_classes.add(cls)
+
         for name, obj in vars(cls).items():
             # Include ``__init__`` because constructor deprecations are a primary
             # migration path, but skip other dunder/private members to keep the
@@ -630,7 +647,7 @@ def find_deprecation_wrappers(
             _record_wrapper(mod, name, obj, prefix=prefix)
 
             if inspect.isclass(obj) and getattr(obj, "__module__", None) == getattr(mod, "__name__", None):
-                _scan_class(mod, obj, prefix=f"{prefix}{obj.__name__}.")
+                _scan_class(mod, obj, prefix=f"{prefix}{obj.__name__}.", seen_classes=seen_classes)
 
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
@@ -770,9 +787,10 @@ def _safe_parse_report_version(version: Optional[str]) -> Optional["Version"]:
     if not version:
         return None
 
-    with suppress(ImportError, ValueError):
+    try:
         return _parse_version(version)
-    return None
+    except (ImportError, ValueError):
+        return None
 
 
 def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
@@ -800,7 +818,8 @@ def _format_report_version(version: Optional[str], *, missing: str = "—") -> s
     """
     if not version:
         return missing
-    return f"v{version}"
+    # Strip a leading 'v' so that stored values like "v1.0" do not produce "vv1.0".
+    return f"v{version.lstrip('v')}"
 
 
 def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> str:
@@ -913,7 +932,9 @@ def generate_deprecation_timeline(
 
     Returns:
         Mermaid ``timeline`` syntax grouped by class name for deprecated members
-        and by module basename for top-level symbols.
+        and by module basename for top-level symbols. Unlike
+        :func:`generate_deprecation_markdown`, the output contains no leading
+        ``<!-- Current version: ... -->`` metadata comment.
 
     Example:
         >>> report = generate_deprecation_timeline("tests.collection_deprecate", current_version="1.5", recursive=False)
