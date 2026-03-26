@@ -628,7 +628,7 @@ def find_deprecation_wrappers(
         cls: type,
         *,
         prefix: str,
-        seen_classes: set[type] | None = None,
+        seen_classes: Optional[set[type]] = None,
     ) -> None:
         """Scan deprecated methods/constructors declared on a class and nested classes."""
         if seen_classes is None:
