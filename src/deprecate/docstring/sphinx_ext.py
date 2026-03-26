@@ -41,6 +41,8 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
+_PROXY_AVAILABLE: bool = False
+
 try:
     from sphinx.ext.autodoc import ClassDocumenter, prepare_docstring
 
