@@ -671,23 +671,24 @@ class TestCheckModuleDeprecationExpiry:
         for msg in expired:
             assert "Callable" in msg or "scheduled" in msg
 
-    def test_includes_deprecated_class_constructors_by_default(self) -> None:
-        """validate_deprecation_expiry surfaces deprecated class constructors at their deadline.
-
-        This pins the contract that include_members=True is the default, ensuring the
-        CI enforcement scope matches what generate_deprecation_markdown reports.
-        """
-        expired = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+    def test_include_members_true_surfaces_class_constructors(self) -> None:
+        """include_members=True surfaces deprecated class constructors at their deadline."""
+        expired = validate_deprecation_expiry(
+            "tests.collection_deprecate", "2.0", recursive=False, include_members=True
+        )
         expired_names = " ".join(expired)
         # PastCls.__init__ has remove_in="0.4" — must appear at version 2.0
         assert "PastCls" in expired_names
 
-    def test_include_members_false_skips_class_constructors(self) -> None:
-        """include_members=False limits the scan to top-level symbols, excluding class methods."""
-        expired_with = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
-        expired_without = validate_deprecation_expiry(
-            "tests.collection_deprecate", "2.0", recursive=False, include_members=False
+    def test_include_members_false_default_skips_class_constructors(self) -> None:
+        """Default include_members=False limits the scan to top-level symbols only.
+
+        This pins the conservative default so a future refactor cannot silently broaden scope.
+        """
+        expired_top_only = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+        expired_with_members = validate_deprecation_expiry(
+            "tests.collection_deprecate", "2.0", recursive=False, include_members=True
         )
-        assert len(expired_with) > len(expired_without)
-        expired_names_without = " ".join(expired_without)
-        assert "PastCls" not in expired_names_without
+        assert len(expired_with_members) > len(expired_top_only)
+        expired_names_top_only = " ".join(expired_top_only)
+        assert "PastCls" not in expired_names_top_only
