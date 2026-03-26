@@ -825,7 +825,13 @@ print(process.__doc__)
 
 This is useful for generating API docs with Sphinx, MkDocs, and strict Google/NumPy docstring parsers.
 
-![Documentation Sample](assets/docs-sample.png)
+**MkDocs** (via `mkdocstrings` + Griffe extension):
+
+![MkDocs demo — deprecation notice rendered as a warning admonition](assets/demo-docs-mkdocs.png)
+
+**Sphinx** (via `autodoc` + Sphinx extension):
+
+![Sphinx demo — deprecation notice rendered as a styled deprecated directive](assets/demo-docs-sphinx.png)
 
 <details>
 <summary>MkDocs integration: render injected notices with <code>mkdocstrings</code></summary>
@@ -839,7 +845,7 @@ plugins:
       handlers:
         python:
           extensions:
-            - deprecate._griffe_ext:RuntimeDocstrings
+            - deprecate.docstring.griffe_ext:RuntimeDocstrings
 ```
 
 With the extension registered, mkdocstrings will render the injected `!!! warning` admonition for every `@deprecated` function in your docs. No extra dependencies are required — `griffe` is already a dependency of `mkdocstrings[python]`.

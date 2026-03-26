@@ -70,10 +70,12 @@ instance/
 # Scrapy stuff:
 .scrapy
 
-# Sphinx demo documentation
-temp_docs_sphinx/.claude/
-temp_docs_sphinx/_build/
-temp_docs_sphinx/build/
+# Demo documentation build artefacts
+demo-docs/sphinx/.claude/
+demo-docs/sphinx/_build/
+demo-docs/sphinx/build/
+demo-docs/mkdocs/.claude/
+demo-docs/mkdocs/site/
 
 # PyBuilder
 target/
@@ -113,6 +115,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+# UV virtual environment
+uv.lock
 
 # Spyder project settings
 .spyderproject
@@ -122,10 +126,8 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
+docs/index.md
 /site
-# Demo mkdocs
-temp_docs_mkdocs/.claude/
-temp_docs_mkdocs/site/
 
 # mypy
 .mypy_cache/
