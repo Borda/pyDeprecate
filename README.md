@@ -23,32 +23,32 @@ ______________________________________________________________________
 
 ## 📋 Table of Contents
 
-- [📖 Overview](#-overview)
-- [✨ Features](#-features)
-  - [Comparison with Other Tools](#-comparison-with-other-tools)
-- [💾 Installation](#-installation)
-- [🚀 Quick Start](#-quick-start)
-- [🗺 API at a Glance](#-api-at-a-glance)
-- [📚 Use-cases and Applications](#-use-cases-and-applications)
-  - [Simple function forwarding](#-simple-function-forwarding)
-  - [Advanced target argument mapping](#-advanced-target-argument-mapping)
-  - [Deprecation warning only](#-deprecation-warning-only)
-  - [Self argument mapping](#-self-argument-mapping)
-  - [Multiple deprecation levels](#-multiple-deprecation-levels)
-  - [Conditional skip](#-conditional-skip)
-  - [Class deprecation](#-class-deprecation)
-  - [Deprecating constants and instances](#-deprecating-constants-and-instances)
-  - [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)
-  - [Automatic docstring updates](#-automatic-docstring-updates)
-  - [Injecting new required arguments](#-injecting-new-required-arguments)
-- [🔇 Understanding the void() Helper](#-understanding-the-void-helper)
-- [🔍 Audit](#-audit)
-  - [Validating Wrapper Configuration](#-validating-wrapper-configuration)
-  - [Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
-  - [Detecting Deprecation Chains](#-detecting-deprecation-chains)
-- [🧪 Testing Deprecated Code](#-testing-deprecated-code)
-- [🔧 Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
+- [📖 Overview](#overview)
+- [✨ Features](#features)
+  - [Comparison with Other Tools](#comparison-with-other-tools)
+- [💾 Installation](#installation)
+- [🚀 Quick Start](#quick-start)
+- [🗺 API at a Glance](#api-at-a-glance)
+- [📚 Use-cases and Applications](#use-cases-and-applications)
+  - [Simple function forwarding](#simple-function-forwarding)
+  - [Advanced target argument mapping](#advanced-target-argument-mapping)
+  - [Deprecation warning only](#deprecation-warning-only)
+  - [Self argument mapping](#self-argument-mapping)
+  - [Multiple deprecation levels](#multiple-deprecation-levels)
+  - [Conditional skip](#conditional-skip)
+  - [Class deprecation](#class-deprecation)
+  - [Deprecating constants and instances](#deprecating-constants-and-instances)
+  - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
+  - [Automatic docstring updates](#automatic-docstring-updates)
+  - [Injecting new required arguments](#injecting-new-required-arguments)
+- [🔇 Understanding the void() Helper](#understanding-the-void-helper)
+- [🔍 Audit](#audit)
+  - [Validating Wrapper Configuration](#validating-wrapper-configuration)
+  - [Enforcing Deprecation Removal Deadlines](#enforcing-deprecation-removal-deadlines)
+  - [Detecting Deprecation Chains](#detecting-deprecation-chains)
+- [🧪 Testing Deprecated Code](#testing-deprecated-code)
+- [🔧 Troubleshooting](#troubleshooting)
+- [🤝 Contributing](#contributing)
 
 ## 📖 Overview
 
@@ -215,7 +215,7 @@ In particular the target values (cases):
 - _Callable_ - forward call to new methods (optionally also argument mapping or extras)
 
 > [!NOTE]
-> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#-deprecating-enums-and-dataclasses)).
+> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)).
 
 ### ➡ Simple function forwarding
 

@@ -107,8 +107,8 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            setattr(self_inner, "object", proxy)
+        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+            self_inner.object = proxy
             return False
 
         with patch.object(base, "import_object", fake_super_import):
