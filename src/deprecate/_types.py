@@ -113,3 +113,22 @@ class _WrapperState:
     called: int = 0
     warned_calls: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
+
+
+@runtime_checkable
+class _DeprecatedCallable(Protocol):
+    """Structural type for a ``@deprecated``-decorated callable with mutable runtime state.
+
+    This protocol describes the shape of a function or method after the ``@deprecated``
+    decorator has been applied. It includes both static metadata (``__deprecated__``)
+    and mutable runtime state (``_state``).
+
+    Used to type-safely access ``_state`` on decorated callables without casting.
+    """
+
+    __deprecated__: DeprecationConfig
+    _state: _WrapperState
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        """Call the deprecated callable."""
+        raise NotImplementedError

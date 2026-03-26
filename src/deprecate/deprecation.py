@@ -18,7 +18,7 @@ from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationConfig, _WrapperState
+from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -587,7 +587,7 @@ def deprecated(
             if shall_skip:
                 return source(*args, **kwargs)
 
-            state = cast(_WrapperState, wrapped_fn._state)  # type: ignore[attr-defined]
+            state = cast(_DeprecatedCallable, wrapped_fn)._state
             state.called += 1
             # Preserve original kwargs for var-positional fallback before remapping.
             original_kwargs = dict(kwargs)
@@ -655,9 +655,10 @@ def deprecated(
             args_mapping=args_mapping,
             docstring_style=normalized_docstring_style,
         )
-        wrapped_fn.__deprecated__ = dep_meta  # type: ignore[attr-defined]
+        wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
+        wrapped_fn_typed.__deprecated__ = dep_meta
         # Private mutable runtime state — call counter, warning counters.
-        wrapped_fn._state = _WrapperState()  # type: ignore[attr-defined]
+        wrapped_fn_typed._state = _WrapperState()
 
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)

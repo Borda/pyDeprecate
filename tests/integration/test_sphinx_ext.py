@@ -1,5 +1,6 @@
 """Unit tests for deprecate.docstring.sphinx_ext."""
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,8 +63,8 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            self_inner.object = proxy  # type: ignore[attr-defined]
+        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+            self_inner.object = proxy
             return True
 
         with patch.object(base, "import_object", fake_super_import):
@@ -86,8 +87,8 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            self_inner.object = Regular  # type: ignore[attr-defined]
+        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+            self_inner.object = Regular
             return True
 
         with patch.object(base, "import_object", fake_super_import):

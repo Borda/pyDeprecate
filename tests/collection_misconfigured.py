@@ -16,8 +16,10 @@ Copyright (C) 2020-2026 Jiri Borovec <...>.
 """
 
 from dataclasses import replace
+from typing import cast
 
 from deprecate import deprecated, void
+from deprecate._types import _DeprecatedCallable
 
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"nonexistent_arg": "new_arg"})
@@ -103,5 +105,6 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
 
 
 # Manually update the __deprecated__ attribute to make it self-referencing
-deprecated_info = self_referencing_deprecation.__deprecated__  # type: ignore[attr-defined]
-self_referencing_deprecation.__deprecated__ = replace(deprecated_info, target=self_referencing_deprecation)  # type: ignore[attr-defined]
+self_ref_typed = cast(_DeprecatedCallable, self_referencing_deprecation)
+deprecated_info = self_ref_typed.__deprecated__
+self_ref_typed.__deprecated__ = replace(deprecated_info, target=self_referencing_deprecation)
