@@ -120,7 +120,7 @@ class TestGetFuncArgumentsTypesDefaults:
     def test_extracts_names_types_and_defaults(self) -> None:
         """Fully annotated and partially annotated params are all extracted with correct types and defaults."""
 
-        def my_func(x: int, y: str = "hello", z=42) -> None:  # type: ignore[no-untyped-def]
+        def my_func(x: int, y: str = "hello", z=42) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN001
             pass
 
         result = get_func_arguments_types_defaults(my_func)
@@ -134,7 +134,7 @@ class TestGetFuncArgumentsTypesDefaults:
     def test_unannotated_param_has_empty_annotation(self) -> None:
         """A parameter with no type annotation yields inspect.Parameter.empty as its annotation slot."""
 
-        def my_func(a, b: int) -> None:  # type: ignore[no-untyped-def]
+        def my_func(a, b: int) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN001
             pass
 
         result = get_func_arguments_types_defaults(my_func)

@@ -167,7 +167,7 @@ class DeprecationWrapperInfo:
     chain_type: Optional[ChainType] = None
 
 
-def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:
+def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN401
     """Return members without triggering dynamic ``getattr`` side effects.
 
     Uses ``inspect.getmembers_static`` when available (Python 3.11+). For Python
@@ -413,7 +413,7 @@ def _get_package_version(package_name: str) -> str:
 
 
 def validate_deprecation_expiry(
-    module: Union[Any, str],
+    module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
 ) -> list[str]:
@@ -520,7 +520,7 @@ def validate_deprecation_expiry(
 
 
 def find_deprecation_wrappers(
-    module: Union[Any, str],
+    module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
 ) -> list[DeprecationWrapperInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
@@ -584,7 +584,7 @@ def find_deprecation_wrappers(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    def _scan_module(mod: Any) -> None:
+    def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
         try:
             # Static inspection avoids dynamic getattr/descriptor evaluation while scanning.
@@ -627,7 +627,7 @@ def find_deprecation_wrappers(
 
 
 def validate_deprecation_chains(
-    module: Union[Any, str],
+    module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
 ) -> list[DeprecationWrapperInfo]:
     """Validate that deprecated functions don't form chains with other deprecated code.
@@ -694,7 +694,7 @@ def validate_deprecated_callable(func: Callable) -> DeprecationWrapperInfo:
 
 @deprecated(target=find_deprecation_wrappers, deprecated_in="0.6", remove_in="1.0")
 def find_deprecated_callables(
-    module: Union[Any, str],
+    module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
 ) -> list[DeprecationWrapperInfo]:
     """Use :func:`find_deprecation_wrappers` instead."""

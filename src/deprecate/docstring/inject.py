@@ -529,7 +529,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
     if not hasattr(wrapped_fn, "__deprecated__"):
         return
     lines = wrapped_fn.__doc__.splitlines()
-    dep_info = cast(DeprecationConfig, wrapped_fn.__deprecated__)
+    dep_info = cast(DeprecationConfig, wrapped_fn.__deprecated__)  # type: ignore[attr-defined]
 
     if dep_info.args_mapping:
         all_args_found = True

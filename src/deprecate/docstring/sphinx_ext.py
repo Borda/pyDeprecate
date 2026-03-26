@@ -79,10 +79,10 @@ if _SPHINX_AVAILABLE:
             @classmethod
             def can_document_member(
                 cls,
-                member: Any,
+                member: Any,  # noqa: ANN401
                 membername: str,
                 isattr: bool,
-                parent: Any,
+                parent: Any,  # noqa: ANN401
             ) -> bool:
                 """Return ``True`` for proxies and for all types the base class accepts."""
                 return isinstance(member, _DeprecatedProxy) or super().can_document_member(
@@ -131,7 +131,7 @@ if _SPHINX_AVAILABLE:
                 return super().get_doc()
 
 
-def setup(app: Any) -> dict[str, Any]:
+def setup(app: Any) -> dict[str, Any]:  # noqa: ANN401
     """Register the ``_DeprecatedProxy`` documenter with Sphinx.
 
     Args:

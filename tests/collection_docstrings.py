@@ -24,6 +24,7 @@ def old_function(a: int, b: str = "old") -> str:
 
 @deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True)
 def old_function_plain(a: int, b: str = "old") -> str:
+    """Old plain function without explicit sections."""
     return f"old {a} {b}"
 
 
@@ -129,8 +130,11 @@ class OldClass:
 
 
 class OldClassPlain:
+    """Old plain class without explicit sections."""
+
     @deprecated(target=NewClass, deprecated_in="0.2", remove_in="0.4", update_docstring=True)
     def __init__(self, x: int) -> None:
+        """Initialize OldClassPlain."""
         self.x = x
 
 

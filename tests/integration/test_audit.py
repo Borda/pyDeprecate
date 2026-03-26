@@ -139,7 +139,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
             (proxy_module.DeprecatedColorDataClass, "DeprecatedColorDataClass", "NewDataClass"),
         ],
     )
-    def test_deprecated_class_with_target(self, proxy_obj: Any, fn_name: str, target_name: str) -> None:
+    def test_deprecated_class_with_target(self, proxy_obj: Any, fn_name: str, target_name: str) -> None:  # noqa: ANN401
         """deprecated_class proxy with a forwarding target reports correct metadata."""
         result = validate_deprecation_wrapper(proxy_obj)
         assert result.function == fn_name
@@ -172,7 +172,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
     )
     def test_deprecated_class_with_args_mapping(
         self,
-        proxy_obj: Any,
+        proxy_obj: Any,  # noqa: ANN401
         fn_name: str,
         expected_mapping: dict,
         target_name: str,
@@ -233,7 +233,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
     )
     def test_all_proxy_types_pass_basic_validation(
         self,
-        proxy_obj: Any,
+        proxy_obj: Any,  # noqa: ANN401
         fn_name: str,
         has_target: bool,
         has_mapping: bool,
@@ -419,7 +419,7 @@ class TestCheckDeprecationExpiry:
             (proxy_module.depr_config_dict_read_only, "1.9"),  # deprecated_instance, read_only
         ],
     )
-    def test_not_expired_before_deadline(self, callable_: Any, current_version: str) -> None:
+    def test_not_expired_before_deadline(self, callable_: Any, current_version: str) -> None:  # noqa: ANN401
         """Callable before its remove_in deadline passes silently."""
         _check_deprecated_wrapper_expiry(callable_, current_version)
 
@@ -437,7 +437,7 @@ class TestCheckDeprecationExpiry:
             (proxy_module.depr_config_dict_read_only, "2.0", "2.0"),  # deprecated_instance, read_only
         ],
     )
-    def test_raises_at_or_after_deadline(self, callable_: Any, current_version: str, remove_in: str) -> None:
+    def test_raises_at_or_after_deadline(self, callable_: Any, current_version: str, remove_in: str) -> None:  # noqa: ANN401
         """Callable at or past its remove_in deadline raises AssertionError."""
         with pytest.raises(
             AssertionError,

@@ -63,7 +63,7 @@ class TestImportObject:
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
         def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            self_inner.object = proxy
+            self_inner.object = proxy  # type: ignore[attr-defined]
             return True
 
         with patch.object(base, "import_object", fake_super_import):
@@ -87,7 +87,7 @@ class TestImportObject:
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
         def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            self_inner.object = Regular
+            self_inner.object = Regular  # type: ignore[attr-defined]
             return True
 
         with patch.object(base, "import_object", fake_super_import):
@@ -107,14 +107,14 @@ class TestImportObject:
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
         def fake_super_import(self_inner: object, raiseerror: bool = False) -> bool:
-            self_inner.object = proxy
+            setattr(self_inner, "object", proxy)
             return False
 
         with patch.object(base, "import_object", fake_super_import):
             result = doc.import_object()
 
         assert result is False
-        assert doc.object is proxy
+        assert getattr(doc, "object") is proxy
         assert not hasattr(doc, "_proxy_doc")
 
 

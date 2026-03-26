@@ -13,7 +13,7 @@ _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
 
 
-def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:
+def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:  # noqa: ANN401
     spec = spec_from_file_location(os.path.join(pkg, fname), os.path.join(_PATH_SOURCE, pkg, fname))
     py = module_from_spec(spec)  # type: ignore[arg-type]
     spec.loader.exec_module(py)  # type: ignore[union-attr]

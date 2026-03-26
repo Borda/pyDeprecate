@@ -37,7 +37,7 @@ def base_pow_args(a: float, b: int) -> float:
 class NewCls:
     """New class for testing deprecation."""
 
-    def __init__(self, c: float, d: str = "abc", **kwargs: Any) -> None:
+    def __init__(self, c: float, d: str = "abc", **kwargs: Any) -> None:  # noqa: ANN401
         """Initialize NewCls."""
         self.my_c = c
         self.my_d = d
@@ -121,7 +121,7 @@ def timing_wrapper(func: Callable) -> Callable:
     """Decorator to measure the execution time of a function."""
 
     @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Wrapper function."""
         start_time = time.perf_counter()
         result = func(*args, **kwargs)
@@ -142,7 +142,7 @@ class TimerDecorator:
         self.total_time = 0.0
         self.calls = 0
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the wrapped function and track timing."""
         start_time = time.perf_counter()
         result = self.func(*args, **kwargs)

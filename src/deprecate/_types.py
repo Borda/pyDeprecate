@@ -51,12 +51,12 @@ class _HasDeprecationMeta(Protocol):
 
     __deprecated__: DeprecationConfig
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the deprecated object."""
         raise NotImplementedError
 
 
-def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":
+def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
     """Return ``True`` if *obj* carries typed :class:`DeprecationConfig` metadata.
 
     Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to

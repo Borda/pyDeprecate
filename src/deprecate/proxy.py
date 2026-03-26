@@ -70,7 +70,7 @@ class _DeprecatedProxy:
 
     def __init__(
         self,
-        obj: Any,
+        obj: Any,  # noqa: ANN401
         name: str,
         *,
         deprecated_in: str = "",
@@ -78,7 +78,7 @@ class _DeprecatedProxy:
         num_warns: int = 1,
         stream: Optional[Callable[..., None]] = deprecation_warning,
         read_only: bool = False,
-        target: Any = None,
+        target: Any = None,  # noqa: ANN401
         args_mapping: Optional[dict] = None,
         docstring_style: str = "auto",
     ) -> None:
@@ -180,7 +180,7 @@ class _DeprecatedProxy:
                 f"'{name}' is deprecated and read-only. {operation} is not allowed. Migrate away from this object."
             )
 
-    def _get_active(self) -> Any:
+    def _get_active(self) -> Any:  # noqa: ANN401
         """Return the active object: *target* when set, otherwise *source*."""
         target = self._dep.target
         if target is not None:
@@ -220,7 +220,7 @@ class _DeprecatedProxy:
     # Attribute access
     # ------------------------------------------------------------------
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         """Forward attribute lookup to the active object, emitting a deprecation warning.
 
         In read-only mode, common mutating methods on built-in collections
@@ -233,13 +233,13 @@ class _DeprecatedProxy:
         # In read-only mode, guard common mutating methods accessed via attribute lookup.
         if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
 
-            def _guarded_mutator(*args: Any, **kwargs: Any) -> None:
+            def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
                 self._check_read_only(f"Calling mutating method '{name}'")
 
             return _guarded_mutator
         return attr
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
         """Forward attribute mutation to the active object, raising in read-only mode.
 
         Raises:
@@ -261,12 +261,12 @@ class _DeprecatedProxy:
     # Subscript access
     # ------------------------------------------------------------------
 
-    def __getitem__(self, key: Any) -> Any:
+    def __getitem__(self, key: Any) -> Any:  # noqa: ANN401
         """Forward subscript lookup to the active object, emitting a deprecation warning."""
         self._warn()
         return self._get_active()[key]
 
-    def __setitem__(self, key: Any, value: Any) -> None:
+    def __setitem__(self, key: Any, value: Any) -> None:  # noqa: ANN401
         """Forward subscript mutation to the active object, raising in read-only mode.
 
         Raises:
@@ -275,7 +275,7 @@ class _DeprecatedProxy:
         self._check_read_only(f"Setting item '{key}'")
         self._get_active()[key] = value
 
-    def __delitem__(self, key: Any) -> None:
+    def __delitem__(self, key: Any) -> None:  # noqa: ANN401
         """Forward subscript deletion to the active object, raising in read-only mode.
 
         Raises:
@@ -297,7 +297,7 @@ class _DeprecatedProxy:
         self._warn()
         return iter(self._get_active())
 
-    def __contains__(self, item: Any) -> bool:
+    def __contains__(self, item: Any) -> bool:  # noqa: ANN401
         """Check membership in the active object without emitting a warning."""
         return item in self._get_active()
 
@@ -305,7 +305,7 @@ class _DeprecatedProxy:
     # Callable protocol
     # ------------------------------------------------------------------
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the active object, emitting a deprecation warning."""
         self._warn()
         mapped_kwargs = self._apply_args_mapping(kwargs)
@@ -381,7 +381,7 @@ class _DeprecatedProxy:
 
 
 def deprecated_class(
-    target: Any = None,
+    target: Any = None,  # noqa: ANN401
     *,
     deprecated_in: str = "",
     remove_in: str = "",
@@ -460,7 +460,7 @@ def deprecated_class(
 
 
 def deprecated_instance(
-    obj: Any,
+    obj: Any,  # noqa: ANN401
     *,
     name: str = "",
     deprecated_in: str = "",
