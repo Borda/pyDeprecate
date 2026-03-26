@@ -8,15 +8,19 @@
 #     ├─ build-demo-sphinx ───┤
 #     └─ build-demo-mkdocs ───┤
 #                             ▼
-#                          deploy (always runs — assembles _site/ for PR validation)
+#                          assemble (always runs — merges artifacts into _site/, PR validation)
 #                             ├─ download portal, sphinx, mkdocs artifacts
 #                             ├─ assemble _site/{sphinx,mkdocs} + portal at root
-#                             ├─ [if push] actions/configure-pages
+#                             └─ upload assembled-site artifact (contents: read only)
+#                             ▼ (push only)
+#                          deploy (push only — pages: write + id-token: write)
+#                             ├─ download assembled-site artifact
+#                             ├─ actions/configure-pages
 #                             ├─ actions/upload-pages-artifact
-#                             └─ [if push] actions/deploy-pages
+#                             └─ actions/deploy-pages
 #
 #   pages: write and id-token: write are scoped to the deploy job only —
-#   pull requests keep the minimal contents: read permission.
+#   pull requests keep the minimal contents: read permission and never trigger deploy.
 
 name: Build & Deploy Docs
 
@@ -122,17 +126,11 @@ jobs:
           path: demo-docs/mkdocs/site/
           retention-days: 7
 
-  deploy:
-    name: Assemble & Deploy GH Pages
+  assemble:
+    name: Assemble Site
     needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    # inherits minimal contents: read from top-level permissions
 
     steps:
       - name: 📥 Download portal artifact
@@ -153,8 +151,33 @@ jobs:
           name: mkdocs-docs
           path: _site/demo-mkdocs
 
+      - name: 📤 Upload assembled site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: assembled-site
+          path: _site/
+          retention-days: 7
+
+  deploy:
+    name: Deploy to GH Pages
+    needs: [assemble]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: 📥 Download assembled site artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: assembled-site
+          path: _site
+
       - name: ⚙️ Configure GitHub Pages
-        if: github.event_name == 'push'
         uses: actions/configure-pages@v5
 
       - name: 📤 Upload Pages artifact
@@ -163,6 +186,5 @@ jobs:
           path: _site/
 
       - name: 🚀 Deploy to GitHub Pages
-        if: github.event_name == 'push'
         id: deploy
         uses: actions/deploy-pages@v4
