@@ -1015,7 +1015,7 @@ print(f"Found {len(expired)} expired")
 
 ```
 Found 14 expired
-Found 31 expired
+Found 28 expired
 Found 17 expired
 Found 0 expired
 ```

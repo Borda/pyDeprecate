@@ -421,7 +421,7 @@ def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
-    include_members: bool = True,
+    include_members: bool = False,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.
 
@@ -442,10 +442,12 @@ def validate_deprecation_expiry(
             from the module path (e.g., ``"mypackage"`` extracts ``mypackage`` as package name).
         recursive: If True (default), recursively scan submodules. If False, only
             scan the top-level module.
-        include_members: If True (default), also scan deprecated methods and constructors
-            defined on classes in the module, matching the scope of
-            :func:`generate_deprecation_markdown` and :func:`generate_deprecation_timeline`.
-            Set to False to restrict the scan to top-level symbols only.
+        include_members: If True, also scan deprecated methods and constructors defined on
+            classes in the module, matching the scope of :func:`generate_deprecation_markdown`
+            and :func:`generate_deprecation_timeline`. Defaults to ``False`` for consistency
+            with :func:`find_deprecation_wrappers`. Pass ``include_members=True`` in CI to
+            ensure deprecated class constructors are enforced as strictly as they appear in
+            generated reports.
 
     Returns:
         List of error messages for callables that have expired (past their removal deadline).
@@ -458,9 +460,16 @@ def validate_deprecation_expiry(
         >>> len(expired)
         0
 
-        >>> # Check with version past some removal deadlines
+        >>> # Check with version past some removal deadlines (top-level symbols only by default)
         >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
-        >>> print(len(expired))  # Includes top-level functions and class constructors
+        >>> print(len(expired))
+        28
+
+        >>> # Pass include_members=True to match the scope of generate_deprecation_markdown
+        >>> expired = validate_deprecation_expiry(
+        ...     "tests.collection_deprecate", "0.5", recursive=False, include_members=True
+        ... )
+        >>> print(len(expired))
         31
 
     .. note::
