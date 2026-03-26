@@ -1,6 +1,7 @@
 """Unit tests for private helpers in deprecate.deprecation."""
 
 import inspect
+import sys
 import warnings
 from dataclasses import dataclass
 from enum import Enum
@@ -23,6 +24,7 @@ from deprecate.docstring.inject import (
     _update_docstring_with_deprecation,
     find_docstring_insertion_index,
     is_numpy_underline,
+    normalize_docstring_style,
 )
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import CrossGuardModuleLevel, CrossGuardOldClass, CrossGuardSameClass
@@ -455,16 +457,10 @@ class TestDocstringStyleValidation:
     @pytest.mark.parametrize("style", ["RST", "MKDOCS", "Markdown", "MkDocs", "AUTO", "Auto"])
     def test_case_insensitive_normalization(self, style: str) -> None:
         """``docstring_style`` values are matched case-insensitively."""
-        from deprecate.docstring.inject import normalize_docstring_style
-
         assert normalize_docstring_style(style) in ("rst", "mkdocs")
 
     def test_auto_style_resolves_to_rst_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """``"auto"`` resolves to ``"rst"`` when no env var is set and argv is not mkdocs."""
-        import sys
-
-        from deprecate.docstring.inject import normalize_docstring_style
-
         monkeypatch.setattr(sys, "argv", ["pytest"])
         monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
         monkeypatch.delitem(sys.modules, "mkdocs", raising=False)
@@ -473,24 +469,16 @@ class TestDocstringStyleValidation:
 
     def test_auto_style_env_var_mkdocs(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """``DEPRECATE_DOCSTRING_STYLE=mkdocs`` forces MkDocs format."""
-        from deprecate.docstring.inject import normalize_docstring_style
-
         monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "mkdocs")
         assert normalize_docstring_style("auto") == "mkdocs"
 
     def test_auto_style_env_var_rst(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """``DEPRECATE_DOCSTRING_STYLE=rst`` forces RST format."""
-        from deprecate.docstring.inject import normalize_docstring_style
-
         monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "rst")
         assert normalize_docstring_style("auto") == "rst"
 
     def test_auto_style_detects_mkdocs_from_argv(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """``sys.argv[0]`` containing ``mkdocs`` resolves ``"auto"`` to ``"mkdocs"``."""
-        import sys
-
-        from deprecate.docstring.inject import normalize_docstring_style
-
         monkeypatch.setattr(sys, "argv", ["/usr/local/bin/mkdocs", "build"])
         monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
         assert normalize_docstring_style("auto") == "mkdocs"
