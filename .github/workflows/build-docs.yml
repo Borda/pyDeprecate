@@ -1,8 +1,8 @@
-# Build Demo Docs
+# Build Composite Docs
 #
 # Flow:
 #
-#   push → main / pull_request → main
+#   [push → main] / [pull_request → main]
 #     │
 #     ├─ build-landing-docs ──┐
 #     ├─ build-demo-sphinx ───┤
@@ -12,8 +12,8 @@
 #                             ├─ download portal, sphinx, mkdocs artifacts
 #                             ├─ assemble _site/{sphinx,mkdocs} + portal at root
 #                             └─ upload assembled-site artifact (contents: read only)
-#                             ▼ (push only)
-#                          deploy (push only — pages: write + id-token: write)
+#                             ▼ [push only]
+#                          deploy (pages: write + id-token: write)
 #                             ├─ download assembled-site artifact
 #                             ├─ actions/configure-pages
 #                             ├─ actions/upload-pages-artifact
@@ -126,7 +126,7 @@ jobs:
           path: demo-docs/mkdocs/site/
           retention-days: 7
 
-  assemble:
+  assemble-site:
     name: Assemble Site
     needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
     runs-on: ubuntu-latest
@@ -158,33 +158,45 @@ jobs:
           path: _site/
           retention-days: 7
 
-  deploy:
+  deploy-pages:
     name: Deploy to GH Pages
-    needs: [assemble]
+    needs: [assemble-site]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     permissions:
-      pages: write
-      id-token: write
+      pages: write # required by upload-pages-artifact and deploy-pages
+      id-token: write # required by deploy-pages (OIDC token for Pages API)
     environment:
+      # Repo setting: Settings → Pages → Source → "GitHub Actions"
+      # Deployed URL is reported back via steps.deploy.outputs.page_url
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
       - name: 📥 Download assembled site artifact
+        # Download the _site/ directory assembled by the assemble job above.
+        # Layout after download:
+        #   _site/              ← portal (README → index.html via MkDocs)
+        #   _site/demo-sphinx/  ← Sphinx HTML build
+        #   _site/demo-mkdocs/  ← MkDocs HTML build
         uses: actions/download-artifact@v4
         with:
           name: assembled-site
           path: _site
 
       - name: ⚙️ Configure GitHub Pages
+        # Reads repo Pages config and sets GITHUB_PAGES_* env vars used by upload-pages-artifact and deploy-pages.
         uses: actions/configure-pages@v5
 
       - name: 📤 Upload Pages artifact
+        # Packages _site/ into a specially formatted tarball and registers it under the reserved "github-pages" artifact name that deploy-pages expects.
+        # This is NOT the same as upload-artifact — deploy-pages cannot read regular artifacts; it only reads the "github-pages" artifact created here.
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site/
 
       - name: 🚀 Deploy to GitHub Pages
+        # Reads the "github-pages" artifact and pushes it to the Pages CDN.
+        # Outputs: page_url (the live URL, surfaced in the environment block above).
         id: deploy
         uses: actions/deploy-pages@v4
