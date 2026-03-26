@@ -24,6 +24,8 @@ from deprecate.audit import (
     _get_package_version,
     _parse_version,
     find_deprecation_wrappers,
+    generate_deprecation_markdown,
+    generate_deprecation_timeline,
     validate_deprecation_chains,
     validate_deprecation_wrapper,
 )
@@ -320,6 +322,15 @@ class TestFindDeprecatedWrappers:
         assert "depr_config_dict" in by_name
         assert by_name["depr_config_dict"].deprecated_info.name == "dict"
 
+    def test_include_members_discovers_deprecated_class_members(self) -> None:
+        """Optional member scanning reuses find_deprecation_wrappers for methods and constructors."""
+        by_name = {
+            r.function: r for r in find_deprecation_wrappers(proxy_module, recursive=False, include_members=True)
+        }
+        assert "ServiceCls.old_warn_method" in by_name
+        assert "ServiceCls.old_redirect_method" in by_name
+        assert "PastCls.__init__" in by_name
+
     def test_scan_handles_uninspectable_module(self) -> None:
         """Scan skips a module whose member inspection raises rather than crashing."""
         with patch.object(inspect, "getattr_static", side_effect=TypeError("bad module")):
@@ -400,6 +411,87 @@ class TestValidateDeprecationChains:
         assert "depr_func_targeting_proxy" in by_name
         assert by_name["ChainedProxyColorEnum"].chain_type is ChainType.TARGET
         assert by_name["depr_func_targeting_proxy"].chain_type is ChainType.TARGET
+
+
+class TestGenerateDeprecationReports:
+    """Tests for markdown and Mermaid deprecation report generation."""
+
+    @_requires_packaging
+    def test_markdown_includes_top_level_and_class_members(self) -> None:
+        """Markdown report includes functions, methods, and deprecated constructors."""
+        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
+        assert "| Symbol | Deprecated In | Removal Target | Current Status |" in report
+        assert "`tests.collection_deprecate.depr_pow_args`" in report
+        assert "`tests.collection_deprecate.ServiceCls.old_warn_method`" in report
+        assert "`tests.collection_deprecate.PastCls.__init__`" in report
+        assert "v1.0 | v1.3 | ❌ Past Removal Date" in report
+        assert "v1.0 | v2.0 | ⚠️ Active Warning" in report
+        assert "v0.2 | v0.4 | ❌ Past Removal Date" in report
+
+    def test_markdown_handles_missing_or_unknown_version_status(self) -> None:
+        """Missing remove_in and non-package modules degrade to informational statuses."""
+        report = generate_deprecation_markdown("tests.collection_deprecate", recursive=False)
+        assert "`tests.collection_deprecate.depr_func_no_remove_in`" in report
+        assert "v1.0 | — | ℹ️ No Removal Target" in report
+        assert "⚪ Status Unknown" in report
+
+    def test_timeline_groups_symbols_into_sections(self) -> None:
+        """Mermaid timeline groups methods by class and includes status labels."""
+        report = generate_deprecation_timeline(proxy_module, current_version="1.5", recursive=False)
+        assert report.startswith("timeline\n    title Deprecation Lifecycle")
+        assert "    section ServiceCls" in report
+        assert "tests.collection_deprecate.ServiceCls.old_redirect_method" in report
+        assert "v1.0 → v2.0" in report
+        assert "tests.collection_deprecate.depr_func_no_remove_in" in report
+        assert "v1.0 → open-ended" in report
+        assert "⚠️ Active Warning" in report
+        assert "ℹ️ No Removal Target" in report
+
+    @_requires_packaging
+    def test_invalid_current_version_raises_for_reports(self) -> None:
+        """Explicit invalid current_version raises a clear ValueError."""
+        with pytest.raises(ValueError, match="Invalid current_version"):
+            generate_deprecation_markdown(proxy_module, current_version="not-a-version", recursive=False)
+        with pytest.raises(ValueError, match="Invalid current_version"):
+            generate_deprecation_timeline(proxy_module, current_version="not-a-version", recursive=False)
+
+    def test_empty_module_markdown_produces_header_only(self) -> None:
+        """Empty module yields a valid header-only markdown table with no data rows."""
+        import types
+
+        mod = types.ModuleType("empty_test_module")
+        report = generate_deprecation_markdown(mod, recursive=False)
+        assert "| Symbol | Deprecated In | Removal Target | Current Status |" in report
+        assert "| :--- | :---: | :---: | :--- |" in report
+        # Only header rows — no symbol data lines
+        data_rows = [ln for ln in report.splitlines() if ln.startswith("| `")]
+        assert data_rows == []
+
+    def test_empty_module_timeline_produces_stub(self) -> None:
+        """Empty module yields a valid timeline stub with title but no section entries."""
+        import types
+
+        mod = types.ModuleType("empty_test_module")
+        report = generate_deprecation_timeline(mod, recursive=False)
+        assert report.startswith("timeline\n    title Deprecation Lifecycle")
+        assert "    section " not in report
+
+    def test_scan_class_no_recursion_on_self_referential_class(self) -> None:
+        """find_deprecation_wrappers does not raise RecursionError for self-referential classes."""
+        import types
+
+        mod = types.ModuleType("selfref_test_module")
+
+        class SelfRef:
+            """A class that holds a reference to itself as a class attribute."""
+
+        SelfRef.__module__ = "selfref_test_module"
+        SelfRef.cls_ref = SelfRef  # type: ignore[attr-defined]
+        mod.SelfRef = SelfRef  # type: ignore[attr-defined]
+
+        # Must not raise RecursionError
+        result = find_deprecation_wrappers(mod, include_members=True, recursive=False)
+        assert isinstance(result, list)
 
 
 @_requires_packaging
@@ -578,3 +670,25 @@ class TestCheckModuleDeprecationExpiry:
         assert all(isinstance(msg, str) for msg in expired)
         for msg in expired:
             assert "Callable" in msg or "scheduled" in msg
+
+    def test_include_members_true_surfaces_class_constructors(self) -> None:
+        """include_members=True surfaces deprecated class constructors at their deadline."""
+        expired = validate_deprecation_expiry(
+            "tests.collection_deprecate", "2.0", recursive=False, include_members=True
+        )
+        expired_names = " ".join(expired)
+        # PastCls.__init__ has remove_in="0.4" — must appear at version 2.0
+        assert "PastCls" in expired_names
+
+    def test_include_members_false_default_skips_class_constructors(self) -> None:
+        """Default include_members=False limits the scan to top-level symbols only.
+
+        This pins the conservative default so a future refactor cannot silently broaden scope.
+        """
+        expired_top_only = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+        expired_with_members = validate_deprecation_expiry(
+            "tests.collection_deprecate", "2.0", recursive=False, include_members=True
+        )
+        assert len(expired_with_members) > len(expired_top_only)
+        expired_names_top_only = " ".join(expired_top_only)
+        assert "PastCls" not in expired_names_top_only

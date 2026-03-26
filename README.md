@@ -47,6 +47,7 @@ ______________________________________________________________________
   - [Validating Wrapper Configuration](#validating-wrapper-configuration)
   - [Enforcing Deprecation Removal Deadlines](#enforcing-deprecation-removal-deadlines)
   - [Detecting Deprecation Chains](#detecting-deprecation-chains)
+  - [Generating Deprecation Tables & Timelines](#generating-deprecation-tables-and-timelines)
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
 - [🔧 Troubleshooting](#troubleshooting)
 - [🤝 Contributing](#contributing)
@@ -1027,6 +1028,9 @@ results = find_deprecation_wrappers(my_package)
 # Or scan using a string module path
 results = find_deprecation_wrappers("tests.collection_deprecate")
 
+# Include deprecated methods and constructors defined on classes in that module
+results = find_deprecation_wrappers("tests.collection_deprecate", include_members=True)
+
 # Check results - each item is a DeprecationWrapperInfo dataclass
 for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
@@ -1067,6 +1071,30 @@ print(f"Self-references: {len(self_refs)}")
 ```
 
 </details>
+
+### Generating Deprecation Tables and Timelines
+
+If you want docs-friendly summaries, `generate_deprecation_markdown()` and
+`generate_deprecation_timeline()` render the discovered wrapper metadata as a
+Markdown table or Mermaid timeline. Both reports include deprecated class
+members such as methods and constructors, so the wrapper metadata remains the
+single source of truth.
+
+```text
+| Symbol | Deprecated In | Removal Target | Current Status |
+| :--- | :---: | :---: | :--- |
+| `my_pkg.api.old_method` | v1.2.0 | v2.0.0 | ⚠️ Active Warning |
+| `my_pkg.legacy.LegacyClass.__init__` | v1.0.0 | v1.8.0 | ❌ Past Removal Date |
+```
+
+```mermaid
+timeline
+    title Deprecation Lifecycle
+    section api
+        v1.2.0 → v2.0.0 : my_pkg.api.old_method (⚠️ Active Warning)
+    section LegacyClass
+        v1.0.0 → v1.8.0 : my_pkg.legacy.LegacyClass.__init__ (❌ Past Removal Date)
+```
 
 <details>
 <summary><b>CI/pytest Integration</b></summary>
