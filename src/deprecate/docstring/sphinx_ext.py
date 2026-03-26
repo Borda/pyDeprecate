@@ -79,10 +79,10 @@ if _SPHINX_AVAILABLE:
             @classmethod
             def can_document_member(
                 cls,
-                member: Any,  # noqa: ANN401
+                member: Any,
                 membername: str,
                 isattr: bool,
-                parent: Any,  # noqa: ANN401
+                parent: Any,
             ) -> bool:
                 """Return ``True`` for proxies and for all types the base class accepts."""
                 return isinstance(member, _DeprecatedProxy) or super().can_document_member(
@@ -115,7 +115,7 @@ if _SPHINX_AVAILABLE:
                     # Swap the proxy for the original wrapped class so that
                     # ClassDocumenter can introspect members, __init__ signature, etc.
                     if hasattr(obj, "_cfg"):
-                        setattr(self, "object", obj._cfg.obj)
+                        self.object = obj._cfg.obj
                     # Reset doc_as_attr: the base class set it to True because
                     # proxy.__name__ (forwarded to the target) differed from the
                     # documented name.  Now that we have swapped to the real class
@@ -131,7 +131,7 @@ if _SPHINX_AVAILABLE:
                 return super().get_doc()
 
 
-def setup(app: Any) -> dict[str, Any]:  # noqa: ANN401
+def setup(app: Any) -> dict[str, Any]:
     """Register the ``_DeprecatedProxy`` documenter with Sphinx.
 
     Args:

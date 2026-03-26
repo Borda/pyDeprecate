@@ -192,7 +192,7 @@ def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optiona
         yield
 
 
-def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401
+def void(*args: Any, **kwrgs: Any) -> Any:
     """Empty function that accepts any arguments and returns None.
 
     This helper function is used to silence IDE warnings about unused parameters

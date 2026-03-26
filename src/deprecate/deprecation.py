@@ -546,7 +546,7 @@ def deprecated(
             import warnings
 
             proxy_module = importlib.import_module("deprecate.proxy")
-            deprecated_class = getattr(proxy_module, "deprecated_class")
+            deprecated_class = proxy_module.deprecated_class
 
             message = (
                 f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
@@ -579,7 +579,7 @@ def deprecated(
         )
 
         @wraps(source)
-        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:
             # check if user requested a skip
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
@@ -587,7 +587,7 @@ def deprecated(
             if shall_skip:
                 return source(*args, **kwargs)
 
-            state = cast(_WrapperState, getattr(wrapped_fn, "_state"))
+            state = cast(_WrapperState, wrapped_fn._state)
             state.called += 1
             # Preserve original kwargs for var-positional fallback before remapping.
             original_kwargs = dict(kwargs)
@@ -655,9 +655,9 @@ def deprecated(
             args_mapping=args_mapping,
             docstring_style=normalized_docstring_style,
         )
-        setattr(wrapped_fn, "__deprecated__", dep_meta)
+        wrapped_fn.__deprecated__ = dep_meta
         # Private mutable runtime state — call counter, warning counters.
-        setattr(wrapped_fn, "_state", _WrapperState())
+        wrapped_fn._state = _WrapperState()
 
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)

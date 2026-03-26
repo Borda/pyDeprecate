@@ -293,7 +293,7 @@ wrapped_sum = _deprecation_sum(original_sum)
 
 
 @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
-def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noqa: ANN401
+def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:
     """Forward a deprecated factory function to a class constructor.
 
     Examples:
@@ -303,7 +303,7 @@ def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noq
 
 
 @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"})
-def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noqa: ANN401
+def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> NewCls:
     """Forward a deprecated factory function to a class constructor with argument renaming.
 
     Examples:
@@ -639,7 +639,7 @@ class PastCls(NewCls):
     """Deprecated class forwarding to NewCls with DeprecationWarning."""
 
     @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
-    def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:
         """Initialize PastCls."""
         super().__init__(c)
 
@@ -650,7 +650,7 @@ class PastClsMapped(NewCls):
     @deprecated(
         target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"}, stream=_deprecation_warning
     )
-    def __init__(self, old_c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, old_c: int, d: str = "efg", **kwargs: Any) -> None:
         """Initialize PastClsMapped."""
         super().__init__(old_c)
 
@@ -907,7 +907,7 @@ class ChainedProxyColorEnum(Enum):
 
 
 @deprecated(target=DeprecatedColorEnum, deprecated_in="1.0", remove_in="2.0")
-def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
+def depr_func_targeting_proxy(value: int) -> Any:
     """Deprecated function whose target is a deprecated proxy (function→proxy chain).
 
     Examples:

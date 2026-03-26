@@ -88,14 +88,14 @@ from deprecate.utils import (
 )
 
 __all__ = [
-    "deprecated",
     "DeprecationWrapperInfo",
+    "assert_no_warnings",
+    "deprecated",
     "deprecated_class",
     "deprecated_instance",
     "find_deprecation_wrappers",
-    "validate_deprecation_wrapper",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
-    "assert_no_warnings",
+    "validate_deprecation_wrapper",
     "void",
 ]
