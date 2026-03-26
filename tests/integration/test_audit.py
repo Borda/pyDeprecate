@@ -455,6 +455,44 @@ class TestGenerateDeprecationReports:
         with pytest.raises(ValueError, match="Invalid current_version"):
             generate_deprecation_timeline(proxy_module, current_version="not-a-version", recursive=False)
 
+    def test_empty_module_markdown_produces_header_only(self) -> None:
+        """Empty module yields a valid header-only markdown table with no data rows."""
+        import types
+
+        mod = types.ModuleType("empty_test_module")
+        report = generate_deprecation_markdown(mod, recursive=False)
+        assert "| Symbol | Deprecated In | Removal Target | Current Status |" in report
+        assert "| :--- | :---: | :---: | :--- |" in report
+        # Only header rows — no symbol data lines
+        data_rows = [ln for ln in report.splitlines() if ln.startswith("| `")]
+        assert data_rows == []
+
+    def test_empty_module_timeline_produces_stub(self) -> None:
+        """Empty module yields a valid timeline stub with title but no section entries."""
+        import types
+
+        mod = types.ModuleType("empty_test_module")
+        report = generate_deprecation_timeline(mod, recursive=False)
+        assert report.startswith("timeline\n    title Deprecation Lifecycle")
+        assert "    section " not in report
+
+    def test_scan_class_no_recursion_on_self_referential_class(self) -> None:
+        """find_deprecation_wrappers does not raise RecursionError for self-referential classes."""
+        import types
+
+        mod = types.ModuleType("selfref_test_module")
+
+        class SelfRef:
+            """A class that holds a reference to itself as a class attribute."""
+
+        SelfRef.__module__ = "selfref_test_module"
+        SelfRef.cls_ref = SelfRef  # type: ignore[attr-defined]
+        mod.SelfRef = SelfRef  # type: ignore[attr-defined]
+
+        # Must not raise RecursionError
+        result = find_deprecation_wrappers(mod, include_members=True, recursive=False)
+        assert isinstance(result, list)
+
 
 @_requires_packaging
 class TestCheckDeprecationExpiry:
@@ -632,3 +670,24 @@ class TestCheckModuleDeprecationExpiry:
         assert all(isinstance(msg, str) for msg in expired)
         for msg in expired:
             assert "Callable" in msg or "scheduled" in msg
+
+    def test_includes_deprecated_class_constructors_by_default(self) -> None:
+        """validate_deprecation_expiry surfaces deprecated class constructors at their deadline.
+
+        This pins the contract that include_members=True is the default, ensuring the
+        CI enforcement scope matches what generate_deprecation_markdown reports.
+        """
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+        expired_names = " ".join(expired)
+        # PastCls.__init__ has remove_in="0.4" — must appear at version 2.0
+        assert "PastCls" in expired_names
+
+    def test_include_members_false_skips_class_constructors(self) -> None:
+        """include_members=False limits the scan to top-level symbols, excluding class methods."""
+        expired_with = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
+        expired_without = validate_deprecation_expiry(
+            "tests.collection_deprecate", "2.0", recursive=False, include_members=False
+        )
+        assert len(expired_with) > len(expired_without)
+        expired_names_without = " ".join(expired_without)
+        assert "PastCls" not in expired_names_without
