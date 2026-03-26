@@ -1,9 +1,6 @@
 # pyDeprecate
 
-**pyDeprecate** is a zero-dependency Python library that turns deprecation from a chore into
-a one-liner. Decorate a function, method, or class with `@deprecated(...)` and the library
-handles everything else: runtime `FutureWarning` emission, transparent call forwarding to the
-replacement, and — crucially — automatic documentation.
+**pyDeprecate** is a zero-dependency Python library that turns deprecation from a chore into a one-liner. Decorate a function or method with `@deprecated(...)`, or a class/Enum/dataclass with `@deprecated_class(...)`, and the library handles everything else: runtime `FutureWarning` emission, transparent call forwarding to the replacement, and — crucially — automatic documentation.
 
 ## The problem it solves
 
@@ -17,8 +14,7 @@ Steps 2 and 3 are easy to forget and tedious to maintain. pyDeprecate automates 
 
 ## Automatic docstring injection
 
-Pass `update_docstring=True` and pyDeprecate rewrites the function's `__doc__` at decoration
-time — before the documentation tool ever sees it.
+Pass `update_docstring=True` and pyDeprecate rewrites the function's `__doc__` at decoration time — before the documentation tool ever sees it.
 
 ```python
 from deprecate import deprecated
@@ -55,9 +51,7 @@ Args:
     ...
 ```
 
-The notice is inserted **before** the first `Args:` / `Parameters` section so parameter
-tables render correctly. Developers writing or reviewing the deprecation do not need to touch
-the docstring at all — the notice appears automatically in every rendered output.
+The notice is inserted **before** the first `Args:` / `Parameters` section so parameter tables render correctly. Developers writing or reviewing the deprecation do not need to touch the docstring at all — the notice appears automatically in every rendered output.
 
 ## Docstring styles
 
@@ -67,13 +61,11 @@ the docstring at all — the notice appears automatically in every rendered outp
 | `"rst"`              | `.. deprecated::` directive   | Sphinx / autodoc           |
 | `"mkdocs"`           | `!!! warning` admonition      | MkDocs Material            |
 
-`"auto"` checks `sys.modules` and `sys.argv` to detect whether MkDocs or Sphinx is driving
-the build, so the same decorator works in both stacks without changes.
+`"auto"` checks `sys.modules` and `sys.argv` to detect whether MkDocs or Sphinx is driving the build, so the same decorator works in both stacks without changes.
 
 ## Live examples
 
 The [API reference](api.md) shows two real cases rendered by this very MkDocs build:
 
-- **Deprecated function with a removed argument** — inline per-argument note *and* a general
-  deprecation block, both injected automatically.
+- **Deprecated function with a removed argument** — inline per-argument note *and* a general deprecation block, both injected automatically.
 - **Deprecated class** — notice injected into the class docstring via `deprecated_class`.
