@@ -38,8 +38,10 @@ Requirements:
 
 from __future__ import annotations
 
-import contextlib
+import logging
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 _PROXY_AVAILABLE: bool = False
 
@@ -112,7 +114,7 @@ if _SPHINX_AVAILABLE:
                     self._proxy_doc: str = getattr(obj, "__doc__", "") or ""
                     # Swap the proxy for the original wrapped class so that
                     # ClassDocumenter can introspect members, __init__ signature, etc.
-                    with contextlib.suppress(AttributeError):  # pragma: no cover
+                    if hasattr(obj, "_cfg"):
                         setattr(self, "object", obj._cfg.obj)
                     # Reset doc_as_attr: the base class set it to True because
                     # proxy.__name__ (forwarded to the target) differed from the
@@ -144,4 +146,9 @@ def setup(app: Any) -> dict[str, Any]:  # noqa: ANN401
         # override=True is required because sphinx.ext.autodoc already registers
         # ClassDocumenter for objtype="class" and the autoclass directive.
         app.add_autodocumenter(_DeprecatedProxyClassDocumenter, override=True)
+    elif _SPHINX_AVAILABLE:
+        _logger.warning(
+            "deprecate.docstring.sphinx_ext: _DeprecatedProxy unavailable — "
+            "extension loaded but _DeprecatedProxyClassDocumenter not registered."
+        )
     return {"version": "0.1", "parallel_read_safe": True}
