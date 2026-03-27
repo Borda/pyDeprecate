@@ -67,7 +67,7 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
 - 🛠️ Supports deprecating callables: functions, methods, and class constructors
-- 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class`, `deprecated_instance`) with optional read-only enforcement
+- 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class` for types; `deprecated_instance` for objects, with optional read-only enforcement)
 - 📝 Optionally, docstrings can be updated automatically in RST/Sphinx or MkDocs/Markdown format (auto-detected); ships bundled Griffe and Sphinx doc-engine extensions
 - 🔍 Preserves original function signature, annotations and metadata for introspection
 - ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
@@ -99,7 +99,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 - **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 - **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
-- **CI/Audit Tools**: Validate wrapper configuration, enforce removal deadlines (PEP 440), and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
+- **CI/Audit Tools**: Validate wrapper configuration, and—when installed with the `pyDeprecate[audit]` extra—enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
 - **Decorator Stacking**: Stack multiple `@deprecated` decorators on one function for multi-level argument migration, with each layer tracking its own version range and warning count independently.
 - **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
 - **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
