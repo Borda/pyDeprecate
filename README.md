@@ -66,13 +66,14 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🔄 Arguments are automatically mapped to the target function
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
-- 🛠️ Supports deprecating functions, methods, and classes
-- 📝 Optionally, docstrings can be updated automatically to reflect deprecation
+- 🛠️ Supports deprecating callables: functions, methods, and class constructors
+- 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class` for types; `deprecated_instance` for objects, with optional read-only enforcement)
+- 📝 Optionally, docstrings can be updated automatically in RST/Sphinx or MkDocs/Markdown format (auto-detected); ships bundled Griffe and Sphinx doc-engine extensions
 - 🔍 Preserves original function signature, annotations and metadata for introspection
 - ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
-- 🎯 Fine‑grained control: per‑argument deprecation/mapping and conditional `skip_if` behavior
+- 🎯 Fine‑grained control: per‑argument deprecation/mapping, `args_extra` for injecting fixed forwarded kwargs, and conditional `skip_if` behavior
 - 🧪 Includes testing helpers (e.g., `assert_no_warnings`, formerly `no_warning_call`) for deterministic tests
-- 🔗 Compatible with methods, class constructors and cross‑module moves
+- 🔎 Audit tools for CI pipelines: validate wrapper config, enforce removal deadlines, and detect deprecated-to-deprecated chains
 
 ### 📊 Comparison with Other Tools
 
@@ -97,21 +98,33 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 - **Zero Extra Depend.**: Lightweight and easy to install, relying solely on the Python standard library.
 - **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
+- **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
+- **CI/Audit Tools**: Validate wrapper configuration, and—when installed with the `pyDeprecate[audit]` extra—enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
+- **Decorator Stacking**: Stack multiple `@deprecated` decorators on one function for multi-level argument migration, with each layer tracking its own version range and warning count independently.
+- **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
+- **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
 
 </details>
 
-| Feature                  | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) |
+<br>
+
+| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) |
 | ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: |
 | **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |
 | **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |
 | **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |
 | **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |
 | **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |
 | **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |
 | **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |
 | **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Custom Streams**       |      ✅       |            ✅            |         ❌          |          ❌          |
 | **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |
 
 ✍️ = possible but requires manual implementation
 
@@ -138,6 +151,8 @@ pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 ```
 
 </details>
+
+<br>
 
 ## 🚀 Quick Start
 
@@ -266,6 +281,8 @@ print(calculate(1, 2))
 
 </details>
 
+<br>
+
 <details>
 <summary>Wrapper form: applying <code>@deprecated</code> without the decorator syntax</summary>
 
@@ -297,6 +314,8 @@ calculate = deprecated(
 This is an equivalent to the `@deprecated(...)` decorator form but applied to an already-existing callable — useful when the deprecated function lives in a dependency you don't control.
 
 </details>
+
+<br>
 
 ### 🔀 Advanced target argument mapping
 
@@ -342,6 +361,8 @@ sample output:
 
 </details>
 
+<br>
+
 ### ⚠ Deprecation warning only
 
 Base use-case with no forwarding and just raising a warning:
@@ -369,6 +390,8 @@ print(my_sum(1, 2))
 ```
 
 </details>
+
+<br>
 
 > [!NOTE]
 > When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
@@ -408,6 +431,8 @@ print(any_pow(2, 3))
 ```
 
 </details>
+
+<br>
 
 To **drop** an argument entirely (warn when it's passed, then discard it), map it to `None`:
 
@@ -476,6 +501,8 @@ code output:
 
 </details>
 
+<br>
+
 ### ⚙ Conditional skip
 
 Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
@@ -510,6 +537,8 @@ print(skip_pow(2, 3))
 
 </details>
 
+<br>
+
 <details>
   <summary>Output: <code>skip_pow</code> before and after version change</summary>
 
@@ -519,6 +548,8 @@ print(skip_pow(2, 3))
 ```
 
 </details>
+
+<br>
 
 This can be beneficial with multiple deprecation levels shown above...
 
@@ -555,6 +586,8 @@ print(svc.run(5))
 
 </details>
 
+<br>
+
 <details>
   <summary>Output: <code>svc.run(5)</code></summary>
 
@@ -563,6 +596,8 @@ print(svc.run(5))
 ```
 
 </details>
+
+<br>
 
 <details>
 <summary>Example: forwarding <code>__init__</code> to a successor class</summary>
@@ -612,6 +647,8 @@ print(inst.my_d)  # returns: "efg"
 
 </details>
 
+<br>
+
 <details>
   <summary>Output: <code>Client</code> instance attributes</summary>
 
@@ -621,6 +658,8 @@ efg
 ```
 
 </details>
+
+<br>
 
 ### 📦 Deprecating constants and instances
 
@@ -662,6 +701,8 @@ print(DEFAULTS["lr"])  # 0.001
 ```
 
 </details>
+
+<br>
 
 ### 🗂 Deprecating Enums and dataclasses
 
@@ -736,6 +777,8 @@ print((p_new.x, p_new.y))
 
 </details>
 
+<br>
+
 <details>
   <summary>Output: <code>Color</code> forwarding and <code>PointV1</code> precision migration</summary>
 
@@ -749,6 +792,8 @@ True
 ```
 
 </details>
+
+<br>
 
 ### 📝 Automatic docstring updates
 
@@ -797,6 +842,8 @@ print(process.__doc__)
 ```
 
 </details>
+
+<br>
 
 If you build docs with MkDocs/Markdown, you can switch to admonition output:
 
@@ -857,6 +904,8 @@ With the extension registered, mkdocstrings will render the injected `!!! warnin
 
 </details>
 
+<br>
+
 ### ➕ Injecting new required arguments
 
 When the target function gains a new parameter that callers of the old API never passed, use `args_extra` to inject a fixed value at the wrapper level:
@@ -897,6 +946,8 @@ Sent to 'alice@example.com': 'Hello' [normal]
 ```
 
 </details>
+
+<br>
 
 > [!NOTE]
 > `args_extra` is only used when `target` is a `Callable` (i.e., when calls are forwarded to a replacement). It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones. It is ignored for `target=True` self-deprecation, where no forwarding occurs.
@@ -1010,6 +1061,8 @@ if result.no_effect:
 
 </details>
 
+<br>
+
 <details>
 <summary><b>Scanning a Package for Deprecated Wrappers</b></summary>
 
@@ -1042,6 +1095,8 @@ if ineffective:
 
 </details>
 
+<br>
+
 <details>
 <summary><b>Generating Reports by Issue Type</b></summary>
 
@@ -1067,6 +1122,8 @@ print(f"Self-references: {len(self_refs)}")
 ```
 
 </details>
+
+<br>
 
 <details>
 <summary><b>CI/pytest Integration</b></summary>
@@ -1103,6 +1160,8 @@ def test_deprecated_wrappers_are_valid():
 ```
 
 </details>
+
+<br>
 
 ### ⏰ Enforcing Deprecation Removal Deadlines
 
@@ -1143,6 +1202,8 @@ print(f"Found {len(expired)} expired")
 
 </details>
 
+<br>
+
 <details>
   <summary>Output: expired count per scanned version</summary>
 
@@ -1154,6 +1215,8 @@ Found 0 expired
 ```
 
 </details>
+
+<br>
 
 <details>
 <summary><b>CI/pytest Integration for Expiry Enforcement</b></summary>
@@ -1199,6 +1262,8 @@ def enforce_deprecation_deadlines():
 ```
 
 </details>
+
+<br>
 
 > [!TIP]
 >
@@ -1264,6 +1329,8 @@ for func in (caller_target_chain, caller_stacked_chain, caller_direct):
 
 </details>
 
+<br>
+
 <details>
   <summary>Output: chain types</summary>
 
@@ -1274,6 +1341,8 @@ caller_direct: None
 ```
 
 </details>
+
+<br>
 
 <details>
 <summary><b>CI/pytest Integration for Chain Detection</b></summary>
@@ -1311,6 +1380,8 @@ def enforce_no_deprecation_chains():
 ```
 
 </details>
+
+<br>
 
 > [!TIP]
 >
@@ -1404,6 +1475,8 @@ def old_func_warn_n_times(x: int) -> int:
 
 </details>
 
+<br>
+
 ## 🔧 Troubleshooting
 
 ### ⚠ UserWarning: `Applying @deprecated to class … is deprecated itself`
@@ -1445,6 +1518,8 @@ class MyClass:
 ```
 
 </details>
+
+<br>
 
 ### ❗ TypeError: `Failed mapping`
 
@@ -1506,6 +1581,8 @@ class MyClass:
 
 </details>
 
+<br>
+
 ### ❗ TypeError: `User function 'should_ship' shall return bool`
 
 **Problem:** `TypeError: User function 'should_ship' shall return bool, but got: <type>`
@@ -1544,6 +1621,8 @@ def old_func2():
 
 </details>
 
+<br>
+
 ### ⚠️ Warning Not Showing
 
 **Problem:** You don't see the deprecation warning.
@@ -1579,6 +1658,8 @@ def old_func_warn_n_times():
 ```
 
 </details>
+
+<br>
 
 ### 📦 Deprecation Not Working Across Modules
 
