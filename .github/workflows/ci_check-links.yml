@@ -43,5 +43,5 @@ jobs:
             --include-verbatim
             --exclude https://github.com/YOUR-USERNAME/pyDeprecate.git
             --exclude https://codecov.io/validate
-            --exclude https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62
+            --exclude https://medium.com/codex/mastering-api-deprecation-*
           fail: true
