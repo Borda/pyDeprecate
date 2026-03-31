@@ -2,11 +2,24 @@
 
 ## [Unreleased]
 
+______________________________________________________________________
+
+## [0.7.0] — 2026-03-31 — Docstring Tooling
+
 ### Added
 
-- **MkDocs admonition output.** `@deprecated` now accepts `docstring_style="mkdocs"` (alias: `"markdown"`). When `update_docstring=True`, the deprecation notice is injected as a `!!! warning "Deprecated in X"` admonition instead of a Sphinx `.. deprecated::` directive. ([#134](https://github.com/Borda/pyDeprecate/pull/134))
-- **Google / NumPy section-aware docstring injection.** The `update_docstring=True` path now detects Google-style (`Args:`, `Returns:`, …) and NumPy-style (`Parameters`, `Returns`, underline) section headers and inserts the deprecation notice *before* the first section rather than appending it at the end, preserving parser compatibility. ([#134](https://github.com/Borda/pyDeprecate/pull/134))
-- **Inline arg deprecation in docstrings.** When `args_mapping` is set and `update_docstring=True`, `@deprecated` now annotates each deprecated argument directly in the `Args:` / `Arguments:` (Google style) or `:param` (Sphinx style) section of the docstring rather than appending a general `.. deprecated::` block. The general block is still appended as a fallback when an argument is not found in the docstring. ([#136](https://github.com/Borda/pyDeprecate/pull/136))
+- **MkDocs admonition output.** `@deprecated` now accepts `docstring_style="mkdocs"` (alias: `"markdown"`). When `update_docstring=True`, the deprecation notice is injected as a `!!! warning "Deprecated in X"` admonition instead of a Sphinx `.. deprecated::` directive. Use `docstring_style="auto"` to detect style automatically from existing docstring content. ([#134](https://github.com/Borda/pyDeprecate/pull/134))
+- **Google / NumPy section-aware docstring injection.** `update_docstring=True` now inserts the deprecation notice *before* the first section (`Args:`, `Returns:`, `Parameters`, …) rather than appending it at the end. ([#134](https://github.com/Borda/pyDeprecate/pull/134))
+- **Inline arg deprecation in docstrings.** When `args_mapping` is set and `update_docstring=True`, each renamed or removed argument is annotated directly in the `Args:` / `:param` section of the docstring. ([#136](https://github.com/Borda/pyDeprecate/pull/136))
+- **Griffe extension for mkdocstrings** (`deprecate.docstring.griffe_ext`, beta) and **Sphinx autodoc extension for deprecated classes** (`deprecate.docstring.sphinx_ext`, beta). ([#134](https://github.com/Borda/pyDeprecate/pull/134))
+- **Live demo documentation** published to GitHub Pages — MkDocs demo, Sphinx demo, and portal landing page. ([#134](https://github.com/Borda/pyDeprecate/pull/134), [#137](https://github.com/Borda/pyDeprecate/pull/137))
+
+### Fixed
+
+- Fixed `getattr`/`setattr` string-literal calls (B009/B010) replaced with direct attribute access. ([#139](https://github.com/Borda/pyDeprecate/pull/139))
+- Fixed proxy swap skipped correctly when `super().import_object()` returns `False` in the Griffe extension; empty `_proxy_doc` now delegates to `super().get_doc()` in the Sphinx extension. ([#139](https://github.com/Borda/pyDeprecate/pull/139))
+
+______________________________________________________________________
 
 ## [0.6.0.post0] — 2026-03-14 — Deprecation Proxy for class/instances
 
@@ -18,8 +31,8 @@
 
 ### Added
 
-- **`deprecated_class()` and `deprecated_instance()` — full proxy support.** Enum, dataclass, and built-in types can now be wrapped in a transparent `_DeprecatedProxy`. Attribute access, item access, method calls, and class behaviour all forward to the underlying type with a `FutureWarning` emitted on first access. ([#114](https://github.com/Borda/pyDeprecate/pull/114))
-- **Correct `isinstance()` / `issubclass()` semantics on proxy classes.** `_DeprecatedProxy` now implements `__instancecheck__` and `__subclasscheck__` so `isinstance(x, proxy)` and `issubclass(Sub, proxy)` work as expected when a proxy is the second argument — previously raised `TypeError`. Type checks do not consume the warning budget. ([#126](https://github.com/Borda/pyDeprecate/pull/126))
+- **`deprecated_class()` and `deprecated_instance()` — full proxy support.** Enum, dataclass, and built-in types can now be wrapped in a transparent proxy. Attribute access, item access, method calls, and class behaviour all forward to the underlying type with a `FutureWarning` emitted on first access. ([#114](https://github.com/Borda/pyDeprecate/pull/114))
+- **Correct `isinstance()` / `issubclass()` semantics on proxy classes.** `isinstance(x, proxy)` and `issubclass(Sub, proxy)` now work as expected — previously raised `TypeError`. Type checks do not consume the warning budget. ([#126](https://github.com/Borda/pyDeprecate/pull/126))
 
 ### Changed
 
@@ -42,25 +55,28 @@
 - **Cross-class method forwarding now fails at decoration time.** Passing a class as `target` on a non-`__init__` method previously silently forwarded `self` of the wrong type — always a runtime bug, never a valid pattern. The guard now raises `TypeError` at decoration time so the misconfiguration is caught immediately. ([#121](https://github.com/Borda/pyDeprecate/pull/121))
 - **`find_deprecation_wrappers()` no longer reports false `invalid_args` for proxy objects.** The proxy `__call__` catch-all signature previously caused all `args_mapping` keys to be flagged as invalid; signature validation is now skipped for proxy objects. ([#124](https://github.com/Borda/pyDeprecate/pull/124))
 
+______________________________________________________________________
+
 ## [0.5.0] — 2026-02-23 — Deprecation Lifecycle Management
 
 ### Added
 
 - **`deprecate.audit` module — deprecation lifecycle management.** A dedicated module grouping all inspection and enforcement utilities, designed to be called from pytest or CI scripts. Requires the optional `[audit]` extra: `pip install pyDeprecate[audit]`. ([#111](https://github.com/Borda/pyDeprecate/pull/111))
 - **`find_deprecated_callables()` / `validate_deprecated_callable()` — zero-impact wrapper detection.** Scans a module or package for `@deprecated` wrappers that have no real effect: invalid `args_mapping` keys, identity mappings, self-referencing targets, or missing version fields. Returns `DeprecatedCallableInfo` dataclasses. ([#72](https://github.com/Borda/pyDeprecate/pull/72))
-- **`validate_deprecation_expiry()` — enforce removal deadlines in CI.** Scans a module or package and returns all wrappers whose `remove_in` version has been reached or passed. Auto-detects the installed package version via `importlib.metadata`. Integrate as a pytest fixture or CI step to prevent zombie code from shipping past its scheduled removal. ([#89](https://github.com/Borda/pyDeprecate/pull/89))
+- **`validate_deprecation_expiry()` — enforce removal deadlines in CI.** Scans a module or package and returns all wrappers whose `remove_in` version has been reached or passed. Auto-detects the installed package version. Integrate as a pytest fixture or CI step to prevent zombie code from shipping past its scheduled removal. ([#89](https://github.com/Borda/pyDeprecate/pull/89))
 - **`validate_deprecation_chains()` — detect deprecated-to-deprecated forwarding.** Identifies wrappers whose `target` is itself a deprecated callable, forming chains that users traverse unnecessarily. Reports two chain kinds via the `ChainType` enum: `TARGET` (forwarding chain) and `STACKED` (composed argument mappings). ([#90](https://github.com/Borda/pyDeprecate/pull/90))
 
 ### Fixed
 
 - **`@deprecated` wrappers now correctly handle var-positional Enum signatures.** A subtle edge case where callables with var-positional parameters in their Enum signature caused incorrect argument forwarding is now resolved. ([#104](https://github.com/Borda/pyDeprecate/pull/104))
 
+______________________________________________________________________
+
 ## [0.4.0] — 2025-12-03 — Enhanced Documentation & Modernization
 
 ### Added
 
 - **`update_docstring` parameter — automatic Sphinx deprecation notices.** Set `update_docstring=True` on `@deprecated` to automatically append a `.. deprecated::` reStructuredText block to the function's docstring. IDE tooltips and Sphinx-generated API docs show the notice without any manual edits. ([#31](https://github.com/Borda/pyDeprecate/pull/31))
-- **Python 3.9, 3.11, and 3.13 CI coverage.** All supported interpreter versions are tested in CI. ([#66](https://github.com/Borda/pyDeprecate/pull/66))
 
 ### Changed
 
@@ -68,7 +84,8 @@
 - **Minimum Python version raised to 3.9.** Python 3.8 reached end-of-life in October 2024. ([#73](https://github.com/Borda/pyDeprecate/pull/73))
 - **License changed from MIT to Apache-2.0.**
 - **Error messages now include the originating class or function name** for easier debugging when a mapping fails. ([#11](https://github.com/Borda/pyDeprecate/pull/11))
-- **Project source layout moved to `src/`.** No API changes — import paths are unchanged. ([#29](https://github.com/Borda/pyDeprecate/pull/29))
+
+______________________________________________________________________
 
 ## [0.3.2] — 2021-06-11 — Support containing `kwargs` in target function
 
@@ -88,6 +105,8 @@
 
 - **`skip_if` parameter — conditional deprecation.** Pass a `bool` or a zero-argument callable returning `bool` to skip the warning and forwarding when a runtime condition is true. Useful for gating deprecation behaviour on package version checks or feature flags. ([#4](https://github.com/Borda/pyDeprecate/pull/4))
 
+______________________________________________________________________
+
 ## [0.2.0] — 2021-03-29 — Improved self arg deprecations
 
 ### Added
@@ -96,6 +115,8 @@
 - **`void()` helper.** Accepts any arguments and returns `None`. Silences IDE "unused parameter" warnings in deprecated function bodies where the body is never reached.
 - **`no_warning_call()` context manager.** Assert that a block of code raises no deprecation warning — useful for verifying that new API paths are clean in tests. Renamed to `assert_no_warnings()` in v0.6.0. ([#2](https://github.com/Borda/pyDeprecate/pull/2))
 - **Stacked `@deprecated` decorators.** Multiple `@deprecated(True, ...)` decorators can be stacked on the same function for multi-hop argument migrations across versions, each with independent warning counts and version metadata.
+
+______________________________________________________________________
 
 ## [0.1.1] — 2021-03-21 — Allow infinite warning
 
