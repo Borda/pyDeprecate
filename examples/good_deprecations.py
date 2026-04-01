@@ -1,7 +1,10 @@
+"""Examples of correct deprecation patterns."""
+
 from deprecate import deprecated, void
 
 
 def new_func(a: int, b: int) -> int:
+    """Target function."""
     return a + b
 
 

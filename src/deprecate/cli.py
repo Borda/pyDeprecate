@@ -3,12 +3,12 @@
 import argparse
 import os
 import sys
-from typing import List, Optional
+from typing import Optional
 
 from deprecate.audit import find_deprecation_wrappers
 
 
-def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
+def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="pyDeprecate CLI - Validate use of deprecated functions.")
     parser.add_argument(
@@ -33,7 +33,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def main(args: Optional[List[str]] = None) -> int:
+def main(args: Optional[list[str]] = None) -> int:
     """Run the CLI application."""
     parsed_args = parse_args(args)
 
@@ -79,9 +79,7 @@ def main(args: Optional[List[str]] = None) -> int:
 
     # Process results
     invalid_args = [r for r in deprecated_callables if r.invalid_args]
-    empty_mappings = [r for r in deprecated_callables if r.empty_mapping]
     identity_mappings = [r for r in deprecated_callables if r.identity_mapping]
-    self_refs = [r for r in deprecated_callables if r.self_reference]
     no_effect = [r for r in deprecated_callables if r.no_effect]
 
     if invalid_args:
