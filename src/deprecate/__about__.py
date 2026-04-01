@@ -4,7 +4,7 @@ This module contains all package metadata including version, author information,
 and links to documentation and source code.
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0.dev"
 __docs__ = "Deprecation tooling"
 __author__ = "Jiri Borovec"
 __author_email__ = "j.borovec+github[at]gmail.com"
