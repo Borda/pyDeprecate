@@ -5,7 +5,7 @@ import os
 import sys
 from typing import List, Optional
 
-from deprecate.utils import find_deprecated_callables
+from deprecate.audit import find_deprecation_wrappers
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -49,7 +49,7 @@ def main(args: Optional[List[str]] = None) -> int:
             if os.path.exists(os.path.join(parsed_args.path, "__init__.py")):
                 # It is a package, use standard logic which handles recursion
                 module_name = os.path.basename(os.path.abspath(parsed_args.path))
-                deprecated_callables = find_deprecated_callables(module_name)
+                deprecated_callables = find_deprecation_wrappers(module_name)
             else:
                 # It's just a folder of scripts/modules (namespace-like or simple folder)
                 deprecated_callables = []
@@ -60,13 +60,13 @@ def main(args: Optional[List[str]] = None) -> int:
                             rel_path = os.path.relpath(os.path.join(root, file), os.getcwd())
                             module_name = rel_path.replace(os.path.sep, ".")[:-3]  # remove .py
                             try:
-                                deprecated_callables.extend(find_deprecated_callables(module_name, recursive=False))
+                                deprecated_callables.extend(find_deprecation_wrappers(module_name, recursive=False))
                             except Exception as e:
                                 # Start warning if individual file fails but continue
                                 print(f"[WARNING] Could not scan {module_name}: {e}")
         else:
             # It's a file or module name
-            deprecated_callables = find_deprecated_callables(parsed_args.path)
+            deprecated_callables = find_deprecation_wrappers(parsed_args.path)
     except Exception as e:
         print(f"Error scanning {parsed_args.path}: {e}")
         return 1
