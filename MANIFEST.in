@@ -11,7 +11,6 @@ include LICENSE
 
 exclude *.sh
 exclude .prettierignore
-exclude mkdocs_hooks.py
 
 # Exclude build configs
 exclude *.yml

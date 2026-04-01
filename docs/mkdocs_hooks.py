@@ -7,9 +7,11 @@ Injects a ``<link>`` element pointing to ``/llms.txt`` into every page's
 import logging
 
 
-def on_post_page(output: str, **_kwargs: object) -> str:
+def on_post_page(output: str, page: object, config: object, **_kwargs: object) -> str:
     """Inject the llms.txt link directive into every rendered page's <head>."""
-    link_tag = '  <link rel="alternate" type="text/markdown" href="/llms.txt">\n'
+    site_url = str(getattr(config, "site_url", "") or "").rstrip("/")
+    llms_url = f"{site_url}/llms.txt" if site_url else "/llms.txt"
+    link_tag = f'  <link rel="alternate" type="text/markdown" href="{llms_url}">\n'
     head_marker = "</head>"
     html_marker = "</html>"
 
