@@ -44,10 +44,10 @@ jobs:
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -64,7 +64,7 @@ jobs:
         run: mkdocs build --strict
 
       - name: 📤 Upload portal artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: portal-docs
           path: site/
@@ -76,10 +76,10 @@ jobs:
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -92,7 +92,7 @@ jobs:
         run: make html
 
       - name: 📤 Upload Sphinx docs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sphinx-docs
           path: demo-docs/sphinx/build/html/
@@ -104,10 +104,10 @@ jobs:
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -120,7 +120,7 @@ jobs:
         run: mkdocs build --strict
 
       - name: 📤 Upload MkDocs docs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mkdocs-docs
           path: demo-docs/mkdocs/site/
@@ -134,25 +134,25 @@ jobs:
 
     steps:
       - name: 📥 Download portal artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: portal-docs
           path: _site
 
       - name: 📥 Download Sphinx artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: sphinx-docs
           path: _site/demo-sphinx
 
       - name: 📥 Download MkDocs artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: mkdocs-docs
           path: _site/demo-mkdocs
 
       - name: 📤 Upload assembled site artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: assembled-site
           path: _site/
@@ -179,19 +179,19 @@ jobs:
         #   _site/              ← portal (README → index.html via MkDocs)
         #   _site/demo-sphinx/  ← Sphinx HTML build
         #   _site/demo-mkdocs/  ← MkDocs HTML build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: assembled-site
           path: _site
 
       - name: ⚙️ Configure GitHub Pages
         # Reads repo Pages config and sets GITHUB_PAGES_* env vars used by upload-pages-artifact and deploy-pages.
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: 📤 Upload Pages artifact
         # Packages _site/ into a specially formatted tarball and registers it under the reserved "github-pages" artifact name that deploy-pages expects.
         # This is NOT the same as upload-artifact — deploy-pages cannot read regular artifacts; it only reads the "github-pages" artifact created here.
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: _site/
 
@@ -199,4 +199,4 @@ jobs:
         # Reads the "github-pages" artifact and pushes it to the Pages CDN.
         # Outputs: page_url (the live URL, surfaced in the environment block above).
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
