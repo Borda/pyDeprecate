@@ -1,4 +1,4 @@
-from deprecate import deprecated, void
+from deprecate import deprecated
 
 
 def new_func(a: int) -> int:
