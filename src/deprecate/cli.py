@@ -1,36 +1,20 @@
 """CLI entry point for pyDeprecate validation."""
 
-import argparse
 import os
 import sys
 from typing import Optional
 
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 
+_HAS_RICH = False
+try:
+    from rich import box as rich_box
+    from rich.console import Console as RichConsole
+    from rich.table import Table as RichTable
 
-def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="pyDeprecate CLI - Validate use of deprecated functions.")
-    parser.add_argument(
-        "path",
-        type=str,
-        nargs="?",
-        default=".",
-        help="Path to the module or package to scan (default: current directory)",
-    )
-    parser.add_argument(
-        "--ignore",
-        type=str,
-        nargs="+",
-        default=[],
-        help="List of files or directories to ignore",
-    )
-    parser.add_argument(
-        "--skip-errors",
-        action="store_true",
-        help="Do not exit with error code even if issues are found",
-    )
-    return parser.parse_args(args)
+    _HAS_RICH = True
+except ImportError:  # pragma: no cover
+    pass
 
 
 def _scan_package(path: str) -> list[DeprecationWrapperInfo]:
@@ -63,8 +47,59 @@ def _scan_path(path: str) -> list[DeprecationWrapperInfo]:
     return find_deprecation_wrappers(path)
 
 
-def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
-    """Print categorised diagnostics and return whether any issues were found."""
+def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
+    """Print categorised diagnostics using Rich and return whether any issues were found."""
+    console = RichConsole()
+    invalid_args = [r for r in results if r.invalid_args]
+    identity_mappings = [r for r in results if r.identity_mapping]
+    no_effect = [r for r in results if r.no_effect]
+
+    issues_found = False
+
+    if invalid_args:
+        table = RichTable(title="Invalid Argument Mappings", box=rich_box.ROUNDED, title_style="bold red")
+        table.add_column("Module", style="cyan")
+        table.add_column("Function", style="magenta")
+        table.add_column("Invalid Args", style="red")
+        for r in invalid_args:
+            table.add_row(r.module, r.function, ", ".join(r.invalid_args))
+        console.print(table)
+        issues_found = True
+
+    if identity_mappings:
+        table = RichTable(
+            title="Identity Argument Mappings (arg -> arg)", box=rich_box.ROUNDED, title_style="bold yellow"
+        )
+        table.add_column("Module", style="cyan")
+        table.add_column("Function", style="magenta")
+        table.add_column("Identity Args", style="yellow")
+        for r in identity_mappings:
+            table.add_row(r.module, r.function, ", ".join(r.identity_mapping))
+        console.print(table)
+        issues_found = True
+
+    if no_effect:
+        table = RichTable(title="No-Effect Wrappers (zero impact)", box=rich_box.ROUNDED, title_style="bold yellow")
+        table.add_column("Module", style="cyan")
+        table.add_column("Function", style="magenta")
+        table.add_column("Reason", style="yellow")
+        for r in no_effect:
+            reasons = []
+            if r.empty_mapping:
+                reasons.append("Empty mapping")
+            if r.self_reference:
+                reasons.append("Self reference")
+            if r.identity_mapping and not r.invalid_args:
+                reasons.append("All identity mappings")
+            table.add_row(r.module, r.function, ", ".join(reasons))
+        console.print(table)
+        issues_found = True
+
+    return issues_found
+
+
+def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
+    """Print categorised diagnostics in plain text and return whether any issues were found."""
     invalid_args = [r for r in results if r.invalid_args]
     identity_mappings = [r for r in results if r.identity_mapping]
     no_effect = [r for r in results if r.no_effect]
@@ -98,19 +133,34 @@ def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
     return issues_found
 
 
-def main(args: Optional[list[str]] = None) -> int:
-    """Run the CLI application."""
-    parsed_args = parse_args(args)
+def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
+    """Print categorised diagnostics and return whether any issues were found."""
+    if _HAS_RICH:
+        return _report_issues_rich(results)
+    return _report_issues_plain(results)
 
-    print(f"Scanning path: {parsed_args.path} ...")
+
+def main(
+    path: str = ".",
+    ignore: Optional[list[str]] = None,
+    skip_errors: bool = False,
+) -> int:
+    """Scan Python code for misconfigured ``@deprecated`` wrappers.
+
+    Args:
+        path: Path to the module or package to scan.
+        ignore: List of files or directories to ignore.
+        skip_errors: Do not exit with error code even if issues are found.
+    """
+    print(f"Scanning path: {path} ...")
 
     # Add current directory to sys.path to allow importing local modules
     sys.path.append(os.getcwd())
 
     try:
-        results = _scan_path(parsed_args.path)
+        results = _scan_path(path)
     except Exception as e:
-        print(f"Error scanning {parsed_args.path}: {e}")
+        print(f"Error scanning {path}: {e}")
         return 1
 
     if not results:
@@ -121,7 +171,7 @@ def main(args: Optional[list[str]] = None) -> int:
 
     if _report_issues(results):
         print("\nIssues were found in deprecated wrappers.")
-        if not parsed_args.skip_errors and has_invalid:
+        if not skip_errors and has_invalid:
             return 1
     else:
         print("\nAll deprecated wrappers look correct!")
@@ -129,5 +179,22 @@ def main(args: Optional[list[str]] = None) -> int:
     return 0
 
 
+def cli() -> None:
+    """CLI entry point using jsonargparse."""
+    try:
+        from jsonargparse import CLI
+
+        CLI(main)
+    except ImportError:
+        import argparse
+
+        parser = argparse.ArgumentParser(description="pyDeprecate CLI - Validate deprecated wrappers.")
+        parser.add_argument("path", nargs="?", default=".", help="Path to module or package to scan")
+        parser.add_argument("--ignore", nargs="+", default=[], help="Files or directories to ignore")
+        parser.add_argument("--skip-errors", action="store_true", help="Exit 0 even if issues found")
+        args = parser.parse_args()
+        sys.exit(main(path=args.path, ignore=args.ignore, skip_errors=args.skip_errors))
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    cli()
