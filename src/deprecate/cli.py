@@ -5,7 +5,7 @@ import os
 import sys
 from typing import Optional
 
-from deprecate.audit import find_deprecation_wrappers
+from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 
 
 def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
@@ -33,54 +33,43 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def main(args: Optional[list[str]] = None) -> int:
-    """Run the CLI application."""
-    parsed_args = parse_args(args)
+def _scan_package(path: str) -> list[DeprecationWrapperInfo]:
+    """Scan a Python package (directory with ``__init__.py``)."""
+    module_name = os.path.basename(os.path.abspath(path))
+    return find_deprecation_wrappers(module_name)
 
-    print(f"Scanning path: {parsed_args.path} ...")
 
-    # Add current directory to sys.path to allow importing local modules
-    sys.path.append(os.getcwd())
+def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
+    """Scan a plain directory of Python files."""
+    results: list[DeprecationWrapperInfo] = []
+    for root, _, files in os.walk(path):
+        for file in files:
+            if file.endswith(".py") and not file.startswith("__"):
+                rel_path = os.path.relpath(os.path.join(root, file), os.getcwd())
+                module_name = rel_path.replace(os.path.sep, ".")[:-3]  # remove .py
+                try:
+                    results.extend(find_deprecation_wrappers(module_name, recursive=False))
+                except Exception as e:
+                    print(f"[WARNING] Could not scan {module_name}: {e}")
+    return results
 
-    try:
-        if os.path.isdir(parsed_args.path):
-            # It's a directory
-            # First, try to see if it's a package (has __init__.py)
-            if os.path.exists(os.path.join(parsed_args.path, "__init__.py")):
-                # It is a package, use standard logic which handles recursion
-                module_name = os.path.basename(os.path.abspath(parsed_args.path))
-                deprecated_callables = find_deprecation_wrappers(module_name)
-            else:
-                # It's just a folder of scripts/modules (namespace-like or simple folder)
-                deprecated_callables = []
-                for root, _, files in os.walk(parsed_args.path):
-                    for file in files:
-                        if file.endswith(".py") and not file.startswith("__"):
-                            # Construct module name from file path relative to CWD
-                            rel_path = os.path.relpath(os.path.join(root, file), os.getcwd())
-                            module_name = rel_path.replace(os.path.sep, ".")[:-3]  # remove .py
-                            try:
-                                deprecated_callables.extend(find_deprecation_wrappers(module_name, recursive=False))
-                            except Exception as e:
-                                # Start warning if individual file fails but continue
-                                print(f"[WARNING] Could not scan {module_name}: {e}")
-        else:
-            # It's a file or module name
-            deprecated_callables = find_deprecation_wrappers(parsed_args.path)
-    except Exception as e:
-        print(f"Error scanning {parsed_args.path}: {e}")
-        return 1
 
-    if not deprecated_callables:
-        print("No deprecated callables found.")
-        return 0
+def _scan_path(path: str) -> list[DeprecationWrapperInfo]:
+    """Scan a path for deprecated wrappers."""
+    if os.path.isdir(path):
+        if os.path.exists(os.path.join(path, "__init__.py")):
+            return _scan_package(path)
+        return _scan_directory(path)
+    return find_deprecation_wrappers(path)
+
+
+def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
+    """Print categorised diagnostics and return whether any issues were found."""
+    invalid_args = [r for r in results if r.invalid_args]
+    identity_mappings = [r for r in results if r.identity_mapping]
+    no_effect = [r for r in results if r.no_effect]
 
     issues_found = False
-
-    # Process results
-    invalid_args = [r for r in deprecated_callables if r.invalid_args]
-    identity_mappings = [r for r in deprecated_callables if r.identity_mapping]
-    no_effect = [r for r in deprecated_callables if r.no_effect]
 
     if invalid_args:
         print("\n[ERROR] Found functions with invalid argument mappings:")
@@ -106,9 +95,33 @@ def main(args: Optional[list[str]] = None) -> int:
                 print("    Reason: All identity mappings")
         issues_found = True
 
-    if issues_found:
+    return issues_found
+
+
+def main(args: Optional[list[str]] = None) -> int:
+    """Run the CLI application."""
+    parsed_args = parse_args(args)
+
+    print(f"Scanning path: {parsed_args.path} ...")
+
+    # Add current directory to sys.path to allow importing local modules
+    sys.path.append(os.getcwd())
+
+    try:
+        results = _scan_path(parsed_args.path)
+    except Exception as e:
+        print(f"Error scanning {parsed_args.path}: {e}")
+        return 1
+
+    if not results:
+        print("No deprecated callables found.")
+        return 0
+
+    has_invalid = any(r.invalid_args for r in results)
+
+    if _report_issues(results):
         print("\nIssues were found in deprecated wrappers.")
-        if not parsed_args.skip_errors and invalid_args:
+        if not parsed_args.skip_errors and has_invalid:
             return 1
     else:
         print("\nAll deprecated wrappers look correct!")
