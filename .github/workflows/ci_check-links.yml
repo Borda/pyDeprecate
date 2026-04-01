@@ -17,7 +17,7 @@ jobs:
 
       - name: Cache lychee results
         if: github.event_name == 'pull_request'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .lycheecache
           key: cache-lychee-${{ github.event.pull_request.number }}-${{ github.sha }}
