@@ -4,10 +4,17 @@ Injects a ``<link>`` element pointing to ``/llms.txt`` into every page's
 ``<head>`` so that AI agents can discover the structured documentation index.
 """
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mkdocs.config.defaults import MkDocsConfig
+    from mkdocs.structure.pages import Page
 
 
-def on_post_page(output: str, page: object, config: object, **_kwargs: object) -> str:
+def on_post_page(output: str, page: Page, config: MkDocsConfig, **_kwargs: object) -> str:
     """Inject the llms.txt link directive into every rendered page's <head>."""
     site_url = str(getattr(config, "site_url", "") or "").rstrip("/")
     llms_url = f"{site_url}/llms.txt" if site_url else "/llms.txt"
