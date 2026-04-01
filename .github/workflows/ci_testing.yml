@@ -43,7 +43,7 @@ jobs:
           coverage xml
 
       - name: 📡 Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: success()
         continue-on-error: true
         with:
