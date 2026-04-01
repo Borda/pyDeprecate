@@ -63,6 +63,11 @@ jobs:
       - name: 📖 Build portal
         run: mkdocs build --strict
 
+      - name: 📄 Copy Markdown sources into site for .md URL support
+        run: |
+          mkdir -p site
+          cp docs/index.md site/index.md
+
       - name: 📤 Upload portal artifact
         uses: actions/upload-artifact@v7
         with:

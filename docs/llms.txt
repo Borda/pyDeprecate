@@ -1,0 +1,29 @@
+# pyDeprecate
+
+> Simple tooling for marking deprecated functions or classes and re-routing to their successors.
+
+pyDeprecate is a lightweight Python library for managing API deprecations with **zero runtime dependencies**.
+It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam.
+Perfect for library maintainers evolving APIs while maintaining backward compatibility.
+
+## Key Features
+
+- Deprecation warnings shown once per function by default (prevents log spam)
+- Automatic argument mapping and call forwarding to replacement functions
+- Supports functions, methods, class constructors, classes, Enums, dataclasses, and module-level constants
+- Optionally updates docstrings with deprecation notices (RST/Sphinx or MkDocs/Markdown format)
+- Audit tools for CI: validate wrapper config, enforce removal deadlines, detect deprecation chains, scan packages for all deprecated wrappers (`find_deprecation_wrappers`)
+- Testing helpers (`assert_no_warnings`) for deterministic tests
+- Python 3.9+ | Zero runtime dependencies
+
+## Documentation
+
+- [Home](https://borda.github.io/pyDeprecate/index.md): Full documentation — overview, installation, API reference, and usage examples.
+
+## Optional
+
+- [Demo MkDocs](https://borda.github.io/pyDeprecate/demo-mkdocs/index.html): Live MkDocs demo of deprecated callable documentation with mkdocstrings.
+- [Demo Sphinx](https://borda.github.io/pyDeprecate/demo-sphinx/index.html): Live Sphinx/RST demo of deprecated callable documentation with autodoc.
+- [PyPI](https://pypi.org/project/pyDeprecate/): Install via `pip install pyDeprecate`.
+- [GitHub](https://github.com/Borda/pyDeprecate): Source code, issue tracker, and contribution guide.
+- [Changelog](https://github.com/Borda/pyDeprecate/blob/main/CHANGELOG.md): Release history and migration notes.
