@@ -3,8 +3,7 @@
 > Simple tooling for marking deprecated functions or classes and re-routing to their successors.
 
 pyDeprecate is a lightweight Python library for managing API deprecations with **zero runtime dependencies**.
-It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs,
-and configurable warning controls to prevent log spam.
+It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam.
 Perfect for library maintainers evolving APIs while maintaining backward compatibility.
 
 ## Key Features
