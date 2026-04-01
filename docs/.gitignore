@@ -1,0 +1,3 @@
+assets/
+# index.md is generated from README.md during CI and is not tracked in source control
+.claude/

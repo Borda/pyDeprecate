@@ -33,7 +33,7 @@ jobs:
 
       - name: 🧪 Tests
         run: |
-          phmdoctest README.md --outfile tests/test_readme.py
+          phmdoctest README.md --outfile tests/integration/test_readme.py
           python -m pytest . -vv --cov=deprecate
 
       - name: 📊 Statistics
@@ -43,12 +43,12 @@ jobs:
           coverage xml
 
       - name: 📡 Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: success()
         continue-on-error: true
         with:
           # token: ${{ secrets.CODECOV_TOKEN }}
-          file: coverage.xml
+          files: coverage.xml
           flags: pytest,python${{ matrix.python-version }}
           fail_ci_if_error: false
 

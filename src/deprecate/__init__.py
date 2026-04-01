@@ -9,24 +9,30 @@ Main Features:
     - Customizable warning messages and output streams
     - Per-function and per-argument warning tracking to prevent log spam
     - Support for multiple deprecation levels via decorator stacking
+    - Audit tools for CI pipelines: wrapper validation, expiry enforcement, chain detection
     - Testing utilities for writing deterministic tests
-    - Package scanning for deprecated wrapper validation
 
 Core Components:
 
-**Main Decorator:**
-    - :func:`deprecated`: Decorator for marking functions/classes as deprecated
+**Main Decorator** (:mod:`deprecate.deprecation`):
+    - :func:`~deprecate.deprecation.deprecated`: Decorator for marking functions/methods as deprecated
+    - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
-**Utilities:**
-    - :func:`void`: Helper to silence IDE warnings about unused parameters
-    - :func:`validate_deprecated_callable`: Validate single wrapper configuration
-    - :func:`validate_deprecation_chains`: Detect deprecated functions calling other deprecated functions
-    - :func:`validate_deprecation_expiry`: Check all deprecated code in a module for expired deadlines
-    - :func:`find_deprecated_callables`: Scan package for deprecated wrappers
-    - :func:`no_warning_call`: Context manager for testing without warnings
+**Audit** (:mod:`deprecate.audit`):
+    - :func:`~deprecate.audit.validate_deprecation_wrapper`: Validate a single wrapper's configuration
+    - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
+    - :func:`~deprecate.audit.validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
+    - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated wrappers chaining to
+      other deprecated wrappers
+    - :class:`~deprecate.audit.DeprecationWrapperInfo`: Structured result returned by the audit functions
+    - :class:`~deprecate.audit.ChainType`: Enum describing the kind of deprecation chain detected
 
-**Data Classes:**
-    - :class:`DeprecatedCallableInfo`: Validation results for deprecated callables
+**Proxy** (:mod:`deprecate.proxy`):
+    - :func:`~deprecate.proxy.deprecated_instance`: Wrap any object with deprecation warnings
+    - :func:`~deprecate.proxy.deprecated_class`: Decorator for deprecating Enum/dataclass definitions
+
+**Testing** (:mod:`deprecate.utils`):
+    - :func:`~deprecate.utils.assert_no_warnings`: Context manager asserting that no warnings are raised
 
 Quick Example:
     >>> from deprecate import deprecated
@@ -57,32 +63,39 @@ Complete Documentation:
     - Conditional skip (skip_if parameter)
     - Class deprecation
     - Automatic docstring updates
+    - Auditing: wrapper configuration, expiry enforcement, chain detection
     - Testing deprecated code
-    - Validating wrapper configuration
 
 """
 
 from deprecate.__about__ import *  # noqa: F403
-from deprecate.deprecation import deprecated  # noqa: E402, F401
-from deprecate.utils import (  # noqa: E402, F401
-    ChainType,
-    DeprecatedCallableInfo,
-    find_deprecated_callables,
-    no_warning_call,
-    validate_deprecated_callable,
+from deprecate.audit import (
+    DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
+    DeprecationWrapperInfo,
+    find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
+    find_deprecation_wrappers,
+    validate_deprecated_callable,  # noqa: F401 # deprecated since 0.6, use validate_deprecation_wrapper
     validate_deprecation_chains,
     validate_deprecation_expiry,
+    validate_deprecation_wrapper,
+)
+from deprecate.deprecation import deprecated
+from deprecate.proxy import deprecated_class, deprecated_instance
+from deprecate.utils import (
+    assert_no_warnings,
+    no_warning_call,  # noqa: F401 # deprecated since 0.6, use assert_no_warnings
     void,
 )
 
 __all__ = [
+    "DeprecationWrapperInfo",
+    "assert_no_warnings",
     "deprecated",
-    "ChainType",
-    "DeprecatedCallableInfo",
+    "deprecated_class",
+    "deprecated_instance",
+    "find_deprecation_wrappers",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
-    "find_deprecated_callables",
-    "no_warning_call",
-    "validate_deprecated_callable",
+    "validate_deprecation_wrapper",
     "void",
 ]

@@ -6,9 +6,22 @@ functions in other test modules.
 
 import functools
 import time
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
+
+
+def raise_pow(base: float, coef: float) -> float:
+    """Compute base**coef while emitting a UserWarning — used to test assert_no_warnings."""
+    warnings.warn("warning you!", UserWarning)
+    return base**coef
+
+
+def raise_pow_future(base: float, coef: float) -> float:
+    """Compute base**coef while emitting a FutureWarning — used to test assert_no_warnings."""
+    warnings.warn("future warning!", FutureWarning)
+    return base**coef
 
 
 def base_sum_kwargs(a: int = 0, b: int = 3) -> int:
@@ -45,9 +58,55 @@ class NewIntEnum(Enum):
     BETA = 2
 
 
+class TargetColorEnum(Enum):
+    """Target enum for deprecated_class forwarding tests."""
+
+    RED = 1
+    BLUE = 2
+
+
 def plain_function_target(x: int) -> int:
     """Plain function without deprecation decorator for testing error handling."""
     return x
+
+
+def cross_guard_standalone_increment(x: int) -> int:
+    """Module-level target used by cross-class guard tests."""
+    return x + 1
+
+
+def call_signature_source(value: str) -> object:
+    """Source signature helper for _prepare_target_call tests."""
+    raise NotImplementedError
+
+
+class KeywordCallMeta(type):
+    """Metaclass exposing a keyword-only value in __call__ for signature-validation tests."""
+
+    def __call__(cls, *, value: str) -> object:
+        """Create a target instance using keyword-only `value`."""
+        return super().__call__(raw=value)
+
+
+class KeywordCallTarget(metaclass=KeywordCallMeta):
+    """Target class whose metaclass __call__ differs from __init__."""
+
+    def __init__(self, raw: str) -> None:
+        """Store the raw payload passed through metaclass __call__."""
+        self.raw = raw
+
+
+class CrossGuardClassTargetNew:
+    """Constructor-forwarding target class used by cross-class guard tests."""
+
+    def __init__(self, x: int) -> None:
+        """Store constructor argument for assertions."""
+        self.x = x
+
+
+def sample_function(x: int) -> int:
+    """Simple callable used as input to deprecated function-wrapper tests."""
+    return x * 2
 
 
 @dataclass

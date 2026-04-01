@@ -195,7 +195,7 @@ pre-commit install
 pre-commit run --all-files
 
 # Generate/extract README examples as tests (when updating README examples)
-phmdoctest README.md --outfile tests/test_readme.py
+phmdoctest README.md --outfile tests/integration/test_readme.py
 
 # Run the full test suite (including doctests if configured in pytest)
 pytest .
@@ -205,7 +205,7 @@ pytest .
 > Pre-commit hooks run **automatically** on every commit, handling all linting and formatting (ruff, mypy). You only need to run `pre-commit run --all-files` manually if you want to check before committing.
 
 > [!NOTE]
-> When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves.
+> When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves. Code blocks paired with an output block must produce exactly that output when executed, which sometimes requires mocking external state (e.g. `unittest.mock.patch`); illustrative patterns that can't run standalone (like CI fixtures) are wrapped in nested functions marked `# Caution- no assertions.` so phmdoctest skips their execution.
 
 ## 💎 Quality Expectations
 
@@ -280,12 +280,13 @@ git push origin fix/123-your-bug-description
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
 - Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior
+- In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax (e.g., `` :func:`~deprecate.deprecation.deprecated` `` rather than just `` :func:`deprecated` ``); standard library symbols (e.g., `FutureWarning`) do not need a module prefix
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
 - Add type hints to all function signatures, including return types
 - Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
-- Add comments only where the logic is not self-evident — explain *why*, not *what*
+- Add comments only where the logic is not self-evident — explain **why**, not __what__
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
@@ -307,16 +308,23 @@ pyDeprecate/
 ├── src/deprecate/              # Core library code
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
+│   ├── docstring/              # Docstring utilities subpackage
+│   │   ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
+│   │   ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
+│   │   └── sphinx_ext.py       # Sphinx autodoc extension (beta)
+│   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # @deprecated decorator and warning logic
-│   └── utils.py                # Helpers: void(), validate_*, no_warning_call()
+│   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
+│   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
+│   └── utils.py                # Low-level helpers: void(), no_warning_call()
 ├── tests/                      # Test suite
 │   ├── collection_targets.py       # Target functions (new implementations)
 │   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
 │   ├── collection_misconfigured.py # Invalid configs for validation
-│   ├── test_functions.py           # Function deprecation tests
-│   ├── test_classes.py             # Class deprecation tests
-│   ├── test_docs.py                # Docstring tests
-│   └── test_utils.py               # Utility function tests
+│   ├── collection_chains.py        # Chained deprecation patterns
+│   ├── collection_docstrings.py    # Fixtures for update_docstring=True behaviour
+│   ├── integration/                # End-to-end tests via the public API
+│   └── unittests/                  # Focused tests for private/internal helpers
 ├── .github/
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
@@ -345,19 +353,90 @@ def my_function(arg: SomeType) -> None:
 
 Tests live in `tests/` and follow a **three-layer separation**:
 
-| File                          | Purpose                                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------------------------- |
-| `collection_targets.py`       | Target functions and classes (the "new" implementations that deprecated code forwards to) |
-| `collection_deprecate.py`     | Deprecated wrappers that use `@deprecated(...)` to forward to targets                     |
-| `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing       |
-| `test_*.py`                   | Actual test logic — imports from the collections above and asserts behavior               |
+| File/Folder                   | Purpose                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `collection_targets.py`       | Target functions and classes (the "new" implementations that deprecated code forwards to)                                      |
+| `collection_deprecate.py`     | Deprecated wrappers that use `@deprecated(...)` to forward to targets                                                          |
+| `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing                                            |
+| `collection_chains.py`        | Multi-hop deprecation chains (deprecated → deprecated → target) for chain-detection tests                                      |
+| `collection_docstrings.py`    | Fixtures for `update_docstring=True` behaviour — new and deprecated callables whose generated docstrings are compared in tests |
+| `integration/`                | End-to-end tests exercising the **public API** via the collection modules                                                      |
+| `unittests/`                  | Focused tests for **private/internal helpers**, each file mirroring one source module                                          |
+
+**`integration/`** — Each file covers one area of the public surface (functions, classes, audit, utils, docstrings, README examples). Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types. `test_readme.py` is generated by `phmdoctest` from README code blocks.
 
 > [!IMPORTANT]
-> In almost all cases, **do not** define target functions or `@deprecated` wrappers directly inside `test_*.py` files. Prefer placing targets in `collection_targets.py` and deprecated wrappers in `collection_deprecate.py`, then importing them in tests. A small number of existing tests intentionally define `@deprecated` callables inline when the test itself is about how `@deprecated` is declared; new tests should follow the three-layer pattern unless such an inline definition is explicitly required.
+> **README examples must be runnable.** Every Python code block in `README.md` is extracted by `phmdoctest` and executed as a test. Follow these rules when writing README examples:
+>
+> - Use `print()` for values you want to verify, paired with a `<details><summary>Output: ...</summary>` block immediately after the code block.
+> - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
+> - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
+> - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
+
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `audit.py`, `utils.py`).
+
+> [!IMPORTANT]
+> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
+
+> [!NOTE]
+> **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
+>
+> - **Single use** — used by exactly one test and not reused elsewhere
+> - **Non-representational** — does not model real API migration behavior or a named deprecation pattern
+> - **Purely mechanical** — exists only to drive a protocol or edge case (for example a malformed `remove_in` string, or a tiny local class used solely for `isinstance`/`issubclass` behavior)
+>
+> If in doubt, extract. Move to a collection module when the fixture is shared across tests, models real migration behavior, or represents a reusable deprecated wrapper or target.
+
+**Fixture naming convention in `collection_deprecate.py`:**
+
+The prefix encodes whether the fixture exists in one form or two:
+
+- **Single form** (only one way the deprecation is applied — no decorator/wrapper comparison needed): use `depr_<name>` for functions and `Deprecated<Name>` for classes.
+- **Both forms** (decorator and wrapper, used together in a parametrized test): reflect the form in the name:
+
+| Form                         | Functions/methods  | Classes (PascalCase) |
+| ---------------------------- | ------------------ | -------------------- |
+| Decorator (`@deprecated...`) | `decorated_<name>` | `Decorated<Name>`    |
+| Wrapper (assignment form)    | `wrapped_<name>`   | `Wrapped<Name>`      |
+
+Examples:
+
+- `DeprecatedEnum` — single form, no wrapper counterpart
+- `decorated_sum_warn_only` / `wrapped_sum_warn_only` — paired for parametrize
+- `DecoratedEnum` / `WrappedEnum` — paired class fixtures for the same parametrized comparison
+
+When adding a parametrized test that covers both forms, always add both fixtures and share the same `deprecated(...)` instance to guarantee identical configuration:
+
+```python
+from deprecate import deprecated, void
+
+
+# original_* is declared first — _deprecation_* refers to it immediately after.
+def original_sum_warn_only(a: int, b: int = 5) -> int:
+    """Source function for the wrapper form."""
+    return void(a, b)
+
+
+# The _deprecation_* variable is the deprecation tool (the decorator instance),
+# NOT a deprecated callable — that distinction is why it's named _deprecation_*
+# rather than _depr_* (which would imply the thing being deprecated).
+_deprecation_warn_only = deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+
+
+@_deprecation_warn_only
+def decorated_sum_warn_only(a: int, b: int = 5) -> int:
+    """..."""
+    return void(a, b)
+
+
+wrapped_sum_warn_only = _deprecation_warn_only(original_sum_warn_only)
+```
+
+The same pattern applies to `deprecated_class()` pairs — define `_class_deprecation_<name> = deprecated_class(...)` once and reuse it for both `Wrapped<Name>` and `@Decorated<Name>`.
 
 **Docstrings in test collections:**
 
-Functions in `collection_deprecate.py` and `collection_misconfigured.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
+Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collection_chains.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
 
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
@@ -366,7 +445,7 @@ from deprecate import deprecated
 
 
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
-def depr_sum_warn_only(a: int, b: int = 5) -> int:
+def decorated_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
 
     Examples:
@@ -389,6 +468,7 @@ def depr_sum_warn_only(a: int, b: int = 5) -> int:
 - **Avoid redundant naming** — don't repeat class context in test method names (e.g., in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`).
 - **Use fixtures for independence** — use pytest fixtures to reset state between tests. Add `autouse=True` fixtures when a class needs per-test reset.
 - **One behavior per test** — each test method should verify one specific aspect.
+- **Prefer parametrization for repetitive shapes** — when the setup/assertion flow is the same and only inputs/expected outputs differ, use `pytest.mark.parametrize(...)` to reduce duplication while keeping one behavioral intent per case.
 - **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
 
 **For bug fixes:**
@@ -439,7 +519,7 @@ def old_implementation(x: int) -> int:
     """Deprecated: use new_implementation instead."""
 
 
-# tests/test_functions.py — the test
+# tests/integration/test_functions.py — the test
 import pytest
 from tests.collection_deprecate import old_implementation
 

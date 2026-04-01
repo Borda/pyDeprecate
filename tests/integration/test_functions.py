@@ -16,63 +16,127 @@ Current test coverage:
 - TestDeprecatedClassWrappers.test_with_decorator_syntax (line ~447)
 """
 
+from typing import Callable, cast
+
 import pytest
 
-from deprecate.utils import no_warning_call
+from deprecate import assert_no_warnings
+from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from tests.collection_deprecate import (
+    decorated_pow_self,
+    decorated_pow_skip_if_func,
+    decorated_pow_skip_if_true,
+    decorated_sum,
+    decorated_sum_calls_2,
+    decorated_sum_calls_inf,
+    decorated_sum_msg,
+    decorated_sum_no_stream,
+    decorated_sum_warn_only,
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
+    depr_make_new_cls,
+    depr_make_new_cls_mapped,
     depr_pow_args,
     depr_pow_mix,
-    depr_pow_self,
     depr_pow_self_double,
     depr_pow_self_twice,
     depr_pow_skip_if_false_true,
-    depr_pow_skip_if_func,
     depr_pow_skip_if_func_int,
-    depr_pow_skip_if_true,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
-    depr_sum,
-    depr_sum_calls_2,
-    depr_sum_calls_inf,
-    depr_sum_msg,
-    depr_sum_no_stream,
-    depr_sum_warn_only,
+    wrapped_pow_self,
+    wrapped_pow_skip_if_func,
+    wrapped_pow_skip_if_true,
+    wrapped_sum,
+    wrapped_sum_calls_2,
+    wrapped_sum_calls_inf,
+    wrapped_sum_msg,
+    wrapped_sum_no_stream,
+    wrapped_sum_warn_only,
 )
+from tests.collection_targets import sample_function
 
 
 class TestDeprecationWarnings:
     """Tests for basic deprecation warning behavior."""
 
-    def test_warn_only(self) -> None:
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(decorated_sum_warn_only, "decorated_sum_warn_only", id="decorated-form"),
+            pytest.param(wrapped_sum_warn_only, "original_sum_warn_only", id="wrapped-form"),
+        ],
+    )
+    def test_warn_only(self, func: Callable, name: str) -> None:
         """Test deprecated function that only warns."""
-        with pytest.warns(
-            FutureWarning, match="The `depr_sum_warn_only` was deprecated since v0.2. It will be removed in v0.3."
-        ):
-            assert depr_sum_warn_only(2) is None
+        with pytest.warns(FutureWarning, match=f"The `{name}` was deprecated since v0.2. It will be removed in v0.3."):
+            assert func(2) is None
 
-    def test_default(self) -> None:
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(decorated_sum, "decorated_sum", id="decorated-form"),
+            pytest.param(wrapped_sum, "original_sum", id="wrapped-form"),
+        ],
+    )
+    def test_default(self, func: Callable, name: str) -> None:
         """Testing some base/default configurations."""
         with pytest.warns(
             FutureWarning,
-            match="The `depr_sum` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
+            match=f"The `{name}` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
             " It will be removed in v0.5.",
         ):
-            assert depr_sum(2) == 7
+            assert func(2) == 7
 
-    def test_default_once(self) -> None:
+    def test_function_to_class_forwarding(self) -> None:
+        """Deprecated function targeting a class should instantiate and return the class."""
+        from tests.collection_targets import NewCls
+
+        cast(_DeprecatedCallable, depr_make_new_cls)._state.warned_calls = 0
+        with pytest.warns(
+            FutureWarning,
+            match="The `depr_make_new_cls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
+            " It will be removed in v0.4.",
+        ):
+            instance = depr_make_new_cls(2, e=0.9)
+
+        assert isinstance(instance, NewCls)
+        assert instance.my_c == 2
+        assert instance.my_d == "abc"
+        assert instance.my_e == 0.9
+
+    def test_function_to_class_forwarding_with_args_mapping(self) -> None:
+        """Deprecated function with args_mapping should rename old_c→c before forwarding to NewCls."""
+        from tests.collection_targets import NewCls
+
+        cast(_DeprecatedCallable, depr_make_new_cls_mapped)._state.warned_calls = 0
+        with pytest.warns(
+            FutureWarning,
+            match="The `depr_make_new_cls_mapped` was deprecated since v0.2 in favor of"
+            " `tests.collection_targets.NewCls`. It will be removed in v0.4.",
+        ):
+            instance = depr_make_new_cls_mapped(old_c=3, e=0.7)
+
+        assert isinstance(instance, NewCls)
+        assert instance.my_c == 3
+        assert instance.my_d == "abc"
+        assert instance.my_e == 0.7
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(decorated_sum, id="decorated-form"),
+            pytest.param(wrapped_sum, id="wrapped-form"),
+        ],
+    )
+    def test_default_once(self, func: Callable) -> None:
         """Check that the warning is raised only once per function."""
-        # Pre-call to trigger the warning if it wasn't already triggered (though tests should be independent)
-        # However, depr_sum might have been called in previous test if not careful,
-        # but here we want to ensure that WITHIN a clean state it only warns once.
-        # Note: depr_sum is imported from collection_deprecate, it might share state if not reset.
-        setattr(depr_sum, "_warned", 0)
+        cast(_DeprecatedCallable, func)._state.warned_calls = 0
         with pytest.warns(FutureWarning):
-            assert depr_sum(2) == 7
-        with no_warning_call(FutureWarning):
-            assert depr_sum(3) == 8
+            assert func(2) == 7
+        with assert_no_warnings(FutureWarning):
+            assert func(3) == 8
 
     def test_default_independent(self) -> None:
         """Check that it does not affect other functions when called with positional args."""
@@ -83,37 +147,65 @@ class TestDeprecationWarnings:
         ):
             assert depr_pow_mix(2, 1) == 2
 
-    def test_stream_calls_no_stream(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(decorated_sum_no_stream, id="decorated-form"),
+            pytest.param(wrapped_sum_no_stream, id="wrapped-form"),
+        ],
+    )
+    def test_stream_calls_no_stream(self, func: Callable) -> None:
         """Check that the warning is NOT raised when stream is None."""
-        with no_warning_call(FutureWarning):
-            assert depr_sum_no_stream(3) == 8
+        with assert_no_warnings(FutureWarning):
+            assert func(3) == 8
 
-    def test_stream_calls_limit(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(decorated_sum_calls_2, id="decorated-form"),
+            pytest.param(wrapped_sum_calls_2, id="wrapped-form"),
+        ],
+    )
+    def test_stream_calls_limit(self, func: Callable) -> None:
         """Check that the warning is raised only N times."""
 
-        def _call_depr_sum_calls_2() -> None:
+        def _call() -> None:
             for _ in range(5):
-                assert depr_sum_calls_2(3) == 8
+                assert func(3) == 8
 
         with pytest.warns(FutureWarning) as record:
-            _call_depr_sum_calls_2()
+            _call()
         assert len(record) == 2
 
-    def test_stream_calls_inf(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(decorated_sum_calls_inf, id="decorated-form"),
+            pytest.param(wrapped_sum_calls_inf, id="wrapped-form"),
+        ],
+    )
+    def test_stream_calls_inf(self, func: Callable) -> None:
         """Check that the warning is raised infinitely."""
 
-        def _call_depr_sum_calls_inf() -> None:
+        def _call() -> None:
             for _ in range(5):
-                assert depr_sum_calls_inf(3) == 8
+                assert func(3) == 8
 
         with pytest.warns(FutureWarning) as record:
-            _call_depr_sum_calls_inf()
+            _call()
         assert len(record) == 5
 
-    def test_stream_calls_msg(self) -> None:
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(decorated_sum_msg, "decorated_sum_msg", id="decorated-form"),
+            pytest.param(wrapped_sum_msg, "original_sum", id="wrapped-form"),
+        ],
+    )
+    def test_stream_calls_msg(self, func: Callable, name: str) -> None:
         """Test deprecated function with custom message."""
-        with pytest.warns(FutureWarning, match="v0.1: `depr_sum_msg` was deprecated, use `base_sum_kwargs`"):
-            assert depr_sum_msg(3) == 8
+        with pytest.warns(FutureWarning, match=f"v0.1: `{name}` was deprecated, use `base_sum_kwargs`"):
+            assert func(3) == 8
 
 
 class TestArgumentMapping:
@@ -122,31 +214,38 @@ class TestArgumentMapping:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for functions with chained or multiple deprecations."""
-        # List of functions and their warning attributes to reset
-        reset_config = [
-            (depr_pow_self_double, ["_warned", "_warned_c1", "_warned_c2"]),
-            (depr_pow_self_twice, ["_warned", "_warned_c1", "_warned_nc1"]),
-        ]
+        for func in (decorated_pow_self, depr_pow_self_double, depr_pow_self_twice, wrapped_pow_self):
+            state = cast(_DeprecatedCallable, func)._state
+            state.warned_calls = 0
+            state.warned_args.clear()
 
-        for func, attrs in reset_config:
-            for attr in attrs:
-                if hasattr(func, attr):
-                    # Use False for boolean _warned, 0 for counter attributes
-                    setattr(func, attr, False if attr == "_warned" else 0)
-
-    def test_arguments_new_only(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(decorated_pow_self, id="decorated-form"),
+            pytest.param(wrapped_pow_self, id="wrapped-form"),
+        ],
+    )
+    def test_arguments_new_only(self, func: Callable) -> None:
         """Test calling with new arguments only (no warning)."""
-        with no_warning_call():
-            assert depr_pow_self(2, new_coef=3) == 8
+        with assert_no_warnings():
+            assert func(2, new_coef=3) == 8
 
-    def test_arguments_deprecated(self) -> None:
+    @pytest.mark.parametrize(
+        ("func", "name"),
+        [
+            pytest.param(decorated_pow_self, "decorated_pow_self", id="decorated-form"),
+            pytest.param(wrapped_pow_self, "original_pow_self", id="wrapped-form"),
+        ],
+    )
+    def test_arguments_deprecated(self, func: Callable, name: str) -> None:
         """Test calling with deprecated argument (should warn)."""
         with pytest.warns(
             FutureWarning,
-            match="The `depr_pow_self` uses deprecated arguments: `coef` -> `new_coef`."
+            match=f"The `{name}` uses deprecated arguments: `coef` -> `new_coef`."
             " They were deprecated since v0.1 and will be removed in v0.5.",
         ):
-            assert depr_pow_self(2, 3) == 8
+            assert func(2, 3) == 8
 
     def test_arguments_double_deprecated_c1(self) -> None:
         """Test double mapping, calling with first deprecated argument."""
@@ -161,12 +260,9 @@ class TestArgumentMapping:
     def test_arguments_double_mixed(self) -> None:
         """Testing that preferable use the new arguments when both are provided."""
         # Reset warning state to ensure test independence
-        if hasattr(depr_pow_self_double, "_warned_c1"):
-            setattr(depr_pow_self_double, "_warned_c1", 0)
-        if hasattr(depr_pow_self_double, "_warned_c2"):
-            setattr(depr_pow_self_double, "_warned_c2", 0)
+        cast(_DeprecatedCallable, depr_pow_self_double)._state.warned_args.clear()
 
-        with no_warning_call():
+        with assert_no_warnings():
             assert depr_pow_self_double(2, nc1=1, nc2=2) == 8
 
         # When both c1 and c2 are provided, warns about both together
@@ -174,8 +270,7 @@ class TestArgumentMapping:
             assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
 
         # Need to reset after first warning because both counters were incremented
-        setattr(depr_pow_self_double, "_warned_c1", 0)
-        setattr(depr_pow_self_double, "_warned_c2", 0)
+        cast(_DeprecatedCallable, depr_pow_self_double)._state.warned_args.clear()
 
         # When both c1 and c2 are provided, warns about both together
         # Result is 32 because: c1->nc1=3, c2->nc2=4, but nc2=2 (user wins), so 2**(0+0+3+2)=32
@@ -194,20 +289,34 @@ class TestArgumentMapping:
         with pytest.warns(FutureWarning):
             assert depr_pow_self_twice(2, 3) == 8
         # After the initial warning, calling with the new argument should be quiet.
-        with no_warning_call():
+        with assert_no_warnings():
             assert depr_pow_self_twice(2, c1=3) == 8
 
 
-def test_skip_if_true() -> None:
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(decorated_pow_skip_if_true, id="decorated-form"),
+        pytest.param(wrapped_pow_skip_if_true, id="wrapped-form"),
+    ],
+)
+def test_skip_if_true(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if=True."""
-    with no_warning_call():
-        assert depr_pow_skip_if_true(2, c1=2) == 2
+    with assert_no_warnings():
+        assert func(2, c1=2) == 2
 
 
-def test_skip_if_func() -> None:
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(decorated_pow_skip_if_func, id="decorated-form"),
+        pytest.param(wrapped_pow_skip_if_func, id="wrapped-form"),
+    ],
+)
+def test_skip_if_func(func: Callable) -> None:
     """Test conditional wrapper skip when skip_if is a function returning True."""
-    with no_warning_call():
-        assert depr_pow_skip_if_func(2, c1=2) == 2
+    with assert_no_warnings():
+        assert func(2, c1=2) == 2
 
 
 def test_skip_if_true_false() -> None:
@@ -239,16 +348,16 @@ class TestErrorHandling:
 
     def test_incomplete_once(self) -> None:
         """Check that the warning is raised only once per function for incomplete mappings."""
-        setattr(depr_pow_args, "_warned", False)
+        cast(_DeprecatedCallable, depr_pow_args)._state.warned_calls = 0
         with pytest.warns(FutureWarning):
             depr_pow_args(2, 1)
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             assert depr_pow_args(2, 1) == 2
 
     def test_incomplete_independent(self) -> None:
         """Check that it does not affect other functions for incomplete mappings when called with kwargs."""
         # reset the warning
-        setattr(depr_pow_args, "_warned", False)
+        cast(_DeprecatedCallable, depr_pow_args)._state.warned_calls = 0
         with pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args` in v1.0 rm v1.3."):
             assert depr_pow_args(b=2, a=1) == 1
 
@@ -284,14 +393,15 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     """
     from tests.collection_targets import base_sum_kwargs
 
-    # Verify __deprecated__ is set WITHOUT calling the function (using depr_sum from collection_deprecate)
-    assert hasattr(depr_sum, "__deprecated__")
-    assert depr_sum.__deprecated__ == {
-        "deprecated_in": "0.1",
-        "remove_in": "0.5",
-        "target": base_sum_kwargs,
-        "args_mapping": None,
-    }
+    # Verify __deprecated__ is set WITHOUT calling the function (using decorated_sum from collection_deprecate)
+    assert hasattr(decorated_sum, "__deprecated__")
+    assert decorated_sum.__deprecated__ == DeprecationConfig(
+        deprecated_in="0.1",
+        remove_in="0.5",
+        name="decorated_sum",
+        target=base_sum_kwargs,
+        args_mapping=None,
+    )
 
 
 class TestDeprecatedFunctionWrappers:
@@ -302,16 +412,11 @@ class TestDeprecatedFunctionWrappers:
         """Reset warning counters before each test for independence."""
         from tests.collection_deprecate import depr_timing_wrapper
 
-        if hasattr(depr_timing_wrapper, "_warned"):
-            depr_timing_wrapper._warned = 0
+        cast(_DeprecatedCallable, depr_timing_wrapper)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
         from tests.collection_deprecate import depr_timing_wrapper
-
-        def sample_function(x: int) -> int:
-            """A simple function for testing wrappers."""
-            return x * 2
 
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
@@ -322,10 +427,6 @@ class TestDeprecatedFunctionWrappers:
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
         from tests.collection_deprecate import depr_timing_wrapper
-
-        def sample_function(x: int) -> int:
-            """A simple function for testing wrappers."""
-            return x * 2
 
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
@@ -338,11 +439,7 @@ class TestDeprecatedFunctionWrappers:
         """Test that new implementation works without warnings."""
         from tests.collection_targets import timing_wrapper
 
-        def sample_function(x: int) -> int:
-            """A simple function for testing wrappers."""
-            return x * 2
-
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             new_wrapped = timing_wrapper(sample_function)
             result = new_wrapped(7)
             assert result == 14
@@ -369,36 +466,35 @@ class TestDeprecatedClassWrappers:
     @pytest.fixture(autouse=True)
     def reset_warnings(self) -> None:
         """Reset warning counters before each test for independence."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
-        if hasattr(DeprTimerDecorator.__init__, "_warned"):
-            DeprTimerDecorator.__init__._warned = 0
+        cast(_DeprecatedCallable, DeprecatedTimerDecorator.__init__)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
-            wrapped_func = DeprTimerDecorator(sample_function)
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
+            wrapped_func = DeprecatedTimerDecorator(sample_function)
 
         # Verify the wrapper was applied correctly
         assert callable(wrapped_func)
 
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
         # Expect warning on first use
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
-            wrapped_func = DeprTimerDecorator(sample_function)
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
+            wrapped_func = DeprecatedTimerDecorator(sample_function)
 
         # Verify the wrapped function executes correctly
         result = wrapped_func(3)
@@ -406,15 +502,15 @@ class TestDeprecatedClassWrappers:
 
     def test_preserves_attributes(self) -> None:
         """Test that wrapper preserves tracking attributes."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
         # Expect warning on first use, then test attributes
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
-            wrapped_func = DeprTimerDecorator(sample_function)
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
+            wrapped_func = DeprecatedTimerDecorator(sample_function)
 
         # Call the function once
         wrapped_func(3)
@@ -432,7 +528,7 @@ class TestDeprecatedClassWrappers:
             """A simple function for testing class-based wrappers."""
             return x + 5
 
-        with no_warning_call(FutureWarning):
+        with assert_no_warnings(FutureWarning):
             new_wrapped = TimerDecorator(sample_function)
             result = new_wrapped(4)
             assert result == 9
@@ -440,11 +536,11 @@ class TestDeprecatedClassWrappers:
 
     def test_with_decorator_syntax(self) -> None:
         """Test warning when applied using @ decorator syntax."""
-        from tests.collection_deprecate import DeprTimerDecorator
+        from tests.collection_deprecate import DeprecatedTimerDecorator
 
-        with pytest.warns(FutureWarning, match="`DeprTimerDecorator` was deprecated"):
+        with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
 
-            @DeprTimerDecorator
+            @DeprecatedTimerDecorator
             def sample_function(x: int) -> int:
                 """A simple function for testing class-based wrappers with @ syntax."""
                 return x + 5

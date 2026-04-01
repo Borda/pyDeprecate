@@ -20,6 +20,8 @@ exclude *.toml
 prune .git
 prune .github
 prune assets
+prune dist*
+prune demo*
 prune temp*
 prune test*
 prune docs*

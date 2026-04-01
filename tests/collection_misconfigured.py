@@ -9,13 +9,17 @@ They simulate common mistakes developers make when setting up deprecation wrappe
 - Mixing identity and valid mappings
 - Creating a self-referencing deprecation (wrapper targets itself)
 
-Used by `validate_deprecated_callable()` and `find_deprecated_callables()` to verify
+Used by `validate_deprecated_wrapper()` and `find_deprecation_wrappers()` to verify
 that the validation tooling correctly detects these misconfigurations.
 
 Copyright (C) 2020-2026 Jiri Borovec <...>.
 """
 
+from dataclasses import replace
+from typing import cast
+
 from deprecate import deprecated, void
+from deprecate._types import _DeprecatedCallable
 
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"nonexistent_arg": "new_arg"})
@@ -101,5 +105,6 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
 
 
 # Manually update the __deprecated__ attribute to make it self-referencing
-deprecated_info = getattr(self_referencing_deprecation, "__deprecated__")
-deprecated_info["target"] = self_referencing_deprecation
+self_ref_typed = cast(_DeprecatedCallable, self_referencing_deprecation)
+deprecated_info = self_ref_typed.__deprecated__
+self_ref_typed.__deprecated__ = replace(deprecated_info, target=self_referencing_deprecation)

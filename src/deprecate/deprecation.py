@@ -1,23 +1,25 @@
 """Deprecation wrapper and utilities for marking deprecated code.
 
-This module provides the main ``@deprecated`` decorator for marking functions, methods,
-and classes as deprecated while optionally forwarding calls to their replacements.
+This module provides the main ``@deprecated`` decorator for marking functions and
+methods as deprecated while optionally forwarding calls to their replacements.
+Class-level deprecation is handled by :func:`deprecate.proxy.deprecated_class`.
 
 Key Components:
-    - :func:`deprecated`: Main decorator for deprecation with automatic call forwarding
+    - :func:`~deprecate.deprecation.deprecated`: Main decorator for deprecation with automatic call forwarding
     - Warning templates for different deprecation scenarios
     - Internal helpers for argument mapping and warning management
 
-Copyright (C) 2020-2026 Jiri Borovec <...>
+Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
-from enum import Enum
-from functools import partial, update_wrapper, wraps
+from functools import partial, wraps
 from inspect import Parameter
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
+from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
+from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 #: Default template warning message for redirecting callable
@@ -36,53 +38,11 @@ TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
-#: Enum constructor keyword for value lookups.
-ENUM_VALUE_PARAM = "value"
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
-#: Default template for documentation with deprecated callable
-TEMPLATE_DOC_DEPRECATED = """
-.. deprecated:: %(deprecated_in)s
-   %(remove_text)s
-   %(target_text)s
-"""
-
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
-
-
-class _DeprecatedEnumWrapper:
-    """Callable proxy that preserves Enum accessors while adding deprecation behavior.
-
-    Example:
-        >>> from enum import Enum
-        >>> class Old(Enum):
-        ...     A = "a"
-        >>> def wrapper(value: str) -> Old:
-        ...     return Old(value)
-        >>> proxied = _DeprecatedEnumWrapper(wrapper, Old)
-        >>> proxied("a") is Old.A
-        True
-        >>> proxied.A is Old.A
-        True
-        >>> proxied["A"] is Old.A
-        True
-    """
-
-    def __init__(self, wrapper: Callable[..., object], source: type[Enum]) -> None:
-        self._wrapper = wrapper
-        self._source = source
-        update_wrapper(self, wrapper)
-
-    def __call__(self, *args: object, **kwargs: object) -> object:
-        return self._wrapper(*args, **kwargs)
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(self._source, name)
-
-    def __getitem__(self, key: str) -> Enum:
-        return self._source[key]
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
@@ -90,134 +50,147 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
     return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
 
 
+def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
+    """Raise TypeError when target is a method on a different class than source.
+
+    Forwarding a class method to a method on a *different* class silently passes
+    ``self`` of the wrong type, causing runtime attribute errors.  This guard
+    detects the misconfiguration at decoration time by comparing the immediate
+    class name extracted from each callable's ``__qualname__``.
+
+    Qualname patterns and how they are handled:
+
+    - ``"MyClass.method"``                   → class ``MyClass``
+    - ``"outer.<locals>.MyClass.method"``    → class ``MyClass`` (class inside a function)
+    - ``"outer.<locals>.<lambda>"``          → skipped; prefix ends with ``<locals>``
+    - ``"base_sum_kwargs"``                  → skipped; no dot means module-level function
+
+    Args:
+        source: The callable being decorated with ``@deprecated``.
+        target: The replacement callable supplied as the ``target`` argument.
+
+    Raises:
+        TypeError: If both callables appear to be class methods (their qualname
+            contains a class-prefix component) and those class names differ.
+
+    """
+    # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
+    # including across different classes, because PastCls inherits NewCls so `self`
+    # is a valid NewCls instance.
+    if source.__name__ == "__init__" and getattr(target, "__name__", "") == "__init__":
+        return
+    src_qualname = getattr(source, "__qualname__", "")
+    tgt_qualname = getattr(target, "__qualname__", "")
+    src_parts = src_qualname.rsplit(".", 1)
+    tgt_parts = tgt_qualname.rsplit(".", 1)
+    if len(src_parts) == 2 and len(tgt_parts) == 2:
+        src_prefix, tgt_prefix = src_parts[0], tgt_parts[0]
+        # Skip nested functions / lambdas whose prefix ends with "<locals>"
+        if not src_prefix.endswith("<locals>") and not tgt_prefix.endswith("<locals>"):
+            src_class = src_prefix.rsplit(".", 1)[-1]
+            tgt_class = tgt_prefix.rsplit(".", 1)[-1]
+            src_owner = f"{getattr(source, '__module__', '')}.{src_prefix}"
+            tgt_owner = f"{getattr(target, '__module__', '')}.{tgt_prefix}"
+            if src_owner != tgt_owner:
+                raise TypeError(
+                    f"Cannot use @deprecated on '{source.__qualname__}' with target "
+                    f"'{target.__qualname__}': cross-class method forwarding is not supported "
+                    f"because `self` would carry the wrong type. "
+                    f"The target must be a method on the same class ('{src_class}') "
+                    f"or a full class (use target={tgt_class} for class migration)."
+                )
+
+
+def _normalize_target(
+    source: Callable,
+    target: Union[bool, None, Callable],
+) -> Union[bool, None, Callable]:
+    """Normalise the effective target callable before the wrapper closure captures it.
+
+    Handles three cases when ``target`` is a class:
+
+    1. ``source`` is ``__init__`` → remap ``target=NewCls`` to ``target=NewCls.__init__``
+       (constructor forwarding; ``self`` is the new instance so the call is valid).
+    2. ``source`` is a class method (non-``__init__``) → raise :exc:`TypeError`;
+       passing a class as target for a bound method silently passes ``self``
+       of the wrong type.
+    3. ``source`` is a module-level function → keep ``target=NewCls`` as-is;
+       calling ``NewCls(**kwargs)`` creates a new instance directly.
+
+    When ``target`` is not a class it is returned unchanged.
+
+    Args:
+        source: The callable being decorated with ``@deprecated``.
+        target: Raw ``target`` argument from the ``@deprecated`` call.
+
+    Returns:
+        Normalised target suitable for use inside ``wrapped_fn``.
+
+    Raises:
+        TypeError: When a class target is used on a non-``__init__`` class method.
+
+    """
+    if not inspect.isclass(target):
+        return target
+    src_qualname = getattr(source, "__qualname__", "")
+    src_parts = src_qualname.rsplit(".", 1)
+    source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
+    if source.__name__ == "__init__":
+        return target.__init__
+    if source_is_class_method:
+        raise TypeError(
+            f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
+            f"Constructor forwarding via target=ClassName is only supported on `__init__`. "
+            f"Use target={target.__name__}.__init__ explicitly, or apply the decorator to `__init__`."
+        )
+    return target  # module-level function: instantiate directly
+
+
 def _prepare_target_call(
     source: Callable,
     target: Callable,
     kwargs: dict[str, Any],
-    source_is_class: bool,
-    source_has_var_positional: bool,
-) -> tuple[Callable, bool]:
-    """Resolve the target callable and validate mapped keyword arguments.
+) -> Callable:
+    """Validate mapped keyword arguments and return the target callable.
+
+    ``packing()`` normalises the target before ``wrapped_fn`` runs — class
+    targets are remapped to ``target.__init__`` — so by the time this function
+    is called, ``target`` is always a plain callable, never a class.
 
     Args:
         source: Deprecated callable being wrapped.
-        target: Target callable to invoke.
+        target: Target callable to invoke (shall not be a class).
         kwargs: Keyword arguments after mapping and defaults.
-        source_is_class: True if the deprecated callable is a class.
-        source_has_var_positional: True if the deprecated callable has *args.
 
     Returns:
-        Tuple with the callable to invoke and a flag indicating whether positional
-        arguments should be preserved for the call.
+        ``target`` unchanged, after validating that it accepts ``kwargs``.
 
     Example:
         >>> from deprecate.deprecation import _prepare_target_call
-        >>> from enum import Enum
-        >>> class OldEnum(Enum):
-        ...     A = "a"
-        >>> class NewEnum(Enum):
-        ...     A = "a"
-        >>> target_func, use_positional = _prepare_target_call(OldEnum, NewEnum, {"value": "a"}, True, True)
-        >>> target_func is NewEnum
-        True
-        >>> use_positional
-        True
         >>> def source(a: int, b: int) -> int:
         ...     return a + b
         >>> def target(a: int, b: int) -> int:
         ...     return a - b
-        >>> _prepare_target_call(source, target, {"c": 1}, False, False)
+        >>> _prepare_target_call(source, target, {"c": 1})
         Traceback (most recent call last):
         ...
         TypeError: Failed mapping of `source`, arguments not accepted by target: ['c']
 
     """
-    target_is_class = inspect.isclass(target)
-    # Class-to-class forwarding instantiates the target directly; function-to-class forwarding calls __init__.
-    target_func = target
-    if target_is_class and not source_is_class:
-        target_func = target.__init__
-    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target_func)]
-
-    target_full_arg_spec = inspect.getfullargspec(target_func)
+    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target)]
+    target_full_arg_spec = inspect.getfullargspec(target)
     var_args = target_full_arg_spec.varargs
     var_kw = target_full_arg_spec.varkw
 
     missed = [arg for arg in kwargs if arg not in target_args]
-    is_enum_value_case = _is_enum_value_case(source, target, missed, source_is_class, target_is_class)
     if missed and var_kw is None:
         if var_args is None:
-            # Target doesn't accept these args and doesn't have *args to catch them.
             raise TypeError(f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}")
-        if not is_enum_value_case:
-            raise TypeError(
-                f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
-                f"these keyword arguments are not allowed): {missed}"
-            )
-    return target_func, source_is_class and source_has_var_positional
-
-
-def _is_enum_value_case(
-    source: Callable,
-    target: Callable,
-    missed: list[str],
-    source_is_class: bool,
-    target_is_class: bool,
-) -> bool:
-    """Check if Enum value mapping should allow keyword fallback.
-
-    Args:
-        source: Deprecated callable being wrapped.
-        target: Target callable to invoke.
-        missed: Keyword arguments not accepted by the target.
-        source_is_class: True if the deprecated callable is a class.
-        target_is_class: True if the target callable is a class.
-
-    Returns:
-        True when the target is an Enum and the only missed argument is the Enum value.
-    """
-    source_is_enum = source_is_class and isinstance(source, type) and issubclass(source, Enum)
-    if not (source_is_enum and target_is_class):
-        return False
-    if not isinstance(target, type):
-        return False
-    target_is_enum = issubclass(target, Enum)
-    single_missed_arg = len(missed) == 1
-    missed_is_value_param = ENUM_VALUE_PARAM in missed
-    return target_is_enum and single_missed_arg and missed_is_value_param
-
-
-def _convert_enum_value_args(
-    target: Callable,
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-) -> tuple[tuple[Any, ...], dict[str, Any]]:
-    """Convert Enum value keyword argument into a positional argument when required.
-
-    Args:
-        target: Callable being invoked (source or target).
-        args: Positional arguments to pass through.
-        kwargs: Keyword arguments to pass through.
-
-    Returns:
-        Tuple of updated positional and keyword arguments, with Enum value moved
-        into positional args when necessary.
-
-    Example:
-        >>> class SampleEnum(Enum):
-        ...     ALPHA = "alpha"
-        >>> _convert_enum_value_args(SampleEnum, (), {"value": "alpha"})
-        (('alpha',), {})
-    """
-    if not (isinstance(target, type) and issubclass(target, Enum)):
-        return args, kwargs
-    if ENUM_VALUE_PARAM not in kwargs:
-        return args, kwargs
-    new_kwargs = dict(kwargs)
-    value = new_kwargs.pop(ENUM_VALUE_PARAM)
-    if args:
-        return args, new_kwargs
-    return (*args, value), new_kwargs
+        raise TypeError(
+            f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
+            f"these keyword arguments are not allowed): {missed}"
+        )
+    return target
 
 
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
@@ -458,75 +431,6 @@ def _raise_warn_arguments(
     _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
 
 
-def _update_docstring_with_deprecation(wrapped_fn: Callable) -> None:
-    """Append deprecation notice to function's docstring in reStructuredText format.
-
-    This helper automatically generates and appends a Sphinx-compatible deprecation
-    notice to the wrapped function's docstring. The notice includes version information
-    and target replacement (if applicable), making it visible in generated API documentation.
-
-    The appended notice follows the Sphinx deprecated directive format:
-        .. deprecated:: <version>
-           Will be removed in <version>.
-           Use `<target>` instead.
-
-    Args:
-        wrapped_fn: Function whose docstring should be updated. Must have
-            __deprecated__ attribute set with deprecation metadata.
-
-    Returns:
-        None. Modifies the function's __doc__ attribute in-place.
-
-    Metadata Used:
-        The function's __deprecated__ attribute should contain:
-        - deprecated_in: Version when deprecated
-        - remove_in: Version when will be removed
-        - target: Replacement callable (optional)
-
-    Example:
-        >>> def new_func(): pass
-        >>> def old_func():
-        ...     '''Original docstring.'''
-        ...     pass
-        >>> old_func.__deprecated__ = {
-        ...     'deprecated_in': '1.0',
-        ...     'remove_in': '2.0',
-        ...     'target': new_func
-        ... }
-        >>> _update_docstring_with_deprecation(old_func)
-        >>> print(old_func.__doc__) # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
-        Original docstring.
-        <BLANKLINE>
-        .. deprecated:: 1.0
-           Will be removed in 2.0.
-           Use :func:`deprecate.deprecation.new_func` instead.
-
-    Note:
-        Does nothing if the function has no docstring or no __deprecated__ attribute.
-
-    """
-    if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
-        return
-    lines = wrapped_fn.__doc__.splitlines()
-    dep_info = getattr(wrapped_fn, "__deprecated__", {})
-    remove_in_val = dep_info.get("remove_in", "")
-    target_val = dep_info.get("target")
-    remove_text = f"Will be removed in {remove_in_val}." if remove_in_val else ""
-    target_text = ""
-    if callable(target_val):
-        ref_type = "class" if inspect.isclass(target_val) else "func"
-        target_text = f"Use :{ref_type}:`{target_val.__module__}.{target_val.__name__}` instead."
-    lines.append(
-        TEMPLATE_DOC_DEPRECATED
-        % {
-            "deprecated_in": dep_info.get("deprecated_in", ""),
-            "remove_text": remove_text,
-            "target_text": target_text,
-        }
-    )
-    wrapped_fn.__doc__ = "\n".join(lines)
-
-
 def deprecated(
     target: Union[bool, None, Callable],
     deprecated_in: str = "",
@@ -538,23 +442,24 @@ def deprecated(
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Decorate a function or class with warning message and forward calls to target.
+    """Decorate a function/method with warning message and forward calls to target.
 
-    This decorator marks a function or class as deprecated and can automatically forward
+    This decorator marks a function or method as deprecated and can automatically forward
     all calls to a replacement implementation. It supports argument mapping, custom
     warning messages, and flexible warning control.
 
     Args:
         target: How to handle the deprecation:
-            - ``Callable``: Forward all calls to this function/class
+            - ``Callable``: Forward all calls to this callable (function, method, or class target)
             - ``True``: Self-deprecation mode (deprecate arguments within same function)
             - ``None``: Warning-only mode (no forwarding, function body executes normally)
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0").
             Default is empty string.
         remove_in: Version when the function will be removed (e.g., "2.0.0").
             Default is empty string.
-        stream: Function to output warnings (default: :func:`deprecation_warning`, which is
+        stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
             :func:`warnings.warn` with ``FutureWarning`` category).
             Set to ``None`` to disable warnings entirely.
         num_warns: Number of times to show warning per function or per deprecated argument:
@@ -582,17 +487,34 @@ def deprecated(
             - ``bool``: Static condition (True = skip deprecation)
             - ``Callable``: Function returning bool (checked at runtime, must return bool)
             If condition is True, original function executes without warning.
-        update_docstring: If True, automatically append deprecation information to
-            the function's docstring in reStructuredText format. Useful for documentation
-            generation tools like Sphinx.
+        update_docstring: If True, automatically inject a deprecation notice into
+            the function's docstring (inserted before Google/NumPy-style sections when present,
+            otherwise appended at the end).
+        docstring_style: Output style for injected deprecation notice when
+            ``update_docstring=True``. Supported values:
+            - ``"auto"`` (default): Automatically choose a style based on the current
+              environment (e.g., loaded modules, CLI/tooling context). This may resolve
+              to either ``"rst"`` or ``"mkdocs"``/``"markdown"`` at decoration time.
+            - ``"rst"``: Explicitly force Sphinx-style ``.. deprecated::`` directive.
+            - ``"mkdocs"`` or ``"markdown"``: Explicitly force a Markdown admonition
+              of the form ``!!! warning "Deprecated in X"``.
+            Validated eagerly at decoration time regardless of ``update_docstring``.
 
     Returns:
-        Decorator function that wraps the source function/class.
+        Decorator function that wraps the source function/method.
+
+    Warns:
+        UserWarning: If applied directly to a class. The decorator delegates to
+            :func:`~deprecate.proxy.deprecated_class` and emits this warning.
+            Use ``@deprecated_class()`` directly to suppress it. Suppressed when ``stream=None``.
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function
             and target doesn't accept **kwargs.
+        TypeError: If the source is a class method and target is a method on a *different*
+            class (cross-class method forwarding). The target must be a method on the same
+            class, or a full class (``target=NewClass``) for constructor forwarding.
 
     Example:
         >>> # Basic forwarding
@@ -616,9 +538,42 @@ def deprecated(
         ...     return new_arg * 2
 
     """
+    normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
-        source_is_class = inspect.isclass(source)
+        if inspect.isclass(source):
+            import importlib
+            import warnings
+
+            proxy_module = importlib.import_module("deprecate.proxy")
+            deprecated_class = proxy_module.deprecated_class
+
+            message = (
+                f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
+                " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release."
+            )
+            if target is not None and not inspect.isclass(target):
+                message += (
+                    " Note: non-class `target` values are ignored when deprecating classes;"
+                    " use `@deprecated_class(target=...)` instead."
+                )
+            if stream is not None:
+                warnings.warn(message, UserWarning, stacklevel=2)
+            return deprecated_class(
+                target=target if callable(target) and inspect.isclass(target) else None,
+                deprecated_in=deprecated_in,
+                remove_in=remove_in,
+                num_warns=num_warns,
+                stream=stream,
+                args_mapping=args_mapping,
+                update_docstring=update_docstring,
+                docstring_style=docstring_style,
+            )(source)
+        # Cross-class guard runs before remapping; class targets skip it because
+        # constructor forwarding (target=NewCls on __init__) is always valid.
+        if callable(target) and not inspect.isclass(target):
+            _check_cross_class_method_target(source, target)
+        _target = _normalize_target(source, target)
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
@@ -632,16 +587,16 @@ def deprecated(
             if shall_skip:
                 return source(*args, **kwargs)
 
-            nb_called = getattr(wrapped_fn, "_called", 0)
-            setattr(wrapped_fn, "_called", nb_called + 1)
+            state = cast(_DeprecatedCallable, wrapped_fn)._state
+            state.called += 1
             # Preserve original kwargs for var-positional fallback before remapping.
             original_kwargs = dict(kwargs)
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
-            reason_callable = target is None or callable(target)
+            reason_callable = _target is None or callable(_target)
             reason_argument = {}
-            if args_mapping and target:
+            if args_mapping and _target:
                 # Find which deprecated arguments were actually used in this call
                 reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
             # short cycle with no reason for redirect
@@ -653,70 +608,61 @@ def deprecated(
             if reason_argument:
                 # For argument deprecation, track warnings per argument
                 # Use the minimum count across all deprecated args used in this call
-                arg_warns = [getattr(wrapped_fn, f"_warned_{arg}", 0) for arg in reason_argument]
-                nb_warned = min(arg_warns) if arg_warns else 0
+                nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
             else:
                 # For callable deprecation, track warnings per function
-                nb_warned = getattr(wrapped_fn, "_warned", 0)
+                nb_warned = state.warned_calls
 
             # warn user only N times in lifetime or infinitely...
             if stream and (num_warns < 0 or nb_warned < num_warns):
                 if reason_callable:
+                    # Use original `target` (not remapped _target) so the warning
+                    # names the class (e.g. "NewCls") rather than "__init__".
                     _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs)
-                    setattr(wrapped_fn, "_warned", nb_warned + 1)
+                    state.warned_calls += 1
                 elif reason_argument:
                     _raise_warn_arguments(stream, source, reason_argument, deprecated_in, remove_in, template_mgs)
-                    attrib_names = [f"_warned_{arg}" for arg in reason_argument]
-                    for n in attrib_names:
-                        setattr(wrapped_fn, n, getattr(wrapped_fn, n, 0) + 1)
+                    for arg in reason_argument:
+                        state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
 
             if reason_callable:
                 kwargs = _update_kwargs_with_defaults(source, kwargs)
-            if args_mapping and target:  # covers target as True and callable
+            if args_mapping and _target:  # covers _target as True and callable
                 # Filter out arguments that should be skipped (mapped to None)
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
                 # Apply argument renaming: use mapped name if exists, otherwise keep original
                 # Skip any arguments that were marked for skipping
                 kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
-            if args_extra and target:  # covers target as True and callable
+            if args_extra and _target:  # covers _target as True and callable
                 # update target argument by extra arguments
                 kwargs.update(args_extra)
 
-            if not callable(target):
+            if not callable(_target):
                 if source_has_var_positional:
                     call_kwargs = original_kwargs if not reason_argument else kwargs
-                    call_args, call_kwargs = _convert_enum_value_args(source, args, call_kwargs)
-                    return source(*call_args, **call_kwargs)
+                    return source(*args, **call_kwargs)
                 return source(**kwargs)
-
-            target_func, use_positional_args = _prepare_target_call(
-                source, target, kwargs, source_is_class, source_has_var_positional
-            )
-            # Positional args become kwargs for regular callables; class-level varargs keep positional values.
-            # This preserves positional values for Enum-style signatures and any class-level varargs constructors.
-            if use_positional_args:
-                call_args, call_kwargs = _convert_enum_value_args(target_func, args, kwargs)
-                return target_func(*call_args, **call_kwargs)
+            target_func = _prepare_target_call(source, _target, kwargs)
             return target_func(**kwargs)
 
-        # Set deprecation info for documentation
-        setattr(
-            wrapped_fn,
-            "__deprecated__",
-            {
-                "deprecated_in": deprecated_in,
-                "remove_in": remove_in,
-                "target": target,
-                "args_mapping": args_mapping,
-            },
+        # Static deprecation metadata — consumed by audit tools and docstring helpers.
+        dep_meta = DeprecationConfig(
+            deprecated_in=deprecated_in,
+            remove_in=remove_in,
+            name=source.__name__,
+            target=target,
+            args_mapping=args_mapping,
+            docstring_style=normalized_docstring_style,
         )
+        wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
+        wrapped_fn_typed.__deprecated__ = dep_meta
+        # Private mutable runtime state — call counter, warning counters.
+        wrapped_fn_typed._state = _WrapperState()
 
         if update_docstring:
             _update_docstring_with_deprecation(wrapped_fn)
 
-        if source_is_class and isinstance(source, type) and issubclass(source, Enum):
-            return _DeprecatedEnumWrapper(wrapped_fn, source)
         return wrapped_fn
 
     return packing

@@ -4,7 +4,7 @@ This module contains all package metadata including version, author information,
 and links to documentation and source code.
 """
 
-__version__ = "0.5.0rc0"
+__version__ = "0.8.0.dev"
 __docs__ = "Deprecation tooling"
 __author__ = "Jiri Borovec"
 __author_email__ = "j.borovec+github[at]gmail.com"
@@ -21,13 +21,13 @@ The pyDeprecate is a lightweight Python library for managing function and class 
 """
 
 __all__ = [
-    "__version__",
-    "__docs__",
     "__author__",
     "__author_email__",
-    "__homepage__",
-    "__source_code__",
-    "__license__",
     "__copyright__",
+    "__docs__",
+    "__homepage__",
+    "__license__",
     "__long_doc__",
+    "__source_code__",
+    "__version__",
 ]
