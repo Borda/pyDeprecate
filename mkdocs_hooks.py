@@ -21,15 +21,11 @@ def on_post_page(output: str, **_kwargs: object) -> str:
 
     if html_marker in output:
         # Fallback: no </head>, inject before </html> so the link is still discoverable.
-        logger.warning(
-            "mkdocs_hooks.on_post_page: '</head>' not found; "
-            "injecting llms.txt link before '</html>'."
-        )
+        logger.warning("mkdocs_hooks.on_post_page: '</head>' not found; injecting llms.txt link before '</html>'.")
         return output.replace(html_marker, f"{link_tag}{html_marker}", 1)
 
     # Last-resort fallback: append the link at the end of the document.
     logger.warning(
-        "mkdocs_hooks.on_post_page: neither '</head>' nor '</html>' found; "
-        "appending llms.txt link at end of document."
+        "mkdocs_hooks.on_post_page: neither '</head>' nor '</html>' found; appending llms.txt link at end of document."
     )
     return f"{output}\n{link_tag}"
