@@ -13,7 +13,7 @@ Perfect for library maintainers evolving APIs while maintaining backward compati
 - Automatic argument mapping and call forwarding to replacement functions
 - Supports functions, methods, class constructors, classes, Enums, dataclasses, and module-level constants
 - Optionally updates docstrings with deprecation notices (RST/Sphinx or MkDocs/Markdown format)
-- Audit tools for CI: validate wrapper config, enforce removal deadlines, detect deprecation chains
+- Audit tools for CI: validate wrapper config, enforce removal deadlines, detect deprecation chains, scan packages for all deprecated wrappers (`find_deprecation_wrappers`)
 - Testing helpers (`assert_no_warnings`) for deterministic tests
 - Python 3.9+ | Zero runtime dependencies
 
