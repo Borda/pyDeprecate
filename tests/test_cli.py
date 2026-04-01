@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.cli import _report_issues, _report_issues_plain, _report_issues_rich, cli, main
 
+_SRC_DIR = str(Path(__file__).resolve().parent.parent / "src")
+
 
 @patch("deprecate.cli.find_deprecation_wrappers")
 def test_cli_no_issues_package(mock_find: MagicMock, tmp_path: Path) -> None:
@@ -225,12 +227,18 @@ def test_cli_entry_argparse_fallback() -> None:
 # --- Real CLI invocation tests ---
 
 
+def _cli_env(**extra: str) -> dict[str, str]:
+    """Build env dict with PYTHONPATH pointing at src/ so subprocess can find deprecate."""
+    return {**os.environ, "PYTHONPATH": _SRC_DIR, **extra}
+
+
 def test_cli_invocation_no_args() -> None:
     """Test real CLI invocation via subprocess with no arguments."""
     result = subprocess.run(
         [sys.executable, "-m", "deprecate.cli"],
         capture_output=True,
         text=True,
+        env=_cli_env(),
     )
     assert "Scanning path" in result.stdout
 
@@ -241,6 +249,7 @@ def test_cli_invocation_help() -> None:
         [sys.executable, "-m", "deprecate.cli", "--help"],
         capture_output=True,
         text=True,
+        env=_cli_env(),
     )
     assert result.returncode == 0
     assert "path" in result.stdout.lower()
@@ -252,6 +261,6 @@ def test_cli_invocation_nonexistent_module() -> None:
         [sys.executable, "-m", "deprecate.cli", "nonexistent_module_xyz"],
         capture_output=True,
         text=True,
-        env={**os.environ, "COLUMNS": "200"},
+        env=_cli_env(COLUMNS="200"),
     )
     assert result.returncode != 0
