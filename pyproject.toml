@@ -34,6 +34,7 @@ lint.extend-select = [
 ]
 lint.per-file-ignores."tests/**" = [
   "S101", # flake8-bandit: Bandit — Use of assert detected (raising potential security/logic issues) (see: https://pypi.org/project/flake8-bandit)
+  "S603", # flake8-bandit: Bandit — subprocess call with fixed arguments in tests (see: https://pypi.org/project/flake8-bandit)
 ]
 lint.unfixable = [
   "F401", # F401: pyflakes — module imported but unused (cannot be auto-fixed by Ruff) (see: https://pypi.org/project/pyflakes)
