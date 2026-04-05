@@ -25,11 +25,12 @@ def _scan_package(path: str) -> list[DeprecationWrapperInfo]:
 
 def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     """Scan a plain directory of Python files."""
+    abs_path = os.path.abspath(path)
     results: list[DeprecationWrapperInfo] = []
-    for root, _, files in os.walk(path):
+    for root, _, files in os.walk(abs_path):
         for file in files:
             if file.endswith(".py") and not file.startswith("__"):
-                rel_path = os.path.relpath(os.path.join(root, file), os.getcwd())
+                rel_path = os.path.relpath(os.path.join(root, file), abs_path)
                 module_name = rel_path.replace(os.path.sep, ".")[:-3]  # remove .py
                 try:
                     results.extend(find_deprecation_wrappers(module_name, recursive=False))
