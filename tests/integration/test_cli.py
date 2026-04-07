@@ -1,4 +1,4 @@
-"""Tests for the CLI."""
+"""Integration tests for the CLI."""
 
 import os
 import subprocess
@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from deprecate._cli import _report_issues, _report_issues_plain, _report_issues_rich, cli, main
 from deprecate.audit import DeprecationWrapperInfo
 
-_SRC_DIR = str(Path(__file__).resolve().parent.parent / "src")
+_SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
 
 
 class TestMain:
@@ -108,6 +108,21 @@ class TestMain:
         mock_find.return_value = [info]
 
         assert main(path="some_module", skip_errors=True) == 0
+
+    def test_absolute_path_package_outside_cwd(self, tmp_path: Path) -> None:
+        """Test that main() correctly adds the package parent to sys.path for absolute paths."""
+        # Create a minimal package at an absolute path that is not cwd
+        pkg = tmp_path / "isolated_testpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Minimal test package with no deprecations."""\n')
+
+        original_path = list(sys.path)
+        result = main(path=str(pkg))
+
+        # sys.path must be fully restored after scanning
+        assert sys.path == original_path
+        # Empty package has no deprecated wrappers → scan succeeds with exit 0
+        assert result == 0
 
 
 class TestReportIssuesPlain:
