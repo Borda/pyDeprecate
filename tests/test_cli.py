@@ -210,9 +210,7 @@ class TestCliEntryPoint:
 def _cli_env(**extra: str) -> dict[str, str]:
     """Build env dict with PYTHONPATH pointing at src/ so subprocess can find deprecate."""
     existing_pythonpath = os.environ.get("PYTHONPATH")
-    pythonpath = (
-        f"{_SRC_DIR}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else _SRC_DIR
-    )
+    pythonpath = f"{_SRC_DIR}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else _SRC_DIR
     return {**os.environ, "PYTHONPATH": pythonpath, **extra}
 
 
