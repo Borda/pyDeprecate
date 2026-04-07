@@ -72,8 +72,7 @@ def _scan_path(path: str) -> list[DeprecationWrapperInfo]:
         return _scan_directory(path)
     if os.path.isfile(path):
         raise ValueError(
-            f"File paths are not supported: {path!r}. "
-            "Pass an importable module/package name or a directory instead."
+            f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
     return find_deprecation_wrappers(path)
 
