@@ -24,18 +24,39 @@ def _scan_package(path: str) -> list[DeprecationWrapperInfo]:
 
 
 def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
-    """Scan a plain directory of Python files."""
+    """Scan a plain directory of top-level Python files.
+
+    Nested Python files in subdirectories are skipped unless they are part of an
+    importable package layout. Plain directories do not generally support dotted
+    imports for nested modules, so this function only scans top-level modules and
+    warns when deeper files are present.
+    """
     abs_path = os.path.abspath(path)
     results: list[DeprecationWrapperInfo] = []
+
+    for entry in os.listdir(abs_path):
+        full_path = os.path.join(abs_path, entry)
+        if os.path.isfile(full_path) and entry.endswith(".py") and not entry.startswith("__"):
+            module_name = entry[:-3]  # remove .py
+            try:
+                results.extend(find_deprecation_wrappers(module_name, recursive=False))
+            except Exception as e:
+                print(f"[WARNING] Could not scan {module_name}: {e}")
+
+    nested_python_files_found = False
     for root, _, files in os.walk(abs_path):
-        for file in files:
-            if file.endswith(".py") and not file.startswith("__"):
-                rel_path = os.path.relpath(os.path.join(root, file), abs_path)
-                module_name = rel_path.replace(os.path.sep, ".")[:-3]  # remove .py
-                try:
-                    results.extend(find_deprecation_wrappers(module_name, recursive=False))
-                except Exception as e:
-                    print(f"[WARNING] Could not scan {module_name}: {e}")
+        if root == abs_path:
+            continue
+        if any(file.endswith(".py") and not file.startswith("__") for file in files):
+            nested_python_files_found = True
+            break
+
+    if nested_python_files_found:
+        print(
+            "[WARNING] Skipping nested Python files in plain directory scan. "
+            "Use an importable package layout with '__init__.py' files, or scan "
+            "an importable module/package path instead."
+        )
     return results
 
 
@@ -155,14 +176,28 @@ def main(
     """
     print(f"Scanning path: {path} ...")
 
-    # Add current directory to sys.path to allow importing local modules
-    sys.path.append(os.getcwd())
+    abs_path = os.path.abspath(path)
+    import_root: Optional[str] = None
+    original_sys_path = list(sys.path)
+
+    if os.path.isdir(abs_path):
+        if os.path.exists(os.path.join(abs_path, "__init__.py")):
+            import_root = os.path.dirname(abs_path)
+        else:
+            import_root = abs_path
+    elif os.path.isfile(abs_path):
+        import_root = os.path.dirname(abs_path)
+
+    if import_root is not None:
+        sys.path.insert(0, import_root)
 
     try:
         results = _scan_path(path)
     except Exception as e:
         print(f"Error scanning {path}: {e}")
         return 1
+    finally:
+        sys.path[:] = original_sys_path
 
     if not results:
         print("No deprecated callables found.")
