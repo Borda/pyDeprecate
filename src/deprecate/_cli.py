@@ -183,19 +183,17 @@ def main(
 def cli() -> None:
     """CLI entry point using jsonargparse."""
     try:
-        from jsonargparse import CLI
+        from jsonargparse import auto_cli, set_parsing_settings
 
-        CLI(main)
+        set_parsing_settings(parse_optionals_as_positionals=True)
+        result = auto_cli(main)
+        if isinstance(result, int):
+            sys.exit(result)
     except ImportError:
-        import argparse
-
-        parser = argparse.ArgumentParser(description="pyDeprecate CLI - Validate deprecated wrappers.")
-        parser.add_argument("path", nargs="?", default=".", help="Path to module or package to scan")
-        parser.add_argument("--ignore", nargs="+", default=[], help="Files or directories to ignore")
-        parser.add_argument("--skip-errors", action="store_true", help="Exit 0 even if issues found")
-        args = parser.parse_args()
-        sys.exit(main(path=args.path, ignore=args.ignore, skip_errors=args.skip_errors))
-
-
-if __name__ == "__main__":
-    cli()
+        print(
+            "The pyDeprecate CLI requires additional dependencies.\n"
+            "Install them with:\n\n"
+            "    pip install 'pyDeprecate[cli]'\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)

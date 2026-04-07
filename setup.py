@@ -83,7 +83,7 @@ setup(
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
     entry_points={
         "console_scripts": [
-            "pydeprecate=deprecate.cli:cli",
+            "pydeprecate=deprecate.__main__:cli",
         ],
     },
     classifiers=[
