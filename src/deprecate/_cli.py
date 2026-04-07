@@ -164,14 +164,12 @@ def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
 
 def main(
     path: str = ".",
-    ignore: Optional[list[str]] = None,
     skip_errors: bool = False,
 ) -> int:
     """Scan Python code for misconfigured ``@deprecated`` wrappers.
 
     Args:
         path: Path to the module or package to scan.
-        ignore: List of files or directories to ignore.
         skip_errors: Do not exit with error code even if issues are found.
     """
     print(f"Scanning path: {path} ...")
@@ -181,10 +179,7 @@ def main(
     original_sys_path = list(sys.path)
 
     if os.path.isdir(abs_path):
-        if os.path.exists(os.path.join(abs_path, "__init__.py")):
-            import_root = os.path.dirname(abs_path)
-        else:
-            import_root = abs_path
+        import_root = os.path.dirname(abs_path) if os.path.exists(os.path.join(abs_path, "__init__.py")) else abs_path
     elif os.path.isfile(abs_path):
         import_root = os.path.dirname(abs_path)
 
