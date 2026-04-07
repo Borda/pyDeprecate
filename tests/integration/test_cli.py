@@ -232,14 +232,21 @@ def _cli_env(**extra: str) -> dict[str, str]:
 class TestCliInvocation:
     """Tests for real CLI invocations via subprocess."""
 
-    def test_no_args(self) -> None:
+    def test_no_args(self, tmp_path: Path) -> None:
         """Test real CLI invocation via subprocess with no arguments."""
+        pkg_dir = tmp_path / "mypkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").touch()
+        (pkg_dir / "module_a.py").touch()
+
         result = subprocess.run(
             [sys.executable, "-m", "deprecate"],
             capture_output=True,
             text=True,
             env=_cli_env(),
+            cwd=tmp_path,
         )
+        assert result.returncode == 0
         assert "Scanning path" in result.stdout
 
     def test_help(self) -> None:

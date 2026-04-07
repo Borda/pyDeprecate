@@ -61,11 +61,20 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
 
 
 def _scan_path(path: str) -> list[DeprecationWrapperInfo]:
-    """Scan a path for deprecated wrappers."""
+    """Scan a directory or importable module/package name for deprecated wrappers.
+
+    File paths are not accepted because ``find_deprecation_wrappers()`` expects an
+    importable module or package name, not a filesystem path.
+    """
     if os.path.isdir(path):
         if os.path.exists(os.path.join(path, "__init__.py")):
             return _scan_package(path)
         return _scan_directory(path)
+    if os.path.isfile(path):
+        raise ValueError(
+            f"File paths are not supported: {path!r}. "
+            "Pass an importable module/package name or a directory instead."
+        )
     return find_deprecation_wrappers(path)
 
 
@@ -148,7 +157,7 @@ def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
                 print("    Reason: Empty mapping")
             if r.self_reference:
                 print("    Reason: Self reference")
-            if r.identity_mapping and not r.invalid_args:
+            if r.args_mapping and all(src == dst for src, dst in r.args_mapping.items()) and not r.invalid_args:
                 print("    Reason: All identity mappings")
         issues_found = True
 
