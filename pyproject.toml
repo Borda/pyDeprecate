@@ -11,7 +11,6 @@ line-length = 120
 exclude = [
   "docs",
 ]
-
 lint.select = [
   "D",  # see: https://pypi.org/project/pydocstyle
   "E",  # see: https://pypi.org/project/pycodestyle
@@ -44,14 +43,14 @@ lint.mccabe.max-complexity = 10
 lint.pydocstyle.convention = "google"
 
 [tool.codespell]
-#skip = '*.py'
+# skip = '*.py'
 quiet-level = 3
+
 # comma separated list of words; waiting for:
 #  https://github.com/codespell-project/codespell/issues/2839#issuecomment-1731601603
 # also adding links until they ignored by its: nature
 #  https://github.com/codespell-project/codespell/issues/2243#issuecomment-1732019960
-#ignore-words-list = ""
-
+# ignore-words-list = ""
 [tool.docformatter]
 recursive = true
 # this need to be shorter as some docstings are r"""...
@@ -66,34 +65,6 @@ ignore = [
   ".github/*",
 ]
 
-[tool.pytest.ini_options]
-norecursedirs = [
-  ".git",
-  ".github",
-  "dist",
-  "build",
-  "docs",
-  "demo-*",
-]
-addopts = [
-  "--strict-markers",
-  "--doctest-modules",
-  "--color=yes",
-  "--disable-pytest-warnings",
-]
-#filterwarnings = ["error::FutureWarning"]
-xfail_strict = true
-junit_duration_report = "call"
-
-[tool.coverage.report]
-exclude_lines = [
-  "pragma: no cover",
-  "pass",
-]
-[tool.coverage.run]
-parallel = true
-relative_files = true
-
 [tool.mypy]
 files = [
   "deprecate",
@@ -106,3 +77,30 @@ warn_unused_configs = "True"
 warn_unused_ignores = "True"
 allow_redefinition = "True"
 warn_no_return = "False"
+
+[tool.pytest]
+ini_options.norecursedirs = [
+  ".git",
+  ".github",
+  "dist",
+  "build",
+  "docs",
+  "demo-*",
+]
+ini_options.addopts = [
+  "--strict-markers",
+  "--doctest-modules",
+  "--color=yes",
+  "--disable-pytest-warnings",
+]
+# filterwarnings = ["error::FutureWarning"]
+ini_options.xfail_strict = true
+ini_options.junit_duration_report = "call"
+
+[tool.coverage]
+run.parallel = true
+run.relative_files = true
+report.exclude_lines = [
+  "pass",
+  "pragma: no cover",
+]
