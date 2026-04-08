@@ -49,6 +49,21 @@ class TestMain:
         assert mock_find.call_count == 2
 
     @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_scan_directory_nested_files_warning(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that a warning is printed when nested Python files are found in a plain directory."""
+        (tmp_path / "module_a.py").touch()
+        subdir = tmp_path / "subpkg"
+        subdir.mkdir()
+        (subdir / "nested.py").touch()
+
+        mock_find.return_value = []
+        assert main(path=str(tmp_path)) == 0
+        captured = capsys.readouterr()
+        assert "Skipping nested Python files" in captured.out
+
+    @patch("deprecate._cli.find_deprecation_wrappers")
     def test_scan_directory_with_scan_error(self, mock_find: MagicMock, tmp_path: Path) -> None:
         """Test CLI when scanning a plain directory and individual file fails."""
         (tmp_path / "bad_module.py").touch()
