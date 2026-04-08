@@ -34,7 +34,7 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     abs_path = os.path.abspath(path)
     results: list[DeprecationWrapperInfo] = []
 
-    for entry in os.listdir(abs_path):
+    for entry in sorted(os.listdir(abs_path)):
         full_path = os.path.join(abs_path, entry)
         if os.path.isfile(full_path) and entry.endswith(".py") and not entry.startswith("__"):
             module_name = entry[:-3]  # remove .py
