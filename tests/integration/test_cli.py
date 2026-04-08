@@ -112,6 +112,12 @@ class TestMain:
 
         assert main(path="some_module", skip_errors=True) == 0
 
+    def test_file_path_rejected(self, tmp_path: Path) -> None:
+        """Test that passing a file path raises ValueError with a helpful message."""
+        f = tmp_path / "module.py"
+        f.touch()
+        assert main(path=str(f)) == 1
+
     def test_absolute_path_package_outside_cwd(self, tmp_path: Path) -> None:
         """Test that main() correctly adds the package parent to sys.path for absolute paths."""
         # Create a minimal package at an absolute path that is not cwd
