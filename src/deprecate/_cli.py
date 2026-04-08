@@ -131,7 +131,7 @@ def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
 def _has_all_identity_mappings(info: DeprecationWrapperInfo) -> bool:
     """Return whether all configured mappings are identity mappings."""
     args_mapping = info.deprecated_info.args_mapping
-    return bool(args_mapping) and len(info.identity_mapping) == len(args_mapping) and not info.invalid_args
+    return bool(args_mapping) and len(info.identity_mapping) == len(args_mapping or {}) and not info.invalid_args
 
 
 def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
