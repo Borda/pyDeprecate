@@ -1,4 +1,13 @@
-"""CLI entry point for pyDeprecate validation."""
+"""CLI entry point for pyDeprecate validation.
+
+Provides two entry points for scanning Python code for misconfigured ``@deprecated`` wrappers:
+
+- ``pydeprecate <path>`` — console script installed via ``pip install 'pyDeprecate[cli]'``
+- ``python -m deprecate <path>`` — module invocation (no extra install needed)
+
+Both entry points require the optional ``cli`` extra (``jsonargparse`` and ``rich``) unless
+invoked via the ``python -m deprecate`` form which falls back to a plain-text reporter.
+"""
 
 import os
 import sys
