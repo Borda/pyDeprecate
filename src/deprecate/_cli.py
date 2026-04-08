@@ -194,8 +194,6 @@ def main(
 
     if os.path.isdir(abs_path):
         import_root = os.path.dirname(abs_path) if os.path.exists(os.path.join(abs_path, "__init__.py")) else abs_path
-    elif os.path.isfile(abs_path):
-        import_root = os.path.dirname(abs_path)
 
     if import_root is not None:
         sys.path.insert(0, import_root)
