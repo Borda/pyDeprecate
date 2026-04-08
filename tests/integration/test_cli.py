@@ -6,7 +6,10 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from deprecate._cli import _report_issues, _report_issues_plain, _report_issues_rich, cli, main
+from deprecate._types import DeprecationConfig
 from deprecate.audit import DeprecationWrapperInfo
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
@@ -153,6 +156,24 @@ class TestReportIssuesPlain:
         results = [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)]
         assert _report_issues_plain(results) is True
 
+    def test_no_effect_partial_identity_with_self_reference(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Partial identity mappings should not be reported as all-identity."""
+        results = [
+            DeprecationWrapperInfo(
+                module="mod",
+                function="fn",
+                deprecated_info=DeprecationConfig(args_mapping={"a": "a", "b": "c"}),
+                identity_mapping=["a"],
+                self_reference=True,
+                no_effect=True,
+            )
+        ]
+
+        assert _report_issues_plain(results) is True
+        captured = capsys.readouterr()
+        assert "Reason: Self reference" in captured.out
+        assert "Reason: All identity mappings" not in captured.out
+
     def test_no_issues(self) -> None:
         """Test plain text reporter with no issues."""
         results = [DeprecationWrapperInfo(module="mod", function="fn")]
@@ -186,6 +207,24 @@ class TestReportIssuesRich:
         """Test rich reporter with no-effect identity-only mapping."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)]
         assert _report_issues_rich(results) is True
+
+    def test_no_effect_partial_identity_with_self_reference(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Rich reporter should not list all-identity for partial identity mappings."""
+        results = [
+            DeprecationWrapperInfo(
+                module="mod",
+                function="fn",
+                deprecated_info=DeprecationConfig(args_mapping={"a": "a", "b": "c"}),
+                identity_mapping=["a"],
+                self_reference=True,
+                no_effect=True,
+            )
+        ]
+
+        assert _report_issues_rich(results) is True
+        captured = capsys.readouterr()
+        assert "Self reference" in captured.out
+        assert "All identity mappings" not in captured.out
 
     def test_no_issues(self) -> None:
         """Test rich reporter with no issues."""

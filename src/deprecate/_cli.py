@@ -119,13 +119,19 @@ def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
                 reasons.append("Empty mapping")
             if r.self_reference:
                 reasons.append("Self reference")
-            if r.identity_mapping and not r.invalid_args:
+            if _has_all_identity_mappings(r):
                 reasons.append("All identity mappings")
             table.add_row(r.module, r.function, ", ".join(reasons))
         console.print(table)
         issues_found = True
 
     return issues_found
+
+
+def _has_all_identity_mappings(info: DeprecationWrapperInfo) -> bool:
+    """Return whether all configured mappings are identity mappings."""
+    args_mapping = info.deprecated_info.args_mapping
+    return bool(args_mapping) and len(info.identity_mapping) == len(args_mapping) and not info.invalid_args
 
 
 def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
@@ -156,7 +162,7 @@ def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
                 print("    Reason: Empty mapping")
             if r.self_reference:
                 print("    Reason: Self reference")
-            if r.args_mapping and all(src == dst for src, dst in r.args_mapping.items()) and not r.invalid_args:
+            if _has_all_identity_mappings(r):
                 print("    Reason: All identity mappings")
         issues_found = True
 
