@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deprecate._cli import _report_issues, _report_issues_plain, _report_issues_rich, cli, main
+from deprecate._cli import _print, _report_issues, _report_issues_plain, _report_issues_rich, cli, main
 from deprecate._types import DeprecationConfig
 from deprecate.audit import DeprecationWrapperInfo
 
@@ -329,3 +329,50 @@ class TestCliInvocation:
             env=_cli_env(COLUMNS="200"),
         )
         assert result.returncode != 0
+
+
+class TestHasRichFalse:
+    """Tests for the plain-text fallback path when ``_HAS_RICH`` is ``False``."""
+
+    @pytest.mark.parametrize(
+        ("stderr", "stream"),
+        [(False, "out"), (True, "err")],
+    )
+    def test_print_routes_to_builtin_print(self, capsys: pytest.CaptureFixture[str], stderr: bool, stream: str) -> None:
+        """``_print()`` falls back to built-in ``print()`` when rich is unavailable."""
+        with patch("deprecate._cli._HAS_RICH", False):
+            _print("hello", stderr=stderr)
+        captured = capsys.readouterr()
+        assert "hello" in getattr(captured, stream)
+
+    def test_report_issues_dispatches_to_plain(self) -> None:
+        """``_report_issues()`` delegates to the plain reporter when rich is unavailable."""
+        results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
+        with patch("deprecate._cli._HAS_RICH", False):
+            assert _report_issues(results) is True
+
+    @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_main_output_streams(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """``main()`` prints scanning and no-results messages to stdout when rich is unavailable."""
+        mock_find.return_value = []
+        with patch("deprecate._cli._HAS_RICH", False):
+            assert main(path="some_module") == 0
+        captured = capsys.readouterr()
+        assert "Scanning path" in captured.out
+        assert "No deprecated callables found" in captured.out
+
+    @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_nested_files_warning_stderr(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Nested-files warning lands in stderr when rich is unavailable."""
+        (tmp_path / "module_a.py").touch()
+        subdir = tmp_path / "subpkg"
+        subdir.mkdir()
+        (subdir / "nested.py").touch()
+
+        mock_find.return_value = []
+        with patch("deprecate._cli._HAS_RICH", False):
+            assert main(path=str(tmp_path)) == 0
+        captured = capsys.readouterr()
+        assert "Skipping nested Python files" in captured.err
