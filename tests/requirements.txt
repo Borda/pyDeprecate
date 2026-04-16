@@ -4,9 +4,6 @@ scikit-learn >=0.17
 phmdoctest >1.0
 dataclasses  # needed for phmdoctest
 
-jsonargparse[signatures] >=4.47.0
-rich >=14.3.3
-
 check-manifest
 twine >=3.2
 mypy >=1.0

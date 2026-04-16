@@ -15,7 +15,6 @@ from typing import Optional
 
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 
-_HAS_RICH = False
 try:
     from rich import box as rich_box
     from rich.console import Console as RichConsole
@@ -23,7 +22,7 @@ try:
 
     _HAS_RICH = True
 except ImportError:  # pragma: no cover
-    pass
+    _HAS_RICH = False
 
 
 def _scan_package(path: str) -> list[DeprecationWrapperInfo]:
