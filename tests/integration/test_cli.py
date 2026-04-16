@@ -61,7 +61,7 @@ class TestMain:
         mock_find.return_value = []
         assert main(path=str(tmp_path)) == 0
         captured = capsys.readouterr()
-        assert "Skipping nested Python files" in captured.out
+        assert "Skipping nested Python files" in captured.err
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_scan_directory_with_scan_error(self, mock_find: MagicMock, tmp_path: Path) -> None:

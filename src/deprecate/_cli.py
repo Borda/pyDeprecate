@@ -24,6 +24,26 @@ try:
 except ImportError:  # pragma: no cover
     _HAS_RICH = False
 
+if _HAS_RICH:
+    _console: RichConsole = RichConsole()
+    _err_console: RichConsole = RichConsole(stderr=True)
+
+
+def _print(msg: str, *, stderr: bool = False) -> None:
+    """Print a message, using Rich console when available.
+
+    Routes output through :class:`~rich.console.Console` when the ``rich``
+    package is installed, falling back to built-in :func:`print` otherwise.
+
+    Args:
+        msg: The message to print.
+        stderr: If ``True``, send the message to *stderr* instead of *stdout*.
+    """
+    if _HAS_RICH:
+        (_err_console if stderr else _console).print(msg)
+    else:
+        print(msg, file=sys.stderr if stderr else sys.stdout)
+
 
 def _scan_package(path: str) -> list[DeprecationWrapperInfo]:
     """Scan a Python package (directory with ``__init__.py``)."""
@@ -49,7 +69,7 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
             try:
                 results.extend(find_deprecation_wrappers(module_name, recursive=False))
             except Exception as e:
-                print(f"[WARNING] Could not scan {module_name}: {e}")
+                _print(f"Could not scan {module_name}: {e}", stderr=True)
 
     nested_python_files_found = False
     for root, _, files in os.walk(abs_path):
@@ -60,10 +80,11 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
             break
 
     if nested_python_files_found:
-        print(
-            "[WARNING] Skipping nested Python files in plain directory scan. "
+        _print(
+            "Skipping nested Python files in plain directory scan. "
             "Use an importable package layout with '__init__.py' files, or scan "
-            "an importable module/package path instead."
+            "an importable module/package path instead.",
+            stderr=True,
         )
     return results
 
@@ -87,7 +108,6 @@ def _scan_path(path: str) -> list[DeprecationWrapperInfo]:
 
 def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
     """Print categorised diagnostics using Rich and return whether any issues were found."""
-    console = RichConsole()
     invalid_args = [r for r in results if r.invalid_args]
     identity_mappings = [r for r in results if r.identity_mapping]
     no_effect = [r for r in results if r.no_effect]
@@ -101,7 +121,7 @@ def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
         table.add_column("Invalid Args", style="red")
         for r in invalid_args:
             table.add_row(r.module, r.function, ", ".join(r.invalid_args))
-        console.print(table)
+        _console.print(table)
         issues_found = True
 
     if identity_mappings:
@@ -113,7 +133,7 @@ def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
         table.add_column("Identity Args", style="yellow")
         for r in identity_mappings:
             table.add_row(r.module, r.function, ", ".join(r.identity_mapping))
-        console.print(table)
+        _console.print(table)
         issues_found = True
 
     if no_effect:
@@ -130,7 +150,7 @@ def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
             if _has_all_identity_mappings(r):
                 reasons.append("All identity mappings")
             table.add_row(r.module, r.function, ", ".join(reasons))
-        console.print(table)
+        _console.print(table)
         issues_found = True
 
     return issues_found
@@ -194,7 +214,7 @@ def main(
         path: Path to the module or package to scan.
         skip_errors: Do not exit with error code even if issues are found.
     """
-    print(f"Scanning path: {path} ...")
+    _print(f"Scanning path: {path} ...")
 
     abs_path = os.path.abspath(path)
     import_root: Optional[str] = None
@@ -209,23 +229,23 @@ def main(
     try:
         results = _scan_path(path)
     except Exception as e:
-        print(f"Error scanning {path}: {e}")
+        _print(f"Error scanning {path}: {e}", stderr=True)
         return 1
     finally:
         sys.path[:] = original_sys_path
 
     if not results:
-        print("No deprecated callables found.")
+        _print("No deprecated callables found.")
         return 0
 
     has_invalid = any(r.invalid_args for r in results)
 
     if _report_issues(results):
-        print("\nIssues were found in deprecated wrappers.")
+        _print("\nIssues were found in deprecated wrappers.")
         if not skip_errors and has_invalid:
             return 1
     else:
-        print("\nAll deprecated wrappers look correct!")
+        _print("\nAll deprecated wrappers look correct!")
 
     return 0
 
