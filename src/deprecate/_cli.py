@@ -62,14 +62,21 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     abs_path = os.path.abspath(path)
     results: list[DeprecationWrapperInfo] = []
 
-    for entry in sorted(os.listdir(abs_path)):
-        full_path = os.path.join(abs_path, entry)
-        if os.path.isfile(full_path) and entry.endswith(".py") and not entry.startswith("__"):
-            module_name = entry[:-3]  # remove .py
-            try:
-                results.extend(find_deprecation_wrappers(module_name, recursive=False))
-            except Exception as e:
-                _print(f"Could not scan {module_name}: {e}", stderr=True)
+    original_argv = sys.argv[:]
+    sys.argv = sys.argv[:1]  # hide CLI args from any module-level code (e.g. setup.py)
+    try:
+        for entry in sorted(os.listdir(abs_path)):
+            full_path = os.path.join(abs_path, entry)
+            if os.path.isfile(full_path) and entry.endswith(".py") and not entry.startswith("__"):
+                module_name = entry[:-3]  # remove .py
+                try:
+                    results.extend(find_deprecation_wrappers(module_name, recursive=False))
+                except SystemExit:
+                    _print(f"Skipping {module_name}: module-level code exited (not a library module)", stderr=True)
+                except Exception as e:
+                    _print(f"Could not scan {module_name}: {e}", stderr=True)
+    finally:
+        sys.argv = original_argv
 
     nested_python_files_found = False
     for root, _, files in os.walk(abs_path):
