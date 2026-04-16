@@ -1,5 +1,6 @@
 """Integration tests for the CLI."""
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from deprecate._types import DeprecationConfig
 from deprecate.audit import DeprecationWrapperInfo
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
+_JSONARGPARSE_AVAILABLE = importlib.util.find_spec("jsonargparse") is not None
 
 
 class TestMain:
@@ -264,9 +266,11 @@ class TestCliEntryPoint:
 
     def test_with_jsonargparse(self) -> None:
         """Test cli() entry point delegates to auto_cli when jsonargparse is available."""
-        with patch("jsonargparse.auto_cli", return_value=None) as mock_auto_cli:
+        mock_jsonargparse = MagicMock()
+        mock_jsonargparse.auto_cli.return_value = None
+        with patch.dict("sys.modules", {"jsonargparse": mock_jsonargparse}):
             cli()
-            mock_auto_cli.assert_called_once()
+            mock_jsonargparse.auto_cli.assert_called_once()
 
     def test_missing_extras_guidance(self) -> None:
         """Test cli() prints install guidance and exits when jsonargparse is not available."""
@@ -289,6 +293,7 @@ def _cli_env(**extra: str) -> dict[str, str]:
     return {**os.environ, "PYTHONPATH": pythonpath, **extra}
 
 
+@pytest.mark.skipif(not _JSONARGPARSE_AVAILABLE, reason="requires jsonargparse (pip install 'pyDeprecate[cli]')")
 class TestCliInvocation:
     """Tests for real CLI invocations via subprocess."""
 
