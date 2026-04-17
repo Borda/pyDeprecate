@@ -78,8 +78,14 @@ setup(
     install_requires=[],
     extras_require={
         "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
+        "cli": ["jsonargparse[signatures]>=4.47.0", "rich>=14.3.3"],
     },
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
+    entry_points={
+        "console_scripts": [
+            "pydeprecate=deprecate._cli:cli",
+        ],
+    },
     classifiers=[
         "Environment :: Console",
         "Natural Language :: English",
