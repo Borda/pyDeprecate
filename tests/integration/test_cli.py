@@ -272,18 +272,17 @@ class TestCliEntryPoint:
             cli()
             mock_jsonargparse.auto_cli.assert_called_once()
 
-    def test_missing_extras_guidance(self) -> None:
+    def test_missing_extras_guidance(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test cli() prints install guidance and exits when jsonargparse is not available."""
         with (
             patch.dict("sys.modules", {"jsonargparse": None}),
             patch("sys.exit") as mock_exit,
-            patch("sys.stderr") as mock_stderr,
         ):
             cli()
-            output = "".join(call.args[0] for call in mock_stderr.write.call_args_list)
-            assert "pip install" in output
-            assert "pyDeprecate[cli]" in output
-            mock_exit.assert_called_once_with(1)
+        captured = capsys.readouterr()
+        assert "pip install" in captured.err
+        assert "pyDeprecate[cli]" in captured.err
+        mock_exit.assert_called_once_with(1)
 
 
 def _cli_env(**extra: str) -> dict[str, str]:

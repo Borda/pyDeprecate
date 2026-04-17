@@ -40,7 +40,7 @@ def _print(msg: str, *, stderr: bool = False) -> None:
         stderr: If ``True``, send the message to *stderr* instead of *stdout*.
     """
     if _HAS_RICH:
-        (_err_console if stderr else _console).print(msg)
+        (_err_console if stderr else _console).print(msg, markup=False, highlight=False)
     else:
         print(msg, file=sys.stderr if stderr else sys.stdout)
 
@@ -67,14 +67,15 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     try:
         for entry in sorted(os.listdir(abs_path)):
             full_path = os.path.join(abs_path, entry)
-            if os.path.isfile(full_path) and entry.endswith(".py") and not entry.startswith("__"):
-                module_name = entry[:-3]  # remove .py
-                try:
-                    results.extend(find_deprecation_wrappers(module_name, recursive=False))
-                except SystemExit:
-                    _print(f"Skipping {module_name}: module-level code exited (not a library module)", stderr=True)
-                except Exception as e:
-                    _print(f"Could not scan {module_name}: {e}", stderr=True)
+            if not (os.path.isfile(full_path) and entry.endswith(".py") and not entry.startswith("__")):
+                continue
+            module_name = entry[:-3]  # remove .py
+            try:
+                results.extend(find_deprecation_wrappers(module_name, recursive=False))
+            except SystemExit:
+                _print(f"Skipping {module_name}: module-level code exited (not a library module)", stderr=True)
+            except Exception as e:
+                _print(f"Could not scan {module_name}: {e}", stderr=True)
     finally:
         sys.argv = original_argv
 
@@ -88,9 +89,9 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
 
     if nested_python_files_found:
         _print(
-            "Skipping nested Python files in plain directory scan. "
-            "Use an importable package layout with '__init__.py' files, or scan "
-            "an importable module/package path instead.",
+            "Skipping nested Python files in plain directory scan."
+            " Use an importable package layout with '__init__.py' files, or scan"
+            " an importable module/package path instead.",
             stderr=True,
         )
     return results
@@ -166,7 +167,8 @@ def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
 def _has_all_identity_mappings(info: DeprecationWrapperInfo) -> bool:
     """Return whether all configured mappings are identity mappings."""
     args_mapping = info.deprecated_info.args_mapping
-    return bool(args_mapping) and len(info.identity_mapping) == len(args_mapping or {}) and not info.invalid_args
+    equal_mapping = len(info.identity_mapping) == len(args_mapping or {})
+    return bool(args_mapping) and equal_mapping and not info.invalid_args
 
 
 def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
@@ -178,27 +180,27 @@ def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
     issues_found = False
 
     if invalid_args:
-        print("\n[ERROR] Found functions with invalid argument mappings:")
+        _print("\n[ERROR] Found functions with invalid argument mappings:")
         for r in invalid_args:
-            print(f"  - {r.module}.{r.function}: {r.invalid_args}")
+            _print(f"\t- {r.module}.{r.function}: {r.invalid_args}")
         issues_found = True
 
     if identity_mappings:
-        print("\n[WARNING] Found functions with identity argument mappings (arg -> arg):")
+        _print("\n[WARNING] Found functions with identity argument mappings (arg -> arg):")
         for r in identity_mappings:
-            print(f"  - {r.module}.{r.function}: {r.identity_mapping}")
+            _print(f"\t- {r.module}.{r.function}: {r.identity_mapping}")
         issues_found = True
 
     if no_effect:
-        print("\n[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):")
+        _print("\n[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):")
         for r in no_effect:
-            print(f"  - {r.module}.{r.function}")
+            _print(f"\t- {r.module}.{r.function}")
             if r.empty_mapping:
-                print("    Reason: Empty mapping")
+                _print("\t\tReason: Empty mapping")
             if r.self_reference:
-                print("    Reason: Self reference")
+                _print("\t\tReason: Self reference")
             if _has_all_identity_mappings(r):
-                print("    Reason: All identity mappings")
+                _print("\t\tReason: All identity mappings")
         issues_found = True
 
     return issues_found
@@ -267,10 +269,10 @@ def cli() -> None:
         if isinstance(result, int):
             sys.exit(result)
     except ImportError:
-        print(
+        _print(
             "The pyDeprecate CLI requires additional dependencies.\n"
             "Install them with:\n\n"
             "    pip install 'pyDeprecate[cli]'\n",
-            file=sys.stderr,
+            stderr=True,
         )
         sys.exit(1)
