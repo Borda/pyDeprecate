@@ -9,8 +9,8 @@ Both entry points require the optional ``cli`` extra. This module supports both 
 plain-text reporting, but invoking the CLI still requires the optional CLI dependencies.
 """
 
-import os
 import sys
+from pathlib import Path
 from typing import Optional
 
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
@@ -47,7 +47,7 @@ def _print(msg: str, *, stderr: bool = False) -> None:
 
 def _scan_package(path: str) -> list[DeprecationWrapperInfo]:
     """Scan a Python package (directory with ``__init__.py``)."""
-    module_name = os.path.basename(os.path.abspath(path))
+    module_name: str = Path(path).resolve().name
     return find_deprecation_wrappers(module_name)
 
 
@@ -59,17 +59,16 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     imports for nested modules, so this function only scans top-level modules and
     warns when deeper files are present.
     """
-    abs_path = os.path.abspath(path)
+    abs_path: Path = Path(path).resolve()
     results: list[DeprecationWrapperInfo] = []
 
     original_argv = sys.argv[:]
     sys.argv = sys.argv[:1]  # hide CLI args from any module-level code (e.g. setup.py)
     try:
-        for entry in sorted(os.listdir(abs_path)):
-            full_path = os.path.join(abs_path, entry)
-            if not (os.path.isfile(full_path) and entry.endswith(".py") and not entry.startswith("__")):
+        for entry in sorted(abs_path.iterdir(), key=lambda p: p.name):
+            if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
                 continue
-            module_name = entry[:-3]  # remove .py
+            module_name: str = entry.stem
             try:
                 results.extend(find_deprecation_wrappers(module_name, recursive=False))
             except SystemExit:
@@ -79,13 +78,9 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     finally:
         sys.argv = original_argv
 
-    nested_python_files_found = False
-    for root, _, files in os.walk(abs_path):
-        if root == abs_path:
-            continue
-        if any(file.endswith(".py") and not file.startswith("__") for file in files):
-            nested_python_files_found = True
-            break
+    nested_python_files_found: bool = any(
+        not p.name.startswith("__") for p in abs_path.rglob("*.py") if p.parent != abs_path
+    )
 
     if nested_python_files_found:
         _print(
@@ -103,11 +98,12 @@ def _scan_path(path: str) -> list[DeprecationWrapperInfo]:
     File paths are not accepted because ``find_deprecation_wrappers()`` expects an
     importable module or package name, not a filesystem path.
     """
-    if os.path.isdir(path):
-        if os.path.exists(os.path.join(path, "__init__.py")):
+    p: Path = Path(path)
+    if p.is_dir():
+        if (p / "__init__.py").exists():
             return _scan_package(path)
         return _scan_directory(path)
-    if os.path.isfile(path):
+    if p.is_file():
         raise ValueError(
             f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
@@ -225,12 +221,12 @@ def main(
     """
     _print(f"Scanning path: {path} ...")
 
-    abs_path = os.path.abspath(path)
+    abs_path: Path = Path(path).resolve()
     import_root: Optional[str] = None
     original_sys_path = list(sys.path)
 
-    if os.path.isdir(abs_path):
-        import_root = os.path.dirname(abs_path) if os.path.exists(os.path.join(abs_path, "__init__.py")) else abs_path
+    if abs_path.is_dir():
+        import_root = str(abs_path.parent) if (abs_path / "__init__.py").exists() else str(abs_path)
 
     if import_root is not None:
         sys.path.insert(0, import_root)
