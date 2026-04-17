@@ -110,56 +110,6 @@ def _scan_path(path: str) -> list[DeprecationWrapperInfo]:
     return find_deprecation_wrappers(path)
 
 
-def _report_issues_rich(results: list[DeprecationWrapperInfo]) -> bool:
-    """Print categorised diagnostics using Rich and return whether any issues were found."""
-    invalid_args = [r for r in results if r.invalid_args]
-    identity_mappings = [r for r in results if r.identity_mapping]
-    no_effect = [r for r in results if r.no_effect]
-
-    issues_found = False
-
-    if invalid_args:
-        table = RichTable(title="Invalid Argument Mappings", box=rich_box.ROUNDED, title_style="bold red")
-        table.add_column("Module", style="cyan")
-        table.add_column("Function", style="magenta")
-        table.add_column("Invalid Args", style="red")
-        for r in invalid_args:
-            table.add_row(r.module, r.function, ", ".join(r.invalid_args))
-        _console.print(table)
-        issues_found = True
-
-    if identity_mappings:
-        table = RichTable(
-            title="Identity Argument Mappings (arg -> arg)", box=rich_box.ROUNDED, title_style="bold yellow"
-        )
-        table.add_column("Module", style="cyan")
-        table.add_column("Function", style="magenta")
-        table.add_column("Identity Args", style="yellow")
-        for r in identity_mappings:
-            table.add_row(r.module, r.function, ", ".join(r.identity_mapping))
-        _console.print(table)
-        issues_found = True
-
-    if no_effect:
-        table = RichTable(title="No-Effect Wrappers (zero impact)", box=rich_box.ROUNDED, title_style="bold yellow")
-        table.add_column("Module", style="cyan")
-        table.add_column("Function", style="magenta")
-        table.add_column("Reason", style="yellow")
-        for r in no_effect:
-            reasons = []
-            if r.empty_mapping:
-                reasons.append("Empty mapping")
-            if r.self_reference:
-                reasons.append("Self reference")
-            if _has_all_identity_mappings(r):
-                reasons.append("All identity mappings")
-            table.add_row(r.module, r.function, ", ".join(reasons))
-        _console.print(table)
-        issues_found = True
-
-    return issues_found
-
-
 def _has_all_identity_mappings(info: DeprecationWrapperInfo) -> bool:
     """Return whether all configured mappings are identity mappings."""
     args_mapping = info.deprecated_info.args_mapping
@@ -167,46 +117,98 @@ def _has_all_identity_mappings(info: DeprecationWrapperInfo) -> bool:
     return bool(args_mapping) and equal_mapping and not info.invalid_args
 
 
-def _report_issues_plain(results: list[DeprecationWrapperInfo]) -> bool:
-    """Print categorised diagnostics in plain text and return whether any issues were found."""
-    invalid_args = [r for r in results if r.invalid_args]
-    identity_mappings = [r for r in results if r.identity_mapping]
-    no_effect = [r for r in results if r.no_effect]
+def _report_invalid_args_rich(invalid_args: list[DeprecationWrapperInfo]) -> None:
+    """Print a Rich table for wrappers with invalid argument mappings."""
+    table = RichTable(title="Invalid Argument Mappings", box=rich_box.ROUNDED, title_style="bold red")
+    table.add_column("Module", style="cyan")
+    table.add_column("Function", style="magenta")
+    table.add_column("Invalid Args", style="red")
+    for r in invalid_args:
+        table.add_row(r.module, r.function, ", ".join(r.invalid_args))
+    _console.print(table)
 
-    issues_found = False
 
-    if invalid_args:
-        _print("\n[ERROR] Found functions with invalid argument mappings:")
-        for r in invalid_args:
-            _print(f"\t- {r.module}.{r.function}: {r.invalid_args}")
-        issues_found = True
+def _report_identity_mappings_rich(identity_mappings: list[DeprecationWrapperInfo]) -> None:
+    """Print a Rich table for wrappers with identity argument mappings."""
+    table = RichTable(title="Identity Argument Mappings (arg -> arg)", box=rich_box.ROUNDED, title_style="bold yellow")
+    table.add_column("Module", style="cyan")
+    table.add_column("Function", style="magenta")
+    table.add_column("Identity Args", style="yellow")
+    for r in identity_mappings:
+        table.add_row(r.module, r.function, ", ".join(r.identity_mapping))
+    _console.print(table)
 
-    if identity_mappings:
-        _print("\n[WARNING] Found functions with identity argument mappings (arg -> arg):")
-        for r in identity_mappings:
-            _print(f"\t- {r.module}.{r.function}: {r.identity_mapping}")
-        issues_found = True
 
-    if no_effect:
-        _print("\n[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):")
-        for r in no_effect:
-            _print(f"\t- {r.module}.{r.function}")
-            if r.empty_mapping:
-                _print("\t\tReason: Empty mapping")
-            if r.self_reference:
-                _print("\t\tReason: Self reference")
-            if _has_all_identity_mappings(r):
-                _print("\t\tReason: All identity mappings")
-        issues_found = True
+def _report_no_effect_rich(no_effect: list[DeprecationWrapperInfo]) -> None:
+    """Print a Rich table for deprecated wrappers with no effect."""
+    table = RichTable(title="No-Effect Wrappers (zero impact)", box=rich_box.ROUNDED, title_style="bold yellow")
+    table.add_column("Module", style="cyan")
+    table.add_column("Function", style="magenta")
+    table.add_column("Reason", style="yellow")
+    for r in no_effect:
+        reasons = []
+        if r.empty_mapping:
+            reasons.append("Empty mapping")
+        if r.self_reference:
+            reasons.append("Self reference")
+        if _has_all_identity_mappings(r):
+            reasons.append("All identity mappings")
+        table.add_row(r.module, r.function, ", ".join(reasons))
+    _console.print(table)
 
-    return issues_found
+
+def _report_invalid_args_plain(invalid_args: list[DeprecationWrapperInfo]) -> None:
+    """Print plain-text diagnostics for wrappers with invalid argument mappings."""
+    _print("\n[ERROR] Found functions with invalid argument mappings:")
+    for r in invalid_args:
+        _print(f"\t- {r.module}.{r.function}: {r.invalid_args}")
+
+
+def _report_identity_mappings_plain(identity_mappings: list[DeprecationWrapperInfo]) -> None:
+    """Print plain-text diagnostics for wrappers with identity argument mappings."""
+    _print("\n[WARNING] Found functions with identity argument mappings (arg -> arg):")
+    for r in identity_mappings:
+        _print(f"\t- {r.module}.{r.function}: {r.identity_mapping}")
+
+
+def _report_no_effect_plain(no_effect: list[DeprecationWrapperInfo]) -> None:
+    """Print plain-text diagnostics for deprecated wrappers with no effect."""
+    _print("\n[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):")
+    for r in no_effect:
+        _print(f"\t- {r.module}.{r.function}")
+        if r.empty_mapping:
+            _print("\t\tReason: Empty mapping")
+        if r.self_reference:
+            _print("\t\tReason: Self reference")
+        if _has_all_identity_mappings(r):
+            _print("\t\tReason: All identity mappings")
 
 
 def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
     """Print categorised diagnostics and return whether any issues were found."""
+    invalid_args = [r for r in results if r.invalid_args]
+    identity_mappings = [r for r in results if r.identity_mapping]
+    no_effect = [r for r in results if r.no_effect]
+
+    if not (invalid_args or identity_mappings or no_effect):
+        return False
+
     if _HAS_RICH:
-        return _report_issues_rich(results)
-    return _report_issues_plain(results)
+        if invalid_args:
+            _report_invalid_args_rich(invalid_args)
+        if identity_mappings:
+            _report_identity_mappings_rich(identity_mappings)
+        if no_effect:
+            _report_no_effect_rich(no_effect)
+    else:
+        if invalid_args:
+            _report_invalid_args_plain(invalid_args)
+        if identity_mappings:
+            _report_identity_mappings_plain(identity_mappings)
+        if no_effect:
+            _report_no_effect_plain(no_effect)
+
+    return True
 
 
 def main(
