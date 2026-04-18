@@ -27,7 +27,7 @@ jobs:
 
       - name: 📦 Install requirements
         run: |
-          pip install -r tests/requirements.txt
+          pip install ".[cli]" -r tests/requirements.txt
           pip list
         shell: bash
 
