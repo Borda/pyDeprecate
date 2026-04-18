@@ -2,33 +2,50 @@
 
 import inspect
 import warnings
+from collections.abc import Callable
+
+import pytest
 
 from deprecate.utils import _get_signature, _get_signature_cached, _warns_repr, get_func_arguments_types_defaults, void
 
 
-class TestGetSignature:
-    """Tests for _get_signature — the LRU-cached signature fetcher."""
+class TestSignatureFunctions:
+    """Tests for _get_signature (with unhashable fallback) and _get_signature_cached (raw LRU)."""
 
-    def test_returns_signature_for_hashable_func(self) -> None:
-        """Returns a valid Signature for a regular annotated function."""
+    @pytest.mark.parametrize(
+        "sig_func",
+        [
+            pytest.param(_get_signature, id="get-signature"),
+            pytest.param(_get_signature_cached, id="get-signature-cached"),
+        ],
+    )
+    def test_returns_valid_signature(self, sig_func: Callable) -> None:
+        """Returns a valid Signature with correct parameters for a standard annotated function."""
 
         def my_func(x: int, y: str = "hi") -> None:
             pass
 
-        sig = _get_signature(my_func)
+        sig = sig_func(my_func)
         assert isinstance(sig, inspect.Signature)
         assert list(sig.parameters) == ["x", "y"]
 
-    def test_caches_result_for_same_func(self) -> None:
+    @pytest.mark.parametrize(
+        "sig_func",
+        [
+            pytest.param(_get_signature, id="get-signature"),
+            pytest.param(_get_signature_cached, id="get-signature-cached"),
+        ],
+    )
+    def test_repeated_calls_return_same_object(self, sig_func: Callable) -> None:
         """Repeated calls return the identical Signature object, confirming LRU cache is active."""
 
         def my_func(x: int) -> None:
             pass
 
-        assert _get_signature(my_func) is _get_signature(my_func)
+        assert sig_func(my_func) is sig_func(my_func)
 
     def test_unhashable_callable_falls_back_to_uncached(self) -> None:
-        """Unhashable callables cannot enter the LRU cache; falls back to direct inspection without crashing."""
+        """Unhashable callables cannot enter the LRU cache; _get_signature falls back to direct inspection."""
 
         class UnhashableCallable:
             __hash__ = None  # type: ignore[assignment]
@@ -40,28 +57,6 @@ class TestGetSignature:
         sig = _get_signature(obj)
         assert isinstance(sig, inspect.Signature)
         assert "x" in sig.parameters
-
-
-class TestGetSignatureCached:
-    """Tests for _get_signature_cached — the raw LRU-cached layer."""
-
-    def test_returns_signature(self) -> None:
-        """Returns a valid Signature for a standard function."""
-
-        def my_func(a: int, b: str = "hello") -> None:
-            pass
-
-        sig = _get_signature_cached(my_func)
-        assert isinstance(sig, inspect.Signature)
-        assert list(sig.parameters) == ["a", "b"]
-
-    def test_repeated_calls_return_same_object(self) -> None:
-        """Identity check confirms the LRU cache serves the same Signature object on subsequent calls."""
-
-        def my_func(x: int) -> None:
-            pass
-
-        assert _get_signature_cached(my_func) is _get_signature_cached(my_func)
 
 
 class TestWarnsRepr:

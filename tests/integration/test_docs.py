@@ -1,5 +1,7 @@
 """Tests for deprecation documentation strings."""
 
+import pytest
+
 from tests.collection_docstrings import (
     OldClass,
     OldClassPlain,
