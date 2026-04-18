@@ -144,45 +144,45 @@ class TestMain:
         assert result == 0
 
 
-_REPORT_ISSUES_CASES = [
-    pytest.param(
-        [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])],
-        True,
-        id="invalid-args",
-    ),
-    pytest.param(
-        [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"])],
-        True,
-        id="identity-mapping",
-    ),
-    pytest.param(
-        [DeprecationWrapperInfo(module="mod", function="fn", empty_mapping=True, no_effect=True)],
-        True,
-        id="no-effect-empty-mapping",
-    ),
-    pytest.param(
-        [DeprecationWrapperInfo(module="mod", function="fn", self_reference=True, no_effect=True)],
-        True,
-        id="no-effect-self-reference",
-    ),
-    pytest.param(
-        [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)],
-        True,
-        id="no-effect-identity-only",
-    ),
-    pytest.param(
-        [DeprecationWrapperInfo(module="mod", function="fn")],
-        False,
-        id="no-issues",
-    ),
-]
-
-
 class TestReportIssues:
     """Tests for _report_issues covering both the rich and plain-text output paths."""
 
     @pytest.mark.parametrize("has_rich", [True, False], ids=["rich", "plain"])
-    @pytest.mark.parametrize(("results", "expected"), _REPORT_ISSUES_CASES)
+    @pytest.mark.parametrize(
+        ("results", "expected"),
+        [
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])],
+                True,
+                id="invalid-args",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"])],
+                True,
+                id="identity-mapping",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", empty_mapping=True, no_effect=True)],
+                True,
+                id="no-effect-empty-mapping",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", self_reference=True, no_effect=True)],
+                True,
+                id="no-effect-self-reference",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)],
+                True,
+                id="no-effect-identity-only",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn")],
+                False,
+                id="no-issues",
+            ),
+        ],
+    )
     def test_flag(self, results: list, expected: bool, has_rich: bool) -> None:
         """_report_issues returns the correct has-issues flag for both rich and plain paths."""
         with patch("deprecate._cli._HAS_RICH", has_rich):
