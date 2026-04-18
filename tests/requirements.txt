@@ -4,6 +4,6 @@ scikit-learn >=0.17
 phmdoctest >1.0
 dataclasses  # needed for phmdoctest
 
-check-manifest
-twine >=3.2
-mypy >=1.0
+# Docs extensions
+griffe  # for MKDocs
+sphinx

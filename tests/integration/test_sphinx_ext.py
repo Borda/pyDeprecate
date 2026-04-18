@@ -5,11 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytest.importorskip("sphinx", reason="sphinx not installed")
-
 from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE
 
-pytestmark = pytest.mark.skipif(
+_skipif_sphinx_missing = pytest.mark.skipif(
     not (_SPHINX_AVAILABLE and _PROXY_AVAILABLE),
     reason="sphinx or _DeprecatedProxy not available",
 )
@@ -26,6 +24,7 @@ def _make_proxy() -> tuple[object, type]:
     return old, _New
 
 
+@_skipif_sphinx_missing
 class TestCanDocumentMember:
     """Tests for _DeprecatedProxyClassDocumenter.can_document_member."""
 
@@ -50,6 +49,7 @@ class TestCanDocumentMember:
         assert result is False
 
 
+@_skipif_sphinx_missing
 class TestImportObject:
     """Tests for _DeprecatedProxyClassDocumenter.import_object."""
 
@@ -119,12 +119,13 @@ class TestImportObject:
         assert not hasattr(doc, "_proxy_doc")
 
 
+@_skipif_sphinx_missing
 class TestGetDoc:
     """Tests for _DeprecatedProxyClassDocumenter.get_doc."""
 
     def test_returns_prepared_proxy_doc_when_set(self) -> None:
         """Returns prepare_docstring() of _proxy_doc when available."""
-        from sphinx.ext.autodoc import prepare_docstring
+        from sphinx.util.docstrings import prepare_docstring
 
         from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
 

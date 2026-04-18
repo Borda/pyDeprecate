@@ -247,15 +247,17 @@ class TestArgumentMapping:
         ):
             assert func(2, 3) == 8
 
-    def test_arguments_double_deprecated_c1(self) -> None:
-        """Test double mapping, calling with first deprecated argument."""
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c1` -> `nc1`."):
-            assert depr_pow_self_double(2, c1=3) == 32
-
-    def test_arguments_double_deprecated_c2(self) -> None:
-        """Test double mapping, calling with second deprecated argument."""
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c2` -> `nc2`."):
-            assert depr_pow_self_double(2, c2=2) == 8
+    @pytest.mark.parametrize(
+        ("kwargs", "match_fragment", "expected"),
+        [
+            pytest.param({"c1": 3}, r"`c1` -> `nc1`", 32, id="c1-deprecated"),
+            pytest.param({"c2": 2}, r"`c2` -> `nc2`", 8, id="c2-deprecated"),
+        ],
+    )
+    def test_arguments_double_deprecated(self, kwargs: dict, match_fragment: str, expected: int) -> None:
+        """Test double mapping, calling with each deprecated argument individually."""
+        with pytest.warns(FutureWarning, match=f"The `depr_pow_self_double` uses depr. args: {match_fragment}."):
+            assert depr_pow_self_double(2, **kwargs) == expected
 
     def test_arguments_double_mixed(self) -> None:
         """Testing that preferable use the new arguments when both are provided."""
@@ -319,16 +321,17 @@ def test_skip_if_func(func: Callable) -> None:
         assert func(2, c1=2) == 2
 
 
-def test_skip_if_true_false() -> None:
-    """Test conditional wrapper skip with decorator order: @skip_if=True then @skip_if=False (outer skips)."""
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(depr_pow_skip_if_true_false, id="outer-skips"),
+        pytest.param(depr_pow_skip_if_false_true, id="inner-skips"),
+    ],
+)
+def test_skip_if_mixed(func: Callable) -> None:
+    """Test conditional wrapper skip with mixed skip_if=True/False decorator stacking."""
     with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
-        assert depr_pow_skip_if_true_false(2, c1=2) == 0.5
-
-
-def test_skip_if_false_true() -> None:
-    """Test conditional wrapper skip with decorator order: @skip_if=False then @skip_if=True (outer skips)."""
-    with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
-        assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
+        assert func(2, c1=2) == 0.5
 
 
 class TestErrorHandling:
@@ -367,22 +370,18 @@ class TestErrorHandling:
             depr_pow_skip_if_func_int(2, c1=2)
 
 
-def test_deprecated_func_accuracy_map() -> None:
-    """Test mapping to external accuracy_map function."""
+@pytest.mark.parametrize(
+    ("func", "expected"),
+    [
+        pytest.param(depr_accuracy_map, 0.5, id="accuracy-map"),
+        pytest.param(depr_accuracy_skip, 0.5, id="accuracy-skip"),
+        pytest.param(depr_accuracy_extra, 0.75, id="accuracy-extra"),
+    ],
+)
+def test_deprecated_func_accuracy(func: Callable, expected: float) -> None:
+    """Test deprecated accuracy wrappers with various arg mapping strategies."""
     with pytest.warns(FutureWarning):
-        assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
-
-
-def test_deprecated_func_accuracy_skip() -> None:
-    """Test mapping to external accuracy_skip function."""
-    with pytest.warns(FutureWarning):
-        assert depr_accuracy_skip([1, 0, 1, 2]) == 0.5
-
-
-def test_deprecated_func_accuracy_extra() -> None:
-    """Test mapping to external accuracy_extra function."""
-    with pytest.warns(FutureWarning):
-        assert depr_accuracy_extra([1, 0, 1, 2]) == 0.75
+        assert func([1, 0, 1, 2]) == expected
 
 
 def test_deprecated_func_attribute_set_at_decoration_time() -> None:

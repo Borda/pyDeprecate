@@ -3,6 +3,7 @@
 import inspect
 import warnings
 from collections.abc import Callable
+from typing import Any, cast
 
 import pytest
 
@@ -127,33 +128,22 @@ class TestProxyReadOnly:
         proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=False)
         proxy._check_read_only("Test operation")  # must not raise
 
-    def test_setitem_raises_when_read_only(self) -> None:
-        """__setitem__ raises AttributeError in read_only mode via _check_read_only."""
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            pytest.param(lambda p: p.__setitem__("k", 2), id="setitem"),
+            pytest.param(lambda p: p.__delitem__("k"), id="delitem"),
+            pytest.param(lambda p: setattr(p, "some_attr", "value"), id="setattr"),
+            pytest.param(lambda p: delattr(p, "some_attr"), id="delattr"),
+        ],
+    )
+    def test_mutation_raises_when_read_only(self, operation: Callable) -> None:
+        """All write operations raise AttributeError in read_only mode."""
         proxy = _DeprecatedProxy(
             obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None
         )
         with pytest.raises(AttributeError, match="read-only"):
-            proxy["k"] = 2
-
-    def test_delitem_raises_when_read_only(self) -> None:
-        """__delitem__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(
-            obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None
-        )
-        with pytest.raises(AttributeError, match="read-only"):
-            del proxy["k"]
-
-    def test_setattr_raises_when_read_only(self) -> None:
-        """__setattr__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
-        with pytest.raises(AttributeError, match="read-only"):
-            proxy.some_attr = "value"
-
-    def test_delattr_raises_when_read_only(self) -> None:
-        """__delattr__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
-        with pytest.raises(AttributeError, match="read-only"):
-            del proxy.some_attr
+            operation(proxy)
 
     def test_setitem_forwards_to_source(self) -> None:
         """__setitem__ mutates the source object when not read-only, without emitting a warning."""
@@ -619,7 +609,7 @@ class TestTypeProtocol:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            isinstance(obj, proxy)  # type: ignore[arg-type]
+            isinstance(obj, cast(Any, proxy))
 
         assert not caught  # no warning from isinstance
         with pytest.warns(FutureWarning):
@@ -670,7 +660,7 @@ class TestTypeProtocol:
         proxy = _DeprecatedProxy(obj=Base, name="old_cls", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            issubclass(Sub, proxy)  # type: ignore[arg-type]
+            issubclass(Sub, cast(Any, proxy))
         assert not caught
         with pytest.warns(FutureWarning):
             proxy()  # warning budget remains untouched
@@ -678,4 +668,4 @@ class TestTypeProtocol:
     def test_isinstance_returns_false_for_non_type_active(self) -> None:
         """isinstance(x, proxy) returns False when the active object is not a type."""
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
-        assert not isinstance(42, proxy)  # type: ignore[arg-type]
+        assert not isinstance(42, cast(Any, proxy))

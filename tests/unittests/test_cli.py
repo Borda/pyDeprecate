@@ -144,41 +144,61 @@ class TestMain:
         assert result == 0
 
 
-class TestReportIssuesPlain:
-    """Tests for _report_issues with the plain-text path (_HAS_RICH = False)."""
+class TestReportIssues:
+    """Tests for _report_issues covering both the rich and plain-text output paths."""
 
-    def test_invalid_args(self) -> None:
-        """Test plain text reporter with invalid args."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert _report_issues(results) is True
+    @pytest.mark.parametrize("has_rich", [True, False], ids=["rich", "plain"])
+    @pytest.mark.parametrize(
+        ("results", "expected"),
+        [
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])],
+                True,
+                id="invalid-args",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"])],
+                True,
+                id="identity-mapping",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", empty_mapping=True, no_effect=True)],
+                True,
+                id="no-effect-empty-mapping",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", self_reference=True, no_effect=True)],
+                True,
+                id="no-effect-self-reference",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)],
+                True,
+                id="no-effect-identity-only",
+            ),
+            pytest.param(
+                [DeprecationWrapperInfo(module="mod", function="fn")],
+                False,
+                id="no-issues",
+            ),
+        ],
+    )
+    def test_flag(self, results: list, expected: bool, has_rich: bool) -> None:
+        """_report_issues returns the correct has-issues flag for both rich and plain paths."""
+        with patch("deprecate._cli._HAS_RICH", has_rich):
+            assert _report_issues(results) is expected
 
-    def test_identity_mapping(self) -> None:
-        """Test plain text reporter with identity mappings."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"])]
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert _report_issues(results) is True
-
-    def test_no_effect_empty_mapping(self) -> None:
-        """Test plain text reporter with no-effect empty mapping."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", empty_mapping=True, no_effect=True)]
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert _report_issues(results) is True
-
-    def test_no_effect_self_reference(self) -> None:
-        """Test plain text reporter with no-effect self-reference."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", self_reference=True, no_effect=True)]
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert _report_issues(results) is True
-
-    def test_no_effect_identity_only(self) -> None:
-        """Test plain text reporter with no-effect identity-only mapping."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)]
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert _report_issues(results) is True
-
-    def test_no_effect_partial_identity_with_self_reference(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Partial identity mappings should not be reported as all-identity."""
+    @pytest.mark.parametrize(
+        ("has_rich", "expected_present", "expected_absent"),
+        [
+            pytest.param(True, "Self reference", "All identity mappings", id="rich"),
+            pytest.param(False, "Reason: Self reference", "Reason: All identity mappings", id="plain"),
+        ],
+    )
+    def test_partial_identity_with_self_reference(
+        self, capsys: pytest.CaptureFixture[str], has_rich: bool, expected_present: str, expected_absent: str
+    ) -> None:
+        """Partial identity mappings should not be reported as all-identity in either output path."""
         results = [
             DeprecationWrapperInfo(
                 module="mod",
@@ -189,70 +209,11 @@ class TestReportIssuesPlain:
                 no_effect=True,
             )
         ]
-
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._HAS_RICH", has_rich):
             assert _report_issues(results) is True
         captured = capsys.readouterr()
-        assert "Reason: Self reference" in captured.out
-        assert "Reason: All identity mappings" not in captured.out
-
-    def test_no_issues(self) -> None:
-        """Test plain text reporter with no issues."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn")]
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert _report_issues(results) is False
-
-
-class TestReportIssuesRich:
-    """Tests for _report_issues with the Rich path (_HAS_RICH = True)."""
-
-    def test_invalid_args(self) -> None:
-        """Test rich reporter with invalid args."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
-        assert _report_issues(results) is True
-
-    def test_identity_mapping(self) -> None:
-        """Test rich reporter with identity mappings."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"])]
-        assert _report_issues(results) is True
-
-    def test_no_effect_empty_mapping(self) -> None:
-        """Test rich reporter with no-effect empty mapping."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", empty_mapping=True, no_effect=True)]
-        assert _report_issues(results) is True
-
-    def test_no_effect_self_reference(self) -> None:
-        """Test rich reporter with no-effect self-reference."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", self_reference=True, no_effect=True)]
-        assert _report_issues(results) is True
-
-    def test_no_effect_identity_only(self) -> None:
-        """Test rich reporter with no-effect identity-only mapping."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)]
-        assert _report_issues(results) is True
-
-    def test_no_effect_partial_identity_with_self_reference(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Rich reporter should not list all-identity for partial identity mappings."""
-        results = [
-            DeprecationWrapperInfo(
-                module="mod",
-                function="fn",
-                deprecated_info=DeprecationConfig(args_mapping={"a": "a", "b": "c"}),
-                identity_mapping=["a"],
-                self_reference=True,
-                no_effect=True,
-            )
-        ]
-
-        assert _report_issues(results) is True
-        captured = capsys.readouterr()
-        assert "Self reference" in captured.out
-        assert "All identity mappings" not in captured.out
-
-    def test_no_issues(self) -> None:
-        """Test rich reporter with no issues."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn")]
-        assert _report_issues(results) is False
+        assert expected_present in captured.out
+        assert expected_absent not in captured.out
 
 
 def test_report_issues_dispatches() -> None:

@@ -195,7 +195,8 @@ Not sure which API to reach for? Start here.
 | Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                    |
 | Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                         |
 
-**All `@deprecated` parameters at a glance:**
+<details>
+  <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
 
 | Param              | Default               | Purpose                                                                     |
 | ------------------ | --------------------- | --------------------------------------------------------------------------- |
@@ -213,6 +214,8 @@ Not sure which API to reach for? Start here.
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, and `args_mapping`.
 > `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
+
+</details>
 
 ## 📚 Use-cases and Applications
 
