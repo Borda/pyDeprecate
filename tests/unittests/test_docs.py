@@ -1,6 +1,7 @@
 """Unit tests for private helpers in deprecate.docstring.inject."""
 
 import importlib
+import importlib.util
 from typing import cast
 
 import pytest
@@ -259,9 +260,9 @@ class TestUpdateDocstringIdempotent:
 class TestDocstringSubpackageImports:
     """Smoke tests: docstring sub-modules are importable and expose expected symbols."""
 
+    @pytest.mark.skipif(importlib.util.find_spec("griffe") is None, reason="griffe not installed")
     def test_griffe_ext_importable(self) -> None:
         """deprecate.docstring.griffe_ext imports without error and exposes RuntimeDocstrings."""
-        pytest.importorskip("griffe", reason="griffe not installed")
         mod = importlib.import_module("deprecate.docstring.griffe_ext")
         assert hasattr(mod, "RuntimeDocstrings")
 

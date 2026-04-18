@@ -46,7 +46,8 @@ _logger = logging.getLogger(__name__)
 _PROXY_AVAILABLE: bool = False
 
 try:
-    from sphinx.ext.autodoc import ClassDocumenter, prepare_docstring
+    from sphinx.ext.autodoc import ClassDocumenter
+    from sphinx.util.docstrings import prepare_docstring
 
     _SPHINX_AVAILABLE = True
 except ImportError:  # pragma: no cover

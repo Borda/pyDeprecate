@@ -5,8 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytest.importorskip("sphinx", reason="sphinx not installed")
-
 from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE
 
 pytestmark = pytest.mark.skipif(
@@ -124,7 +122,7 @@ class TestGetDoc:
 
     def test_returns_prepared_proxy_doc_when_set(self) -> None:
         """Returns prepare_docstring() of _proxy_doc when available."""
-        from sphinx.ext.autodoc import prepare_docstring
+        from sphinx.util.docstrings import prepare_docstring
 
         from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
 
