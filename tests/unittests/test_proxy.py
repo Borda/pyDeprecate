@@ -3,6 +3,7 @@
 import inspect
 import warnings
 from collections.abc import Callable
+from typing import Any, cast
 
 import pytest
 
@@ -608,7 +609,7 @@ class TestTypeProtocol:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            isinstance(obj, proxy)
+            isinstance(obj, cast(Any, proxy))
 
         assert not caught  # no warning from isinstance
         with pytest.warns(FutureWarning):
@@ -659,7 +660,7 @@ class TestTypeProtocol:
         proxy = _DeprecatedProxy(obj=Base, name="old_cls", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            issubclass(Sub, proxy)
+            issubclass(Sub, cast(Any, proxy))
         assert not caught
         with pytest.warns(FutureWarning):
             proxy()  # warning budget remains untouched
@@ -667,4 +668,4 @@ class TestTypeProtocol:
     def test_isinstance_returns_false_for_non_type_active(self) -> None:
         """isinstance(x, proxy) returns False when the active object is not a type."""
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
-        assert not isinstance(42, proxy)
+        assert not isinstance(42, cast(Any, proxy))
