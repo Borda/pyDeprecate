@@ -3,3 +3,7 @@ pytest-cov >2.10
 scikit-learn >=0.17
 phmdoctest >1.0
 dataclasses  # needed for phmdoctest
+
+# Docs extensions
+griffe  # for MKDocs
+sphinx
