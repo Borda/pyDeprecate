@@ -561,6 +561,52 @@ def test_without_warning() -> None:
 
 </details>
 
+## 📝 Documentation Site
+
+The project ships two separate documentation surfaces:
+
+| Surface            | File                        | Purpose                                                             |
+| ------------------ | --------------------------- | ------------------------------------------------------------------- |
+| PyPI cover page    | `README.md`                 | Install instructions, full API reference — do **not** prune         |
+| Docs site home     | `docs/index.md`             | Curated overview — links to topic pages; **not** a README copy      |
+| Getting started    | `docs/getting-started.md`   | Install + quick-start                                               |
+| Use cases          | `docs/guide/use-cases.md`   | Patterns extracted from real usage                                  |
+| void() helper      | `docs/guide/void-helper.md` | void() stub helper reference                                        |
+| Audit tools        | `docs/guide/audit.md`       | validate\_\* and find_deprecation_wrappers()                        |
+| Troubleshooting    | `docs/troubleshooting.md`   | Q&A; also drives FAQPage JSON-LD                                    |
+| Theme override     | `docs/overrides/main.html`  | Jinja2 template — OG tags + JSON-LD per page; **prettier-excluded** |
+| AI discoverability | `docs/llms.txt`             | Spec-compliant link directory for AI crawlers                       |
+
+### Local Build
+
+```bash
+# Install docs dependencies (separate from test requirements)
+pip install -r docs/requirements.txt
+
+# One-shot build with strict mode (fails on warnings)
+python3 -m mkdocs build --strict
+
+# Live-reload preview at http://127.0.0.1:8000
+python3 -m mkdocs serve
+```
+
+> [!NOTE]
+> The `git-revision-date-localized` plugin requires a full git history. Run `git fetch --unshallow` (or use `fetch-depth: 0` in CI) if revision dates show as today for old files.
+
+### Consistency Rules
+
+When making changes, keep all three surfaces in sync:
+
+1. **New or renamed public API symbol** — update `README.md` (API reference) **and** the relevant `docs/guide/` page.
+2. **New use-case pattern** — add an entry to `docs/guide/use-cases.md`.
+3. **New troubleshooting item** — add a Q&A block to `docs/troubleshooting.md` **and** a matching `Question`/`Answer` pair to the `FAQPage` JSON-LD in `docs/overrides/main.html`.
+4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
+5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
+
+### Template Override
+
+`docs/overrides/main.html` is a Jinja2 template (MkDocs Material `custom_dir`). It is excluded from prettier (`^docs/overrides/.*\.html$` in `.pre-commit-config.yaml`) because prettier corrupts Jinja2 syntax. Do not put Markdown content files in `docs/overrides/` — that directory is excluded from MkDocs page output via `exclude_docs` in `mkdocs.yml`.
+
 ## 📄 License
 
 By contributing, you agree that your contributions will be licensed under the same license as the project (see [LICENSE](../LICENSE) file).
