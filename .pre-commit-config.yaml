@@ -27,6 +27,7 @@ repos:
     hooks:
       - id: prettier
         files: \.(html|yml|yaml|toml)
+        exclude: ^docs/overrides/.*\.html$
         # https://prettier.io/docs/en/options.html#print-width
         args: ["--print-width=120"]
 

@@ -126,7 +126,6 @@ uv.lock
 .ropeproject
 
 # mkdocs documentation
-docs/index.md
 /site
 
 # mypy
@@ -146,6 +145,8 @@ dmypy.json
 # Generated files with Claude
 .claude/logs/
 .claude/state/
+.plans/
+.temp/
 tasks/
 *.local.*
 

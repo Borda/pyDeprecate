@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+{{ super() }}
+
+{% if page %}
+<!-- Open Graph meta tags -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="{{ page.title | d(config.site_name, true) }}" />
+<meta property="og:description" content="{{ page.meta.description | d(config.site_description, true) }}" />
+<meta property="og:url" content="{{ page.canonical_url }}" />
+<meta property="og:site_name" content="{{ config.site_name }}" />
+
+<!-- JSON-LD structured data -->
+{% if page.file.src_path == "index.md" %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "pyDeprecate",
+  "alternateName": "deprecate",
+  "description": "Simple tooling for marking deprecated functions or classes and re-routing to their successors. Zero dependencies. Python 3.9+.",
+  "url": "https://borda.github.io/pyDeprecate/",
+  "downloadUrl": "https://pypi.org/project/pyDeprecate/",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "programmingLanguage": "Python",
+  "runtimePlatform": "Python 3.9+",
+  "license": "https://github.com/Borda/pyDeprecate/blob/main/LICENSE",
+  "codeRepository": "https://github.com/Borda/pyDeprecate",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
+  "sameAs": ["https://github.com/Borda/pyDeprecate", "https://pypi.org/project/pyDeprecate/"]
+}
+</script>
+{% elif page.file.src_path == "troubleshooting.md" %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Why is my deprecation warning not showing?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "By default warnings display once per function (num_warns=1). Set num_warns=-1 for unlimited warnings or pass a higher integer."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I fix TypeError: Failed mapping?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently, rename it via args_mapping, or use target=True for self-deprecation."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What does the 'Applying @deprecated to class' UserWarning mean?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Use @deprecated_class instead of @deprecated for classes. The @deprecated decorator is intended for functions and methods only; applying it to a class triggers this warning."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why is a deprecation warning not working when called from another module?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Python's warnings module tracks call sites. Import and call the deprecated function from the module where it is defined to ensure the warning path is correct."
+      }
+    }
+  ]
+}
+</script>
+{% else %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "{{ page.title | d(config.site_name, true) }}",
+  "description": "{{ page.meta.description | d(config.site_description, true) }}",
+  "url": "{{ page.canonical_url }}",
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+  "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" }{% if page.meta.git_revision_date_localized %},
+  "dateModified": "{{ page.meta.git_revision_date_localized }}"{% endif %}
+}
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}

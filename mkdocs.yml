@@ -3,20 +3,31 @@ site_description: Simple tooling for marking deprecated functions or classes and
 site_url: https://borda.github.io/pyDeprecate/
 repo_url: https://github.com/Borda/pyDeprecate
 repo_name: Borda/pyDeprecate
-# docs/index.md is generated at build time (cp README.md docs/index.md) and
-# does not exist in the repository — disable the "Edit on GitHub" button.
 edit_uri: ""
 docs_dir: docs
 use_directory_urls: false
+copyright: Copyright &copy; 2020&ndash;2026 Jiri Borovec
 
 hooks:
   - docs/mkdocs_hooks.py
 
+exclude_docs: |
+  overrides/
+
 theme:
-  name: readthedocs
+  name: material
+  custom_dir: docs/overrides
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: iso_date
+      fallback_to_build_date: true
 
 markdown_extensions:
   - admonition
+  - meta
   - toc:
       permalink: true
 
@@ -27,6 +38,12 @@ validation:
 
 nav:
   - Home: index.md
-  # placeholder for demo pages
-  - Demo as Sphinx: demo-sphinx/index.md
-  - Demo as MkDocs: demo-mkdocs/index.md
+  - Getting Started: getting-started.md
+  - User Guide:
+      - Use Cases: guide/use-cases.md
+      - void() Helper: guide/void-helper.md
+      - Audit Tools: guide/audit.md
+  - Troubleshooting: troubleshooting.md
+  - Demos:
+      - Sphinx: demo-sphinx/index.md
+      - MkDocs: demo-mkdocs/index.md
