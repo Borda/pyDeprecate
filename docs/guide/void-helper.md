@@ -135,6 +135,15 @@ proc = ImageProcessor()
 print(proc.scale(800, 600))
 ```
 
+<details>
+  <summary>Output: <code>print(proc.scale(800, 600)</code></summary>
+
+```
+Resized to 800x600 (bilinear)
+```
+
+</details>
+
 Note that you do not need to pass `self` to `void()` — only the parameters that your linter flags as unused. `self` is implicitly used by the method dispatch and is never flagged.
 
 ## Type annotation note
@@ -201,6 +210,15 @@ with assert_no_warnings(FutureWarning):
     result = new_func(42)
 print(result)
 ```
+
+<details>
+  <summary>Output: <code>print(result)</code></summary>
+
+```
+84
+```
+
+</details>
 
 ______________________________________________________________________
 

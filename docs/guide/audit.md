@@ -79,6 +79,17 @@ if result.no_effect:
     print("Warning: This wrapper configuration has zero impact!")
 ```
 
+<details>
+  <summary>Output: <code>print("Warning: This wrapper configuration has zero impact!")</code></summary>
+
+```
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=True, args_mapping={'nonexistent': 'new_arg'}, docstring_style='rst'), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, chain_type=None)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=True, args_mapping={}, docstring_style='rst'), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, chain_type=None)
+Warning: This wrapper configuration has zero impact!
+```
+
+</details>
+
 ### Scanning a package for deprecated wrappers
 
 `find_deprecation_wrappers()` walks an entire package or module and returns a list of `DeprecationWrapperInfo` entries — one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.
@@ -108,6 +119,71 @@ if ineffective:
     print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
 ```
 
+<details>
+  <summary>Output: <code>print(f"Found {len(ineffective)</code></summary>
+
+```
+tests.collection_deprecate.ChainedProxyColorEnum: no_effect=False
+tests.collection_deprecate.DecoratedDataClass: no_effect=False
+tests.collection_deprecate.DecoratedEnum: no_effect=False
+tests.collection_deprecate.DeprecatedColorDataClass: no_effect=False
+tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
+tests.collection_deprecate.DeprecatedDataClass: no_effect=False
+tests.collection_deprecate.DeprecatedEnum: no_effect=False
+tests.collection_deprecate.DeprecatedIntEnum: no_effect=False
+tests.collection_deprecate.MappedColorEnum: no_effect=False
+tests.collection_deprecate.MappedDataClass: no_effect=False
+tests.collection_deprecate.MappedDropArgDataClass: no_effect=False
+tests.collection_deprecate.MappedEnum: no_effect=False
+tests.collection_deprecate.MappedIntEnum: no_effect=False
+tests.collection_deprecate.MappedValueEnum: no_effect=False
+tests.collection_deprecate.RedirectedDataClass: no_effect=False
+tests.collection_deprecate.RedirectedEnum: no_effect=False
+tests.collection_deprecate.SelfMappedEnum: no_effect=False
+tests.collection_deprecate.WarnOnlyColorEnum: no_effect=False
+tests.collection_deprecate.WrappedDataClass: no_effect=False
+tests.collection_deprecate.WrappedEnum: no_effect=False
+tests.collection_deprecate.decorated_pow_self: no_effect=False
+tests.collection_deprecate.decorated_pow_skip_if_func: no_effect=False
+tests.collection_deprecate.decorated_pow_skip_if_true: no_effect=False
+tests.collection_deprecate.decorated_sum: no_effect=False
+tests.collection_deprecate.decorated_sum_calls_2: no_effect=False
+tests.collection_deprecate.decorated_sum_calls_inf: no_effect=False
+tests.collection_deprecate.decorated_sum_msg: no_effect=False
+tests.collection_deprecate.decorated_sum_no_stream: no_effect=False
+tests.collection_deprecate.decorated_sum_warn_only: no_effect=False
+tests.collection_deprecate.depr_accuracy_extra: no_effect=False
+tests.collection_deprecate.depr_accuracy_map: no_effect=False
+tests.collection_deprecate.depr_accuracy_skip: no_effect=False
+tests.collection_deprecate.depr_accuracy_target: no_effect=False
+tests.collection_deprecate.depr_config_dict: no_effect=False
+tests.collection_deprecate.depr_config_dict_read_only: no_effect=False
+tests.collection_deprecate.depr_func_no_remove_in: no_effect=False
+tests.collection_deprecate.depr_func_targeting_proxy: no_effect=False
+tests.collection_deprecate.depr_make_new_cls: no_effect=False
+tests.collection_deprecate.depr_make_new_cls_mapped: no_effect=False
+tests.collection_deprecate.depr_pow_args: no_effect=False
+tests.collection_deprecate.depr_pow_mix: no_effect=False
+tests.collection_deprecate.depr_pow_self_double: no_effect=False
+tests.collection_deprecate.depr_pow_self_twice: no_effect=False
+tests.collection_deprecate.depr_pow_skip_if_false_true: no_effect=False
+tests.collection_deprecate.depr_pow_skip_if_func_int: no_effect=False
+tests.collection_deprecate.depr_pow_skip_if_true_false: no_effect=False
+tests.collection_deprecate.depr_pow_wrong: no_effect=False
+tests.collection_deprecate.depr_timing_wrapper: no_effect=False
+tests.collection_deprecate.wrapped_pow_self: no_effect=False
+tests.collection_deprecate.wrapped_pow_skip_if_func: no_effect=False
+tests.collection_deprecate.wrapped_pow_skip_if_true: no_effect=False
+tests.collection_deprecate.wrapped_sum: no_effect=False
+tests.collection_deprecate.wrapped_sum_calls_2: no_effect=False
+tests.collection_deprecate.wrapped_sum_calls_inf: no_effect=False
+tests.collection_deprecate.wrapped_sum_msg: no_effect=False
+tests.collection_deprecate.wrapped_sum_no_stream: no_effect=False
+tests.collection_deprecate.wrapped_sum_warn_only: no_effect=False
+```
+
+</details>
+
 Group results by issue type to produce structured reports — for example, separating hard errors (invalid argument names) from advisory warnings (identity mappings):
 
 ```python
@@ -128,6 +204,18 @@ print(f"Wrong arguments: {len(wrong_args)}")
 print(f"Identity mappings: {len(identity_mappings)}")
 print(f"Self-references: {len(self_refs)}")
 ```
+
+<details>
+  <summary>Output: <code>print(f"Self-references: {len(self_refs)</code></summary>
+
+```
+=== Deprecation Validation Report ===
+Wrong arguments: 0
+Identity mappings: 0
+Self-references: 0
+```
+
+</details>
 
 ### CLI usage
 
@@ -219,6 +307,18 @@ with patch("importlib.metadata.version", return_value="0.3"):
 expired = validate_deprecation_expiry(my_package, "0.1", recursive=False)  # Only scan top-level module
 print(f"Found {len(expired)} expired")
 ```
+
+<details>
+  <summary>Output: <code>print(f"Found {len(expired)</code></summary>
+
+```
+Found 14 expired
+Found 28 expired
+Found 17 expired
+Found 0 expired
+```
+
+</details>
 
 Useful behaviours to know:
 
@@ -326,6 +426,17 @@ for func in (caller_target_chain, caller_stacked_chain, caller_direct):
     print(f"{func.__name__}: {info.chain_type}")
 ```
 
+<details>
+  <summary>Output: <code>print(f"{func.__name__}: {info.chain_type}")</code></summary>
+
+```
+caller_target_chain: ChainType.TARGET
+caller_stacked_chain: ChainType.STACKED
+caller_direct: None
+```
+
+</details>
+
 ### pytest integration for chain detection
 
 Add a test that fails whenever any deprecated function in your package targets another deprecated function. The session-scoped autouse fixture variant prevents the entire suite from running until chains are resolved.
@@ -381,10 +492,10 @@ python -m deprecate src/your_package --skip_errors true
 
 **Exit codes:**
 
-| Exit code | Meaning |
-| --------- | --------------------------------------------------------------- |
-| `0` | No issues found (or `--skip_errors true` was set) |
-| `1` | Invalid argument mappings detected — these break call forwarding |
+| Exit code | Meaning                                                          |
+| --------- | ---------------------------------------------------------------- |
+| `0`       | No issues found (or `--skip_errors true` was set)                |
+| `1`       | Invalid argument mappings detected — these break call forwarding |
 
 ## Testing Deprecated Code
 
@@ -501,6 +612,16 @@ with assert_no_warnings(FutureWarning):
     clean_session = new_create_session("prod.example.com")
 print(clean_session)
 ```
+
+<details>
+  <summary>Output: <code>print(clean_session)</code></summary>
+
+```
+{'host': 'localhost', 'timeout': 5}
+{'host': 'prod.example.com', 'timeout': 30}
+```
+
+</details>
 
 ### Choosing the right testing tool
 

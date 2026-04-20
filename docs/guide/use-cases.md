@@ -44,6 +44,15 @@ def calculate(a: int, b: int = 5) -> int:
 print(calculate(1, 2))
 ```
 
+<details>
+  <summary>Output: <code>print(calculate(1, 2)</code></summary>
+
+```
+3
+```
+
+</details>
+
 When the deprecated name already exists as a callable (for example, imported from another package), you can apply `deprecated()` directly without redefining the function body. This wrapper form is equivalent to the decorator syntax but works on any already-existing callable — including one you do not control.
 
 ```python
@@ -122,6 +131,15 @@ def my_sum(a: int, b: int = 5) -> int:
 print(my_sum(1, 2))
 ```
 
+<details>
+  <summary>Output: <code>print(my_sum(1, 2)</code></summary>
+
+```
+3
+```
+
+</details>
+
 ## Self argument mapping
 
 Use `target=True` when you want to rename or drop an argument within the same function — no external target is needed. The decorator remaps the old argument name to the new one before the function body runs, so the function implementation only needs to use the new name. This is the right pattern when refactoring a signature without moving the function.
@@ -148,6 +166,15 @@ def any_pow(base: float, coef: float = 0, new_coef: float = 0) -> float:
 #   They were deprecated since v0.2 and will be removed in v0.4.
 print(any_pow(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>print(any_pow(2, 3)</code></summary>
+
+```
+8
+```
+
+</details>
 
 To drop an argument entirely — warn when it is passed and then discard it — map it to `None`. The function body must be prepared to receive no value for that parameter.
 
@@ -205,6 +232,15 @@ def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
 print(any_pow(2, 3))
 ```
 
+<details>
+  <summary>Output: <code>print(any_pow(2, 3)</code></summary>
+
+```
+8
+```
+
+</details>
+
 ## Conditional skip
 
 The `skip_if` parameter accepts a boolean or a zero-argument callable that returns a boolean. When the callable returns `True`, the deprecation warning is suppressed entirely and the call proceeds normally. This is useful when behaviour differs by runtime version — for example, you may want to suppress the warning once the caller has already migrated to a newer dependency that no longer triggers the deprecated path.
@@ -233,6 +269,16 @@ FAKE_VERSION = 2
 # will not raise any warning
 print(skip_pow(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>print(skip_pow(2, 3)</code></summary>
+
+```
+0.25
+4
+```
+
+</details>
 
 ## Class deprecation
 
@@ -263,6 +309,15 @@ svc = MyService()
 #   It will be removed in v2.0.
 print(svc.run(5))
 ```
+
+<details>
+  <summary>Output: <code>print(svc.run(5)</code></summary>
+
+```
+10
+```
+
+</details>
 
 Forwarding `__init__` to a successor class — the deprecated class inherits from the successor so all methods and properties are available on instances:
 
@@ -309,6 +364,16 @@ print(inst.my_c)  # returns: 7
 print(inst.my_d)  # returns: "efg"
 ```
 
+<details>
+  <summary>Output: <code>print(inst.my_d)</code></summary>
+
+```
+7
+efg
+```
+
+</details>
+
 ## Constants and instances
 
 Use `deprecated_instance` to wrap module-level objects — such as dicts, lists, or custom objects — in a transparent proxy that emits a warning on every attribute, item, or call access. The `read_only=True` flag prevents callers from mutating shared state through the deprecated alias. Note that primitive protocol methods such as numeric arithmetic on `float` or concatenation on `str` are not intercepted; for primitive constants, prefer wrapping them in a container or updating call sites directly.
@@ -335,6 +400,15 @@ DEFAULTS = deprecated_instance(
 #   The `dict` was deprecated since v1.2. It will be removed in v2.0.
 print(DEFAULTS["lr"])  # 0.001
 ```
+
+<details>
+  <summary>Output: <code>print(DEFAULTS["lr"])</code></summary>
+
+```
+0.001
+```
+
+</details>
 
 ## Enums and dataclasses
 
@@ -398,6 +472,20 @@ print((p_old.x, p_old.y))
 p_new = PointV2(3.25, 4.75)
 print((p_new.x, p_new.y))
 ```
+
+<details>
+  <summary>Output: <code>print((p_new.x, p_new.y)</code></summary>
+
+```
+True
+True
+True
+True
+(3, 4)
+(3.25, 4.75)
+```
+
+</details>
 
 ## Automatic docstring updates
 
@@ -514,6 +602,15 @@ def notify(to: str, subject: str) -> str:
 print(notify("alice@example.com", "Hello"))
 ```
 
+<details>
+  <summary>Output: <code>print(notify("alice@example.com", "Hello")</code></summary>
+
+```
+Sent to 'alice@example.com': 'Hello' [normal]
+```
+
+</details>
+
 `args_extra` is only applied when `target` is a `Callable`. It is merged into the forwarded kwargs after `args_mapping` is applied, so extra values can also override mapped ones. It is ignored for `target=True` self-deprecation, where no forwarding occurs.
 
 ## Suppressing warnings in test fixtures with `assert_no_warnings`
@@ -555,6 +652,16 @@ with assert_no_warnings(FutureWarning):
     result = new_create_client("example.com")
 print(result)
 ```
+
+<details>
+  <summary>Output: <code>print(result)</code></summary>
+
+```
+{'host': 'localhost', 'port': 8080}
+{'host': 'example.com', 'port': 443}
+```
+
+</details>
 
 The key distinction between the testing tools:
 

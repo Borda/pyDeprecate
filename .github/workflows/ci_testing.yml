@@ -34,10 +34,10 @@ jobs:
       - name: 🧪 Tests
         shell: bash
         run: |
-          python -m phmdoctest README.md --outfile tests/integration/test_readme.py
+          python -m phmdoctest README.md -s "phmdoctest:skip" --outfile tests/integration/test_readme.py
           for md in $(find docs -name "*.md" | sort); do
             name="${md#docs/}"; name="${name%.md}"; name="${name//\//_}"; name="${name//-/_}"; \
-            python -m phmdoctest "$md" --outfile "tests/docs/test_${name}.py"; \
+            python -m phmdoctest "$md" -s "phmdoctest:skip" --outfile "tests/docs/test_${name}.py"; \
           done
           python -m pytest . -vv --cov=deprecate
 

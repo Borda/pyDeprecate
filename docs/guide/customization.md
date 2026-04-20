@@ -66,6 +66,15 @@ result = old_api(5)
 print(result)
 ```
 
+<details>
+  <summary>Output: <code>print(result)</code></summary>
+
+```
+50
+```
+
+</details>
+
 For argument deprecation, a custom template that references the mapping:
 
 ```python
@@ -86,6 +95,15 @@ def train(lr: float = 0.01, learning_rate: float = 0.01) -> float:
 # Emits: train: renamed args `lr` -> `learning_rate` (since v1.5, removal v2.0)
 print(train(lr=0.001))
 ```
+
+<details>
+  <summary>Output: <code>print(train(lr=0.001)</code></summary>
+
+```
+0.001
+```
+
+</details>
 
 ## Warning Sink (`stream`)
 
@@ -119,6 +137,15 @@ def old_internal(x: int) -> int:
 # No warning emitted, but call is still forwarded to new_internal
 print(old_internal(5))
 ```
+
+<details>
+  <summary>Output: <code>print(old_internal(5)</code></summary>
+
+```
+6
+```
+
+</details>
 
 ### Redirecting to a logger
 

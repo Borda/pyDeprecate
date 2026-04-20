@@ -56,9 +56,7 @@ result = addition(1, 2)  # Returns 3
 
 All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. The old function's body is never executed.
 
-
 > **Customizing warnings:** To customize the message template or redirect warnings to a logger, see [Customization](guide/customization.md).
-
 
 ## API at a Glance
 

@@ -64,9 +64,9 @@ class OldClass:
 
 
 obj = OldClass()
-isinstance(obj, OldClass)     # TypeError or False — OldClass is now a function
+isinstance(obj, OldClass)  # TypeError or False — OldClass is now a function
 issubclass(OldClass, object)  # TypeError — same reason
-OldClass.class_attr           # AttributeError — wrapper function has no class attributes
+OldClass.class_attr  # AttributeError — wrapper function has no class attributes
 ```
 
 The replacement is `@deprecated_class()`, which wraps the class in a `_DeprecatedProxy`. The proxy forwards all attribute access, item access, calls, and type checks to the target class — so `isinstance` and `issubclass` work correctly, class attributes remain accessible, and existing subclasses continue to work.
@@ -86,10 +86,21 @@ class OldCalculator:
 
 
 obj = OldCalculator()
-print(isinstance(obj, NewCalculator))    # True — proxy forwards isinstance checks
-print(issubclass(OldCalculator, object)) # True — type checks pass through
-print(obj.add(1, 2))                     # 3 — forwarded to NewCalculator
+print(isinstance(obj, NewCalculator))  # True — proxy forwards isinstance checks
+print(issubclass(OldCalculator, object))  # True — type checks pass through
+print(obj.add(1, 2))  # 3 — forwarded to NewCalculator
 ```
+
+<details>
+  <summary>Output: <code>print(obj.add(1, 2)</code></summary>
+
+```
+True
+True
+3
+```
+
+</details>
 
 The same rule applies to Enums and dataclasses — `@deprecated_class` is the correct API, not `@deprecated`:
 
@@ -105,10 +116,21 @@ class Color(Enum):
 
 OldColor = deprecated_class(target=Color, deprecated_in="1.5", remove_in="2.0")(Color)
 
-print(OldColor.RED is Color.RED)     # True
-print(OldColor(1) is Color.RED)      # True
+print(OldColor.RED is Color.RED)  # True
+print(OldColor(1) is Color.RED)  # True
 print(OldColor["RED"] is Color.RED)  # True
 ```
+
+<details>
+  <summary>Output: <code>print(OldColor["RED"] is Color.RED)</code></summary>
+
+```
+True
+True
+True
+```
+
+</details>
 
 If you need to warn only at instantiation time without deprecating the class name itself, decorate `__init__` instead — this keeps the class object intact and `isinstance`/`issubclass` unaffected:
 
@@ -125,6 +147,15 @@ class MyService:
 svc = MyService("localhost")
 print(isinstance(svc, MyService))  # True
 ```
+
+<details>
+  <summary>Output: <code>print(isinstance(svc, MyService)</code></summary>
+
+```
+True
+```
+
+</details>
 
 ## TypeError: Failed mapping
 
@@ -305,6 +336,15 @@ OLD_THRESHOLD = deprecated_instance(
 print(OLD_THRESHOLD["value"])
 ```
 
+<details>
+  <summary>Output: <code>print(OLD_THRESHOLD["value"])</code></summary>
+
+```
+0.5
+```
+
+</details>
+
 2. **Update call sites directly** — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy:
 
 ```python
@@ -328,6 +368,15 @@ def get_old_threshold() -> float:
 # Callers get a warning when they call get_old_threshold()
 print(get_old_threshold())
 ```
+
+<details>
+  <summary>Output: <code>print(get_old_threshold()</code></summary>
+
+```
+0.5
+```
+
+</details>
 
 ## How do I redirect deprecation warnings to a logger instead of `warnings.warn`?
 

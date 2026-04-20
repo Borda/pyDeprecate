@@ -14,7 +14,7 @@ Renaming a function or retiring an argument by hand means writing a wrapper, get
 from deprecate import deprecated
 
 
-# New function whci replaces `addition` 
+# New function whci replaces `addition`
 def compute_sum(x: int, y: int) -> int:
     return x + y
 
