@@ -50,5 +50,5 @@ jobs:
         run: make ${{ matrix.target }}
 
       - name: 🧪 Run generated tests
-        if: matrix.test_dir != ''
+        if: matrix.test_dir
         run: python -m pytest ${{ matrix.test_dir }} -v
