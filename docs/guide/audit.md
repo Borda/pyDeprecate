@@ -16,7 +16,7 @@ During development you may want to verify that a deprecated wrapper is correctly
 
 - `module` — module name where the function is defined (empty for direct validation)
 - `function` — function name
-- `deprecated_info` — the `__deprecated__` attribute dict from the decorator
+- `deprecated_info` — the `__deprecated__` attribute as a `DeprecationConfig` dataclass from the decorator
 - `invalid_args` — list of `args_mapping` keys that do not exist in the function signature
 - `empty_mapping` — `True` if `args_mapping` is `None` or empty
 - `identity_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
@@ -334,7 +334,7 @@ def test_no_deprecation_chains():
 
     if issues:
         lines = [
-            f"  - {i.function}: target '{getattr(i.deprecated_info['target'], '__name__', repr(i.deprecated_info['target']))}' is deprecated"
+            f"  - {i.function}: target '{getattr(i.deprecated_info.target, '__name__', repr(i.deprecated_info.target))}' is deprecated"
             for i in issues
         ]
         pytest.fail("Found deprecation chains:\n" + "\n".join(lines))
