@@ -64,6 +64,7 @@ ignore = [
   "*.yml",
   ".github",
   ".github/*",
+  "Makefile",
 ]
 
 [tool.mypy]
@@ -86,6 +87,7 @@ ini_options.norecursedirs = [
   ".github",
   "dist",
   "build",
+  "docs",
   "demo-*",
 ]
 ini_options.addopts = [

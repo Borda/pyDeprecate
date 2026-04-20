@@ -32,6 +32,7 @@ jobs:
         shell: bash
 
       - name: 🧪 Tests
+        shell: bash
         run: |
           python -m phmdoctest README.md --outfile tests/integration/test_readme.py
           for md in $(find docs -name "*.md" | sort); do
