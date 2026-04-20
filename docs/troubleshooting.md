@@ -8,7 +8,7 @@ This page covers the five most common problems encountered when using pyDeprecat
 
 ## UserWarning when decorating a class
 
-**Q:** I applied `@deprecated` directly to a class and got `UserWarning: Direct use of `@deprecated` on class `MyClass` is deprecated since `v0.6.0`. Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release.` Why, and how do I fix it?
+**Q:** I applied `@deprecated` directly to a class and got `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.` Why, and how do I fix it?
 
 **A:** Use `@deprecated_class()` for classes. The `@deprecated` decorator is designed for functions and methods only.
 
@@ -45,7 +45,7 @@ class MyClass:
 
 ## TypeError: Failed mapping
 
-**Q:** I get `TypeError: Failed mapping of `my_func`, arguments not accepted by target: ['old_arg']`. What does this mean?
+**Q:** I get `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`. What does this mean?
 
 **A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `target=True` for in-place remapping.
 
