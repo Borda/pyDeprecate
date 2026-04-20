@@ -1,5 +1,5 @@
 ---
-description: Install pyDeprecate and write your first deprecation in minutes. Covers pip and conda installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.
+description: Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.
 ---
 
 # Getting Started

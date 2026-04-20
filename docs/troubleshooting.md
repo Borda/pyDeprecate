@@ -8,11 +8,11 @@ This page covers the five most common problems encountered when using pyDeprecat
 
 ## UserWarning when decorating a class
 
-**Q:** I applied `@deprecated` directly to a class and got `UserWarning: Applying @deprecated to class MyClass is not supported since v0.6.0. Use @deprecated_class() from deprecate.proxy instead.` Why, and how do I fix it?
+**Q:** I applied `@deprecated` directly to a class and got `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.` Why, and how do I fix it?
 
 **A:** Use `@deprecated_class()` for classes. The `@deprecated` decorator is designed for functions and methods only.
 
-Applying `@deprecated` directly to a class still works — it delegates to `@deprecated_class()` under the hood — but that delegation path is itself deprecated and will be removed in a future version. The warning you see is pyDeprecate telling you to opt in to the correct API explicitly.
+That warning is triggered specifically when `@deprecated` is applied directly to a class. This still works today because pyDeprecate delegates to `@deprecated_class()` under the hood, but that delegation path is itself deprecated and will become a `TypeError` in a future release. The warning is telling you to switch to the explicit class API now.
 
 There are two supported alternatives depending on what you need. Use `@deprecated_class()` when you want to deprecate the class name itself (including Enums and dataclasses). Use `@deprecated` on `__init__` when you want to warn only at instantiation time while keeping the class name in place.
 
@@ -45,11 +45,11 @@ class MyClass:
 
 ## TypeError: Failed mapping
 
-**Q:** I get `TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']`. What does this mean?
+**Q:** I get `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`. What does this mean?
 
 **A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `target=True` for in-place remapping.
 
-The error fires at call time because pyDeprecate builds the forwarded kwargs from the deprecated function's signature and then validates them against the target's signature. When a key has no match, the mapping fails.
+The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `TypeError: Failed mapping of '{source}', arguments not accepted by target: [...]`. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
 
 Choose the fix that matches your situation:
 
@@ -104,11 +104,11 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
 
 ## TypeError: skip_if function must return bool
 
-**Q:** I see `TypeError: User function 'should_ship' shall return bool, but got: <type>`. What is wrong with my `skip_if` callable?
+**Q:** I see `TypeError: User function 'skip_if' shall return bool, but got: <type>`. What is wrong with my `skip_if` callable?
 
-**A:** The callable passed to `skip_if` must return a `bool`. If it returns any other type — including a truthy int or a string — pyDeprecate raises this error.
+**A:** The callable passed to `skip_if` must return a `bool`. If it returns any other type — including a truthy int or a string — pyDeprecate raises `TypeError("User function 'skip_if' shall return bool, but got: ...")`.
 
-pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. Wrap any non-bool expression in an explicit `bool()` call, or use a `lambda` that returns a literal `True` or `False`.
+pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to `skip_if` itself, not the name of your callback. Wrap any non-bool expression in an explicit `bool()` call, or use a `lambda` that returns a literal `True` or `False`.
 
 ```python
 # Minimal replacement function for examples

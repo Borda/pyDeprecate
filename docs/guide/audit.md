@@ -22,6 +22,7 @@ During development you may want to verify that a deprecated wrapper is correctly
 - `identity_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
 - `self_reference` — `True` if target points to the same function
 - `no_effect` — `True` if the wrapper has zero impact (self-reference, empty mapping, or all-identity)
+- `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
 
 ### Validating a single function
 
@@ -168,7 +169,7 @@ def test_deprecated_wrappers_are_valid():
 
     # Warn for identity mappings (less severe)
     for r in identity_mappings:
-        pytest.warns(UserWarning, match=f"{r.function} has identity mapping")
+        warnings.warn(f"{r.function} has identity mapping", UserWarning)
 ```
 
 ## Enforcing Removal Deadlines

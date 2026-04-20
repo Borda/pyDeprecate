@@ -68,7 +68,7 @@
       "name": "Why is a deprecation warning not working when called from another module?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Python's warnings module tracks call sites. Import and call the deprecated function from the module where it is defined to ensure the warning path is correct."
+        "text": "pyDeprecate builds the warning target path from the real target object's canonical module and name (target.__module__ and target.__name__), not from warnings call-site tracking. Make sure the deprecated wrapper points to the actual target object imported from its canonical module."
       }
     }
   ]
