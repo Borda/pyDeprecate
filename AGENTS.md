@@ -132,7 +132,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **After any API change**: update `README.md` AND the relevant `docs/guide/` page
 - **New troubleshooting item**: add to `docs/troubleshooting.md` AND the FAQPage JSON-LD in `docs/overrides/main.html`
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
-- See [Documentation Site](.github/CONTRIBUTING.md#-documentation-site) for the full consistency rules
+- See [Documentation Site](.github/CONTRIBUTING.md#documentation-site) for the full consistency rules
 
 ## 🚫 Critical Constraints
 
@@ -170,4 +170,4 @@ This file provides quick reference for agents. For complete, authoritative guide
 - **PR review guidelines** → [Contributing: Reviewing PRs](.github/CONTRIBUTING.md#reviewing-prs)
 - **Security reporting** → [Security Policy](.github/SECURITY.md)
 - **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)
-- **Documentation site** → [Contributing: Documentation Site](.github/CONTRIBUTING.md#-documentation-site)
+- **Documentation site** → [Contributing: Documentation Site](.github/CONTRIBUTING.md#documentation-site)
