@@ -197,6 +197,13 @@ pre-commit run --all-files
 # Generate/extract README examples as tests (when updating README examples)
 phmdoctest README.md --outfile tests/integration/test_readme.py
 
+# Generate tests from docs pages (when updating any docs/**.md code examples)
+phmdoctest docs/getting-started.md --outfile tests/docs/test_getting_started.py
+phmdoctest docs/guide/use-cases.md --skip "from sklearn" --outfile tests/docs/test_use_cases.py
+phmdoctest docs/guide/void-helper.md --outfile tests/docs/test_void_helper.py
+phmdoctest docs/guide/audit.md --outfile tests/docs/test_audit.py
+phmdoctest docs/troubleshooting.md --outfile tests/docs/test_troubleshooting.py
+
 # Run the full test suite (including doctests if configured in pytest)
 pytest .
 ```
@@ -589,6 +596,9 @@ python3 -m mkdocs build --strict
 # Live-reload preview at http://127.0.0.1:8000
 python3 -m mkdocs serve
 ```
+
+> [!NOTE]
+> Every Python code block in a docs page is extracted by `phmdoctest` and executed as a test. After updating any `docs/**/*.md` code example, regenerate the corresponding `tests/docs/test_<name>.py` file using the commands above. The generated files are gitignored — CI regenerates them automatically before running pytest.
 
 > [!NOTE]
 > The `git-revision-date-localized` plugin requires a full git history. Run `git fetch --unshallow` (or use `fetch-depth: 0` in CI) if revision dates show as today for old files.

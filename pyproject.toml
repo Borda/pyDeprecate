@@ -80,12 +80,12 @@ allow_redefinition = "True"
 warn_no_return = "False"
 
 [tool.pytest]
+ini_options.testpaths = [ "src", "tests" ]
 ini_options.norecursedirs = [
   ".git",
   ".github",
   "dist",
   "build",
-  "docs",
   "demo-*",
 ]
 ini_options.addopts = [
