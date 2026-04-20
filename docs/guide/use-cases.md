@@ -498,6 +498,9 @@ def transform(x: int) -> int:
     return x * 2
 
 
+transform.__module__ = "your_module"
+
+
 # ---------------------------
 
 from deprecate import deprecated
@@ -530,6 +533,25 @@ print(process.__doc__)
 #    Use `your_module.transform` instead.
 ```
 
+<details>
+  <summary>Output: <code>print(process.__doc__)</code></summary>
+
+```
+Transforms the input value.
+
+.. deprecated:: 1.0
+   Will be removed in 2.0.
+   Use :func:`your_module.transform` instead.
+
+Args:
+    x: Input value
+
+Returns:
+    Result of computation
+```
+
+</details>
+
 For MkDocs projects using `mkdocstrings`, switch to the admonition output style and register the Griffe extension so the injected notice appears in generated docs:
 
 ```python
@@ -538,6 +560,9 @@ from deprecate import deprecated
 
 def transform(x: int) -> int:
     return x * 2
+
+
+transform.__module__ = "your_module"
 
 
 @deprecated(
@@ -557,6 +582,19 @@ print(process.__doc__)
 #     Will be removed in 2.0.
 #     Use `your_module.transform` instead.
 ```
+
+<details>
+  <summary>Output: <code>print(process.__doc__)</code></summary>
+
+```
+Transforms the input value.
+
+!!! warning "Deprecated in 1.0"
+    Will be removed in 2.0.
+    Use `your_module.transform` instead.
+```
+
+</details>
 
 Register the extension in `mkdocs.yml` so `mkdocstrings` picks up the runtime-injected notice:
 

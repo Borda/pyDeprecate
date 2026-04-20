@@ -197,6 +197,9 @@ def new_greet(name: str) -> str:
     return f"Hello, {name}!"
 
 
+new_greet.__module__ = "your_module"
+
+
 @deprecated(target=new_greet, deprecated_in="1.0", remove_in="2.0", stream=print)
 def old_greet(name: str) -> str:
     pass
@@ -207,6 +210,16 @@ def old_greet(name: str) -> str:
 #   It will be removed in v2.0.
 print(old_greet("World"))
 ```
+
+<details>
+  <summary>Output: <code>print(old_greet("World"))</code></summary>
+
+```
+The `old_greet` was deprecated since v1.0 in favor of `your_module.new_greet`. It will be removed in v2.0.
+Hello, World!
+```
+
+</details>
 
 ### Custom stream callable
 
@@ -226,6 +239,9 @@ def target_fn(x: int) -> int:
     return x * 2
 
 
+target_fn.__module__ = "your_module"
+
+
 @deprecated(target=target_fn, deprecated_in="1.0", remove_in="2.0", stream=collector)
 def source_fn(x: int) -> int:
     pass
@@ -234,6 +250,15 @@ def source_fn(x: int) -> int:
 source_fn(10)
 print(collected_warnings)
 ```
+
+<details>
+  <summary>Output: <code>print(collected_warnings)</code></summary>
+
+```
+['The `source_fn` was deprecated since v1.0 in favor of `your_module.target_fn`. It will be removed in v2.0.']
+```
+
+</details>
 
 ______________________________________________________________________
 

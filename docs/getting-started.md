@@ -49,10 +49,17 @@ def addition(a: int, b: int = 5) -> int:
 
 
 # Using the original name still works but shows a warning
-result = addition(1, 2)  # Returns 3
-# Warning: The `addition` was deprecated since v1.0 in favor of `your_module.compute_sum`.
-#          It will be removed in v2.0.
+print(addition(1, 2))
 ```
+
+<details>
+  <summary>Output: <code>print(addition(1, 2))</code></summary>
+
+```
+3
+```
+
+</details>
 
 All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. The old function's body is never executed.
 
