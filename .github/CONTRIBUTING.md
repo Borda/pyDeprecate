@@ -197,12 +197,8 @@ pre-commit run --all-files
 # Generate/extract README examples as tests (when updating README examples)
 phmdoctest README.md --outfile tests/integration/test_readme.py
 
-# Generate tests from docs pages (when updating any docs/**.md code examples)
-phmdoctest docs/getting-started.md --outfile tests/docs/test_getting_started.py
-phmdoctest docs/guide/use-cases.md --skip "from sklearn" --outfile tests/docs/test_use_cases.py
-phmdoctest docs/guide/void-helper.md --outfile tests/docs/test_void_helper.py
-phmdoctest docs/guide/audit.md --outfile tests/docs/test_audit.py
-phmdoctest docs/troubleshooting.md --outfile tests/docs/test_troubleshooting.py
+# Generate tests from README and all docs pages
+make docs-tests
 
 # Run the full test suite (including doctests if configured in pytest)
 pytest .
@@ -590,11 +586,9 @@ The project ships two separate documentation surfaces:
 # Install docs dependencies (separate from test requirements)
 pip install -r docs/requirements.txt
 
-# One-shot build with strict mode (fails on warnings)
-python3 -m mkdocs build --strict
-
-# Live-reload preview at http://127.0.0.1:8000
-python3 -m mkdocs serve
+make docs-build   # one-shot build with strict mode (fails on warnings)
+make docs-serve   # live-reload preview at http://127.0.0.1:8000
+make docs-tests   # regenerate tests/integration/test_readme.py and tests/docs/test_*.py
 ```
 
 > [!NOTE]

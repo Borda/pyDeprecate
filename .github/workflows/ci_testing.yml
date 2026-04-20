@@ -33,12 +33,11 @@ jobs:
 
       - name: 🧪 Tests
         run: |
-          phmdoctest README.md --outfile tests/integration/test_readme.py
-          phmdoctest docs/getting-started.md --outfile tests/docs/test_getting_started.py
-          phmdoctest docs/guide/use-cases.md --skip "from sklearn" --outfile tests/docs/test_use_cases.py
-          phmdoctest docs/guide/void-helper.md --outfile tests/docs/test_void_helper.py
-          phmdoctest docs/guide/audit.md --outfile tests/docs/test_audit.py
-          phmdoctest docs/troubleshooting.md --outfile tests/docs/test_troubleshooting.py
+          python -m phmdoctest README.md --outfile tests/integration/test_readme.py
+          for md in $(find docs -name "*.md" | sort); do
+            name="${md#docs/}"; name="${name%.md}"; name="${name//\//_}"; name="${name//-/_}"; \
+            python -m phmdoctest "$md" --outfile "tests/docs/test_${name}.py"; \
+          done
           python -m pytest . -vv --cov=deprecate
 
       - name: 📊 Statistics

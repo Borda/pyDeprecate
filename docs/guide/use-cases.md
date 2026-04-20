@@ -73,6 +73,7 @@ calculate = deprecated(
 When the new function accepts the same arguments under different names, use `args_mapping` to translate the old parameter names to the new ones at call time. This lets callers continue to pass the old names during the deprecation window without any manual mapping code in the wrapper body.
 
 ```python
+# phmdoctest:skip
 import logging
 from sklearn.metrics import accuracy_score
 from deprecate import deprecated, void
