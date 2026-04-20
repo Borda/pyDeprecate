@@ -1,5 +1,6 @@
 ---
-description: Eleven real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
+id: use-cases
+description: Twelve real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
 ---
 
 # Use Cases
@@ -514,6 +515,56 @@ print(notify("alice@example.com", "Hello"))
 ```
 
 `args_extra` is only applied when `target` is a `Callable`. It is merged into the forwarded kwargs after `args_mapping` is applied, so extra values can also override mapped ones. It is ignored for `target=True` self-deprecation, where no forwarding occurs.
+
+## Suppressing warnings in test fixtures with `assert_no_warnings`
+
+When writing tests, you often need to call deprecated functions in setup code — fixtures, helpers, or factory functions — without polluting the test output with deprecation warnings. The `assert_no_warnings` context manager handles this by catching and discarding warnings of the specified type inside the block, while also asserting that no such warning escapes.
+
+This is different from `pytest.warns` (which asserts a warning IS emitted) and from `warnings.filterwarnings("ignore")` (which silences globally without assertion). `assert_no_warnings` gives you a scoped, assertion-backed silence: if the function under the block unexpectedly starts emitting a different warning category, that would still surface.
+
+```python
+import warnings
+from deprecate import deprecated, assert_no_warnings, void
+
+
+def new_create_client(host: str, port: int = 443) -> dict:
+    return {"host": host, "port": port}
+
+
+@deprecated(target=new_create_client, deprecated_in="1.0", remove_in="2.0")
+def create_client(host: str, port: int = 443) -> dict:
+    return void(host, port)
+
+
+# In test fixtures you need the forwarding result but not the warning noise.
+# Use warnings.catch_warnings to suppress, then assert_no_warnings for new code:
+def make_test_client() -> dict:
+    """Test helper that calls the deprecated API without emitting warnings."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        return create_client("localhost", 8080)
+
+
+# The helper works silently:
+client = make_test_client()
+print(client)
+
+
+# For verifying that NEW code does NOT emit warnings, use assert_no_warnings:
+with assert_no_warnings(FutureWarning):
+    result = new_create_client("example.com")
+print(result)
+```
+
+The key distinction between the testing tools:
+
+| Tool                                                   | Purpose                       | Fails when...                 |
+| ------------------------------------------------------ | ----------------------------- | ----------------------------- |
+| `pytest.warns(FutureWarning)`                          | Assert warning IS emitted     | No matching warning raised    |
+| `assert_no_warnings(FutureWarning)`                    | Assert warning is NOT emitted | A matching warning IS raised  |
+| `warnings.catch_warnings()` + `simplefilter("ignore")` | Suppress without assertion    | Never fails (use in fixtures) |
+
+Use `assert_no_warnings` in your test assertions to verify that refactored code no longer triggers deprecation warnings. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
 
 ______________________________________________________________________
 

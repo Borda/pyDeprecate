@@ -1,4 +1,5 @@
 ---
+id: index
 description: >-
   pyDeprecate — zero-dependency Python library for deprecating functions,
   methods, and classes with automatic call forwarding, argument mapping, and
@@ -13,6 +14,7 @@ Renaming a function or retiring an argument by hand means writing a wrapper, get
 from deprecate import deprecated
 
 
+# New function whci replaces `addition` 
 def compute_sum(x: int, y: int) -> int:
     return x + y
 
@@ -52,13 +54,13 @@ The alternatives — `warnings.warn` directly, the `deprecation` package, or `wr
 
 | Feature              | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) |
 | -------------------- | ----------- | --------------- | ------------- | -------------------- |
+| Zero runtime deps    | ✅          | ✅              | ✅            | ❌                   |
 | Auto call forwarding | ✅          | ❌              | ❌            | ❌                   |
 | Argument mapping     | ✅          | ❌              | ❌            | ❌                   |
 | Class / Enum proxy   | ✅          | ❌              | ❌            | ❌                   |
 | Docstring injection  | ✅          | ❌              | ❌            | ❌                   |
 | CI audit tools       | ✅          | ❌              | ❌            | ❌                   |
 | Testing helpers      | ✅          | ❌              | ❌            | ❌                   |
-| Zero runtime deps    | ✅          | ✅              | ✅            | ❌                   |
 
 ## Where to go next
 

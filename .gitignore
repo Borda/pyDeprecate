@@ -70,6 +70,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# MkDocs plugin scratch directories
+.build/
+
 # Demo documentation build artefacts
 demo-docs/sphinx/.claude/
 demo-docs/sphinx/_build/

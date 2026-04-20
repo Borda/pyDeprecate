@@ -1,5 +1,6 @@
 ---
-description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configuration, enforce removal deadlines by version, detect deprecation chains, and test warning behaviour."
+id: audit
+description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configuration, enforce removal deadlines by version, detect deprecation chains, test warning behaviour, and integrate with pre-commit hooks."
 ---
 
 # Audit Tools
@@ -138,6 +139,15 @@ pydeprecate path/to/your/package
 ```
 
 The CLI reports invalid argument mappings and wrappers with no effect, making it easy to add a validation step to a `Makefile` or pre-commit hook.
+
+**Exit codes:**
+
+| Exit code | Meaning                                                                     |
+| --------- | --------------------------------------------------------------------------- |
+| `0`       | No issues found (or only advisory warnings like identity mappings)          |
+| `1`       | Invalid argument mappings detected (hard errors that break call forwarding) |
+
+The CLI also supports `--skip-errors` to always exit `0` even when issues are found — useful for advisory-only CI steps where you want visibility without blocking the pipeline.
 
 ### pytest integration
 
@@ -352,6 +362,30 @@ def enforce_no_deprecation_chains():
 
 Use `recursive=False` to restrict scanning to the top-level module only, which can speed up large codebases when you know submodules are clean.
 
+## Pre-commit Integration
+
+> **Coming soon.** Native pre-commit hook support is planned. For now, run the validator directly via `python -m deprecate` in your `Makefile` or CI step.
+
+The CLI checks for misconfigured wrappers only — invalid `args_mapping` keys, identity mappings, self-references:
+
+```bash
+# Install the CLI extra
+pip install 'pyDeprecate[cli]'
+
+# Scan your package — exits 1 if invalid arg mappings are found
+python -m deprecate src/your_package
+
+# Advisory-only: always exit 0, report issues without blocking
+python -m deprecate src/your_package --skip_errors true
+```
+
+**Exit codes:**
+
+| Exit code | Meaning |
+| --------- | --------------------------------------------------------------- |
+| `0` | No issues found (or `--skip_errors true` was set) |
+| `1` | Invalid argument mappings detected — these break call forwarding |
+
 ## Testing Deprecated Code
 
 pyDeprecate ships `assert_no_warnings`, a context manager that fails if a specified warning category is raised inside the block. Use it alongside `pytest.warns` to write precise tests that verify both the presence and absence of deprecation warnings.
@@ -432,6 +466,52 @@ def old_func_always_warn(x: int) -> int:
 def old_func_warn_n_times(x: int) -> int:
     pass
 ```
+
+### Suppressing warnings in test fixtures
+
+When you need to call deprecated functions in test setup code — fixtures, factory helpers, or shared utilities — without polluting the test output with deprecation noise, use `warnings.catch_warnings()` with `simplefilter("ignore")`. This suppresses the warning while still exercising the call-forwarding path.
+
+```python
+import warnings
+from deprecate import deprecated, assert_no_warnings, void
+
+
+def new_create_session(host: str, timeout: int = 30) -> dict:
+    return {"host": host, "timeout": timeout}
+
+
+@deprecated(target=new_create_session, deprecated_in="1.0", remove_in="2.0")
+def create_session(host: str, timeout: int = 30) -> dict:
+    return void(host, timeout)
+
+
+def make_test_session(host: str = "localhost") -> dict:
+    """Test fixture helper — calls deprecated API silently."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        return create_session(host, timeout=5)
+
+
+# The helper works without emitting warnings:
+session = make_test_session()
+print(session)
+
+# Meanwhile, assert_no_warnings verifies NEW code is clean:
+with assert_no_warnings(FutureWarning):
+    clean_session = new_create_session("prod.example.com")
+print(clean_session)
+```
+
+### Choosing the right testing tool
+
+| Tool                                                   | Use when...                                                 | Behaviour                                              |
+| ------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------ |
+| `pytest.warns(FutureWarning)`                          | Testing that a deprecated function DOES warn on first call  | Fails if no matching warning is raised                 |
+| `assert_no_warnings(FutureWarning)`                    | Testing that new code or subsequent calls do NOT warn       | Fails if a matching warning IS raised                  |
+| `assert_no_warnings(FutureWarning, match="pattern")`   | Testing that a specific warning message is absent           | Only fails if a warning matching the pattern is raised |
+| `warnings.catch_warnings()` + `simplefilter("ignore")` | Calling deprecated code in fixtures/setup without assertion | Silently suppresses; never fails                       |
+
+The `match` parameter on `assert_no_warnings` accepts a substring — it filters the captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
 
 ______________________________________________________________________
 

@@ -25,11 +25,18 @@ plugins:
       type: iso_date
       fallback_to_build_date: true
 
+extra_css:
+  - stylesheets/extra.css
+
 markdown_extensions:
   - admonition
   - meta
   - toc:
-      permalink: true
+      permalink: "🔗"
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
 
 validation:
   links:
@@ -43,6 +50,7 @@ nav:
       - Use Cases: guide/use-cases.md
       - void() Helper: guide/void-helper.md
       - Audit Tools: guide/audit.md
+      - Customization: guide/customization.md
   - Troubleshooting: troubleshooting.md
   - Demos:
       - Sphinx: demo-sphinx/index.md

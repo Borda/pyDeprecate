@@ -1,4 +1,5 @@
 ---
+id: getting-started
 description: Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.
 ---
 
@@ -55,6 +56,10 @@ result = addition(1, 2)  # Returns 3
 
 All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. The old function's body is never executed.
 
+
+> **Customizing warnings:** To customize the message template or redirect warnings to a logger, see [Customization](guide/customization.md).
+
+
 ## API at a Glance
 
 Not sure which decorator to reach for? The table below maps common scenarios to the correct API. For full worked examples of each, see [Use Cases](guide/use-cases.md).
@@ -89,4 +94,4 @@ Not sure which decorator to reach for? The table below maps common scenarios to 
 
 ______________________________________________________________________
 
-Next: [Use Cases](guide/use-cases.md) — eleven real-world deprecation patterns with full code examples.
+Next: [Use Cases](guide/use-cases.md) — twelve real-world deprecation patterns with full code examples.

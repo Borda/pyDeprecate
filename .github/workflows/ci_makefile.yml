@@ -25,10 +25,8 @@ jobs:
       matrix:
         include:
           - target: docs-build
-            install_extra: -r docs/requirements.txt -r demo-docs/sphinx/requirements.txt -r demo-docs/mkdocs/requirements.txt
             fetch_depth: 0 # git-revision-date plugin requires full history
           - target: docs-tests
-            install_extra: -r tests/requirements.txt
             test_dir: tests/docs/
 
     steps:
@@ -42,9 +40,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
-
-      - name: 📦 Install dependencies
-        run: pip install ".[audit,cli]" ${{ matrix.install_extra }}
 
       - name: 🔨 make ${{ matrix.target }}
         run: make ${{ matrix.target }}

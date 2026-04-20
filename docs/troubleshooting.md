@@ -1,10 +1,11 @@
 ---
-description: 'Fix common pyDeprecate errors: missing warnings, TypeError mapping failures, class deprecation warnings, bool return errors, and cross-module warning issues.'
+id: troubleshooting
+description: 'Fix common pyDeprecate errors: missing warnings, TypeError mapping failures, class deprecation warnings, bool return errors, cross-module warning issues, proxy limitations on primitives, and redirecting warnings to a logger.'
 ---
 
 # Troubleshooting
 
-This page covers the five most common problems encountered when using pyDeprecate, with direct answers and corrected code for each. If your issue is not listed here, see the "Still stuck?" section at the bottom.
+This page covers the most common problems encountered when using pyDeprecate, with direct answers and corrected code for each. If your issue is not listed here, see the "Still stuck?" section at the bottom.
 
 ## UserWarning when decorating a class
 
@@ -41,6 +42,88 @@ class MyClass:
     @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
+```
+
+## Upgrading from `@deprecated` on a class to `@deprecated_class`
+
+**Q:** My codebase used an older version of pyDeprecate that applied `@deprecated` directly to a class. It behaved strangely — `isinstance()` checks failed, subclassing broke, and class attributes were inaccessible. What went wrong, and how do I migrate?
+
+**A:** Before v0.6.0, applying `@deprecated` directly to a class replaced the class object with a plain wrapper function. Python's `isinstance`, `issubclass`, and attribute lookup all operate on the class type — so replacing the class with a function silently broke every downstream use that depended on the class being a type.
+
+Symptoms of the old behaviour:
+
+```python
+# phmdoctest:skip
+# --- Old broken pattern (pre-v0.6) ---
+from deprecate import deprecated
+
+
+@deprecated(target=NewClass, deprecated_in="1.0", remove_in="2.0")
+class OldClass:
+    class_attr = 42
+
+
+obj = OldClass()
+isinstance(obj, OldClass)     # TypeError or False — OldClass is now a function
+issubclass(OldClass, object)  # TypeError — same reason
+OldClass.class_attr           # AttributeError — wrapper function has no class attributes
+```
+
+The replacement is `@deprecated_class()`, which wraps the class in a `_DeprecatedProxy`. The proxy forwards all attribute access, item access, calls, and type checks to the target class — so `isinstance` and `issubclass` work correctly, class attributes remain accessible, and existing subclasses continue to work.
+
+```python
+from deprecate import deprecated_class
+
+
+class NewCalculator:
+    def add(self, a: int, b: int) -> int:
+        return a + b
+
+
+@deprecated_class(target=NewCalculator, deprecated_in="1.0", remove_in="2.0")
+class OldCalculator:
+    pass
+
+
+obj = OldCalculator()
+print(isinstance(obj, NewCalculator))    # True — proxy forwards isinstance checks
+print(issubclass(OldCalculator, object)) # True — type checks pass through
+print(obj.add(1, 2))                     # 3 — forwarded to NewCalculator
+```
+
+The same rule applies to Enums and dataclasses — `@deprecated_class` is the correct API, not `@deprecated`:
+
+```python
+from enum import Enum
+from deprecate import deprecated_class
+
+
+class Color(Enum):
+    RED = 1
+    BLUE = 2
+
+
+OldColor = deprecated_class(target=Color, deprecated_in="1.5", remove_in="2.0")(Color)
+
+print(OldColor.RED is Color.RED)     # True
+print(OldColor(1) is Color.RED)      # True
+print(OldColor["RED"] is Color.RED)  # True
+```
+
+If you need to warn only at instantiation time without deprecating the class name itself, decorate `__init__` instead — this keeps the class object intact and `isinstance`/`issubclass` unaffected:
+
+```python
+from deprecate import deprecated
+
+
+class MyService:
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    def __init__(self, host: str) -> None:
+        self.host = host  # body executes; warning fires at every MyService(...)
+
+
+svc = MyService("localhost")
+print(isinstance(svc, MyService))  # True
 ```
 
 ## TypeError: Failed mapping
@@ -177,6 +260,129 @@ If you are writing tests and need to verify that a warning fires, use `pytest.wa
 **A:** The warning message reports the fully-qualified path of the target callable as Python resolves it at decoration time. Ensure the target is imported from its canonical location before the `@deprecated` decorator is applied.
 
 When moving functions across modules, import the target from its new home explicitly rather than relying on a re-export alias. The path shown in the warning will then reflect the module where the function actually lives, giving callers accurate migration information. The warning will correctly show the full path for real imports when used in your package.
+
+## Why does `deprecated_instance` not warn on arithmetic/comparison operators?
+
+**Q:** I wrapped a `float` constant with `deprecated_instance` but operations like `old_value + 1` or `old_value > 0` do not emit any deprecation warning. Why?
+
+**A:** Python's data model invokes special ("dunder") methods like `__add__`, `__lt__`, `__mul__`, etc. directly on the object's type, bypassing `__getattr__`. The `_DeprecatedProxy` class implements `__getattr__` to intercept attribute access, but CPython does not call `__getattr__` for implicit protocol method lookups (it goes through the class's MRO directly). Since `_DeprecatedProxy` does not define every possible arithmetic/comparison dunder, these operations fall through to the default behaviour or raise `TypeError` — without emitting a warning.
+
+The proxy does intercept:
+
+- Attribute access (`obj.name`) via `__getattr__`
+- Subscript access (`obj[key]`) via `__getitem__`
+- Iteration (`for x in obj`) via `__iter__`
+- Calling (`obj(...)`) via `__call__`
+- Equality (`obj == other`) via `__eq__`
+- Boolean truth (`if obj`) via `__bool__`
+- String representation (`str(obj)`, `repr(obj)`) via `__str__`/`__repr__`
+
+It does **not** intercept:
+
+- Arithmetic operators (`+`, `-`, `*`, `/`, `//`, `**`, `%`)
+- Comparison operators (`<`, `>`, `<=`, `>=`) other than equality
+- Bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`)
+- Unary operators (`-obj`, `+obj`, `abs(obj)`)
+
+**Workarounds for primitive constants:**
+
+1. **Wrap in a container** — put the value in a dict or dataclass so access goes through `__getitem__` or `__getattr__`:
+
+```python
+from deprecate import deprecated_instance
+
+# Instead of: OLD_THRESHOLD = deprecated_instance(0.5, ...)
+# Use a container:
+_THRESHOLDS = {"value": 0.5}
+OLD_THRESHOLD = deprecated_instance(
+    _THRESHOLDS,
+    name="OLD_THRESHOLD",
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+
+# Access via subscript triggers the warning:
+print(OLD_THRESHOLD["value"])
+```
+
+2. **Update call sites directly** — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy:
+
+```python
+# Just rename and grep-replace call sites:
+NEW_THRESHOLD = 0.5  # new name
+# OLD_THRESHOLD = 0.5  # remove after migration
+```
+
+3. **Use a deprecated function wrapper** — if you need deprecation warnings on read access to a bare value, expose it through a function that you can decorate:
+
+```python
+from deprecate import deprecated
+
+
+@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+def get_old_threshold() -> float:
+    """Use NEW_THRESHOLD constant directly instead."""
+    return 0.5
+
+
+# Callers get a warning when they call get_old_threshold()
+print(get_old_threshold())
+```
+
+## How do I redirect deprecation warnings to a logger instead of `warnings.warn`?
+
+**Q:** I want deprecation messages to go through Python's `logging` module instead of the default `warnings.warn` mechanism. How?
+
+**A:** Pass any logging method as the `stream` parameter. The `stream` callable receives the formatted warning message as a single string argument — logging methods like `logging.warning` have exactly this signature.
+
+```python
+# phmdoctest:skip
+import logging
+from deprecate import deprecated
+
+# Configure logging (typically done once at application startup)
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+
+
+def new_endpoint(url: str) -> str:
+    return f"GET {url}"
+
+
+@deprecated(
+    target=new_endpoint,
+    deprecated_in="2.0",
+    remove_in="3.0",
+    stream=logging.warning,
+)
+def old_endpoint(url: str) -> str:
+    pass
+
+
+# Instead of a FutureWarning, emits a log line:
+#   2026-04-20 12:00:00 [WARNING] The `old_endpoint` was deprecated since v2.0
+#   in favor of `__main__.new_endpoint`. It will be removed in v3.0.
+old_endpoint("/api/users")
+```
+
+**Choosing the log level:**
+
+| Level             | When to use                                   |
+| ----------------- | --------------------------------------------- |
+| `logging.info`    | Early deprecation window; low urgency         |
+| `logging.warning` | Standard choice; default log configs show it  |
+| `logging.error`   | Critical deprecation nearing removal deadline |
+
+**Benefits over `warnings.warn`:**
+
+- Integrates with your existing log aggregation (ELK, Datadog, CloudWatch, etc.)
+- Respects your log format, handlers, and filters
+- Always emitted regardless of Python's warning filter state (no `-W` flag interaction)
+- Timestamps included automatically if your formatter adds them
+
+**Note:** When using `stream=logging.warning`, the `num_warns` parameter still controls how many times the message is emitted. The combination of `num_warns=-1` with `stream=logging.warning` ensures every deprecated call site is logged — useful for measuring migration progress via log analytics.
 
 ______________________________________________________________________
 
