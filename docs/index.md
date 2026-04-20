@@ -7,10 +7,7 @@ description: >-
 
 # pyDeprecate
 
-**pyDeprecate** is a zero-dependency Python library that turns API deprecation from a chore into a one-liner.
-Decorate a function or method with `@deprecated(...)`, or a class/Enum/dataclass with `@deprecated_class(...)`,
-and the library handles the rest: runtime `FutureWarning` emission, transparent call forwarding to the replacement,
-and automatic documentation updates.
+Renaming a function or retiring an argument by hand means writing a wrapper, getting `warnings.warn` right (correct category, correct `stacklevel`), manually forwarding every argument, and repeating that for every deprecated symbol — with no mechanism to enforce removal when the deadline arrives. **pyDeprecate** collapses that entire process into a single decorator call and gives you CI tools to make sure deprecated code doesn't quietly outlive its deadline.
 
 ```python
 from deprecate import deprecated
@@ -28,13 +25,12 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 ## Features
 
-- **Automatic call forwarding** — no wrapper boilerplate; the decorator does the routing.
-- **Argument mapping** — rename or drop arguments between old and new APIs via `args_mapping`.
-- **Class and Enum support** — `@deprecated_class` wraps entire classes in a transparent proxy.
-- **Configurable warning frequency** — emit once, N times, or always (`num_warns`).
-- **Docstring injection** — `update_docstring=True` keeps rendered docs current automatically.
-- **CI audit tools** — `find_deprecation_wrappers()`, `validate_deprecation_expiry()`, and
-  `validate_deprecation_chains()` enforce removal deadlines and detect chained deprecations in CI.
+- **Automatic call forwarding** — no manual `*args/**kwargs` delegation; the decorator routes every call to the replacement, including positional and keyword arguments.
+- **Argument mapping** — `args_mapping={"old": "new"}` handles argument renames across the API boundary; no custom forwarding code needed.
+- **Class and Enum support** — `@deprecated_class` wraps entire classes, Enums, and dataclasses in a transparent proxy; `isinstance` and `issubclass` checks continue to work correctly.
+- **Configurable warning frequency** — `num_warns=1` (default) fires once per function, not on every call, so users aren't flooded; set to `-1` to always warn or `N` for exactly N warnings.
+- **Docstring injection** — `update_docstring=True` appends a Sphinx `.. deprecated::` notice automatically, so rendered API docs stay accurate without manual edits.
+- **CI audit tools** — `validate_deprecation_expiry()` catches functions whose `remove_in` version has passed, `validate_deprecation_chains()` detects double-warning chains, and `find_deprecation_wrappers()` surfaces misconfigured `args_mapping` keys before they silently do nothing.
 - **Zero runtime dependencies** — nothing added to `install_requires`.
 - **Python 3.9+** supported.
 
@@ -51,6 +47,8 @@ pip install "pyDeprecate[audit]"
 ```
 
 ## Comparison with other tools
+
+The alternatives — `warnings.warn` directly, the `deprecation` package, or `wrapt.deprecated` — emit a warning but leave all the forwarding, argument mapping, and enforcement work to you. pyDeprecate handles those parts so you don't have to.
 
 | Feature              | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) |
 | -------------------- | ----------- | --------------- | ------------- | -------------------- |

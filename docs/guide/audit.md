@@ -4,7 +4,7 @@ description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configu
 
 # Audit Tools
 
-Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, and that chains of deprecated-to-deprecated calls do not silently accumulate. These tools are designed to run inside CI pipelines and test suites, catching problems before they reach users.
+Three concrete failure modes motivate this module: a `remove_in` deadline passes and the deprecated code is never removed (zombie code); a deprecated wrapper targets another deprecated function, causing callers to receive two warnings instead of one (a chain); or an `args_mapping` key contains a typo and silently does nothing (a misconfiguration). `validate_deprecation_expiry()`, `validate_deprecation_chains()`, and `find_deprecation_wrappers()` exist to catch each of these in CI before they reach users.
 
 > **Renamed in v0.6**: `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
 

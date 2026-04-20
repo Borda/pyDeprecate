@@ -4,7 +4,7 @@ description: Install pyDeprecate and write your first deprecation in minutes. Co
 
 # Getting Started
 
-pyDeprecate is a lightweight Python library for adding deprecation warnings to functions, methods, and classes with automatic call forwarding. This page walks through installation, a minimal working example, and the full decorator API so you can choose the right tool for each scenario.
+When you rename a function or retire an argument, you need the old name to keep working, callers to receive a clear warning pointing at the new API, and a firm removal date you can actually enforce. Doing that by hand — writing a wrapper, calling `warnings.warn` with the right arguments, forwarding every parameter — is repetitive and leaves no enforcement path. pyDeprecate does all of it with a single decorator so you can focus on the new API instead of the plumbing.
 
 ## Installation
 
@@ -30,7 +30,7 @@ pip install 'pyDeprecate[audit]'
 
 ## Quick Start
 
-The most common use case is renaming a function while keeping the old name working under a deprecation warning. The decorator handles call forwarding automatically — you do not need to copy any implementation into the deprecated wrapper.
+You renamed a function and need the old name to keep working under a warning during the deprecation window. The decorator handles call forwarding automatically — you do not need to copy any implementation into the deprecated wrapper.
 
 ```python
 from deprecate import deprecated

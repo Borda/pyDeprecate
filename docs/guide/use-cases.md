@@ -4,7 +4,7 @@ description: Eleven real-world deprecation patterns for Python functions, method
 
 # Use Cases
 
-This page covers the full range of deprecation scenarios supported by pyDeprecate, from the simplest function rename to multi-hop argument chains and proxy-wrapped Enums. Each pattern includes a prose explanation of when to use it and a complete, runnable code example. If you are new to the library, read [Getting Started](../getting-started.md) first for installation and the basic API overview.
+The two most common triggers for a deprecation are renaming a function and renaming an argument — and both require more than a bare `warnings.warn` call: you need to forward the call, remap any changed argument names, and keep the old code working correctly until removal. This page shows how pyDeprecate handles each scenario, from a simple rename to proxy-wrapped Enums and multi-hop argument chains. If you are new to the library, read [Getting Started](../getting-started.md) first.
 
 ## Simple function forwarding
 
