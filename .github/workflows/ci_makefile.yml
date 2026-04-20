@@ -1,4 +1,4 @@
-name: CI Docs Makefile
+name: CI Makefile
 
 # Validates Makefile doc targets. Matrix entry with test_dir runs pytest on generated tests.
 
@@ -35,7 +35,7 @@ jobs:
       - name: 🔀 Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: ${{ matrix.fetch_depth || 1 }}
+          fetch-depth: ${{ matrix.fetch_depth == null && 1 || matrix.fetch_depth }}
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@v6
