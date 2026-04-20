@@ -21,6 +21,7 @@ docs-serve: demo-sphinx demo-mkdocs
 	python3 -m mkdocs serve
 
 docs-tests:
+	find tests/docs -name "test_*.py" -delete
 	python3 -m phmdoctest README.md --outfile tests/integration/test_readme.py
 	for md in $$(find docs -name "*.md" | sort); do \
 		name="$${md#docs/}"; name="$${name%.md}"; name="$${name//\//_}"; name="$${name//-/_}"; \
