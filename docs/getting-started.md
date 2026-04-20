@@ -83,8 +83,9 @@ Not sure which decorator to reach for? The table below maps common scenarios to 
 | `args_extra`       | `None`                | Fixed kwargs injected into the target call                                  |
 | `skip_if`          | `False`               | `bool` or `Callable → bool`; skip deprecation when true                     |
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                         |
+| `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`   |
 
-`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, and `args_mapping`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
+`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 ______________________________________________________________________
 
