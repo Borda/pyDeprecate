@@ -412,7 +412,7 @@ def old_endpoint(url: str) -> str:
 
 # Instead of a FutureWarning, emits a log line:
 #   2026-04-20 12:00:00 [WARNING] The `old_endpoint` was deprecated since v2.0
-#   in favor of `__main__.new_endpoint`. It will be removed in v3.0.
+#   in favor of `your_module.new_endpoint`. It will be removed in v3.0.
 old_endpoint("/api/users")
 ```
 

@@ -39,7 +39,7 @@ def calculate(a: int, b: int = 5) -> int:
 
 
 # calling this function will raise a deprecation warning:
-#   The `calculate` was deprecated since v0.1 in favor of `__main__.compute`.
+#   The `calculate` was deprecated since v0.1 in favor of `your_module.compute`.
 #   It will be removed in v0.5.
 print(calculate(1, 2))
 ```
@@ -305,7 +305,7 @@ class MyService:
 
 svc = MyService()
 # calling this method will raise a deprecation warning:
-#   The `run` was deprecated since v1.0 in favor of `__main__.execute`.
+#   The `run` was deprecated since v1.0 in favor of `your_module.execute`.
 #   It will be removed in v2.0.
 print(svc.run(5))
 ```
@@ -357,7 +357,7 @@ class Client(HttpClient):
 
 
 # calling this function will raise a deprecation warning:
-#   The `Client` was deprecated since v0.2 in favor of `__main__.HttpClient`.
+#   The `Client` was deprecated since v0.2 in favor of `your_module.HttpClient`.
 #   It will be removed in v0.4.
 inst = Client(7)
 print(inst.my_c)  # returns: 7
@@ -527,7 +527,7 @@ print(process.__doc__)
 # Output includes:
 # .. deprecated:: 1.0
 #    Will be removed in 2.0.
-#    Use `__main__.transform` instead.
+#    Use `your_module.transform` instead.
 ```
 
 For MkDocs projects using `mkdocstrings`, switch to the admonition output style and register the Griffe extension so the injected notice appears in generated docs:
@@ -555,7 +555,7 @@ def process(x: int) -> int:
 print(process.__doc__)
 # !!! warning "Deprecated in 1.0"
 #     Will be removed in 2.0.
-#     Use `__main__.transform` instead.
+#     Use `your_module.transform` instead.
 ```
 
 Register the extension in `mkdocs.yml` so `mkdocstrings` picks up the runtime-injected notice:
@@ -597,7 +597,7 @@ def notify(to: str, subject: str) -> str:
 
 
 # calling this function will raise a deprecation warning:
-#   The `notify` was deprecated since v1.5 in favor of `__main__.send_email`.
+#   The `notify` was deprecated since v1.5 in favor of `your_module.send_email`.
 #   It will be removed in v2.0.
 print(notify("alice@example.com", "Hello"))
 ```

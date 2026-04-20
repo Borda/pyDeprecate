@@ -50,7 +50,7 @@ def addition(a: int, b: int = 5) -> int:
 
 # Using the original name still works but shows a warning
 result = addition(1, 2)  # Returns 3
-# Warning: The `addition` was deprecated since v1.0 in favor of `__main__.compute_sum`.
+# Warning: The `addition` was deprecated since v1.0 in favor of `your_module.compute_sum`.
 #          It will be removed in v2.0.
 ```
 

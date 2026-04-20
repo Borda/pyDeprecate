@@ -61,7 +61,7 @@ def old_api(x: int) -> int:
     pass
 
 
-# Emits: [MIGRATION] `old_api` is removed in v3.0. Switch to `__main__.new_api`.
+# Emits: [MIGRATION] `old_api` is removed in v3.0. Switch to `your_module.new_api`.
 result = old_api(5)
 print(result)
 ```
@@ -174,7 +174,7 @@ def old_process(data: list) -> list:
 
 
 # Instead of a FutureWarning, this emits a WARNING-level log line:
-#   WARNING:root:The `old_process` was deprecated since v1.0 in favor of `__main__.new_process`.
+#   WARNING:root:The `old_process` was deprecated since v1.0 in favor of `your_module.new_process`.
 #   It will be removed in v2.0.
 old_process([3, 1, 2])
 ```
@@ -203,7 +203,7 @@ def old_greet(name: str) -> str:
 
 
 # Prints directly to stdout:
-#   The `old_greet` was deprecated since v1.0 in favor of `__main__.new_greet`.
+#   The `old_greet` was deprecated since v1.0 in favor of `your_module.new_greet`.
 #   It will be removed in v2.0.
 print(old_greet("World"))
 ```
