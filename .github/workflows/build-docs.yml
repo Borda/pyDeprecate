@@ -1,3 +1,37 @@
+#
+# Build & Deploy Docs
+#
+# Flow:
+#
+#   [push → main] / [push → final release tag] / [pull_request → main]
+#     │
+#     ├─ resolve-deploy-context ── decides:
+#     │    ├─ main push            → build + deploy to latest/
+#     │    ├─ final release tag    → build + deploy to <tag>/ and stable/ if highest tag
+#     │    ├─ non-release tag      → skip build/deploy
+#     │    └─ pull request         → build only (no deploy)
+#     │
+#     ├─ build-landing-docs ──┐
+#     ├─ build-demo-sphinx ───┤
+#     └─ build-demo-mkdocs ───┤
+#                             ▼
+#                          assemble-site (always for buildable events)
+#                             ├─ download portal, sphinx, mkdocs artifacts
+#                             ├─ assemble _site/{demo-sphinx,demo-mkdocs} + portal at root
+#                             └─ upload assembled-site artifact
+#                             ▼ [deployable pushes only]
+#                          deploy-pages
+#                             ├─ load gh-pages worktree state
+#                             ├─ sync assembled site into latest/ or <tag>/
+#                             ├─ mirror highest final release to stable/
+#                             ├─ refresh root redirect + .nojekyll
+#                             ├─ commit/push gh-pages branch
+#                             └─ upload/deploy Pages artifact
+#
+#   permissions:
+#     - default workflow permission is contents: read
+#     - deploy-pages escalates to contents/pages/id-token write only when deploying
+#
 name: Build & Deploy Docs
 
 on:
