@@ -13,12 +13,14 @@ permissions:
 env:
   GH_PAGES_BRANCH: gh-pages
   PYTHON_DEFAULT: "3.13"
+  RELEASE_TAG_PATTERN: '^[vV]?[0-9]+(\.[0-9]+)*$'
 
 jobs:
   resolve-deploy-context:
     name: Resolve deploy context
     runs-on: ubuntu-latest
     outputs:
+      should_build: ${{ steps.context.outputs.should_build }}
       should_deploy: ${{ steps.context.outputs.should_deploy }}
       stable_tag: ${{ steps.context.outputs.stable_tag }}
       version_path: ${{ steps.context.outputs.version_path }}
@@ -35,25 +37,28 @@ jobs:
         run: |
           set -euo pipefail
 
+          should_build=true
           should_deploy=false
           stable_tag=""
           version_path=""
 
-          release_tags="$(git tag --list | grep -E '^[vV]?[0-9]+(\.[0-9]+)*$' || true)"
-          if [ -n "$release_tags" ]; then
-            stable_tag="$(printf '%s\n' "$release_tags" | sort -V | tail -n1)"
-          fi
+          stable_tag="$(python -c "import os, re, subprocess; pattern = os.environ['RELEASE_TAG_PATTERN']; tags = subprocess.check_output(['git', 'tag', '--list'], text=True).splitlines(); release_tags = [tag for tag in tags if re.fullmatch(pattern, tag)]; print(max(release_tags, key=lambda tag: tuple(int(part) for part in tag.lstrip('vV').split('.'))), end='') if release_tags else None")"
 
           if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "main" ]; then
             should_deploy=true
             version_path="latest"
-          elif [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ] \
-            && printf '%s' "${GITHUB_REF_NAME}" | grep -Eq '^[vV]?[0-9]+(\.[0-9]+)*$'; then
-            should_deploy=true
-            version_path="${GITHUB_REF_NAME}"
+          elif [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            should_build=false
+
+            if printf '%s' "${GITHUB_REF_NAME}" | grep -Eq "${RELEASE_TAG_PATTERN}"; then
+              should_build=true
+              should_deploy=true
+              version_path="${GITHUB_REF_NAME}"
+            fi
           fi
 
           {
+            echo "should_build=${should_build}"
             echo "should_deploy=${should_deploy}"
             echo "stable_tag=${stable_tag}"
             echo "version_path=${version_path}"
@@ -62,7 +67,7 @@ jobs:
   build-landing-docs:
     name: Portal (landing-docs)
     needs: [resolve-deploy-context]
-    if: github.event_name != 'push' || github.ref_type != 'tag' || needs.resolve-deploy-context.outputs.should_deploy == 'true'
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -74,8 +79,8 @@ jobs:
       - name: 🐍 Set up Python
         uses: actions/setup-python@v6
         with:
-          cache: pip
           python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
 
       - name: 📦 Install portal dependencies
         run: pip install -r docs/requirements.txt
@@ -101,7 +106,7 @@ jobs:
   build-demo-sphinx:
     name: Demo Sphinx (RST)
     needs: [resolve-deploy-context]
-    if: github.event_name != 'push' || github.ref_type != 'tag' || needs.resolve-deploy-context.outputs.should_deploy == 'true'
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -111,8 +116,8 @@ jobs:
       - name: 🐍 Set up Python
         uses: actions/setup-python@v6
         with:
-          cache: pip
           python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
 
       - name: 📦 Install package + Sphinx dependencies
         run: pip install . -r demo-docs/sphinx/requirements.txt
@@ -131,7 +136,7 @@ jobs:
   build-demo-mkdocs:
     name: Demo MkDocs (Markdown)
     needs: [resolve-deploy-context]
-    if: github.event_name != 'push' || github.ref_type != 'tag' || needs.resolve-deploy-context.outputs.should_deploy == 'true'
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -141,8 +146,8 @@ jobs:
       - name: 🐍 Set up Python
         uses: actions/setup-python@v6
         with:
-          cache: pip
           python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
 
       - name: 📦 Install package + MkDocs dependencies
         run: pip install . -r demo-docs/mkdocs/requirements.txt
@@ -161,7 +166,7 @@ jobs:
   assemble-site:
     name: Assemble Site
     needs: [resolve-deploy-context, build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
-    if: github.event_name != 'push' || github.ref_type != 'tag' || needs.resolve-deploy-context.outputs.should_deploy == 'true'
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -226,10 +231,20 @@ jobs:
 
           assembled_site="/tmp/assembled-site"
           gh_pages_dir="/tmp/gh-pages-site"
+          project_name="${GITHUB_REPOSITORY#*/}"
 
           rm -rf "${gh_pages_dir}"
+          [ -n "${VERSION_PATH}" ] || {
+            echo "ERROR: VERSION_PATH is empty. resolve-deploy-context did not produce a deployable target." >&2
+            exit 1
+          }
 
-          if git ls-remote --exit-code --heads origin "${GH_PAGES_BRANCH}" >/dev/null 2>&1; then
+          if ! branch_ref="$(git ls-remote --heads origin "${GH_PAGES_BRANCH}")"; then
+            echo "ERROR: Failed to query ${GH_PAGES_BRANCH} on origin before updating docs state." >&2
+            exit 1
+          fi
+
+          if [ -n "${branch_ref}" ]; then
             git fetch origin "${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH}"
             git worktree add -B "${GH_PAGES_BRANCH}" "${gh_pages_dir}" "refs/remotes/origin/${GH_PAGES_BRANCH}"
           else
@@ -237,6 +252,7 @@ jobs:
             (
               cd "${gh_pages_dir}"
               git switch --orphan "${GH_PAGES_BRANCH}"
+              # git rm drops tracked files; find clears any untracked files left in the orphaned worktree.
               git rm -rf . >/dev/null 2>&1 || true
               find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
             )
@@ -250,14 +266,22 @@ jobs:
 
           (
             cd "${gh_pages_dir}"
-            find . -mindepth 1 -maxdepth 1 \
-              ! -name .git \
-              ! -name latest \
-              ! -name stable \
-              ! -name index.html \
-              ! -name .nojekyll \
-              ! -regex './[vV]?[0-9]+(\.[0-9]+)*' \
-              -exec rm -rf {} +
+            # Keep only version directories plus the root redirect files.
+            # dotglob includes dotfiles; nullglob avoids iterating over literal '*' entries when the tree is empty.
+            shopt -s dotglob nullglob
+            for entry in * .*; do
+              case "${entry}" in
+                .|..|.git|.nojekyll|index.html|latest|stable)
+                  continue
+                  ;;
+              esac
+
+              if printf '%s' "${entry}" | grep -Eq "${RELEASE_TAG_PATTERN}"; then
+                continue
+              fi
+
+              rm -rf "${entry}"
+            done
 
             if [ -d latest ]; then
               redirect_target="latest/"
@@ -274,7 +298,7 @@ jobs:
               '    <meta charset="utf-8">' \
               "    <meta http-equiv=\"refresh\" content=\"0; url=${redirect_target}\">" \
               "    <link rel=\"canonical\" href=\"${redirect_target}\">" \
-              '    <title>pyDeprecate docs</title>' \
+              "    <title>${project_name} docs</title>" \
               '  </head>' \
               '  <body>' \
               "    <p>Redirecting to <a href=\"${redirect_target}\">${redirect_target}</a>…</p>" \
@@ -286,7 +310,6 @@ jobs:
 
       - name: 💾 Commit versioned docs state
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION_PATH: ${{ needs.resolve-deploy-context.outputs.version_path }}
         shell: bash
         run: |
@@ -298,11 +321,12 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
+            echo "No documentation changes to publish for ${VERSION_PATH}."
             exit 0
           fi
 
           git commit -m "docs: deploy ${VERSION_PATH}"
-          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:${GH_PAGES_BRANCH}
+          git push origin HEAD:${GH_PAGES_BRANCH}
 
       - name: ⚙️ Configure GitHub Pages
         uses: actions/configure-pages@v6
