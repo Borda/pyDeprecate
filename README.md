@@ -461,6 +461,9 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 my_func(value=42, legacy_param="old")
 ```
 
+> [!NOTE]
+> `target=True` **requires** `args_mapping` to do anything useful. Without it, no warning is emitted and the function body runs unchanged — the decorator is a passthrough. This is the key difference from `target=None`, which emits a warning regardless of arguments, with warning frequency still controlled by `num_warns`.
+
 ### 🔗 Multiple deprecation levels
 
 Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
