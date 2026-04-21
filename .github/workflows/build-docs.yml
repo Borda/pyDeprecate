@@ -47,7 +47,7 @@ permissions:
 env:
   GH_PAGES_BRANCH: gh-pages
   PYTHON_DEFAULT: "3.13"
-  RELEASE_TAG_PATTERN: '^[vV]?[0-9]+(\.[0-9]+)*$'
+  RELEASE_TAG_PATTERN: '^[vV]?[0-9]+(\.[0-9]+)+$'
 
 jobs:
   resolve-deploy-context:
