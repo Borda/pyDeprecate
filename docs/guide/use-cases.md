@@ -208,17 +208,6 @@ my_func(value=42, legacy_param="old")
 
 These modes differ in whether the function body runs, whether a warning fires, and which parameters take effect.
 
-### Legend
-
-| Symbol | Meaning |
-| ------ | ------- |
-| `✓` | Applied |
-| `✗` | Not applied |
-| `⚠` | Silently ignored — accepted but has no effect; no error raised |
-| `⊘` | Warning suppressed; other processing (remapping / forwarding) continues |
-| `⊛` | `skip_if` bypasses all logic — source runs with original args, no warning or forwarding |
-| `—` | Not applicable for this mode |
-
 ### Behaviour comparison
 
 |                               | `target=None`                                                                                             | `target=True` (no `args_mapping`) | `target=True` (with `args_mapping`)                                        | `target=<callable>` |
@@ -232,6 +221,8 @@ These modes differ in whether the function body runs, whether a warning fires, a
 | **Source defaults merged**    | `✓`                                                                                                       | `✗`                               | `✗`                                                                        | `✓` |
 | **`skip_if` effect**          | `⊛`                                                                                                       | `⊛`                               | `⊛`                                                                        | `⊛` |
 | **`stream=None` effect**      | `⊘` body still runs                                                                                       | No observable change              | `⊘` remapping still runs                                                   | `⊘` forwarding still runs |
+
+**Legend:** `✓` applied · `✗` not applied · `⚠` silently ignored (no error) · `⊘` warning suppressed, processing continues · `⊛` `skip_if` bypasses everything · `—` not applicable
 
 ### When to use which
 
