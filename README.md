@@ -462,7 +462,7 @@ my_func(value=42, legacy_param="old")
 ```
 
 > [!NOTE]
-> `target=True` **requires** `args_mapping` to do anything useful. Without it, no warning is emitted and the function body runs unchanged — the decorator is a passthrough. This is the key difference from `target=None`, which always emits a warning on every call regardless of arguments.
+> `target=True` **requires** `args_mapping` to do anything useful. Without it, no warning is emitted and the function body runs unchanged — the decorator is a passthrough. This is the key difference from `target=None`, which emits a warning regardless of arguments, with warning frequency still controlled by `num_warns`.
 
 ### 🔗 Multiple deprecation levels
 
