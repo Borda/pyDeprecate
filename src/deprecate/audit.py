@@ -44,7 +44,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
-from deprecate._types import DeprecationConfig, _has_deprecation_meta
+from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 
@@ -164,6 +164,7 @@ class DeprecationWrapperInfo:
     identity_mapping: list[str] = field(default_factory=list)
     self_reference: bool = False
     no_effect: bool = False
+    misconfigured_target: bool = False
     chain_type: Optional[ChainType] = None
 
 
@@ -272,15 +273,25 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     # - ChainType.STACKED: arg mappings chain/compose and need collapsing. Two sub-cases:
     #   (a) target is a deprecated callable whose own target=True (self-deprecation with renaming).
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
+    # Support both legacy sentinels (target=True/None) and new TargetMode enum values.
+    _is_args_only = target is True or target is TargetMode.ARGS_ONLY
+    _is_whole = target is None or target is TargetMode.WHOLE
+
     chain_type: Optional[ChainType] = None
     if callable(target) and _has_deprecation_meta(target):
         chain_type = (
-            ChainType.STACKED if target.__deprecated__.target is True else ChainType.TARGET
+            ChainType.STACKED
+            if target.__deprecated__.target is True or target.__deprecated__.target is TargetMode.ARGS_ONLY
+            else ChainType.TARGET
         )  # target is self-deprecation (mappings compose) or forwarding
-    elif target is True:
+    elif _is_args_only:
         wrapped = getattr(func, "__wrapped__", None)
-        if wrapped is not None and _has_deprecation_meta(wrapped) and wrapped.__deprecated__.target is True:
-            chain_type = ChainType.STACKED  # stacked @deprecated(True) decorators
+        if (
+            wrapped is not None
+            and _has_deprecation_meta(wrapped)
+            and (wrapped.__deprecated__.target is True or wrapped.__deprecated__.target is TargetMode.ARGS_ONLY)
+        ):
+            chain_type = ChainType.STACKED  # stacked self-deprecation decorators
 
     all_identity = False
     if args_mapping:
@@ -295,12 +306,16 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
 
     # Wrapper has no effect if it provides no call forwarding, arg mapping, or warning:
     # - Self-reference (forwards to itself — no meaningful forwarding)
-    # - target is True (self-deprecation) AND (empty mapping OR all identity mappings)
+    # - ARGS_ONLY (target=True) AND (empty mapping OR all identity mappings)
     #   → no forwarding, no meaningful arg remapping
-    # Note: target=None is NOT no_effect — it still emits deprecation warnings.
+    # Note: WHOLE (target=None) is NOT no_effect — it still emits deprecation warnings.
     # Note: When target is a different function, there's ALWAYS an effect (forwarding).
-    is_self_deprecation = target is True or self_reference
+    is_self_deprecation = _is_args_only or self_reference
     no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
+
+    # Misconfigured: target+args combination is invalid regardless of whether it has effect.
+    # target=False is never a valid mode. WHOLE ignores args_mapping. ARGS_ONLY needs args_mapping.
+    misconfigured_target = target is False or (_is_whole and bool(args_mapping)) or (_is_args_only and empty_mapping)
 
     function = dep_info.name or getattr(func, "__name__", str(func))
 
@@ -312,6 +327,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         identity_mapping=identity_mapping,
         self_reference=self_reference,
         no_effect=no_effect,
+        misconfigured_target=misconfigured_target,
         chain_type=chain_type,
     )
 
