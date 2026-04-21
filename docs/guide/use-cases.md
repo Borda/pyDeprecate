@@ -204,6 +204,80 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 my_func(value=42, legacy_param="old")
 ```
 
+## `target=None` vs `target=True` — key differences
+
+These two modes look similar (both call the original function body) but have distinct behaviour at the call site.
+
+### Behaviour comparison
+
+|                            | `target=None`                                            | `target=True` (no `args_mapping`) | `target=True` (with `args_mapping`)   |
+| -------------------------- | -------------------------------------------------------- | --------------------------------- | ------------------------------------- |
+| **Warning emitted**        | Always, on every call                                    | **Never**                         | Only when a deprecated arg is passed  |
+| **Warning template**       | `"… was deprecated since vX. It will be removed in vY."` | —                                 | `"… uses deprecated arguments: …"`    |
+| **Function body**          | Runs with caller's args + source defaults filled in      | Runs with caller's args as-is     | Runs after argument renaming/dropping |
+| **`args_mapping` applied** | No                                                       | No                                | Yes — renames or drops listed args    |
+| **`args_extra` injected**  | No                                                       | No                                | Yes — merged into kwargs before call  |
+| **Source defaults merged** | Yes (`_update_kwargs_with_defaults`)                     | No                                | No                                    |
+
+### When to use which
+
+- **`target=None`** — function is going away with no replacement. Callers must remove the call. Warning fires unconditionally so every caller gets notified immediately.
+- **`target=True` + `args_mapping`** — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.
+- **`target=True` without `args_mapping`** — effectively a no-op. The decorator adds no warning and no remapping. Avoid this combination unless you explicitly want a zero-effect passthrough.
+
+### Example — notice the difference in warning behaviour
+
+```python
+from deprecate import deprecated
+import warnings
+
+
+# target=None: warns on *every* call
+@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+def going_away(x: int) -> int:
+    return x
+
+
+# target=True: warns only when the old argument name is passed
+@deprecated(target=True, args_mapping={"old_x": "x"}, deprecated_in="1.0", remove_in="2.0")
+def renamed_arg(old_x: int = 0, x: int = 0) -> int:
+    return x
+
+
+with warnings.catch_warnings(record=True) as w:
+    warnings.simplefilter("always")
+
+    going_away(1)  # → 1 warning ("going_away was deprecated since v1.0 …")
+    renamed_arg(x=1)  # → 0 warnings  (new name used — no deprecated arg present)
+    renamed_arg(old_x=1)  # → 1 warning ("renamed_arg uses deprecated arguments: `old_x` -> `x` …")
+
+    print(len(w))  # 2
+```
+
+### `target=True` without `args_mapping` — silent passthrough
+
+```python
+from deprecate import deprecated
+import warnings
+
+
+# No args_mapping → no warning, no remapping, body runs unchanged.
+@deprecated(target=True, deprecated_in="1.0", remove_in="2.0")
+def no_op_wrapper(x: int) -> int:
+    return x * 2
+
+
+with warnings.catch_warnings(record=True) as w:
+    warnings.simplefilter("always")
+    result = no_op_wrapper(3)
+    print(result)  # 6
+    print(len(w))  # 0 — no warning was emitted
+```
+
+!!! warning "`target=True` without `args_mapping` emits no warning"
+
+    This combination is valid Python but has no observable deprecation effect. If your intent is to warn callers that a function is going away, use `target=None` instead.
+
 ## Chained deprecation levels
 
 !!! warning "Stacked decorators can create unintended deprecation chains"
