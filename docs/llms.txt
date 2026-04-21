@@ -1,29 +1,25 @@
 # pyDeprecate
 
-> Simple tooling for marking deprecated functions or classes and re-routing to their successors.
+> Simple tooling for marking deprecated functions or classes and re-routing to their successors. Zero dependencies. Python 3.9+. Apache 2.0.
 
-pyDeprecate is a lightweight Python library for managing API deprecations with **zero runtime dependencies**.
-It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam.
-Perfect for library maintainers evolving APIs while maintaining backward compatibility.
+## Docs
 
-## Key Features
+- [Home](https://borda.github.io/pyDeprecate/index.html): Project overview, features, and comparison with other deprecation tools
+- [Getting Started](https://borda.github.io/pyDeprecate/getting-started.html): Installation, quick start, and API overview
+- [Use Cases](https://borda.github.io/pyDeprecate/guide/use-cases.html): 11 real-world deprecation patterns with worked examples
+- [void() Helper](https://borda.github.io/pyDeprecate/guide/void-helper.html): How and when to use the void() sentinel function
+- [Audit Tools](https://borda.github.io/pyDeprecate/guide/audit.html): CI/CD enforcement of removal deadlines and deprecation chain detection
+- [Troubleshooting](https://borda.github.io/pyDeprecate/troubleshooting.html): Common errors and their fixes
 
-- Deprecation warnings shown once per function by default (prevents log spam)
-- Automatic argument mapping and call forwarding to replacement functions
-- Supports functions, methods, class constructors, classes, Enums, dataclasses, and module-level constants
-- Optionally updates docstrings with deprecation notices (RST/Sphinx or MkDocs/Markdown format)
-- Audit tools for CI: validate wrapper config, enforce removal deadlines, detect deprecation chains, scan packages for all deprecated wrappers (`find_deprecation_wrappers`)
-- Testing helpers (`assert_no_warnings`) for deterministic tests
-- Python 3.9+ | Zero runtime dependencies
+## Resources
 
-## Documentation
-
-- [Home](https://borda.github.io/pyDeprecate/index.md): Full documentation — overview, installation, API reference, and usage examples.
+- [PyPI](https://pypi.org/project/pyDeprecate/): Package installation and release history
+- [GitHub](https://github.com/Borda/pyDeprecate): Source code and issue tracker
+- [Changelog](https://github.com/Borda/pyDeprecate/blob/main/CHANGELOG.md): Release notes
 
 ## Optional
 
-- [Demo MkDocs](https://borda.github.io/pyDeprecate/demo-mkdocs/index.html): Live MkDocs demo of deprecated callable documentation with mkdocstrings.
-- [Demo Sphinx](https://borda.github.io/pyDeprecate/demo-sphinx/index.html): Live Sphinx/RST demo of deprecated callable documentation with autodoc.
-- [PyPI](https://pypi.org/project/pyDeprecate/): Install via `pip install pyDeprecate`.
-- [GitHub](https://github.com/Borda/pyDeprecate): Source code, issue tracker, and contribution guide.
-- [Changelog](https://github.com/Borda/pyDeprecate/blob/main/CHANGELOG.md): Release history and migration notes.
+- [Contributing](https://github.com/Borda/pyDeprecate/blob/main/.github/CONTRIBUTING.md): Contribution guide
+- [Security](https://github.com/Borda/pyDeprecate/blob/main/.github/SECURITY.md): Security policy
+- [Sphinx Demo](https://borda.github.io/pyDeprecate/demo-sphinx/index.html): Docstring auto-injection rendered via Sphinx
+- [MkDocs Demo](https://borda.github.io/pyDeprecate/demo-mkdocs/index.html): Docstring auto-injection rendered via MkDocs

@@ -44,4 +44,7 @@ jobs:
             --exclude https://github.com/YOUR-USERNAME/pyDeprecate.git
             --exclude https://codecov.io/validate
             --exclude https://medium.com/codex/mastering-api-deprecation-*
+            --exclude http://127.0.0.1
+            --exclude file://.*demo-sphinx.*
+            --exclude file://.*demo-mkdocs.*
           fail: true

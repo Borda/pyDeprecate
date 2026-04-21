@@ -70,6 +70,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# MkDocs plugin scratch directories
+.build/
+
 # Demo documentation build artefacts
 demo-docs/sphinx/.claude/
 demo-docs/sphinx/_build/
@@ -126,7 +129,6 @@ uv.lock
 .ropeproject
 
 # mkdocs documentation
-docs/index.md
 /site
 
 # mypy
@@ -146,6 +148,10 @@ dmypy.json
 # Generated files with Claude
 .claude/logs/
 .claude/state/
+.claude/worktrees/
+.plans/
+.reports/
+.temp/
 tasks/
 *.local.*
 

@@ -1,0 +1,49 @@
+name: CI Makefile
+
+# Validates Makefile doc targets. Matrix entry with test_dir runs pytest on generated tests.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_DEFAULT: "3.13"
+
+jobs:
+  makefile:
+    name: make ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: docs-build
+            fetch_depth: 0 # git-revision-date plugin requires full history
+          - target: docs-tests
+            test_dir: tests/docs/
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ matrix.fetch_depth == null && 1 || matrix.fetch_depth }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+
+      - name: 🔨 make ${{ matrix.target }}
+        run: make ${{ matrix.target }}
+
+      - name: 🧪 Run generated tests
+        if: matrix.test_dir
+        run: python -m pytest ${{ matrix.test_dir }} -v

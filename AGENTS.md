@@ -70,10 +70,11 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 **Responsibilities**:
 
-- Maintain README and documentation
+- Maintain README (PyPI cover page) and docs site topic pages (`docs/`)
 - Draft follow-ups after releases or PR merges
 - Help onboard new contributors
-- Ensure deprecation examples are documented
+- Ensure deprecation examples are documented in both README and `docs/guide/use-cases.md`
+- Keep `docs/troubleshooting.md` and its FAQPage JSON-LD in `docs/overrides/main.html` in sync
 
 **Guidelines**:
 
@@ -122,6 +123,17 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Do not** define targets or `@deprecated` wrappers directly in test files
 - See [Test Organization](.github/CONTRIBUTING.md#test-organization) for details
 
+### Documentation Site
+
+- **Local build**: `pip install -r docs/requirements.txt && python3 -m mkdocs build --strict`
+- **Live preview**: `python3 -m mkdocs serve` → http://127.0.0.1:8000
+- **README ≠ docs/index.md** — README is the PyPI page (do not copy it to docs); `docs/index.md` is a curated overview
+- **Never add `cp README.md docs/index.md` to CI** — `docs/index.md` is tracked in git directly
+- **After any API change**: update `README.md` AND the relevant `docs/guide/` page
+- **New troubleshooting item**: add to `docs/troubleshooting.md` AND the FAQPage JSON-LD in `docs/overrides/main.html`
+- **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
+- See [Documentation Site](.github/CONTRIBUTING.md#documentation-site) for the full consistency rules
+
 ## 🚫 Critical Constraints
 
 ### Never:
@@ -140,6 +152,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Trust config files over documentation** — when mismatches occur, config files are the source of truth
 - **Suggest documentation updates** when you find mismatches between docs and actual configuration
 - **Update docs immediately after any structural change** — adding, moving, renaming, or deleting files/folders/modules must be followed by updating `.github/CONTRIBUTING.md` (project structure tree, Test Organisation table) and any other `*.md` that references affected paths or names. Do not wait to be asked.
+- **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` **and** the FAQPage JSON-LD in `docs/overrides/main.html`
 - Ensure pre-commit hooks are installed (they run automatically on commit)
 - Provide `deprecated_in` and `remove_in` versions
 - Include migration messages in deprecation warnings
@@ -157,3 +170,4 @@ This file provides quick reference for agents. For complete, authoritative guide
 - **PR review guidelines** → [Contributing: Reviewing PRs](.github/CONTRIBUTING.md#reviewing-prs)
 - **Security reporting** → [Security Policy](.github/SECURITY.md)
 - **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)
+- **Documentation site** → [Contributing: Documentation Site](.github/CONTRIBUTING.md#documentation-site)

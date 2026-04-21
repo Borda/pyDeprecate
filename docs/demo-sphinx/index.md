@@ -1,4 +1,5 @@
 ---
+id: demo-sphinx
 hide:
   - navigation
   - toc
