@@ -50,6 +50,7 @@ nav:
       - Use Cases: guide/use-cases.md
       - void() Helper: guide/void-helper.md
       - Audit Tools: guide/audit.md
+      - CLI: guide/cli.md
       - Customization: guide/customization.md
   - Troubleshooting: troubleshooting.md
   - Demos:

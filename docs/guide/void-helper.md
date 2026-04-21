@@ -183,7 +183,7 @@ In practice, neither workaround is usually needed — modern versions of mypy ha
 
 ## void(...) vs assert_no_warnings
 
-These two utilities solve completely different problems. Their names might suggest a connection, but they operate in different contexts:
+These two utilities solve completely different problems. Their names might suggest a connection, but they operate in different contexts. `assert_no_warnings` is a test-time tool covered in [Testing Deprecated Code](audit.md#testing-deprecated-code).
 
 |                    | `void(...)`                                                | `assert_no_warnings()`                                                  |
 | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------- |

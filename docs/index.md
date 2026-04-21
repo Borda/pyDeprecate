@@ -32,7 +32,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Class and Enum support** — `@deprecated_class` wraps entire classes, Enums, and dataclasses in a transparent proxy where `isinstance` and `issubclass` just work.
 - **Configurable frequency** — `num_warns=1` (default) emits once per function, not on every call. Set `-1` for always or `N` for exactly N times.
 - **Docstring injection** — `update_docstring=True` appends a Sphinx `.. deprecated::` notice automatically, keeping rendered API docs accurate without manual edits.
-- **CI audit tools** — `validate_deprecation_expiry()` catches zombie code past its deadline, `validate_deprecation_chains()` detects double-deprecation chains, and `find_deprecation_wrappers()` surfaces misconfigured `args_mapping` keys before they silently do nothing.
+- **CI audit tools** — [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches zombie code past its deadline, [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains, and [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
 - **Zero runtime dependencies** — nothing added to `install_requires`.
 - **Python 3.9+** supported.
 
