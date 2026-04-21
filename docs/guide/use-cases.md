@@ -204,26 +204,30 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 my_func(value=42, legacy_param="old")
 ```
 
-## `target=None` vs `target=True` — key differences
+## `target=None` vs `target=True` vs `target=<callable>` — key differences
 
-These two modes look similar (both call the original function body) but have distinct behaviour at the call site.
+These modes differ in whether the function body runs, whether a warning fires, and which parameters take effect.
 
 ### Behaviour comparison
 
-|                            | `target=None`                                            | `target=True` (no `args_mapping`) | `target=True` (with `args_mapping`)   |
-| -------------------------- | -------------------------------------------------------- | --------------------------------- | ------------------------------------- |
-| **Warning emitted**        | Always, on every call                                    | **Never**                         | Only when a deprecated arg is passed  |
-| **Warning template**       | `"… was deprecated since vX. It will be removed in vY."` | —                                 | `"… uses deprecated arguments: …"`    |
-| **Function body**          | Runs with caller's args + source defaults filled in      | Runs with caller's args as-is     | Runs after argument renaming/dropping |
-| **`args_mapping` applied** | No                                                       | No                                | Yes — renames or drops listed args    |
-| **`args_extra` injected**  | No                                                       | No                                | Yes — merged into kwargs before call  |
-| **Source defaults merged** | Yes (`_update_kwargs_with_defaults`)                     | No                                | No                                    |
+|                            | `target=None`                                            | `target=True` (no `args_mapping`) | `target=True` (with `args_mapping`) | `target=<callable>` |
+| -------------------------- | -------------------------------------------------------- | --------------------------------- | ----------------------------------- | ------------------- |
+| **Warning emitted**        | Yes — up to `num_warns` times (default: once)           | **Never**                         | Per deprecated arg, up to `num_warns` times (default: once) | Yes — up to `num_warns` times (default: once) |
+| **Warning template**       | `"… was deprecated since vX. It will be removed in vY."` | —                                 | `"… uses deprecated arguments: …"` | `"… was deprecated … in favour of …"` |
+| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | — | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
+| **Function body**          | Runs with caller's args + source defaults filled in      | Runs with caller's args as-is     | Runs after argument renaming/dropping | **Never runs** — all calls forwarded to target |
+| **`args_mapping` applied** | **Silently ignored** (`_target` is `None` → condition fails) | **Silently ignored** (short-circuit before remapping) | Yes — renames or drops listed args | Yes — renames or drops args before forwarding |
+| **`args_extra` injected**  | **Silently ignored** (`_target` is `None` → condition fails) | **Silently ignored** (short-circuit before inject) | Yes — merged into kwargs before call | Yes — merged into kwargs before forwarding |
+| **Source defaults merged** | Yes (`_update_kwargs_with_defaults`)                     | No                                | No                                    | Yes (`_update_kwargs_with_defaults`) |
+| **`skip_if` effect**       | Bypasses everything; runs source with original args       | Bypasses everything; runs source with original args | Bypasses everything; runs source with original args | Bypasses everything; runs source with original args |
+| **`stream=None` effect**   | Suppresses warning; body still runs                       | No observable change (already no-op) | Suppresses per-arg warning; remapping still runs | Suppresses warning; forwarding still runs |
 
 ### When to use which
 
-- **`target=None`** — function is going away with no replacement. Callers must remove the call. Warning fires unconditionally so every caller gets notified immediately.
+- **`target=None`** — function is going away with no replacement. Callers must remove the call. Warning fires up to `num_warns` times (default: once) so each caller is notified on first use. `args_mapping` and `args_extra` are silently ignored here.
+- **`target=<callable>`** — function is replaced by another callable. The source body never runs; all calls are forwarded. Use `args_mapping` to rename arguments and `args_extra` to inject new required args.
 - **`target=True` + `args_mapping`** — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.
-- **`target=True` without `args_mapping`** — effectively a no-op. The decorator adds no warning and no remapping. Avoid this combination unless you explicitly want a zero-effect passthrough.
+- **`target=True` without `args_mapping`** — effectively a no-op. `stream`, `num_warns`, `deprecated_in`, `remove_in`, `args_extra`, and `args_mapping` all have no effect. Avoid this combination unless you explicitly want a zero-effect passthrough.
 
 ### Example — notice the difference in warning behaviour
 
@@ -232,7 +236,7 @@ from deprecate import deprecated
 import warnings
 
 
-# target=None: warns on *every* call
+# target=None: warns once by default (num_warns=1)
 @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
 def going_away(x: int) -> int:
     return x
