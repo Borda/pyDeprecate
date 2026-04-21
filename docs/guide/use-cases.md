@@ -208,19 +208,30 @@ my_func(value=42, legacy_param="old")
 
 These modes differ in whether the function body runs, whether a warning fires, and which parameters take effect.
 
+### Legend
+
+| Symbol | Meaning |
+| ------ | ------- |
+| `✓` | Applied |
+| `✗` | Not applied |
+| `⚠` | Silently ignored — accepted but has no effect; no error raised |
+| `⊘` | Warning suppressed; other processing (remapping / forwarding) continues |
+| `⊛` | `skip_if` bypasses all logic — source runs with original args, no warning or forwarding |
+| `—` | Not applicable for this mode |
+
 ### Behaviour comparison
 
-|                               | `target=None`                                                                                             | `target=True` (no `args_mapping`)                     | `target=True` (with `args_mapping`)                                        | `target=<callable>`                                 |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------- |
-| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | **Never**                                             | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)       |
-| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | —                                                     | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`               |
-| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | —                                                     | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path`   |
-| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs with caller's args as-is                         | Runs after argument renaming/dropping                                      | **Never runs** — all calls forwarded to target      |
-| **`args_mapping` applied**    | **Silently ignored** (`_target` is `None` → condition fails)                                              | **Silently ignored** (short-circuit before remapping) | Yes — renames or drops listed args                                         | Yes — renames or drops args before forwarding       |
-| **`args_extra` injected**     | **Silently ignored** (`_target` is `None` → condition fails)                                              | **Silently ignored** (short-circuit before inject)    | Yes — merged into kwargs before call                                       | Yes — merged into kwargs before forwarding          |
-| **Source defaults merged**    | Yes (`_update_kwargs_with_defaults`)                                                                      | No                                                    | No                                                                         | Yes (`_update_kwargs_with_defaults`)                |
-| **`skip_if` effect**          | Bypasses everything; runs source with original args                                                       | Bypasses everything; runs source with original args   | Bypasses everything; runs source with original args                        | Bypasses everything; runs source with original args |
-| **`stream=None` effect**      | Suppresses warning; body still runs                                                                       | No observable change (already no-op)                  | Suppresses per-arg warning; remapping still runs                           | Suppresses warning; forwarding still runs           |
+|                               | `target=None`                                                                                             | `target=True` (no `args_mapping`) | `target=True` (with `args_mapping`)                                        | `target=<callable>` |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------- | ------------------- |
+| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | **Never**                         | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once) |
+| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | —                                 | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"` |
+| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | —                                 | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
+| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs with caller's args as-is     | Runs after argument renaming/dropping                                      | **Never runs** — all calls forwarded to target |
+| **`args_mapping` applied**    | `⚠`                                                                                                       | `⚠`                               | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding |
+| **`args_extra` injected**     | `⚠`                                                                                                       | `⚠`                               | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding |
+| **Source defaults merged**    | `✓`                                                                                                       | `✗`                               | `✗`                                                                        | `✓` |
+| **`skip_if` effect**          | `⊛`                                                                                                       | `⊛`                               | `⊛`                                                                        | `⊛` |
+| **`stream=None` effect**      | `⊘` body still runs                                                                                       | No observable change              | `⊘` remapping still runs                                                   | `⊘` forwarding still runs |
 
 ### When to use which
 
