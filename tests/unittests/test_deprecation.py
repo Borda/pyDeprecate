@@ -5,11 +5,12 @@ import sys
 import warnings
 from dataclasses import dataclass
 from enum import Enum
+from typing import Union
 from unittest.mock import MagicMock
 
 import pytest
 
-from deprecate import deprecated, void
+from deprecate import TargetMode, deprecated, void
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
@@ -299,31 +300,39 @@ class TestRaiseWarnArguments:
 class TestDeprecatedClassGuard:
     """@deprecated emits UserWarning and delegates to @deprecated_class when applied to a class."""
 
-    def test_warns_for_plain_class(self) -> None:
+    _WHOLE_PARAMS = [
+        pytest.param(TargetMode.WHOLE, id="TargetMode.WHOLE"),
+        pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
+    ]
+
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_warns_for_plain_class(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a plain class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             class _MyClass:
                 pass
 
         assert isinstance(_MyClass, _DeprecatedProxy)
 
-    def test_warns_for_enum_class(self) -> None:
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_warns_for_enum_class(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to an Enum class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             class _MyEnum(Enum):
                 A = "a"
 
         assert isinstance(_MyEnum, _DeprecatedProxy)
 
-    def test_warns_for_dataclass(self) -> None:
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_warns_for_dataclass(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a dataclass emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             @dataclass
             class _MyData:
                 x: int
@@ -331,9 +340,10 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyData, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated is applied to a class."""
+        """stream=None suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", category=FutureWarning)
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0", stream=None)
             class _MyClass:
@@ -341,21 +351,34 @@ class TestDeprecatedClassGuard:
 
         assert isinstance(_MyClass, _DeprecatedProxy)
 
-    def test_does_not_raise_for_function(self) -> None:
+    def test_stream_none_suppresses_meta_warning_enum(self) -> None:
+        """stream=None suppresses the UserWarning when @deprecated(target=TargetMode.WHOLE) is applied."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            @deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0", stream=None)
+            class _MyClass:
+                pass
+
+        assert isinstance(_MyClass, _DeprecatedProxy)
+
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_does_not_raise_for_function(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a regular function does not raise."""
 
-        @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+        @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
         def my_func() -> None:
             pass
 
         with pytest.warns(FutureWarning):
             my_func()
 
-    def test_does_not_raise_for_init_method(self) -> None:
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_does_not_raise_for_init_method(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to __init__ (not the class itself) does not raise."""
 
         class MyClass:
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             def __init__(self) -> None:
                 pass
 
@@ -428,28 +451,37 @@ class TestCrossClassMethodGuard:
 class TestDocstringStyleValidation:
     """Validation for ``docstring_style`` values."""
 
-    def test_invalid_docstring_style_raises_value_error(self) -> None:
+    _WHOLE_PARAMS = [
+        pytest.param(TargetMode.WHOLE, id="TargetMode.WHOLE"),
+        pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
+    ]
+
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_invalid_docstring_style_raises_value_error(self, target_val: Union[TargetMode, None]) -> None:
         """Unsupported ``docstring_style`` values should fail fast at decoration time."""
         with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
 
             @deprecated(
-                target=None,
+                target=target_val,
                 deprecated_in="1.0",
                 remove_in="2.0",
                 update_docstring=True,
-                docstring_style="unsupported-style",  # type: ignore[arg-type]
+                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
             )
             def some_func() -> None:
                 """A function."""
 
-    def test_invalid_docstring_style_raises_even_without_update_docstring(self) -> None:
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_invalid_docstring_style_raises_even_without_update_docstring(
+        self, target_val: Union[TargetMode, None]
+    ) -> None:
         """``docstring_style`` is validated eagerly regardless of ``update_docstring``."""
         with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
 
             @deprecated(
-                target=None,
+                target=target_val,
                 deprecated_in="1.0",
-                docstring_style="unsupported-style",  # type: ignore[arg-type]
+                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
             )
             def some_func() -> None:
                 """A function."""
@@ -483,10 +515,11 @@ class TestDocstringStyleValidation:
         monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
         assert normalize_docstring_style("auto") == "mkdocs"
 
-    def test_update_docstring_idempotent(self) -> None:
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_update_docstring_idempotent(self, target_val: Union[TargetMode, None]) -> None:
         """Calling ``_update_docstring_with_deprecation`` twice must not duplicate the notice."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True)
+        @deprecated(target=target_val, deprecated_in="1.0", update_docstring=True)
         def some_func() -> None:
             """A function."""
 
@@ -494,7 +527,8 @@ class TestDocstringStyleValidation:
         _update_docstring_with_deprecation(some_func)
         assert some_func.__doc__ == original_doc
 
-    def test_idempotency_guard_no_false_positive_on_version_prefix(self) -> None:
+    @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
+    def test_idempotency_guard_no_false_positive_on_version_prefix(self, target_val: Union[TargetMode, None]) -> None:
         """Guard must not suppress injection when the docstring mentions a longer version.
 
         ``deprecated_in="1"`` should inject ``.. deprecated:: 1`` even when the
@@ -503,7 +537,7 @@ class TestDocstringStyleValidation:
         false positive.
         """
 
-        @deprecated(target=None, deprecated_in="1", update_docstring=True, docstring_style="rst")
+        @deprecated(target=target_val, deprecated_in="1", update_docstring=True, docstring_style="rst")
         def some_func() -> None:
             """Summary. See also .. deprecated:: 1.0 handling."""
 
@@ -569,7 +603,7 @@ class TestDocstringStyleOutput:
     def test_notice_marker_for_explicit_style(self, style: str, expected_marker: str) -> None:
         """Each explicit style injects the expected notice format into the docstring."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
         def _fn() -> None:
             """A simple function."""
 
@@ -587,7 +621,7 @@ class TestDocstringStyleOutput:
     def test_notice_inserted_before_google_args_for_style(self, style: str, expected_marker: str) -> None:
         """Notice is placed before ``Args:`` regardless of style."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
         def _fn(x: int) -> None:
             """Summary.
 
@@ -611,7 +645,7 @@ class TestDocstringStyleOutput:
     def test_other_style_marker_absent(self, style: str, absent_marker: str) -> None:
         """The notice uses exactly one format — the other style's marker is absent."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
         def _fn() -> None:
             """A simple function."""
 

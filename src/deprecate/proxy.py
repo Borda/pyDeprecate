@@ -28,7 +28,7 @@ import types
 from collections.abc import Iterator
 from typing import Any, Callable, Literal, Optional, cast
 
-from deprecate._types import DeprecationConfig, _ProxyConfig
+from deprecate._types import DeprecationConfig, TargetMode, _ProxyConfig
 from deprecate.deprecation import TEMPLATE_WARNING_CALLABLE, TEMPLATE_WARNING_NO_TARGET, deprecation_warning
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 
@@ -183,7 +183,7 @@ class _DeprecatedProxy:
     def _get_active(self) -> Any:  # noqa: ANN401
         """Return the active object: *target* when set, otherwise *source*."""
         target = self._dep.target
-        if target is not None:
+        if target is not None and not isinstance(target, TargetMode):
             return target
         return self._cfg.obj
 

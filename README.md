@@ -231,9 +231,14 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 
 In particular the target values (cases):
 
-- _None_ - raise only warning message (ignore all argument mapping)
-- _True_ - deprecate some argument of itself (argument mapping should be specified)
-- _Callable_ - forward call to new methods (optionally also argument mapping or extras)
+| `target` value         | Use case                                      | `args_mapping` | Warning trigger                    |
+| ---------------------- | --------------------------------------------- | -------------- | ---------------------------------- |
+| `TargetMode.WHOLE`     | Whole callable going away; no replacement yet | Forbidden      | Every call                         |
+| `TargetMode.ARGS_ONLY` | Callable stays; argument names are renamed    | Required       | Only when old arg names are passed |
+| `<callable>`           | Callable replaced by another; calls forwarded | Optional       | Every call                         |
+
+> [!TIP]
+> `TargetMode.WHOLE` replaces the old `target=None` sentinel and `TargetMode.ARGS_ONLY` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
 > `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)).
@@ -956,7 +961,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 <br>
 
 > [!NOTE]
-> `args_extra` is only used when `target` is a `Callable` (i.e., when calls are forwarded to a replacement). It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones. It is ignored for `target=True` self-deprecation, where no forwarding occurs.
+> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_ONLY` (with `args_mapping`). It is silently ignored for `TargetMode.WHOLE`.
 
 ## 🔇 Understanding the `void()` Helper
 

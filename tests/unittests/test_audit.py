@@ -4,10 +4,11 @@ import importlib
 import importlib.metadata
 import importlib.util
 import types
+from typing import Union
 
 import pytest
 
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     _get_package_version,
@@ -91,10 +92,17 @@ class TestHasDeprecationMeta:
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         assert _has_deprecation_meta(proxy) is True
 
-    def test_returns_true_for_deprecated_decorated_callable(self) -> None:
+    @pytest.mark.parametrize(
+        "target_val",
+        [
+            pytest.param(TargetMode.ARGS_ONLY, id="TargetMode.ARGS_ONLY"),
+            pytest.param(True, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-True"),
+        ],
+    )
+    def test_returns_true_for_deprecated_decorated_callable(self, target_val: Union[TargetMode, bool]) -> None:
         """@deprecated-decorated callables carry __deprecated__, so the guard returns True."""
 
-        @deprecated(deprecated_in="1.0", remove_in="2.0", target=True)
+        @deprecated(deprecated_in="1.0", remove_in="2.0", target=target_val)
         def fn() -> None:
             pass
 

@@ -69,6 +69,7 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
+from deprecate._types import TargetMode
 from deprecate.audit import (
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
     DeprecationWrapperInfo,
@@ -89,6 +90,7 @@ from deprecate.utils import (
 
 __all__ = [
     "DeprecationWrapperInfo",
+    "TargetMode",
     "assert_no_warnings",
     "deprecated",
     "deprecated_class",

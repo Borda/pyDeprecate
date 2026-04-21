@@ -6,10 +6,36 @@ than silently returning ``None`` at runtime.
 """
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
+
+
+class TargetMode(Enum):
+    """Selects ``@deprecated`` behaviour when no callable replacement is provided.
+
+    Members:
+        WHOLE: Deprecate the whole callable -- warn on every call; original body
+            executes unchanged. Replaces ``target=None``. ``args_mapping`` and
+            ``args_extra`` are forbidden with this mode.
+        ARGS_ONLY: Deprecate argument names only -- warn only when deprecated
+            argument names are passed; remaps kwargs via ``args_mapping`` before
+            calling the original body. Replaces ``target=True``. Requires
+            ``args_mapping``.
+
+    Examples:
+        >>> from deprecate import TargetMode
+        >>> TargetMode.WHOLE.value
+        'whole'
+        >>> TargetMode.ARGS_ONLY.value
+        'args_only'
+
+    """
+
+    WHOLE = "whole"
+    ARGS_ONLY = "args_only"
 
 
 @dataclass(frozen=True)
