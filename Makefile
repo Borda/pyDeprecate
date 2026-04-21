@@ -28,8 +28,8 @@ docs-serve: docs-build
 
 docs-tests: install-tests
 	find tests/docs -name "test_*.py" -delete
-	python3 -m phmdoctest README.md --outfile tests/integration/test_readme.py
+	python3 -m phmdoctest README.md -s "phmdoctest:skip" --outfile tests/integration/test_readme.py
 	for md in $$(find docs -name "*.md" | sort); do \
 		name="$${md#docs/}"; name="$${name%.md}"; name="$${name//\//_}"; name="$${name//-/_}"; \
-		python3 -m phmdoctest "$$md" --outfile "tests/docs/test_$${name}.py"; \
+		python3 -m phmdoctest "$$md" -s "phmdoctest:skip" --outfile "tests/docs/test_$${name}.py"; \
 	done

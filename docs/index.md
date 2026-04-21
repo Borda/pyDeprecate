@@ -30,9 +30,9 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Automatic call forwarding** — no manual `*args/**kwargs` delegation; the decorator routes every call to the replacement, including positional and keyword arguments.
 - **Argument mapping** — `args_mapping={"old": "new"}` handles argument renames across the API boundary; no custom forwarding code needed.
 - **Class and Enum support** — `@deprecated_class` wraps entire classes, Enums, and dataclasses in a transparent proxy; `isinstance` and `issubclass` checks continue to work correctly.
-- **Configurable warning frequency** — `num_warns=1` (default) fires once per function, not on every call, so users aren't flooded; set to `-1` to always warn or `N` for exactly N warnings.
+- **Configurable deprecation frequency** — `num_warns=1` (default) emits the deprecation message once per function, not on every call, so users aren't flooded; set to `-1` to always emit or `N` for exactly N messages.
 - **Docstring injection** — `update_docstring=True` appends a Sphinx `.. deprecated::` notice automatically, so rendered API docs stay accurate without manual edits.
-- **CI audit tools** — `validate_deprecation_expiry()` catches functions whose `remove_in` version has passed, `validate_deprecation_chains()` detects double-warning chains, and `find_deprecation_wrappers()` surfaces misconfigured `args_mapping` keys before they silently do nothing.
+- **CI audit tools** — `validate_deprecation_expiry()` catches functions whose `remove_in` version has passed, `validate_deprecation_chains()` detects double-deprecation chains, and `find_deprecation_wrappers()` surfaces misconfigured `args_mapping` keys before they silently do nothing.
 - **Zero runtime dependencies** — nothing added to `install_requires`.
 - **Python 3.9+** supported.
 
@@ -50,7 +50,7 @@ pip install "pyDeprecate[audit]"
 
 ## Comparison with other tools
 
-The alternatives — `warnings.warn` directly, the `deprecation` package, or `wrapt.deprecated` — emit a warning but leave all the forwarding, argument mapping, and enforcement work to you. pyDeprecate handles those parts so you don't have to.
+The alternatives — `warnings.warn` directly, the `deprecation` package, or `wrapt.deprecated` — emit a deprecation notice but leave all the forwarding, argument mapping, and enforcement work to you. pyDeprecate handles those parts so you don't have to.
 
 | Feature              | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) |
 | -------------------- | ----------- | --------------- | ------------- | -------------------- |

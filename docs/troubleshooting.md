@@ -1,6 +1,6 @@
 ---
 id: troubleshooting
-description: 'Fix common pyDeprecate errors: missing warnings, TypeError mapping failures, class deprecation warnings, bool return errors, cross-module warning issues, proxy limitations on primitives, and redirecting warnings to a logger.'
+description: 'Fix common pyDeprecate errors: missing deprecation notices, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger.'
 ---
 
 # Troubleshooting
@@ -15,7 +15,7 @@ This page covers the most common problems encountered when using pyDeprecate, wi
 
 That warning is triggered specifically when `@deprecated` is applied directly to a class. This still works today because pyDeprecate delegates to `@deprecated_class()` under the hood, but that delegation path is itself deprecated and will become a `TypeError` in a future release. The warning is telling you to switch to the explicit class API now.
 
-There are two supported alternatives depending on what you need. Use `@deprecated_class()` when you want to deprecate the class name itself (including Enums and dataclasses). Use `@deprecated` on `__init__` when you want to warn only at instantiation time while keeping the class name in place.
+There are two supported alternatives depending on what you need. Use `@deprecated_class()` when you want to deprecate the class name itself (including Enums and dataclasses). Use `@deprecated` on `__init__` when you want to emit a deprecation notice only at instantiation time while keeping the class name in place.
 
 ```python
 from deprecate import deprecated_class
@@ -56,6 +56,10 @@ Symptoms of the old behaviour:
 # phmdoctest:skip
 # --- Old broken pattern (pre-v0.6) ---
 from deprecate import deprecated
+
+
+class NewClass:
+    pass
 
 
 @deprecated(target=NewClass, deprecated_in="1.0", remove_in="2.0")
@@ -132,7 +136,7 @@ True
 
 </details>
 
-If you need to warn only at instantiation time without deprecating the class name itself, decorate `__init__` instead — this keeps the class object intact and `isinstance`/`issubclass` unaffected:
+If you need to emit a deprecation notice only at instantiation time without deprecating the class name itself, decorate `__init__` instead — this keeps the class object intact and `isinstance`/`issubclass` unaffected:
 
 ```python
 from deprecate import deprecated
@@ -251,13 +255,13 @@ def old_func2():
     pass
 ```
 
-## Deprecation warning not appearing
+## Deprecation notice not appearing
 
-**Q:** I call my deprecated function but no warning is printed. Where did the warning go?
+**Q:** I call my deprecated function but no deprecation notice is printed. Where did it go?
 
-**A:** By default, pyDeprecate emits the warning only once per function (`num_warns=1`) to avoid log spam. After the first call, subsequent calls are silent. Set `num_warns=-1` for unlimited warnings or `num_warns=N` for exactly `N` emissions.
+**A:** By default, pyDeprecate emits the deprecation message only once per function (`num_warns=1`) to avoid log spam. After the first call, subsequent calls are silent. Set `num_warns=-1` for unlimited emissions or `num_warns=N` for exactly `N` emissions.
 
-For per-argument deprecation (when using `args_mapping` with `target=True`), each deprecated argument has its own independent warning counter — so warnings for different arguments are tracked separately and each fires once by default.
+For per-argument deprecation (when using `args_mapping` with `target=True`), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default.
 
 ```python
 # Minimal replacement function for examples
@@ -284,19 +288,19 @@ def old_func_warn_n_times():
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
 
-## Warning path incorrect across modules
+## Deprecation target path incorrect across modules
 
-**Q:** I moved a function to a different module and the deprecation warning shows an unexpected path. How do I fix the displayed module path?
+**Q:** I moved a function to a different module and the deprecation message shows an unexpected path. How do I fix the displayed module path?
 
-**A:** The warning message reports the fully-qualified path of the target callable as Python resolves it at decoration time. Ensure the target is imported from its canonical location before the `@deprecated` decorator is applied.
+**A:** The deprecation message reports the fully-qualified path of the target callable as Python resolves it at decoration time. Ensure the target is imported from its canonical location before the `@deprecated` decorator is applied.
 
-When moving functions across modules, import the target from its new home explicitly rather than relying on a re-export alias. The path shown in the warning will then reflect the module where the function actually lives, giving callers accurate migration information. The warning will correctly show the full path for real imports when used in your package.
+When moving functions across modules, import the target from its new home explicitly rather than relying on a re-export alias. The path shown in the deprecation message will then reflect the module where the function actually lives, giving callers accurate migration information. The message will correctly show the full path for real imports when used in your package.
 
-## Why does `deprecated_instance` not warn on arithmetic/comparison operators?
+## Why does `deprecated_instance` not emit a notice on arithmetic/comparison operators?
 
-**Q:** I wrapped a `float` constant with `deprecated_instance` but operations like `old_value + 1` or `old_value > 0` do not emit any deprecation warning. Why?
+**Q:** I wrapped a `float` constant with `deprecated_instance` but operations like `old_value + 1` or `old_value > 0` do not emit any deprecation notice. Why?
 
-**A:** Python's data model invokes special ("dunder") methods like `__add__`, `__lt__`, `__mul__`, etc. directly on the object's type, bypassing `__getattr__`. The `_DeprecatedProxy` class implements `__getattr__` to intercept attribute access, but CPython does not call `__getattr__` for implicit protocol method lookups (it goes through the class's MRO directly). Since `_DeprecatedProxy` does not define every possible arithmetic/comparison dunder, these operations fall through to the default behaviour or raise `TypeError` — without emitting a warning.
+**A:** Python's data model invokes special ("dunder") methods like `__add__`, `__lt__`, `__mul__`, etc. directly on the object's type, bypassing `__getattr__`. The `_DeprecatedProxy` class implements `__getattr__` to intercept attribute access, but CPython does not call `__getattr__` for implicit protocol method lookups (it goes through the class's MRO directly). Since `_DeprecatedProxy` does not define every possible arithmetic/comparison dunder, these operations fall through to the default behaviour or raise `TypeError` — without emitting a deprecation notice.
 
 The proxy does intercept:
 
@@ -353,7 +357,7 @@ NEW_THRESHOLD = 0.5  # new name
 # OLD_THRESHOLD = 0.5  # remove after migration
 ```
 
-3. **Use a deprecated function wrapper** — if you need deprecation warnings on read access to a bare value, expose it through a function that you can decorate:
+3. **Use a deprecated function wrapper** — if you need deprecation notices on read access to a bare value, expose it through a function that you can decorate:
 
 ```python
 from deprecate import deprecated
@@ -378,11 +382,11 @@ print(get_old_threshold())
 
 </details>
 
-## How do I redirect deprecation warnings to a logger instead of `warnings.warn`?
+## How do I redirect deprecation output to a logger instead of `warnings.warn`?
 
 **Q:** I want deprecation messages to go through Python's `logging` module instead of the default `warnings.warn` mechanism. How?
 
-**A:** Pass any logging method as the `stream` parameter. The `stream` callable receives the formatted warning message as a single string argument — logging methods like `logging.warning` have exactly this signature.
+**A:** Pass any logging method as the `stream` parameter. The `stream` callable receives the formatted deprecation message as a single string argument — logging methods like `logging.warning` have exactly this signature.
 
 ```python
 # phmdoctest:skip

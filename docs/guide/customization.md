@@ -1,13 +1,13 @@
 ---
 id: customization
-description: Customize pyDeprecate warning messages with built-in templates or your own, and redirect warnings to a logger, print, or any callable via the stream parameter.
+description: Customize pyDeprecate deprecation messages with built-in templates or your own, and redirect deprecation output to a logger, print, or any callable via the stream parameter.
 ---
 
 # Customization
 
-## Warning Messages and Templates
+## Deprecation Messages and Templates
 
-pyDeprecate selects a warning message template automatically based on the type of deprecation. You can also supply your own custom template with `template_mgs`.
+pyDeprecate selects a deprecation message template automatically based on the type of deprecation. You can also supply your own custom template with `template_mgs`.
 
 ### Default templates
 
@@ -17,7 +17,7 @@ Three built-in templates cover the common scenarios:
 | ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                  | `The 'old_func' was deprecated since v1.0 in favor of 'pkg.new_func'. It will be removed in v2.0.`                              |
 | `TEMPLATE_WARNING_ARGUMENTS` | `target=True` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'old_arg' -> 'new_arg'. They were deprecated since v1.0 and will be removed in v2.0.` |
-| `TEMPLATE_WARNING_NO_TARGET` | `target=None` (warning-only, no forwarding)                                   | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
+| `TEMPLATE_WARNING_NO_TARGET` | `target=None` (notice-only, no forwarding)                                    | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
 
 The selection logic is:
 
@@ -105,9 +105,9 @@ print(train(lr=0.001))
 
 </details>
 
-## Warning Sink (`stream`)
+## Deprecation Output Sink (`stream`)
 
-The `stream` parameter controls how and where deprecation warnings are delivered. It accepts any callable with signature `(msg: str) -> None`, or `None` to silence warnings entirely.
+The `stream` parameter controls how and where deprecation messages are delivered. It accepts any callable with signature `(msg: str) -> None`, or `None` to silence deprecation output entirely.
 
 ### Default: FutureWarning via `warnings.warn`
 
@@ -117,9 +117,9 @@ By default, `stream` is set to an internal `deprecation_warning` function, which
 - Standard warning filters apply — you can suppress them with `warnings.filterwarnings("ignore", category=FutureWarning)` when needed.
 - The warning traceback will point to the internal pyDeprecate wrapper code. If you need caller-level tracebacks, use a custom stream that calls `warnings.warn` with an appropriate `stacklevel`.
 
-### Silencing warnings entirely
+### Silencing deprecation output entirely
 
-Pass `stream=None` to disable all warning output for a specific deprecated function. The call forwarding still works — only the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
+Pass `stream=None` to disable all deprecation output for a specific deprecated function. The call forwarding still works — only the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
 
 ```python
 from deprecate import deprecated
@@ -223,7 +223,7 @@ Hello, World!
 
 ### Custom stream callable
 
-Any callable accepting a single string argument works. For example, collecting warnings into a list for later processing:
+Any callable accepting a single string argument works. For example, collecting deprecation messages into a list for later processing:
 
 ```python
 from deprecate import deprecated
