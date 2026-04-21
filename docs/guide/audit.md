@@ -7,7 +7,8 @@ description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configu
 
 Three concrete failure modes motivate this module: a `remove_in` deadline passes and the deprecated code is never removed (zombie code); a deprecated wrapper targets another deprecated function, causing callers to receive two deprecation notices instead of one (a chain); or an `args_mapping` key contains a typo and silently does nothing (a misconfiguration). `validate_deprecation_expiry()`, `validate_deprecation_chains()`, and `find_deprecation_wrappers()` exist to catch each of these in CI before they reach users.
 
-> **Renamed in v0.6**: `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
+!!! note "Renamed in v0.6"
+    `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
 
 ## Validating Wrapper Configuration
 
@@ -475,7 +476,8 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
 ## Pre-commit Integration
 
-> **Coming soon.** Native pre-commit hook support is planned. For now, run the validator directly via `python -m deprecate` in your `Makefile` or CI step.
+!!! info "Coming soon"
+    Native pre-commit hook support is planned. For now, run the validator directly via `python -m deprecate` in your `Makefile` or CI step.
 
 The CLI checks for misconfigured wrappers only — invalid `args_mapping` keys, identity mappings, self-references:
 

@@ -63,7 +63,8 @@ print(addition(1, 2))
 
 All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. The old function's body is never executed.
 
-> **Customizing deprecation messages:** To customize the message template or redirect deprecation output to a logger, see [Customization](guide/customization.md).
+!!! tip "Customizing deprecation messages"
+    To customize the message template or redirect deprecation output to a logger, see [Customization](guide/customization.md).
 
 ## API at a Glance
 
