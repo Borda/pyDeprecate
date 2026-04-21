@@ -501,6 +501,10 @@ True
 
 Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring at import time. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep.
 
+!!! tip "See it live"
+
+    The [Sphinx demo](../demo-sphinx/index.html) and [MkDocs demo](../demo-mkdocs/index.html) show how the injected notice renders in real API docs.
+
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it does
 def transform(x: int) -> int:

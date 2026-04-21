@@ -1,27 +1,27 @@
 ---
 id: void-helper
-description: "Learn when and how to use pyDeprecate's void() helper: silence IDE warnings in deprecated stubs, compare alternatives like pass and docstring-only bodies, and understand how void() interacts with type checking."
+description: "Learn when and how to use pyDeprecate's void(...) helper: silence IDE warnings in deprecated stubs, compare alternatives like pass and docstring-only bodies, and understand how void(...) interacts with type checking."
 ---
 
-# The void() Helper
+# The void(...) Helper
 
 When `@deprecated` forwards to a `target` callable, the deprecated function's body never runs — every call is intercepted before the body executes. This creates a practical annoyance: IDEs and linters see the parameters in the signature but nothing using them in the body, and they flag them as unused.
 
-`void()` is a no-op that accepts any arguments and returns `None`. Its only job is to silence those IDE warnings by giving the parameters a nominal "use" that says: the body is intentionally empty, not accidentally incomplete. It has no runtime effect.
+`void(...)` is a no-op that accepts any arguments and returns `None`. Its only job is to silence those IDE warnings by giving the parameters a nominal "use" that says: the body is intentionally empty, not accidentally incomplete. It has no runtime effect.
 
-## When to use void()
+## When to use void(...)
 
-Use `void()` when all three of these are true:
+Use `void(...)` when all three of these are true:
 
 - The deprecated function forwards to a `target` callable (not `target=None` or `target=True`).
 - Your IDE or linter flags the function parameters as unused.
 - You want the code to clearly signal that the empty body is deliberate.
 
-If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDeprecate does not require `void()`. Use whichever form is clearest for your team.
+If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDeprecate does not require `void(...)`. Use whichever form is clearest for your team.
 
 ## Basic usage
 
-`void()` appears as the return expression of a deprecated wrapper. The call to `old_add` is forwarded to `new_add` immediately — the `return void(a, b)` line is never reached, but it tells the IDE that `a` and `b` are intentionally accepted and ignored.
+`void(...)` appears as the return expression of a deprecated wrapper. The call to `old_add` is forwarded to `new_add` immediately — the `return void(a, b)` line is never reached, but it tells the IDE that `a` and `b` are intentionally accepted and ignored.
 
 ```python
 def new_add(a: int, b: int) -> int:
@@ -46,7 +46,7 @@ def old_add_v2(a: int, b: int) -> int:
     pass  # This also works
 ```
 
-## Alternatives to void()
+## Alternatives to void(...)
 
 Three common patterns for the body of a deprecated function that forwards to a target. All are equivalent at runtime because the body is never reached — the choice is about communicating intent to readers and static analysis.
 
@@ -84,7 +84,7 @@ def old_compute(x: int, y: int) -> int:
     """Previously computed x + y. Use new_compute() directly."""
 ```
 
-### Option 3: `void()` call
+### Option 3: `void(...)` call
 
 References all parameters explicitly, silencing "unused parameter" warnings in PyCharm, VS Code (Pylance), and ruff. Also serves as a visual marker that the empty body is intentional.
 
@@ -109,11 +109,11 @@ def old_compute(x: int, y: int) -> int:
 | Docstring only | No                             | High (can explain why)  | No                                 |
 | `void(...)`    | Yes                            | High (explicit no-op)   | Yes (`from deprecate import void`) |
 
-If you use a strict linter that flags unused parameters (e.g. ruff's `ARG001`), `void()` is the cleanest solution that does not require `# noqa` comments.
+If you use a strict linter that flags unused parameters (e.g. ruff's `ARG001`), `void(...)` is the cleanest solution that does not require `# noqa` comments.
 
-## void() with methods
+## void(...) with methods
 
-`void()` works identically in class methods. Reference `self` and all parameters when forwarding a deprecated method:
+`void(...)` works identically in class methods. Reference `self` and all parameters when forwarding a deprecated method:
 
 ```python
 from deprecate import deprecated, void
@@ -142,7 +142,7 @@ Resized to 800x600 (bilinear)
 
 </details>
 
-You do not need to pass `self` to `void()` — only the parameters your linter flags. `self` is implicitly used by method dispatch and is never flagged.
+You do not need to pass `self` to `void(...)` — only the parameters your linter flags. `self` is implicitly used by method dispatch and is never flagged.
 
 ## Type annotation note
 
@@ -150,7 +150,7 @@ You do not need to pass `self` to `void()` — only the parameters your linter f
 
     Modern versions of mypy and pyright handle decorated functions correctly and do not flag the return type mismatch in dead code paths. The workarounds below are only needed if your type checker explicitly complains.
 
-`void()` returns `None`, which looks incompatible with a function annotated as `-> int`. In practice this is fine because:
+`void(...)` returns `None`, which looks incompatible with a function annotated as `-> int`. In practice this is fine because:
 
 1. **The body never runs.** `@deprecated` intercepts the call and forwards to the target before the body executes. The `return void(...)` line is dead code.
 
@@ -181,11 +181,11 @@ def old_func_b(x: int) -> int:
 
 In practice, neither workaround is usually needed — modern versions of mypy handle decorated functions correctly and do not flag unreachable return statements.
 
-## void() vs assert_no_warnings
+## void(...) vs assert_no_warnings
 
 These two utilities solve completely different problems. Their names might suggest a connection, but they operate in different contexts:
 
-|                    | `void()`                                                   | `assert_no_warnings()`                                                  |
+|                    | `void(...)`                                                | `assert_no_warnings()`                                                  |
 | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
 | **Purpose**        | Silence IDE "unused parameter" warnings in function bodies | Assert that no warnings of a given type are emitted during a code block |
 | **Where used**     | Inside the body of a deprecated function stub              | In test code, as a context manager                                      |
