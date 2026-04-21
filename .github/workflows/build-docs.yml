@@ -362,13 +362,20 @@ jobs:
           git commit -m "docs: deploy ${VERSION_PATH}"
           git push origin HEAD:${GH_PAGES_BRANCH}
 
+      - name: 📦 Export clean Pages artifact (no git metadata)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gh-pages-export
+          rsync -a --exclude='.git' /tmp/gh-pages-site/ /tmp/gh-pages-export/
+
       - name: ⚙️ Configure GitHub Pages
         uses: actions/configure-pages@v6
 
       - name: 📤 Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: /tmp/gh-pages-site/
+          path: /tmp/gh-pages-export/
 
       - name: 🚀 Deploy to GitHub Pages
         id: deploy
