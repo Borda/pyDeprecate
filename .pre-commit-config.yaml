@@ -49,9 +49,20 @@ repos:
     rev: 1.0.0
     hooks:
       - id: mdformat
+        name: mdformat (general)
+        exclude: ^docs/
         args: ["--number"]
         additional_dependencies:
           - mdformat-gfm
+          - mdformat-ruff
+          - mdformat_frontmatter
+      - id: mdformat
+        name: mdformat (docs)
+        files: ^docs/
+        args: ["--number"]
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-mkdocs
           - mdformat-ruff
           - mdformat_frontmatter
 

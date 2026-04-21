@@ -148,6 +148,10 @@ Note that you do not need to pass `self` to `void()` — only the parameters tha
 
 ## Type annotation note
 
+!!! info "No action needed in most cases"
+
+    Modern versions of mypy and pyright handle decorated functions correctly and do not flag the return type mismatch in dead code paths. The workarounds below are only needed if your type checker explicitly complains.
+
 `void()` returns `None`, which may seem incompatible with a function annotated as returning a non-`None` type (e.g., `-> int`). In practice this is not a problem because:
 
 1. **The body is never executed.** The `@deprecated` decorator intercepts the call and forwards it to the target before the body runs. The `return void(...)` statement is dead code.

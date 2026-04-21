@@ -114,6 +114,10 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 ## Notice-only deprecation
 
+!!! note "The function body still executes with `target=None`"
+
+    Unlike `target=<callable>` (where the body is dead code), `target=None` runs the original function body after emitting the deprecation notice. You must keep a working implementation in the function body.
+
 Sometimes you want to signal that a function is deprecated without replacing it — the original implementation must keep running unchanged. Setting `target=None` emits a deprecation notice and then executes the function body normally. Use this pattern when the function will be removed in a future version but has no direct replacement yet, or when callers need to update their code themselves.
 
 ```python
@@ -201,6 +205,10 @@ my_func(value=42, legacy_param="old")
 ```
 
 ## Chained deprecation levels
+
+!!! warning "Stacked decorators can create unintended deprecation chains"
+
+    Each stacked `@deprecated(True, ...)` decorator emits its own notice. If you accidentally point a decorator's `target` at another deprecated function instead of the final implementation, callers receive redundant warnings. Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch these mistakes automatically.
 
 When a function's arguments are deprecated across multiple releases — each argument retired at a different version — stack multiple `@deprecated(True, ...)` decorators, one per argument rename. Each decorator in the chain operates on its own version range and emits a separate deprecation notice, giving callers clear, version-specific migration guidance.
 

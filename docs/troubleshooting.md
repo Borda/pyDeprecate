@@ -15,6 +15,9 @@ This page covers the most common problems encountered when using pyDeprecate, wi
 
 That warning is triggered specifically when `@deprecated` is applied directly to a class. This still works today because pyDeprecate delegates to `@deprecated_class()` under the hood, but that delegation path is itself deprecated and will become a `TypeError` in a future release. The warning is telling you to switch to the explicit class API now.
 
+!!! danger "This delegation will become a TypeError in a future release"
+    The implicit fallback from `@deprecated` to `@deprecated_class()` is a temporary compatibility shim. Once it is removed, applying `@deprecated` to a class will raise `TypeError` immediately at decoration time. Migrate now to avoid a hard break on upgrade.
+
 There are two supported alternatives depending on what you need. Use `@deprecated_class()` when you want to deprecate the class name itself (including Enums and dataclasses). Use `@deprecated` on `__init__` when you want to emit a deprecation notice only at instantiation time while keeping the class name in place.
 
 ```python
@@ -49,6 +52,9 @@ class MyClass:
 **Q:** My codebase used an older version of pyDeprecate that applied `@deprecated` directly to a class. It behaved strangely — `isinstance()` checks failed, subclassing broke, and class attributes were inaccessible. What went wrong, and how do I migrate?
 
 **A:** Before v0.6.0, applying `@deprecated` directly to a class replaced the class object with a plain wrapper function. Python's `isinstance`, `issubclass`, and attribute lookup all operate on the class type — so replacing the class with a function silently broke every downstream use that depended on the class being a type.
+
+!!! failure "The old pattern silently broke isinstance, issubclass, and attribute access"
+    Before v0.6.0, `@deprecated` on a class replaced the class with a plain function. All type checks, subclassing, and class attribute access failed silently or raised `TypeError`. If you see this pattern in your codebase, migrate to `@deprecated_class()` immediately.
 
 Symptoms of the old behaviour:
 
@@ -319,6 +325,9 @@ It does **not** intercept:
 - Bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`)
 - Unary operators (`-obj`, `+obj`, `abs(obj)`)
 
+!!! bug "Known limitation: proxy cannot intercept dunder protocol methods"
+    This is a fundamental CPython constraint, not a pyDeprecate bug. Wrapping primitives (`int`, `float`, `str`) in `deprecated_instance` will not emit notices for arithmetic, comparison, or bitwise operations. See the workarounds below.
+
 **Workarounds for primitive constants:**
 
 1. **Wrap in a container** — put the value in a dict or dataclass so access goes through `__getitem__` or `__getattr__`:
@@ -422,11 +431,11 @@ old_endpoint("/api/users")
 
 **Choosing the log level:**
 
-| Level             | When to use                                   |
+| Level | When to use |
 | ----------------- | --------------------------------------------- |
-| `logging.info`    | Early deprecation window; low urgency         |
-| `logging.warning` | Standard choice; default log configs show it  |
-| `logging.error`   | Critical deprecation nearing removal deadline |
+| `logging.info` | Early deprecation window; low urgency |
+| `logging.warning` | Standard choice; default log configs show it |
+| `logging.error` | Critical deprecation nearing removal deadline |
 
 **Benefits over `warnings.warn`:**
 
@@ -441,4 +450,5 @@ ______________________________________________________________________
 
 ## Still stuck?
 
-If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).
+!!! question "Open a GitHub issue"
+    If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).

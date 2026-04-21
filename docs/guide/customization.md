@@ -121,6 +121,10 @@ By default, `stream` is set to an internal `deprecation_warning` function, which
 
 Pass `stream=None` to disable all deprecation output for a specific deprecated function. The call forwarding still works — only the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
 
+!!! warning "Testing gotcha: `stream=None` suppresses `FutureWarning`"
+
+    When `stream=None` is set, no `FutureWarning` is emitted, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](audit.md#testing-deprecated-code) for patterns.
+
 ```python
 from deprecate import deprecated
 
@@ -184,6 +188,10 @@ Choose the log level that matches the urgency:
 - `logging.warning` — standard choice; visible in default configs
 - `logging.error` — for critical deprecations nearing removal deadline
 - `logging.info` — for low-priority deprecations during early migration
+
+!!! tip "Combine `num_warns=-1` with `stream=logging.warning` for migration tracking"
+
+    With unlimited warnings routed to your logger, every deprecated call site appears in your log aggregation system (ELK, Datadog, CloudWatch). Query the logs to measure migration progress and identify remaining callers before the removal deadline.
 
 ### Using `print` for simple console output
 

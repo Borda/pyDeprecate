@@ -48,6 +48,10 @@ For CI audit features that compare version strings:
 pip install "pyDeprecate[audit]"
 ```
 
+!!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry`"
+
+    The base install (`pip install pyDeprecate`) includes `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` requires the `[audit]` extra because it depends on `packaging` for PEP 440 version comparison.
+
 ## Comparison with other tools
 
 The alternatives — `warnings.warn` directly, the `deprecation` package, or `wrapt.deprecated` — emit a deprecation notice but leave all the forwarding, argument mapping, and enforcement work to you. pyDeprecate handles those parts so you don't have to.
