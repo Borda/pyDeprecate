@@ -7,7 +7,7 @@ description: Customize pyDeprecate deprecation messages with built-in templates 
 
 ## Deprecation Messages and Templates
 
-pyDeprecate selects a deprecation message template automatically based on the type of deprecation. You can also supply your own custom template with `template_mgs`.
+pyDeprecate picks a deprecation message template automatically based on how you configured the decorator. Override it with `template_mgs` when the defaults do not fit.
 
 ### Default templates
 
@@ -29,7 +29,7 @@ When you provide `template_mgs`, your custom template replaces whichever default
 
 ### Placeholder variables
 
-Custom templates use Python `%`-style formatting (`%(key)s`). The available placeholders depend on the deprecation type:
+Custom templates use Python `%`-style formatting (`%(key)s`). Available placeholders depend on the deprecation type:
 
 | Placeholder     | Available when                    | Value                                               |
 | --------------- | --------------------------------- | --------------------------------------------------- |
@@ -107,19 +107,19 @@ print(train(lr=0.001))
 
 ## Deprecation Output Sink (`stream`)
 
-The `stream` parameter controls how and where deprecation messages are delivered. It accepts any callable with signature `(msg: str) -> None`, or `None` to silence deprecation output entirely.
+`stream` controls where deprecation messages go. It accepts any callable with signature `(msg: str) -> None`, or `None` to silence output entirely.
 
 ### Default: FutureWarning via `warnings.warn`
 
-By default, `stream` is set to an internal `deprecation_warning` function, which is `functools.partial(warnings.warn, category=FutureWarning)`. This means:
+By default, `stream` is `functools.partial(warnings.warn, category=FutureWarning)`. In practice this means:
 
-- Warnings appear as `FutureWarning` and are visible by default in scripts and interactive sessions.
-- Standard warning filters apply — you can suppress them with `warnings.filterwarnings("ignore", category=FutureWarning)` when needed.
-- The warning traceback will point to the internal pyDeprecate wrapper code. If you need caller-level tracebacks, use a custom stream that calls `warnings.warn` with an appropriate `stacklevel`.
+- Deprecation notices appear as `FutureWarning`, visible by default in scripts and interactive sessions.
+- Standard warning filters apply — suppress with `warnings.filterwarnings("ignore", category=FutureWarning)` when needed.
+- The traceback points to internal pyDeprecate wrapper code. For caller-level tracebacks, use a custom stream that calls `warnings.warn` with an appropriate `stacklevel`.
 
 ### Silencing deprecation output entirely
 
-Pass `stream=None` to disable all deprecation output for a specific deprecated function. The call forwarding still works — only the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
+Pass `stream=None` to disable all deprecation output for a specific function. Call forwarding still works — only the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
 
 !!! warning "Testing gotcha: `stream=None` suppresses `FutureWarning`"
 
@@ -153,7 +153,7 @@ print(old_internal(5))
 
 ### Redirecting to a logger
 
-Pass `logging.warning` (or any logging level method) to route deprecation messages through Python's logging system instead of the warnings module. This integrates with your existing log aggregation, filtering, and formatting infrastructure.
+Pass `logging.warning` (or any logging level method) to route deprecation messages through Python's logging system. This plugs straight into your existing log aggregation, filtering, and formatting.
 
 ```python
 # phmdoctest:skip
@@ -183,19 +183,19 @@ def old_process(data: list) -> list:
 old_process([3, 1, 2])
 ```
 
-Choose the log level that matches the urgency:
+Pick the log level that matches the urgency:
 
 - `logging.warning` — standard choice; visible in default configs
-- `logging.error` — for critical deprecations nearing removal deadline
-- `logging.info` — for low-priority deprecations during early migration
+- `logging.error` — critical deprecations nearing removal deadline
+- `logging.info` — low-priority deprecations during early migration
 
 !!! tip "Combine `num_warns=-1` with `stream=logging.warning` for migration tracking"
 
-    With unlimited warnings routed to your logger, every deprecated call site appears in your log aggregation system (ELK, Datadog, CloudWatch). Query the logs to measure migration progress and identify remaining callers before the removal deadline.
+    With unlimited notices routed to your logger, every deprecated call site appears in your log aggregation system (ELK, Datadog, CloudWatch). Query the logs to measure migration progress and find remaining callers before the removal deadline.
 
 ### Using `print` for simple console output
 
-For quick debugging or scripts where you want immediate console output without the warnings module infrastructure:
+For quick debugging or scripts where you want immediate stdout output without the warnings module:
 
 ```python
 from deprecate import deprecated
@@ -231,7 +231,7 @@ Hello, World!
 
 ### Custom stream callable
 
-Any callable accepting a single string argument works. For example, collecting deprecation messages into a list for later processing:
+Any callable accepting a single string argument works. Here is an example that collects deprecation messages into a list for later processing:
 
 ```python
 from deprecate import deprecated

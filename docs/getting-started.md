@@ -5,13 +5,13 @@ description: Install pyDeprecate and write your first deprecation in minutes. Co
 
 # Getting Started
 
-When you rename a function or retire an argument, you need the old name to keep working, callers to receive a clear deprecation notice pointing at the new API, and a firm removal date you can actually enforce. Doing that by hand — writing a wrapper, calling `warnings.warn` with the right arguments, forwarding every parameter — is repetitive and leaves no enforcement path. pyDeprecate does all of it with a single decorator so you can focus on the new API instead of the plumbing.
+You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.
 
 ## Installation
 
-pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies in its base form.
+pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies.
 
-Install the latest stable release from PyPI:
+Install from PyPI:
 
 ```bash
 pip install pyDeprecate
@@ -23,7 +23,7 @@ To install directly from source (for pre-release or development versions):
 pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 ```
 
-The `audit` extra pulls in `packaging` for version-comparison logic used by `validate_deprecation_expiry`. Install it when you want to enforce removal deadlines in CI:
+The `audit` extra adds `packaging` for version comparison, needed only by `validate_deprecation_expiry`. Install it when you want to enforce removal deadlines in CI:
 
 ```bash
 pip install 'pyDeprecate[audit]'
@@ -31,7 +31,7 @@ pip install 'pyDeprecate[audit]'
 
 ## Quick Start
 
-You renamed a function and need the old name to keep working under a deprecation notice during the transition window. The decorator handles call forwarding automatically — you do not need to copy any implementation into the deprecated wrapper.
+Here is the most common scenario: you renamed a function and need the old name to keep working during the transition. The decorator handles call forwarding automatically, so the deprecated wrapper needs no implementation.
 
 ```python
 from deprecate import deprecated
@@ -64,11 +64,12 @@ print(addition(1, 2))
 All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. The old function's body is never executed.
 
 !!! tip "Customizing deprecation messages"
+
     To customize the message template or redirect deprecation output to a logger, see [Customization](guide/customization.md).
 
 ## API at a Glance
 
-Not sure which decorator to reach for? The table below maps common scenarios to the correct API. For full worked examples of each, see [Use Cases](guide/use-cases.md).
+Not sure which API to reach for? This table maps common scenarios to the right tool. For worked examples of each, see [Use Cases](guide/use-cases.md).
 
 **Pick the right decorator:**
 

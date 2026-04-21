@@ -5,11 +5,11 @@ description: Twelve real-world deprecation patterns for Python functions, method
 
 # Use Cases
 
-The two most common triggers for a deprecation are renaming a function and renaming an argument — and both require more than a bare `warnings.warn` call: you need to forward the call, remap any changed argument names, and keep the old code working correctly until removal. This page shows how pyDeprecate handles each scenario, from a simple rename to proxy-wrapped Enums and multi-hop argument chains. If you are new to the library, read [Getting Started](../getting-started.md) first.
+The two most common reasons to deprecate something are renaming a function and renaming an argument. Both require more than a bare `warnings.warn`: you need call forwarding, argument remapping, and a way to keep the old code working until removal day. This page walks through each pattern pyDeprecate supports, from a simple rename to proxy-wrapped Enums and multi-hop argument chains. If you are new to the library, start with [Getting Started](../getting-started.md).
 
 ## Simple function forwarding
 
-When you rename a function, the old name must keep working during the deprecation window. Applying `@deprecated(target=new_func)` on the old name tells pyDeprecate to forward every call — including all positional and keyword arguments — to the new function automatically. The body of the deprecated function is never executed, so you can leave it empty or place a docstring there.
+Apply `@deprecated(target=new_func)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. The body of the deprecated function is never executed, so leave it empty or put a docstring there.
 
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it computes
@@ -53,7 +53,7 @@ print(calculate(1, 2))
 
 </details>
 
-When the deprecated name already exists as a callable (for example, imported from another package), you can apply `deprecated()` directly without redefining the function body. This wrapper form is equivalent to the decorator syntax but works on any already-existing callable — including one you do not control.
+If the deprecated name already exists as a callable (for example, imported from another package), apply `deprecated()` directly as a wrapper call instead of using decorator syntax. This works on any callable, including ones you do not control.
 
 ```python
 from deprecate import deprecated
@@ -80,7 +80,7 @@ calculate = deprecated(
 
 ## Argument renaming and mapping
 
-When the new function accepts the same arguments under different names, use `args_mapping` to translate the old parameter names to the new ones at call time. This lets callers continue to pass the old names during the deprecation window without any manual mapping code in the wrapper body.
+Use `args_mapping` when the new function accepts the same arguments under different names. The decorator translates old parameter names to new ones at call time, so callers can keep passing the old names during the deprecation window without any manual mapping code.
 
 ```python
 # phmdoctest:skip
@@ -118,7 +118,7 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
     Unlike `target=<callable>` (where the body is dead code), `target=None` runs the original function body after emitting the deprecation notice. You must keep a working implementation in the function body.
 
-Sometimes you want to signal that a function is deprecated without replacing it — the original implementation must keep running unchanged. Setting `target=None` emits a deprecation notice and then executes the function body normally. Use this pattern when the function will be removed in a future version but has no direct replacement yet, or when callers need to update their code themselves.
+Use `target=None` when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
 
 ```python
 from deprecate import deprecated
@@ -146,7 +146,7 @@ print(my_sum(1, 2))
 
 ## Self argument mapping
 
-Use `target=True` when you want to rename or drop an argument within the same function — no external target is needed. The decorator remaps the old argument name to the new one before the function body runs, so the function implementation only needs to use the new name. This is the right pattern when refactoring a signature without moving the function.
+Use `target=True` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.
 
 ```python
 from deprecate import deprecated
@@ -180,7 +180,7 @@ print(any_pow(2, 3))
 
 </details>
 
-To drop an argument entirely — emit a deprecation notice when it is passed and then discard it — map it to `None`. The function body must be prepared to receive no value for that parameter.
+To drop an argument entirely, map it to `None`. The decorator emits a deprecation notice when the argument is passed and then discards it.
 
 ```python
 from deprecate import deprecated
@@ -210,7 +210,7 @@ my_func(value=42, legacy_param="old")
 
     Each stacked `@deprecated(True, ...)` decorator emits its own notice. If you accidentally point a decorator's `target` at another deprecated function instead of the final implementation, callers receive redundant warnings. Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch these mistakes automatically.
 
-When a function's arguments are deprecated across multiple releases — each argument retired at a different version — stack multiple `@deprecated(True, ...)` decorators, one per argument rename. Each decorator in the chain operates on its own version range and emits a separate deprecation notice, giving callers clear, version-specific migration guidance.
+When arguments are deprecated across multiple releases, stack one `@deprecated(True, ...)` per rename. Each decorator operates on its own version range and emits a separate notice, giving callers version-specific migration guidance.
 
 ```python
 from deprecate import deprecated
@@ -251,7 +251,7 @@ print(any_pow(2, 3))
 
 ## Conditional skip
 
-The `skip_if` parameter accepts a boolean or a zero-argument callable that returns a boolean. When the callable returns `True`, the deprecation notice is suppressed entirely and the call proceeds normally. This is useful when behaviour differs by runtime version — for example, you may want to suppress the deprecation notice once the caller has already migrated to a newer dependency that no longer triggers the deprecated path.
+`skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency.
 
 ```python
 from deprecate import deprecated
@@ -290,7 +290,7 @@ print(skip_pow(2, 3))
 
 ## Class deprecation
 
-There are two common class deprecation patterns. The first is renaming a method within the same class — apply `@deprecated(target=execute)` on the old method name and calls are forwarded to the new method at runtime. The second is deprecating an entire class by decorating `__init__` to emit a deprecation notice at instantiation time and optionally forward construction to a successor class.
+Two common patterns here. First, renaming a method within a class: apply `@deprecated(target=execute)` on the old method name and calls forward to the new method. Second, deprecating an entire class by decorating `__init__` to emit a notice at instantiation time and optionally forward construction to a successor class.
 
 Method rename within a class:
 
@@ -384,7 +384,9 @@ efg
 
 ## Constants and instances
 
-Use `deprecated_instance` to wrap module-level objects — such as dicts, lists, or custom objects — in a transparent proxy that emits a deprecation notice on every attribute, item, or call access. The `read_only=True` flag prevents callers from mutating shared state through the deprecated alias. Note that primitive protocol methods such as numeric arithmetic on `float` or concatenation on `str` are not intercepted; for primitive constants, prefer wrapping them in a container or updating call sites directly.
+`deprecated_instance` wraps module-level objects (dicts, lists, custom objects) in a transparent proxy that emits a deprecation notice on attribute, item, or call access. Use `read_only=True` to prevent callers from mutating shared state through the deprecated alias.
+
+Heads up: primitive protocol methods (arithmetic on `float`, concatenation on `str`) are not intercepted by the proxy. For primitive constants, wrap them in a container or update call sites directly. See [Troubleshooting](../troubleshooting.md#why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators) for details.
 
 ```python
 from deprecate import deprecated_instance
@@ -420,7 +422,7 @@ print(DEFAULTS["lr"])  # 0.001
 
 ## Enums and dataclasses
 
-`deprecated_class()` wraps an entire Enum or dataclass in a transparent proxy that emits a deprecation notice on access and forwards attribute, item, and call operations to the replacement class. Use `args_mapping` to rename or drop kwargs when the deprecated class is called. Type checks with `isinstance()` and `issubclass()` work transparently and do not emit deprecation notices, since these are structural checks rather than actual usage of the deprecated API.
+`deprecated_class()` wraps an Enum or dataclass in a transparent proxy that emits a deprecation notice on access and forwards attribute, item, and call operations to the replacement. Use `args_mapping` to rename or drop kwargs when the deprecated class is called. Type checks (`isinstance`, `issubclass`) pass through without emitting notices, since they are structural checks rather than usage of the deprecated API.
 
 ```python
 from enum import Enum
@@ -497,7 +499,7 @@ True
 
 ## Automatic docstring updates
 
-When you generate API documentation with Sphinx or MkDocs, you can inject a deprecation notice directly into the function's docstring at import time using `update_docstring=True`. This ensures the rendered API reference always shows the deprecation status alongside the function signature, without you having to maintain the notice manually.
+Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring at import time. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep.
 
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it does
@@ -560,7 +562,7 @@ Returns:
 
 </details>
 
-For MkDocs projects using `mkdocstrings`, switch to the admonition output style and register the Griffe extension so the injected notice appears in generated docs:
+For MkDocs projects using `mkdocstrings`, switch to the admonition output style and register the Griffe extension so the injected notice renders correctly:
 
 ```python
 from deprecate import deprecated
@@ -618,7 +620,7 @@ plugins:
 
 ## Injecting new required arguments
 
-When the replacement function gains a new required parameter that callers of the old API never passed, use `args_extra` to inject a fixed default value at the wrapper level. This lets you forward calls without breaking existing call sites while signalling through the deprecation notice that callers should migrate to the new API and pass the argument explicitly.
+When the replacement function gains a new required parameter that the old API never had, use `args_extra` to inject a fixed default. This forwards calls without breaking existing callers while the deprecation notice tells them to migrate.
 
 ```python
 from deprecate import deprecated, void
@@ -657,13 +659,13 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 </details>
 
-`args_extra` is only applied when `target` is a `Callable`. It is merged into the forwarded kwargs after `args_mapping` is applied, so extra values can also override mapped ones. It is ignored for `target=True` self-deprecation, where no forwarding occurs.
+`args_extra` only applies when `target` is a callable. It merges into the forwarded kwargs after `args_mapping`, so extra values can override mapped ones. It is ignored for `target=True` (self-deprecation).
 
 ## Suppressing `FutureWarning` in test fixtures with `assert_no_warnings`
 
-When writing tests, you often need to call deprecated functions in setup code — fixtures, helpers, or factory functions — without polluting the test output with `FutureWarning` noise. The `assert_no_warnings` context manager handles this by catching and discarding warnings of the specified type inside the block, while also asserting that no such warning escapes.
+In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. `assert_no_warnings` catches and discards warnings of the specified type inside the block, while asserting that no such warning escapes.
 
-This is different from `pytest.warns` (which asserts a warning IS emitted) and from `warnings.filterwarnings("ignore")` (which silences globally without assertion). `assert_no_warnings` gives you a scoped, assertion-backed silence: if the function under the block unexpectedly starts emitting a different warning category, that would still surface.
+Here is the gotcha: this is different from `pytest.warns` (which asserts a warning IS emitted) and from `warnings.filterwarnings("ignore")` (which silences globally without assertion). `assert_no_warnings` gives you a scoped, assertion-backed silence. If the code unexpectedly starts emitting a different warning category, that still surfaces.
 
 ```python
 import warnings
@@ -709,7 +711,7 @@ print(result)
 
 </details>
 
-The key distinction between the testing tools:
+Quick reference for choosing the right testing tool:
 
 | Tool                                                   | Purpose                       | Fails when...                 |
 | ------------------------------------------------------ | ----------------------------- | ----------------------------- |
@@ -717,7 +719,7 @@ The key distinction between the testing tools:
 | `assert_no_warnings(FutureWarning)`                    | Assert warning is NOT emitted | A matching warning IS raised  |
 | `warnings.catch_warnings()` + `simplefilter("ignore")` | Suppress without assertion    | Never fails (use in fixtures) |
 
-Use `assert_no_warnings` in your test assertions to verify that refactored code no longer triggers deprecation warnings. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
+Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
 
 ______________________________________________________________________
 

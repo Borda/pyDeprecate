@@ -61,7 +61,6 @@ repos:
         files: ^docs/
         args: ["--number"]
         additional_dependencies:
-          - mdformat-gfm
           - mdformat-mkdocs
           - mdformat-ruff
           - mdformat_frontmatter

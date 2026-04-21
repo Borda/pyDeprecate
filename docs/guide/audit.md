@@ -5,16 +5,17 @@ description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configu
 
 # Audit Tools
 
-Three concrete failure modes motivate this module: a `remove_in` deadline passes and the deprecated code is never removed (zombie code); a deprecated wrapper targets another deprecated function, causing callers to receive two deprecation notices instead of one (a chain); or an `args_mapping` key contains a typo and silently does nothing (a misconfiguration). `validate_deprecation_expiry()`, `validate_deprecation_chains()`, and `find_deprecation_wrappers()` exist to catch each of these in CI before they reach users.
+Three things go wrong with deprecations in practice: a `remove_in` deadline passes and nobody deletes the code (zombie code); a deprecated wrapper targets another deprecated function, so callers get two notices instead of one (a chain); or an `args_mapping` key has a typo and silently does nothing (a misconfiguration). `validate_deprecation_expiry()`, `validate_deprecation_chains()`, and `find_deprecation_wrappers()` catch each of these in CI before they reach users.
 
 !!! note "Renamed in v0.6"
+
     `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
 
 ## Validating Wrapper Configuration
 
-During development you may want to verify that a deprecated wrapper is correctly configured — that `args_mapping` keys actually exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. Two utilities cover this: `validate_deprecation_wrapper()` inspects a single function, and `find_deprecation_wrappers()` scans an entire package.
+Use these utilities to verify that a deprecated wrapper is correctly configured: that `args_mapping` keys exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. `validate_deprecation_wrapper()` inspects a single function; `find_deprecation_wrappers()` scans an entire package.
 
-`DeprecationWrapperInfo` is the dataclass returned by both utilities. Its fields are:
+`DeprecationWrapperInfo` is the dataclass returned by both. Its fields:
 
 - `module` — module name where the function is defined (empty for direct validation)
 - `function` — function name
@@ -28,7 +29,7 @@ During development you may want to verify that a deprecated wrapper is correctly
 
 ### Validating a single function
 
-`validate_deprecation_wrapper()` extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass. Use it in development or in a targeted pytest assertion to confirm that a specific wrapper is sound before shipping.
+`validate_deprecation_wrapper()` extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.
 
 ```python
 from deprecate import validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
@@ -93,7 +94,7 @@ Warning: This wrapper configuration has zero impact!
 
 ### Scanning a package for deprecated wrappers
 
-`find_deprecation_wrappers()` walks an entire package or module and returns a list of `DeprecationWrapperInfo` entries — one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.
+`find_deprecation_wrappers()` walks an entire package or module and returns a list of `DeprecationWrapperInfo` entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -185,7 +186,7 @@ tests.collection_deprecate.wrapped_sum_warn_only: no_effect=False
 
 </details>
 
-Group results by issue type to produce structured reports — for example, separating hard errors (invalid argument names) from advisory notes (identity mappings):
+Group results by issue type for structured reports — separate hard errors (invalid argument names) from advisory notes (identity mappings):
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -220,14 +221,14 @@ Self-references: 0
 
 ### CLI usage
 
-Install the optional CLI extra and scan any package directly from the command line without writing a Python script:
+Install the optional CLI extra and scan any package from the command line without writing a script:
 
 ```bash
 pip install 'pyDeprecate[cli]'
 pydeprecate path/to/your/package
 ```
 
-The CLI reports invalid argument mappings and wrappers with no effect, making it easy to add a validation step to a `Makefile` or pre-commit hook.
+The CLI reports invalid argument mappings and wrappers with no effect, making it straightforward to add a validation step to a `Makefile` or pre-commit hook.
 
 **Exit codes:**
 
@@ -236,11 +237,11 @@ The CLI reports invalid argument mappings and wrappers with no effect, making it
 | `0`       | No issues found (or only advisory notes like identity mappings)             |
 | `1`       | Invalid argument mappings detected (hard errors that break call forwarding) |
 
-The CLI also supports `--skip-errors` to always exit `0` even when issues are found — useful for advisory-only CI steps where you want visibility without blocking the pipeline.
+Use `--skip-errors` to always exit `0` even when issues are found — useful for advisory-only CI steps where you want visibility without blocking the pipeline.
 
 ### pytest integration
 
-Add a test that fails the suite when any deprecated wrapper in your package has an invalid configuration. Wrong argument names are hard errors; identity mappings are worth noting.
+Add a test that fails the suite when any deprecated wrapper has an invalid configuration. Wrong argument names are hard errors; identity mappings are worth a warning.
 
 ```python
 import warnings
@@ -273,15 +274,15 @@ def test_deprecated_wrappers_are_valid():
 
 ## Enforcing Removal Deadlines
 
-When you deprecate code with a `remove_in` version, you commit to deleting that code when that version ships. Without automation it is easy to forget, leaving "zombie code" that lingers past its deadline. `validate_deprecation_expiry()` scans a module or package and returns a list of error messages for every deprecated callable whose `remove_in` version is less than or equal to the supplied current version. An empty list means no expired deprecations were found.
+When you set `remove_in`, you are committing to delete that code when the version ships. Without automation, it is easy to forget — leaving zombie code that lingers past its deadline. `validate_deprecation_expiry()` scans a module or package and returns a list of error messages for every deprecated callable whose `remove_in` version has passed. An empty list means everything is clean.
 
-The `audit` install extra is required for this utility because it depends on `packaging` for PEP 440 version comparison:
+The `audit` install extra is required because this utility depends on `packaging` for PEP 440 version comparison:
 
 ```bash
 pip install 'pyDeprecate[audit]'
 ```
 
-Scan a package for expired deprecations and control recursion depth:
+Scan a package and control recursion depth:
 
 ```python
 from deprecate import validate_deprecation_expiry
@@ -321,7 +322,7 @@ Found 0 expired
 
 </details>
 
-Useful behaviours to know:
+Good to know:
 
 - Callables without `remove_in` are skipped — notice-only deprecations are allowed.
 - Invalid version formats in `remove_in` are silently skipped.
@@ -330,7 +331,7 @@ Useful behaviours to know:
 
 ### pytest integration for expiry enforcement
 
-Integrate expiry checks into the test suite so that zombie code is caught before any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.
+Wire expiry checks into your test suite so zombie code is caught before any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.
 
 ```python
 import pytest
@@ -372,14 +373,14 @@ def enforce_deprecation_deadlines():
 
 ## Detecting Deprecation Chains
 
-When refactoring, it is easy to accidentally create a deprecated wrapper whose `target` is itself another deprecated function. These chains defeat the purpose of deprecation: callers get two deprecation notices instead of one, and the intermediate hop adds no value. `validate_deprecation_chains()` scans a module or package for exactly this pattern using purely metadata-based detection — no source-code inspection is required.
+A deprecated wrapper whose `target` is itself another deprecated function creates a chain: callers get two deprecation notices instead of one, and the intermediate hop adds no value. `validate_deprecation_chains()` scans a module or package for exactly this pattern using purely metadata-based detection — no source-code inspection required.
 
 Two chain types are reported:
 
 - `ChainType.TARGET` — the target is a deprecated callable that forwards to another function. Fix by pointing directly to the final (non-deprecated) implementation.
 - `ChainType.STACKED` — argument mappings chain through multiple hops and must be composed. This covers both the case where a callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming), and the case where multiple `@deprecated(True, args_mapping=...)` decorators are stacked on the same function without being merged.
 
-The example below demonstrates both bad patterns and the correct direct form:
+The example below shows both bad patterns and the correct direct form:
 
 ```python
 from deprecate import deprecated, validate_deprecation_wrapper, void
@@ -440,7 +441,7 @@ caller_direct: None
 
 ### pytest integration for chain detection
 
-Add a test that fails whenever any deprecated function in your package targets another deprecated function. The session-scoped autouse fixture variant prevents the entire suite from running until chains are resolved.
+Add a test that fails whenever a deprecated function in your package targets another deprecated function. The session-scoped autouse fixture variant prevents the entire suite from running until chains are resolved.
 
 ```python
 import pytest
@@ -477,6 +478,7 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 ## Pre-commit Integration
 
 !!! info "Coming soon"
+
     Native pre-commit hook support is planned. For now, run the validator directly via `python -m deprecate` in your `Makefile` or CI step.
 
 The CLI checks for misconfigured wrappers only — invalid `args_mapping` keys, identity mappings, self-references:
@@ -501,9 +503,9 @@ python -m deprecate src/your_package --skip_errors true
 
 ## Testing Deprecated Code
 
-pyDeprecate ships `assert_no_warnings`, a context manager that fails if a specified warning category is raised inside the block. Use it alongside `pytest.warns` to write precise tests that verify both the presence and absence of deprecation warnings.
+pyDeprecate ships `assert_no_warnings`, a context manager that fails if a specified warning category is raised inside the block. Use it alongside `pytest.warns` to write precise tests that verify both the presence and absence of deprecation notices.
 
-The `num_warns` parameter (default `1`) controls how many times the deprecation message is emitted per function lifetime. The first test below verifies the message appears; the third test verifies it does not appear on subsequent calls, which is the default behaviour.
+`num_warns` (default `1`) controls how many times the deprecation message fires per function lifetime. The first test below verifies the message appears; the third verifies it stops on subsequent calls, which is the default behaviour.
 
 ```python
 from deprecate import deprecated, assert_no_warnings, void
@@ -555,7 +557,7 @@ test_new_function_no_warning()
 test_no_warning_after_first_call()
 ```
 
-When a deprecation must be impossible to miss, set `num_warns=-1` to emit the deprecation message on every call. Use `num_warns=N` to fire exactly `N` times — useful for integration tests that need to verify the emit count precisely.
+When a deprecation must be impossible to miss, set `num_warns=-1` to fire on every call. Use `num_warns=N` for exactly N times — useful for integration tests that need to verify the emit count precisely.
 
 ```python
 # Minimal replacement implementation used in examples
@@ -582,7 +584,7 @@ def old_func_warn_n_times(x: int) -> int:
 
 ### Suppressing warnings in test fixtures
 
-When you need to call deprecated functions in test setup code — fixtures, factory helpers, or shared utilities — without polluting the test output with deprecation noise, use `warnings.catch_warnings()` with `simplefilter("ignore")`. This suppresses the warning while still exercising the call-forwarding path.
+When you call deprecated functions in test setup code (fixtures, factory helpers, shared utilities), use `warnings.catch_warnings()` with `simplefilter("ignore")` to suppress the noise while still exercising the call-forwarding path.
 
 ```python
 import warnings
@@ -634,7 +636,7 @@ print(clean_session)
 | `assert_no_warnings(FutureWarning, match="pattern")`   | Testing that a specific warning message is absent           | Only fails if a warning matching the pattern is raised |
 | `warnings.catch_warnings()` + `simplefilter("ignore")` | Calling deprecated code in fixtures/setup without assertion | Silently suppresses; never fails                       |
 
-The `match` parameter on `assert_no_warnings` accepts a substring — it filters the captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
+The `match` parameter on `assert_no_warnings` accepts a substring — it filters captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
 
 ______________________________________________________________________
 
