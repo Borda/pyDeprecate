@@ -59,7 +59,7 @@ repos:
       - id: mdformat
         name: mdformat (docs)
         files: ^docs/
-        args: ["--number"]
+        args: ["--number", "--no-validate"]
         additional_dependencies:
           - mdformat-mkdocs
           - mdformat-ruff
