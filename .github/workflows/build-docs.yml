@@ -233,6 +233,9 @@ jobs:
     name: Deploy to GH Pages
     needs: [resolve-deploy-context, assemble-site]
     if: needs.resolve-deploy-context.outputs.should_deploy == 'true'
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     permissions:
       contents: write
       id-token: write
