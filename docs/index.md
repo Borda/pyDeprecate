@@ -71,7 +71,7 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 ## Where to go next
 
 - [Getting Started](getting-started.md) — install, write your first deprecation, see the full API at a glance.
-- [Use Cases](guide/use-cases.md) — twelve real-world deprecation patterns with worked examples.
+- [Use Cases](guide/use-cases.md) — thirteen real-world deprecation patterns with worked examples.
 - [Audit Tools](guide/audit.md) — enforce removal deadlines and catch deprecation chains in CI.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
 - [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.

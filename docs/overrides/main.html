@@ -163,7 +163,6 @@
 <!-- BreadcrumbList: non-homepage, non-demo content pages -->
 {% if page.file.src_path != "index.md" and not page.file.src_path.startswith("demo-") %}
 <script type="application/ld+json">
-{% if page.file.src_path.startswith("guide/") %}
 {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -172,16 +171,6 @@
     {"@type": "ListItem", "position": 2, "name": {{ page.title | tojson }}, "item": {{ page.canonical_url | tojson }}}
   ]
 }
-{% else %}
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
-    {"@type": "ListItem", "position": 2, "name": {{ page.title | tojson }}, "item": {{ page.canonical_url | tojson }}}
-  ]
-}
-{% endif %}
 </script>
 {% endif %}
 
