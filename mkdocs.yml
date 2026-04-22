@@ -1,4 +1,4 @@
-site_name: pyDeprecate
+site_name: pyDeprecate — Python Deprecation Library
 site_description: Simple tooling for marking deprecated functions or classes and re-routing to their successors.
 site_url: https://borda.github.io/pyDeprecate/
 repo_url: https://github.com/Borda/pyDeprecate
@@ -52,6 +52,7 @@ nav:
       - Audit Tools: guide/audit.md
       - Customization: guide/customization.md
   - Troubleshooting: troubleshooting.md
+  - Changelog: changelog.md
   - Demos:
       - Sphinx: demo-sphinx/index.md
       - MkDocs: demo-mkdocs/index.md
