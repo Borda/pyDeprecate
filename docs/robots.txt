@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Sitemap: https://borda.github.io/pyDeprecate/sitemap.xml
+Host: https://borda.github.io
+
+# AI crawler access — llms.txt available
+# https://borda.github.io/pyDeprecate/llms.txt
