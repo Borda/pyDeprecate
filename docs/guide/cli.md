@@ -89,11 +89,11 @@ ______________________________________________________________________
 
 ## Flags
 
-| Flag                  | Applies to                               | Effect                                                                                                  |
-| --------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--version VERSION`   | `expiry`, `all`                          | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |
-| `--no_recursive true` | `check`, `expiry`, `chains`, `all`       | Scan top-level module only; skip submodules.                                                            |
-| `--skip_errors true`  | `check`, `expiry`, `chains`, `all`       | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |
+| Flag                  | Applies to                         | Effect                                                                                                  |
+| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `--version VERSION`   | `expiry`, `all`                    | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |
+| `--no_recursive true` | `check`, `expiry`, `chains`, `all` | Scan top-level module only; skip submodules.                                                            |
+| `--skip_errors true`  | `check`, `expiry`, `chains`, `all` | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |
 
 ## Exit codes
 

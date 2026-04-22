@@ -603,8 +603,7 @@ def cmd_all(
             )
         except ValueError as e:
             _print(
-                f"Invalid version {resolved_version!r}: {e}. "
-                "Pass a valid PEP 440 version with --version.",
+                f"Invalid version {resolved_version!r}: {e}. Pass a valid PEP 440 version with --version.",
                 stderr=True,
             )
             return 1
