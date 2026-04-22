@@ -569,7 +569,8 @@ def cmd_all(
 
     # --- check: wrapper config + chains ---
     has_invalid = any(r.invalid_args for r in results)
-    if _report_issues(results) and has_invalid:
+    has_chains = any(r.chain_type is not None for r in results)
+    if _report_issues(results) and (has_invalid or has_chains):
         has_errors = True
 
     # --- expiry ---
@@ -600,6 +601,13 @@ def cmd_all(
                 "Install with: pip install 'pyDeprecate[audit]'",
                 stderr=True,
             )
+        except ValueError as e:
+            _print(
+                f"Invalid version {resolved_version!r}: {e}. "
+                "Pass a valid PEP 440 version with --version.",
+                stderr=True,
+            )
+            return 1
     else:
         _print(
             "Skipping expiry check: could not determine package version. Pass --version explicitly to enable.",
