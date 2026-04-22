@@ -146,6 +146,7 @@ dmypy.json
 .idea/
 
 # Generated files with Claude
+.claude/agent-memory/
 .claude/logs/
 .claude/state/
 .claude/worktrees/

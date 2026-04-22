@@ -222,6 +222,11 @@ print(result)
 
 </details>
 
+## See also
+
+- [Use Cases](use-cases.md) — worked examples of deprecation patterns, including those that use `void()`
+- [Troubleshooting](../troubleshooting.md) — why `deprecated_instance` does not emit warnings on arithmetic or comparison operators (same CPython dunder limitation)
+
 ______________________________________________________________________
 
 Next: [Audit Tools](audit.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.
