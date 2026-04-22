@@ -63,7 +63,9 @@ jobs:
       - name: 🔀 Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          # Full history only needed for tag events (stable_tag scan via git tag --list).
+          # Branch pushes and PRs use a shallow clone to avoid the overhead.
+          fetch-depth: ${{ github.ref_type == 'tag' && 0 || 1 }}
 
       - name: 🧮 Resolve target version
         id: context
@@ -76,8 +78,6 @@ jobs:
           stable_tag=""
           version_path=""
 
-          stable_tag="$(python -c "import os, re, subprocess; pattern = os.environ['RELEASE_TAG_PATTERN']; tags = subprocess.check_output(['git', 'tag', '--list'], text=True).splitlines(); release_tags = [tag for tag in tags if re.fullmatch(pattern, tag)]; print(max(release_tags, key=lambda tag: tuple(int(part) for part in tag.lstrip('vV').split('.'))), end='') if release_tags else None")"
-
           if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "main" ]; then
             should_deploy=true
             version_path="latest"
@@ -88,6 +88,9 @@ jobs:
               should_build=true
               should_deploy=true
               version_path="${GITHUB_REF_NAME}"
+              # stable_tag only needed for release-tag deploys (to mirror highest tag → stable/).
+              # Full tag history is available here because fetch-depth=0 for tag events.
+              stable_tag="$(python -c "import os, re, subprocess; pattern = os.environ['RELEASE_TAG_PATTERN']; tags = subprocess.check_output(['git', 'tag', '--list'], text=True).splitlines(); release_tags = [tag for tag in tags if re.fullmatch(pattern, tag)]; print(max(release_tags, key=lambda tag: tuple(int(part) for part in tag.lstrip('vV').split('.'))), end='') if release_tags else None")"
             fi
           fi
 
