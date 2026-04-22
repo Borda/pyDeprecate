@@ -638,6 +638,12 @@ print(clean_session)
 
 The `match` parameter on `assert_no_warnings` accepts a substring — it filters captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
 
+## See also
+
+- [Use Cases](use-cases.md) — deprecation patterns and scenarios that audit tools validate against
+- [Getting Started](../getting-started.md) — decorator API reference for `deprecated_in` and `remove_in` parameters
+- [Troubleshooting](../troubleshooting.md) — common decorator configuration errors and how to fix them
+
 ______________________________________________________________________
 
 Next: [Troubleshooting](../troubleshooting.md) — common errors and how to fix them.
