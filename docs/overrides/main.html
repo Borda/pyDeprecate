@@ -34,7 +34,9 @@
   "downloadUrl": "https://pypi.org/project/pyDeprecate/",
   "installUrl": "https://pypi.org/project/pyDeprecate/",
   "packageName": "pyDeprecate",
-  "softwareVersion": "0.8.0",
+{% if config.extra.version %}
+  "softwareVersion": "{{ config.extra.version }}",
+{% endif %}
   "softwareRequirements": "Python >=3.9",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Any",
@@ -91,10 +93,10 @@
   "@graph": [
     {
       "@type": "WebPage",
-      "@id": "https://borda.github.io/pyDeprecate/troubleshooting.html",
+      "@id": "{{ page.canonical_url }}",
       "name": "Troubleshooting — pyDeprecate",
       "description": "Fix common pyDeprecate errors: class decoration warnings, TypeError mapping failures, skip_if return type errors, missing deprecation notices, cross-module path issues, proxy dunder limitations, and logging integration.",
-      "url": "https://borda.github.io/pyDeprecate/troubleshooting.html",
+      "url": "{{ page.canonical_url }}",
       "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
       "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
       "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h2", ".md-content h3"] }

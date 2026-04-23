@@ -9,7 +9,6 @@
 - **Package name**: `pyDeprecate`
 - **License**: Apache-2.0 (https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
 - **Python support**: 3.9+
-- **Current documented version**: 0.8.0
 - **Repository**: https://github.com/Borda/pyDeprecate
 - **Documentation**: https://borda.github.io/pyDeprecate/
 - **PyPI**: https://pypi.org/project/pyDeprecate/
