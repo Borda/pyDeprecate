@@ -20,6 +20,8 @@
 [![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Borda/pyDeprecate/main.svg)](https://results.pre-commit.ci/latest/github/Borda/pyDeprecate/main)
 
+**Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated` · **Docs:** https://borda.github.io/pyDeprecate/
+
 ______________________________________________________________________
 
 ## 📋 Table of Contents
@@ -58,7 +60,7 @@ For most of these cases, you want to maintain some compatibility, so you cannot 
 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
 
-> pyDeprecate is downloaded over **700,000 times per month** from PyPI — a widely adopted solution for API deprecation in production Python codebases.
+> pyDeprecate is downloaded over **700,000 times per month** from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — a widely adopted solution for API deprecation in production Python codebases.
 
 ## ✨ Features
 
