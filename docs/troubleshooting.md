@@ -398,7 +398,7 @@ print(get_old_threshold())
 
 **Q:** I want deprecation messages to go through Python's `logging` module instead of the default `warnings.warn` mechanism. How?
 
-**A:** Pass any logging method as the `stream` parameter. The `stream` callable receives the formatted deprecation message as a single string argument — logging methods like `logging.warning` have exactly this signature.
+**A:** Pass any logging method as the `stream` parameter. The `stream` callable receives the formatted deprecation message as a single string argument — logging methods like `logging.warning` have exactly this signature. For the full range of `stream` options (silencing, custom callables, `print`), see [Deprecation Output Sink](guide/customization.md#deprecation-output-sink-stream).
 
 ```python
 # phmdoctest:skip

@@ -1144,13 +1144,27 @@ First, install the required optional dependencies:
 pip install 'pyDeprecate[cli]'
 ```
 
-Then scan any package or module:
+The CLI has four subcommands. Running `pydeprecate path/to/package` without a subcommand routes to `check` for backward compatibility.
 
 ```bash
-pydeprecate path/to/your/package
+# check — wrapper config + deprecated-to-deprecated chains (default)
+pydeprecate check path/to/your/package
+pydeprecate path/to/your/package          # equivalent shorthand
+
+# expiry — wrappers past their remove_in deadline
+# requires: pip install 'pyDeprecate[audit]'
+pydeprecate expiry path/to/your/package --version 2.0.0
+pydeprecate expiry path/to/your/package   # auto-detects version from the package
+
+# chains — deprecated-to-deprecated forwarding chains only
+pydeprecate chains path/to/your/package
+
+# all — single scan running check + expiry + chains together
+pydeprecate all path/to/your/package --version 2.0.0
 ```
 
-This will scan the specified package and report any issues found, such as invalid argument mappings or wrappers with no effect.
+**Common flags** (all subcommands): `--no_recursive true` scans the top-level module only; `--skip_errors true` always exits `0` even when issues are found.
+`expiry` and `all` also accept `--version VERSION` to set the current version explicitly.
 
 </details>
 
