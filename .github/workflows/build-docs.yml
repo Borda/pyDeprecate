@@ -1,45 +1,110 @@
-# Build Composite Docs
+#
+# Build & Deploy Docs
 #
 # Flow:
 #
-#   [push → main] / [pull_request → main]
+#   [push → main] / [push → final release tag] / [pull_request → main]
+#     │
+#     ├─ resolve-deploy-context ── decides:
+#     │    ├─ main push            → build + deploy to latest/
+#     │    ├─ final release tag    → build + deploy to <tag>/ and stable/ if highest tag
+#     │    ├─ non-release tag      → skip build/deploy
+#     │    └─ pull request         → build only (no deploy)
 #     │
 #     ├─ build-landing-docs ──┐
 #     ├─ build-demo-sphinx ───┤
 #     └─ build-demo-mkdocs ───┤
 #                             ▼
-#                          assemble (always runs — merges artifacts into _site/, PR validation)
+#                          assemble-site (always for buildable events)
 #                             ├─ download portal, sphinx, mkdocs artifacts
-#                             ├─ assemble _site/{sphinx,mkdocs} + portal at root
-#                             └─ upload assembled-site artifact (contents: read only)
-#                             ▼ [push only]
-#                          deploy (pages: write + id-token: write)
-#                             ├─ download assembled-site artifact
-#                             ├─ actions/configure-pages
-#                             ├─ actions/upload-pages-artifact
-#                             └─ actions/deploy-pages
+#                             ├─ assemble _site/{demo-sphinx,demo-mkdocs} + portal at root
+#                             └─ upload assembled-site artifact
+#                             ▼ [deployable pushes only]
+#                          deploy-pages
+#                             ├─ load gh-pages worktree state
+#                             ├─ sync assembled site into latest/ or <tag>/
+#                             ├─ mirror highest final release to stable/
+#                             ├─ refresh root redirect + .nojekyll
+#                             ├─ commit/push gh-pages branch
+#                             └─ upload/deploy Pages artifact
 #
-#   pages: write and id-token: write are scoped to the deploy job only —
-#   pull requests keep the minimal contents: read permission and never trigger deploy.
-
+#   permissions:
+#     - default workflow permission is contents: read
+#     - deploy-pages escalates to contents/pages/id-token write only when deploying
+#
 name: Build & Deploy Docs
 
 on:
   push:
     branches: [main]
+    tags: ["*"]
   pull_request:
     branches: [main]
 
-# Minimal default; deploy job overrides with pages + id-token.
 permissions:
   contents: read
 
 env:
+  GH_PAGES_BRANCH: gh-pages
   PYTHON_DEFAULT: "3.13"
+  RELEASE_TAG_PATTERN: '^[vV]?[0-9]+(\.[0-9]+)+$'
 
 jobs:
+  resolve-deploy-context:
+    name: Resolve deploy context
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.context.outputs.should_build }}
+      should_deploy: ${{ steps.context.outputs.should_deploy }}
+      stable_tag: ${{ steps.context.outputs.stable_tag }}
+      version_path: ${{ steps.context.outputs.version_path }}
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Full history only needed for tag events (stable_tag scan via git tag --list).
+          # Branch pushes and PRs use a shallow clone to avoid the overhead.
+          fetch-depth: ${{ github.ref_type == 'tag' && 0 || 1 }}
+
+      - name: 🧮 Resolve target version
+        id: context
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          should_build=true
+          should_deploy=false
+          stable_tag=""
+          version_path=""
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "main" ]; then
+            should_deploy=true
+            version_path="latest"
+          elif [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            should_build=false
+
+            if printf '%s' "${GITHUB_REF_NAME}" | grep -Eq "${RELEASE_TAG_PATTERN}"; then
+              should_build=true
+              should_deploy=true
+              version_path="${GITHUB_REF_NAME}"
+              # stable_tag only needed for release-tag deploys (to mirror highest tag → stable/).
+              # Full tag history is available here because fetch-depth=0 for tag events.
+              stable_tag="$(python -c "import os, re, subprocess; pattern = os.environ['RELEASE_TAG_PATTERN']; tags = subprocess.check_output(['git', 'tag', '--list'], text=True).splitlines(); release_tags = [tag for tag in tags if re.fullmatch(pattern, tag)]; print(max(release_tags, key=lambda tag: tuple(int(part) for part in tag.lstrip('vV').split('.'))), end='') if release_tags else None")"
+            fi
+          fi
+
+          {
+            echo "should_build=${should_build}"
+            echo "should_deploy=${should_deploy}"
+            echo "stable_tag=${stable_tag}"
+            echo "version_path=${version_path}"
+          } >> "${GITHUB_OUTPUT}"
+
   build-landing-docs:
     name: Portal (landing-docs)
+    needs: [resolve-deploy-context]
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -57,10 +122,9 @@ jobs:
       - name: 📦 Install portal dependencies
         run: pip install -r docs/requirements.txt
 
-      - name: 📄 Copy assets into portal docs
-        run: cp -r assets docs/assets
-
       - name: 📖 Build portal
+        # Documentation screenshots (demo-docs-*.png) live under docs/assets/images/ so MkDocs picks them up
+        # natively without a copy step.
         run: mkdocs build --strict
 
       - name: 📄 Copy Markdown sources into site for .md URL support
@@ -77,6 +141,8 @@ jobs:
 
   build-demo-sphinx:
     name: Demo Sphinx (RST)
+    needs: [resolve-deploy-context]
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -105,6 +171,8 @@ jobs:
 
   build-demo-mkdocs:
     name: Demo MkDocs (Markdown)
+    needs: [resolve-deploy-context]
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -133,9 +201,9 @@ jobs:
 
   assemble-site:
     name: Assemble Site
-    needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
+    needs: [resolve-deploy-context, build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
+    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
-    # inherits minimal contents: read from top-level permissions
 
     steps:
       - name: 📥 Download portal artifact
@@ -165,43 +233,155 @@ jobs:
 
   deploy-pages:
     name: Deploy to GH Pages
-    needs: [assemble-site]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    needs: [resolve-deploy-context, assemble-site]
+    if: needs.resolve-deploy-context.outputs.should_deploy == 'true'
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     permissions:
-      pages: write # required by upload-pages-artifact and deploy-pages
-      id-token: write # required by deploy-pages (OIDC token for Pages API)
+      contents: write
+      id-token: write
+      pages: write
+    runs-on: ubuntu-latest
     environment:
-      # Repo setting: Settings → Pages → Source → "GitHub Actions"
-      # Deployed URL is reported back via steps.deploy.outputs.page_url
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: 📥 Download assembled site artifact
-        # Download the _site/ directory assembled by the assemble job above.
-        # Layout after download:
-        #   _site/              ← portal (README → index.html via MkDocs)
-        #   _site/demo-sphinx/  ← Sphinx HTML build
-        #   _site/demo-mkdocs/  ← MkDocs HTML build
         uses: actions/download-artifact@v8
         with:
           name: assembled-site
-          path: _site
+          path: /tmp/assembled-site
+
+      - name: 🗂️ Update versioned docs tree
+        id: versioned-site
+        env:
+          STABLE_TAG: ${{ needs.resolve-deploy-context.outputs.stable_tag }}
+          VERSION_PATH: ${{ needs.resolve-deploy-context.outputs.version_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          assembled_site="/tmp/assembled-site"
+          gh_pages_dir="/tmp/gh-pages-site"
+          project_name="${GITHUB_REPOSITORY#*/}"
+
+          rm -rf "${gh_pages_dir}"
+          [ -n "${VERSION_PATH}" ] || {
+            echo "ERROR: VERSION_PATH is empty. resolve-deploy-context did not produce a deployable target." >&2
+            exit 1
+          }
+
+          if ! branch_ref="$(git ls-remote --heads origin "${GH_PAGES_BRANCH}")"; then
+            echo "ERROR: Failed to query ${GH_PAGES_BRANCH} on origin before updating docs state." >&2
+            exit 1
+          fi
+
+          if [ -n "${branch_ref}" ]; then
+            git fetch origin "${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH}"
+            git worktree add -B "${GH_PAGES_BRANCH}" "${gh_pages_dir}" "refs/remotes/origin/${GH_PAGES_BRANCH}"
+          else
+            git worktree add --detach "${gh_pages_dir}" HEAD
+            (
+              cd "${gh_pages_dir}"
+              git switch --orphan "${GH_PAGES_BRANCH}"
+              # git rm drops tracked files; find clears any untracked files left in the orphaned worktree.
+              git rm -rf . >/dev/null 2>&1 || true
+              find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+            )
+          fi
+
+          rsync -a --delete "${assembled_site}/" "${gh_pages_dir}/${VERSION_PATH}/"
+
+          if [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
+            rsync -a --delete "${assembled_site}/" "${gh_pages_dir}/stable/"
+          fi
+
+          (
+            cd "${gh_pages_dir}"
+            # Keep only version directories plus the root redirect files.
+            # dotglob includes dotfiles; nullglob avoids iterating over literal '*' entries when the tree is empty.
+            shopt -s dotglob nullglob
+            for entry in * .*; do
+              case "${entry}" in
+                .|..|.git|.nojekyll|index.html|latest|stable)
+                  continue
+                  ;;
+              esac
+
+              if printf '%s' "${entry}" | grep -Eq "${RELEASE_TAG_PATTERN}"; then
+                continue
+              fi
+
+              rm -rf "${entry}"
+            done
+
+            if [ -d latest ]; then
+              redirect_target="latest/"
+            elif [ -d stable ]; then
+              redirect_target="stable/"
+            else
+              redirect_target="${VERSION_PATH}/"
+            fi
+
+            printf '%s\n' \
+              '<!doctype html>' \
+              '<html lang="en">' \
+              '  <head>' \
+              '    <meta charset="utf-8">' \
+              "    <meta http-equiv=\"refresh\" content=\"0; url=${redirect_target}\">" \
+              "    <link rel=\"canonical\" href=\"${redirect_target}\">" \
+              "    <title>${project_name} docs</title>" \
+              '  </head>' \
+              '  <body>' \
+              "    <p>Redirecting to <a href=\"${redirect_target}\">${redirect_target}</a>…</p>" \
+              '  </body>' \
+              '</html>' > index.html
+
+            touch .nojekyll
+          )
+
+      - name: 💾 Commit versioned docs state
+        env:
+          VERSION_PATH: ${{ needs.resolve-deploy-context.outputs.version_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd /tmp/gh-pages-site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No documentation changes to publish for ${VERSION_PATH}."
+            exit 0
+          fi
+
+          git commit -m "docs: deploy ${VERSION_PATH}"
+          git push origin HEAD:${GH_PAGES_BRANCH}
+
+      - name: 📦 Export clean Pages artifact (no git metadata)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gh-pages-export
+          rsync -a --exclude='.git' /tmp/gh-pages-site/ /tmp/gh-pages-export/
 
       - name: ⚙️ Configure GitHub Pages
-        # Reads repo Pages config and sets GITHUB_PAGES_* env vars used by upload-pages-artifact and deploy-pages.
         uses: actions/configure-pages@v6
 
       - name: 📤 Upload Pages artifact
-        # Packages _site/ into a specially formatted tarball and registers it under the reserved "github-pages" artifact name that deploy-pages expects.
-        # This is NOT the same as upload-artifact — deploy-pages cannot read regular artifacts; it only reads the "github-pages" artifact created here.
         uses: actions/upload-pages-artifact@v4
         with:
-          path: _site/
+          path: /tmp/gh-pages-export/
 
       - name: 🚀 Deploy to GitHub Pages
-        # Reads the "github-pages" artifact and pushes it to the Pages CDN.
-        # Outputs: page_url (the live URL, surfaced in the environment block above).
         id: deploy
         uses: actions/deploy-pages@v5
