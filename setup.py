@@ -11,7 +11,7 @@ from setuptools import find_packages, setup
 
 _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
-_README_DOC_ASSETS = ("demo-docs-mkdocs.png", "demo-docs-sphinx.png")
+_README_IMAGE_FILES = ("demo-docs-mkdocs.png", "demo-docs-sphinx.png")
 
 
 def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:  # noqa: ANN401
@@ -37,7 +37,7 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
 
     github_source_url = os.path.join(codebase_url, "raw", version)
     # replace relative repository path to absolute link to the release
-    for image in _README_DOC_ASSETS:
+    for image in _README_IMAGE_FILES:
         text = text.replace(
             f"(docs/assets/images/{image})",
             f"({os.path.join(github_source_url, f'docs/assets/images/{image}')})",
