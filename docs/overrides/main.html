@@ -5,16 +5,21 @@
 
 {% if page %}
 <!-- Open Graph meta tags -->
-<meta property="og:type" content="website" />
+<meta property="og:type" content="{% if page.file.src_path == 'index.md' %}website{% else %}article{% endif %}" />
 <meta property="og:title" content="{% if page.file.src_path == 'index.md' %}pyDeprecate — Python Deprecation Decorator Library{% else %}{{ page.title }} — pyDeprecate{% endif %}" />
 <meta property="og:description" content="{{ page.meta.description | d(config.site_description, true) }}" />
 <meta property="og:url" content="{{ page.canonical_url }}" />
 <meta property="og:site_name" content="{{ config.site_name }}" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/assets/images/demo-docs-mkdocs.png" />
+<meta property="og:image:alt" content="pyDeprecate documentation" />
+<meta property="og:image:width" content="1280" />
+<meta property="og:image:height" content="640" />
+<meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="{% if page.file.src_path == 'index.md' %}pyDeprecate — Python Deprecation Decorator Library{% else %}{{ page.title }} — pyDeprecate{% endif %}" />
 <meta name="twitter:description" content="{{ page.meta.description | d(config.site_description, true) }}" />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/assets/images/demo-docs-mkdocs.png" />
+<meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
 <!-- JSON-LD structured data -->
 {% if page.file.src_path == "index.md" %}
@@ -27,6 +32,12 @@
   "description": "Simple tooling for marking deprecated functions or classes and re-routing to their successors. Zero dependencies. Python 3.9+.",
   "url": "https://borda.github.io/pyDeprecate/",
   "downloadUrl": "https://pypi.org/project/pyDeprecate/",
+  "installUrl": "https://pypi.org/project/pyDeprecate/",
+  "packageName": "pyDeprecate",
+{% if config.extra.version %}
+  "softwareVersion": "{{ config.extra.version }}",
+{% endif %}
+  "softwareRequirements": "Python >=3.9",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Any",
   "programmingLanguage": "Python",
@@ -34,8 +45,13 @@
   "license": "https://github.com/Borda/pyDeprecate/blob/main/LICENSE",
   "codeRepository": "https://github.com/Borda/pyDeprecate",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
-  "sameAs": ["https://libraries.io/pypi/pyDeprecate", "https://repology.org/project/python:pydeprecate/versions"]
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
+  "sameAs": [
+    "https://pypi.org/project/pyDeprecate/",
+    "https://github.com/Borda/pyDeprecate",
+    "https://libraries.io/pypi/pyDeprecate",
+    "https://repology.org/project/python:pydeprecate/versions"
+  ]
 }
 </script>
 <script type="application/ld+json">
@@ -74,71 +90,85 @@
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
+  "@graph": [
     {
-      "@type": "Question",
-      "name": "Why is my deprecation warning not showing?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "By default pyDeprecate emits the deprecation message only once per function (num_warns=1) to avoid log spam. After the first call, subsequent calls are silent. Set num_warns=-1 for unlimited emissions or num_warns=N for exactly N emissions."
-      }
+      "@type": "WebPage",
+      "@id": "{{ page.canonical_url }}",
+      "name": "Troubleshooting — pyDeprecate",
+      "description": "Fix common pyDeprecate errors: class decoration warnings, TypeError mapping failures, skip_if return type errors, missing deprecation notices, cross-module path issues, proxy dunder limitations, and logging integration.",
+      "url": "{{ page.canonical_url }}",
+      "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+      "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+      "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h2", ".md-content h3"] }
     },
     {
-      "@type": "Question",
-      "name": "How do I fix TypeError: Failed mapping?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=True for self-deprecation where the same function handles the renamed argument."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "What does the 'Applying @deprecated to class' UserWarning mean?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Use @deprecated_class instead of @deprecated for classes. The @deprecated decorator is designed for functions and methods only; applying it directly to a class triggers this warning. The implicit fallback from @deprecated to @deprecated_class will become a TypeError in a future release."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Why is a deprecation warning not working when called from another module?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "pyDeprecate builds the warning target path from the real target object's canonical module and name (target.__module__ and target.__name__), not from the call-site. Import the target from its canonical module location before applying @deprecated so the displayed path is accurate."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "How do I migrate from @deprecated on a class to @deprecated_class?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Replace @deprecated with @deprecated_class on your class definition. Before v0.6.0, applying @deprecated directly to a class replaced the class object with a plain wrapper function, silently breaking isinstance, issubclass, and class attribute access. @deprecated_class wraps the class in a _DeprecatedProxy that forwards all attribute access and type checks correctly."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "How do I fix TypeError: skip_if function must return bool?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "The callable passed to skip_if must return a strict bool value. pyDeprecate enforces the return type strictly. Wrap any non-bool expression in an explicit bool() call, or use a lambda that returns a literal True or False: skip_if=lambda: False."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Why does deprecated_instance not emit a warning on arithmetic or comparison operators?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Python invokes special dunder methods like __add__, __lt__, and __mul__ directly on the object's type through the MRO, bypassing __getattr__. The _DeprecatedProxy class intercepts attribute access via __getattr__, but CPython does not call __getattr__ for implicit dunder protocol lookups. Workarounds: wrap the value in a container dict or dataclass (access via subscript triggers the proxy), expose it through a deprecated function, or update call sites directly."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "How do I redirect deprecation output to a Python logger instead of warnings.warn?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Pass any logging method as the stream parameter: @deprecated(target=new_func, stream=logging.warning). The stream callable receives the formatted deprecation message as a single string argument. The num_warns parameter still controls emission frequency. Benefits over warnings.warn: integrates with log aggregation, respects your log format and handlers, and is always emitted regardless of Python's warning filter state."
-      }
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use @deprecated_class instead of @deprecated for classes. The @deprecated decorator is designed for functions and methods only; applying it directly to a class triggers this warning. The implicit fallback from @deprecated to @deprecated_class will become a TypeError in a future release."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I migrate from @deprecated on a class to @deprecated_class?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Replace @deprecated with @deprecated_class on your class definition. Before v0.6.0, applying @deprecated directly to a class replaced the class object with a plain wrapper function, silently breaking isinstance, issubclass, and class attribute access. @deprecated_class wraps the class in a _DeprecatedProxy that forwards all attribute access and type checks correctly."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I fix TypeError: Failed mapping?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=True for self-deprecation where the same function handles the renamed argument."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I fix TypeError: skip_if function must return bool?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The callable passed to skip_if must return a strict bool value. pyDeprecate enforces the return type strictly. Wrap any non-bool expression in an explicit bool() call, or use a lambda that returns a literal True or False: skip_if=lambda: False."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why is my deprecation warning not showing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "By default pyDeprecate emits the deprecation message only once per function (num_warns=1) to avoid log spam. After the first call, subsequent calls are silent. Set num_warns=-1 for unlimited emissions or num_warns=N for exactly N emissions."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does the deprecation path show incorrectly when the target is in another module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "pyDeprecate builds the warning target path from the real target object's canonical module and name (target.__module__ and target.__name__), not from the call-site. Import the target from its canonical module location before applying @deprecated so the displayed path is accurate."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does deprecated_instance not emit a warning on arithmetic or comparison operators?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Python invokes special dunder methods like __add__, __lt__, and __mul__ directly on the object's type through the MRO, bypassing __getattr__. The _DeprecatedProxy class intercepts attribute access via __getattr__, but CPython does not call __getattr__ for implicit dunder protocol lookups. Workarounds: wrap the value in a container dict or dataclass (access via subscript triggers the proxy), expose it through a deprecated function, or update call sites directly."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I redirect deprecation output to a Python logger instead of warnings.warn?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Pass any logging method as the stream parameter: @deprecated(target=new_func, stream=logging.warning). The stream callable receives the formatted deprecation message as a single string argument. The num_warns parameter still controls emission frequency. Benefits over warnings.warn: integrates with log aggregation, respects your log format and handlers, and is always emitted regardless of Python's warning filter state."
+          }
+        }
+      ]
     }
   ]
 }
@@ -153,8 +183,8 @@
   "url": {{ page.canonical_url | tojson }},
   "mainEntityOfPage": { "@type": "WebPage", "@id": {{ page.canonical_url | tojson }} },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
-  "publisher": { "@type": "Organization", "name": "pyDeprecate", "url": "https://borda.github.io/pyDeprecate/", "logo": { "@type": "ImageObject", "url": "https://borda.github.io/pyDeprecate/assets/images/demo-docs-mkdocs.png" } },
-  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content p"] }{% if page.meta.git_revision_date_localized %},
+  "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] }{% if page.meta.git_revision_date_localized %},
   "dateModified": {{ page.meta.git_revision_date_localized | striptags | trim | tojson }}{% endif %}
 }
 </script>

@@ -2,6 +2,18 @@
 
 > Simple tooling for marking deprecated functions or classes and re-routing to their successors. Zero dependencies. Python 3.9+. Apache 2.0.
 
+## Facts
+
+- **Author**: Jiri Borovec (https://github.com/Borda)
+- **Import name**: `deprecate` — `from deprecate import deprecated`
+- **Package name**: `pyDeprecate`
+- **License**: Apache-2.0 (https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
+- **Python support**: 3.9+
+- **Repository**: https://github.com/Borda/pyDeprecate
+- **Documentation**: https://borda.github.io/pyDeprecate/
+- **PyPI**: https://pypi.org/project/pyDeprecate/
+- **Runtime dependencies**: none
+
 ## Docs
 
 - [Home](https://borda.github.io/pyDeprecate/index.html): Project overview, features, and comparison with other deprecation tools

@@ -8,9 +8,11 @@ description: >-
 
 # pyDeprecate
 
+**Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated` · **PyPI:** https://pypi.org/project/pyDeprecate/
+
 Every time you rename a function or retire an argument, you end up writing the same boilerplate: a wrapper, a `warnings.warn` call with the right category and `stacklevel`, manual argument forwarding, and no way to enforce the removal deadline when it arrives. **pyDeprecate** replaces all of that with a single decorator and gives you CI tools to make sure deprecated code does not quietly outlive its deadline.
 
-> **pyDeprecate is downloaded over 700,000 times per month** from PyPI — used across production Python projects that need reliable API deprecation without adding runtime dependencies.
+> **pyDeprecate is downloaded over 700,000 times per month** from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — used across production Python projects that need reliable API deprecation without adding runtime dependencies.
 
 ```python
 from deprecate import deprecated
@@ -72,6 +74,8 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 
 - [Getting Started](getting-started.md) — install, write your first deprecation, see the full API at a glance.
 - [Use Cases](guide/use-cases.md) — thirteen real-world deprecation patterns with worked examples.
+- [Customization](guide/customization.md) — custom message templates and output redirection to loggers.
+- [void() Helper](guide/void-helper.md) — sentinel function for self-documenting deprecated stubs.
 - [Audit Tools](guide/audit.md) — enforce removal deadlines and catch deprecation chains in CI.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
 - [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.

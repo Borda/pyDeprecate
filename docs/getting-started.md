@@ -101,4 +101,4 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 ______________________________________________________________________
 
-Next: [Use Cases](guide/use-cases.md) — twelve real-world deprecation patterns with full code examples.
+Next: [Use Cases](guide/use-cases.md) — thirteen real-world deprecation patterns with full code examples. See also: [Customization](guide/customization.md) · [Audit Tools](guide/audit.md) · [Troubleshooting](troubleshooting.md)
