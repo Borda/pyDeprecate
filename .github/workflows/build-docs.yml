@@ -122,9 +122,6 @@ jobs:
       - name: 📦 Install portal dependencies
         run: pip install -r docs/requirements.txt
 
-      - name: 📄 Copy assets into portal docs
-        run: cp -r assets docs/assets
-
       - name: 📖 Build portal
         run: mkdocs build --strict
 
