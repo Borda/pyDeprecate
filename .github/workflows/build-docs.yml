@@ -123,6 +123,7 @@ jobs:
         run: pip install -r docs/requirements.txt
 
       - name: 📖 Build portal
+        # Static screenshots are tracked directly under docs/assets/images/.
         run: mkdocs build --strict
 
       - name: 📄 Copy Markdown sources into site for .md URL support

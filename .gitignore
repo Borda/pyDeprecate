@@ -150,6 +150,7 @@ dmypy.json
 .claude/logs/
 .claude/state/
 .claude/worktrees/
+docs/.claude/
 .plans/
 .reports/
 .temp/

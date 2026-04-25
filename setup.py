@@ -36,8 +36,11 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
 
     github_source_url = os.path.join(codebase_url, "raw", version)
     # replace relative repository path to absolute link to the release
-    #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs
-    text = text.replace("docs/assets/images/", f"{os.path.join(github_source_url, 'docs/assets/images/')}")
+    for image in ("demo-docs-mkdocs.png", "demo-docs-sphinx.png"):
+        text = text.replace(
+            f"(docs/assets/images/{image})",
+            f"({os.path.join(github_source_url, f'docs/assets/images/{image}')})",
+        )
     text = text.replace(".github/", f"{os.path.join(github_source_url, '.github/')}")
 
     # codecov badge
