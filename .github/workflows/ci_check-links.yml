@@ -47,4 +47,6 @@ jobs:
             --exclude http://127.0.0.1
             --exclude file://.*demo-sphinx.*
             --exclude file://.*demo-mkdocs.*
+            --exclude https://borda.github.io/pyDeprecate/latest.*
+            --exclude https://borda.github.io/pyDeprecate/stable.*
           fail: true
