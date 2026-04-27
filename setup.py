@@ -35,14 +35,14 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     with open(path_readme, encoding="utf-8") as fp:
         text = fp.read()
 
-    github_source_url = os.path.join(codebase_url, "raw", version)
+    github_source_url = f"{codebase_url}/raw/{version}"
     # replace relative repository path to absolute link to the release
     for image in _README_IMAGE_FILES:
         text = text.replace(
             f"(docs/assets/images/{image})",
-            f"({os.path.join(github_source_url, f'docs/assets/images/{image}')})",
+            f"({github_source_url}/docs/assets/images/{image})",
         )
-    text = text.replace(".github/", f"{os.path.join(github_source_url, '.github/')}")
+    text = text.replace(".github/", f"{github_source_url}/.github/")
 
     # codecov badge
     text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
