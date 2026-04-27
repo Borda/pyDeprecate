@@ -4,13 +4,14 @@
 {{ super() }}
 
 {% if page %}
+{% set _version_prefix = page.canonical_url.replace(config.site_url, '').split('/')[0] %}
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="{% if page.file.src_path == 'index.md' %}website{% else %}article{% endif %}" />
 <meta property="og:title" content="{% if page.file.src_path == 'index.md' %}pyDeprecate — Python Deprecation Decorator Library{% else %}{{ page.title }} — pyDeprecate{% endif %}" />
 <meta property="og:description" content="{{ page.meta.description | d(config.site_description, true) }}" />
 <meta property="og:url" content="{{ page.canonical_url }}" />
 <meta property="og:site_name" content="{{ config.site_name }}" />
-<meta property="og:image" content="{{ config.site_url }}latest/assets/images/demo-docs-mkdocs.png" />
+<meta property="og:image" content="{{ config.site_url }}{{ _version_prefix }}/assets/images/demo-docs-mkdocs.png" />
 <meta property="og:image:alt" content="pyDeprecate documentation" />
 <meta property="og:image:width" content="1280" />
 <meta property="og:image:height" content="640" />
@@ -18,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="{% if page.file.src_path == 'index.md' %}pyDeprecate — Python Deprecation Decorator Library{% else %}{{ page.title }} — pyDeprecate{% endif %}" />
 <meta name="twitter:description" content="{{ page.meta.description | d(config.site_description, true) }}" />
-<meta name="twitter:image" content="{{ config.site_url }}latest/assets/images/demo-docs-mkdocs.png" />
+<meta name="twitter:image" content="{{ config.site_url }}{{ _version_prefix }}/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
 <!-- JSON-LD structured data -->
