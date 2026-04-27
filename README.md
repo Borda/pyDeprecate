@@ -891,7 +891,7 @@ This is useful for generating API docs with Sphinx, MkDocs, and strict Google/Nu
 
 ![Sphinx demo — deprecation notice rendered as a styled deprecated directive](docs/assets/images/demo-docs-sphinx.png)
 
-See the live rendered output in the online demos: [Sphinx demo](https://borda.github.io/pyDeprecate/demo-sphinx/api.html) · [MkDocs demo](https://borda.github.io/pyDeprecate/demo-mkdocs/api.html).
+See the live rendered output in the online demos: [Sphinx demo](https://borda.github.io/pyDeprecate/latest/demo-sphinx/api.html) · [MkDocs demo](https://borda.github.io/pyDeprecate/latest/demo-mkdocs/api.html).
 
 <details>
 <summary>MkDocs integration: render injected notices with <code>mkdocstrings</code></summary>
