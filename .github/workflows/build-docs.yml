@@ -318,6 +318,9 @@ jobs:
           path: /tmp/gh-pages-content
           fetch-depth: 1
 
+      - name: 🗑️ Strip git metadata from Pages content
+        run: rm -rf /tmp/gh-pages-content/.git
+
       - name: ⚙️ Configure GitHub Pages
         uses: actions/configure-pages@v5
 
