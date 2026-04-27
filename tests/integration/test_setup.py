@@ -35,3 +35,18 @@ def test_readme_images_covered_by_setup() -> None:
         f"but they are not in _README_IMAGE_FILES in setup.py. "
         f"Add them to _README_IMAGE_FILES to ensure PyPI renders them correctly."
     )
+
+
+def test_setup_images_present_in_readme() -> None:
+    """Every entry in _README_IMAGE_FILES must actually appear in README.
+
+    Catches stale entries left in _README_IMAGE_FILES after a screenshot is renamed or removed.
+    """
+    readme_images = _parse_readme_image_files()
+    setup_images = _parse_setup_image_files()
+    stale = setup_images - readme_images
+    assert not stale, (
+        f"_README_IMAGE_FILES in setup.py contains {stale!r} "
+        f"but those filenames do not appear in README.md under docs/assets/images/. "
+        f"Remove them from _README_IMAGE_FILES to avoid broken PyPI image links."
+    )
