@@ -92,7 +92,7 @@ jobs:
               version_path="${GITHUB_REF_NAME}"
               # stable_tag only needed for release-tag deploys (to mirror highest tag → stable/).
               # Full tag history is available here because fetch-depth=0 for tag events.
-              stable_tag="$(python -c "import os, re, subprocess; pattern = os.environ['RELEASE_TAG_PATTERN']; tags = subprocess.check_output(['git', 'tag', '--list'], text=True).splitlines(); release_tags = [tag for tag in tags if re.fullmatch(pattern, tag)]; print(max(release_tags, key=lambda tag: tuple(int(part) for part in tag.lstrip('vV').split('.'))), end='') if release_tags else None")"
+              stable_tag="$(git tag --list | grep -E "${RELEASE_TAG_PATTERN}" | sort -V | tail -1)"
             else
               echo "Skipping deploy: tag '${GITHUB_REF_NAME}' does not match RELEASE_TAG_PATTERN (${RELEASE_TAG_PATTERN}) — dev/rc/post tags are excluded from versioned docs deploys."
             fi
