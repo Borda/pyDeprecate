@@ -21,12 +21,10 @@
 #                             └─ upload assembled-site artifact
 #                             ▼ [deployable pushes only]
 #                          deploy-pages
-#                             ├─ load gh-pages worktree state
-#                             ├─ sync assembled site into latest/ or <tag>/
-#                             ├─ mirror highest final release to stable/
-#                             ├─ refresh root redirect + .nojekyll
-#                             ├─ commit/push gh-pages branch
-#                             └─ upload/deploy Pages artifact
+#                             ├─ download assembled site artifact
+#                             ├─ mike deploy <version_path> [aliases…] --push --update-aliases
+#                             ├─ mike set-default --push <latest|stable>
+#                             └─ mike commits & pushes gh-pages atomically
 #
 #   permissions:
 #     - default workflow permission is contents: read
@@ -255,15 +253,35 @@ jobs:
       id-token: write
       pages: write
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
       - name: 🔀 Checkout repository
         uses: actions/checkout@v6
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v6
         with:
-          fetch-depth: 0
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+
+      - name: 📦 Install mike
+        run: pip install -r docs/requirements.txt
+
+      - name: 🔑 Configure git identity for mike
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 📥 Fetch existing gh-pages branch (if any)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # mike commits onto gh-pages; if the branch already exists, pull it locally so mike rebases instead of orphaning.
+          if git ls-remote --exit-code --heads origin "${GH_PAGES_BRANCH}" >/dev/null 2>&1; then
+            git fetch origin "${GH_PAGES_BRANCH}:${GH_PAGES_BRANCH}"
+          else
+            echo "No remote ${GH_PAGES_BRANCH} branch yet — mike will create it on first deploy."
+          fi
 
       - name: 📥 Download assembled site artifact
         uses: actions/download-artifact@v8
@@ -271,7 +289,17 @@ jobs:
           name: assembled-site
           path: /tmp/assembled-site
 
-      - name: 🗂️ Update versioned docs tree
+      - name: 📂 Inject demo subsites into docs dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Copy pre-built Sphinx and MkDocs demo HTML into docs/ so that mike's
+          # `mkdocs build` includes them as static assets in a single deployment.
+          mkdir -p docs/demo-sphinx docs/demo-mkdocs
+          rsync -a /tmp/assembled-site/demo-sphinx/ docs/demo-sphinx/
+          rsync -a /tmp/assembled-site/demo-mkdocs/ docs/demo-mkdocs/
+
+      - name: 🚀 Deploy with mike
         env:
           STABLE_TAG: ${{ needs.resolve-deploy-context.outputs.stable_tag }}
           VERSION_PATH: ${{ needs.resolve-deploy-context.outputs.version_path }}
@@ -279,127 +307,57 @@ jobs:
         run: |
           set -euo pipefail
 
-          assembled_site="/tmp/assembled-site"
-          gh_pages_dir="/tmp/gh-pages-site"
-          project_name="${GITHUB_REPOSITORY#*/}"
-
-          rm -rf "${gh_pages_dir}"
           [ -n "${VERSION_PATH}" ] || {
             echo "ERROR: VERSION_PATH is empty. resolve-deploy-context did not produce a deployable target." >&2
             exit 1
           }
 
-          if ! branch_ref="$(git ls-remote --heads origin "${GH_PAGES_BRANCH}")"; then
-            echo "ERROR: Failed to query ${GH_PAGES_BRANCH} on origin before updating docs state." >&2
-            exit 1
+          # mike runs `mkdocs build` itself when invoked, so it will rebuild the portal with the version
+          # selector dropdown wired into the theme. The demo subdirs (Sphinx/MkDocs) were injected into
+          # docs/ in the prior step, so mkdocs picks them up as static assets — no overlay needed.
+          aliases=()
+          set_default=""
+
+          if [ "${VERSION_PATH}" = "latest" ]; then
+            # main-branch push: deploy under the literal "latest" version and make it the default landing page.
+            set_default="latest"
+          elif [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
+            # Highest final release tag: alias to "stable" and make stable the default landing page.
+            aliases=("stable")
+            set_default="stable"
+          fi
+          # Older release tag (not the highest): publish the version without touching aliases or default.
+
+          # `--update-aliases` allows reassigning an existing alias (e.g. moving "stable" forward).
+          # Run mike commands without --push, then a single `git push` at the end so deploy + set-default
+          # land atomically (avoids the race window between two separate --push calls).
+          # `${aliases[@]+"${aliases[@]}"}` is the empty-array-safe expansion under `set -u`.
+          mike deploy \
+            --update-aliases \
+            --branch "${GH_PAGES_BRANCH}" \
+            "${VERSION_PATH}" \
+            ${aliases[@]+"${aliases[@]}"}
+
+          if [ -n "${set_default}" ]; then
+            mike set-default --branch "${GH_PAGES_BRANCH}" "${set_default}"
           fi
 
-          if [ -n "${branch_ref}" ]; then
-            git fetch origin "${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH}"
-            git worktree add -B "${GH_PAGES_BRANCH}" "${gh_pages_dir}" "refs/remotes/origin/${GH_PAGES_BRANCH}"
-          else
-            git worktree add --detach "${gh_pages_dir}" HEAD
-            (
-              cd "${gh_pages_dir}"
-              git switch --orphan "${GH_PAGES_BRANCH}"
-              # git rm drops tracked files; find clears any untracked files left in the orphaned worktree.
-              git rm -rf . >/dev/null 2>&1 || true
-              find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-            )
-          fi
+          git push origin "${GH_PAGES_BRANCH}"
 
-          rsync -a --delete "${assembled_site}/" "${gh_pages_dir}/${VERSION_PATH}/"
-
-          if [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
-            rsync -a --delete "${assembled_site}/" "${gh_pages_dir}/stable/"
-          fi
-
-          (
-            cd "${gh_pages_dir}"
-            # Keep only version directories plus the root redirect files.
-            # dotglob includes dotfiles; nullglob avoids iterating over literal '*' entries when the tree is empty.
-            shopt -s dotglob nullglob
-            for entry in * .*; do
-              case "${entry}" in
-                .|..|.git|.nojekyll|index.html|latest|stable)
-                  continue
-                  ;;
-              esac
-
-              if printf '%s' "${entry}" | grep -Eq "${RELEASE_TAG_PATTERN}"; then
-                continue
-              fi
-
-              rm -rf "${entry}"
-            done
-
-            if [ -d latest ]; then
-              redirect_target="latest/"
-            elif [ -d stable ]; then
-              redirect_target="stable/"
-            else
-              redirect_target="${VERSION_PATH}/"
-            fi
-
-            printf '%s\n' \
-              '<!doctype html>' \
-              '<html lang="en">' \
-              '  <head>' \
-              '    <meta charset="utf-8">' \
-              "    <meta http-equiv=\"refresh\" content=\"0; url=${redirect_target}\">" \
-              "    <link rel=\"canonical\" href=\"${redirect_target}\">" \
-              "    <title>${project_name} docs</title>" \
-              '  </head>' \
-              '  <body>' \
-              "    <p>Redirecting to <a href=\"${redirect_target}\">${redirect_target}</a>…</p>" \
-              '  </body>' \
-              '</html>' > index.html
-
-            touch .nojekyll
-          )
-
-      - name: 💾 Commit versioned docs state
-        env:
-          VERSION_PATH: ${{ needs.resolve-deploy-context.outputs.version_path }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd /tmp/gh-pages-site
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "No documentation changes to publish for ${VERSION_PATH}."
-            exit 0
-          fi
-
-          git commit -m "docs: deploy ${VERSION_PATH}"
-          # --force-with-lease rejects the push if the remote moved since our fetch; retry once
-          # by re-fetching and rebasing to handle a concurrent deploy from a simultaneous event.
-          if ! git push --force-with-lease=refs/heads/${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH} origin HEAD:${GH_PAGES_BRANCH}; then
-            echo "Push rejected (remote moved) — re-fetching and rebasing for retry…"
-            git fetch origin "${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH}"
-            git rebase "refs/remotes/origin/${GH_PAGES_BRANCH}"
-            git push --force-with-lease=refs/heads/${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH} origin HEAD:${GH_PAGES_BRANCH}
-          fi
-
-      - name: 📦 Export clean Pages artifact (no git metadata)
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/gh-pages-export
-          rsync -a --exclude='.git' /tmp/gh-pages-site/ /tmp/gh-pages-export/
+      - name: 📥 Checkout gh-pages for artifact upload
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.GH_PAGES_BRANCH }}
+          path: /tmp/gh-pages-content
+          fetch-depth: 1
 
       - name: ⚙️ Configure GitHub Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@v5
 
       - name: 📤 Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: /tmp/gh-pages-export/
+          path: /tmp/gh-pages-content
 
-      - name: 🚀 Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v5
+      - name: 🌐 Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

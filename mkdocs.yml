@@ -25,6 +25,11 @@ plugins:
       type: iso_date
       fallback_to_build_date: true
 
+extra:
+  version:
+    provider: mike
+    default: stable
+
 extra_css:
   - stylesheets/extra.css
 
@@ -54,5 +59,5 @@ nav:
   - Troubleshooting: troubleshooting.md
   - Changelog: changelog.md
   - Demos:
-      - Sphinx: demo-sphinx/index.md
-      - MkDocs: demo-mkdocs/index.md
+      - Sphinx: demo-sphinx/index.html
+      - MkDocs: demo-mkdocs/index.html

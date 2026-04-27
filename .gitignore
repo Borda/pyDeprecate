@@ -159,3 +159,11 @@ tasks/
 
 # release notes and other complemntary files for releases
 releases/
+
+# Docs site demo subdirs — CI rsyncs built Sphinx/MkDocs HTML into these
+# directories before `mike deploy`; only the local-dev placeholder index.html
+# is tracked.
+docs/demo-sphinx/*
+!docs/demo-sphinx/index.html
+docs/demo-mkdocs/*
+!docs/demo-mkdocs/index.html

@@ -1,0 +1,21 @@
+<!--
+  Local dev placeholder for the Sphinx demo. The CI workflow (`build-docs.yml`)
+  rsyncs the real Sphinx-generated HTML over this file before `mike deploy`.
+  Local `mkdocs build --strict` only succeeds for the demo nav entry if this
+  file exists; the rendered demo itself is only available in deployed builds.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Sphinx Demo (placeholder)</title>
+  </head>
+  <body>
+    <h1>Sphinx Demo</h1>
+    <p>
+      This page is a local-development placeholder. The deployed site replaces
+      it with the rendered Sphinx demo at build time.
+    </p>
+    <p><a href="../getting-started.html">← Back to Getting Started</a></p>
+  </body>
+</html>
