@@ -3,28 +3,28 @@
 #
 # Flow:
 #
-#   [push → main] / [push → final release tag] / [pull_request → main]
-#     │
-#     ├─ resolve-deploy-context ── decides:
-#     │    ├─ main push            → build + deploy to latest/
-#     │    ├─ final release tag    → build + deploy to <tag>/ and stable/ if highest tag
-#     │    ├─ non-release tag      → skip build/deploy
-#     │    └─ pull request         → build only (no deploy)
-#     │
-#     ├─ build-landing-docs ──┐
-#     ├─ build-demo-sphinx ───┤
-#     └─ build-demo-mkdocs ───┤
-#                             ▼
-#                          assemble-site (always for buildable events)
-#                             ├─ download portal, sphinx, mkdocs artifacts
-#                             ├─ assemble _site/{demo-sphinx,demo-mkdocs} + portal at root
-#                             └─ upload assembled-site artifact
-#                             ▼ [deployable pushes only]
-#                          deploy-pages
-#                             ├─ download assembled site artifact
-#                             ├─ mike deploy <version_path> [aliases…] --push --update-aliases
-#                             ├─ mike set-default --push <latest|stable>
-#                             └─ mike commits & pushes gh-pages atomically
+#   Triggers (filtered at the workflow level):
+#     - push → main                                    → build + deploy to latest/
+#     - push → version-like tag (v1.2, 1.2.3, …)       → build + deploy to <tag>/ (and stable/ if highest)
+#     - pull_request → main                            → build only (no deploy)
+#
+#   Jobs:
+#     resolve-stable-tag (tag pushes only) ── finds highest release tag for stable/ alias
+#
+#     build-landing-docs ──┐
+#     build-demo-sphinx ───┤  (run on every trigger)
+#     build-demo-mkdocs ───┤
+#                          ▼
+#                       assemble-site
+#                          ├─ download portal, sphinx, mkdocs artifacts
+#                          ├─ assemble _site/{demo-sphinx,demo-mkdocs} + portal at root
+#                          └─ upload assembled-site artifact
+#                          ▼ [push events only — pull_request skips deploy]
+#                       deploy-pages
+#                          ├─ download assembled site artifact
+#                          ├─ mike deploy <version_path> [aliases…] --update-aliases
+#                          ├─ mike set-default <latest|stable>
+#                          └─ git push gh-pages atomically
 #
 #   permissions:
 #     - default workflow permission is contents: read
@@ -35,7 +35,12 @@ name: Build & Deploy Docs
 on:
   push:
     branches: [main]
-    tags: ["*"]
+    # Version-like tags only — non-version tags (test, feature, etc.) are excluded at trigger level.
+    # rc/dev/post tags that resemble semver (e.g. v1.2.3rc1) may still trigger a build but
+    # will be excluded from deployment because they won't match RELEASE_TAG_PATTERN.
+    tags:
+      - "v[0-9]*.[0-9]*"   # v1.2, v1.2.3, V1.2 — broad semver glob
+      - "[0-9]*.[0-9]*"    # 1.2, 1.2.3 — no v prefix
   pull_request:
     branches: [main]
 
@@ -50,71 +55,29 @@ env:
   RELEASE_TAG_PATTERN: '^[vV]?[0-9]+(\.[0-9]+)+$'
 
 jobs:
-  resolve-deploy-context:
-    name: Resolve deploy context
+  resolve-stable-tag:
+    name: Resolve stable tag
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     outputs:
-      should_build: ${{ steps.context.outputs.should_build }}
-      should_deploy: ${{ steps.context.outputs.should_deploy }}
-      stable_tag: ${{ steps.context.outputs.stable_tag }}
-      version_path: ${{ steps.context.outputs.version_path }}
+      value: ${{ steps.tag.outputs.value }}
 
     steps:
       - name: 🔀 Checkout repository
         uses: actions/checkout@v6
         with:
-          # Full history only needed for tag events (stable_tag scan via git tag --list).
-          # Branch pushes and PRs use a shallow clone to avoid the overhead.
-          fetch-depth: ${{ github.ref_type == 'tag' && 0 || 1 }}
+          fetch-depth: 0
 
-      - name: 🧮 Resolve target version
-        id: context
+      - name: 🏷️ Find highest release tag
+        id: tag
         shell: bash
         run: |
           set -euo pipefail
-
-          should_build=true
-          should_deploy=false
-          stable_tag=""
-          version_path=""
-
-          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "main" ]; then
-            should_deploy=true
-            version_path="latest"
-          elif [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            should_build=false
-
-            if printf '%s' "${GITHUB_REF_NAME}" | grep -Eq "${RELEASE_TAG_PATTERN}"; then
-              should_build=true
-              should_deploy=true
-              version_path="${GITHUB_REF_NAME}"
-              # stable_tag only needed for release-tag deploys (to mirror highest tag → stable/).
-              # Full tag history is available here because fetch-depth=0 for tag events.
-              stable_tag="$(git tag --list | grep -E "${RELEASE_TAG_PATTERN}" | sort -V | tail -1)"
-            else
-              echo "Skipping deploy: tag '${GITHUB_REF_NAME}' does not match RELEASE_TAG_PATTERN (${RELEASE_TAG_PATTERN}) — dev/rc/post tags are excluded from versioned docs deploys."
-            fi
-          fi
-
-          {
-            echo "should_build=${should_build}"
-            echo "should_deploy=${should_deploy}"
-            echo "stable_tag=${stable_tag}"
-            echo "version_path=${version_path}"
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: 🔍 Debug — resolved deploy context
-        if: always()
-        run: |
-          echo "should_build=${{ steps.context.outputs.should_build }}"
-          echo "should_deploy=${{ steps.context.outputs.should_deploy }}"
-          echo "stable_tag=${{ steps.context.outputs.stable_tag }}"
-          echo "version_path=${{ steps.context.outputs.version_path }}"
+          stable_tag="$(git tag --list | grep -E "${RELEASE_TAG_PATTERN}" | sort -V | tail -1)"
+          echo "value=${stable_tag}" >> "${GITHUB_OUTPUT}"
 
   build-landing-docs:
     name: Portal (landing-docs)
-    needs: [resolve-deploy-context]
-    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -151,8 +114,6 @@ jobs:
 
   build-demo-sphinx:
     name: Demo Sphinx (RST)
-    needs: [resolve-deploy-context]
-    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -181,8 +142,6 @@ jobs:
 
   build-demo-mkdocs:
     name: Demo MkDocs (Markdown)
-    needs: [resolve-deploy-context]
-    if: needs.resolve-deploy-context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -211,8 +170,7 @@ jobs:
 
   assemble-site:
     name: Assemble Site
-    needs: [resolve-deploy-context, build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
-    if: needs.resolve-deploy-context.outputs.should_build == 'true'
+    needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
     runs-on: ubuntu-latest
 
     steps:
@@ -243,8 +201,8 @@ jobs:
 
   deploy-pages:
     name: Deploy to GH Pages
-    needs: [resolve-deploy-context, assemble-site]
-    if: needs.resolve-deploy-context.outputs.should_deploy == 'true'
+    needs: [assemble-site, resolve-stable-tag]
+    if: github.event_name == 'push' && (needs.resolve-stable-tag.result == 'success' || needs.resolve-stable-tag.result == 'skipped')
     concurrency:
       group: gh-pages
       cancel-in-progress: false
@@ -301,16 +259,17 @@ jobs:
 
       - name: 🚀 Deploy with mike
         env:
-          STABLE_TAG: ${{ needs.resolve-deploy-context.outputs.stable_tag }}
-          VERSION_PATH: ${{ needs.resolve-deploy-context.outputs.version_path }}
+          STABLE_TAG: ${{ needs.resolve-stable-tag.outputs.value }}
         shell: bash
         run: |
           set -euo pipefail
 
-          [ -n "${VERSION_PATH}" ] || {
-            echo "ERROR: VERSION_PATH is empty. resolve-deploy-context did not produce a deployable target." >&2
-            exit 1
-          }
+          # version_path: "latest" for branch pushes, tag name for tag pushes
+          if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
+            VERSION_PATH="latest"
+          else
+            VERSION_PATH="${GITHUB_REF_NAME}"
+          fi
 
           # mike runs `mkdocs build` itself when invoked, so it will rebuild the portal with the version
           # selector dropdown wired into the theme. The demo subdirs (Sphinx/MkDocs) were injected into
