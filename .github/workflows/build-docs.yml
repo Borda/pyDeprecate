@@ -268,6 +268,10 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
             VERSION_PATH="latest"
           else
+            if [[ ! "${GITHUB_REF_NAME}" =~ ${RELEASE_TAG_PATTERN} ]]; then
+              echo "Skipping docs deploy for non-final tag: ${GITHUB_REF_NAME}"
+              exit 0
+            fi
             VERSION_PATH="${GITHUB_REF_NAME}"
           fi
 
