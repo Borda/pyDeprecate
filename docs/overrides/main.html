@@ -4,7 +4,10 @@
 {{ super() }}
 
 {% if page %}
+{# mike version segment (latest|stable|<tag>); falls back to 'latest' for plain mkdocs builds
+   where no version prefix exists (first segment ends in .html or is empty). #}
 {% set _version_prefix = page.canonical_url.replace(config.site_url, '').split('/')[0] %}
+{% if not _version_prefix or _version_prefix.endswith('.html') %}{% set _version_prefix = 'latest' %}{% endif %}
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="{% if page.file.src_path == 'index.md' %}website{% else %}article{% endif %}" />
 <meta property="og:title" content="{% if page.file.src_path == 'index.md' %}pyDeprecate — Python Deprecation Decorator Library{% else %}{{ page.title }} — pyDeprecate{% endif %}" />
