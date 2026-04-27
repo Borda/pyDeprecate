@@ -105,6 +105,14 @@ jobs:
             echo "version_path=${version_path}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: 🔍 Debug — resolved deploy context
+        if: always()
+        run: |
+          echo "should_build=${{ steps.context.outputs.should_build }}"
+          echo "should_deploy=${{ steps.context.outputs.should_deploy }}"
+          echo "stable_tag=${{ steps.context.outputs.stable_tag }}"
+          echo "version_path=${{ steps.context.outputs.version_path }}"
+
   build-landing-docs:
     name: Portal (landing-docs)
     needs: [resolve-deploy-context]
