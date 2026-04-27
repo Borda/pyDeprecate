@@ -73,8 +73,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          stable_tag="$(git tag --list | grep -E "${RELEASE_TAG_PATTERN}" | sort -V | tail -1)"
-          echo "value=${stable_tag}" >> "${GITHUB_OUTPUT}"
+          stable_tag="$((git tag --list | { grep -E "${RELEASE_TAG_PATTERN}" || true; } | sort -V | tail -1))"
+          if [[ -n "${stable_tag}" ]]; then
+            echo "value=${stable_tag}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "value=" >> "${GITHUB_OUTPUT}"
+          fi
 
   build-landing-docs:
     name: Portal (landing-docs)
