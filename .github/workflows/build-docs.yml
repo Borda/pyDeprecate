@@ -264,7 +264,6 @@ jobs:
           path: /tmp/assembled-site
 
       - name: 🗂️ Update versioned docs tree
-        id: versioned-site
         env:
           STABLE_TAG: ${{ needs.resolve-deploy-context.outputs.stable_tag }}
           VERSION_PATH: ${{ needs.resolve-deploy-context.outputs.version_path }}
