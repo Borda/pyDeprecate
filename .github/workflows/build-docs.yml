@@ -365,7 +365,14 @@ jobs:
           fi
 
           git commit -m "docs: deploy ${VERSION_PATH}"
-          git push origin HEAD:${GH_PAGES_BRANCH}
+          # --force-with-lease rejects the push if the remote moved since our fetch; retry once
+          # by re-fetching and rebasing to handle a concurrent deploy from a simultaneous event.
+          if ! git push --force-with-lease=refs/heads/${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH} origin HEAD:${GH_PAGES_BRANCH}; then
+            echo "Push rejected (remote moved) — re-fetching and rebasing for retry…"
+            git fetch origin "${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH}"
+            git rebase "refs/remotes/origin/${GH_PAGES_BRANCH}"
+            git push --force-with-lease=refs/heads/${GH_PAGES_BRANCH}:refs/remotes/origin/${GH_PAGES_BRANCH} origin HEAD:${GH_PAGES_BRANCH}
+          fi
 
       - name: 📦 Export clean Pages artifact (no git metadata)
         shell: bash
