@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>pyDeprecate &#8212; demo 0.8.0.dev documentation</title><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+    <link id="pygments_dark_css" media="(prefers-color-scheme: dark)" rel="stylesheet" type="text/css" href="_static/pygments_dark.css?v=5349f25f" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=67a6116b" />
+    <link rel="stylesheet" type="text/css" href="_static/pydoctheme.css?v=4365c8fe" />
+    
+    <script src="_static/documentation_options.js?v=4b0bb33e"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Demo Module" href="api.html" /><link rel="stylesheet" href="_static/pydoctheme_dark.css" media="(prefers-color-scheme: dark)" id="pydoctheme_dark_css">
+    <link rel="shortcut icon" type="image/png" href="_static/py.svg">
+            <script type="text/javascript" src="_static/copybutton.js"></script>
+            <script type="text/javascript" src="_static/menu.js"></script>
+            <script type="text/javascript" src="_static/search-focus.js"></script>
+            <script type="text/javascript" src="_static/themetoggle.js"></script> 
+  </head>
+<body>
+<div class="mobile-nav">
+    <input type="checkbox" id="menuToggler" class="toggler__input" aria-controls="navigation"
+           aria-pressed="false" aria-expanded="false" role="button" aria-label="Menu">
+    <nav class="nav-content" role="navigation">
+        <label for="menuToggler" class="toggler__label">
+            <span></span>
+        </label>
+        <span class="nav-items-wrapper">
+            <a href="https://www.python.org/" class="nav-logo">
+                <img src="_static/py.svg" alt="Python logo">
+            </a>
+            <span class="version_switcher_placeholder"></span>
+            <form role="search" class="search" action="search.html" method="get">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" class="search-icon">
+                    <path fill-rule="nonzero" fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 001.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 00-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 005.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+                </svg>
+                <input placeholder="Quick search" aria-label="Quick search" type="search" name="q">
+                <input type="submit" value="Go">
+            </form>
+        </span>
+    </nav>
+    <div class="menu-wrapper">
+        <nav class="menu" role="navigation" aria-label="main navigation">
+            <div class="language_switcher_placeholder"></div>
+            
+<label class="theme-selector-label">
+    Theme
+    <select class="theme-selector" oninput="activateTheme(this.value)">
+        <option value="auto" selected>Auto</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+    </select>
+</label>
+  <div>
+    <h3><a href="#">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">pyDeprecate</a><ul>
+<li><a class="reference internal" href="#the-problem-it-solves">The problem it solves</a></li>
+<li><a class="reference internal" href="#automatic-docstring-injection">Automatic docstring injection</a></li>
+<li><a class="reference internal" href="#docstring-styles">Docstring styles</a></li>
+<li><a class="reference internal" href="#live-examples">Live examples</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="api.html"
+                          title="next chapter">Demo Module</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </nav>
+    </div>
+</div>
+  
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="api.html" title="Demo Module"
+             accesskey="N">next</a> |</li>
+          <li><img src="_static/py.svg" alt="Python logo" style="vertical-align: middle; margin-top: -1px"></li>
+          <li><a href="https://www.python.org/">Python</a> &#187;</li>
+          <li class="switchers">
+            <div class="language_switcher_placeholder"></div>
+            <div class="version_switcher_placeholder"></div>
+          </li>
+          <li>
+              
+              <a href="#">demo 0.8.0.dev documentation</a> &#187;
+              
+          </li>
+        <li class="nav-item nav-item-this"><a href="">pyDeprecate</a></li>
+                <li class="right">
+                    
+
+    <div class="inline-search" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" aria-label="Quick search" type="search" name="q" id="search-box">
+          <input type="submit" value="Go">
+        </form>
+    </div>
+                     |
+                </li>
+            <li class="right">
+<label class="theme-selector-label">
+    Theme
+    <select class="theme-selector" oninput="activateTheme(this.value)">
+        <option value="auto" selected>Auto</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+    </select>
+</label> |</li>
+            
+      </ul>
+    </div>    
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="pydeprecate">
+<h1>pyDeprecate<a class="headerlink" href="#pydeprecate" title="Link to this heading">¶</a></h1>
+<p><strong>pyDeprecate</strong> is a zero-dependency Python library that turns deprecation from a chore into a one-liner. Decorate a function or method with <code class="docutils literal notranslate"><span class="pre">&#64;deprecated(...)</span></code>, or a class/Enum/dataclass with <code class="docutils literal notranslate"><span class="pre">&#64;deprecated_class(...)</span></code>, and the library handles everything else: runtime <code class="docutils literal notranslate"><span class="pre">FutureWarning</span></code> emission, transparent call forwarding to the replacement, and — crucially — automatic documentation.</p>
+<section id="the-problem-it-solves">
+<h2>The problem it solves<a class="headerlink" href="#the-problem-it-solves" title="Link to this heading">¶</a></h2>
+<p>When you deprecate an API, you typically need to:</p>
+<ol class="arabic simple">
+<li><p>Emit a runtime warning so callers know at call time.</p></li>
+<li><p>Update the docstring so the rendered docs show a deprecation notice.</p></li>
+<li><p>Keep the parameter tables intact so the docs remain readable.</p></li>
+</ol>
+<p>Steps 2 and 3 are easy to forget and tedious to maintain.  pyDeprecate automates both.</p>
+</section>
+<section id="automatic-docstring-injection">
+<h2>Automatic docstring injection<a class="headerlink" href="#automatic-docstring-injection" title="Link to this heading">¶</a></h2>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">update_docstring=True</span></code> and pyDeprecate rewrites the function’s <code class="docutils literal notranslate"><span class="pre">__doc__</span></code> at decoration time — before Sphinx ever sees it.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">new_add</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+
+<span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_add</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">update_docstring</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">old_add</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add two integers.</span>
+
+<span class="sd">    :param x: First operand.</span>
+<span class="sd">    :param y: Second operand.</span>
+<span class="sd">    :returns: The sum of *x* and *y*.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+</pre></div>
+</div>
+<p>The injected <code class="docutils literal notranslate"><span class="pre">__doc__</span></code> becomes:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Add two integers.
+
+.. deprecated:: 1.0
+   Will be removed in 2.0.
+   Use :func:`...new_add` instead.
+
+:param x: First operand.
+...
+</pre></div>
+</div>
+<p>The notice is inserted <strong>before</strong> the first field list / <code class="docutils literal notranslate"><span class="pre">Args:</span></code> section so parameter tables render correctly. Developers writing or reviewing the deprecation do not need to touch the docstring at all — the notice appears automatically in the rendered output.</p>
+</section>
+<section id="docstring-styles">
+<h2>Docstring styles<a class="headerlink" href="#docstring-styles" title="Link to this heading">¶</a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">docstring_style</span></code></p></th>
+<th class="head"><p>Output</p></th>
+<th class="head"><p>Use when</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code></p></td>
+<td><p>Detects engine at import time</p></td>
+<td><p>Most projects — just works</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;rst&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">..</span> <span class="pre">deprecated::</span></code> directive</p></td>
+<td><p>Sphinx / autodoc</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;mkdocs&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">!!!</span> <span class="pre">warning</span></code> admonition</p></td>
+<td><p>MkDocs Material</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code> checks <code class="docutils literal notranslate"><span class="pre">sys.modules</span></code> and <code class="docutils literal notranslate"><span class="pre">sys.argv</span></code> to detect whether MkDocs or Sphinx is driving the build, so the same decorator works in both stacks without changes.</p>
+</section>
+<section id="live-examples">
+<h2>Live examples<a class="headerlink" href="#live-examples" title="Link to this heading">¶</a></h2>
+<p>The <a class="reference internal" href="api.html"><span class="doc">Demo Module</span></a> page shows two real cases rendered by this Sphinx build:</p>
+<ul class="simple">
+<li><p><strong>Deprecated function with a removed argument</strong> — inline per-argument note <em>and</em> a general deprecation block, both injected automatically.</p></li>
+<li><p><strong>Deprecated class</strong> — notice injected into the class docstring via <code class="docutils literal notranslate"><span class="pre">deprecated_class</span></code>.</p></li>
+</ul>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">Demo Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#deprecated-function-with-deprecated-argument">Deprecated function with deprecated argument</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#deprecated-class">Deprecated class</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="#">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">pyDeprecate</a><ul>
+<li><a class="reference internal" href="#the-problem-it-solves">The problem it solves</a></li>
+<li><a class="reference internal" href="#automatic-docstring-injection">Automatic docstring injection</a></li>
+<li><a class="reference internal" href="#docstring-styles">Docstring styles</a></li>
+<li><a class="reference internal" href="#live-examples">Live examples</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="api.html"
+                          title="next chapter">Demo Module</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>  
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="api.html" title="Demo Module"
+             >next</a> |</li>
+          <li><img src="_static/py.svg" alt="Python logo" style="vertical-align: middle; margin-top: -1px"></li>
+          <li><a href="https://www.python.org/">Python</a> &#187;</li>
+          <li class="switchers">
+            <div class="language_switcher_placeholder"></div>
+            <div class="version_switcher_placeholder"></div>
+          </li>
+          <li>
+              
+              <a href="#">demo 0.8.0.dev documentation</a> &#187;
+              
+          </li>
+        <li class="nav-item nav-item-this"><a href="">pyDeprecate</a></li>
+                <li class="right">
+                    
+
+    <div class="inline-search" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" aria-label="Quick search" type="search" name="q" id="search-box">
+          <input type="submit" value="Go">
+        </form>
+    </div>
+                     |
+                </li>
+            <li class="right">
+<label class="theme-selector-label">
+    Theme
+    <select class="theme-selector" oninput="activateTheme(this.value)">
+        <option value="auto" selected>Auto</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+    </select>
+</label> |</li>
+            
+      </ul>
+    </div>  
+    <div class="footer">
+    &copy; Copyright Copyright (C) 2020-2026 Jiri Borovec..
+    <br>
+    This page is licensed under the Python Software Foundation License Version 2.
+    <br>
+    Examples, recipes, and other code in the documentation are additionally licensed under the Zero Clause BSD License.
+    <br>
+    
+    
+    <br>
+
+    The Python Software Foundation is a non-profit corporation.
+<a href="https://www.python.org/psf/donations/">Please donate.</a>
+<br>
+    <br>
+    
+    <br>
+
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    </div>
+
+  </body>
+</html>

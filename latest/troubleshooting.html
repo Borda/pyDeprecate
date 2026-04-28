@@ -1,0 +1,1517 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Fix common pyDeprecate errors: missing deprecation notices, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger.">
+      
+      
+      
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/latest/troubleshooting.html">
+      
+      
+        <link rel="prev" href="guide/customization.html">
+      
+      
+        <link rel="next" href="changelog.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Troubleshooting - pyDeprecate — Python Deprecation Library</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="stylesheets/extra.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+
+
+
+
+
+
+<!-- Open Graph meta tags -->
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Troubleshooting — pyDeprecate" />
+<meta property="og:description" content="Fix common pyDeprecate errors: missing deprecation notices, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger." />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/latest/troubleshooting.html" />
+<meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
+<meta property="og:image" content="https://borda.github.io/pyDeprecate/latestlatest/assets/images/demo-docs-mkdocs.png" />
+<meta property="og:image:alt" content="pyDeprecate documentation" />
+<meta property="og:image:width" content="1280" />
+<meta property="og:image:height" content="640" />
+<meta property="og:locale" content="en_US" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Troubleshooting — pyDeprecate" />
+<meta name="twitter:description" content="Fix common pyDeprecate errors: missing deprecation notices, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger." />
+<meta name="twitter:image" content="https://borda.github.io/pyDeprecate/latestlatest/assets/images/demo-docs-mkdocs.png" />
+<meta name="twitter:image:alt" content="pyDeprecate documentation" />
+
+<!-- JSON-LD structured data -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://borda.github.io/pyDeprecate/latest/troubleshooting.html",
+      "name": "Troubleshooting — pyDeprecate",
+      "description": "Fix common pyDeprecate errors: class decoration warnings, TypeError mapping failures, skip_if return type errors, missing deprecation notices, cross-module path issues, proxy dunder limitations, and logging integration.",
+      "url": "https://borda.github.io/pyDeprecate/latest/troubleshooting.html",
+      "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+      "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+      "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h2", ".md-content h3"] }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use @deprecated_class instead of @deprecated for classes. The @deprecated decorator is designed for functions and methods only; applying it directly to a class triggers this warning. The implicit fallback from @deprecated to @deprecated_class will become a TypeError in a future release."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I migrate from @deprecated on a class to @deprecated_class?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Replace @deprecated with @deprecated_class on your class definition. Before v0.6.0, applying @deprecated directly to a class replaced the class object with a plain wrapper function, silently breaking isinstance, issubclass, and class attribute access. @deprecated_class wraps the class in a _DeprecatedProxy that forwards all attribute access and type checks correctly."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I fix TypeError: Failed mapping?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=True for self-deprecation where the same function handles the renamed argument."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I fix TypeError: skip_if function must return bool?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The callable passed to skip_if must return a strict bool value. pyDeprecate enforces the return type strictly. Wrap any non-bool expression in an explicit bool() call, or use a lambda that returns a literal True or False: skip_if=lambda: False."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why is my deprecation warning not showing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "By default pyDeprecate emits the deprecation message only once per function (num_warns=1) to avoid log spam. After the first call, subsequent calls are silent. Set num_warns=-1 for unlimited emissions or num_warns=N for exactly N emissions."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does the deprecation path show incorrectly when the target is in another module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "pyDeprecate builds the warning target path from the real target object's canonical module and name (target.__module__ and target.__name__), not from the call-site. Import the target from its canonical module location before applying @deprecated so the displayed path is accurate."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does deprecated_instance not emit a warning on arithmetic or comparison operators?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Python invokes special dunder methods like __add__, __lt__, and __mul__ directly on the object's type through the MRO, bypassing __getattr__. The _DeprecatedProxy class intercepts attribute access via __getattr__, but CPython does not call __getattr__ for implicit dunder protocol lookups. Workarounds: wrap the value in a container dict or dataclass (access via subscript triggers the proxy), expose it through a deprecated function, or update call sites directly."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I redirect deprecation output to a Python logger instead of warnings.warn?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Pass any logging method as the stream parameter: @deprecated(target=new_func, stream=logging.warning). The stream callable receives the formatted deprecation message as a single string argument. The num_warns parameter still controls emission frequency. Benefits over warnings.warn: integrates with log aggregation, respects your log format and handlers, and is always emitted regardless of Python's warning filter state."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+
+
+<!-- BreadcrumbList: non-homepage, non-demo content pages -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
+    {"@type": "ListItem", "position": 2, "name": "Troubleshooting", "item": "https://borda.github.io/pyDeprecate/latest/troubleshooting.html"}
+  ]
+}
+</script>
+
+
+<!-- HowTo schema: Getting Started installation and usage steps -->
+
+
+
+
+    <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/latest/llms.txt">
+</head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#troubleshooting" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-header__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            pyDeprecate — Python Deprecation Library
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Troubleshooting
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Borda/pyDeprecate" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Borda/pyDeprecate
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-nav__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    pyDeprecate — Python Deprecation Library
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Borda/pyDeprecate" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Borda/pyDeprecate
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/use-cases.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/audit.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/customization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="troubleshooting.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#userwarning-when-decorating-a-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UserWarning when decorating a class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrading-from-deprecated-on-a-class-to-deprecated_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading from @deprecated on a class to @deprecated_class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-failed-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError: Failed mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-skip_if-function-must-return-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError: skip_if function must return bool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecation-notice-not-appearing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecation notice not appearing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecation-target-path-incorrect-across-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecation target path incorrect across modules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does deprecated_instance not emit a notice on arithmetic/comparison operators?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-do-i-redirect-deprecation-output-to-a-logger-instead-of-warningswarn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I redirect deprecation output to a logger instead of warnings.warn?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#still-stuck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still stuck?
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="changelog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="demo-sphinx/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sphinx
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="demo-mkdocs/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MkDocs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#userwarning-when-decorating-a-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UserWarning when decorating a class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrading-from-deprecated-on-a-class-to-deprecated_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading from @deprecated on a class to @deprecated_class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-failed-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError: Failed mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-skip_if-function-must-return-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError: skip_if function must return bool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecation-notice-not-appearing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecation notice not appearing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecation-target-path-incorrect-across-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecation target path incorrect across modules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does deprecated_instance not emit a notice on arithmetic/comparison operators?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-do-i-redirect-deprecation-output-to-a-logger-instead-of-warningswarn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I redirect deprecation output to a logger instead of warnings.warn?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#still-stuck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still stuck?
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">🔗</a></h1>
+<p>This page covers the most common problems encountered when using pyDeprecate, with direct answers and corrected code for each. If your issue is not listed here, see the "Still stuck?" section at the bottom.</p>
+<h2 id="userwarning-when-decorating-a-class">UserWarning when decorating a class<a class="headerlink" href="#userwarning-when-decorating-a-class" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I applied <code>@deprecated</code> directly to a class and got <code>UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.</code> Why, and how do I fix it?</p>
+<p><strong>A:</strong> Use <code>@deprecated_class()</code> for classes. The <code>@deprecated</code> decorator is designed for functions and methods only.</p>
+<p>That warning is triggered specifically when <code>@deprecated</code> is applied directly to a class. This still works today because pyDeprecate delegates to <code>@deprecated_class()</code> under the hood, but that delegation path is itself deprecated and will become a <code>TypeError</code> in a future release. The warning is telling you to switch to the explicit class API now.</p>
+<div class="admonition danger">
+<p class="admonition-title">This delegation will become a TypeError in a future release</p>
+<p>The implicit fallback from <code>@deprecated</code> to <code>@deprecated_class()</code> is a temporary compatibility shim. Once it is removed, applying <code>@deprecated</code> to a class will raise <code>TypeError</code> immediately at decoration time. Migrate now to avoid a hard break on upgrade.</p>
+</div>
+<p>There are two supported alternatives depending on what you need. Use <code>@deprecated_class()</code> when you want to deprecate the class name itself (including Enums and dataclasses). Use <code>@deprecated</code> on <code>__init__</code> when you want to emit a deprecation notice only at instantiation time while keeping the class name in place.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Correct: use @deprecated_class for classes</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nd">@deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="k">pass</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="nd">@deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyEnum</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">A</span> <span class="o">=</span> <span class="mi">1</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">B</span> <span class="o">=</span> <span class="mi">2</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># Alternative: decorate __init__ to warn at instantiation while keeping the class name</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span>  <span class="c1"># body still executes; warning fires on every new MyClass(...)</span>
+</code></pre></div>
+<h2 id="upgrading-from-deprecated-on-a-class-to-deprecated_class">Upgrading from <code>@deprecated</code> on a class to <code>@deprecated_class</code><a class="headerlink" href="#upgrading-from-deprecated-on-a-class-to-deprecated_class" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> My codebase used an older version of pyDeprecate that applied <code>@deprecated</code> directly to a class. It behaved strangely — <code>isinstance()</code> checks failed, subclassing broke, and class attributes were inaccessible. What went wrong, and how do I migrate?</p>
+<p><strong>A:</strong> Before v0.6.0, applying <code>@deprecated</code> directly to a class replaced the class object with a plain wrapper function. Python's <code>isinstance</code>, <code>issubclass</code>, and attribute lookup all operate on the class type — so replacing the class with a function silently broke every downstream use that depended on the class being a type.</p>
+<div class="admonition failure">
+<p class="admonition-title">The old pattern silently broke isinstance, issubclass, and attribute access</p>
+<p>Before v0.6.0, <code>@deprecated</code> on a class replaced the class with a plain function. All type checks, subclassing, and class attribute access failed silently or raised <code>TypeError</code>. If you see this pattern in your codebase, migrate to <code>@deprecated_class()</code> immediately.</p>
+</div>
+<p>Symptoms of the old behaviour:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># phmdoctest:skip</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># --- Old broken pattern (pre-v0.6) ---</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">NewClass</span><span class="p">:</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">pass</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">NewClass</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">OldClass</span><span class="p">:</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">class_attr</span> <span class="o">=</span> <span class="mi">42</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">OldClass</span><span class="p">()</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">OldClass</span><span class="p">)</span>  <span class="c1"># TypeError or False — OldClass is now a function</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="nb">issubclass</span><span class="p">(</span><span class="n">OldClass</span><span class="p">,</span> <span class="nb">object</span><span class="p">)</span>  <span class="c1"># TypeError — same reason</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="n">OldClass</span><span class="o">.</span><span class="n">class_attr</span>  <span class="c1"># AttributeError — wrapper function has no class attributes</span>
+</code></pre></div>
+<p>The replacement is <code>@deprecated_class()</code>, which wraps the class in a <code>_DeprecatedProxy</code>. The proxy forwards all attribute access, item access, calls, and type checks to the target class — so <code>isinstance</code> and <code>issubclass</code> work correctly, class attributes remain accessible, and existing subclasses continue to work.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">NewCalculator</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="nd">@deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">NewCalculator</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">OldCalculator</span><span class="p">:</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="k">pass</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">OldCalculator</span><span class="p">()</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">NewCalculator</span><span class="p">))</span>  <span class="c1"># True — proxy forwards isinstance checks</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="nb">print</span><span class="p">(</span><span class="nb">issubclass</span><span class="p">(</span><span class="n">OldCalculator</span><span class="p">,</span> <span class="nb">object</span><span class="p">))</span>  <span class="c1"># True — type checks pass through</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>  <span class="c1"># 3 — forwarded to NewCalculator</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>print(obj.add(1, 2)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>True
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>True
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>3
+</code></pre></div>
+
+</details>
+
+<p>The same rule applies to Enums and dataclasses — <code>@deprecated_class</code> is the correct API, not <code>@deprecated</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">Color</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">RED</span> <span class="o">=</span> <span class="mi">1</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">BLUE</span> <span class="o">=</span> <span class="mi">2</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">OldColor</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">Color</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)(</span><span class="n">Color</span><span class="p">)</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">OldColor</span><span class="o">.</span><span class="n">RED</span> <span class="ow">is</span> <span class="n">Color</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># True</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">OldColor</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="n">Color</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># True</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">OldColor</span><span class="p">[</span><span class="s2">&quot;RED&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="n">Color</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># True</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>print(OldColor["RED"] is Color.RED)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>True
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>True
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>True
+</code></pre></div>
+
+</details>
+
+<p>If you need to emit a deprecation notice only at instantiation time without deprecating the class name itself, decorate <code>__init__</code> instead — this keeps the class object intact and <code>isinstance</code>/<code>issubclass</code> unaffected:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyService</span><span class="p">:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">host</span>  <span class="c1"># body executes; warning fires at every MyService(...)</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">svc</span> <span class="o">=</span> <span class="n">MyService</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">svc</span><span class="p">,</span> <span class="n">MyService</span><span class="p">))</span>  <span class="c1"># True</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>print(isinstance(svc, MyService)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>True
+</code></pre></div>
+
+</details>
+
+<h2 id="typeerror-failed-mapping">TypeError: Failed mapping<a class="headerlink" href="#typeerror-failed-mapping" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I get <code>TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']</code>. What does this mean?</p>
+<p><strong>A:</strong> Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use <code>target=True</code> for in-place remapping.</p>
+<p>The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises <code>TypeError: Failed mapping of '{source}', arguments not accepted by target: [...]</code>. When the target accepts <code>*args</code>, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.</p>
+<p>Choose the fix that matches your situation:</p>
+<p><strong>Option 1 — Drop the argument</strong> (it is no longer needed by the target):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># define a target that ignores the extra arg</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">(</span><span class="n">required_arg</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="k">return</span> <span class="n">required_arg</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># ---------------------------</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="c1"># None means skip this argument</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;old_arg&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">})</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func</span><span class="p">(</span><span class="n">old_arg</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">new_arg</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="k">pass</span>
+</code></pre></div>
+<p><strong>Option 2 — Rename the argument</strong> (the target uses a different parameter name):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">(</span><span class="n">new_name</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">return</span> <span class="n">new_name</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1"># ---------------------------</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># Map old to new</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;old_name&quot;</span><span class="p">:</span> <span class="s2">&quot;new_name&quot;</span><span class="p">})</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func</span><span class="p">(</span><span class="n">old_name</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="k">pass</span>
+</code></pre></div>
+<p><strong>Option 3 — Use <code>target=True</code></strong> (deprecating an argument of the same function, not forwarding to a different one):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Deprecate within same function</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;old_arg&quot;</span><span class="p">:</span> <span class="s2">&quot;new_arg&quot;</span><span class="p">})</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">old_arg</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">new_arg</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="k">return</span> <span class="n">new_arg</span> <span class="o">*</span> <span class="mi">2</span>
+</code></pre></div>
+<h2 id="typeerror-skip_if-function-must-return-bool">TypeError: skip_if function must return bool<a class="headerlink" href="#typeerror-skip_if-function-must-return-bool" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I see <code>TypeError: User function 'skip_if' shall return bool, but got: &lt;type&gt;</code>. What is wrong with my <code>skip_if</code> callable?</p>
+<p><strong>A:</strong> The callable passed to <code>skip_if</code> must return a <code>bool</code>. If it returns any other type — including a truthy int or a string — pyDeprecate raises <code>TypeError("User function 'skip_if' shall return bool, but got: ...")</code>.</p>
+<p>pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to <code>skip_if</code> itself, not the name of your callback. Wrap any non-bool expression in an explicit <code>bool()</code> call, or use a <code>lambda</code> that returns a literal <code>True</code> or <code>False</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Minimal replacement function for examples</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="k">return</span> <span class="s2">&quot;Hi!&quot;</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="c1"># ---------------------------</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="c1"># Correct: function returns bool</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">should_skip</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>    <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># replace with your condition</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="n">should_skip</span><span class="p">)</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func1</span><span class="p">():</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>    <span class="k">pass</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a>
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a><span class="c1"># Also correct: use a lambda</span>
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func2</span><span class="p">():</span>
+<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a>    <span class="k">pass</span>
+</code></pre></div>
+<h2 id="deprecation-notice-not-appearing">Deprecation notice not appearing<a class="headerlink" href="#deprecation-notice-not-appearing" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I call my deprecated function but no deprecation notice is printed. Where did it go?</p>
+<p><strong>A:</strong> By default, pyDeprecate emits the deprecation message only once per function (<code>num_warns=1</code>) to avoid log spam. After the first call, subsequent calls are silent. Set <code>num_warns=-1</code> for unlimited emissions or <code>num_warns=N</code> for exactly <code>N</code> emissions.</p>
+<p>For per-argument deprecation (when using <code>args_mapping</code> with <code>target=True</code>), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Minimal replacement function for examples</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1"># ---------------------------</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="c1"># Show warning every time</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># -1 means unlimited</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func_always_warn</span><span class="p">():</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>    <span class="k">pass</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="c1"># Show warning N times total</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># Show 5 times</span>
+<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func_warn_n_times</span><span class="p">():</span>
+<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>    <span class="k">pass</span>
+</code></pre></div>
+<p>If you are writing tests and need to verify that a warning fires, use <code>pytest.warns(FutureWarning)</code> on the first call and <code>assert_no_warnings(FutureWarning)</code> on subsequent calls. See <a href="guide/audit.html#testing-deprecated-code">Testing Deprecated Code</a> for full examples.</p>
+<h2 id="deprecation-target-path-incorrect-across-modules">Deprecation target path incorrect across modules<a class="headerlink" href="#deprecation-target-path-incorrect-across-modules" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I moved a function to a different module and the deprecation message shows an unexpected path. How do I fix the displayed module path?</p>
+<p><strong>A:</strong> The deprecation message reports the fully-qualified path of the target callable as Python resolves it at decoration time. Ensure the target is imported from its canonical location before the <code>@deprecated</code> decorator is applied.</p>
+<p>When moving functions across modules, import the target from its new home explicitly rather than relying on a re-export alias. The path shown in the deprecation message will then reflect the module where the function actually lives, giving callers accurate migration information. The message will correctly show the full path for real imports when used in your package.</p>
+<h2 id="why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators">Why does <code>deprecated_instance</code> not emit a notice on arithmetic/comparison operators?<a class="headerlink" href="#why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I wrapped a <code>float</code> constant with <code>deprecated_instance</code> but operations like <code>old_value + 1</code> or <code>old_value &gt; 0</code> do not emit any deprecation notice. Why?</p>
+<p><strong>A:</strong> Python's data model invokes special ("dunder") methods like <code>__add__</code>, <code>__lt__</code>, <code>__mul__</code>, etc. directly on the object's type, bypassing <code>__getattr__</code>. The <code>_DeprecatedProxy</code> class implements <code>__getattr__</code> to intercept attribute access, but CPython does not call <code>__getattr__</code> for implicit protocol method lookups (it goes through the class's MRO directly). Since <code>_DeprecatedProxy</code> does not define every possible arithmetic/comparison dunder, these operations fall through to the default behaviour or raise <code>TypeError</code> — without emitting a deprecation notice.</p>
+<p>The proxy does intercept:</p>
+<ul>
+<li>Attribute access (<code>obj.name</code>) via <code>__getattr__</code></li>
+<li>Subscript access (<code>obj[key]</code>) via <code>__getitem__</code></li>
+<li>Iteration (<code>for x in obj</code>) via <code>__iter__</code></li>
+<li>Calling (<code>obj(...)</code>) via <code>__call__</code></li>
+<li>Equality (<code>obj == other</code>) via <code>__eq__</code></li>
+<li>Boolean truth (<code>if obj</code>) via <code>__bool__</code></li>
+<li>String representation (<code>str(obj)</code>, <code>repr(obj)</code>) via <code>__str__</code>/<code>__repr__</code></li>
+</ul>
+<p>It does <strong>not</strong> intercept:</p>
+<ul>
+<li>Arithmetic operators (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>//</code>, <code>**</code>, <code>%</code>)</li>
+<li>Comparison operators (<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>) other than equality</li>
+<li>Bitwise operators (<code>&amp;</code>, <code>|</code>, <code>^</code>, <code>~</code>, <code>&lt;&lt;</code>, <code>&gt;&gt;</code>)</li>
+<li>Unary operators (<code>-obj</code>, <code>+obj</code>, <code>abs(obj)</code>)</li>
+</ul>
+<div class="admonition bug">
+<p class="admonition-title">Known limitation: proxy cannot intercept dunder protocol methods</p>
+<p>This is a fundamental CPython constraint, not a pyDeprecate bug. Wrapping primitives (<code>int</code>, <code>float</code>, <code>str</code>) in <code>deprecated_instance</code> will not emit notices for arithmetic, comparison, or bitwise operations. See the workarounds below.</p>
+</div>
+<p><strong>Workarounds for primitive constants:</strong></p>
+<ol>
+<li><strong>Wrap in a container</strong> — put the value in a dict or dataclass so access goes through <code>__getitem__</code> or <code>__getattr__</code>:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_instance</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1"># Instead of: OLD_THRESHOLD = deprecated_instance(0.5, ...)</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Use a container:</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">_THRESHOLDS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">}</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">OLD_THRESHOLD</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">_THRESHOLDS</span><span class="p">,</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;OLD_THRESHOLD&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="p">)</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="c1"># Access via subscript triggers the warning:</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">OLD_THRESHOLD</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">])</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>print(OLD_THRESHOLD["value"])</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>0.5
+</code></pre></div>
+
+</details>
+
+<ol>
+<li><strong>Update call sites directly</strong> — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Just rename and grep-replace call sites:</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">NEW_THRESHOLD</span> <span class="o">=</span> <span class="mf">0.5</span>  <span class="c1"># new name</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># OLD_THRESHOLD = 0.5  # remove after migration</span>
+</code></pre></div>
+<ol>
+<li><strong>Use a deprecated function wrapper</strong> — if you need deprecation notices on read access to a bare value, expose it through a function that you can decorate:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_old_threshold</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Use NEW_THRESHOLD constant directly instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="k">return</span> <span class="mf">0.5</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># Callers get a warning when they call get_old_threshold()</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">get_old_threshold</span><span class="p">())</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>print(get_old_threshold()</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>0.5
+</code></pre></div>
+
+</details>
+
+<h2 id="how-do-i-redirect-deprecation-output-to-a-logger-instead-of-warningswarn">How do I redirect deprecation output to a logger instead of <code>warnings.warn</code>?<a class="headerlink" href="#how-do-i-redirect-deprecation-output-to-a-logger-instead-of-warningswarn" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I want deprecation messages to go through Python's <code>logging</code> module instead of the default <code>warnings.warn</code> mechanism. How?</p>
+<p><strong>A:</strong> Pass any logging method as the <code>stream</code> parameter. The <code>stream</code> callable receives the formatted deprecation message as a single string argument — logging methods like <code>logging.warning</code> have exactly this signature.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># phmdoctest:skip</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="c1"># Configure logging (typically done once at application startup)</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">,</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> [</span><span class="si">%(levelname)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="p">)</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_endpoint</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;GET </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>    <span class="n">target</span><span class="o">=</span><span class="n">new_endpoint</span><span class="p">,</span>
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>    <span class="n">stream</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">,</span>
+<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="p">)</span>
+<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_endpoint</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a>    <span class="k">pass</span>
+<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>
+<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>
+<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a><span class="c1"># Instead of a FutureWarning, emits a log line:</span>
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a><span class="c1">#   2026-04-20 12:00:00 [WARNING] The `old_endpoint` was deprecated since v2.0</span>
+<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a><span class="c1">#   in favor of `your_module.new_endpoint`. It will be removed in v3.0.</span>
+<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a><span class="n">old_endpoint</span><span class="p">(</span><span class="s2">&quot;/api/users&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Choosing the log level:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>logging.info</code></td>
+<td>Early deprecation window; low urgency</td>
+</tr>
+<tr>
+<td><code>logging.warning</code></td>
+<td>Standard choice; default log configs show it</td>
+</tr>
+<tr>
+<td><code>logging.error</code></td>
+<td>Critical deprecation nearing removal deadline</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Benefits over <code>warnings.warn</code>:</strong></p>
+<ul>
+<li>Integrates with your existing log aggregation (ELK, Datadog, CloudWatch, etc.)</li>
+<li>Respects your log format, handlers, and filters</li>
+<li>Always emitted regardless of Python's warning filter state (no <code>-W</code> flag interaction)</li>
+<li>Timestamps included automatically if your formatter adds them</li>
+</ul>
+<p><strong>Note:</strong> When using <code>stream=logging.warning</code>, the <code>num_warns</code> parameter still controls how many times the message is emitted. The combination of <code>num_warns=-1</code> with <code>stream=logging.warning</code> ensures every deprecated call site is logged — useful for measuring migration progress via log analytics.</p>
+<hr />
+<h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
+<div class="admonition question">
+<p class="admonition-title">Open a GitHub issue</p>
+<p>If none of the above covers your situation, open an issue on <a href="https://github.com/Borda/pyDeprecate/issues">GitHub Issues</a>. Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (<code>pip show pyDeprecate</code>).</p>
+</div>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 21, 2026 10:55:44 UTC">2026-04-21</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 21, 2026 10:55:44 UTC">2026-04-21</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020&ndash;2026 Jiri Borovec
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

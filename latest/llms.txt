@@ -1,0 +1,38 @@
+# pyDeprecate
+
+> Simple tooling for marking deprecated functions or classes and re-routing to their successors. Zero dependencies. Python 3.9+. Apache 2.0.
+
+## Facts
+
+- **Author**: Jiri Borovec (https://github.com/Borda)
+- **Import name**: `deprecate` — `from deprecate import deprecated`
+- **Package name**: `pyDeprecate`
+- **License**: Apache-2.0 (https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
+- **Python support**: 3.9+
+- **Repository**: https://github.com/Borda/pyDeprecate
+- **Documentation**: https://borda.github.io/pyDeprecate/
+- **PyPI**: https://pypi.org/project/pyDeprecate/
+- **Runtime dependencies**: none
+
+## Docs
+
+- [Home](https://borda.github.io/pyDeprecate/latest/index.html): Project overview, features, and comparison with other deprecation tools
+- [Getting Started](https://borda.github.io/pyDeprecate/latest/getting-started.html): Installation, quick start, and API overview
+- [Use Cases](https://borda.github.io/pyDeprecate/latest/guide/use-cases.html): 13 real-world deprecation patterns with worked examples
+- [void() Helper](https://borda.github.io/pyDeprecate/latest/guide/void-helper.html): How and when to use the void() sentinel function
+- [Customization](https://borda.github.io/pyDeprecate/latest/guide/customization.html): Message templates and output redirection to loggers or custom callables
+- [Audit Tools](https://borda.github.io/pyDeprecate/latest/guide/audit.html): CI/CD enforcement of removal deadlines and deprecation chain detection
+- [Troubleshooting](https://borda.github.io/pyDeprecate/latest/troubleshooting.html): Common errors and their fixes
+
+## Resources
+
+- [PyPI](https://pypi.org/project/pyDeprecate/): Package installation and release history
+- [GitHub](https://github.com/Borda/pyDeprecate): Source code and issue tracker
+- [Changelog](https://borda.github.io/pyDeprecate/latest/changelog.html): Release notes and version history
+
+## Optional
+
+- [Contributing](https://github.com/Borda/pyDeprecate/blob/main/.github/CONTRIBUTING.md): Contribution guide
+- [Security](https://github.com/Borda/pyDeprecate/blob/main/.github/SECURITY.md): Security policy
+- [Sphinx Demo](https://borda.github.io/pyDeprecate/latest/demo-sphinx/index.html): Docstring auto-injection rendered via Sphinx
+- [MkDocs Demo](https://borda.github.io/pyDeprecate/latest/demo-mkdocs/index.html): Docstring auto-injection rendered via MkDocs
