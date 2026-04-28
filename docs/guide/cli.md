@@ -22,13 +22,13 @@ pip install 'pyDeprecate[audit]'
 ## Quick start
 
 ```bash
-pydeprecate check path/to/your/package   # validate wrapper config (default)
-pydeprecate path/to/your/package         # same — backward-compatible shorthand
+pydeprecate check path/to/your/package   # validate wrapper config
+pydeprecate check mypackage.submodule    # importable module name also accepted
 ```
 
 ## Subcommands
 
-### `check` (default)
+### `check`
 
 Validates wrapper configuration: invalid `args_mapping` keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. Backed by [`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration).
 
@@ -36,8 +36,6 @@ Validates wrapper configuration: invalid `args_mapping` keys, identity mappings,
 pydeprecate check path/to/your/package
 pydeprecate check mypackage.submodule
 ```
-
-Running `pydeprecate <path>` without a subcommand routes to `check` for backward compatibility.
 
 Exit 1 only for invalid argument mappings. Chains, identity mappings, and no-effect wrappers are reported as warnings — exit 0.
 
@@ -93,11 +91,11 @@ ______________________________________________________________________
 
 ## Flags
 
-| Flag                  | Applies to                         | Effect                                                                                                  |
-| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--version VERSION`   | `expiry`, `all`                    | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |
-| `--no_recursive true` | `check`, `expiry`, `chains`, `all` | Scan top-level module only; skip submodules.                                                            |
-| `--skip_errors true`  | `check`, `expiry`, `chains`, `all` | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |
+| Flag                | Applies to                         | Effect                                                                                                  |
+| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `--version VERSION` | `expiry`, `all`                    | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |
+| `--norecursive`     | `check`, `expiry`, `chains`, `all` | Scan top-level module only; skip submodules.                                                            |
+| `--skip_errors`     | `check`, `expiry`, `chains`, `all` | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |
 
 ## Exit codes
 

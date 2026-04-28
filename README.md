@@ -1138,13 +1138,7 @@ print(f"Self-references: {len(self_refs)}")
 
 You can also use the CLI to validate your deprecations directly from the command line.
 
-First, install the required optional dependencies:
-
-```bash
-pip install 'pyDeprecate[cli]'
-```
-
-The CLI has four subcommands. Running `pydeprecate path/to/package` without a subcommand routes to `check` for backward compatibility.
+The CLI has four subcommands.
 
 ```bash
 # check — wrapper config + deprecated-to-deprecated chains (default)

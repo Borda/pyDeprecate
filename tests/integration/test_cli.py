@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
-_JSONARGPARSE_AVAILABLE = importlib.util.find_spec("jsonargparse") is not None
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 
 
@@ -40,29 +39,22 @@ def _make_pkg(tmp_path: Path, name: str = "mypkg") -> Path:
     return pkg
 
 
-@pytest.mark.skipif(not _JSONARGPARSE_AVAILABLE, reason="requires jsonargparse (pip install 'pyDeprecate[cli]')")
 class TestCliInvocation:
     """Tests for real CLI invocations via subprocess."""
 
-    def test_no_args(self, tmp_path: Path) -> None:
-        """Test real CLI invocation via subprocess with no arguments."""
-        pkg_dir = tmp_path / "mypkg"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").touch()
-        (pkg_dir / "module_a.py").touch()
-
+    def test_no_args_shows_help(self) -> None:
+        """CLI with no arguments prints help and exits 0 (Fire shows component help)."""
         result = subprocess.run(
             [sys.executable, "-m", "deprecate"],
             capture_output=True,
             text=True,
             env=_cli_env(),
-            cwd=tmp_path,
         )
         assert result.returncode == 0
-        assert "Scanning path" in result.stdout
+        assert "check" in (result.stdout + result.stderr).lower()
 
     def test_help(self) -> None:
-        """Test real CLI invocation prints help text."""
+        """CLI --help exits 0 and lists subcommands."""
         result = subprocess.run(
             [sys.executable, "-m", "deprecate", "--help"],
             capture_output=True,
@@ -70,12 +62,13 @@ class TestCliInvocation:
             env=_cli_env(),
         )
         assert result.returncode == 0
-        assert "path" in result.stdout.lower()
+        combined = result.stdout + result.stderr
+        assert "check" in combined.lower()
 
     def test_nonexistent_module(self) -> None:
-        """Test real CLI invocation with a module that doesn't exist."""
+        """CLI with a module that doesn't exist exits non-zero."""
         result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "nonexistent_module_xyz"],
+            [sys.executable, "-m", "deprecate", "check", "nonexistent_module_xyz"],
             capture_output=True,
             text=True,
             env=_cli_env(COLUMNS="200"),
@@ -83,7 +76,6 @@ class TestCliInvocation:
         assert result.returncode != 0
 
 
-@pytest.mark.skipif(not _JSONARGPARSE_AVAILABLE, reason="requires jsonargparse (pip install 'pyDeprecate[cli]')")
 class TestCliSubcommands:
     """Integration tests for the four CLI subcommands via subprocess."""
 
@@ -92,19 +84,6 @@ class TestCliSubcommands:
         pkg = _make_pkg(tmp_path)
         result = subprocess.run(
             [sys.executable, "-m", "deprecate", "check", str(pkg)],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
-        assert result.returncode == 0
-        assert "Scanning path" in result.stdout
-
-    def test_backward_compat_no_subcommand(self, tmp_path: Path) -> None:
-        """'pydeprecate <path>' (no subcommand) defaults to check and exits 0."""
-        pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", str(pkg)],
             capture_output=True,
             text=True,
             env=_cli_env(),
@@ -188,13 +167,13 @@ class TestCliSubcommands:
             env=_cli_env(),
         )
         assert result.returncode == 0
-        assert "version" in result.stdout.lower()
+        assert "version" in (result.stdout + result.stderr).lower()
 
     def test_check_no_recursive_flag(self, tmp_path: Path) -> None:
-        """'pydeprecate check <path> --no-recursive' is accepted and exits 0."""
+        """'pydeprecate check <path> --norecursive' is accepted and exits 0."""
         pkg = _make_pkg(tmp_path)
         result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", str(pkg), "--no_recursive", "true"],
+            [sys.executable, "-m", "deprecate", "check", str(pkg), "--norecursive"],
             capture_output=True,
             text=True,
             env=_cli_env(),

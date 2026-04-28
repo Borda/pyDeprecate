@@ -3,18 +3,17 @@
 Provides two entry points for scanning Python code for misconfigured ``@deprecated`` wrappers:
 
 - ``pydeprecate <subcommand> <path>`` — console script installed via ``pip install 'pyDeprecate[cli]'``
-- ``python -m deprecate <subcommand> <path>`` — module invocation of the same optional CLI
+- ``python -m deprecate <subcommand> <path>`` — module invocation of the same CLI
 
 Subcommands:
-    check   — Validate wrapper configuration and flag misconfigured or chain-forming wrappers (default).
+    check   — Validate wrapper configuration and flag misconfigured or chain-forming wrappers.
     expiry  — Check for deprecated wrappers that have passed their scheduled ``remove_in`` deadline.
     chains  — Detect deprecated wrappers whose ``target`` is itself a deprecated callable.
     all     — Run all three checks in a single scan pass.
-
-Both entry points require the optional ``cli`` extra. This module supports both rich and
-plain-text reporting, but invoking the CLI still requires the optional CLI dependencies.
 """
 
+import functools
+import inspect
 import sys
 from pathlib import Path
 from typing import Optional
@@ -40,11 +39,6 @@ if _HAS_RICH:
     _err_console: RichConsole = RichConsole(stderr=True)
 
 
-_SUBCOMMANDS = frozenset({"check", "expiry", "chains", "all"})
-# Top-level flags that must NOT trigger the backward-compat 'check' injection.
-_TOP_LEVEL_FLAGS = frozenset({"-h", "--help"})
-
-
 def _print(msg: str, *, stderr: bool = False) -> None:
     """Print a message, using Rich console when available.
 
@@ -61,28 +55,24 @@ def _print(msg: str, *, stderr: bool = False) -> None:
         print(msg, file=sys.stderr if stderr else sys.stdout)
 
 
-def _setup_sys_path(path: str) -> tuple[Optional[str], list[str]]:
-    """Add the import root to sys.path if path is a directory.
+def _setup_sys_path(path: str) -> list[str]:
+    """Add the import root to sys.path if path is a directory, returning the original path for restoration.
 
     Args:
         path: Path to the module, package directory, or importable module name.
 
     Returns:
-        Tuple of ``(import_root, original_sys_path)``. ``import_root`` is ``None``
-        if the path is not a directory. The caller is responsible for restoring
-        ``sys.path`` using the returned ``original_sys_path``.
+        The original ``sys.path`` before modification. The caller is responsible for
+        restoring it after scanning.
     """
     abs_path: Path = Path(path).resolve()
-    import_root: Optional[str] = None
     original_sys_path = list(sys.path)
 
     if abs_path.is_dir():
         import_root = str(abs_path.parent) if (abs_path / "__init__.py").exists() else str(abs_path)
-
-    if import_root is not None:
         sys.path.insert(0, import_root)
 
-    return import_root, original_sys_path
+    return original_sys_path
 
 
 def _resolve_module_name(path: str) -> str:
@@ -389,7 +379,7 @@ def _check_expiry_from_results(results: list[DeprecationWrapperInfo], current_ve
 
 def cmd_check(
     path: str = ".",
-    no_recursive: bool = False,
+    recursive: bool = True,
     skip_errors: bool = False,
 ) -> int:
     """Scan Python code for misconfigured ``@deprecated`` wrappers and deprecation chains.
@@ -399,14 +389,14 @@ def cmd_check(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        no_recursive: Only scan the top-level module; skip submodules.
+        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if hard errors (invalid argument mappings) are found.
     """
     _print(f"Scanning path: {path} ...")
-    _, original_sys_path = _setup_sys_path(path)
+    original_sys_path = _setup_sys_path(path)
 
     try:
-        results = _scan_path(path, recursive=not no_recursive)
+        results = _scan_path(path, recursive=recursive)
     except Exception as e:
         _print(f"Error scanning {path}: {e}", stderr=True)
         return 1
@@ -432,7 +422,7 @@ def cmd_check(
 def cmd_expiry(
     path: str = ".",
     version: Optional[str] = None,
-    no_recursive: bool = False,
+    recursive: bool = True,
     skip_errors: bool = False,
 ) -> int:
     """Check for deprecated wrappers that have passed their scheduled removal version.
@@ -443,11 +433,14 @@ def cmd_expiry(
         path: Path to the module, package directory, or importable module name to scan.
         version: Current package version for comparison (e.g. ``"2.0.0"``). Auto-detected
             from installed package metadata if not provided.
-        no_recursive: Only scan the top-level module; skip submodules.
+        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if expired wrappers are found.
     """
+    # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
+    if version is not None:
+        version = str(version)
     _print(f"Scanning path: {path} ...")
-    _, original_sys_path = _setup_sys_path(path)
+    original_sys_path = _setup_sys_path(path)
 
     try:
         try:
@@ -457,7 +450,7 @@ def cmd_expiry(
             return 1
 
         try:
-            expired = validate_deprecation_expiry(module_name, version, recursive=not no_recursive)
+            expired = validate_deprecation_expiry(module_name, version, recursive=recursive)
         except ImportError:
             _print(
                 "The 'expiry' subcommand requires the 'packaging' library.\n"
@@ -487,7 +480,7 @@ def cmd_expiry(
 
 def cmd_chains(
     path: str = ".",
-    no_recursive: bool = False,
+    recursive: bool = True,
     skip_errors: bool = False,
 ) -> int:
     """Detect deprecated wrappers whose ``target`` is itself a deprecated callable (chains).
@@ -497,11 +490,11 @@ def cmd_chains(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        no_recursive: Only scan the top-level module; skip submodules.
+        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if chains are found.
     """
     _print(f"Scanning path: {path} ...")
-    _, original_sys_path = _setup_sys_path(path)
+    original_sys_path = _setup_sys_path(path)
 
     try:
         try:
@@ -511,7 +504,7 @@ def cmd_chains(
             return 1
 
         try:
-            chains = validate_deprecation_chains(module_name, recursive=not no_recursive)
+            chains = validate_deprecation_chains(module_name, recursive=recursive)
         except Exception as e:
             _print(f"Error checking chains for {path}: {e}", stderr=True)
             return 1
@@ -534,7 +527,7 @@ def cmd_chains(
 def cmd_all(
     path: str = ".",
     version: Optional[str] = None,
-    no_recursive: bool = False,
+    recursive: bool = True,
     skip_errors: bool = False,
 ) -> int:
     """Run all checks: wrapper configuration, expiry, and chain detection.
@@ -547,14 +540,17 @@ def cmd_all(
         path: Path to the module, package directory, or importable module name to scan.
         version: Current package version for expiry comparison (e.g. ``"2.0.0"``).
             Auto-detected from installed package metadata if not provided.
-        no_recursive: Only scan the top-level module; skip submodules.
+        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if issues are found.
     """
+    # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
+    if version is not None:
+        version = str(version)
     _print(f"Scanning path: {path} ...")
-    _, original_sys_path = _setup_sys_path(path)
+    original_sys_path = _setup_sys_path(path)
 
     try:
-        results = _scan_path(path, recursive=not no_recursive)
+        results = _scan_path(path, recursive=recursive)
     except Exception as e:
         _print(f"Error scanning {path}: {e}", stderr=True)
         return 1
@@ -627,54 +623,31 @@ def cmd_all(
 
 
 # ---------------------------------------------------------------------------
-# Backward-compatible entry point
+# CLI entry point
 # ---------------------------------------------------------------------------
 
 
-def main(
-    path: str = ".",
-    skip_errors: bool = False,
-) -> int:
-    """Scan Python code for misconfigured ``@deprecated`` wrappers.
-
-    Args:
-        path: Path to the module or package to scan.
-        skip_errors: Do not exit with error code even if issues are found.
-    """
-    return cmd_check(path=path, skip_errors=skip_errors)
-
-
 def cli() -> None:
-    """CLI entry point using jsonargparse."""
+    """CLI entry point for pydeprecate."""
     try:
-        from jsonargparse import auto_cli, set_parsing_settings
+        import fire
     except ImportError:
         _print(
-            "The pyDeprecate CLI requires additional dependencies.\n"
-            "Install them with:\n\n"
-            "    pip install 'pyDeprecate[cli]'\n",
+            "The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'",
             stderr=True,
         )
         sys.exit(1)
-        return  # guard for tests that mock sys.exit
 
-    set_parsing_settings(parse_optionals_as_positionals=True)
-    try:
-        # Backward compat: if no subcommand given, default to the 'check' subcommand.
-        # Unknown flags (args[0] starts with '-') are NOT rewritten — let jsonargparse
-        # emit a native parse error rather than silently routing e.g. '--version' to
-        # 'check --version', which would error with a confusing "unknown argument" message.
-        args = sys.argv[1:]
-        if not args or (
-            args[0] not in _SUBCOMMANDS and args[0] not in _TOP_LEVEL_FLAGS and not args[0].startswith("-")
-        ):
-            args = ["check"] + args
+    from typing import Callable
 
-        result = auto_cli(
-            {"check": cmd_check, "expiry": cmd_expiry, "chains": cmd_chains, "all": cmd_all},
-            args=args,
-        )
-        if isinstance(result, int):
-            sys.exit(result)
-    finally:
-        set_parsing_settings(parse_optionals_as_positionals=False)
+    def _wrap(fn: Callable[..., int]) -> Callable[..., None]:
+        @functools.wraps(fn)
+        def _wrapped(*args: object, **kwargs: object) -> None:
+            sys.exit(fn(*args, **kwargs))
+
+        _wrapped.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
+        return _wrapped
+
+    fire.Fire(
+        {"check": _wrap(cmd_check), "expiry": _wrap(cmd_expiry), "chains": _wrap(cmd_chains), "all": _wrap(cmd_all)}
+    )
