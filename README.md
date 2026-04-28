@@ -1157,7 +1157,7 @@ pydeprecate chains path/to/your/package
 pydeprecate all path/to/your/package --version 2.0.0
 ```
 
-**Common flags** (all subcommands): `--recursive=False` scans the top-level module only; `--skip_errors true` always exits `0` even when issues are found.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
 `expiry` and `all` also accept `--version VERSION` to set the current version explicitly.
 
 </details>
