@@ -47,4 +47,6 @@ jobs:
             --exclude http://127.0.0.1
             --exclude file://.*demo-sphinx.*
             --exclude file://.*demo-mkdocs.*
+            ${{ github.event_name == 'pull_request' && '--exclude https://borda.github.io/pyDeprecate/latest.*' || '' }}
+            ${{ github.event_name == 'pull_request' && '--exclude https://borda.github.io/pyDeprecate/stable.*' || '' }}
           fail: true

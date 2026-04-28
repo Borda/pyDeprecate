@@ -17,8 +17,6 @@ demo-mkdocs:
 	cd demo-docs/mkdocs && python3 -m mkdocs build --strict
 
 docs-build: install-docs demo-sphinx demo-mkdocs
-	rm -rf docs/assets
-	cp -r assets docs/assets
 	python3 -m mkdocs build --strict
 	cp -r demo-docs/sphinx/build/html/. site/demo-sphinx/
 	cp -r demo-docs/mkdocs/site/. site/demo-mkdocs/

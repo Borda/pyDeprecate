@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Docs site URL layout is now versioned.** Content is published under `https://borda.github.io/pyDeprecate/latest/` (for `main`) and `https://borda.github.io/pyDeprecate/<tag>/` (for release tags). The root URL (`https://borda.github.io/pyDeprecate/`) redirects to `latest/`. External bookmarks to flat paths like `.../pyDeprecate/troubleshooting.html` will break on first deploy — update them to `.../pyDeprecate/latest/troubleshooting.html`. ([#148](https://github.com/Borda/pyDeprecate/pull/148))
+
 ### Added
 
 - **Multi-page topic documentation site.** Replaced the monolithic README-copy home page with a curated 7-page MkDocs Material site: Home, Getting Started, User Guide (Use Cases / void() Helper / Audit Tools), Troubleshooting, and demo links. Switched theme to Material, added Open Graph tags, JSON-LD structured data (SoftwareApplication / FAQPage / TechArticle per page), spec-compliant `llms.txt`, and `git-revision-date-localized` plugin. README is unchanged (still the PyPI cover page).
