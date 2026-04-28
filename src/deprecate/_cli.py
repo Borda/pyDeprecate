@@ -659,6 +659,12 @@ def cli() -> None:
         _wrapped.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
         return _wrapped
 
+    subcommands = {"check", "expiry", "chains", "all"}
+    argv = sys.argv[1:]
+    if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
+        argv = ["check", *argv]
+
     fire.Fire(
-        {"check": _wrap(cmd_check), "expiry": _wrap(cmd_expiry), "chains": _wrap(cmd_chains), "all": _wrap(cmd_all)}
+        {"check": _wrap(cmd_check), "expiry": _wrap(cmd_expiry), "chains": _wrap(cmd_chains), "all": _wrap(cmd_all)},
+        command=argv,
     )
