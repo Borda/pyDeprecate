@@ -29,6 +29,7 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           # default args: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
+          # TODO: drop exclude for stable docs after the next release
           args: |
             --verbose
             --no-progress
@@ -47,6 +48,5 @@ jobs:
             --exclude http://127.0.0.1
             --exclude file://.*demo-sphinx.*
             --exclude file://.*demo-mkdocs.*
-            ${{ github.event_name == 'pull_request' && '--exclude https://borda.github.io/pyDeprecate/latest.*' || '' }}
-            ${{ github.event_name == 'pull_request' && '--exclude https://borda.github.io/pyDeprecate/stable.*' || '' }}
+            --exclude https://borda.github.io/pyDeprecate/stable.*
           fail: true
