@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deprecate._cli import (
-    _check_expiry_from_results,
     _print,
     _report_issues,
     cli,
@@ -17,7 +16,7 @@ from deprecate._cli import (
     cmd_expiry,
 )
 from deprecate._types import DeprecationConfig
-from deprecate.audit import ChainType, DeprecationWrapperInfo
+from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -346,7 +345,7 @@ class TestCmdAll:
         mock_find.return_value = [_INVALID_ARGS]
         assert cmd_all(path="some_module", version="1.0") == 1
 
-    @patch("deprecate._cli._check_expiry_from_results")
+    @patch("deprecate.audit._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_expired_exits_one(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """Expired wrappers found → exit 1."""
@@ -360,7 +359,7 @@ class TestCmdAll:
         mock_find.return_value = [_INVALID_ARGS]
         assert cmd_all(path="some_module", version="1.0", skip_errors=True) == 0
 
-    @patch("deprecate._cli._check_expiry_from_results")
+    @patch("deprecate.audit._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_packaging_missing_skips_expiry_continues(
         self, mock_find: MagicMock, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]
@@ -614,31 +613,31 @@ class TestCliEntryPoint:
 
 
 # ---------------------------------------------------------------------------
-# _check_expiry_from_results
+# _check_expiry_for_callables (audit helper)
 # ---------------------------------------------------------------------------
 
 
-class TestCheckExpiryFromResults:
-    """Tests for _check_expiry_from_results helper."""
+class TestCheckExpiryForCallables:
+    """Tests for _check_expiry_for_callables helper (from deprecate.audit)."""
 
     def test_no_remove_in_skipped(self) -> None:
         """Wrappers without remove_in are silently skipped."""
         results = [DeprecationWrapperInfo(module="mod", function="fn")]
-        expired = _check_expiry_from_results(results, "2.0")
+        expired = _check_expiry_for_callables(results, "2.0")
         assert expired == []
 
     def test_not_yet_expired(self) -> None:
         """Wrapper with future remove_in is not expired."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="3.0")
         results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
-        expired = _check_expiry_from_results(results, "2.0")
+        expired = _check_expiry_for_callables(results, "2.0")
         assert expired == []
 
     def test_expired(self) -> None:
         """Wrapper with remove_in <= current_version is reported."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
         results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
-        expired = _check_expiry_from_results(results, "2.0")
+        expired = _check_expiry_for_callables(results, "2.0")
         assert len(expired) == 1
         assert "fn" in expired[0]
 
@@ -646,7 +645,7 @@ class TestCheckExpiryFromResults:
         """Wrappers with non-PEP-440 remove_in are silently skipped."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="not-a-version")
         results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
-        expired = _check_expiry_from_results(results, "2.0")
+        expired = _check_expiry_for_callables(results, "2.0")
         assert expired == []
 
 

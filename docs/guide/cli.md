@@ -80,11 +80,11 @@ pydeprecate check mypackage.submodule    # importable module name also accepted
 
 ## Flags
 
-| Flag                | Applies to                         | Effect                                                                                                  | Note                                                                                                 |
-| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `--version VERSION` | `expiry`, `all`                    | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |                                                                                                      |
-| `--norecursive`     | `check`, `expiry`, `chains`, `all` | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
-| `--skip_errors`     | `check`, `expiry`, `chains`, `all` | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
+| Flag                | `check` | `expiry` | `chains` | `all` | Effect                                                                                                  | Note                                                                                                 |
+| ------------------- | :-----: | :------: | :------: | :---: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `--version VERSION` |         |    ✓     |          |   ✓   | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |                                                                                                      |
+| `--norecursive`     |    ✓    |    ✓     |    ✓     |   ✓   | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
+| `--skip_errors`     |    ✓    |    ✓     |    ✓     |   ✓   | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
 
 ## Exit codes
 
@@ -102,41 +102,6 @@ All subcommands accept:
 - **Package directory** — path to a directory with `__init__.py` (e.g. `src/mypackage`)
 - **Importable module name** — dotted module path (e.g. `mypackage.utils`)
 - **Plain directory** — scans top-level `.py` files only; not supported for `expiry` and `chains` which require an importable module name
-
-## CI integration
-
-**Makefile:**
-
-```makefile
-lint-deprecations:
-	pydeprecate check src/mypackage
-
-check-zombie-code:
-	pydeprecate expiry src/mypackage --version $(VERSION)
-```
-
-**pre-commit hook:**
-
-```yaml
-- repo: local
-  hooks:
-    - id: pydeprecate
-      name: validate deprecation wrappers
-      entry: pydeprecate check
-      language: system
-      pass_filenames: false
-      args: [src/mypackage]
-```
-
-**GitHub Actions:**
-
-```yaml
-- name: Install pyDeprecate with audit and CLI extras
-  run: pip install 'pyDeprecate[audit,cli]'
-
-- name: Validate deprecations
-  run: pydeprecate all src/mypackage --version ${{ env.PACKAGE_VERSION }}
-```
 
 ## Python module invocation
 

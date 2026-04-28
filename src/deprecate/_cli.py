@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 from deprecate.audit import (
     DeprecationWrapperInfo,
+    _get_package_version,
     find_deprecation_wrappers,
     validate_deprecation_chains,
     validate_deprecation_expiry,
@@ -60,6 +61,10 @@ def _print(msg: str, *, stderr: bool = False) -> None:
         print(msg, file=sys.stderr if stderr else sys.stdout)
 
 
+def _is_package_dir(pth: Path) -> bool:
+    return (pth / "__init__.py").exists()
+
+
 @contextmanager
 def _managed_sys_path(path: str) -> Generator[None, None, None]:
     """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
@@ -71,7 +76,7 @@ def _managed_sys_path(path: str) -> Generator[None, None, None]:
     abs_path: Path = Path(path).resolve()
     original = list(sys.path)
     if abs_path.is_dir():
-        import_root = str(abs_path.parent) if (abs_path / "__init__.py").exists() else str(abs_path)
+        import_root = str(abs_path.parent) if _is_package_dir(abs_path) else str(abs_path)
         sys.path.insert(0, import_root)
     try:
         yield
@@ -97,14 +102,14 @@ def _resolve_module_name(path: str) -> str:
         ValueError: If path is a plain directory without ``__init__.py``, a ``.py``
             file, or cannot be resolved to an importable module name.
     """
-    p = Path(path)
-    if p.is_file():
+    pth = Path(path)
+    if pth.is_file():
         raise ValueError(
             f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
-    if p.is_dir():
-        if (p / "__init__.py").exists():
-            return p.resolve().name
+    if pth.is_dir():
+        if _is_package_dir(pth):
+            return pth.resolve().name
         raise ValueError(
             f"Plain directories without '__init__.py' are not supported for expiry or chain checks: {path!r}. "
             "Use an importable package layout with '__init__.py', or pass an importable module name instead."
@@ -126,7 +131,7 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     original_argv = sys.argv[:]
     sys.argv = sys.argv[:1]  # hide CLI args from any module-level code (e.g. setup.py)
     try:
-        for entry in sorted(abs_path.iterdir(), key=lambda p: p.name):
+        for entry in sorted(abs_path.iterdir(), key=lambda ent: ent.name):
             if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
                 continue
             module_name: str = entry.stem
@@ -159,24 +164,17 @@ def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo
     File paths are not accepted because ``find_deprecation_wrappers()`` expects an
     importable module or package name, not a filesystem path.
     """
-    p: Path = Path(path)
-    if p.is_dir():
-        if (p / "__init__.py").exists():
+    pth: Path = Path(path)
+    if pth.is_dir():
+        if _is_package_dir(pth):
             # package dir: resolve importable name from directory stem
             return find_deprecation_wrappers(Path(path).resolve().name, recursive=recursive)
         return _scan_directory(path)
-    if p.is_file():
+    if pth.is_file():
         raise ValueError(
             f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
     return find_deprecation_wrappers(path, recursive=recursive)
-
-
-def _has_all_identity_mappings(info: DeprecationWrapperInfo) -> bool:
-    """Return whether all configured mappings are identity mappings."""
-    args_mapping = info.deprecated_info.args_mapping
-    equal_mapping = len(info.identity_mapping) == len(args_mapping or {})
-    return bool(args_mapping) and equal_mapping and not info.invalid_args
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +225,7 @@ def _report_no_effect(no_effect: list[DeprecationWrapperInfo]) -> None:
                 reasons.append("Empty mapping")
             if r.self_reference:
                 reasons.append("Self reference")
-            if _has_all_identity_mappings(r):
+            if r.all_identity:
                 reasons.append("All identity mappings")
             table.add_row(r.module, r.function, ", ".join(reasons))
         _console.print(table)
@@ -239,7 +237,7 @@ def _report_no_effect(no_effect: list[DeprecationWrapperInfo]) -> None:
                 _print("\t\tReason: Empty mapping")
             if r.self_reference:
                 _print("\t\tReason: Self reference")
-            if _has_all_identity_mappings(r):
+            if r.all_identity:
                 _print("\t\tReason: All identity mappings")
 
 
@@ -298,48 +296,6 @@ def _report_issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bo
         _report_chains(chains, error=error_on_chains)
 
     return True
-
-
-# ---------------------------------------------------------------------------
-# Expiry helper — single-scan path used by cmd_all
-# ---------------------------------------------------------------------------
-
-
-def _check_expiry_from_results(results: list[DeprecationWrapperInfo], current_version: str) -> list[str]:
-    """Check already-scanned wrappers for expired removal deadlines without re-scanning.
-
-    Replicates the core loop of :func:`~deprecate.audit.validate_deprecation_expiry`
-    on a pre-scanned result list so that :func:`cmd_all` can check expiry in the same
-    scan pass without scanning the module a second time.
-
-    Args:
-        results: Pre-scanned wrapper info list from :func:`_scan_path`.
-        current_version: Current package version string for comparison (PEP 440).
-
-    Returns:
-        List of expiry error messages for callables that have passed their removal deadline.
-
-    Raises:
-        ImportError: If the ``packaging`` library is not installed.
-    """
-    from deprecate.audit import _parse_version  # raises ImportError when packaging missing
-
-    current_ver = _parse_version(current_version)
-    expired = []
-    for info in results:
-        remove_in = info.deprecated_info.remove_in
-        if not remove_in:
-            continue
-        try:
-            remove_ver = _parse_version(remove_in)
-        except ValueError:
-            continue
-        if current_ver >= remove_ver:
-            expired.append(
-                f"Callable `{info.function}` was scheduled for removal in version {remove_in}"
-                f" but still exists in version {current_version}. Please delete this deprecated code."
-            )
-    return expired
 
 
 def _is_missing_packaging_import_error(error: ImportError) -> bool:
@@ -556,15 +512,15 @@ def cmd_all(
         try:
             module_name = _resolve_module_name(path)
             package_name = module_name.split(".")[0]
-            from deprecate.audit import _get_package_version
-
             resolved_version = _get_package_version(package_name)
         except Exception:
             resolved_version = None
 
     if resolved_version is not None:
         try:
-            expired = _check_expiry_from_results(results, resolved_version)
+            from deprecate.audit import _check_expiry_for_callables
+
+            expired = _check_expiry_for_callables(results, resolved_version)
             if expired:
                 _report_expiry(expired)
                 _print(f"\n{len(expired)} expired wrapper(s) found.")
