@@ -39,7 +39,11 @@ pydeprecate check mypackage.submodule
 
 Running `pydeprecate <path>` without a subcommand routes to `check` for backward compatibility.
 
-Exit 1 only for hard errors (invalid argument mappings). Chains, identity mappings, and no-effect wrappers are warnings — exit 0.
+Exit 1 only for invalid argument mappings. Chains, identity mappings, and no-effect wrappers are reported as warnings — exit 0.
+
+!!! note "Chain handling differs in `all`"
+
+    `check` treats chains as advisory warnings (exit 0). `all` treats chains as hard errors (exit 1), because `all` ≡ `check + expiry + chains` and `chains` exits 1 on any chain found.
 
 ______________________________________________________________________
 
@@ -83,7 +87,7 @@ pydeprecate all path/to/your/package --version 2.0.0
 pydeprecate all path/to/your/package
 ```
 
-Exit 1 if any check finds a hard error. If `packaging` is not installed, expiry is skipped with a warning and does not cause exit `1`.
+Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. If `packaging` is not installed, expiry is skipped with a warning and does not cause exit `1`.
 
 ______________________________________________________________________
 
