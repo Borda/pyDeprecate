@@ -226,12 +226,14 @@ def _report_no_effect_rich(no_effect: list[DeprecationWrapperInfo]) -> None:
     _console.print(table)
 
 
-def _report_chains_rich(chains: list[DeprecationWrapperInfo]) -> None:
+def _report_chains_rich(chains: list[DeprecationWrapperInfo], *, error: bool = False) -> None:
     """Print a Rich table for deprecated wrappers that form deprecation chains."""
-    table = RichTable(title="Deprecation Chains", box=rich_box.ROUNDED, title_style="bold red")
+    style = "bold red" if error else "bold yellow"
+    col_style = "red" if error else "yellow"
+    table = RichTable(title="Deprecation Chains", box=rich_box.ROUNDED, title_style=style)
     table.add_column("Module", style="cyan")
     table.add_column("Function", style="magenta")
-    table.add_column("Chain Type", style="red")
+    table.add_column("Chain Type", style=col_style)
     for r in chains:
         chain_label = r.chain_type.value if r.chain_type is not None else ""
         table.add_row(r.module, r.function, chain_label)
@@ -279,9 +281,10 @@ def _report_no_effect_plain(no_effect: list[DeprecationWrapperInfo]) -> None:
             _print("\t\tReason: All identity mappings")
 
 
-def _report_chains_plain(chains: list[DeprecationWrapperInfo]) -> None:
+def _report_chains_plain(chains: list[DeprecationWrapperInfo], *, error: bool = False) -> None:
     """Print plain-text diagnostics for deprecated wrappers forming deprecation chains."""
-    _print("\n[ERROR] Found deprecated wrappers forming deprecation chains:")
+    prefix = "[ERROR]" if error else "[WARNING]"
+    _print(f"\n{prefix} Found deprecated wrappers forming deprecation chains:")
     for r in chains:
         chain_label = r.chain_type.value if r.chain_type is not None else "unknown"
         _print(f"\t- {r.module}.{r.function}: {chain_label} chain")
@@ -299,7 +302,7 @@ def _report_expiry_plain(expired: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
+def _report_issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bool = False) -> bool:
     """Print categorised diagnostics and return whether any issues were found."""
     invalid_args = [r for r in results if r.invalid_args]
     identity_mappings = [r for r in results if r.identity_mapping]
@@ -317,7 +320,7 @@ def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
         if no_effect:
             _report_no_effect_rich(no_effect)
         if chains:
-            _report_chains_rich(chains)
+            _report_chains_rich(chains, error=error_on_chains)
     else:
         if invalid_args:
             _report_invalid_args_plain(invalid_args)
@@ -326,7 +329,7 @@ def _report_issues(results: list[DeprecationWrapperInfo]) -> bool:
         if no_effect:
             _report_no_effect_plain(no_effect)
         if chains:
-            _report_chains_plain(chains)
+            _report_chains_plain(chains, error=error_on_chains)
 
     return True
 
@@ -540,9 +543,9 @@ def cmd_chains(
         return 0
 
     if _HAS_RICH:
-        _report_chains_rich(chains)
+        _report_chains_rich(chains, error=True)
     else:
-        _report_chains_plain(chains)
+        _report_chains_plain(chains, error=True)
 
     _print(f"\n{len(chains)} deprecation chain(s) found.")
     return 0 if skip_errors else 1
@@ -590,7 +593,7 @@ def cmd_all(
     # --- check: wrapper config + chains ---
     has_invalid = any(r.invalid_args for r in results)
     has_chains = any(r.chain_type is not None for r in results)
-    issues_reported = _report_issues(results)
+    issues_reported = _report_issues(results, error_on_chains=True)
     if issues_reported and (has_invalid or has_chains):
         has_errors = True
 
