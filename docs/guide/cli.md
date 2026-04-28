@@ -10,18 +10,15 @@ The `pydeprecate` CLI lets you run all three [audit checks](audit.md) — wrappe
 ## Installation
 
 ```bash
-pip install 'pyDeprecate[cli]'
+pip install 'pyDeprecate[audit,cli]'
 ```
 
-The `expiry` subcommand and the expiry phase of `all` additionally require the `packaging` library:
-
-```bash
-pip install 'pyDeprecate[audit]'
-```
+Start with `[audit,cli]` unless you are certain you will never use `expiry` or `all`. The `[audit]` extra pulls in `packaging`, which `expiry` and the expiry phase of `all` require.
 
 ## Quick start
 
 ```bash
+pydeprecate all src/mypackage   # run all checks in one pass
 pydeprecate check path/to/your/package   # validate wrapper config
 pydeprecate check mypackage.submodule    # importable module name also accepted
 ```
@@ -47,7 +44,7 @@ ______________________________________________________________________
 
 ### `expiry`
 
-Checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines). Requires `pip install 'pyDeprecate[audit]'`.
+Checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines). Requires the `[audit]` extra (included in `[audit,cli]`).
 
 ```bash
 # explicit version
@@ -91,11 +88,11 @@ ______________________________________________________________________
 
 ## Flags
 
-| Flag                | Applies to                         | Effect                                                                                                  |
-| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--version VERSION` | `expiry`, `all`                    | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |
-| `--norecursive`     | `check`, `expiry`, `chains`, `all` | Scan top-level module only; skip submodules.                                                            |
-| `--skip_errors`     | `check`, `expiry`, `chains`, `all` | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |
+| Flag                | Applies to                         | Effect                                                                                                  | Note                                                                                                 |
+| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `--version VERSION` | `expiry`, `all`                    | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |                                                                                                      |
+| `--norecursive`     | `check`, `expiry`, `chains`, `all` | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
+| `--skip_errors`     | `check`, `expiry`, `chains`, `all` | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
 
 ## Exit codes
 
@@ -142,6 +139,9 @@ check-zombie-code:
 **GitHub Actions:**
 
 ```yaml
+- name: Install pyDeprecate with audit and CLI extras
+  run: pip install 'pyDeprecate[audit,cli]'
+
 - name: Validate deprecations
   run: pydeprecate all src/mypackage --version ${{ env.PACKAGE_VERSION }}
 ```
@@ -154,3 +154,5 @@ Both `pydeprecate` and `python -m deprecate` are equivalent entry points:
 python -m deprecate check src/mypackage
 python -m deprecate expiry src/mypackage --version 2.0.0
 ```
+
+Useful in environments where the `pydeprecate` script is not on `PATH` (e.g. inside a Docker image where only `python` is available).

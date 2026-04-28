@@ -13,10 +13,14 @@ Subcommands:
 """
 
 import functools
-import inspect
 import sys
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from rich.table import Table as RichTable
 
 from deprecate.audit import (
     DeprecationWrapperInfo,
@@ -56,24 +60,23 @@ def _print(msg: str, *, stderr: bool = False) -> None:
         print(msg, file=sys.stderr if stderr else sys.stdout)
 
 
-def _setup_sys_path(path: str) -> list[str]:
-    """Add the import root to sys.path if path is a directory, returning the original path for restoration.
+@contextmanager
+def _managed_sys_path(path: str) -> Generator[None, None, None]:
+    """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
 
-    Args:
-        path: Path to the module, package directory, or importable module name.
-
-    Returns:
-        The original ``sys.path`` before modification. The caller is responsible for
-        restoring it after scanning.
+    For package directories (containing ``__init__.py``), inserts the parent directory so
+    the package name resolves as an importable module. For plain directories, inserts the
+    directory itself. Importable module name strings are passed through unchanged.
     """
     abs_path: Path = Path(path).resolve()
-    original_sys_path = list(sys.path)
-
+    original = list(sys.path)
     if abs_path.is_dir():
         import_root = str(abs_path.parent) if (abs_path / "__init__.py").exists() else str(abs_path)
         sys.path.insert(0, import_root)
-
-    return original_sys_path
+    try:
+        yield
+    finally:
+        sys.path[:] = original
 
 
 def _resolve_module_name(path: str) -> str:
@@ -107,12 +110,6 @@ def _resolve_module_name(path: str) -> str:
             "Use an importable package layout with '__init__.py', or pass an importable module name instead."
         )
     return path
-
-
-def _scan_package(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo]:
-    """Scan a Python package (directory with ``__init__.py``)."""
-    module_name: str = Path(path).resolve().name
-    return find_deprecation_wrappers(module_name, recursive=recursive)
 
 
 def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
@@ -165,7 +162,8 @@ def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo
     p: Path = Path(path)
     if p.is_dir():
         if (p / "__init__.py").exists():
-            return _scan_package(path, recursive=recursive)
+            # package dir: resolve importable name from directory stem
+            return find_deprecation_wrappers(Path(path).resolve().name, recursive=recursive)
         return _scan_directory(path)
     if p.is_file():
         raise ValueError(
@@ -182,123 +180,101 @@ def _has_all_identity_mappings(info: DeprecationWrapperInfo) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Rich reporters
+# Reporters (rich/plain dispatch unified per reporter)
 # ---------------------------------------------------------------------------
 
 
-def _report_invalid_args_rich(invalid_args: list[DeprecationWrapperInfo]) -> None:
-    """Print a Rich table for wrappers with invalid argument mappings."""
-    table = RichTable(title="Invalid Argument Mappings", box=rich_box.ROUNDED, title_style="bold red")
+def _make_table(title: str, col: str, *, title_style: str, col_style: str) -> "RichTable":
+    table = RichTable(title=title, box=rich_box.ROUNDED, title_style=title_style)
     table.add_column("Module", style="cyan")
     table.add_column("Function", style="magenta")
-    table.add_column("Invalid Args", style="red")
-    for r in invalid_args:
-        table.add_row(r.module, r.function, ", ".join(r.invalid_args))
-    _console.print(table)
+    table.add_column(col, style=col_style)
+    return table
 
 
-def _report_identity_mappings_rich(identity_mappings: list[DeprecationWrapperInfo]) -> None:
-    """Print a Rich table for wrappers with identity argument mappings."""
-    table = RichTable(title="Identity Argument Mappings (arg -> arg)", box=rich_box.ROUNDED, title_style="bold yellow")
-    table.add_column("Module", style="cyan")
-    table.add_column("Function", style="magenta")
-    table.add_column("Identity Args", style="yellow")
-    for r in identity_mappings:
-        table.add_row(r.module, r.function, ", ".join(r.identity_mapping))
-    _console.print(table)
+def _report_invalid_args(invalid_args: list[DeprecationWrapperInfo]) -> None:
+    if _HAS_RICH:
+        table = _make_table("Invalid Argument Mappings", "Invalid Args", title_style="bold red", col_style="red")
+        for r in invalid_args:
+            table.add_row(r.module, r.function, ", ".join(r.invalid_args))
+        _console.print(table)  # RichTable cannot route through _print(); call _console directly
+    else:
+        _print("\n[ERROR] Found functions with invalid argument mappings:")
+        for r in invalid_args:
+            _print(f"\t- {r.module}.{r.function}: {r.invalid_args}")
 
 
-def _report_no_effect_rich(no_effect: list[DeprecationWrapperInfo]) -> None:
-    """Print a Rich table for deprecated wrappers with no effect."""
-    table = RichTable(title="No-Effect Wrappers (zero impact)", box=rich_box.ROUNDED, title_style="bold yellow")
-    table.add_column("Module", style="cyan")
-    table.add_column("Function", style="magenta")
-    table.add_column("Reason", style="yellow")
-    for r in no_effect:
-        reasons = []
-        if r.empty_mapping:
-            reasons.append("Empty mapping")
-        if r.self_reference:
-            reasons.append("Self reference")
-        if _has_all_identity_mappings(r):
-            reasons.append("All identity mappings")
-        table.add_row(r.module, r.function, ", ".join(reasons))
-    _console.print(table)
+def _report_identity_mappings(identity_mappings: list[DeprecationWrapperInfo]) -> None:
+    if _HAS_RICH:
+        table = _make_table(
+            "Identity Argument Mappings (arg -> arg)", "Identity Args", title_style="bold yellow", col_style="yellow"
+        )
+        for r in identity_mappings:
+            table.add_row(r.module, r.function, ", ".join(r.identity_mapping))
+        _console.print(table)
+    else:
+        _print("\n[WARNING] Found functions with identity argument mappings (arg -> arg):")
+        for r in identity_mappings:
+            _print(f"\t- {r.module}.{r.function}: {r.identity_mapping}")
 
 
-def _report_chains_rich(chains: list[DeprecationWrapperInfo], *, error: bool = False) -> None:
-    """Print a Rich table for deprecated wrappers that form deprecation chains."""
-    style = "bold red" if error else "bold yellow"
-    col_style = "red" if error else "yellow"
-    table = RichTable(title="Deprecation Chains", box=rich_box.ROUNDED, title_style=style)
-    table.add_column("Module", style="cyan")
-    table.add_column("Function", style="magenta")
-    table.add_column("Chain Type", style=col_style)
-    for r in chains:
-        chain_label = r.chain_type.value if r.chain_type is not None else ""
-        table.add_row(r.module, r.function, chain_label)
-    _console.print(table)
+def _report_no_effect(no_effect: list[DeprecationWrapperInfo]) -> None:
+    if _HAS_RICH:
+        table = _make_table("No-Effect Wrappers (zero impact)", "Reason", title_style="bold yellow", col_style="yellow")
+        for r in no_effect:
+            reasons = []
+            if r.empty_mapping:
+                reasons.append("Empty mapping")
+            if r.self_reference:
+                reasons.append("Self reference")
+            if _has_all_identity_mappings(r):
+                reasons.append("All identity mappings")
+            table.add_row(r.module, r.function, ", ".join(reasons))
+        _console.print(table)
+    else:
+        _print("\n[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):")
+        for r in no_effect:
+            _print(f"\t- {r.module}.{r.function}")
+            if r.empty_mapping:
+                _print("\t\tReason: Empty mapping")
+            if r.self_reference:
+                _print("\t\tReason: Self reference")
+            if _has_all_identity_mappings(r):
+                _print("\t\tReason: All identity mappings")
 
 
-def _report_expiry_rich(expired: list[str]) -> None:
-    """Print a Rich-styled table of expired deprecated wrappers."""
-    table = RichTable(title="Expired Deprecated Wrappers", box=rich_box.ROUNDED, title_style="bold red")
-    table.add_column("Message", style="red")
-    for msg in expired:
-        table.add_row(msg)
-    _console.print(table)
+def _report_chains(chains: list[DeprecationWrapperInfo], *, error: bool = False) -> None:
+    if _HAS_RICH:
+        style = "bold red" if error else "bold yellow"
+        col_style = "red" if error else "yellow"
+        table = _make_table("Deprecation Chains", "Chain Type", title_style=style, col_style=col_style)
+        for r in chains:
+            chain_label = r.chain_type.value if r.chain_type is not None else ""
+            table.add_row(r.module, r.function, chain_label)
+        _console.print(table)
+    else:
+        prefix = "[ERROR]" if error else "[WARNING]"
+        _print(f"\n{prefix} Found deprecated wrappers forming deprecation chains:")
+        for r in chains:
+            chain_label = r.chain_type.value if r.chain_type is not None else "unknown"
+            _print(f"\t- {r.module}.{r.function}: {chain_label} chain")
+
+
+def _report_expiry(expired: list[str]) -> None:
+    if _HAS_RICH:
+        table = RichTable(title="Expired Deprecated Wrappers", box=rich_box.ROUNDED, title_style="bold red")
+        table.add_column("Message", style="red")
+        for msg in expired:
+            table.add_row(msg)
+        _console.print(table)
+    else:
+        _print("\n[ERROR] Found expired deprecated wrappers:")
+        for msg in expired:
+            _print(f"\t- {msg}")
 
 
 # ---------------------------------------------------------------------------
-# Plain reporters
-# ---------------------------------------------------------------------------
-
-
-def _report_invalid_args_plain(invalid_args: list[DeprecationWrapperInfo]) -> None:
-    """Print plain-text diagnostics for wrappers with invalid argument mappings."""
-    _print("\n[ERROR] Found functions with invalid argument mappings:")
-    for r in invalid_args:
-        _print(f"\t- {r.module}.{r.function}: {r.invalid_args}")
-
-
-def _report_identity_mappings_plain(identity_mappings: list[DeprecationWrapperInfo]) -> None:
-    """Print plain-text diagnostics for wrappers with identity argument mappings."""
-    _print("\n[WARNING] Found functions with identity argument mappings (arg -> arg):")
-    for r in identity_mappings:
-        _print(f"\t- {r.module}.{r.function}: {r.identity_mapping}")
-
-
-def _report_no_effect_plain(no_effect: list[DeprecationWrapperInfo]) -> None:
-    """Print plain-text diagnostics for deprecated wrappers with no effect."""
-    _print("\n[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):")
-    for r in no_effect:
-        _print(f"\t- {r.module}.{r.function}")
-        if r.empty_mapping:
-            _print("\t\tReason: Empty mapping")
-        if r.self_reference:
-            _print("\t\tReason: Self reference")
-        if _has_all_identity_mappings(r):
-            _print("\t\tReason: All identity mappings")
-
-
-def _report_chains_plain(chains: list[DeprecationWrapperInfo], *, error: bool = False) -> None:
-    """Print plain-text diagnostics for deprecated wrappers forming deprecation chains."""
-    prefix = "[ERROR]" if error else "[WARNING]"
-    _print(f"\n{prefix} Found deprecated wrappers forming deprecation chains:")
-    for r in chains:
-        chain_label = r.chain_type.value if r.chain_type is not None else "unknown"
-        _print(f"\t- {r.module}.{r.function}: {chain_label} chain")
-
-
-def _report_expiry_plain(expired: list[str]) -> None:
-    """Print plain-text diagnostics for expired deprecated wrappers."""
-    _print("\n[ERROR] Found expired deprecated wrappers:")
-    for msg in expired:
-        _print(f"\t- {msg}")
-
-
-# ---------------------------------------------------------------------------
-# Aggregated issue reporter (check subcommand)
+# Aggregated issue reporter
 # ---------------------------------------------------------------------------
 
 
@@ -312,24 +288,14 @@ def _report_issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bo
     if not (invalid_args or identity_mappings or no_effect or chains):
         return False
 
-    if _HAS_RICH:
-        if invalid_args:
-            _report_invalid_args_rich(invalid_args)
-        if identity_mappings:
-            _report_identity_mappings_rich(identity_mappings)
-        if no_effect:
-            _report_no_effect_rich(no_effect)
-        if chains:
-            _report_chains_rich(chains, error=error_on_chains)
-    else:
-        if invalid_args:
-            _report_invalid_args_plain(invalid_args)
-        if identity_mappings:
-            _report_identity_mappings_plain(identity_mappings)
-        if no_effect:
-            _report_no_effect_plain(no_effect)
-        if chains:
-            _report_chains_plain(chains, error=error_on_chains)
+    if invalid_args:
+        _report_invalid_args(invalid_args)
+    if identity_mappings:
+        _report_identity_mappings(identity_mappings)
+    if no_effect:
+        _report_no_effect(no_effect)
+    if chains:
+        _report_chains(chains, error=error_on_chains)
 
     return True
 
@@ -385,9 +351,12 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
     Returns:
         True if the error indicates that the ``packaging`` library is unavailable.
     """
-    missing_module = getattr(error, "name", None)
-    if isinstance(missing_module, str) and (missing_module == "packaging" or missing_module.startswith("packaging.")):
-        return True
+    for exc in (error, getattr(error, "__cause__", None)):
+        if exc is None:
+            continue
+        name = getattr(exc, "name", None)
+        if isinstance(name, str) and (name == "packaging" or name.startswith("packaging.")):
+            return True
     return "No module named 'packaging'" in str(error)
 
 
@@ -412,15 +381,13 @@ def cmd_check(
         skip_errors: Always exit 0 even if hard errors (invalid argument mappings) are found.
     """
     _print(f"Scanning path: {path} ...")
-    original_sys_path = _setup_sys_path(path)
 
-    try:
-        results = _scan_path(path, recursive=recursive)
-    except Exception as e:
-        _print(f"Error scanning {path}: {e}", stderr=True)
-        return 1
-    finally:
-        sys.path[:] = original_sys_path
+    with _managed_sys_path(path):
+        try:
+            results = _scan_path(path, recursive=recursive)
+        except Exception as e:
+            _print(f"Error scanning {path}: {e}", stderr=True)
+            return 1
 
     if not results:
         _print("No deprecated callables found.")
@@ -459,9 +426,8 @@ def cmd_expiry(
     if version is not None:
         version = str(version)
     _print(f"Scanning path: {path} ...")
-    original_sys_path = _setup_sys_path(path)
 
-    try:
+    with _managed_sys_path(path):
         try:
             module_name = _resolve_module_name(path)
         except ValueError as e:
@@ -489,17 +455,12 @@ def cmd_expiry(
         except Exception as e:
             _print(f"Error checking expiry for {path}: {e}", stderr=True)
             return 1
-    finally:
-        sys.path[:] = original_sys_path
 
     if not expired:
         _print("No expired deprecated wrappers found.")
         return 0
 
-    if _HAS_RICH:
-        _report_expiry_rich(expired)
-    else:
-        _report_expiry_plain(expired)
+    _report_expiry(expired)
 
     _print(f"\n{len(expired)} expired wrapper(s) found.")
     return 0 if skip_errors else 1
@@ -521,9 +482,8 @@ def cmd_chains(
         skip_errors: Always exit 0 even if chains are found.
     """
     _print(f"Scanning path: {path} ...")
-    original_sys_path = _setup_sys_path(path)
 
-    try:
+    with _managed_sys_path(path):
         try:
             module_name = _resolve_module_name(path)
         except ValueError as e:
@@ -535,17 +495,12 @@ def cmd_chains(
         except Exception as e:
             _print(f"Error checking chains for {path}: {e}", stderr=True)
             return 1
-    finally:
-        sys.path[:] = original_sys_path
 
     if not chains:
         _print("No deprecation chains found.")
         return 0
 
-    if _HAS_RICH:
-        _report_chains_rich(chains, error=True)
-    else:
-        _report_chains_plain(chains, error=True)
+    _report_chains(chains, error=True)
 
     _print(f"\n{len(chains)} deprecation chain(s) found.")
     return 0 if skip_errors else 1
@@ -574,15 +529,13 @@ def cmd_all(
     if version is not None:
         version = str(version)
     _print(f"Scanning path: {path} ...")
-    original_sys_path = _setup_sys_path(path)
 
-    try:
-        results = _scan_path(path, recursive=recursive)
-    except Exception as e:
-        _print(f"Error scanning {path}: {e}", stderr=True)
-        return 1
-    finally:
-        sys.path[:] = original_sys_path
+    with _managed_sys_path(path):
+        try:
+            results = _scan_path(path, recursive=recursive)
+        except Exception as e:
+            _print(f"Error scanning {path}: {e}", stderr=True)
+            return 1
 
     if not results:
         _print("No deprecated callables found.")
@@ -613,10 +566,7 @@ def cmd_all(
         try:
             expired = _check_expiry_from_results(results, resolved_version)
             if expired:
-                if _HAS_RICH:
-                    _report_expiry_rich(expired)
-                else:
-                    _report_expiry_plain(expired)
+                _report_expiry(expired)
                 _print(f"\n{len(expired)} expired wrapper(s) found.")
                 has_errors = True
         except ImportError:
@@ -665,14 +615,11 @@ def cli() -> None:
         )
         sys.exit(1)
 
-    from typing import Callable
-
     def _wrap(fn: Callable[..., int]) -> Callable[..., None]:
         @functools.wraps(fn)
         def _wrapped(*args: object, **kwargs: object) -> None:
             sys.exit(fn(*args, **kwargs))
 
-        _wrapped.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
         return _wrapped
 
     subcommands = {"check", "expiry", "chains", "all"}

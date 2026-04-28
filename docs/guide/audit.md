@@ -468,14 +468,13 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 The CLI provides four subcommands. Use `check` for wrapper config validation or `all` to run every check in a single pass. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
 ```bash
-# Install the CLI extra
-pip install 'pyDeprecate[cli]'
+# Install CLI + audit extras (audit needed for expiry checks)
+pip install 'pyDeprecate[audit,cli]'
 
 # check — exits 1 if invalid arg mappings are found
 pydeprecate check src/your_package
 
 # all — exits 1 on invalid mappings, chains, or expired wrappers
-# (requires pip install 'pyDeprecate[audit]' for expiry checks)
 pydeprecate all src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
