@@ -356,7 +356,7 @@ class TestCmdAll:
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_skip_errors_exits_zero(self, mock_find: MagicMock) -> None:
-        """skip_errors=True overrides exit 0 even with invalid args."""
+        """skip_errors=True overrides the invalid-args exit 1 to 0."""
         mock_find.return_value = [_INVALID_ARGS]
         assert cmd_all(path="some_module", version="1.0", skip_errors=True) == 0
 
