@@ -120,10 +120,10 @@ All subcommands accept:
 
 ```makefile
 lint-deprecations:
-    pydeprecate check src/mypackage
+	pydeprecate check src/mypackage
 
 check-zombie-code:
-    pydeprecate expiry src/mypackage --version $(VERSION)
+	pydeprecate expiry src/mypackage --version $(VERSION)
 ```
 
 **pre-commit hook:**
