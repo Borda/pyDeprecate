@@ -570,7 +570,8 @@ def cmd_all(
     # --- check: wrapper config + chains ---
     has_invalid = any(r.invalid_args for r in results)
     has_chains = any(r.chain_type is not None for r in results)
-    if _report_issues(results) and (has_invalid or has_chains):
+    issues_reported = _report_issues(results)
+    if issues_reported and (has_invalid or has_chains):
         has_errors = True
 
     # --- expiry ---
@@ -616,6 +617,10 @@ def cmd_all(
     if has_errors:
         _print("\nIssues were found.")
         return 0 if skip_errors else 1
+
+    if issues_reported:
+        _print("\nWarnings only — no hard errors.")
+        return 0
 
     _print("\nAll checks passed!")
     return 0
