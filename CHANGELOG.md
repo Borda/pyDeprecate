@@ -12,6 +12,8 @@
 
 - **`pydeprecate` CLI command.** Install with `pip install 'pyDeprecate[cli]'` then run `pydeprecate path/to/your/package` to scan any package or module for misconfigured `@deprecated` wrappers — reports invalid argument mappings, identity mappings, and no-effect wrappers with rich-formatted output when `rich` is available. Also available as `python -m deprecate`. ([#76](https://github.com/Borda/pyDeprecate/pull/76))
 
+- **Four CLI subcommands: `check`, `expiry`, `chains`, `all`.** `check` (the default) validates wrapper configuration; `expiry` reports wrappers past their `remove_in` deadline (requires `pip install 'pyDeprecate[audit]'`); `chains` detects deprecated-to-deprecated forwarding chains; `all` runs all three in a single scan pass. Common flags: `--no_recursive true`, `--skip_errors true`. See [CLI Reference](https://borda.github.io/pyDeprecate/latest/guide/cli/) for full flag and exit-code documentation. ([#149](https://github.com/Borda/pyDeprecate/pull/149))
+
 ______________________________________________________________________
 
 ## [0.7.0] — 2026-03-31 — Docstring Tooling
