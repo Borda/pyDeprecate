@@ -451,13 +451,24 @@ def cmd_expiry(
 
         try:
             expired = validate_deprecation_expiry(module_name, version, recursive=recursive)
-        except ImportError:
-            _print(
-                "The 'expiry' subcommand requires the 'packaging' library.\n"
-                "Install it with:\n\n"
-                "    pip install 'pyDeprecate[audit]'\n",
-                stderr=True,
-            )
+        except ImportError as e:
+            missing_module = getattr(e, "name", None)
+            if missing_module == "packaging" or (
+                isinstance(missing_module, str) and missing_module.startswith("packaging.")
+            ):
+                _print(
+                    "The 'expiry' subcommand requires the 'packaging' library.\n"
+                    "Install it with:\n\n"
+                    "    pip install 'pyDeprecate[audit]'\n",
+                    stderr=True,
+                )
+            else:
+                _print(
+                    "Could not determine the current package version automatically.\n"
+                    "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
+                    f"Original error: {e}",
+                    stderr=True,
+                )
             return 0 if skip_errors else 1
         except Exception as e:
             _print(f"Error checking expiry for {path}: {e}", stderr=True)
