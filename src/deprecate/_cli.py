@@ -16,7 +16,7 @@ import functools
 import inspect
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from deprecate.audit import (
     DeprecationWrapperInfo,
@@ -25,18 +25,19 @@ from deprecate.audit import (
     validate_deprecation_expiry,
 )
 
+_console: Any = None
+_err_console: Any = None
+
 try:
     from rich import box as rich_box
     from rich.console import Console as RichConsole
     from rich.table import Table as RichTable
 
+    _console = RichConsole()
+    _err_console = RichConsole(stderr=True)
     _HAS_RICH = True
 except ImportError:  # pragma: no cover
     _HAS_RICH = False
-
-if _HAS_RICH:
-    _console: RichConsole = RichConsole()
-    _err_console: RichConsole = RichConsole(stderr=True)
 
 
 def _print(msg: str, *, stderr: bool = False) -> None:
@@ -372,6 +373,21 @@ def _check_expiry_from_results(results: list[DeprecationWrapperInfo], current_ve
     return expired
 
 
+def _is_missing_packaging_import_error(error: ImportError) -> bool:
+    """Return True when an ImportError was caused by a missing packaging dependency.
+
+    Args:
+        error: The ImportError raised while trying to inspect expiry information.
+
+    Returns:
+        True if the error indicates that the ``packaging`` library is unavailable.
+    """
+    missing_module = getattr(error, "name", None)
+    if isinstance(missing_module, str) and (missing_module == "packaging" or missing_module.startswith("packaging.")):
+        return True
+    return "No module named 'packaging'" in str(error)
+
+
 # ---------------------------------------------------------------------------
 # Subcommand functions
 # ---------------------------------------------------------------------------
@@ -452,10 +468,7 @@ def cmd_expiry(
         try:
             expired = validate_deprecation_expiry(module_name, version, recursive=recursive)
         except ImportError as e:
-            missing_module = getattr(e, "name", None)
-            if missing_module == "packaging" or (
-                isinstance(missing_module, str) and missing_module.startswith("packaging.")
-            ):
+            if _is_missing_packaging_import_error(e):
                 _print(
                     "The 'expiry' subcommand requires the 'packaging' library.\n"
                     "Install it with:\n\n"
