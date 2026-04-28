@@ -463,27 +463,31 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
 !!! info "Coming soon"
 
-    Native pre-commit hook support is planned. For now, run the validator directly via `python -m deprecate` in your `Makefile` or CI step.
+    Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
 
-The CLI checks for misconfigured wrappers only — invalid `args_mapping` keys, identity mappings, self-references:
+The CLI provides four subcommands. Use `check` for wrapper config validation or `all` to run every check in a single pass. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
 ```bash
 # Install the CLI extra
 pip install 'pyDeprecate[cli]'
 
-# Scan your package — exits 1 if invalid arg mappings are found
-python -m deprecate src/your_package
+# check — exits 1 if invalid arg mappings are found
+pydeprecate check src/your_package
+
+# all — exits 1 on invalid mappings, chains, or expired wrappers
+# (requires pip install 'pyDeprecate[audit]' for expiry checks)
+pydeprecate all src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
-python -m deprecate src/your_package --skip_errors true
+pydeprecate check src/your_package --skip_errors true
 ```
 
-**Exit codes:**
+**Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
 
-| Exit code | Meaning                                                          |
-| --------- | ---------------------------------------------------------------- |
-| `0`       | No issues found (or `--skip_errors true` was set)                |
-| `1`       | Invalid argument mappings detected — these break call forwarding |
+| Exit code | Meaning                                                             |
+| --------- | ------------------------------------------------------------------- |
+| `0`       | No hard errors (or `--skip_errors true` was set)                    |
+| `1`       | Hard error found: invalid arg mappings, chains, or expired wrappers |
 
 ## Testing Deprecated Code
 
