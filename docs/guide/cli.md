@@ -25,66 +25,58 @@ pydeprecate check mypackage.submodule    # importable module name also accepted
 
 ## Subcommands
 
-### `check`
+=== "check"
 
-Validates wrapper configuration: invalid `args_mapping` keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. Backed by [`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration).
+    Validates wrapper configuration: invalid `args_mapping` keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. Backed by [`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration).
 
-```bash
-pydeprecate check path/to/your/package
-pydeprecate check mypackage.submodule
-```
+    ```bash
+    pydeprecate check path/to/your/package
+    pydeprecate check mypackage.submodule
+    ```
 
-Exit 1 only for invalid argument mappings. Chains, identity mappings, and no-effect wrappers are reported as warnings — exit 0.
+    Exit 1 only for invalid argument mappings. Chains, identity mappings, and no-effect wrappers are reported as warnings — exit 0.
 
-!!! note "Chain handling differs in `all`"
+    !!! note "Chain handling differs in `all`"
 
-    `check` treats chains as advisory warnings (exit 0). `all` treats chains as hard errors (exit 1), because `all` ≡ `check + expiry + chains` and `chains` exits 1 on any chain found.
+        `check` treats chains as advisory warnings (exit 0). `all` treats chains as hard errors (exit 1), because `all` ≡ `check + expiry + chains` and `chains` exits 1 on any chain found.
 
-______________________________________________________________________
+=== "expiry"
 
-### `expiry`
+    Checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines). Requires the `[audit]` extra (included in `[audit,cli]`).
 
-Checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines). Requires the `[audit]` extra (included in `[audit,cli]`).
+    ```bash
+    # explicit version
+    pydeprecate expiry path/to/your/package --version 2.0.0
 
-```bash
-# explicit version
-pydeprecate expiry path/to/your/package --version 2.0.0
+    # auto-detect version from installed package metadata
+    pydeprecate expiry path/to/your/package
+    ```
 
-# auto-detect version from installed package metadata
-pydeprecate expiry path/to/your/package
-```
+    Exit 1 if any wrapper is past its removal deadline, or if `packaging` is not installed (use `--skip_errors` to suppress).
 
-Exit 1 if any wrapper is past its removal deadline, or if `packaging` is not installed (use `--skip_errors` to suppress).
+=== "chains"
 
-______________________________________________________________________
+    Detects deprecated wrappers whose `target` is itself a deprecated callable (`ChainType.TARGET`) or where stacked argument mappings should be collapsed (`ChainType.STACKED`). Backed by [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains).
 
-### `chains`
+    ```bash
+    pydeprecate chains path/to/your/package
+    ```
 
-Detects deprecated wrappers whose `target` is itself a deprecated callable (`ChainType.TARGET`) or where stacked argument mappings should be collapsed (`ChainType.STACKED`). Backed by [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains).
+    Exit 1 if any chains are found.
 
-```bash
-pydeprecate chains path/to/your/package
-```
+=== "all"
 
-Exit 1 if any chains are found.
+    Single scan pass running all three checks ([`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration), [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines), [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains)). If `packaging` is not installed, the expiry check is skipped with a warning and the other checks still run.
 
-______________________________________________________________________
+    ```bash
+    # explicit version
+    pydeprecate all path/to/your/package --version 2.0.0
 
-### `all`
+    # auto-detect version
+    pydeprecate all path/to/your/package
+    ```
 
-Single scan pass running all three checks ([`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration), [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines), [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains)). If `packaging` is not installed, the expiry check is skipped with a warning and the other checks still run.
-
-```bash
-# explicit version
-pydeprecate all path/to/your/package --version 2.0.0
-
-# auto-detect version
-pydeprecate all path/to/your/package
-```
-
-Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. If `packaging` is not installed, expiry is skipped with a warning and does not cause exit `1`.
-
-______________________________________________________________________
+    Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. If `packaging` is not installed, expiry is skipped with a warning and does not cause exit `1`.
 
 ## Flags
 
