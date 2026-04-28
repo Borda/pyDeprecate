@@ -42,14 +42,18 @@ class TestCmdCheckScanning:
         (pkg_dir / "__init__.py").touch()
 
         mock_find.return_value = []
-        assert cmd_check(path=str(pkg_dir)) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path=str(pkg_dir))
+        assert exc.value.code == 0
         mock_find.assert_called_once_with("mypkg", recursive=True)
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_issues_file(self, mock_find: MagicMock) -> None:
         """Scanning an importable module name with no issues exits 0."""
         mock_find.return_value = []
-        assert cmd_check(path="some_module") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 0
         mock_find.assert_called_once_with("some_module", recursive=True)
 
     @patch("deprecate._cli.find_deprecation_wrappers")
@@ -61,7 +65,9 @@ class TestCmdCheckScanning:
         (tmp_path / "__helpers__.py").touch()
 
         mock_find.return_value = []
-        assert cmd_check(path=str(tmp_path)) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path=str(tmp_path))
+        assert exc.value.code == 0
         assert mock_find.call_count == 2
 
     @patch("deprecate._cli.find_deprecation_wrappers")
@@ -75,7 +81,9 @@ class TestCmdCheckScanning:
         (subdir / "nested.py").touch()
 
         mock_find.return_value = []
-        assert cmd_check(path=str(tmp_path)) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path=str(tmp_path))
+        assert exc.value.code == 0
         captured = capsys.readouterr()
         assert "Skipping nested Python files" in captured.err
 
@@ -85,7 +93,9 @@ class TestCmdCheckScanning:
         (tmp_path / "bad_module.py").touch()
 
         mock_find.side_effect = Exception("import error")
-        assert cmd_check(path=str(tmp_path)) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path=str(tmp_path))
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_found_issues(self, mock_find: MagicMock) -> None:
@@ -93,7 +103,9 @@ class TestCmdCheckScanning:
         info = DeprecationWrapperInfo(module="test_mod", function="test_func", invalid_args=["bad_arg"])
         mock_find.return_value = [info]
 
-        assert cmd_check(path="some_module") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 1
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_found_warnings_only(self, mock_find: MagicMock) -> None:
@@ -101,7 +113,9 @@ class TestCmdCheckScanning:
         info = DeprecationWrapperInfo(module="test_mod", function="test_func", identity_mapping=["arg"], no_effect=True)
         mock_find.return_value = [info]
 
-        assert cmd_check(path="some_module") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_effect_empty_mapping(self, mock_find: MagicMock) -> None:
@@ -109,7 +123,9 @@ class TestCmdCheckScanning:
         info = DeprecationWrapperInfo(module="test_mod", function="test_func", empty_mapping=True, no_effect=True)
         mock_find.return_value = [info]
 
-        assert cmd_check(path="some_module") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_effect_self_reference(self, mock_find: MagicMock) -> None:
@@ -117,7 +133,9 @@ class TestCmdCheckScanning:
         info = DeprecationWrapperInfo(module="test_mod", function="test_func", self_reference=True, no_effect=True)
         mock_find.return_value = [info]
 
-        assert cmd_check(path="some_module") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_all_correct(self, mock_find: MagicMock) -> None:
@@ -125,14 +143,18 @@ class TestCmdCheckScanning:
         info = DeprecationWrapperInfo(module="test_mod", function="test_func")
         mock_find.return_value = [info]
 
-        assert cmd_check(path="some_module") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_error_scanning(self, mock_find: MagicMock) -> None:
         """Scan failure exits 1."""
         mock_find.side_effect = Exception("Boom")
 
-        assert cmd_check(path="some_module") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 1
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_skip_errors(self, mock_find: MagicMock) -> None:
@@ -140,13 +162,17 @@ class TestCmdCheckScanning:
         info = DeprecationWrapperInfo(module="test_mod", function="test_func", invalid_args=["bad_arg"])
         mock_find.return_value = [info]
 
-        assert cmd_check(path="some_module", skip_errors=True) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module", skip_errors=True)
+        assert exc.value.code == 0
 
     def test_file_path_rejected(self, tmp_path: Path) -> None:
         """File path (not directory or module) exits 1."""
-        f = tmp_path / "module.py"
-        f.touch()
-        assert cmd_check(path=str(f)) == 1
+        fpath = tmp_path / "module.py"
+        fpath.touch()
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path=str(fpath))
+        assert exc.value.code == 1
 
     def test_absolute_path_package_outside_cwd(self, tmp_path: Path) -> None:
         """sys.path is fully restored after scanning an absolute package path."""
@@ -155,10 +181,11 @@ class TestCmdCheckScanning:
         (pkg / "__init__.py").write_text('"""Minimal test package with no deprecations."""\n')
 
         original_path = list(sys.path)
-        result = cmd_check(path=str(pkg))
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path=str(pkg))
 
         assert sys.path == original_path
-        assert result == 0
+        assert exc.value.code == 0
 
 
 # ---------------------------------------------------------------------------
@@ -173,20 +200,24 @@ class TestCmdCheck:
     def test_no_recursive_threads_flag(self, mock_find: MagicMock) -> None:
         """recursive=False passes recursive=False to find_deprecation_wrappers."""
         mock_find.return_value = []
-        assert cmd_check(path="some_module", recursive=False) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module", recursive=False)
+        assert exc.value.code == 0
         mock_find.assert_called_once_with("some_module", recursive=False)
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_chain_warning_exits_zero(self, mock_find: MagicMock) -> None:
         """Chains in check subcommand are warnings — do not cause exit 1."""
         mock_find.return_value = [_TARGET_CHAIN]
-        assert cmd_check(path="some_module") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_chain_warning_reported(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Chain issues are included in check output."""
         mock_find.return_value = [_TARGET_CHAIN]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._HAS_RICH", False), pytest.raises(SystemExit):
             cmd_check(path="some_module")
         captured = capsys.readouterr()
         assert "chain" in captured.out.lower()
@@ -195,7 +226,9 @@ class TestCmdCheck:
     def test_invalid_args_exits_one(self, mock_find: MagicMock) -> None:
         """Invalid args still cause exit 1 in check subcommand."""
         mock_find.return_value = [_INVALID_ARGS]
-        assert cmd_check(path="some_module") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 1
 
 
 # ---------------------------------------------------------------------------
@@ -210,26 +243,33 @@ class TestCmdExpiry:
     def test_no_expired_exits_zero(self, mock_expiry: MagicMock) -> None:
         """No expired wrappers → exit 0."""
         mock_expiry.return_value = []
-        assert cmd_expiry(path="some_module", version="1.0") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_expiry(path="some_module", version="1.0")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_expired_found_exits_one(self, mock_expiry: MagicMock) -> None:
         """Expired wrappers found → exit 1."""
         mock_expiry.return_value = [_EXPIRED_MSG]
-        assert cmd_expiry(path="some_module", version="2.0") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_expiry(path="some_module", version="2.0")
+        assert exc.value.code == 1
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_expired_skip_errors_exits_zero(self, mock_expiry: MagicMock) -> None:
         """skip_errors=True overrides exit code to 0 even when expired wrappers found."""
         mock_expiry.return_value = [_EXPIRED_MSG]
-        assert cmd_expiry(path="some_module", version="2.0", skip_errors=True) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_expiry(path="some_module", version="2.0", skip_errors=True)
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_packaging_missing_exits_one(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """ImportError from missing packaging library → install hint on stderr + exit 1."""
         mock_expiry.side_effect = ImportError("No module named 'packaging'", name="packaging")
-        result = cmd_expiry(path="some_module", version="2.0")
-        assert result == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_expiry(path="some_module", version="2.0")
+        assert exc.value.code == 1
         captured = capsys.readouterr()
         assert "pyDeprecate[audit]" in captured.err
 
@@ -237,32 +277,38 @@ class TestCmdExpiry:
     def test_packaging_missing_skip_errors_exits_zero(self, mock_expiry: MagicMock) -> None:
         """ImportError with skip_errors=True → exit 0 (skip_errors overrides all exit-1 conditions)."""
         mock_expiry.side_effect = ImportError("No module named 'packaging'", name="packaging")
-        assert cmd_expiry(path="some_module", version="2.0", skip_errors=True) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_expiry(path="some_module", version="2.0", skip_errors=True)
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_version_passed_through(self, mock_expiry: MagicMock) -> None:
         """Explicit version is forwarded to validate_deprecation_expiry."""
         mock_expiry.return_value = []
-        cmd_expiry(path="some_module", version="3.0")
+        with pytest.raises(SystemExit):
+            cmd_expiry(path="some_module", version="3.0")
         mock_expiry.assert_called_once_with("some_module", "3.0", recursive=True)
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_no_recursive_threads_flag(self, mock_expiry: MagicMock) -> None:
         """recursive=False passes recursive=False to validate_deprecation_expiry."""
         mock_expiry.return_value = []
-        cmd_expiry(path="some_module", version="1.0", recursive=False)
+        with pytest.raises(SystemExit):
+            cmd_expiry(path="some_module", version="1.0", recursive=False)
         mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
         """Plain directory without __init__.py → exit 1 with helpful error."""
         (tmp_path / "module_a.py").touch()
-        assert cmd_expiry(path=str(tmp_path), version="1.0") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_expiry(path=str(tmp_path), version="1.0")
+        assert exc.value.code == 1
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_expired_reported_plain(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Expired messages appear in plain-text output."""
         mock_expiry.return_value = [_EXPIRED_MSG]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._HAS_RICH", False), pytest.raises(SystemExit):
             cmd_expiry(path="some_module", version="2.0")
         captured = capsys.readouterr()
         assert "expired" in captured.out.lower()
@@ -280,37 +326,46 @@ class TestCmdChains:
     def test_no_chains_exits_zero(self, mock_chains: MagicMock) -> None:
         """No chains found → exit 0."""
         mock_chains.return_value = []
-        assert cmd_chains(path="some_module") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_chains(path="some_module")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_chains_found_exits_one(self, mock_chains: MagicMock) -> None:
         """Chains found → exit 1 (user explicitly asked for chain detection)."""
         mock_chains.return_value = [_TARGET_CHAIN]
-        assert cmd_chains(path="some_module") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_chains(path="some_module")
+        assert exc.value.code == 1
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_chains_skip_errors_exits_zero(self, mock_chains: MagicMock) -> None:
         """skip_errors=True overrides exit code to 0 even when chains found."""
         mock_chains.return_value = [_TARGET_CHAIN]
-        assert cmd_chains(path="some_module", skip_errors=True) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_chains(path="some_module", skip_errors=True)
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_no_recursive_threads_flag(self, mock_chains: MagicMock) -> None:
         """recursive=False passes recursive=False to validate_deprecation_chains."""
         mock_chains.return_value = []
-        cmd_chains(path="some_module", recursive=False)
+        with pytest.raises(SystemExit):
+            cmd_chains(path="some_module", recursive=False)
         mock_chains.assert_called_once_with("some_module", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
         """Plain directory without __init__.py → exit 1 with helpful error."""
         (tmp_path / "module_a.py").touch()
-        assert cmd_chains(path=str(tmp_path)) == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_chains(path=str(tmp_path))
+        assert exc.value.code == 1
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_chains_reported_plain(self, mock_chains: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Chain messages appear in plain-text output."""
         mock_chains.return_value = [_TARGET_CHAIN]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._HAS_RICH", False), pytest.raises(SystemExit):
             cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "chain" in captured.out.lower()
@@ -319,7 +374,7 @@ class TestCmdChains:
     def test_stacked_chain_label(self, mock_chains: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """STACKED chain type label appears in plain-text output."""
         mock_chains.return_value = [_STACKED_CHAIN]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._HAS_RICH", False), pytest.raises(SystemExit):
             cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "stacked" in captured.out.lower()
@@ -337,13 +392,17 @@ class TestCmdAll:
     def test_all_clean_exits_zero(self, mock_find: MagicMock) -> None:
         """No issues in any check → exit 0."""
         mock_find.return_value = []
-        assert cmd_all(path="some_module", version="1.0") == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_all(path="some_module", version="1.0")
+        assert exc.value.code == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_invalid_args_exits_one(self, mock_find: MagicMock) -> None:
         """Invalid args in check phase → exit 1."""
         mock_find.return_value = [_INVALID_ARGS]
-        assert cmd_all(path="some_module", version="1.0") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_all(path="some_module", version="1.0")
+        assert exc.value.code == 1
 
     @patch("deprecate.audit._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
@@ -351,13 +410,17 @@ class TestCmdAll:
         """Expired wrappers found → exit 1."""
         mock_find.return_value = [DeprecationWrapperInfo(module="mod", function="fn")]
         mock_expiry.return_value = [_EXPIRED_MSG]
-        assert cmd_all(path="some_module", version="2.0") == 1
+        with pytest.raises(SystemExit) as exc:
+            cmd_all(path="some_module", version="2.0")
+        assert exc.value.code == 1
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_skip_errors_exits_zero(self, mock_find: MagicMock) -> None:
         """skip_errors=True overrides the invalid-args exit 1 to 0."""
         mock_find.return_value = [_INVALID_ARGS]
-        assert cmd_all(path="some_module", version="1.0", skip_errors=True) == 0
+        with pytest.raises(SystemExit) as exc:
+            cmd_all(path="some_module", version="1.0", skip_errors=True)
+        assert exc.value.code == 0
 
     @patch("deprecate.audit._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
@@ -367,9 +430,10 @@ class TestCmdAll:
         """Missing packaging library skips expiry with warning; other checks still run."""
         mock_find.return_value = [DeprecationWrapperInfo(module="mod", function="fn")]
         mock_expiry.side_effect = ImportError("No module named 'packaging'")
-        result = cmd_all(path="some_module", version="2.0")
+        with pytest.raises(SystemExit) as exc:
+            cmd_all(path="some_module", version="2.0")
         # No other errors → exit 0; expiry was skipped gracefully
-        assert result == 0
+        assert exc.value.code == 0
         captured = capsys.readouterr()
         assert "packaging" in captured.err.lower()
 
@@ -378,9 +442,12 @@ class TestCmdAll:
         """When version cannot be auto-detected, expiry is skipped with a message."""
         mock_find.return_value = [DeprecationWrapperInfo(module="mod", function="fn")]
         # Simulate auto-detect failure: _resolve_module_name raises ValueError
-        with patch("deprecate._cli._resolve_module_name", side_effect=ValueError("plain dir")):
-            result = cmd_all(path="some_module")
-        assert result == 0
+        with (
+            patch("deprecate._cli._resolve_module_name", side_effect=ValueError("plain dir")),
+            pytest.raises(SystemExit) as exc,
+        ):
+            cmd_all(path="some_module")
+        assert exc.value.code == 0
         captured = capsys.readouterr()
         assert "version" in captured.err.lower()
 
@@ -388,7 +455,8 @@ class TestCmdAll:
     def test_no_recursive_threads_flag(self, mock_find: MagicMock) -> None:
         """recursive=False passes recursive=False to find_deprecation_wrappers."""
         mock_find.return_value = []
-        cmd_all(path="some_module", version="1.0", recursive=False)
+        with pytest.raises(SystemExit):
+            cmd_all(path="some_module", version="1.0", recursive=False)
         mock_find.assert_called_once_with("some_module", recursive=False)
 
 
@@ -439,6 +507,7 @@ class TestReportExpiry:
         with (
             patch("deprecate._cli.validate_deprecation_expiry", return_value=[_EXPIRED_MSG]),
             patch("deprecate._cli._HAS_RICH", has_rich),
+            pytest.raises(SystemExit),
         ):
             cmd_expiry(path="some_module", version="2.0")
         captured = capsys.readouterr()
@@ -561,7 +630,7 @@ class TestCliEntryPoint:
         """cli() with check subcommand calls cmd_check."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
-            patch("deprecate._cli.cmd_check", return_value=0) as mock_check,
+            patch("deprecate._cli.cmd_check", side_effect=SystemExit(0)) as mock_check,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -572,7 +641,7 @@ class TestCliEntryPoint:
         """cli() with expiry subcommand calls cmd_expiry."""
         with (
             patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--version", "2.0"]),
-            patch("deprecate._cli.cmd_expiry", return_value=0) as mock_expiry,
+            patch("deprecate._cli.cmd_expiry", side_effect=SystemExit(0)) as mock_expiry,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -583,7 +652,7 @@ class TestCliEntryPoint:
         """cli() with chains subcommand calls cmd_chains."""
         with (
             patch("sys.argv", ["pydeprecate", "chains", "some_module"]),
-            patch("deprecate._cli.cmd_chains", return_value=0) as mock_chains,
+            patch("deprecate._cli.cmd_chains", side_effect=SystemExit(0)) as mock_chains,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -594,7 +663,7 @@ class TestCliEntryPoint:
         """cli() with all subcommand calls cmd_all."""
         with (
             patch("sys.argv", ["pydeprecate", "all", "some_module"]),
-            patch("deprecate._cli.cmd_all", return_value=0) as mock_all,
+            patch("deprecate._cli.cmd_all", side_effect=SystemExit(0)) as mock_all,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -602,10 +671,10 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_exit_code_propagated(self) -> None:
-        """cli() propagates the non-zero return code from the subcommand."""
+        """cli() propagates the non-zero exit code from the subcommand."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
-            patch("deprecate._cli.cmd_check", return_value=1),
+            patch("deprecate._cli.cmd_check", side_effect=SystemExit(1)),
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -678,8 +747,9 @@ class TestHasRichFalse:
     def test_check_output_streams(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """``cmd_check()`` prints scanning and no-results messages to stdout when rich is unavailable."""
         mock_find.return_value = []
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert cmd_check(path="some_module") == 0
+        with patch("deprecate._cli._HAS_RICH", False), pytest.raises(SystemExit) as exc:
+            cmd_check(path="some_module")
+        assert exc.value.code == 0
         captured = capsys.readouterr()
         assert "Scanning path" in captured.out
         assert "No deprecated callables found" in captured.out
@@ -695,7 +765,8 @@ class TestHasRichFalse:
         (subdir / "nested.py").touch()
 
         mock_find.return_value = []
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert cmd_check(path=str(tmp_path)) == 0
+        with patch("deprecate._cli._HAS_RICH", False), pytest.raises(SystemExit) as exc:
+            cmd_check(path=str(tmp_path))
+        assert exc.value.code == 0
         captured = capsys.readouterr()
         assert "Skipping nested Python files" in captured.err
