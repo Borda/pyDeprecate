@@ -82,7 +82,7 @@ setup(
     install_requires=[],
     extras_require={
         "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
-        "cli": ["fire"],  # For pydeprecate CLI command
+        "cli": ["fire", "rich"],  # For pydeprecate CLI command and Rich output support
     },
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
     entry_points={
