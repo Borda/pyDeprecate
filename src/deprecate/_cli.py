@@ -656,6 +656,7 @@ def cli() -> None:
             stderr=True,
         )
         sys.exit(1)
+        return  # guard for tests that mock sys.exit
 
     set_parsing_settings(parse_optionals_as_positionals=True)
     try:
