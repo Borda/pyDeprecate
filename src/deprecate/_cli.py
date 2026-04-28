@@ -648,9 +648,17 @@ def cli() -> None:
     """CLI entry point using jsonargparse."""
     try:
         from jsonargparse import auto_cli, set_parsing_settings
+    except ImportError:
+        _print(
+            "The pyDeprecate CLI requires additional dependencies.\n"
+            "Install them with:\n\n"
+            "    pip install 'pyDeprecate[cli]'\n",
+            stderr=True,
+        )
+        sys.exit(1)
 
-        set_parsing_settings(parse_optionals_as_positionals=True)
-
+    set_parsing_settings(parse_optionals_as_positionals=True)
+    try:
         # Backward compat: if no subcommand given, default to the 'check' subcommand.
         # Unknown flags (args[0] starts with '-') are NOT rewritten — let jsonargparse
         # emit a native parse error rather than silently routing e.g. '--version' to
@@ -667,11 +675,5 @@ def cli() -> None:
         )
         if isinstance(result, int):
             sys.exit(result)
-    except ImportError:
-        _print(
-            "The pyDeprecate CLI requires additional dependencies.\n"
-            "Install them with:\n\n"
-            "    pip install 'pyDeprecate[cli]'\n",
-            stderr=True,
-        )
-        sys.exit(1)
+    finally:
+        set_parsing_settings(parse_optionals_as_positionals=False)
