@@ -228,10 +228,10 @@ def _report_no_effect_rich(no_effect: list[DeprecationWrapperInfo]) -> None:
 
 def _report_chains_rich(chains: list[DeprecationWrapperInfo]) -> None:
     """Print a Rich table for deprecated wrappers that form deprecation chains."""
-    table = RichTable(title="Deprecation Chains", box=rich_box.ROUNDED, title_style="bold yellow")
+    table = RichTable(title="Deprecation Chains", box=rich_box.ROUNDED, title_style="bold red")
     table.add_column("Module", style="cyan")
     table.add_column("Function", style="magenta")
-    table.add_column("Chain Type", style="yellow")
+    table.add_column("Chain Type", style="red")
     for r in chains:
         chain_label = r.chain_type.value if r.chain_type is not None else ""
         table.add_row(r.module, r.function, chain_label)
@@ -281,7 +281,7 @@ def _report_no_effect_plain(no_effect: list[DeprecationWrapperInfo]) -> None:
 
 def _report_chains_plain(chains: list[DeprecationWrapperInfo]) -> None:
     """Print plain-text diagnostics for deprecated wrappers forming deprecation chains."""
-    _print("\n[WARNING] Found deprecated wrappers forming deprecation chains:")
+    _print("\n[ERROR] Found deprecated wrappers forming deprecation chains:")
     for r in chains:
         chain_label = r.chain_type.value if r.chain_type is not None else "unknown"
         _print(f"\t- {r.module}.{r.function}: {chain_label} chain")
