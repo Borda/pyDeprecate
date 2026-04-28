@@ -1,6 +1,6 @@
 ---
 id: use-cases
-description: Twelve real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
+description: Thirteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
 ---
 
 # Use Cases
@@ -804,6 +804,13 @@ Quick reference for choosing the right testing tool:
 | `warnings.catch_warnings()` + `simplefilter("ignore")` | Suppress without assertion    | Never fails (use in fixtures) |
 
 Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
+
+## See also
+
+- [Customization](customization.md) — redirect deprecation output to a logger or use a custom message template
+- [void() Helper](void-helper.md) — when and why the deprecated function body should call `void()`
+- [Audit Tools](audit.md) — enforce removal deadlines and detect deprecation chains in CI
+- [Troubleshooting](../troubleshooting.md) — common errors and fixes for `@deprecated` configuration
 
 ______________________________________________________________________
 

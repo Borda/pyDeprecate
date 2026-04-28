@@ -1,7 +1,7 @@
-pytest >6.0
-pytest-cov >2.10
-scikit-learn >=0.17
-phmdoctest >1.0
+pytest >=8.4.2
+pytest-cov >=7.1.0
+scikit-learn >=1.6.1
+phmdoctest >=1.4.0
 dataclasses  # needed for phmdoctest
 
 # Docs extensions
