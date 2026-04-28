@@ -228,7 +228,7 @@ class TestCmdExpiry:
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_packaging_missing_exits_one(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """ImportError from missing packaging library → install hint on stderr + exit 1."""
-        mock_expiry.side_effect = ImportError("No module named 'packaging'")
+        mock_expiry.side_effect = ImportError("No module named 'packaging'", name="packaging")
         result = cmd_expiry(path="some_module", version="2.0")
         assert result == 1
         captured = capsys.readouterr()
@@ -237,7 +237,7 @@ class TestCmdExpiry:
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_packaging_missing_skip_errors_exits_zero(self, mock_expiry: MagicMock) -> None:
         """ImportError with skip_errors=True → exit 0 (skip_errors overrides all exit-1 conditions)."""
-        mock_expiry.side_effect = ImportError("No module named 'packaging'")
+        mock_expiry.side_effect = ImportError("No module named 'packaging'", name="packaging")
         assert cmd_expiry(path="some_module", version="2.0", skip_errors=True) == 0
 
     @patch("deprecate._cli.validate_deprecation_expiry")
