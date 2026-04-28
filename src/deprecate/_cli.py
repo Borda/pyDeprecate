@@ -647,11 +647,13 @@ def cli() -> None:
         set_parsing_settings(parse_optionals_as_positionals=True)
 
         # Backward compat: if no subcommand given, default to the 'check' subcommand.
-        # Only top-level flags (-h / --help) are exempted from the injection; everything
-        # else that is not a known subcommand (including check-owned flags like
-        # --skip_errors) should be routed to 'check'.
+        # Unknown flags (args[0] starts with '-') are NOT rewritten — let jsonargparse
+        # emit a native parse error rather than silently routing e.g. '--version' to
+        # 'check --version', which would error with a confusing "unknown argument" message.
         args = sys.argv[1:]
-        if not args or (args[0] not in _SUBCOMMANDS and args[0] not in _TOP_LEVEL_FLAGS):
+        if not args or (
+            args[0] not in _SUBCOMMANDS and args[0] not in _TOP_LEVEL_FLAGS and not args[0].startswith("-")
+        ):
             args = ["check"] + args
 
         result = auto_cli(
