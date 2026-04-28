@@ -39,8 +39,7 @@ on:
     # rc/dev/post tags that resemble semver (e.g. v1.2.3rc1) may still trigger a build but
     # will be excluded from deployment because they won't match RELEASE_TAG_PATTERN.
     tags:
-      - "v[0-9]*.[0-9]*" # v1.2, v1.2.3 — lowercase v prefix
-      - "V[0-9]*.[0-9]*" # V1.2, V1.2.3 — uppercase V prefix (matches RELEASE_TAG_PATTERN)
+      - "v[0-9]*.[0-9]*" # v1.2, v1.2.3 — optional lowercase v prefix
       - "[0-9]*.[0-9]*" # 1.2, 1.2.3 — no v prefix
   pull_request:
     branches: [main]
@@ -51,9 +50,9 @@ permissions:
 env:
   GH_PAGES_BRANCH: gh-pages
   PYTHON_DEFAULT: "3.13"
-  # Final release tags only — accepts optional 'v'/'V' prefix and two+ numeric segments.
-  # Accepted: v1.2, v1.2.3, 1.2.3, V2.0    Rejected: v1.0.0rc1, 1.2.0.dev1, v1 (one segment), v1.2.3-final
-  RELEASE_TAG_PATTERN: '^[vV]?[0-9]+(\.[0-9]+)+$'
+  # Final release tags only — optional lowercase v prefix, two+ numeric segments.
+  # Accepted: v1.2, v1.2.3, 1.2.3    Rejected: v1.0.0rc1, 1.2.0.dev1, v1 (one segment), v1.2.3-final
+  RELEASE_TAG_PATTERN: '^v?[0-9]+(\.[0-9]+)+$'
 
 jobs:
   resolve-stable-tag:
