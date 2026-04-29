@@ -8,7 +8,7 @@ import pytest
 
 from deprecate._cli import (
     _print,
-    _report_issues,
+    _Reporter,
     cli,
     cmd_all,
     cmd_chains,
@@ -129,12 +129,11 @@ class TestCmdCheckScanning:
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_error_scanning(self, mock_find: MagicMock) -> None:
-        """Scan failure exits with an error message string (truthy → shell exit 1)."""
+        """Scan failure raises; _wrap converts to sys.exit when called via CLI."""
         mock_find.side_effect = Exception("Boom")
 
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(Exception, match="Boom"):
             cmd_check(path="some_module")
-        assert exc.value.code != 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_skip_errors(self, mock_find: MagicMock) -> None:
@@ -145,12 +144,11 @@ class TestCmdCheckScanning:
         assert cmd_check(path="some_module", skip_errors=True) == 0
 
     def test_file_path_rejected(self, tmp_path: Path) -> None:
-        """File path (not directory or module) exits with an error message string (truthy → shell exit 1)."""
+        """File path raises ValueError; _wrap converts to sys.exit when called via CLI."""
         fpath = tmp_path / "module.py"
         fpath.touch()
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(ValueError, match="File paths are not supported"):
             cmd_check(path=str(fpath))
-        assert exc.value.code != 0
 
     def test_absolute_path_package_outside_cwd(self, tmp_path: Path) -> None:
         """sys.path is fully restored after scanning an absolute package path."""
@@ -190,7 +188,7 @@ class TestCmdCheck:
     def test_chain_warning_reported(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Chain issues are included in check output."""
         mock_find.return_value = [_TARGET_CHAIN]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
             cmd_check(path="some_module")
         captured = capsys.readouterr()
         assert "chain" in captured.out.lower()
@@ -264,17 +262,16 @@ class TestCmdExpiry:
         mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
-        """Plain directory without __init__.py → exits with a non-zero error string."""
+        """Plain directory without __init__.py raises ValueError; _wrap converts at CLI boundary."""
         (tmp_path / "module_a.py").touch()
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(ValueError, match="not supported"):
             cmd_expiry(path=str(tmp_path), version="1.0")
-        assert exc.value.code
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_expired_reported_plain(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Expired messages appear in plain-text output."""
         mock_expiry.return_value = [_EXPIRED_MSG]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
             cmd_expiry(path="some_module", version="2.0")
         captured = capsys.readouterr()
         assert "expired" in captured.out.lower()
@@ -341,17 +338,16 @@ class TestCmdChains:
         mock_chains.assert_called_once_with("some_module", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
-        """Plain directory without __init__.py → exits with a non-zero error string."""
+        """Plain directory without __init__.py raises ValueError; _wrap converts at CLI boundary."""
         (tmp_path / "module_a.py").touch()
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(ValueError, match="not supported"):
             cmd_chains(path=str(tmp_path))
-        assert exc.value.code
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_chains_reported_plain(self, mock_chains: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Chain messages appear in plain-text output."""
         mock_chains.return_value = [_TARGET_CHAIN]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
             cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "chain" in captured.out.lower()
@@ -360,7 +356,7 @@ class TestCmdChains:
     def test_stacked_chain_label(self, mock_chains: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """STACKED chain type label appears in plain-text output."""
         mock_chains.return_value = [_STACKED_CHAIN]
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
             cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "stacked" in captured.out.lower()
@@ -494,8 +490,8 @@ class TestReportChains:
     ) -> None:
         """Chain type label appears in both rich and plain output."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", chain_type=chain_type)]
-        with patch("deprecate._cli._HAS_RICH", has_rich):
-            assert _report_issues(results) is True
+        with patch("deprecate._cli._Reporter._HAS_RICH", has_rich):
+            assert _Reporter.issues(results) is True
         captured = capsys.readouterr()
         assert expected_label in captured.out.lower()
 
@@ -503,8 +499,8 @@ class TestReportChains:
     def test_chains_flag_true(self, has_rich: bool) -> None:
         """_report_issues returns True when chains are present."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", chain_type=ChainType.TARGET)]
-        with patch("deprecate._cli._HAS_RICH", has_rich):
-            assert _report_issues(results) is True
+        with patch("deprecate._cli._Reporter._HAS_RICH", has_rich):
+            assert _Reporter.issues(results) is True
 
 
 class TestReportExpiry:
@@ -515,7 +511,7 @@ class TestReportExpiry:
         """Expired message text appears in both rich and plain output via cmd_expiry."""
         with (
             patch("deprecate._cli.validate_deprecation_expiry", return_value=[_EXPIRED_MSG]),
-            patch("deprecate._cli._HAS_RICH", has_rich),
+            patch("deprecate._cli._Reporter._HAS_RICH", has_rich),
         ):
             cmd_expiry(path="some_module", version="2.0")
         captured = capsys.readouterr()
@@ -578,14 +574,14 @@ class TestReportIssues:
     )
     def test_flag(self, results: list, expected: bool, has_rich: bool) -> None:
         """_report_issues returns the correct has-issues flag for both rich and plain paths."""
-        with patch("deprecate._cli._HAS_RICH", has_rich):
-            assert _report_issues(results) is expected
+        with patch("deprecate._cli._Reporter._HAS_RICH", has_rich):
+            assert _Reporter.issues(results) is expected
 
     @pytest.mark.parametrize(
         ("has_rich", "expected_present", "expected_absent"),
         [
             pytest.param(True, "Self reference", "All identity mappings", id="rich"),
-            pytest.param(False, "Reason: Self reference", "Reason: All identity mappings", id="plain"),
+            pytest.param(False, "Self reference", "All identity mappings", id="plain"),
         ],
     )
     def test_partial_identity_with_self_reference(
@@ -602,8 +598,8 @@ class TestReportIssues:
                 no_effect=True,
             )
         ]
-        with patch("deprecate._cli._HAS_RICH", has_rich):
-            assert _report_issues(results) is True
+        with patch("deprecate._cli._Reporter._HAS_RICH", has_rich):
+            assert _Reporter.issues(results) is True
         captured = capsys.readouterr()
         assert expected_present in captured.out
         assert expected_absent not in captured.out
@@ -612,7 +608,7 @@ class TestReportIssues:
 def test_report_issues_dispatches() -> None:
     """Test _report_issues dispatches based on _HAS_RICH."""
     results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
-    assert _report_issues(results) is True
+    assert _Reporter.issues(results) is True
 
 
 # ---------------------------------------------------------------------------
@@ -740,22 +736,22 @@ class TestHasRichFalse:
     )
     def test_print_routes_to_builtin_print(self, capsys: pytest.CaptureFixture[str], stderr: bool, stream: str) -> None:
         """``_print()`` falls back to built-in ``print()`` when rich is unavailable."""
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
             _print("hello", stderr=stderr)
         captured = capsys.readouterr()
         assert "hello" in getattr(captured, stream)
 
     def test_report_issues_dispatches_to_plain(self) -> None:
-        """``_report_issues()`` delegates to the plain reporter when rich is unavailable."""
+        """``_Reporter.issues()`` delegates to the plain reporter when rich is unavailable."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
-        with patch("deprecate._cli._HAS_RICH", False):
-            assert _report_issues(results) is True
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
+            assert _Reporter.issues(results) is True
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_check_output_streams(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """``cmd_check()`` prints scanning and no-results messages to stdout when rich is unavailable."""
         mock_find.return_value = []
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
             assert cmd_check(path="some_module") == 0
         captured = capsys.readouterr()
         assert "Scanning path" in captured.out
@@ -772,7 +768,7 @@ class TestHasRichFalse:
         (subdir / "nested.py").touch()
 
         mock_find.return_value = []
-        with patch("deprecate._cli._HAS_RICH", False):
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
             assert cmd_check(path=str(tmp_path)) == 0
         captured = capsys.readouterr()
         assert "Skipping nested Python files" in captured.err
