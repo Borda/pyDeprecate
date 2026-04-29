@@ -108,88 +108,28 @@ results = find_deprecation_wrappers(my_package)
 # Or scan using a string module path
 results = find_deprecation_wrappers("tests.collection_deprecate")
 
-# Check results - each item is a DeprecationWrapperInfo dataclass
-for r in results:
+# Filter to only ineffective wrappers
+ineffective = [r for r in results if r.no_effect]
+print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
+
+# Check some results - each item is a DeprecationWrapperInfo dataclass
+for r in results[:5]:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
         print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
-
-# Filter to only ineffective wrappers
-ineffective = [r for r in results if r.no_effect]
-if ineffective:
-    print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
 ```
 
 <details>
   <summary>Output: <code>print(f"Found {len(ineffective)</code></summary>
 
 ```
+Found 0 deprecated wrappers with zero impact!
 tests.collection_deprecate.ChainedProxyColorEnum: no_effect=False
 tests.collection_deprecate.DecoratedDataClass: no_effect=False
 tests.collection_deprecate.DecoratedEnum: no_effect=False
 tests.collection_deprecate.DeprecatedColorDataClass: no_effect=False
 tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
-tests.collection_deprecate.DeprecatedDataClass: no_effect=False
-tests.collection_deprecate.DeprecatedEnum: no_effect=False
-tests.collection_deprecate.DeprecatedIntEnum: no_effect=False
-tests.collection_deprecate.MappedColorEnum: no_effect=False
-tests.collection_deprecate.MappedDataClass: no_effect=False
-tests.collection_deprecate.MappedDropArgDataClass: no_effect=False
-tests.collection_deprecate.MappedEnum: no_effect=False
-tests.collection_deprecate.MappedIntEnum: no_effect=False
-tests.collection_deprecate.MappedValueEnum: no_effect=False
-tests.collection_deprecate.RedirectedDataClass: no_effect=False
-tests.collection_deprecate.RedirectedEnum: no_effect=False
-tests.collection_deprecate.SelfMappedEnum: no_effect=False
-tests.collection_deprecate.WarnOnlyColorEnum: no_effect=False
-tests.collection_deprecate.WrappedDataClass: no_effect=False
-tests.collection_deprecate.WrappedEnum: no_effect=False
-tests.collection_deprecate.decorated_pow_self: no_effect=False
-tests.collection_deprecate.decorated_pow_skip_if_func: no_effect=False
-tests.collection_deprecate.decorated_pow_skip_if_true: no_effect=False
-tests.collection_deprecate.decorated_sum: no_effect=False
-tests.collection_deprecate.decorated_sum_calls_2: no_effect=False
-tests.collection_deprecate.decorated_sum_calls_inf: no_effect=False
-tests.collection_deprecate.decorated_sum_msg: no_effect=False
-tests.collection_deprecate.decorated_sum_no_stream: no_effect=False
-tests.collection_deprecate.decorated_sum_warn_only: no_effect=False
-tests.collection_deprecate.depr_accuracy_extra: no_effect=False
-tests.collection_deprecate.depr_accuracy_map: no_effect=False
-tests.collection_deprecate.depr_accuracy_skip: no_effect=False
-tests.collection_deprecate.depr_accuracy_target: no_effect=False
-tests.collection_deprecate.depr_class_args_only_mode_warns_on_deprecated_arg: no_effect=False
-tests.collection_deprecate.depr_class_whole_mode_warns_on_call: no_effect=False
-tests.collection_deprecate.depr_config_dict: no_effect=False
-tests.collection_deprecate.depr_config_dict_read_only: no_effect=False
-tests.collection_deprecate.depr_func_no_remove_in: no_effect=False
-tests.collection_deprecate.depr_func_targeting_proxy: no_effect=False
-tests.collection_deprecate.depr_make_new_cls: no_effect=False
-tests.collection_deprecate.depr_make_new_cls_mapped: no_effect=False
-tests.collection_deprecate.depr_pow_args: no_effect=False
-tests.collection_deprecate.depr_pow_mix: no_effect=False
-tests.collection_deprecate.depr_pow_self_double: no_effect=False
-tests.collection_deprecate.depr_pow_self_twice: no_effect=False
-tests.collection_deprecate.depr_pow_skip_if_false_true: no_effect=False
-tests.collection_deprecate.depr_pow_skip_if_func_int: no_effect=False
-tests.collection_deprecate.depr_pow_skip_if_true_false: no_effect=False
-tests.collection_deprecate.depr_pow_wrong: no_effect=False
-tests.collection_deprecate.depr_target_mode_args_only_remaps_kwargs: no_effect=False
-tests.collection_deprecate.depr_target_mode_args_only_silent_when_new_arg_passed: no_effect=False
-tests.collection_deprecate.depr_target_mode_args_only_warns_when_old_arg_passed: no_effect=False
-tests.collection_deprecate.depr_target_mode_args_only_with_args_extra_injects_kwargs: no_effect=False
-tests.collection_deprecate.depr_target_mode_whole_executes_original_body: no_effect=False
-tests.collection_deprecate.depr_target_mode_whole_warns_on_every_call: no_effect=False
-tests.collection_deprecate.depr_timing_wrapper: no_effect=False
-tests.collection_deprecate.wrapped_pow_self: no_effect=False
-tests.collection_deprecate.wrapped_pow_skip_if_func: no_effect=False
-tests.collection_deprecate.wrapped_pow_skip_if_true: no_effect=False
-tests.collection_deprecate.wrapped_sum: no_effect=False
-tests.collection_deprecate.wrapped_sum_calls_2: no_effect=False
-tests.collection_deprecate.wrapped_sum_calls_inf: no_effect=False
-tests.collection_deprecate.wrapped_sum_msg: no_effect=False
-tests.collection_deprecate.wrapped_sum_no_stream: no_effect=False
-tests.collection_deprecate.wrapped_sum_warn_only: no_effect=False
 ```
 
 </details>
