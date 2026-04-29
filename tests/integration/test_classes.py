@@ -9,8 +9,6 @@ from deprecate import assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
-    depr_class_args_only_mode_warns_on_deprecated_arg,
-    depr_class_whole_mode_warns_on_call,
     DecoratedDataClass,
     DecoratedEnum,
     DeprecatedDataClass,
@@ -28,6 +26,8 @@ from tests.collection_deprecate import (
     ThisCls,
     WrappedDataClass,
     WrappedEnum,
+    depr_class_args_only_mode_warns_on_deprecated_arg,
+    depr_class_whole_mode_warns_on_call,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
 
@@ -273,14 +273,12 @@ class TestDeprecatedClassMethod:
 
     def test_whole_mode_warns_on_call(self) -> None:
         """TargetMode.WHOLE emits FutureWarning on every call; body executes unchanged."""
-
         with pytest.warns(FutureWarning):
             result = depr_class_whole_mode_warns_on_call(5)
         assert result == 10
 
     def test_args_only_mode_warns_on_deprecated_arg(self) -> None:
         """TargetMode.ARGS_ONLY warns when old arg used; silent when new arg used."""
-
         with pytest.warns(FutureWarning):
             result = depr_class_args_only_mode_warns_on_deprecated_arg(old_x=5)
         assert result == 10
