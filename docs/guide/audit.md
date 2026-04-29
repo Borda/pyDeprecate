@@ -85,8 +85,8 @@ if result.no_effect:
   <summary>Output: <code>print("Warning: This wrapper configuration has zero impact!")</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=True, args_mapping={'nonexistent': 'new_arg'}, docstring_style='rst'), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, chain_type=None)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=True, args_mapping={}, docstring_style='rst'), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, chain_type=None)
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=True, args_mapping={'nonexistent': 'new_arg'}, docstring_style='rst'), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, all_identity=False, chain_type=None)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=True, args_mapping={}, docstring_style='rst'), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, all_identity=False, chain_type=None)
 Warning: This wrapper configuration has zero impact!
 ```
 
