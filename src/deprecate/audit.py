@@ -138,6 +138,7 @@ class DeprecationWrapperInfo:
         identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
         self_reference: True if target points to the same wrapper.
         no_effect: True if wrapper has zero impact (combines all checks).
+        all_identity: True when every configured mapping is an identity mapping (key == value, non-empty).
         chain_type: The kind of deprecation chain detected, or ``None`` if no chain.
             See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
 
@@ -164,6 +165,7 @@ class DeprecationWrapperInfo:
     identity_mapping: list[str] = field(default_factory=list)
     self_reference: bool = False
     no_effect: bool = False
+    all_identity: bool = False
     chain_type: Optional[ChainType] = None
 
 
@@ -312,6 +314,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         identity_mapping=identity_mapping,
         self_reference=self_reference,
         no_effect=no_effect,
+        all_identity=all_identity,
         chain_type=chain_type,
     )
 
@@ -412,6 +415,40 @@ def _get_package_version(package_name: str) -> str:
     )
 
 
+def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_version: str) -> list[str]:
+    """Apply expiry comparison to pre-scanned wrapper results.
+
+    Shared implementation used by :func:`validate_deprecation_expiry` and the CLI's
+    single-scan path. Keeps the error message format in one place.
+
+    Args:
+        results: Pre-scanned wrapper info list.
+        current_version: Current package version string for comparison (PEP 440).
+
+    Returns:
+        List of expiry error messages for callables that have passed their removal deadline.
+
+    Raises:
+        ImportError: If the ``packaging`` library is not installed.
+    """
+    current_ver = _parse_version(current_version)
+    expired = []
+    for info in results:
+        remove_in = info.deprecated_info.remove_in
+        if not remove_in:
+            continue
+        try:
+            remove_ver = _parse_version(remove_in)
+        except ValueError:
+            continue
+        if current_ver >= remove_ver:
+            expired.append(
+                f"Callable `{info.function}` was scheduled for removal in version {remove_in}"
+                f" but still exists in version {current_version}. Please delete this deprecated code."
+            )
+    return expired
+
+
 def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
@@ -478,10 +515,9 @@ def validate_deprecation_expiry(
         package_name = module_name.split(".")[0]
         current_version = _get_package_version(package_name)
 
-    # Validate and parse current_version once upfront to provide fail-fast feedback
-    # and avoid repeated parsing. Let ImportError propagate with install hint.
+    # Validate current_version upfront for fail-fast feedback before the module scan.
     try:
-        current_ver = _parse_version(current_version)
+        _parse_version(current_version)
     except ValueError as err:
         raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
 
@@ -489,34 +525,7 @@ def validate_deprecation_expiry(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    # Find all deprecated wrappers in the module
-    deprecated_callables = find_deprecation_wrappers(module, recursive=recursive)
-
-    expired_callables = []
-
-    # Check each deprecated callable for expiry
-    for info in deprecated_callables:
-        # Skip if no remove_in specified (warning-only deprecation)
-        remove_in = info.deprecated_info.remove_in
-        if not remove_in:
-            continue
-
-        # Parse remove_in version and compare with pre-parsed current_version
-        try:
-            remove_ver = _parse_version(remove_in)
-        except ValueError:
-            # Version parsing failed for remove_in
-            # Silently skip this callable - it has invalid version format
-            continue
-
-        # Check if the current version has reached or passed the removal deadline
-        if current_ver >= remove_ver:
-            expired_callables.append(
-                f"Callable `{info.function}` was scheduled for removal in version {remove_in}"
-                f" but still exists in version {current_version}. Please delete this deprecated code."
-            )
-
-    return expired_callables
+    return _check_expiry_for_callables(find_deprecation_wrappers(module, recursive=recursive), current_version)
 
 
 def find_deprecation_wrappers(

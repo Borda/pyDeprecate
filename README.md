@@ -1138,19 +1138,27 @@ print(f"Self-references: {len(self_refs)}")
 
 You can also use the CLI to validate your deprecations directly from the command line.
 
-First, install the required optional dependencies:
+The CLI has four subcommands.
 
 ```bash
-pip install 'pyDeprecate[cli]'
+# check — wrapper config + deprecated-to-deprecated chains (default)
+pydeprecate check path/to/your/package
+pydeprecate path/to/your/package          # equivalent shorthand
+
+# expiry — wrappers past their remove_in deadline
+# requires: pip install 'pyDeprecate[audit]'
+pydeprecate expiry path/to/your/package --version 2.0.0
+pydeprecate expiry path/to/your/package   # auto-detects version from the package
+
+# chains — deprecated-to-deprecated forwarding chains only
+pydeprecate chains path/to/your/package
+
+# all — single scan running check + expiry + chains together
+pydeprecate all path/to/your/package --version 2.0.0
 ```
 
-Then scan any package or module:
-
-```bash
-pydeprecate path/to/your/package
-```
-
-This will scan the specified package and report any issues found, such as invalid argument mappings or wrappers with no effect.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
+`expiry` and `all` also accept `--version VERSION` to set the current version explicitly.
 
 </details>
 

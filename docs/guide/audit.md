@@ -85,8 +85,8 @@ if result.no_effect:
   <summary>Output: <code>print("Warning: This wrapper configuration has zero impact!")</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=True, args_mapping={'nonexistent': 'new_arg'}, docstring_style='rst'), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, chain_type=None)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=True, args_mapping={}, docstring_style='rst'), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, chain_type=None)
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=True, args_mapping={'nonexistent': 'new_arg'}, docstring_style='rst'), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, all_identity=False, chain_type=None)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=True, args_mapping={}, docstring_style='rst'), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, all_identity=False, chain_type=None)
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -221,23 +221,7 @@ Self-references: 0
 
 ### CLI usage
 
-Install the optional CLI extra and scan any package from the command line without writing a script:
-
-```bash
-pip install 'pyDeprecate[cli]'
-pydeprecate path/to/your/package
-```
-
-The CLI reports invalid argument mappings and wrappers with no effect, making it straightforward to add a validation step to a `Makefile` or pre-commit hook.
-
-**Exit codes:**
-
-| Exit code | Meaning                                                                     |
-| --------- | --------------------------------------------------------------------------- |
-| `0`       | No issues found (or only advisory notes like identity mappings)             |
-| `1`       | Invalid argument mappings detected (hard errors that break call forwarding) |
-
-Use `--skip-errors` to always exit `0` even when issues are found — useful for advisory-only CI steps where you want visibility without blocking the pipeline.
+All audit functions are also available from the command line via four subcommands (`check`, `expiry`, `chains`, `all`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
 
 ### pytest integration
 
@@ -479,27 +463,30 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
 !!! info "Coming soon"
 
-    Native pre-commit hook support is planned. For now, run the validator directly via `python -m deprecate` in your `Makefile` or CI step.
+    Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
 
-The CLI checks for misconfigured wrappers only — invalid `args_mapping` keys, identity mappings, self-references:
+The CLI provides four subcommands. Use `check` for wrapper config validation or `all` to run every check in a single pass. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
 ```bash
-# Install the CLI extra
-pip install 'pyDeprecate[cli]'
+# Install CLI + audit extras (audit needed for expiry checks)
+pip install 'pyDeprecate[audit,cli]'
 
-# Scan your package — exits 1 if invalid arg mappings are found
-python -m deprecate src/your_package
+# check — exits 1 if invalid arg mappings are found
+pydeprecate check src/your_package
+
+# all — exits 1 on invalid mappings, chains, or expired wrappers
+pydeprecate all src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
-python -m deprecate src/your_package --skip_errors true
+pydeprecate check src/your_package --skip_errors true
 ```
 
-**Exit codes:**
+**Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
 
-| Exit code | Meaning                                                          |
-| --------- | ---------------------------------------------------------------- |
-| `0`       | No issues found (or `--skip_errors true` was set)                |
-| `1`       | Invalid argument mappings detected — these break call forwarding |
+| Exit code | Meaning                                                             |
+| --------- | ------------------------------------------------------------------- |
+| `0`       | No hard errors (or `--skip_errors true` was set)                    |
+| `1`       | Hard error found: invalid arg mappings, chains, or expired wrappers |
 
 ## Testing Deprecated Code
 
