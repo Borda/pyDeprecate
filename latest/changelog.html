@@ -94,7 +94,7 @@
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
   "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] },
-  "dateModified": "2026-04-28"
+  "dateModified": "2026-04-29"
 }
 </script>
 
@@ -456,6 +456,34 @@
     
   
     Audit Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
   
 
     
@@ -1596,7 +1624,10 @@
 <p><strong>Multi-page topic documentation site.</strong> Replaced the monolithic README-copy home page with a curated 7-page MkDocs Material site: Home, Getting Started, User Guide (Use Cases / void() Helper / Audit Tools), Troubleshooting, and demo links. Switched theme to Material, added Open Graph tags, JSON-LD structured data (SoftwareApplication / FAQPage / TechArticle per page), spec-compliant <code>llms.txt</code>, and <code>git-revision-date-localized</code> plugin. README is unchanged (still the PyPI cover page).</p>
 </li>
 <li>
-<p><strong><code>pydeprecate</code> CLI command.</strong> Install with <code>pip install 'pyDeprecate[cli]'</code> then run <code>pydeprecate path/to/your/package</code> to scan any package or module for misconfigured <code>@deprecated</code> wrappers — reports invalid argument mappings, identity mappings, and no-effect wrappers with rich-formatted output when <code>rich</code> is available. Also available as <code>python -m deprecate</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/76">#76</a>)</p>
+<p><strong><code>pydeprecate</code> CLI command.</strong> Run <code>pydeprecate &lt;subcommand&gt; path/to/your/package</code> to scan any package or module for misconfigured <code>@deprecated</code> wrappers — reports invalid argument mappings, identity mappings, and no-effect wrappers with rich-formatted output when <code>rich</code> is available. Also available as <code>python -m deprecate</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/76">#76</a>)</p>
+</li>
+<li>
+<p><strong>Four CLI subcommands: <code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>.</strong> <code>check</code> validates wrapper configuration; <code>expiry</code> reports wrappers past their <code>remove_in</code> deadline (requires <code>pip install 'pyDeprecate[audit]'</code>); <code>chains</code> detects deprecated-to-deprecated forwarding chains; <code>all</code> runs all three in a single scan pass. Flags: <code>--norecursive</code>, <code>--skip_errors</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/149">#149</a>)</p>
 </li>
 </ul>
 <hr />
@@ -1754,7 +1785,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 28, 2026 10:19:54 UTC">2026-04-28</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 29, 2026 09:44:56 UTC">2026-04-29</span>
   </span>
 
     

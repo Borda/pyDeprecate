@@ -16,7 +16,7 @@
         <link rel="prev" href="void-helper.html">
       
       
-        <link rel="next" href="customization.html">
+        <link rel="next" href="cli.html">
       
       
         
@@ -94,7 +94,7 @@
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
   "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] },
-  "dateModified": "2026-04-22"
+  "dateModified": "2026-04-29"
 }
 </script>
 
@@ -703,6 +703,34 @@
   
   
     <li class="md-nav__item">
+      <a href="cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="customization.html" class="md-nav__link">
         
   
@@ -1189,8 +1217,8 @@
 <details>
   <summary>Output: <code>print("Warning: This wrapper configuration has zero impact!")</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;bad_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;bad_func&#39;, target=True, args_mapping={&#39;nonexistent&#39;: &#39;new_arg&#39;}, docstring_style=&#39;rst&#39;), invalid_args=[&#39;nonexistent&#39;], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, chain_type=None)
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;empty_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;empty_func&#39;, target=True, args_mapping={}, docstring_style=&#39;rst&#39;), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, chain_type=None)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;bad_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;bad_func&#39;, target=True, args_mapping={&#39;nonexistent&#39;: &#39;new_arg&#39;}, docstring_style=&#39;rst&#39;), invalid_args=[&#39;nonexistent&#39;], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, all_identity=False, chain_type=None)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;empty_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;empty_func&#39;, target=True, args_mapping={}, docstring_style=&#39;rst&#39;), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, all_identity=False, chain_type=None)
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Warning: This wrapper configuration has zero impact!
 </code></pre></div>
 
@@ -1315,97 +1343,73 @@
 </details>
 
 <h3 id="cli-usage">CLI usage<a class="headerlink" href="#cli-usage" title="Permanent link">🔗</a></h3>
-<p>Install the optional CLI extra and scan any package from the command line without writing a script:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[cli]&#39;</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pydeprecate<span class="w"> </span>path/to/your/package
-</code></pre></div>
-<p>The CLI reports invalid argument mappings and wrappers with no effect, making it straightforward to add a validation step to a <code>Makefile</code> or pre-commit hook.</p>
-<p><strong>Exit codes:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Exit code</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>0</code></td>
-<td>No issues found (or only advisory notes like identity mappings)</td>
-</tr>
-<tr>
-<td><code>1</code></td>
-<td>Invalid argument mappings detected (hard errors that break call forwarding)</td>
-</tr>
-</tbody>
-</table>
-<p>Use <code>--skip-errors</code> to always exit <code>0</code> even when issues are found — useful for advisory-only CI steps where you want visibility without blocking the pipeline.</p>
+<p>All audit functions are also available from the command line via four subcommands (<code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>). See the <a href="cli.html">CLI Reference</a> for the full guide including flags, exit codes, and CI recipes.</p>
 <h3 id="pytest-integration">pytest integration<a class="headerlink" href="#pytest-integration" title="Permanent link">🔗</a></h3>
 <p>Add a test that fails the suite when any deprecated wrapper has an invalid configuration. Wrong argument names are hard errors; identity mappings are worth a warning.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_deprecated_wrappers_are_valid</span><span class="p">():</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate all deprecated wrappers have proper configuration.&quot;&quot;&quot;</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="n">results</span> <span class="o">=</span> <span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    <span class="c1"># Collect issues — wrong arg names are errors, identity mappings are worth a warning</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="n">wrong_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">invalid_args</span><span class="p">]</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="n">identity_mappings</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">identity_mapping</span><span class="p">]</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>    <span class="c1"># Raise errors for wrong arguments (critical issues)</span>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>    <span class="k">if</span> <span class="n">wrong_args</span><span class="p">:</span>
-<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">wrong_args</span><span class="p">:</span>
-<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ERROR: </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">function</span><span class="si">}</span><span class="s2"> has invalid args: </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">invalid_args</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>        <span class="n">pytest</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">wrong_args</span><span class="p">)</span><span class="si">}</span><span class="s2"> deprecated wrappers with invalid arguments&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
-<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>    <span class="c1"># Warn for identity mappings (less severe)</span>
-<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">identity_mappings</span><span class="p">:</span>
-<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">function</span><span class="si">}</span><span class="s2"> has identity mapping&quot;</span><span class="p">,</span> <span class="ne">UserWarning</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_deprecated_wrappers_are_valid</span><span class="p">():</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate all deprecated wrappers have proper configuration.&quot;&quot;&quot;</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="n">results</span> <span class="o">=</span> <span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    <span class="c1"># Collect issues — wrong arg names are errors, identity mappings are worth a warning</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    <span class="n">wrong_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">invalid_args</span><span class="p">]</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="n">identity_mappings</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">identity_mapping</span><span class="p">]</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>    <span class="c1"># Raise errors for wrong arguments (critical issues)</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>    <span class="k">if</span> <span class="n">wrong_args</span><span class="p">:</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">wrong_args</span><span class="p">:</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ERROR: </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">function</span><span class="si">}</span><span class="s2"> has invalid args: </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">invalid_args</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>        <span class="n">pytest</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">wrong_args</span><span class="p">)</span><span class="si">}</span><span class="s2"> deprecated wrappers with invalid arguments&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>    <span class="c1"># Warn for identity mappings (less severe)</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">identity_mappings</span><span class="p">:</span>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">function</span><span class="si">}</span><span class="s2"> has identity mapping&quot;</span><span class="p">,</span> <span class="ne">UserWarning</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="enforcing-removal-deadlines">Enforcing Removal Deadlines<a class="headerlink" href="#enforcing-removal-deadlines" title="Permanent link">🔗</a></h2>
 <p>When you set <code>remove_in</code>, you are committing to delete that code when the version ships. Without automation, it is easy to forget — leaving zombie code that lingers past its deadline. <code>validate_deprecation_expiry()</code> scans a module or package and returns a list of error messages for every deprecated callable whose <code>remove_in</code> version has passed. An empty list means everything is clean.</p>
 <p>The <code>audit</code> install extra is required because this utility depends on <code>packaging</code> for PEP 440 version comparison:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[audit]&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[audit]&#39;</span>
 </code></pre></div>
 <p>Scan a package and control recursion depth:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1"># Scan your package for expired deprecations - using early-version that won&#39;t have expirations</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.2&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>  <span class="c1"># Returns a list of error messages (empty list = no expired)</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># Example with expired deprecations found (using later-version)</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="c1"># Auto-detect version from package metadata (mocked for demo)</span>
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="kn">from</span><span class="w"> </span><span class="nn">unittest.mock</span><span class="w"> </span><span class="kn">import</span> <span class="n">patch</span>
-<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
-<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="k">with</span> <span class="n">patch</span><span class="p">(</span><span class="s2">&quot;importlib.metadata.version&quot;</span><span class="p">,</span> <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">):</span>
-<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>    <span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>  <span class="c1"># Automatically detects version</span>
-<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>
-<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="c1"># Control recursion</span>
-<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.1&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># Only scan top-level module</span>
-<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># Scan your package for expired deprecations - using early-version that won&#39;t have expirations</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.2&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>  <span class="c1"># Returns a list of error messages (empty list = no expired)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Example with expired deprecations found (using later-version)</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="c1"># Auto-detect version from package metadata (mocked for demo)</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="kn">from</span><span class="w"> </span><span class="nn">unittest.mock</span><span class="w"> </span><span class="kn">import</span> <span class="n">patch</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="k">with</span> <span class="n">patch</span><span class="p">(</span><span class="s2">&quot;importlib.metadata.version&quot;</span><span class="p">,</span> <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">):</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>    <span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>  <span class="c1"># Automatically detects version</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="c1"># Control recursion</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.1&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># Only scan top-level module</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>print(f"Found {len(expired)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Found 14 expired
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Found 28 expired
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Found 17 expired
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>Found 0 expired
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Found 14 expired
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Found 28 expired
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>Found 17 expired
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>Found 0 expired
 </code></pre></div>
 
 </details>
@@ -1419,41 +1423,41 @@
 </ul>
 <h3 id="pytest-integration-for-expiry-enforcement">pytest integration for expiry enforcement<a class="headerlink" href="#pytest-integration-for-expiry-enforcement" title="Permanent link">🔗</a></h3>
 <p>Wire expiry checks into your test suite so zombie code is caught before any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_no_zombie_deprecations</span><span class="p">():</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure all deprecated code is removed when it reaches its deadline.&quot;&quot;&quot;</span>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    <span class="c1"># Use your package&#39;s actual version - for this example we use a test version</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>    <span class="n">current_version</span> <span class="o">=</span> <span class="s2">&quot;0.5&quot;</span>  <span class="c1"># Replace with: from mypackage import __version__</span>
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>    <span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="p">)</span>
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>    <span class="k">if</span> <span class="n">expired</span><span class="p">:</span>
-<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>        <span class="n">error_msg</span> <span class="o">=</span> <span class="s2">&quot;Found deprecated code past its removal deadline:</span><span class="se">\n</span><span class="s2">&quot;</span>
-<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>        <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">expired</span><span class="p">:</span>
-<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>            <span class="n">error_msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  - </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>        <span class="n">pytest</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="n">error_msg</span><span class="p">)</span>
-<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a>
-<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a>
-<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="c1"># Alternative: Use a fixture to run on every test session</span>
-<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
-<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;session&quot;</span><span class="p">,</span> <span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a><span class="k">def</span><span class="w"> </span><span class="nf">enforce_deprecation_deadlines</span><span class="p">():</span>
-<a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Automatically check for zombie code before running any tests.&quot;&quot;&quot;</span>
-<a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a>
-<a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a>    <span class="n">current_version</span> <span class="o">=</span> <span class="s2">&quot;0.5&quot;</span>  <span class="c1"># Replace with: from mypackage import __version__</span>
-<a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a>    <span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="p">)</span>
-<a id="__codelineno-11-31" name="__codelineno-11-31" href="#__codelineno-11-31"></a>    <span class="k">if</span> <span class="n">expired</span><span class="p">:</span>
-<a id="__codelineno-11-32" name="__codelineno-11-32" href="#__codelineno-11-32"></a>        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
-<a id="__codelineno-11-33" name="__codelineno-11-33" href="#__codelineno-11-33"></a>            <span class="sa">f</span><span class="s2">&quot;Cannot run tests: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> deprecated callables past removal deadline. &quot;</span>
-<a id="__codelineno-11-34" name="__codelineno-11-34" href="#__codelineno-11-34"></a>            <span class="sa">f</span><span class="s2">&quot;Remove these functions first: </span><span class="si">{</span><span class="n">expired</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-11-35" name="__codelineno-11-35" href="#__codelineno-11-35"></a>        <span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_no_zombie_deprecations</span><span class="p">():</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure all deprecated code is removed when it reaches its deadline.&quot;&quot;&quot;</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="c1"># Use your package&#39;s actual version - for this example we use a test version</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="n">current_version</span> <span class="o">=</span> <span class="s2">&quot;0.5&quot;</span>  <span class="c1"># Replace with: from mypackage import __version__</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    <span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="p">)</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>    <span class="k">if</span> <span class="n">expired</span><span class="p">:</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>        <span class="n">error_msg</span> <span class="o">=</span> <span class="s2">&quot;Found deprecated code past its removal deadline:</span><span class="se">\n</span><span class="s2">&quot;</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>        <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">expired</span><span class="p">:</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>            <span class="n">error_msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  - </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>        <span class="n">pytest</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="n">error_msg</span><span class="p">)</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a><span class="c1"># Alternative: Use a fixture to run on every test session</span>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;session&quot;</span><span class="p">,</span> <span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="k">def</span><span class="w"> </span><span class="nf">enforce_deprecation_deadlines</span><span class="p">():</span>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Automatically check for zombie code before running any tests.&quot;&quot;&quot;</span>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a>    <span class="n">current_version</span> <span class="o">=</span> <span class="s2">&quot;0.5&quot;</span>  <span class="c1"># Replace with: from mypackage import __version__</span>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a>    <span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="p">)</span>
+<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>    <span class="k">if</span> <span class="n">expired</span><span class="p">:</span>
+<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a>        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a>            <span class="sa">f</span><span class="s2">&quot;Cannot run tests: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> deprecated callables past removal deadline. &quot;</span>
+<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a>            <span class="sa">f</span><span class="s2">&quot;Remove these functions first: </span><span class="si">{</span><span class="n">expired</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a>        <span class="p">)</span>
 </code></pre></div>
 <h2 id="detecting-deprecation-chains">Detecting Deprecation Chains<a class="headerlink" href="#detecting-deprecation-chains" title="Permanent link">🔗</a></h2>
 <p>A deprecated wrapper whose <code>target</code> is itself another deprecated function creates a chain: callers get two deprecation notices instead of one, and the intermediate hop adds no value. <code>validate_deprecation_chains()</code> scans a module or package for exactly this pattern using purely metadata-based detection — no source-code inspection required.</p>
@@ -1463,107 +1467,110 @@
 <li><code>ChainType.STACKED</code> — argument mappings chain through multiple hops and must be composed. This covers both the case where a callable target is itself <code>@deprecated(True, args_mapping=...)</code> (self-renaming), and the case where multiple <code>@deprecated(True, args_mapping=...)</code> decorators are stacked on the same function without being merged.</li>
 </ul>
 <p>The example below shows both bad patterns and the correct direct form:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">validate_deprecation_wrapper</span><span class="p">,</span> <span class="n">void</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_power</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">exponent</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="c1"># deprecated forwarder — targets new_power directly</span>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_power</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">power_v2</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exponent</span><span class="p">)</span>
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
-<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>
-<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="c1"># self-deprecation — renames old arg &quot;exp&quot; -&gt; &quot;exponent&quot; within the same function</span>
-<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;exp&quot;</span><span class="p">:</span> <span class="s2">&quot;exponent&quot;</span><span class="p">})</span>
-<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="k">def</span><span class="w"> </span><span class="nf">legacy_power</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exp</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">exponent</span>
-<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>
-<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>
-<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="c1"># BAD: targets power_v2 (another deprecated forwarder) — ChainType.TARGET</span>
-<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="c1"># SOLUTION: point directly to new_power</span>
-<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">power_v2</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.5&quot;</span><span class="p">)</span>
-<a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">caller_target_chain</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>  <span class="c1"># ❌</span>
-<a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exponent</span><span class="p">)</span>
-<a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>
-<a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>
-<a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a><span class="c1"># BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED</span>
-<a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a><span class="c1"># Mappings chain: &quot;power&quot; -&gt; &quot;exp&quot; -&gt; &quot;exponent&quot; — must be composed.</span>
-<a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a><span class="c1"># SOLUTION: target=new_power, args_mapping={&quot;power&quot;: &quot;exponent&quot;}</span>
-<a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">legacy_power</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.5&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;power&quot;</span><span class="p">:</span> <span class="s2">&quot;exp&quot;</span><span class="p">})</span>
-<a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">caller_stacked_chain</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">power</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>  <span class="c1"># ❌</span>
-<a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">power</span><span class="p">)</span>
-<a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a>
-<a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a>
-<a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a><span class="c1"># GOOD: targets final implementation directly with composed mapping</span>
-<a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_power</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.5&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;power&quot;</span><span class="p">:</span> <span class="s2">&quot;exponent&quot;</span><span class="p">})</span>
-<a id="__codelineno-12-37" name="__codelineno-12-37" href="#__codelineno-12-37"></a><span class="k">def</span><span class="w"> </span><span class="nf">caller_direct</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">power</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>  <span class="c1"># ✅</span>
-<a id="__codelineno-12-38" name="__codelineno-12-38" href="#__codelineno-12-38"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">power</span><span class="p">)</span>
-<a id="__codelineno-12-39" name="__codelineno-12-39" href="#__codelineno-12-39"></a>
-<a id="__codelineno-12-40" name="__codelineno-12-40" href="#__codelineno-12-40"></a>
-<a id="__codelineno-12-41" name="__codelineno-12-41" href="#__codelineno-12-41"></a><span class="k">for</span> <span class="n">func</span> <span class="ow">in</span> <span class="p">(</span><span class="n">caller_target_chain</span><span class="p">,</span> <span class="n">caller_stacked_chain</span><span class="p">,</span> <span class="n">caller_direct</span><span class="p">):</span>
-<a id="__codelineno-12-42" name="__codelineno-12-42" href="#__codelineno-12-42"></a>    <span class="n">info</span> <span class="o">=</span> <span class="n">validate_deprecation_wrapper</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
-<a id="__codelineno-12-43" name="__codelineno-12-43" href="#__codelineno-12-43"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">chain_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">validate_deprecation_wrapper</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_power</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">exponent</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="c1"># deprecated forwarder — targets new_power directly</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_power</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">power_v2</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>    <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exponent</span><span class="p">)</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="c1"># self-deprecation — renames old arg &quot;exp&quot; -&gt; &quot;exponent&quot; within the same function</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;exp&quot;</span><span class="p">:</span> <span class="s2">&quot;exponent&quot;</span><span class="p">})</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="k">def</span><span class="w"> </span><span class="nf">legacy_power</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exp</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">exponent</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a><span class="c1"># BAD: targets power_v2 (another deprecated forwarder) — ChainType.TARGET</span>
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a><span class="c1"># SOLUTION: point directly to new_power</span>
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">power_v2</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.5&quot;</span><span class="p">)</span>
+<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">caller_target_chain</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">exponent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>  <span class="c1"># ❌</span>
+<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exponent</span><span class="p">)</span>
+<a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a>
+<a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a>
+<a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a><span class="c1"># BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED</span>
+<a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a><span class="c1"># Mappings chain: &quot;power&quot; -&gt; &quot;exp&quot; -&gt; &quot;exponent&quot; — must be composed.</span>
+<a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a><span class="c1"># SOLUTION: target=new_power, args_mapping={&quot;power&quot;: &quot;exponent&quot;}</span>
+<a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">legacy_power</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.5&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;power&quot;</span><span class="p">:</span> <span class="s2">&quot;exp&quot;</span><span class="p">})</span>
+<a id="__codelineno-11-31" name="__codelineno-11-31" href="#__codelineno-11-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">caller_stacked_chain</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">power</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>  <span class="c1"># ❌</span>
+<a id="__codelineno-11-32" name="__codelineno-11-32" href="#__codelineno-11-32"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">power</span><span class="p">)</span>
+<a id="__codelineno-11-33" name="__codelineno-11-33" href="#__codelineno-11-33"></a>
+<a id="__codelineno-11-34" name="__codelineno-11-34" href="#__codelineno-11-34"></a>
+<a id="__codelineno-11-35" name="__codelineno-11-35" href="#__codelineno-11-35"></a><span class="c1"># GOOD: targets final implementation directly with composed mapping</span>
+<a id="__codelineno-11-36" name="__codelineno-11-36" href="#__codelineno-11-36"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_power</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.5&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;power&quot;</span><span class="p">:</span> <span class="s2">&quot;exponent&quot;</span><span class="p">})</span>
+<a id="__codelineno-11-37" name="__codelineno-11-37" href="#__codelineno-11-37"></a><span class="k">def</span><span class="w"> </span><span class="nf">caller_direct</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">power</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>  <span class="c1"># ✅</span>
+<a id="__codelineno-11-38" name="__codelineno-11-38" href="#__codelineno-11-38"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">power</span><span class="p">)</span>
+<a id="__codelineno-11-39" name="__codelineno-11-39" href="#__codelineno-11-39"></a>
+<a id="__codelineno-11-40" name="__codelineno-11-40" href="#__codelineno-11-40"></a>
+<a id="__codelineno-11-41" name="__codelineno-11-41" href="#__codelineno-11-41"></a><span class="k">for</span> <span class="n">func</span> <span class="ow">in</span> <span class="p">(</span><span class="n">caller_target_chain</span><span class="p">,</span> <span class="n">caller_stacked_chain</span><span class="p">,</span> <span class="n">caller_direct</span><span class="p">):</span>
+<a id="__codelineno-11-42" name="__codelineno-11-42" href="#__codelineno-11-42"></a>    <span class="n">info</span> <span class="o">=</span> <span class="n">validate_deprecation_wrapper</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+<a id="__codelineno-11-43" name="__codelineno-11-43" href="#__codelineno-11-43"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">chain_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>print(f"{func.__name__}: {info.chain_type}")</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>caller_target_chain: ChainType.TARGET
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>caller_stacked_chain: ChainType.STACKED
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>caller_direct: None
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>caller_target_chain: ChainType.TARGET
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>caller_stacked_chain: ChainType.STACKED
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>caller_direct: None
 </code></pre></div>
 
 </details>
 
 <h3 id="pytest-integration-for-chain-detection">pytest integration for chain detection<a class="headerlink" href="#pytest-integration-for-chain-detection" title="Permanent link">🔗</a></h3>
 <p>Add a test that fails whenever a deprecated function in your package targets another deprecated function. The session-scoped autouse fixture variant prevents the entire suite from running until chains are resolved.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_chains</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># normally you would import your own package</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_chains</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_no_deprecation_chains</span><span class="p">():</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure no deprecated function targets another deprecated function.&quot;&quot;&quot;</span>
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    <span class="n">issues</span> <span class="o">=</span> <span class="n">validate_deprecation_chains</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
-<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>
-<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>    <span class="k">if</span> <span class="n">issues</span><span class="p">:</span>
-<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>            <span class="sa">f</span><span class="s2">&quot;  - </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="si">}</span><span class="s2">: target &#39;</span><span class="si">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">deprecated_info</span><span class="o">.</span><span class="n">target</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;__name__&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">repr</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">deprecated_info</span><span class="o">.</span><span class="n">target</span><span class="p">))</span><span class="si">}</span><span class="s2">&#39; is deprecated&quot;</span>
-<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">issues</span>
-<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>        <span class="p">]</span>
-<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>        <span class="n">pytest</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">&quot;Found deprecation chains:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
-<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>
-<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>
-<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a><span class="c1"># Alternative: session-scoped auto-use fixture</span>
-<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;session&quot;</span><span class="p">,</span> <span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">enforce_no_deprecation_chains</span><span class="p">():</span>
-<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_chains</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a>
-<a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a>    <span class="n">issues</span> <span class="o">=</span> <span class="n">validate_deprecation_chains</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
-<a id="__codelineno-14-26" name="__codelineno-14-26" href="#__codelineno-14-26"></a>    <span class="k">if</span> <span class="n">issues</span><span class="p">:</span>
-<a id="__codelineno-14-27" name="__codelineno-14-27" href="#__codelineno-14-27"></a>        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">issues</span><span class="p">)</span><span class="si">}</span><span class="s2"> deprecation chain(s). Fix before running tests.&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_chains</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># normally you would import your own package</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_chains</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_no_deprecation_chains</span><span class="p">():</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure no deprecated function targets another deprecated function.&quot;&quot;&quot;</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    <span class="n">issues</span> <span class="o">=</span> <span class="n">validate_deprecation_chains</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>    <span class="k">if</span> <span class="n">issues</span><span class="p">:</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>            <span class="sa">f</span><span class="s2">&quot;  - </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="si">}</span><span class="s2">: target &#39;</span><span class="si">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">deprecated_info</span><span class="o">.</span><span class="n">target</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;__name__&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">repr</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">deprecated_info</span><span class="o">.</span><span class="n">target</span><span class="p">))</span><span class="si">}</span><span class="s2">&#39; is deprecated&quot;</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">issues</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>        <span class="p">]</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>        <span class="n">pytest</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">&quot;Found deprecation chains:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a><span class="c1"># Alternative: session-scoped auto-use fixture</span>
+<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;session&quot;</span><span class="p">,</span> <span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">enforce_no_deprecation_chains</span><span class="p">():</span>
+<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_chains</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a>
+<a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a>    <span class="n">issues</span> <span class="o">=</span> <span class="n">validate_deprecation_chains</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
+<a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a>    <span class="k">if</span> <span class="n">issues</span><span class="p">:</span>
+<a id="__codelineno-13-27" name="__codelineno-13-27" href="#__codelineno-13-27"></a>        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">issues</span><span class="p">)</span><span class="si">}</span><span class="s2"> deprecation chain(s). Fix before running tests.&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>Use <code>recursive=False</code> to restrict scanning to the top-level module only, which can speed up large codebases when you know submodules are clean.</p>
 <h2 id="pre-commit-integration">Pre-commit Integration<a class="headerlink" href="#pre-commit-integration" title="Permanent link">🔗</a></h2>
 <div class="admonition info">
 <p class="admonition-title">Coming soon</p>
-<p>Native pre-commit hook support is planned. For now, run the validator directly via <code>python -m deprecate</code> in your <code>Makefile</code> or CI step.</p>
+<p>Native pre-commit hook support is planned. For now, run the validator directly via <code>pydeprecate</code> in your <code>Makefile</code> or CI step.</p>
 </div>
-<p>The CLI checks for misconfigured wrappers only — invalid <code>args_mapping</code> keys, identity mappings, self-references:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Install the CLI extra</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[cli]&#39;</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Scan your package — exits 1 if invalid arg mappings are found</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>src/your_package
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># Advisory-only: always exit 0, report issues without blocking</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>src/your_package<span class="w"> </span>--skip_errors<span class="w"> </span><span class="nb">true</span>
+<p>The CLI provides four subcommands. Use <code>check</code> for wrapper config validation or <code>all</code> to run every check in a single pass. See the <a href="cli.html">CLI Reference</a> for full flag and exit-code documentation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># Install CLI + audit extras (audit needed for expiry checks)</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[audit,cli]&#39;</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># check — exits 1 if invalid arg mappings are found</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>src/your_package
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># all — exits 1 on invalid mappings, chains, or expired wrappers</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/your_package
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="c1"># Advisory-only: always exit 0, report issues without blocking</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>src/your_package<span class="w"> </span>--skip_errors<span class="w"> </span><span class="nb">true</span>
 </code></pre></div>
-<p><strong>Exit codes:</strong></p>
+<p><strong>Exit codes</strong> (see <a href="cli.html#exit-codes">CLI Reference — Exit codes</a> for per-subcommand details):</p>
 <table>
 <thead>
 <tr>
@@ -1574,123 +1581,123 @@
 <tbody>
 <tr>
 <td><code>0</code></td>
-<td>No issues found (or <code>--skip_errors true</code> was set)</td>
+<td>No hard errors (or <code>--skip_errors true</code> was set)</td>
 </tr>
 <tr>
 <td><code>1</code></td>
-<td>Invalid argument mappings detected — these break call forwarding</td>
+<td>Hard error found: invalid arg mappings, chains, or expired wrappers</td>
 </tr>
 </tbody>
 </table>
 <h2 id="testing-deprecated-code">Testing Deprecated Code<a class="headerlink" href="#testing-deprecated-code" title="Permanent link">🔗</a></h2>
 <p>pyDeprecate ships <code>assert_no_warnings</code>, a context manager that fails if a specified warning category is raised inside the block. Use it alongside <code>pytest.warns</code> to write precise tests that verify both the presence and absence of deprecation notices.</p>
 <p><code>num_warns</code> (default <code>1</code>) controls how many times the deprecation message fires per function lifetime. The first test below verifies the message appears; the third verifies it stops on subsequent calls, which is the default behaviour.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>    <span class="k">pass</span>
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
-<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>
-<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func2</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>
-<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>
-<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_deprecated_function_shows_warning</span><span class="p">():</span>
-<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify the deprecation warning is shown.&quot;&quot;&quot;</span>
-<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a>    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">warns</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">&quot;old_func.*deprecated&quot;</span><span class="p">):</span>
-<a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">old_func</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>    <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="mi">84</span>
-<a id="__codelineno-16-24" name="__codelineno-16-24" href="#__codelineno-16-24"></a>
-<a id="__codelineno-16-25" name="__codelineno-16-25" href="#__codelineno-16-25"></a>
-<a id="__codelineno-16-26" name="__codelineno-16-26" href="#__codelineno-16-26"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_new_function_no_warning</span><span class="p">():</span>
-<a id="__codelineno-16-27" name="__codelineno-16-27" href="#__codelineno-16-27"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify new function doesn&#39;t trigger warnings.&quot;&quot;&quot;</span>
-<a id="__codelineno-16-28" name="__codelineno-16-28" href="#__codelineno-16-28"></a>    <span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
-<a id="__codelineno-16-29" name="__codelineno-16-29" href="#__codelineno-16-29"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">new_func</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-16-30" name="__codelineno-16-30" href="#__codelineno-16-30"></a>    <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="mi">84</span>
-<a id="__codelineno-16-31" name="__codelineno-16-31" href="#__codelineno-16-31"></a>
-<a id="__codelineno-16-32" name="__codelineno-16-32" href="#__codelineno-16-32"></a>
-<a id="__codelineno-16-33" name="__codelineno-16-33" href="#__codelineno-16-33"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_no_warning_after_first_call</span><span class="p">():</span>
-<a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;By default, warnings are shown only once per function.&quot;&quot;&quot;</span>
-<a id="__codelineno-16-35" name="__codelineno-16-35" href="#__codelineno-16-35"></a>    <span class="c1"># First call shows warning</span>
-<a id="__codelineno-16-36" name="__codelineno-16-36" href="#__codelineno-16-36"></a>    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">warns</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
-<a id="__codelineno-16-37" name="__codelineno-16-37" href="#__codelineno-16-37"></a>        <span class="n">old_func2</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-16-38" name="__codelineno-16-38" href="#__codelineno-16-38"></a>
-<a id="__codelineno-16-39" name="__codelineno-16-39" href="#__codelineno-16-39"></a>    <span class="c1"># Subsequent calls don&#39;t show warning (by default num_warns=1)</span>
-<a id="__codelineno-16-40" name="__codelineno-16-40" href="#__codelineno-16-40"></a>    <span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
-<a id="__codelineno-16-41" name="__codelineno-16-41" href="#__codelineno-16-41"></a>        <span class="n">old_func2</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
-<a id="__codelineno-16-42" name="__codelineno-16-42" href="#__codelineno-16-42"></a>
-<a id="__codelineno-16-43" name="__codelineno-16-43" href="#__codelineno-16-43"></a>
-<a id="__codelineno-16-44" name="__codelineno-16-44" href="#__codelineno-16-44"></a><span class="c1"># call the tests for CI demonstration/validation</span>
-<a id="__codelineno-16-45" name="__codelineno-16-45" href="#__codelineno-16-45"></a><span class="n">test_deprecated_function_shows_warning</span><span class="p">()</span>
-<a id="__codelineno-16-46" name="__codelineno-16-46" href="#__codelineno-16-46"></a><span class="n">test_new_function_no_warning</span><span class="p">()</span>
-<a id="__codelineno-16-47" name="__codelineno-16-47" href="#__codelineno-16-47"></a><span class="n">test_no_warning_after_first_call</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>    <span class="k">pass</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func2</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>
+<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_deprecated_function_shows_warning</span><span class="p">():</span>
+<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify the deprecation warning is shown.&quot;&quot;&quot;</span>
+<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a>    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">warns</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">&quot;old_func.*deprecated&quot;</span><span class="p">):</span>
+<a id="__codelineno-15-22" name="__codelineno-15-22" href="#__codelineno-15-22"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">old_func</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-15-23" name="__codelineno-15-23" href="#__codelineno-15-23"></a>    <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="mi">84</span>
+<a id="__codelineno-15-24" name="__codelineno-15-24" href="#__codelineno-15-24"></a>
+<a id="__codelineno-15-25" name="__codelineno-15-25" href="#__codelineno-15-25"></a>
+<a id="__codelineno-15-26" name="__codelineno-15-26" href="#__codelineno-15-26"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_new_function_no_warning</span><span class="p">():</span>
+<a id="__codelineno-15-27" name="__codelineno-15-27" href="#__codelineno-15-27"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify new function doesn&#39;t trigger warnings.&quot;&quot;&quot;</span>
+<a id="__codelineno-15-28" name="__codelineno-15-28" href="#__codelineno-15-28"></a>    <span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
+<a id="__codelineno-15-29" name="__codelineno-15-29" href="#__codelineno-15-29"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">new_func</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-15-30" name="__codelineno-15-30" href="#__codelineno-15-30"></a>    <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="mi">84</span>
+<a id="__codelineno-15-31" name="__codelineno-15-31" href="#__codelineno-15-31"></a>
+<a id="__codelineno-15-32" name="__codelineno-15-32" href="#__codelineno-15-32"></a>
+<a id="__codelineno-15-33" name="__codelineno-15-33" href="#__codelineno-15-33"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_no_warning_after_first_call</span><span class="p">():</span>
+<a id="__codelineno-15-34" name="__codelineno-15-34" href="#__codelineno-15-34"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;By default, warnings are shown only once per function.&quot;&quot;&quot;</span>
+<a id="__codelineno-15-35" name="__codelineno-15-35" href="#__codelineno-15-35"></a>    <span class="c1"># First call shows warning</span>
+<a id="__codelineno-15-36" name="__codelineno-15-36" href="#__codelineno-15-36"></a>    <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">warns</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
+<a id="__codelineno-15-37" name="__codelineno-15-37" href="#__codelineno-15-37"></a>        <span class="n">old_func2</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-15-38" name="__codelineno-15-38" href="#__codelineno-15-38"></a>
+<a id="__codelineno-15-39" name="__codelineno-15-39" href="#__codelineno-15-39"></a>    <span class="c1"># Subsequent calls don&#39;t show warning (by default num_warns=1)</span>
+<a id="__codelineno-15-40" name="__codelineno-15-40" href="#__codelineno-15-40"></a>    <span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
+<a id="__codelineno-15-41" name="__codelineno-15-41" href="#__codelineno-15-41"></a>        <span class="n">old_func2</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-15-42" name="__codelineno-15-42" href="#__codelineno-15-42"></a>
+<a id="__codelineno-15-43" name="__codelineno-15-43" href="#__codelineno-15-43"></a>
+<a id="__codelineno-15-44" name="__codelineno-15-44" href="#__codelineno-15-44"></a><span class="c1"># call the tests for CI demonstration/validation</span>
+<a id="__codelineno-15-45" name="__codelineno-15-45" href="#__codelineno-15-45"></a><span class="n">test_deprecated_function_shows_warning</span><span class="p">()</span>
+<a id="__codelineno-15-46" name="__codelineno-15-46" href="#__codelineno-15-46"></a><span class="n">test_new_function_no_warning</span><span class="p">()</span>
+<a id="__codelineno-15-47" name="__codelineno-15-47" href="#__codelineno-15-47"></a><span class="n">test_no_warning_after_first_call</span><span class="p">()</span>
 </code></pre></div>
 <p>When a deprecation must be impossible to miss, set <code>num_warns=-1</code> to fire on every call. Use <code>num_warns=N</code> for exactly N times — useful for integration tests that need to verify the emit count precisely.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Minimal replacement implementation used in examples</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="c1"># ---------------------------</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="c1"># Show warning every time (useful for critical deprecations)</span>
-<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func_always_warn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>    <span class="k">pass</span>
-<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>
-<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>
-<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a><span class="c1"># Show warning N times total</span>
-<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
-<a id="__codelineno-17-19" name="__codelineno-17-19" href="#__codelineno-17-19"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func_warn_n_times</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-17-20" name="__codelineno-17-20" href="#__codelineno-17-20"></a>    <span class="k">pass</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># Minimal replacement implementation used in examples</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="c1"># ---------------------------</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="c1"># Show warning every time (useful for critical deprecations)</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func_always_warn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>    <span class="k">pass</span>
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="c1"># Show warning N times total</span>
+<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_func_warn_n_times</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>    <span class="k">pass</span>
 </code></pre></div>
 <h3 id="suppressing-warnings-in-test-fixtures">Suppressing warnings in test fixtures<a class="headerlink" href="#suppressing-warnings-in-test-fixtures" title="Permanent link">🔗</a></h3>
 <p>When you call deprecated functions in test setup code (fixtures, factory helpers, shared utilities), use <code>warnings.catch_warnings()</code> with <code>simplefilter("ignore")</code> to suppress the noise while still exercising the call-forwarding path.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;host&quot;</span><span class="p">:</span> <span class="n">host</span><span class="p">,</span> <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="n">timeout</span><span class="p">}</span>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_create_session</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
-<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>
-<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>
-<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_test_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;localhost&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test fixture helper — calls deprecated API silently.&quot;&quot;&quot;</span>
-<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>    <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
-<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>        <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="ne">FutureWarning</span><span class="p">)</span>
-<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>        <span class="k">return</span> <span class="n">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
-<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a>
-<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>
-<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="c1"># The helper works without emitting warnings:</span>
-<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="n">session</span> <span class="o">=</span> <span class="n">make_test_session</span><span class="p">()</span>
-<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>
-<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>
-<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a><span class="c1"># Meanwhile, assert_no_warnings verifies NEW code is clean:</span>
-<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a><span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
-<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a>    <span class="n">clean_session</span> <span class="o">=</span> <span class="n">new_create_session</span><span class="p">(</span><span class="s2">&quot;prod.example.com&quot;</span><span class="p">)</span>
-<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a><span class="nb">print</span><span class="p">(</span><span class="n">clean_session</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;host&quot;</span><span class="p">:</span> <span class="n">host</span><span class="p">,</span> <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="n">timeout</span><span class="p">}</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_create_session</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_test_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;localhost&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test fixture helper — calls deprecated API silently.&quot;&quot;&quot;</span>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>    <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a>        <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="ne">FutureWarning</span><span class="p">)</span>
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a>        <span class="k">return</span> <span class="n">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<a id="__codelineno-17-19" name="__codelineno-17-19" href="#__codelineno-17-19"></a>
+<a id="__codelineno-17-20" name="__codelineno-17-20" href="#__codelineno-17-20"></a>
+<a id="__codelineno-17-21" name="__codelineno-17-21" href="#__codelineno-17-21"></a><span class="c1"># The helper works without emitting warnings:</span>
+<a id="__codelineno-17-22" name="__codelineno-17-22" href="#__codelineno-17-22"></a><span class="n">session</span> <span class="o">=</span> <span class="n">make_test_session</span><span class="p">()</span>
+<a id="__codelineno-17-23" name="__codelineno-17-23" href="#__codelineno-17-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>
+<a id="__codelineno-17-24" name="__codelineno-17-24" href="#__codelineno-17-24"></a>
+<a id="__codelineno-17-25" name="__codelineno-17-25" href="#__codelineno-17-25"></a><span class="c1"># Meanwhile, assert_no_warnings verifies NEW code is clean:</span>
+<a id="__codelineno-17-26" name="__codelineno-17-26" href="#__codelineno-17-26"></a><span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
+<a id="__codelineno-17-27" name="__codelineno-17-27" href="#__codelineno-17-27"></a>    <span class="n">clean_session</span> <span class="o">=</span> <span class="n">new_create_session</span><span class="p">(</span><span class="s2">&quot;prod.example.com&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-28" name="__codelineno-17-28" href="#__codelineno-17-28"></a><span class="nb">print</span><span class="p">(</span><span class="n">clean_session</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>print(clean_session)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>{&#39;host&#39;: &#39;localhost&#39;, &#39;timeout&#39;: 5}
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>{&#39;host&#39;: &#39;prod.example.com&#39;, &#39;timeout&#39;: 30}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>{&#39;host&#39;: &#39;localhost&#39;, &#39;timeout&#39;: 5}
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>{&#39;host&#39;: &#39;prod.example.com&#39;, &#39;timeout&#39;: 30}
 </code></pre></div>
 
 </details>
@@ -1758,7 +1765,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 22, 2026 19:07:25 UTC">2026-04-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 29, 2026 09:44:56 UTC">2026-04-29</span>
   </span>
 
     

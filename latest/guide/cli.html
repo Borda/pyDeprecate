@@ -6,32 +6,32 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.">
+        <meta name="description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass.">
       
       
       
-        <link rel="canonical" href="https://borda.github.io/pyDeprecate/latest/getting-started.html">
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/latest/guide/cli.html">
       
       
-        <link rel="prev" href="index.html">
+        <link rel="prev" href="audit.html">
       
       
-        <link rel="next" href="guide/use-cases.html">
+        <link rel="next" href="customization.html">
       
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Getting Started - pyDeprecate — Python Deprecation Library</title>
+        <title>CLI - pyDeprecate — Python Deprecation Library</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
       
 
@@ -50,9 +50,9 @@
       
     
     
-      <link rel="stylesheet" href="stylesheets/extra.css">
+      <link rel="stylesheet" href="../stylesheets/extra.css">
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -66,9 +66,9 @@
 
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Getting Started — pyDeprecate" />
-<meta property="og:description" content="Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table." />
-<meta property="og:url" content="https://borda.github.io/pyDeprecate/latest/getting-started.html" />
+<meta property="og:title" content="CLI — pyDeprecate" />
+<meta property="og:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass." />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/latest/guide/cli.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/latestlatest/assets/images/demo-docs-mkdocs.png" />
 <meta property="og:image:alt" content="pyDeprecate documentation" />
@@ -76,8 +76,8 @@
 <meta property="og:image:height" content="640" />
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="Getting Started — pyDeprecate" />
-<meta name="twitter:description" content="Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table." />
+<meta name="twitter:title" content="CLI — pyDeprecate" />
+<meta name="twitter:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass." />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/latestlatest/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
@@ -87,10 +87,10 @@
 {
   "@context": "https://schema.org",
   "@type": "TechArticle",
-  "headline": "Getting Started",
-  "description": "Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.",
-  "url": "https://borda.github.io/pyDeprecate/latest/getting-started.html",
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/latest/getting-started.html" },
+  "headline": "CLI",
+  "description": "Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass.",
+  "url": "https://borda.github.io/pyDeprecate/latest/guide/cli.html",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/latest/guide/cli.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
   "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] },
@@ -107,52 +107,13 @@
   "@type": "BreadcrumbList",
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
-    {"@type": "ListItem", "position": 2, "name": "Getting Started", "item": "https://borda.github.io/pyDeprecate/latest/getting-started.html"}
+    {"@type": "ListItem", "position": 2, "name": "CLI", "item": "https://borda.github.io/pyDeprecate/latest/guide/cli.html"}
   ]
 }
 </script>
 
 
 <!-- HowTo schema: Getting Started installation and usage steps -->
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  "name": "How to add deprecation to a Python function",
-  "description": "Use pyDeprecate to deprecate a Python function with automatic call forwarding and CI enforcement of removal deadlines.",
-  "step": [
-    {
-      "@type": "HowToStep",
-      "position": 1,
-      "name": "Install pyDeprecate",
-      "text": "Run pip install pyDeprecate in your Python 3.9+ environment. No runtime dependencies are added.",
-      "url": "https://borda.github.io/pyDeprecate/getting-started.html#installation"
-    },
-    {
-      "@type": "HowToStep",
-      "position": 2,
-      "name": "Import the decorator",
-      "text": "Add from deprecate import deprecated at the top of your Python file.",
-      "url": "https://borda.github.io/pyDeprecate/getting-started.html#quick-start"
-    },
-    {
-      "@type": "HowToStep",
-      "position": 3,
-      "name": "Apply @deprecated to the old function",
-      "text": "Decorate the old function with @deprecated(target=new_function, deprecated_in='1.0', remove_in='2.0'). Calls to the old name emit a FutureWarning and automatically forward to the new function.",
-      "url": "https://borda.github.io/pyDeprecate/getting-started.html#quick-start"
-    },
-    {
-      "@type": "HowToStep",
-      "position": 4,
-      "name": "Enforce the removal deadline in CI",
-      "text": "Install the audit extra with pip install pyDeprecate[audit] and call validate_deprecation_expiry() in your CI pipeline to catch deprecated code past its deadline.",
-      "url": "https://borda.github.io/pyDeprecate/getting-started.html#installation"
-    }
-  ]
-}
-</script>
 
 
 
@@ -170,7 +131,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#getting-started" class="md-skip">
+        <a href="#cli-reference" class="md-skip">
           Skip to content
         </a>
       
@@ -190,7 +151,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-header__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+    <a href="../index.html" title="pyDeprecate — Python Deprecation Library" class="md-header__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -210,7 +171,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Getting Started
+              CLI
             
           </span>
         </div>
@@ -300,7 +261,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-nav__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+    <a href="../index.html" title="pyDeprecate — Python Deprecation Library" class="md-nav__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -330,7 +291,7 @@
   
   
     <li class="md-nav__item">
-      <a href="index.html" class="md-nav__link">
+      <a href="../index.html" class="md-nav__link">
         
   
   
@@ -354,6 +315,166 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="use-cases.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="audit.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -373,7 +494,7 @@
   <span class="md-ellipsis">
     
   
-    Getting Started
+    CLI
   
 
     
@@ -384,14 +505,14 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <a href="getting-started.html" class="md-nav__link md-nav__link--active">
+      <a href="cli.html" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    Getting Started
+    CLI
   
 
     
@@ -431,7 +552,7 @@
   <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick Start
+        Quick start
       
     </span>
   </a>
@@ -439,10 +560,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#api-at-a-glance" class="md-nav__link">
+  <a href="#subcommands" class="md-nav__link">
     <span class="md-ellipsis">
       
-        API at a Glance
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path formats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-module-invocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python module invocation
       
     </span>
   </a>
@@ -456,80 +621,6 @@
     </li>
   
 
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    User Guide
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    User Guide
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="guide/use-cases.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Use Cases
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
               
             
               
@@ -539,91 +630,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/void-helper.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    void() Helper
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="guide/audit.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Audit Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="guide/cli.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="guide/customization.html" class="md-nav__link">
+      <a href="customization.html" class="md-nav__link">
         
   
   
@@ -658,7 +665,7 @@
   
   
     <li class="md-nav__item">
-      <a href="troubleshooting.html" class="md-nav__link">
+      <a href="../troubleshooting.html" class="md-nav__link">
         
   
   
@@ -685,7 +692,7 @@
   
   
     <li class="md-nav__item">
-      <a href="changelog.html" class="md-nav__link">
+      <a href="../changelog.html" class="md-nav__link">
         
   
   
@@ -759,7 +766,7 @@
   
   
     <li class="md-nav__item">
-      <a href="demo-sphinx/index.html" class="md-nav__link">
+      <a href="../demo-sphinx/index.html" class="md-nav__link">
         
   
   
@@ -787,7 +794,7 @@
   
   
     <li class="md-nav__item">
-      <a href="demo-mkdocs/index.html" class="md-nav__link">
+      <a href="../demo-mkdocs/index.html" class="md-nav__link">
         
   
   
@@ -856,7 +863,7 @@
   <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick Start
+        Quick start
       
     </span>
   </a>
@@ -864,10 +871,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#api-at-a-glance" class="md-nav__link">
+  <a href="#subcommands" class="md-nav__link">
     <span class="md-ellipsis">
       
-        API at a Glance
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path formats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-module-invocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python module invocation
       
     </span>
   </a>
@@ -891,154 +942,147 @@
 
 
 
-<h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">🔗</a></h1>
-<p>You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.</p>
+<h1 id="cli-reference">CLI Reference<a class="headerlink" href="#cli-reference" title="Permanent link">🔗</a></h1>
+<p>The <code>pydeprecate</code> CLI lets you run all three <a href="audit.html">audit checks</a> — wrapper configuration, expiry enforcement, and chain detection — directly from the command line without writing a Python script.</p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">🔗</a></h2>
-<p>pyDeprecate requires <strong>Python 3.9 or later</strong> and has zero runtime dependencies.</p>
-<p>Install from PyPI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>pyDeprecate
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[audit,cli]&#39;</span>
 </code></pre></div>
-<p>To install directly from source (for pre-release or development versions):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>https://github.com/Borda/pyDeprecate/archive/main.zip
+<p>Start with <code>[audit,cli]</code> unless you are certain you will never use <code>expiry</code> or <code>all</code>. The <code>[audit]</code> extra pulls in <code>packaging</code>, which <code>expiry</code> and the expiry phase of <code>all</code> require.</p>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">🔗</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage<span class="w">   </span><span class="c1"># run all checks in one pass</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>path/to/your/package<span class="w">   </span><span class="c1"># validate wrapper config</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>mypackage.submodule<span class="w">    </span><span class="c1"># importable module name also accepted</span>
 </code></pre></div>
-<p>The <code>audit</code> extra adds <code>packaging</code> for version comparison, needed only by <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry</code></a>. Install it when you want to enforce removal deadlines in CI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[audit]&#39;</span>
+<h2 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">🔗</a></h2>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">check</label><label for="__tabbed_1_2">expiry</label><label for="__tabbed_1_3">chains</label><label for="__tabbed_1_4">all</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>Validates wrapper configuration: invalid <code>args_mapping</code> keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. Backed by <a href="audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>path/to/your/package
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>mypackage.submodule
 </code></pre></div>
-<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">🔗</a></h2>
-<p>Here is the most common scenario: you renamed a function and need the old name to keep working during the transition. The decorator handles call forwarding automatically, so the deprecated wrapper needs no implementation.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># NEW/FUTURE API — renamed to be more explicit about what it computes</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">compute_sum</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># DEPRECATED API — `addition` was the original name before the rename</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">compute_sum</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">addition</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="k">pass</span>  <span class="c1"># body is not needed — calls are forwarded to compute_sum</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="c1"># Using the original name still works but emits a deprecation notice</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">addition</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-</code></pre></div>
-<details>
-  <summary>Output: <code>print(addition(1, 2))</code></summary>
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>3
-</code></pre></div>
-
-</details>
-
-<p>All calls to <code>addition()</code> are automatically forwarded to <code>compute_sum()</code> with a <code>FutureWarning</code>. The old function's body is never executed.</p>
-<div class="admonition tip">
-<p class="admonition-title">Customizing deprecation messages</p>
-<p>To customize the message template or redirect deprecation output to a logger, see <a href="guide/customization.html">Customization</a>.</p>
+<p>Exit 1 only for invalid argument mappings. Chains, identity mappings, and no-effect wrappers are reported as warnings — exit 0.</p>
+<div class="admonition note">
+<p class="admonition-title">Chain handling differs in <code>all</code></p>
+<p><code>check</code> treats chains as advisory warnings (exit 0). <code>all</code> treats chains as hard errors (exit 1), because <code>all</code> ≡ <code>check + expiry + chains</code> and <code>chains</code> exits 1 on any chain found.</p>
 </div>
-<h2 id="api-at-a-glance">API at a Glance<a class="headerlink" href="#api-at-a-glance" title="Permanent link">🔗</a></h2>
-<p>Not sure which API to reach for? This table maps common scenarios to the right tool. For worked examples of each, see <a href="guide/use-cases.html">Use Cases</a>.</p>
-<p><strong>Pick the right decorator:</strong></p>
+</div>
+<div class="tabbed-block">
+<p>Checks whether any deprecated wrappers have passed their <code>remove_in</code> deadline using <a href="audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a>. Requires the <code>[audit]</code> extra (included in <code>[audit,cli]</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># explicit version</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># auto-detect version from installed package metadata</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>path/to/your/package
+</code></pre></div>
+<p>Exit 1 if any wrapper is past its removal deadline, or if <code>packaging</code> is not installed (use <code>--skip_errors</code> to suppress).</p>
+</div>
+<div class="tabbed-block">
+<p>Detects deprecated wrappers whose <code>target</code> is itself a deprecated callable (<code>ChainType.TARGET</code>) or where stacked argument mappings should be collapsed (<code>ChainType.STACKED</code>). Backed by <a href="audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pydeprecate<span class="w"> </span>chains<span class="w"> </span>path/to/your/package
+</code></pre></div>
+<p>Exit 1 if any chains are found.</p>
+</div>
+<div class="tabbed-block">
+<p>Single scan pass running all three checks (<a href="audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a>, <a href="audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a>, <a href="audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a>). If <code>packaging</code> is not installed, the expiry check is skipped with a warning and the other checks still run.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># explicit version</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># auto-detect version</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package
+</code></pre></div>
+<p>Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. If <code>packaging</code> is not installed, expiry is skipped with a warning and does not cause exit <code>1</code>.</p>
+</div>
+</div>
+</div>
+<h2 id="flags">Flags<a class="headerlink" href="#flags" title="Permanent link">🔗</a></h2>
 <table>
 <thead>
 <tr>
-<th>Scenario</th>
-<th>API to use</th>
+<th>Flag</th>
+<th style="text-align: center;"><code>check</code></th>
+<th style="text-align: center;"><code>expiry</code></th>
+<th style="text-align: center;"><code>chains</code></th>
+<th style="text-align: center;"><code>all</code></th>
+<th>Effect</th>
+<th>Note</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Renaming a function or method</td>
-<td><code>@deprecated(target=new_func)</code></td>
+<td><code>--version VERSION</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td>Package version for deadline comparison. Auto-detected from installed metadata if omitted.</td>
+<td></td>
 </tr>
 <tr>
-<td>Renaming an argument within the same function</td>
-<td><code>@deprecated(target=True, args_mapping={"old": "new"})</code></td>
+<td><code>--norecursive</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Scan top-level module only; skip submodules.</td>
+<td>Fire auto-generates this from <code>recursive=False</code> — the flag is <code>--norecursive</code>, not <code>--no-recursive</code>.</td>
 </tr>
 <tr>
-<td>Notice only — original body still runs</td>
-<td><code>@deprecated(target=None)</code></td>
-</tr>
-<tr>
-<td>Deprecating a class, Enum, or dataclass name</td>
-<td><code>@deprecated_class(target=NewClass)</code></td>
-</tr>
-<tr>
-<td>Deprecating a module-level constant or object</td>
-<td><code>deprecated_instance(obj, ...)</code></td>
+<td><code>--skip_errors</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Always exit <code>0</code> even when hard errors are found — useful for advisory CI steps that should never block.</td>
+<td></td>
 </tr>
 </tbody>
 </table>
-<p><strong>All <code>@deprecated</code> parameters:</strong></p>
+<h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">🔗</a></h2>
 <table>
 <thead>
 <tr>
-<th>Param</th>
-<th>Default</th>
-<th>Purpose</th>
+<th>Subcommand</th>
+<th>Exit <code>0</code></th>
+<th>Exit <code>1</code></th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>target</code></td>
-<td>—</td>
-<td><code>Callable</code> to forward to · <code>True</code> to remap args in-place · <code>None</code> notice-only</td>
+<td><code>check</code></td>
+<td>Clean or advisory warnings only (chains / identity / no-effect)</td>
+<td>Invalid argument mappings found</td>
 </tr>
 <tr>
-<td><code>deprecated_in</code></td>
-<td><code>""</code></td>
-<td>Version when deprecated (e.g. <code>"1.0"</code>)</td>
+<td><code>expiry</code></td>
+<td>No expired wrappers</td>
+<td>Expired wrappers found; or <code>packaging</code> not installed</td>
 </tr>
 <tr>
-<td><code>remove_in</code></td>
-<td><code>""</code></td>
-<td>Version when removed (e.g. <code>"2.0"</code>)</td>
+<td><code>chains</code></td>
+<td>No chains</td>
+<td>Deprecated-to-deprecated chains found</td>
 </tr>
 <tr>
-<td><code>stream</code></td>
-<td><code>deprecation_warning</code></td>
-<td>Output sink callable (set <code>None</code> to silence deprecation messages)</td>
-</tr>
-<tr>
-<td><code>num_warns</code></td>
-<td><code>1</code></td>
-<td><code>1</code> once · <code>-1</code> always · <code>N</code> exactly N times</td>
-</tr>
-<tr>
-<td><code>args_mapping</code></td>
-<td><code>None</code></td>
-<td><code>{"old": "new"}</code> rename · <code>{"old": None}</code> drop</td>
-</tr>
-<tr>
-<td><code>template_mgs</code></td>
-<td><code>None</code></td>
-<td>Custom deprecation message template (<code>%</code>-style placeholders)</td>
-</tr>
-<tr>
-<td><code>args_extra</code></td>
-<td><code>None</code></td>
-<td>Fixed kwargs injected into the target call</td>
-</tr>
-<tr>
-<td><code>skip_if</code></td>
-<td><code>False</code></td>
-<td><code>bool</code> or <code>Callable → bool</code>; skip deprecation when true</td>
-</tr>
-<tr>
-<td><code>update_docstring</code></td>
-<td><code>False</code></td>
-<td>Append Sphinx <code>.. deprecated::</code> notice to docstring</td>
-</tr>
-<tr>
-<td><code>docstring_style</code></td>
-<td><code>"auto"</code></td>
-<td>Style of the injected notice: <code>"auto"</code>, <code>"rst"</code>, <code>"mkdocs"</code>, <code>"markdown"</code></td>
+<td><code>all</code></td>
+<td>All checks clean</td>
+<td>Any hard error above (<code>packaging</code> missing → skips expiry, no failure)</td>
 </tr>
 </tbody>
 </table>
-<p><code>@deprecated_class()</code> shares <code>target</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_mapping</code>, <code>update_docstring</code>, and <code>docstring_style</code>. <code>deprecated_instance()</code> shares <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, and <code>stream</code>; it requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
-<hr />
-<p>Next: <a href="guide/use-cases.html">Use Cases</a> — thirteen real-world deprecation patterns with full code examples. See also: <a href="guide/customization.html">Customization</a> · <a href="guide/audit.html">Audit Tools</a> · <a href="troubleshooting.html">Troubleshooting</a></p>
+<h2 id="path-formats">Path formats<a class="headerlink" href="#path-formats" title="Permanent link">🔗</a></h2>
+<p>All subcommands accept:</p>
+<ul>
+<li><strong>Package directory</strong> — path to a directory with <code>__init__.py</code> (e.g. <code>src/mypackage</code>)</li>
+<li><strong>Importable module name</strong> — dotted module path (e.g. <code>mypackage.utils</code>)</li>
+<li><strong>Plain directory</strong> — scans top-level <code>.py</code> files only; not supported for <code>expiry</code> and <code>chains</code> which require an importable module name</li>
+</ul>
+<h2 id="python-module-invocation">Python module invocation<a class="headerlink" href="#python-module-invocation" title="Permanent link">🔗</a></h2>
+<p>Both <code>pydeprecate</code> and <code>python -m deprecate</code> are equivalent entry points:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>check<span class="w"> </span>src/mypackage
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>expiry<span class="w"> </span>src/mypackage<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+</code></pre></div>
+<p>Useful in environments where the <code>pydeprecate</code> script is not on <code>PATH</code> (e.g. inside a Docker image where only <code>python</code> is available).</p>
 
 
 
@@ -1071,7 +1115,7 @@
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 21, 2026 10:55:44 UTC">2026-04-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 29, 2026 09:44:56 UTC">2026-04-29</span>
   </span>
 
     
@@ -1124,10 +1168,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
