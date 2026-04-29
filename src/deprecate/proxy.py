@@ -25,6 +25,7 @@ Example:
 """
 
 import types
+import warnings
 from collections.abc import Iterator
 from typing import Any, Callable, Literal, Optional, cast
 
@@ -92,6 +93,20 @@ class _DeprecatedProxy:
         :class:`~deprecate._types.DeprecationConfig` instance aligned with the
         ``@deprecated`` schema.
         """
+        if target is True:
+            warnings.warn(
+                "target=True is not valid for deprecated_class() and is ignored. Will be TypeError in v1.0.",
+                FutureWarning,
+                stacklevel=3,
+            )
+            target = None
+        elif target is False:
+            warnings.warn(
+                "target=False is not valid for deprecated_class(). Will be TypeError in v1.0.",
+                UserWarning,
+                stacklevel=3,
+            )
+            target = None
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object.
         cfg = _ProxyConfig(
             obj=obj,

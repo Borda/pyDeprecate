@@ -483,10 +483,10 @@ pydeprecate check src/your_package --skip_errors true
 
 **Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
 
-| Exit code | Meaning |
+| Exit code | Meaning                                                             |
 | --------- | ------------------------------------------------------------------- |
-| `0` | No hard errors (or `--skip_errors true` was set) |
-| `1` | Hard error found: invalid arg mappings, chains, or expired wrappers |
+| `0`       | No hard errors (or `--skip_errors true` was set)                    |
+| `1`       | Hard error found: invalid arg mappings, chains, or expired wrappers |
 
 ## Testing Deprecated Code
 
@@ -616,12 +616,12 @@ print(clean_session)
 
 ### Choosing the right testing tool
 
-| Tool | Use when... | Behaviour |
+| Tool                                                   | Use when...                                                 | Behaviour                                              |
 | ------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------ |
-| `pytest.warns(FutureWarning)` | Testing that a deprecated function DOES warn on first call | Fails if no matching warning is raised |
-| `assert_no_warnings(FutureWarning)` | Testing that new code or subsequent calls do NOT warn | Fails if a matching warning IS raised |
-| `assert_no_warnings(FutureWarning, match="pattern")` | Testing that a specific warning message is absent | Only fails if a warning matching the pattern is raised |
-| `warnings.catch_warnings()` + `simplefilter("ignore")` | Calling deprecated code in fixtures/setup without assertion | Silently suppresses; never fails |
+| `pytest.warns(FutureWarning)`                          | Testing that a deprecated function DOES warn on first call  | Fails if no matching warning is raised                 |
+| `assert_no_warnings(FutureWarning)`                    | Testing that new code or subsequent calls do NOT warn       | Fails if a matching warning IS raised                  |
+| `assert_no_warnings(FutureWarning, match="pattern")`   | Testing that a specific warning message is absent           | Only fails if a warning matching the pattern is raised |
+| `warnings.catch_warnings()` + `simplefilter("ignore")` | Calling deprecated code in fixtures/setup without assertion | Silently suppresses; never fails                       |
 
 The `match` parameter on `assert_no_warnings` accepts a substring — it filters captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
 

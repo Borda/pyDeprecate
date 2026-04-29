@@ -364,6 +364,49 @@ class TestDecoratorFactory:
             warnings.simplefilter("ignore")
             assert DeprecatedColorEnum.RED is TargetColorEnum.RED
 
+    @pytest.mark.parametrize(
+        ("raw_target", "warning_category", "warning_message"),
+        [
+            (
+                True,
+                FutureWarning,
+                "target=True is not valid for deprecated_class() and is ignored. Will be TypeError in v1.0.",
+            ),
+            (
+                False,
+                UserWarning,
+                "target=False is not valid for deprecated_class(). Will be TypeError in v1.0.",
+            ),
+        ],
+    )
+    def test_boolean_target_is_normalized_and_class_access_still_works(
+        self,
+        raw_target: bool,
+        warning_category: type[Warning],
+        warning_message: str,
+    ) -> None:
+        """Legacy boolean targets are normalized before proxy metadata and access use them."""
+        with pytest.warns(warning_category) as caught:
+
+            @deprecated_class(
+                target=raw_target,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )
+            class OldClass:
+                def method(self) -> str:
+                    return "ok"
+
+        assert len(caught) == 1
+        assert str(caught[0].message) == warning_message
+
+        dep = object.__getattribute__(OldClass, "__deprecated__")
+        assert dep.target is None
+
+        obj = OldClass()
+        assert obj.method() == "ok"
+
 
 class TestDecoratorEnum:
     """@deprecated_class applied to Enum classes."""
