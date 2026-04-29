@@ -68,6 +68,11 @@ def identity_value(x: int) -> int:
     return x
 
 
+def stacked_chain_identity(base: int) -> int:
+    """Return the base input unchanged for stacked TargetMode chain fixtures."""
+    return base
+
+
 def return_b(b: int) -> int:
     """Return the mapped positional argument."""
     return b

@@ -9,8 +9,8 @@ They simulate common mistakes developers make when setting up deprecation wrappe
 - Mixing identity and valid mappings
 - Creating a self-referencing deprecation (wrapper targets itself)
 - Using target=False (invalid sentinel)
-- Using TargetMode.WHOLE with args_mapping (ignored with a construction-time
-  UserWarning; planned to become a TypeError in v1.0 — misconfigured)
+- Using TargetMode.WHOLE with args_mapping (ignored and emits a construction-time
+  UserWarning at decoration time; TypeError planned in v1.0 — misconfigured)
 - Using TargetMode.ARGS_ONLY without args_mapping (no-op — misconfigured)
 
 Used by `validate_deprecated_wrapper()` and `find_deprecation_wrappers()` to verify
@@ -135,7 +135,7 @@ with warnings.catch_warnings():
         args_mapping={"old_x": "x"},
     )
     def whole_with_mapping_deprecation(x: int = 1) -> int:
-        """WHOLE + args_mapping — mapping is silently ignored; audit flags misconfigured_target."""
+        """WHOLE + args_mapping — mapping is ignored and emits a construction-time UserWarning at decoration time; TypeError planned in v1.0; audit flags misconfigured_target."""
         return x
 
     @deprecated(target=TargetMode.ARGS_ONLY, deprecated_in="0.1", remove_in="0.5")

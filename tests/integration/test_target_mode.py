@@ -13,6 +13,7 @@ import warnings
 import pytest
 
 from deprecate import TargetMode
+from deprecate import TargetMode as top_level_TargetMode
 from tests.collection_deprecate import (
     depr_target_mode_args_only_remaps_kwargs,
     depr_target_mode_args_only_silent_when_new_arg_passed,
@@ -43,10 +44,7 @@ def test_target_mode_members_exist() -> None:
 
 def test_target_mode_importable_from_top_level() -> None:
     """TargetMode is part of the public API surface."""
-    import deprecate
-
-    assert hasattr(deprecate, "TargetMode")
-    assert deprecate.TargetMode is TargetMode
+    assert top_level_TargetMode is TargetMode
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +142,7 @@ def test_whole_with_args_extra_warns() -> None:
 
 def test_target_false_warns() -> None:
     """target=False is not valid — should warn at decoration time."""
-    with pytest.warns(UserWarning, match="not valid"):
+    with pytest.warns(UserWarning, match="target=False' is not a valid deprecation mode"):
         make_target_mode_target_false_warns()
 
 
