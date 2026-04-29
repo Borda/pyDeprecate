@@ -38,6 +38,7 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 - DecoratedDataClass: decorator-form dataclass equivalent of WrappedDataClass
 """
 
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -56,19 +57,19 @@ from tests.collection_targets import (
     TargetColorEnum,
     TimerDecorator,
     add_values,
-    double_value,
-    identity_value,
-    increment_value,
     base_pow_args,
     base_sum_kwargs,
     cross_guard_standalone_increment,
+    double_value,
+    identity_value,
+    increment_value,
     power_with_new_coef,
     return_b,
     return_new,
     return_none,
     return_z,
-    tracked_identity,
     timing_wrapper,
+    tracked_identity,
 )
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
@@ -486,6 +487,24 @@ def make_target_mode_whole_with_args_extra_warns() -> Callable[[int], int]:
     )
     def fn(z: int = 0) -> int:
         return return_z(z)
+
+    return fn
+
+
+def make_target_mode_args_only_legacy_args_extra() -> Callable[[int], int]:
+    """Build a legacy ``target=True`` wrapper with ``args_extra`` for equivalence tests."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+
+        @deprecated(
+            target=True,
+            deprecated_in="0.9",
+            remove_in="1.0",
+            args_mapping={"old_x": "x"},
+            args_extra={"y": 10},
+        )
+        def fn(x: int, y: int) -> int:
+            return add_values(x, y)
 
     return fn
 

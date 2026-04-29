@@ -5,7 +5,7 @@ import sys
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from typing import Union
+from typing import Any, Union, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,6 +14,7 @@ from deprecate import TargetMode, deprecated, void
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
+    _normalize_target,
     _prepare_target_call,
     _raise_warn,
     _raise_warn_arguments,
@@ -650,3 +651,37 @@ class TestDocstringStyleOutput:
             """A simple function."""
 
         assert absent_marker not in (_fn.__doc__ or "")
+
+
+# ---------------------------------------------------------------------------
+# _normalize_target — invalid / unrecognised input types (#20)
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeTargetInvalidInputs:
+    """_normalize_target passes unrecognised non-class values through unchanged."""
+
+    @pytest.mark.parametrize("bad_target", [42, "not_callable", [], {}])
+    def test_invalid_type_returned_unchanged(self, bad_target: object) -> None:
+        """Non-callable, non-class, non-sentinel values pass through _normalize_target as-is."""
+
+        def dummy() -> None: ...
+
+        result = _normalize_target(source=dummy, target=cast(Any, bad_target))
+        assert result is bad_target
+
+    @pytest.mark.parametrize("bad_target", [42, "not_callable", [], {}])
+    def test_invalid_target_source_body_runs(self, bad_target: object) -> None:
+        """Non-callable target is never invoked; source body executes normally at call time."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+
+            @deprecated(target=cast(Any, bad_target), deprecated_in="0.9", remove_in="1.0")
+            def fn(x: int) -> int:
+                return x + 1
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = fn(4)
+
+        assert result == 5
