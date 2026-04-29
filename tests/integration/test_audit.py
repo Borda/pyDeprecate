@@ -398,7 +398,13 @@ class TestValidateDeprecationChains:
 
     @pytest.mark.parametrize(
         "fn_pattern",
-        ["caller_stacked_args_map", "caller_pow_via_self_depr"],
+        [
+            "caller_stacked_args_map",
+            "caller_pow_via_self_depr",
+            "caller_stacked_args_enum_enum",
+            "caller_stacked_args_legacy_enum",
+            "caller_stacked_args_enum_legacy",
+        ],
     )
     def test_detects_stacked_chain(self, chain_issues: list, fn_pattern: str) -> None:
         """Stacked arg-mapping decorators or self-deprecation targets are flagged as STACKED."""
