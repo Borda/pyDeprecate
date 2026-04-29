@@ -141,6 +141,8 @@ class DeprecationWrapperInfo:
         all_identity: True when every configured mapping is an identity mapping (key == value, non-empty).
         chain_type: The kind of deprecation chain detected, or ``None`` if no chain.
             See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
+        misconfigured_target: True when the wrapper has an invalid target configuration:
+            target=False, TargetMode.WHOLE with args_mapping, or TargetMode.ARGS_ONLY with empty args_mapping.
 
     Example:
         >>> info = DeprecationWrapperInfo(

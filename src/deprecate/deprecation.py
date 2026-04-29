@@ -13,6 +13,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import warnings
 from functools import partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
@@ -137,8 +138,6 @@ def _normalize_target(
         TypeError: When a class target is used on a non-``__init__`` class method.
 
     """
-    import warnings
-
     # --- Legacy sentinel conversion (v0.9 compat shim; removed in v1.0) ---
     # stacklevel=3: warn() → _normalize_target() → packing() → @decorator application site
     if target is None:
@@ -157,7 +156,8 @@ def _normalize_target(
         return TargetMode.ARGS_ONLY
     if target is False:
         warnings.warn(
-            "target=False is not valid and has no effect. Will be TypeError in v1.0.",
+            "'target=False' is not a valid deprecation mode and will be treated as TargetMode.WHOLE."
+            " This will be TypeError in v1.0.",
             UserWarning,
             stacklevel=3,
         )
@@ -584,7 +584,6 @@ def deprecated(
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
             import importlib
-            import warnings
 
             proxy_module = importlib.import_module("deprecate.proxy")
             deprecated_class = proxy_module.deprecated_class
@@ -620,10 +619,8 @@ def deprecated(
         # Skip for legacy sentinels (target=None/True/False): FutureWarning already
         # fired; user will hit the guard on their migrated call site.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
-            import warnings as _warnings
-
             if _target is TargetMode.ARGS_ONLY and not args_mapping:
-                _warnings.warn(
+                warnings.warn(
                     f"`@deprecated(target=TargetMode.ARGS_ONLY)` on `{source.__name__}` requires "
                     "`args_mapping` to specify which arguments are being renamed. Without it the "
                     "decorator has zero effect. This will be TypeError in v1.0.",
@@ -631,7 +628,7 @@ def deprecated(
                     stacklevel=2,
                 )
             if _target is TargetMode.WHOLE and args_mapping:
-                _warnings.warn(
+                warnings.warn(
                     f"`@deprecated(target=TargetMode.WHOLE)` on `{source.__name__}` ignores "
                     "`args_mapping`. Use `TargetMode.ARGS_ONLY` to rename arguments, or pass a "
                     "callable target to forward the call. This will be TypeError in v1.0.",
@@ -639,7 +636,7 @@ def deprecated(
                     stacklevel=2,
                 )
             if _target is TargetMode.WHOLE and args_extra:
-                _warnings.warn(
+                warnings.warn(
                     f"`@deprecated(target=TargetMode.WHOLE)` on `{source.__name__}` ignores "
                     "`args_extra`. Use a callable target to forward with extra arguments. "
                     "This will be TypeError in v1.0.",
