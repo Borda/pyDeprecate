@@ -52,7 +52,8 @@ class DeprecationConfig:
         deprecated_in: Version string when the callable was deprecated.
         remove_in: Version string when the callable will be removed.
         name: Display the name of the deprecated source (function or class name).
-        target: None, True, False (legacy sentinels, deprecated since v0.9), TargetMode.WHOLE, TargetMode.ARGS_ONLY, or a callable.
+        target: None, True, False (legacy sentinels, deprecated since v0.9),
+            TargetMode.WHOLE, TargetMode.ARGS_ONLY, or a callable.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
         docstring_style: Docstring notice output style when ``update_docstring=True``.

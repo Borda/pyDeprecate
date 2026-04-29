@@ -135,7 +135,10 @@ with warnings.catch_warnings():
         args_mapping={"old_x": "x"},
     )
     def whole_with_mapping_deprecation(x: int = 1) -> int:
-        """WHOLE + args_mapping — mapping is ignored and emits a construction-time UserWarning at decoration time; TypeError planned in v1.0; audit flags misconfigured_target."""
+        """WHOLE + args_mapping — mapping ignored; emits UserWarning at decoration time.
+
+        TypeError planned in v1.0; audit flags misconfigured_target.
+        """
         return x
 
     @deprecated(target=TargetMode.ARGS_ONLY, deprecated_in="0.1", remove_in="0.5")
