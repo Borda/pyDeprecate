@@ -616,8 +616,10 @@ def deprecated(
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
 
-        # Construction-time misconfiguration guards — will become TypeError in v1.0
-        if isinstance(_target, TargetMode):
+        # Construction-time misconfiguration guards — will become TypeError in v1.0.
+        # Skip for legacy sentinels (target=None/True/False): FutureWarning already
+        # fired; user will hit the guard on their migrated call site.
+        if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             import warnings as _warnings
 
             if _target is TargetMode.ARGS_ONLY and not args_mapping:
