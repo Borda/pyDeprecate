@@ -101,8 +101,7 @@ def _scan_or_exit(path: str, recursive: bool = True) -> list[DeprecationWrapperI
         try:
             return _scan_path(path, recursive=recursive)
         except Exception as exc:
-            _print(f"Error scanning {path}: {exc}", stderr=True)
-            sys.exit(1)
+            sys.exit(f"Error scanning {path}: {exc}")
 
 
 def _resolve_module_name(path: str) -> str:
@@ -402,9 +401,8 @@ def cmd_expiry(
     with _managed_sys_path(path):
         try:
             module_name = _resolve_module_name(path)
-        except ValueError as e:
-            _print(f"Error: {e}", stderr=True)
-            sys.exit(1)
+        except ValueError as err:
+            sys.exit(str(err))
 
         try:
             expired = validate_deprecation_expiry(module_name, version, recursive=recursive)
@@ -425,8 +423,7 @@ def cmd_expiry(
                 )
             sys.exit(0 if skip_errors else 1)
         except Exception as e:
-            _print(f"Error checking expiry for {path}: {e}", stderr=True)
-            sys.exit(1)
+            sys.exit(f"Error checking expiry for {path}: {e}")
 
     if not expired:
         _print("No expired deprecated wrappers found.")
@@ -458,15 +455,13 @@ def cmd_chains(
     with _managed_sys_path(path):
         try:
             module_name = _resolve_module_name(path)
-        except ValueError as e:
-            _print(f"Error: {e}", stderr=True)
-            sys.exit(1)
+        except ValueError as err:
+            sys.exit(str(err))
 
         try:
             chains = validate_deprecation_chains(module_name, recursive=recursive)
         except Exception as e:
-            _print(f"Error checking chains for {path}: {e}", stderr=True)
-            sys.exit(1)
+            sys.exit(f"Error checking chains for {path}: {e}")
 
     if not chains:
         _print("No deprecation chains found.")
@@ -542,12 +537,8 @@ def cmd_all(
                 "Install with: pip install 'pyDeprecate[audit]'",
                 stderr=True,
             )
-        except ValueError as e:
-            _print(
-                f"Invalid version {resolved_version!r}: {e}. Pass a valid PEP 440 version with --version.",
-                stderr=True,
-            )
-            sys.exit(1)
+        except ValueError as err:
+            sys.exit(f"Invalid version {resolved_version!r}: {err}. Pass a valid PEP 440 version with --version.")
     else:
         _print(
             "Skipping expiry check: could not determine package version. Pass --version explicitly to enable.",
@@ -576,11 +567,7 @@ def cli() -> None:
     try:
         import fire
     except ImportError:
-        _print(
-            "The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'",
-            stderr=True,
-        )
-        sys.exit(1)
+        sys.exit("The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'")
 
     subcommands = {"check", "expiry", "chains", "all"}
     argv = sys.argv[1:]

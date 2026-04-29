@@ -149,12 +149,12 @@ class TestCmdCheckScanning:
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_error_scanning(self, mock_find: MagicMock) -> None:
-        """Scan failure exits 1."""
+        """Scan failure exits with an error message string (truthy → shell exit 1)."""
         mock_find.side_effect = Exception("Boom")
 
         with pytest.raises(SystemExit) as exc:
             cmd_check(path="some_module")
-        assert exc.value.code == 1
+        assert exc.value.code != 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_skip_errors(self, mock_find: MagicMock) -> None:
@@ -167,12 +167,12 @@ class TestCmdCheckScanning:
         assert exc.value.code == 0
 
     def test_file_path_rejected(self, tmp_path: Path) -> None:
-        """File path (not directory or module) exits 1."""
+        """File path (not directory or module) exits with an error message string (truthy → shell exit 1)."""
         fpath = tmp_path / "module.py"
         fpath.touch()
         with pytest.raises(SystemExit) as exc:
             cmd_check(path=str(fpath))
-        assert exc.value.code == 1
+        assert exc.value.code != 0
 
     def test_absolute_path_package_outside_cwd(self, tmp_path: Path) -> None:
         """sys.path is fully restored after scanning an absolute package path."""
@@ -298,11 +298,11 @@ class TestCmdExpiry:
         mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
-        """Plain directory without __init__.py → exit 1 with helpful error."""
+        """Plain directory without __init__.py → exits with a non-zero error string."""
         (tmp_path / "module_a.py").touch()
         with pytest.raises(SystemExit) as exc:
             cmd_expiry(path=str(tmp_path), version="1.0")
-        assert exc.value.code == 1
+        assert exc.value.code
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_expired_reported_plain(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
@@ -355,11 +355,11 @@ class TestCmdChains:
         mock_chains.assert_called_once_with("some_module", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
-        """Plain directory without __init__.py → exit 1 with helpful error."""
+        """Plain directory without __init__.py → exits with a non-zero error string."""
         (tmp_path / "module_a.py").touch()
         with pytest.raises(SystemExit) as exc:
             cmd_chains(path=str(tmp_path))
-        assert exc.value.code == 1
+        assert exc.value.code
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_chains_reported_plain(self, mock_chains: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
