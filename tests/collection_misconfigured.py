@@ -9,7 +9,8 @@ They simulate common mistakes developers make when setting up deprecation wrappe
 - Mixing identity and valid mappings
 - Creating a self-referencing deprecation (wrapper targets itself)
 - Using target=False (invalid sentinel)
-- Using TargetMode.WHOLE with args_mapping (silently ignored — misconfigured)
+- Using TargetMode.WHOLE with args_mapping (ignored with a construction-time
+  UserWarning; planned to become a TypeError in v1.0 — misconfigured)
 - Using TargetMode.ARGS_ONLY without args_mapping (no-op — misconfigured)
 
 Used by `validate_deprecated_wrapper()` and `find_deprecation_wrappers()` to verify
