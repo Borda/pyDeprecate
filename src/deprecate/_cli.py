@@ -12,18 +12,19 @@ Subcommands:
     all     — Run all three checks in a single scan pass.
 """
 
+import functools
 import sys
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from rich.table import Table as RichTable
 
 from deprecate.audit import (
     DeprecationWrapperInfo,
-    _get_package_version,
+    _check_expiry_for_callables,
     find_deprecation_wrappers,
     validate_deprecation_chains,
     validate_deprecation_expiry,
@@ -97,6 +98,7 @@ def _scan_or_exit(path: str, recursive: bool = True) -> list[DeprecationWrapperI
     Returns:
         List of :class:`~deprecate.audit.DeprecationWrapperInfo` instances found during the scan.
     """
+    _print(f"Scanning path: {path} ...")
     with _managed_sys_path(path):
         try:
             return _scan_path(path, recursive=recursive)
@@ -318,6 +320,61 @@ def _report_issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bo
     return True
 
 
+def _resolve_or_exit(path: str) -> str:
+    """Convert a filesystem path to an importable module name, exiting on failure.
+
+    Wraps :func:`_resolve_module_name` and converts :class:`ValueError` to a
+    ``sys.exit`` call so callers do not have to repeat the try/except pattern.
+
+    Args:
+        path: Package directory path or importable module name string.
+
+    Returns:
+        Importable module name string.
+    """
+    try:
+        return _resolve_module_name(path)
+    except ValueError as err:
+        sys.exit(str(err))
+
+
+def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[list[str]]:
+    """Run the expiry scan and return expired wrapper messages, or None when packaging is unavailable.
+
+    Caller is responsible for setting up ``sys.path`` via :func:`_managed_sys_path` before calling.
+
+    Args:
+        path: Package directory path or importable module name string.
+        version: Current package version for comparison, or None to auto-detect.
+        recursive: Scan submodules recursively.
+
+    Returns:
+        List of expired wrapper message strings (may be empty), or None when the
+        ``packaging`` library is unavailable (advisory — warning already printed to stderr).
+    """
+    module_name = _resolve_or_exit(path)
+    try:
+        return validate_deprecation_expiry(module_name, version, recursive=recursive)
+    except ImportError as exc:
+        if _is_missing_packaging_import_error(exc):
+            _print(
+                "The 'expiry' subcommand requires the 'packaging' library.\n"
+                "Install it with:\n\n"
+                "    pip install 'pyDeprecate[audit]'\n",
+                stderr=True,
+            )
+        else:
+            _print(
+                "Could not determine the current package version automatically.\n"
+                "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
+                f"Original error: {exc}",
+                stderr=True,
+            )
+        return None
+    except Exception as exc:
+        sys.exit(f"Error checking expiry for {path}: {exc}")
+
+
 def _is_missing_packaging_import_error(error: ImportError) -> bool:
     """Return True when an ImportError was caused by a missing packaging dependency.
 
@@ -337,6 +394,31 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Version auto-detection helper
+# ---------------------------------------------------------------------------
+
+
+def _auto_detect_version(module_name: str) -> Optional[str]:
+    """Return the installed version for *module_name*, or ``None`` on any failure.
+
+    Uses :mod:`importlib.metadata` so no extra dependencies are required.
+
+    Args:
+        module_name: Importable package name whose installed version to look up.
+
+    Returns:
+        Version string (e.g. ``"1.2.3"``) or ``None`` when the package is not
+        installed or the version cannot be determined.
+    """
+    try:
+        import importlib.metadata
+
+        return importlib.metadata.version(module_name)
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Subcommand functions
 # ---------------------------------------------------------------------------
 
@@ -345,35 +427,39 @@ def cmd_check(
     path: str = ".",
     recursive: bool = True,
     skip_errors: bool = False,
-) -> NoReturn:
+    *,
+    _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
+) -> int:
     """Scan Python code for misconfigured ``@deprecated`` wrappers and deprecation chains.
 
     Reports invalid argument mappings (exit 1), identity mappings, no-effect wrappers,
-    and deprecation chains (warnings only, exit 0).
+    and deprecation chains (advisory warnings only, exit 0). Use the ``chains``
+    subcommand for a dedicated hard-error chain check.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if hard errors (invalid argument mappings) are found.
+        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore
+            prefix hides this parameter from the Fire CLI (internal use by ``cmd_all`` only).
+
+    Returns:
+        0 on success or advisory-only issues; 1 when hard errors are found and ``skip_errors`` is False.
     """
-    _print(f"Scanning path: {path} ...")
+    if _wrappers is None:
+        _wrappers = _scan_or_exit(path, recursive=recursive)
 
-    results = _scan_or_exit(path, recursive=recursive)
-
-    if not results:
+    if not _wrappers:
         _print("No deprecated callables found.")
-        sys.exit(0)
+        return 0
 
-    has_invalid = any(r.invalid_args for r in results)
-
-    if _report_issues(results):
+    if _report_issues(_wrappers, error_on_chains=False):
         _print("\nIssues were found in deprecated wrappers.")
-        if not skip_errors and has_invalid:
-            sys.exit(1)
     else:
         _print("\nAll deprecated wrappers look correct!")
 
-    sys.exit(0)
+    has_invalid = any(r.invalid_args for r in _wrappers)
+    return 1 if not skip_errors and has_invalid else 0
 
 
 def cmd_expiry(
@@ -381,10 +467,13 @@ def cmd_expiry(
     version: Optional[str] = None,
     recursive: bool = True,
     skip_errors: bool = False,
-) -> NoReturn:
+    *,
+    _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
+) -> int:
     """Check for deprecated wrappers that have passed their scheduled removal version.
 
     Requires the ``packaging`` library: ``pip install 'pyDeprecate[audit]'``.
+    A missing ``packaging`` library is treated as advisory (returns 0 with a warning).
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
@@ -392,54 +481,59 @@ def cmd_expiry(
             from installed package metadata if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if expired wrappers are found.
+        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
+            expired wrappers via ``_check_expiry_for_callables``. Requires *version* to be
+            non-``None`` when set. Underscore prefix hides this parameter from the Fire CLI
+            (internal use by ``cmd_all`` only).
+
+    Returns:
+        0 on success or when the ``packaging`` library is unavailable; 1 when expired
+        wrappers are found and ``skip_errors`` is False.
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
     if version is not None:
         version = str(version)
-    _print(f"Scanning path: {path} ...")
-
-    with _managed_sys_path(path):
+    if _wrappers is None:
+        # Standalone path: full scan + version auto-detect inside _do_expiry.
+        _print(f"Scanning path: {path} ...")
+        with _managed_sys_path(path):
+            raw = _do_expiry(path, version, recursive)
+        if raw is None:  # packaging unavailable — warning already printed to stderr
+            return 0
+        expired = raw
+    else:
+        # Pre-scanned path: derive expired list from wrappers directly.
+        if version is None:
+            _print(
+                "Cannot check expiry: version not resolved. Pass --version explicitly.",
+                stderr=True,
+            )
+            return 0
         try:
-            module_name = _resolve_module_name(path)
-        except ValueError as err:
-            sys.exit(str(err))
-
-        try:
-            expired = validate_deprecation_expiry(module_name, version, recursive=recursive)
-        except ImportError as e:
-            if _is_missing_packaging_import_error(e):
-                _print(
-                    "The 'expiry' subcommand requires the 'packaging' library.\n"
-                    "Install it with:\n\n"
-                    "    pip install 'pyDeprecate[audit]'\n",
-                    stderr=True,
-                )
-            else:
-                _print(
-                    "Could not determine the current package version automatically.\n"
-                    "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
-                    f"Original error: {e}",
-                    stderr=True,
-                )
-            sys.exit(0 if skip_errors else 1)
-        except Exception as e:
-            sys.exit(f"Error checking expiry for {path}: {e}")
-
+            expired = _check_expiry_for_callables(_wrappers, version)
+        except ImportError:
+            _print(
+                "The 'expiry' subcommand requires the 'packaging' library.\n"
+                "Install it with:\n\n"
+                "    pip install 'pyDeprecate[audit]'\n",
+                stderr=True,
+            )
+            return 0
     if not expired:
         _print("No expired deprecated wrappers found.")
-        sys.exit(0)
-
+        return 0
     _report_expiry(expired)
-
     _print(f"\n{len(expired)} expired wrapper(s) found.")
-    sys.exit(0 if skip_errors else 1)
+    return 0 if skip_errors else 1
 
 
 def cmd_chains(
     path: str = ".",
     recursive: bool = True,
     skip_errors: bool = False,
-) -> NoReturn:
+    *,
+    _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
+) -> int:
     """Detect deprecated wrappers whose ``target`` is itself a deprecated callable (chains).
 
     Two chain kinds are detected: ``target`` (forwarding chain to another deprecated
@@ -449,28 +543,28 @@ def cmd_chains(
         path: Path to the module, package directory, or importable module name to scan.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if chains are found.
+        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and filters
+            for ``chain_type is not None`` internally. Underscore prefix hides this parameter
+            from the Fire CLI (internal use by ``cmd_all`` only).
+
+    Returns:
+        0 when no chains are found or ``skip_errors`` is True; 1 when chains are found.
     """
-    _print(f"Scanning path: {path} ...")
-
-    with _managed_sys_path(path):
-        try:
-            module_name = _resolve_module_name(path)
-        except ValueError as err:
-            sys.exit(str(err))
-
-        try:
-            chains = validate_deprecation_chains(module_name, recursive=recursive)
-        except Exception as e:
-            sys.exit(f"Error checking chains for {path}: {e}")
-
+    if _wrappers is None:
+        _print(f"Scanning path: {path} ...")
+        with _managed_sys_path(path):
+            module_name = _resolve_or_exit(path)
+            try:
+                _wrappers = validate_deprecation_chains(module_name, recursive=recursive)
+            except Exception as exc:
+                sys.exit(f"Error checking chains for {path}: {exc}")
+    chains = [r for r in _wrappers if r.chain_type is not None]
     if not chains:
         _print("No deprecation chains found.")
-        sys.exit(0)
-
+        return 0
     _report_chains(chains, error=True)
-
     _print(f"\n{len(chains)} deprecation chain(s) found.")
-    sys.exit(0 if skip_errors else 1)
+    return 0 if skip_errors else 1
 
 
 def cmd_all(
@@ -478,12 +572,14 @@ def cmd_all(
     version: Optional[str] = None,
     recursive: bool = True,
     skip_errors: bool = False,
-) -> NoReturn:
-    """Run all checks: wrapper configuration, expiry, and chain detection.
+) -> int:
+    """Run all three checks sequentially: wrapper configuration, expiry, and chain detection.
 
-    Performs a single scan pass and applies all three analyses to the same results.
-    Requires the ``packaging`` library for expiry checks; if unavailable, the expiry
-    check is skipped with a warning and the other checks still run.
+    Performs a single scan pass and distributes the wrappers to ``cmd_check``,
+    ``cmd_expiry``, and ``cmd_chains`` so the filesystem is only traversed once.
+    Version is auto-detected from installed package metadata when not provided.
+    A missing ``packaging`` library skips the expiry check with a warning and does not
+    count as a hard error.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
@@ -491,75 +587,45 @@ def cmd_all(
             Auto-detected from installed package metadata if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         skip_errors: Always exit 0 even if issues are found.
+
+    Returns:
+        0 when all checks pass or ``skip_errors`` is True; 1 when any hard error is found.
     """
-    # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
     if version is not None:
         version = str(version)
-    _print(f"Scanning path: {path} ...")
+    wrappers = _scan_or_exit(path, recursive=recursive)
 
-    results = _scan_or_exit(path, recursive=recursive)
-
-    if not results:
-        _print("No deprecated callables found.")
-        sys.exit(0)
-
-    has_errors = False
-
-    # --- check: wrapper config + chains ---
-    has_invalid = any(r.invalid_args for r in results)
-    has_chains = any(r.chain_type is not None for r in results)
-    issues_reported = _report_issues(results, error_on_chains=True)
-    if issues_reported and (has_invalid or has_chains):
-        has_errors = True
-
-    # --- expiry ---
+    # Resolve version for expiry check (auto-detect from installed metadata if not given).
     resolved_version = version
     if resolved_version is None:
         try:
-            module_name = _resolve_module_name(path)
-            package_name = module_name.split(".")[0]
-            resolved_version = _get_package_version(package_name)
-        except Exception:
-            resolved_version = None
+            with _managed_sys_path(path):
+                module_name = _resolve_module_name(path)
+            resolved_version = _auto_detect_version(module_name)
+        except ValueError:
+            resolved_version = None  # plain dir — expiry will warn and skip
 
-    if resolved_version is not None:
-        try:
-            from deprecate.audit import _check_expiry_for_callables
+    check_code = cmd_check(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
+    expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, skip_errors=False, _wrappers=wrappers)
+    chains_code = cmd_chains(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
 
-            expired = _check_expiry_for_callables(results, resolved_version)
-            if expired:
-                _report_expiry(expired)
-                _print(f"\n{len(expired)} expired wrapper(s) found.")
-                has_errors = True
-        except ImportError:
-            _print(
-                "Skipping expiry check: 'packaging' library not installed. "
-                "Install with: pip install 'pyDeprecate[audit]'",
-                stderr=True,
-            )
-        except ValueError as err:
-            sys.exit(f"Invalid version {resolved_version!r}: {err}. Pass a valid PEP 440 version with --version.")
-    else:
-        _print(
-            "Skipping expiry check: could not determine package version. Pass --version explicitly to enable.",
-            stderr=True,
-        )
-
-    if has_errors:
-        _print("\nIssues were found.")
-        sys.exit(0 if skip_errors else 1)
-
-    if issues_reported:
-        _print("\nWarnings only — no hard errors.")
-        sys.exit(0)
-
-    _print("\nAll checks passed!")
-    sys.exit(0)
+    has_errors = bool(check_code or expiry_code or chains_code)
+    return 0 if not has_errors or skip_errors else 1
 
 
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
+
+def _wrap(fn: Callable[..., int]) -> Callable[..., None]:
+    """Wrap a cmd_* function so its integer return value becomes a sys.exit() call."""
+
+    @functools.wraps(fn)
+    def wrapper(*args: object, **kwargs: object) -> None:
+        sys.exit(fn(*args, **kwargs))
+
+    return wrapper
 
 
 def cli() -> None:
@@ -575,6 +641,11 @@ def cli() -> None:
         argv = ["check", *argv]
 
     fire.Fire(
-        {"check": cmd_check, "expiry": cmd_expiry, "chains": cmd_chains, "all": cmd_all},
+        {
+            "check": _wrap(cmd_check),
+            "expiry": _wrap(cmd_expiry),
+            "chains": _wrap(cmd_chains),
+            "all": _wrap(cmd_all),
+        },
         command=argv,
     )
