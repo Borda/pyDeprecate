@@ -197,6 +197,8 @@ Not sure which API to reach for? Start here.
 | Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                    |
 | Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                         |
 
+> **Note:** Legacy `target=None` and `target=True` still work in v0.9 with a `FutureWarning`.
+
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
 
@@ -235,7 +237,7 @@ In particular the target values (cases):
 
 | `target` value         | Use case                                      | `args_mapping`                  | Warning trigger                    |
 | ---------------------- | --------------------------------------------- | ------------------------------- | ---------------------------------- |
-| `TargetMode.WHOLE`     | Whole callable going away; no replacement yet | Ignored (warns; errors in v1.0) | Every call                         |
+| `TargetMode.WHOLE`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
 | `TargetMode.ARGS_ONLY` | Callable stays; argument names are renamed    | Required                        | Only when old arg names are passed |
 | `<callable>`           | Callable replaced by another; calls forwarded | Optional                        | Every call                         |
 
@@ -378,10 +380,10 @@ sample output:
 Base use-case with no forwarding and just raising a warning:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.WHOLE, deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b
@@ -411,12 +413,12 @@ print(my_sum(1, 2))
 We also support deprecation and argument mapping for the function itself:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 @deprecated(
     # define as deprecation some self argument - mapping
-    target=True,
+    target=TargetMode.ARGS_ONLY,
     args_mapping={"coef": "new_coef"},
     # common version info
     deprecated_in="0.2",
@@ -447,12 +449,12 @@ print(any_pow(2, 3))
 To **drop** an argument entirely (warn when it's passed, then discard it), map it to `None`:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 from typing import Optional
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_ONLY,
     args_mapping={"legacy_param": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -1023,11 +1025,11 @@ The `DeprecationWrapperInfo` dataclass contains:
 The `validate_deprecation_wrapper()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
-from deprecate import validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
+from deprecate import DeprecationWrapperInfo, TargetMode, deprecated, validate_deprecation_wrapper
 
 
 # Define your deprecated function
-@deprecated(target=True, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_ONLY, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
@@ -1047,7 +1049,7 @@ result = validate_deprecation_wrapper(my_func)
 
 
 # Example: Function with invalid args_mapping
-@deprecated(target=True, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_ONLY, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
 def bad_func(real_arg: int = 0) -> int:
     return real_arg
 
@@ -1058,7 +1060,7 @@ print(result)
 
 
 # Example: Function with empty mapping (no effect)
-@deprecated(target=True, args_mapping={}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_ONLY, args_mapping={}, deprecated_in="1.0")
 def empty_func(arg: int = 0) -> int:
     return arg
 
@@ -1324,7 +1326,7 @@ The `validate_deprecation_chains()` utility scans a module or package for deprec
 <summary><b>Example: Detecting Both Chain Types</b></summary>
 
 ```python
-from deprecate import deprecated, validate_deprecation_wrapper, void
+from deprecate import TargetMode, deprecated, validate_deprecation_wrapper, void
 
 
 def new_power(base: float, exponent: float = 2) -> float:
@@ -1338,7 +1340,7 @@ def power_v2(base: float, exponent: float = 2) -> float:
 
 
 # self-deprecation — renames old arg "exp" -> "exponent" within the same function
-@deprecated(True, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
+@deprecated(TargetMode.ARGS_ONLY, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
 def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
     return base**exponent
 
@@ -1350,7 +1352,7 @@ def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
     return void(base, exponent)
 
 
-# BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED
+# BAD: targets legacy_power (target=TargetMode.ARGS_ONLY with arg renaming) — ChainType.STACKED
 # Mappings chain: "power" -> "exp" -> "exponent" — must be composed.
 # SOLUTION: target=new_power, args_mapping={"power": "exponent"}
 @deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})
@@ -1533,17 +1535,17 @@ def old_func_warn_n_times(x: int) -> int:
 Use `@deprecated_class()` for class-level deprecation:
 
 ```python
-from deprecate import deprecated_class
+from deprecate import TargetMode, deprecated, deprecated_class
 from enum import Enum
 
 
 # Correct: use @deprecated_class for classes
-@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
 
 
-@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
@@ -1554,7 +1556,7 @@ from deprecate import deprecated
 
 
 class MyClass:
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```
@@ -1612,11 +1614,11 @@ class MyClass:
 3. **Use target=True for self-deprecation** (deprecate argument of same function):
 
    ```python
-   from deprecate import deprecated
+   from deprecate import TargetMode, deprecated
 
 
    # Deprecate within same function
-   @deprecated(target=True, args_mapping={"old_arg": "new_arg"})
+   @deprecated(target=TargetMode.ARGS_ONLY, args_mapping={"old_arg": "new_arg"})
    def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
        return new_arg * 2
    ```
