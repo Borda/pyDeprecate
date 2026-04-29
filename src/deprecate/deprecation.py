@@ -616,7 +616,7 @@ def deprecated(
         _target = _normalize_target(source, target)
 
         # Construction-time misconfiguration guards — will become TypeError in v1.0.
-        # Skip for legacy sentinels (target=None/True/False): FutureWarning already
+        # Skip for legacy sentinels (target=None/True/False): a warning already
         # fired; user will hit the guard on their migrated call site.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             if _target is TargetMode.ARGS_ONLY and not args_mapping:
