@@ -19,15 +19,14 @@ class TargetMode(Enum):
     Members:
         WHOLE: Deprecate the whole callable -- warn on every call; original body
             executes unchanged. Replaces ``target=None``. Passing
-            ``args_mapping`` or ``args_extra`` with this mode is currently
-            unsupported: it emits a :class:`UserWarning` today and is planned to
-            raise :class:`TypeError` in v1.0.
+            ``args_mapping`` or ``args_extra`` with this mode emits a
+            :class:`UserWarning` today; :class:`TypeError` is planned in v1.0.
         ARGS_ONLY: Deprecate argument names only -- warn only when deprecated
             argument names are passed; remaps kwargs via ``args_mapping`` before
             calling the original body. Replaces ``target=True``. This mode is
-            intended to be used with ``args_mapping``; omitting it currently
-            emits a :class:`UserWarning` and is planned to raise
-            :class:`TypeError` in v1.0.
+            strongly recommended with ``args_mapping``; omitting it emits a
+            :class:`UserWarning` today, and :class:`TypeError` is planned in
+            v1.0.
 
     Examples:
         >>> from deprecate import TargetMode
