@@ -352,16 +352,16 @@ class TestDeprecatedClassGuard:
 
         assert isinstance(_MyClass, _DeprecatedProxy)
 
-    def test_stream_none_suppresses_meta_warning_enum(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated(target=TargetMode.WHOLE) is applied."""
+    def test_stream_none_suppresses_meta_warning_whole_class(self) -> None:
+        """stream=None suppresses the UserWarning when @deprecated(target=TargetMode.WHOLE) is applied to a plain class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
 
             @deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0", stream=None)
-            class _MyClass:
+            class _MyWholeClass:
                 pass
 
-        assert isinstance(_MyClass, _DeprecatedProxy)
+        assert isinstance(_MyWholeClass, _DeprecatedProxy)
 
     @pytest.mark.parametrize("target_val", _WHOLE_PARAMS)
     def test_does_not_raise_for_function(self, target_val: Union[TargetMode, None]) -> None:
