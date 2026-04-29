@@ -5,10 +5,12 @@ from typing import cast
 
 import pytest
 
-from deprecate import TargetMode, assert_no_warnings, deprecated
+from deprecate import assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
+    depr_class_args_only_mode_warns_on_deprecated_arg,
+    depr_class_whole_mode_warns_on_call,
     DecoratedDataClass,
     DecoratedEnum,
     DeprecatedDataClass,
@@ -272,33 +274,19 @@ class TestDeprecatedClassMethod:
     def test_whole_mode_warns_on_call(self) -> None:
         """TargetMode.WHOLE emits FutureWarning on every call; body executes unchanged."""
 
-        @deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
-        def my_method(x: int) -> int:
-            return x * 2
-
         with pytest.warns(FutureWarning):
-            result = my_method(5)
+            result = depr_class_whole_mode_warns_on_call(5)
         assert result == 10
 
     def test_args_only_mode_warns_on_deprecated_arg(self) -> None:
         """TargetMode.ARGS_ONLY warns when old arg used; silent when new arg used."""
 
-        @deprecated(
-            target=TargetMode.ARGS_ONLY,
-            deprecated_in="1.0",
-            remove_in="2.0",
-            args_mapping={"old_x": "x"},
-            num_warns=-1,
-        )
-        def my_method(x: int = 0) -> int:
-            return x * 2
-
         with pytest.warns(FutureWarning):
-            result = my_method(old_x=5)
+            result = depr_class_args_only_mode_warns_on_deprecated_arg(old_x=5)
         assert result == 10
 
         with assert_no_warnings():
-            result = my_method(x=5)
+            result = depr_class_args_only_mode_warns_on_deprecated_arg(x=5)
         assert result == 10
 
 
