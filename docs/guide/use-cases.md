@@ -226,7 +226,7 @@ These modes differ in whether the function body runs, whether a warning fires, a
 | **`skip_if` effect**          | `⊛`                                                                                                       | `⊛`                                        | `⊛`                                                                        | `⊛`                                               |
 | **`stream=None` effect**      | `⊘` body still runs                                                                                       | No observable change                       | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                         |
 
-**Legend:** `✓` applied · `✗` not applied · `⚠` silently ignored (no error) · `⊘` warning suppressed, processing continues · `⊛` `skip_if` bypasses everything · `—` not applicable
+**Legend:** `✓` applied · `✗` not applied · `⚠` ignored with `UserWarning` (will be `TypeError` in v1.0) · `⊘` warning suppressed, processing continues · `⊛` `skip_if` bypasses everything · `—` not applicable
 
 ### When to use which
 
