@@ -490,18 +490,14 @@ def cmd_expiry(
     else:
         # Pre-scanned path: derive expired list from wrappers directly.
         if version is None:
-            _print(
-                "Cannot check expiry: version not resolved. Pass --version explicitly.",
-                stderr=True,
-            )
+            _print("Cannot check expiry: version not resolved. Pass --version explicitly.", stderr=True)
             return 0
         try:
             expired = _check_expiry_for_callables(_wrappers, version)
         except ImportError:
             _print(
                 "The 'expiry' subcommand requires the 'packaging' library.\n"
-                "Install it with:\n\n"
-                "    pip install 'pyDeprecate[audit]'\n",
+                "Install it with: `pip install 'pyDeprecate[audit]'`",
                 stderr=True,
             )
             return 0
