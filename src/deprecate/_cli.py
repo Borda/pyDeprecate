@@ -47,7 +47,8 @@ def _print(msg: str, *, stderr: bool = False) -> None:
     if _Reporter._HAS_RICH:
         _Reporter._console(stderr).print(msg, markup=False, highlight=False)
     else:
-        print(msg, file=sys.stderr if stderr else sys.stdout)
+        std_ = sys.stderr if stderr else sys.stdout
+        print(msg, file=std_)
 
 
 def _is_package_dir(pth: Path) -> bool:
@@ -71,25 +72,6 @@ def _managed_sys_path(path: str) -> Generator[None, None, None]:
         yield
     finally:
         sys.path[:] = original
-
-
-def _scan(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo]:
-    """Scan a path for deprecated wrappers. sys.path managed via _managed_sys_path.
-
-    Prepends the appropriate import root to ``sys.path`` via :func:`_managed_sys_path`,
-    then delegates to :func:`_scan_path`. Exceptions propagate to the ``_wrap``
-    top-level handler.
-
-    Args:
-        path: Path to the module, package directory, or importable module name to scan.
-        recursive: Scan submodules recursively (default ``True``).
-
-    Returns:
-        List of :class:`~deprecate.audit.DeprecationWrapperInfo` instances found during the scan.
-    """
-    _print(f"Scanning path: {path} ...")
-    with _managed_sys_path(path):
-        return _scan_path(path, recursive=recursive)
 
 
 def _resolve_module_name(path: str) -> str:
@@ -363,8 +345,7 @@ def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[l
         if _is_missing_packaging_import_error(exc):
             _print(
                 "The 'expiry' subcommand requires the 'packaging' library.\n"
-                "Install it with:\n\n"
-                "    pip install 'pyDeprecate[audit]'\n",
+                "Install it with: `pip install 'pyDeprecate[audit]'`",
                 stderr=True,
             )
         else:
@@ -450,7 +431,9 @@ def cmd_check(
         0 on success or advisory-only issues; 1 when hard errors are found and ``skip_errors`` is False.
     """
     if _wrappers is None:
-        _wrappers = _scan(path, recursive=recursive)
+        _print(f"Scanning path: {path} ...")
+        with _managed_sys_path(path):
+            _wrappers = _scan_path(path, recursive=recursive)
 
     if not _wrappers:
         _print("No deprecated callables found.")
@@ -592,7 +575,9 @@ def cmd_all(
     """
     if version is not None:
         version = str(version)
-    wrappers = _scan(path, recursive=recursive)
+    _print(f"Scanning path: {path} ...")
+    with _managed_sys_path(path):
+        wrappers = _scan_path(path, recursive=recursive)
 
     # Resolve version for expiry check (auto-detect from installed metadata if not given).
     resolved_version = version
