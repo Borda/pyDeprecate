@@ -23,7 +23,7 @@ To install directly from source (for pre-release or development versions):
 pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 ```
 
-The `audit` extra adds `packaging` for version comparison, needed only by `validate_deprecation_expiry`. Install it when you want to enforce removal deadlines in CI:
+The `audit` extra adds `packaging` for version comparison, needed only by [`validate_deprecation_expiry`](guide/audit.md#enforcing-removal-deadlines). Install it when you want to enforce removal deadlines in CI:
 
 ```bash
 pip install 'pyDeprecate[audit]'
@@ -101,4 +101,4 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 ______________________________________________________________________
 
-Next: [Use Cases](guide/use-cases.md) — twelve real-world deprecation patterns with full code examples.
+Next: [Use Cases](guide/use-cases.md) — thirteen real-world deprecation patterns with full code examples. See also: [Customization](guide/customization.md) · [Audit Tools](guide/audit.md) · [Troubleshooting](troubleshooting.md)

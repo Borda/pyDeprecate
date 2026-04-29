@@ -1,41 +1,57 @@
-# Build Composite Docs
+#
+# Build & Deploy Docs
 #
 # Flow:
 #
-#   [push → main] / [pull_request → main]
-#     │
-#     ├─ build-landing-docs ──┐
-#     ├─ build-demo-sphinx ───┤
-#     └─ build-demo-mkdocs ───┤
-#                             ▼
-#                          assemble (always runs — merges artifacts into _site/, PR validation)
-#                             ├─ download portal, sphinx, mkdocs artifacts
-#                             ├─ assemble _site/{sphinx,mkdocs} + portal at root
-#                             └─ upload assembled-site artifact (contents: read only)
-#                             ▼ [push only]
-#                          deploy (pages: write + id-token: write)
-#                             ├─ download assembled-site artifact
-#                             ├─ actions/configure-pages
-#                             ├─ actions/upload-pages-artifact
-#                             └─ actions/deploy-pages
+#   Triggers (filtered at the workflow level):
+#     - push → main                                    → build + deploy to latest/
+#     - push → version-like tag (v1.2, 1.2.3, …)       → build + deploy to <tag>/ (and stable/ if highest)
+#     - pull_request → main                            → build only (no deploy)
 #
-#   pages: write and id-token: write are scoped to the deploy job only —
-#   pull requests keep the minimal contents: read permission and never trigger deploy.
-
+#   Jobs:
+#     build-landing-docs ──┐
+#     build-demo-sphinx ───┤  (run on every trigger)
+#     build-demo-mkdocs ───┤
+#                          ▼
+#                       assemble-site  (run on every trigger)
+#                          ├─ inject sphinx + mkdocs artifacts into docs/
+#                          ├─ mike deploy <version_path> [aliases…] --update-aliases
+#                          ├─ mike set-default <latest|stable>
+#                          ├─ git push gh-pages [push events only] — this IS the deploy
+#                          │  (GitHub Pages serves directly from the gh-pages branch)
+#                          └─ upload built site as workflow artifact (manual inspection)
+#
+#   permissions:
+#     - default workflow permission is contents: read
+#     - assemble-site escalates to contents: write for git push
+#
 name: Build & Deploy Docs
 
 on:
   push:
     branches: [main]
+    # Version-like tags only — non-version tags (test, feature, etc.) are excluded at trigger level.
+    # rc/dev/post tags that resemble semver (e.g. v1.2.3rc1) may still trigger a build but
+    # will be excluded from deployment because they won't match RELEASE_TAG_PATTERN.
+    tags:
+      - "v[0-9]*.[0-9]*" # v1.2, v1.2.3 — optional lowercase v prefix
+      - "[0-9]*.[0-9]*" # 1.2, 1.2.3 — no v prefix
   pull_request:
     branches: [main]
 
-# Minimal default; deploy job overrides with pages + id-token.
 permissions:
   contents: read
 
 env:
+  GH_PAGES_BRANCH: gh-pages
   PYTHON_DEFAULT: "3.13"
+  # Final release tags only — optional lowercase v prefix, two+ numeric segments.
+  # Accepted: v1.2, v1.2.3, 1.2.3    Rejected: v1.0.0rc1, 1.2.0.dev1, v1 (one segment), v1.2.3-final
+  RELEASE_TAG_PATTERN: '^v?[0-9]+(\.[0-9]+)+$'
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   build-landing-docs:
@@ -57,10 +73,9 @@ jobs:
       - name: 📦 Install portal dependencies
         run: pip install -r docs/requirements.txt
 
-      - name: 📄 Copy assets into portal docs
-        run: cp -r assets docs/assets
-
       - name: 📖 Build portal
+        # Documentation screenshots (demo-docs-*.png) live under docs/assets/images/ so MkDocs picks them up
+        # natively without a copy step.
         run: mkdocs build --strict
 
       - name: 📄 Copy Markdown sources into site for .md URL support
@@ -132,76 +147,129 @@ jobs:
           retention-days: 7
 
   assemble-site:
-    name: Assemble Site
+    name: Assemble & Mike Deploy
     needs: [build-landing-docs, build-demo-sphinx, build-demo-mkdocs]
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    # inherits minimal contents: read from top-level permissions
 
     steps:
-      - name: 📥 Download portal artifact
-        uses: actions/download-artifact@v8
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
         with:
-          name: portal-docs
-          path: _site
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+
+      - name: 📦 Install mike
+        run: pip install -r docs/requirements.txt
+
+      - name: 🔑 Configure git identity for mike
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 📥 Fetch existing gh-pages branch (if any)
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "${GH_PAGES_BRANCH}" >/dev/null 2>&1; then
+            git fetch origin "${GH_PAGES_BRANCH}:${GH_PAGES_BRANCH}"
+          else
+            echo "No remote ${GH_PAGES_BRANCH} branch yet — mike will create it on first deploy."
+          fi
 
       - name: 📥 Download Sphinx artifact
         uses: actions/download-artifact@v8
         with:
           name: sphinx-docs
-          path: _site/demo-sphinx
+          path: docs/demo-sphinx
 
       - name: 📥 Download MkDocs artifact
         uses: actions/download-artifact@v8
         with:
           name: mkdocs-docs
-          path: _site/demo-mkdocs
+          path: docs/demo-mkdocs
 
-      - name: 📤 Upload assembled site artifact
+      - name: 🏷️ Resolve version path
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
+            VERSION_PATH="latest"
+            STABLE_TAG=""
+            SKIP="false"
+          else
+            if [[ ! "${GITHUB_REF_NAME}" =~ ${RELEASE_TAG_PATTERN} ]]; then
+              echo "Skipping docs deploy for non-final tag: ${GITHUB_REF_NAME}"
+              echo "SKIP=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            VERSION_PATH="${GITHUB_REF_NAME}"
+            STABLE_TAG="$((git tag --list | { grep -E "${RELEASE_TAG_PATTERN}" || true; } | sort -V | tail -1))"
+            SKIP="false"
+          fi
+
+          ALIASES=""
+          SET_DEFAULT=""
+
+          if [ "${VERSION_PATH}" = "latest" ]; then
+            SET_DEFAULT="latest"
+          elif [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
+            ALIASES="stable"
+            SET_DEFAULT="stable"
+          fi
+
+          {
+            echo "SKIP=${SKIP}"
+            echo "VERSION_PATH=${VERSION_PATH}"
+            echo "STABLE_TAG=${STABLE_TAG}"
+            echo "ALIASES=${ALIASES}"
+            echo "SET_DEFAULT=${SET_DEFAULT}"
+          } >> "$GITHUB_ENV"
+
+      - name: 🚀 Mike deploy
+        if: env.SKIP != 'true'
+        run: |
+          set -euo pipefail
+
+          # Re-expand space-separated aliases string into a bash array.
+          # `${aliases[@]+"${aliases[@]}"}` is the empty-array-safe expansion under `set -u`.
+          read -ra aliases <<< "${ALIASES}"
+
+          # Run mike without --push; single git push below lands deploy + set-default atomically.
+          mike deploy \
+            --update-aliases \
+            --branch "${GH_PAGES_BRANCH}" \
+            "${VERSION_PATH}" \
+            ${aliases[@]+"${aliases[@]}"}
+
+      - name: 🔧 Mike set-default
+        if: env.SKIP != 'true' && env.SET_DEFAULT != ''
+        run: |
+          set -euo pipefail
+          mike set-default --branch "${GH_PAGES_BRANCH}" "${SET_DEFAULT}"
+
+      - name: 📦 Export built site
+        if: env.SKIP != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p _site_export
+          git archive "${GH_PAGES_BRANCH}" | tar -x -C _site_export
+
+      - name: 📤 Upload site artifact
         uses: actions/upload-artifact@v7
         with:
-          name: assembled-site
-          path: _site/
+          name: built-site
+          path: _site_export/
           retention-days: 7
 
-  deploy-pages:
-    name: Deploy to GH Pages
-    needs: [assemble-site]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    permissions:
-      pages: write # required by upload-pages-artifact and deploy-pages
-      id-token: write # required by deploy-pages (OIDC token for Pages API)
-    environment:
-      # Repo setting: Settings → Pages → Source → "GitHub Actions"
-      # Deployed URL is reported back via steps.deploy.outputs.page_url
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-
-    steps:
-      - name: 📥 Download assembled site artifact
-        # Download the _site/ directory assembled by the assemble job above.
-        # Layout after download:
-        #   _site/              ← portal (README → index.html via MkDocs)
-        #   _site/demo-sphinx/  ← Sphinx HTML build
-        #   _site/demo-mkdocs/  ← MkDocs HTML build
-        uses: actions/download-artifact@v8
-        with:
-          name: assembled-site
-          path: _site
-
-      - name: ⚙️ Configure GitHub Pages
-        # Reads repo Pages config and sets GITHUB_PAGES_* env vars used by upload-pages-artifact and deploy-pages.
-        uses: actions/configure-pages@v6
-
-      - name: 📤 Upload Pages artifact
-        # Packages _site/ into a specially formatted tarball and registers it under the reserved "github-pages" artifact name that deploy-pages expects.
-        # This is NOT the same as upload-artifact — deploy-pages cannot read regular artifacts; it only reads the "github-pages" artifact created here.
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: _site/
-
-      - name: 🚀 Deploy to GitHub Pages
-        # Reads the "github-pages" artifact and pushes it to the Pages CDN.
-        # Outputs: page_url (the live URL, surfaced in the environment block above).
-        id: deploy
-        uses: actions/deploy-pages@v5
+      - name: 📤 Push gh-pages branch
+        if: github.event_name == 'push' && env.SKIP != 'true'
+        run: git push origin "${GH_PAGES_BRANCH}"

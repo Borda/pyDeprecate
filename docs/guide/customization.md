@@ -268,6 +268,12 @@ print(collected_warnings)
 
 </details>
 
+## See also
+
+- [Use Cases](use-cases.md) — worked examples of all deprecation patterns including stream and template usage
+- [Audit Tools](audit.md) — complement custom streams with CI enforcement of removal deadlines
+- [Troubleshooting](../troubleshooting.md) — how to redirect deprecation output to a Python logger instead of `warnings.warn`
+
 ______________________________________________________________________
 
 Next: [Audit Tools](audit.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.

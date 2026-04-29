@@ -11,6 +11,7 @@ from setuptools import find_packages, setup
 
 _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
+_README_IMAGE_FILES = ("demo-docs-mkdocs.png", "demo-docs-sphinx.png")
 
 
 def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:  # noqa: ANN401
@@ -34,11 +35,14 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     with open(path_readme, encoding="utf-8") as fp:
         text = fp.read()
 
-    github_source_url = os.path.join(codebase_url, "raw", version)
+    github_source_url = f"{codebase_url}/raw/{version}"
     # replace relative repository path to absolute link to the release
-    #  do not replace all "docs" as in the readme we replace some other sources with particular path to docs
-    text = text.replace("assets/", f"{os.path.join(github_source_url, 'assets/')}")
-    text = text.replace(".github/", f"{os.path.join(github_source_url, '.github/')}")
+    for image in _README_IMAGE_FILES:
+        text = text.replace(
+            f"(docs/assets/images/{image})",
+            f"({github_source_url}/docs/assets/images/{image})",
+        )
+    text = text.replace(".github/", f"{github_source_url}/.github/")
 
     # codecov badge
     text = text.replace("/branch/main/graph/badge.svg", f"/release/{version}/graph/badge.svg")
@@ -78,7 +82,7 @@ setup(
     install_requires=[],
     extras_require={
         "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
-        "cli": ["jsonargparse[signatures]>=4.47.0", "rich>=14.0.0"],  # For command-line interface
+        "cli": ["fire", "rich"],  # For pydeprecate CLI command and Rich output support
     },
     project_urls={"Source Code": ABOUT.__source_code__, "Home page": ABOUT.__homepage__},
     entry_points={

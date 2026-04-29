@@ -1,6 +1,6 @@
 ---
 id: use-cases
-description: Twelve real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
+description: Thirteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
 ---
 
 # Use Cases
@@ -9,7 +9,7 @@ The two most common reasons to deprecate something are renaming a function and r
 
 ## Simple function forwarding
 
-Apply `@deprecated(target=new_func)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. The body of the deprecated function is never executed, so leave it empty or put a docstring there.
+Apply `@deprecated(target=new_func)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. The body of the deprecated function is never executed, so leave it empty or put a docstring there (see also [void() helper](void-helper.md) for a null-forwarding idiom).
 
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it computes
@@ -751,7 +751,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 ## Suppressing `FutureWarning` in test fixtures with `assert_no_warnings`
 
-In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. `assert_no_warnings` catches and discards warnings of the specified type inside the block, while asserting that no such warning escapes.
+In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. [`assert_no_warnings`](audit.md#testing-deprecated-code) catches and discards warnings of the specified type inside the block, while asserting that no such warning escapes.
 
 Here is the gotcha: this is different from `pytest.warns` (which asserts a warning IS emitted) and from `warnings.filterwarnings("ignore")` (which silences globally without assertion). `assert_no_warnings` gives you a scoped, assertion-backed silence. If the code unexpectedly starts emitting a different warning category, that still surfaces.
 
@@ -808,6 +808,13 @@ Quick reference for choosing the right testing tool:
 | `warnings.catch_warnings()` + `simplefilter("ignore")` | Suppress without assertion    | Never fails (use in fixtures) |
 
 Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
+
+## See also
+
+- [Customization](customization.md) — redirect deprecation output to a logger or use a custom message template
+- [void() Helper](void-helper.md) — when and why the deprecated function body should call `void()`
+- [Audit Tools](audit.md) — enforce removal deadlines and detect deprecation chains in CI
+- [Troubleshooting](../troubleshooting.md) — common errors and fixes for `@deprecated` configuration
 
 ______________________________________________________________________
 
