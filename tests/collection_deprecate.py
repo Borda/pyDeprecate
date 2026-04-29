@@ -394,7 +394,12 @@ def decorated_sum_msg(a: int, b: int = 5) -> int:
 wrapped_sum_msg = _deprecation_sum_msg(original_sum)
 
 
-@deprecated(target=TargetMode.WHOLE, deprecated_in="0.9", remove_in="1.0")
+@deprecated(
+    target=TargetMode.WHOLE,
+    deprecated_in="0.9",
+    remove_in="1.0",
+    num_warns=-1,
+)
 def depr_target_mode_whole_warns_on_every_call(x: int) -> int:
     """TargetMode.WHOLE wrapper used by integration tests."""
     return double_value(x)
