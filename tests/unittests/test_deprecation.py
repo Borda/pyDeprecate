@@ -665,7 +665,8 @@ class TestNormalizeTargetInvalidInputs:
     def test_invalid_type_returned_unchanged(self, bad_target: object) -> None:
         """Non-callable, non-class, non-sentinel values pass through _normalize_target as-is."""
 
-        def dummy() -> None: ...
+        def dummy() -> None:
+            pass
 
         result = _normalize_target(source=dummy, target=cast(Any, bad_target))
         assert result is bad_target
