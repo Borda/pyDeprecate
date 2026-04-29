@@ -412,7 +412,7 @@ def depr_target_mode_whole_executes_original_body(x: int) -> int:
     remove_in="1.0",
     args_mapping={"old_x": "x"},
 )
-def depr_target_mode_args_only_warns_when_old_arg_passed(x: int) -> int:
+def depr_target_mode_args_only_warns_when_old_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_ONLY wrapper used when callers pass the old name."""
     return increment_value(x)
 
@@ -423,7 +423,7 @@ def depr_target_mode_args_only_warns_when_old_arg_passed(x: int) -> int:
     remove_in="1.0",
     args_mapping={"old_x": "x"},
 )
-def depr_target_mode_args_only_silent_when_new_arg_passed(x: int) -> int:
+def depr_target_mode_args_only_silent_when_new_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_ONLY wrapper used when callers already use the new name."""
     return increment_value(x)
 
@@ -434,7 +434,7 @@ def depr_target_mode_args_only_silent_when_new_arg_passed(x: int) -> int:
     remove_in="1.0",
     args_mapping={"coef": "new_coef"},
 )
-def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0) -> float:
+def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0, coef: float = 1.0) -> float:
     """TargetMode.ARGS_ONLY wrapper that remaps kwargs before executing."""
     return power_with_new_coef(base, new_coef)
 
@@ -446,7 +446,7 @@ def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0)
     args_mapping={"old_x": "x"},
     args_extra={"y": 10},
 )
-def depr_target_mode_args_only_with_args_extra_injects_kwargs(x: int, y: int) -> int:
+def depr_target_mode_args_only_with_args_extra_injects_kwargs(x: int = 0, y: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_ONLY wrapper that injects extra keyword arguments."""
     return add_values(x, y)
 
@@ -557,7 +557,7 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int:
     args_mapping={"old_x": "x"},
     num_warns=-1,
 )
-def depr_class_args_only_mode_warns_on_deprecated_arg(x: int = 0) -> int:
+def depr_class_args_only_mode_warns_on_deprecated_arg(x: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_ONLY wrapper used by class integration tests."""
     return double_value(x)
 
