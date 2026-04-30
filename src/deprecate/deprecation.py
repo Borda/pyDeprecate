@@ -599,30 +599,13 @@ def deprecated(
         # Skip for legacy sentinels (target=None/True/False): a warning already
         # fired; user will hit the guard on their migrated call site.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
-            if _target is TargetMode.ARGS_REMAP and not args_mapping:
-                warnings.warn(
-                    f"`@deprecated(target=TargetMode.ARGS_REMAP)` on `{source.__name__}` requires "
-                    "`args_mapping` to specify which arguments are being renamed. Without it the "
-                    "decorator has zero effect. This will be TypeError in v1.0.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            if _target is TargetMode.NOTIFY and args_mapping:
-                warnings.warn(
-                    f"`@deprecated(target=TargetMode.NOTIFY)` on `{source.__name__}` ignores "
-                    "`args_mapping`. Use `TargetMode.ARGS_REMAP` to rename arguments, or pass a "
-                    "callable target to forward the call. This will be TypeError in v1.0.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            if _target is TargetMode.NOTIFY and args_extra:
-                warnings.warn(
-                    f"`@deprecated(target=TargetMode.NOTIFY)` on `{source.__name__}` ignores "
-                    "`args_extra`. Use a callable target to forward with extra arguments. "
-                    "This will be TypeError in v1.0.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+            TargetMode.validate(
+                _target,
+                source.__name__,
+                args_mapping=args_mapping,
+                args_extra=args_extra,
+                stacklevel=2,
+            )
 
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()

@@ -54,6 +54,7 @@ from tests.collection_targets import (
     NewDataClass,
     NewEnum,
     NewIntEnum,
+    SomeTargetClass,
     TargetColorEnum,
     TimerDecorator,
     add_values,
@@ -1075,6 +1076,44 @@ class MappedDropArgDataClass:
 
 
 # ========== Proxy chain fixtures for chain detection tests ==========
+
+
+# ========== Proxy args_mapping behaviour fixtures ==========
+
+
+# Proxy: NOTIFY + args_mapping (misconfig — UserWarning at decoration time)
+with warnings.catch_warnings():
+    warnings.simplefilter("always")
+    ProxyNotifyWithArgsMapping = deprecated_class(
+        deprecated_in="0.9",
+        remove_in="1.0",
+        target=TargetMode.NOTIFY,
+        args_mapping={"old_key": "new_key"},
+    )(SomeTargetClass)
+
+# Proxy: ARGS_REMAP + no args_mapping (misconfig — UserWarning at decoration time)
+with warnings.catch_warnings():
+    warnings.simplefilter("always")
+    ProxyArgsRemapNoMapping = deprecated_class(
+        deprecated_in="0.9",
+        remove_in="1.0",
+        target=TargetMode.ARGS_REMAP,
+    )(SomeTargetClass)
+
+# Proxy: auto ARGS_REMAP via args_mapping only (no explicit target)
+ProxyArgsRemapAuto = deprecated_class(
+    deprecated_in="0.9",
+    remove_in="1.0",
+    args_mapping={"old_key": "new_key"},
+)(SomeTargetClass)
+
+# Proxy: callable target + args_mapping
+ProxyCallableWithArgsMapping = deprecated_class(
+    deprecated_in="0.9",
+    remove_in="1.0",
+    target=SomeTargetClass,
+    args_mapping={"old_key": "new_key"},
+)(SomeTargetClass)
 
 
 @deprecated_class(target=DeprecatedColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)

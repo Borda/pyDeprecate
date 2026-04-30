@@ -653,11 +653,6 @@ class TestDocstringStyleOutput:
         assert absent_marker not in (_fn.__doc__ or "")
 
 
-# ---------------------------------------------------------------------------
-# _normalize_target — invalid / unrecognised input types (#20)
-# ---------------------------------------------------------------------------
-
-
 class TestNormalizeTargetInvalidInputs:
     """_normalize_target passes unrecognised non-class values through unchanged."""
 

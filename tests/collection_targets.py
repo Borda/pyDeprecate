@@ -175,6 +175,18 @@ class NewDataClass:
     total: int = 0
 
 
+class SomeTargetClass:
+    """Simple target class for proxy args_mapping behaviour tests.
+
+    Accepts ``new_key`` as the canonical parameter name; used to verify that
+    ``deprecated_class`` fixtures correctly remap ``old_key`` to ``new_key``.
+    """
+
+    def __init__(self, new_key: int = 0) -> None:
+        """Store the canonical keyword argument."""
+        self.new_key = new_key
+
+
 def timing_wrapper(func: Callable) -> Callable:
     """Decorator to measure the execution time of a function."""
 

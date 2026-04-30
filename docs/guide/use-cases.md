@@ -506,7 +506,7 @@ print(DEFAULTS["lr"])  # 0.001
 
 ## Enums and dataclasses
 
-`deprecated_class()` wraps an Enum or dataclass in a transparent proxy that emits a deprecation notice on access and forwards attribute, item, and call operations to the replacement. Use `args_mapping` to rename or drop kwargs when the deprecated class is called. Type checks (`isinstance`, `issubclass`) pass through without emitting notices, since they are structural checks rather than usage of the deprecated API.
+`deprecated_class()` wraps an Enum or dataclass in a transparent proxy that emits a deprecation notice on access and forwards attribute, item, and call operations to the replacement. Use `args_mapping` to rename or drop kwargs when the deprecated class is called. When `args_mapping` is provided without an explicit `target`, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when an old argument name is actually used** — matching the per-argument behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`. Callers already using the new argument names see no warning. Type checks (`isinstance`, `issubclass`) pass through without emitting notices, since they are structural checks rather than usage of the deprecated API.
 
 ```python
 from enum import Enum

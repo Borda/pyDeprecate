@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+from deprecate._types import TargetMode
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
     DeprecatedColorDataClass,
@@ -14,6 +15,10 @@ from tests.collection_deprecate import (
     MappedColorEnum,
     MappedDataClass,
     MappedDropArgDataClass,
+    ProxyArgsRemapAuto,
+    ProxyArgsRemapNoMapping,
+    ProxyCallableWithArgsMapping,
+    ProxyNotifyWithArgsMapping,
     WarnOnlyColorEnum,
 )
 from tests.collection_targets import NewDataClass, TargetColorEnum
@@ -402,7 +407,7 @@ class TestDecoratorFactory:
         assert str(caught[0].message) == warning_message
 
         dep = object.__getattribute__(OldClass, "__deprecated__")
-        assert dep.target is None
+        assert dep.target is TargetMode.NOTIFY
 
         obj = OldClass()
         assert obj.method() == "ok"
@@ -712,3 +717,77 @@ class TestTypeProtocol:
         """isinstance(x, proxy) returns False when the active object is not a type."""
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
         assert not isinstance(42, cast(Any, proxy))
+
+
+class TestProxyArgsMappingBehavior:
+    """Conditional warning behavior when args_mapping is provided on a proxy."""
+
+    def test_auto_args_remap_warns_on_old_arg(self) -> None:
+        """Proxy with args_mapping and no explicit target warns when old arg name is used."""
+        with pytest.warns(FutureWarning):
+            ProxyArgsRemapAuto(old_key=1)
+
+    def test_auto_args_remap_silent_on_new_arg(self) -> None:
+        """Proxy with args_mapping and no explicit target does NOT warn when new arg name is used."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ProxyArgsRemapAuto(new_key=1)
+        assert not caught
+
+    def test_callable_target_with_args_mapping_warns_on_old_arg(self) -> None:
+        """Proxy forwarding to callable target warns per old arg name when present in kwargs."""
+        with pytest.warns(FutureWarning):
+            ProxyCallableWithArgsMapping(old_key=1)
+
+    def test_callable_target_with_args_mapping_warns_on_new_arg(self) -> None:
+        """Proxy forwarding to callable target always warns (class deprecated) even with new arg name."""
+        from tests.collection_targets import SomeTargetClass
+
+        proxy = _DeprecatedProxy(
+            obj=SomeTargetClass,
+            name="SomeTargetClass",
+            deprecated_in="0.9",
+            remove_in="1.0",
+            num_warns=-1,
+            target=SomeTargetClass,
+            args_mapping={"old_key": "new_key"},
+        )
+        with pytest.warns(FutureWarning):
+            proxy(new_key=1)
+
+    def test_notify_with_args_mapping_emits_misconfig_warning(self) -> None:
+        """NOTIFY + args_mapping on proxy emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match="args_mapping"):
+            deprecated_class(
+                deprecated_in="0.9",
+                remove_in="1.0",
+                target=TargetMode.NOTIFY,
+                args_mapping={"old_key": "new_key"},
+            )(ProxyNotifyWithArgsMapping.__class__)
+
+    def test_args_remap_no_mapping_emits_misconfig_warning(self) -> None:
+        """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match="args_mapping"):
+            deprecated_class(
+                deprecated_in="0.9",
+                remove_in="1.0",
+                target=TargetMode.ARGS_REMAP,
+            )(ProxyArgsRemapNoMapping.__class__)
+
+    def test_num_warns_respected_per_arg(self) -> None:
+        """Per-argument warn budget: second call with same old arg does not warn."""
+        proxy = _DeprecatedProxy(
+            obj=dict,
+            name="budget_test",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            num_warns=1,
+            target=TargetMode.ARGS_REMAP,
+            args_mapping={"old_key": "new_key"},
+        )
+        with pytest.warns(FutureWarning):
+            proxy(old_key=1)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy(old_key=2)
+        assert not caught

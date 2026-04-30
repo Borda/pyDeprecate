@@ -42,69 +42,218 @@ class TargetMode(Enum):
     ARGS_REMAP = "args_remap"
 
     @classmethod
-    def from_legacy(cls, target: Union[None, bool], *, warn: bool = True) -> "TargetMode":
+    def from_legacy(
+        cls,
+        target: Union[None, bool],
+        *,
+        stacklevel: Optional[int] = 3,
+    ) -> "TargetMode":
         """Convert a legacy ``target`` sentinel (``None`` / ``True`` / ``False``) to a :class:`TargetMode`.
 
-        Consolidates the v0.9 backwards-compatibility shim used by the
-        ``@deprecated`` decorator. Each legacy sentinel is mapped to its modern
-        :class:`TargetMode` equivalent; a deprecation warning is emitted unless
-        ``warn=False``.
+        Backwards-compatibility shim for the ``@deprecated`` decorator.  Each
+        sentinel is mapped to its modern equivalent and a deprecation warning is
+        emitted.  Pass ``stacklevel=None`` to suppress all warnings.
 
         Args:
-            target: Legacy sentinel value:
-
-                - ``None``   → :attr:`TargetMode.NOTIFY` (emits :class:`FutureWarning`)
-                - ``True``   → :attr:`TargetMode.ARGS_REMAP`   (emits :class:`FutureWarning`)
-                - ``False``  → :attr:`TargetMode.NOTIFY` (emits :class:`UserWarning`;
-                  ``False`` is not a valid mode and is treated as transparent for
-                  backwards compatibility — it will become :class:`TypeError` in v1.0).
-            warn: When ``False``, suppress all deprecation warnings and silently
-                return the mapped :class:`TargetMode`. Defaults to ``True``.
+            target: Legacy sentinel — ``None`` → :attr:`TargetMode.NOTIFY`,
+                ``True`` → :attr:`TargetMode.ARGS_REMAP`, ``False`` →
+                :attr:`TargetMode.NOTIFY` (not a valid mode; :class:`TypeError`
+                in v1.0).
+            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass
+                ``None`` to suppress all warnings entirely.  Defaults to ``3``.
 
         Returns:
             The corresponding :class:`TargetMode` member.
 
         Raises:
-            TypeError: If ``target`` is anything other than ``None``, ``True``, or ``False``
-                (e.g. a callable, a :class:`TargetMode` member, or any other type).
+            TypeError: If ``target`` is anything other than ``None``, ``True``,
+                or ``False``.
 
         Examples:
-            >>> TargetMode.from_legacy(None, warn=False)
+            >>> TargetMode.from_legacy(None, stacklevel=None)
             <TargetMode.NOTIFY: 'notify'>
-            >>> TargetMode.from_legacy(True, warn=False)
+            >>> TargetMode.from_legacy(True, stacklevel=None)
             <TargetMode.ARGS_REMAP: 'args_remap'>
-            >>> TargetMode.from_legacy(False, warn=False)
+            >>> TargetMode.from_legacy(False, stacklevel=None)
             <TargetMode.NOTIFY: 'notify'>
 
         """
         if target is None:
-            if warn:
+            if stacklevel is not None:
                 warnings.warn(
                     "target=None is deprecated since v0.9; use TargetMode.NOTIFY instead. Will be removed in v1.0.",
                     FutureWarning,
-                    stacklevel=3,
+                    stacklevel=stacklevel,
                 )
             return cls.NOTIFY
         if target is True:
-            if warn:
+            if stacklevel is not None:
                 warnings.warn(
                     "target=True is deprecated since v0.9; use TargetMode.ARGS_REMAP instead. Will be removed in v1.0.",
                     FutureWarning,
-                    stacklevel=3,
+                    stacklevel=stacklevel,
                 )
             return cls.ARGS_REMAP
         if target is False:
-            if warn:
+            if stacklevel is not None:
                 warnings.warn(
                     "'target=False' is not a valid deprecation mode and will be treated as TargetMode.NOTIFY."
                     " This will be TypeError in v1.0.",
                     UserWarning,
-                    stacklevel=3,
+                    stacklevel=stacklevel,
                 )
             return cls.NOTIFY
         raise TypeError(
             f"`TargetMode.from_legacy` accepts only None, True, or False; got {type(target).__name__}: {target!r}."
         )
+
+    @classmethod
+    def from_legacy_proxy(
+        cls,
+        target: Any,  # noqa: ANN401
+        *,
+        args_mapping: Optional[dict] = None,
+        stacklevel: Optional[int] = 3,
+    ) -> Optional["TargetMode"]:
+        """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
+
+        ``True`` and ``False`` are invalid for the proxy context and normalise to
+        :attr:`TargetMode.NOTIFY` (or :attr:`TargetMode.ARGS_REMAP` when ``args_mapping`` is non-empty)
+        after emitting a warning.  All other values pass through unchanged.
+        Pass ``stacklevel=None`` to suppress warnings.
+
+        Args:
+            target: Raw ``target`` value from the caller.  Only ``True`` and
+                ``False`` trigger normalisation; any other value is returned as-is.
+            args_mapping: The ``args_mapping`` dict supplied to ``deprecated_class``, or
+                ``None`` when not provided.  When ``target=True`` and ``args_mapping`` is
+                non-empty the result is :attr:`TargetMode.ARGS_REMAP` instead of
+                :attr:`TargetMode.NOTIFY`, and a :class:`FutureWarning` is emitted.
+            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass
+                ``None`` to suppress all warnings.  Defaults to ``3``.
+
+        Returns:
+            :attr:`TargetMode.ARGS_REMAP` when ``target=True`` and ``args_mapping`` is non-empty;
+            :attr:`TargetMode.NOTIFY` when ``target`` was ``True`` (without ``args_mapping``) or
+            ``False``; otherwise ``target`` unchanged.
+
+        Examples:
+            >>> TargetMode.from_legacy_proxy(True, stacklevel=None)
+            <TargetMode.NOTIFY: 'notify'>
+            >>> TargetMode.from_legacy_proxy(True, args_mapping={"old": "new"}, stacklevel=None)
+            <TargetMode.ARGS_REMAP: 'args_remap'>
+            >>> TargetMode.from_legacy_proxy(False, stacklevel=None)
+            <TargetMode.NOTIFY: 'notify'>
+            >>> TargetMode.from_legacy_proxy(None) is None
+            True
+            >>> TargetMode.from_legacy_proxy(TargetMode.NOTIFY)
+            <TargetMode.NOTIFY: 'notify'>
+
+        """
+        if target is True:
+            if args_mapping:
+                if stacklevel is not None:
+                    warnings.warn(
+                        "target=True with args_mapping will resolve to TargetMode.ARGS_REMAP."
+                        " Will be TypeError in v1.0.",
+                        FutureWarning,
+                        stacklevel=stacklevel,
+                    )
+                return cls.ARGS_REMAP
+            if stacklevel is not None:
+                warnings.warn(
+                    "target=True is not valid for deprecated_class() and is ignored. Will be TypeError in v1.0.",
+                    FutureWarning,
+                    stacklevel=stacklevel,
+                )
+            return cls.NOTIFY
+        if target is False:
+            if stacklevel is not None:
+                warnings.warn(
+                    "target=False is not valid for deprecated_class(). Will be TypeError in v1.0.",
+                    UserWarning,
+                    stacklevel=stacklevel,
+                )
+            return cls.NOTIFY
+        return target
+
+    @classmethod
+    def validate(
+        cls,
+        mode: "TargetMode",
+        source_name: str,
+        args_mapping: Optional[dict] = None,
+        args_extra: Optional[dict] = None,
+        *,
+        stacklevel: int = 2,
+    ) -> None:
+        """Validate a :class:`TargetMode` against the supplied configuration and emit misconfig warnings.
+
+        Checks three misconfiguration combinations and emits a :class:`UserWarning`
+        for each one found.  These warnings will become :class:`TypeError` in v1.0.
+
+        Misconfiguration warnings are always emitted via :func:`warnings.warn` with
+        ``UserWarning`` — they are construction-time guards independent of the
+        runtime ``stream`` callable used for deprecation notices.
+
+        Args:
+            mode: The resolved :class:`TargetMode` to validate.
+            source_name: ``__name__`` of the decorated source callable, used in
+                warning messages.
+            args_mapping: The ``args_mapping`` dict supplied to ``@deprecated``, or
+                ``None`` when not provided.
+            args_extra: The ``args_extra`` dict supplied to ``@deprecated``, or
+                ``None`` when not provided.
+            stacklevel: Stack level forwarded to :func:`warnings.warn` so that
+                reported locations point at the decorator application site.
+                Defaults to ``2``.
+
+        Returns:
+            None
+
+        Examples:
+            >>> import warnings
+            >>> with warnings.catch_warnings(record=True) as w:
+            ...     warnings.simplefilter("always")
+            ...     TargetMode.validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None)
+            ...     assert len(w) == 1
+            ...     assert "args_mapping" in str(w[0].message)
+            >>> with warnings.catch_warnings(record=True) as w:
+            ...     warnings.simplefilter("always")
+            ...     TargetMode.validate(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"})
+            ...     assert len(w) == 1
+            ...     assert "args_mapping" in str(w[0].message)
+            >>> with warnings.catch_warnings(record=True) as w:
+            ...     warnings.simplefilter("always")
+            ...     TargetMode.validate(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1})
+            ...     assert len(w) == 1
+            ...     assert "args_extra" in str(w[0].message)
+
+        """
+        if mode is cls.ARGS_REMAP and not args_mapping:
+            warnings.warn(
+                f"`@deprecated(target=TargetMode.ARGS_REMAP)` on `{source_name}` requires "
+                "`args_mapping` to specify which arguments are being renamed. Without it the "
+                "decorator has zero effect. This will be TypeError in v1.0.",
+                UserWarning,
+                stacklevel=stacklevel,
+            )
+        if mode is cls.NOTIFY and args_mapping:
+            warnings.warn(
+                f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
+                "`args_mapping`. Use `TargetMode.ARGS_REMAP` to rename arguments, or pass a "
+                "callable target to forward the call. This will be TypeError in v1.0.",
+                UserWarning,
+                stacklevel=stacklevel,
+            )
+        if mode is cls.NOTIFY and args_extra:
+            warnings.warn(
+                f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
+                "`args_extra`. Use a callable target to forward with extra arguments. "
+                "This will be TypeError in v1.0.",
+                UserWarning,
+                stacklevel=stacklevel,
+            )
 
 
 @dataclass(frozen=True)
@@ -182,7 +331,9 @@ class _ProxyConfig:
         stream: Callable used to emit warnings, or ``None`` to suppress them.
         num_warns: Maximum number of warnings to emit; ``-1`` means unlimited.
         read_only: When ``True``, write operations through the proxy raise :class:`AttributeError`.
-        warned: Mutable counter tracking how many warnings have been emitted so far.
+        warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
+        warned_args: Per-argument warning counts for argument-level deprecations.
+            Keys are deprecated argument names; values are emission counts.
     """
 
     obj: Any
@@ -190,6 +341,7 @@ class _ProxyConfig:
     num_warns: int
     read_only: bool
     warned: int = 0
+    warned_args: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass

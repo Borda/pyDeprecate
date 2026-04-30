@@ -25,7 +25,6 @@ Example:
 """
 
 import types
-import warnings
 from collections.abc import Iterator
 from typing import Any, Callable, Literal, Optional, cast
 
@@ -74,13 +73,13 @@ class _DeprecatedProxy:
         obj: Any,  # noqa: ANN401
         name: str,
         *,
+        target: Any = None,  # noqa: ANN401
+        args_mapping: Optional[dict] = None,
         deprecated_in: str = "",
         remove_in: str = "",
         num_warns: int = 1,
         stream: Optional[Callable[..., None]] = deprecation_warning,
         read_only: bool = False,
-        target: Any = None,  # noqa: ANN401
-        args_mapping: Optional[dict] = None,
         docstring_style: str = "auto",
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
@@ -93,20 +92,14 @@ class _DeprecatedProxy:
         :class:`~deprecate._types.DeprecationConfig` instance aligned with the
         ``@deprecated`` schema.
         """
-        if target is True:
-            warnings.warn(
-                "target=True is not valid for deprecated_class() and is ignored. Will be TypeError in v1.0.",
-                FutureWarning,
-                stacklevel=3,
-            )
-            target = None
-        elif target is False:
-            warnings.warn(
-                "target=False is not valid for deprecated_class(). Will be TypeError in v1.0.",
-                UserWarning,
-                stacklevel=3,
-            )
-            target = None
+        if target is True or target is False:
+            target = TargetMode.from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
+        # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
+        if target is None and args_mapping:
+            target = TargetMode.ARGS_REMAP
+        # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping)
+        if isinstance(target, TargetMode):
+            TargetMode.validate(target, name, args_mapping=args_mapping, stacklevel=4)
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object.
         cfg = _ProxyConfig(
             obj=obj,
@@ -154,14 +147,27 @@ class _DeprecatedProxy:
         """
         return cast(DeprecationConfig, object.__getattribute__(self, "__deprecated__"))
 
-    def _warn(self) -> None:
-        """Emit a deprecation warning if the warn budget is not exhausted."""
+    def _warn(self, *, arg_name: Optional[str] = None) -> None:
+        """Emit a deprecation warning if the warn budget is not exhausted.
+
+        Args:
+            arg_name: When given, use per-argument warning tracking (``cfg.warned_args``)
+                instead of the global ``cfg.warned`` counter.  The warning is suppressed
+                when the per-argument count has already reached ``cfg.num_warns``.
+        """
         cfg = self._cfg
         stream = cfg.stream
         if not stream:
             return
-        if cfg.num_warns >= 0 and cfg.warned >= cfg.num_warns:
-            return
+        if arg_name is not None:
+            # Per-argument warning budget
+            arg_count = cfg.warned_args.get(arg_name, 0)
+            if cfg.num_warns >= 0 and arg_count >= cfg.num_warns:
+                return
+        else:
+            # Global warning budget
+            if cfg.num_warns >= 0 and cfg.warned >= cfg.num_warns:
+                return
         dep = self._dep
         target: Any = dep.target
         if callable(target):
@@ -181,7 +187,10 @@ class _DeprecatedProxy:
                 "remove_in": dep.remove_in,
             }
         stream(msg)
-        cfg.warned += 1
+        if arg_name is not None:
+            cfg.warned_args[arg_name] = cfg.warned_args.get(arg_name, 0) + 1
+        else:
+            cfg.warned += 1
 
     def _check_read_only(self, operation: str) -> None:
         """Raise AttributeError when the proxy is in read-only mode.
@@ -321,7 +330,37 @@ class _DeprecatedProxy:
     # ------------------------------------------------------------------
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        """Call the active object, emitting a deprecation warning."""
+        """Call the active object, emitting a deprecation warning conditionally based on target mode.
+
+        Branching logic:
+        - :attr:`~deprecate._types.TargetMode.ARGS_REMAP`: warn only when a deprecated kwarg name
+          is present in the call; remap and call ``obj``.
+        - Callable target with ``args_mapping``: warn per deprecated kwarg present; if none of the
+          old names were passed still warn at the callable level (class is deprecated); forward to target.
+        - Everything else (:attr:`~deprecate._types.TargetMode.NOTIFY` or callable without
+          ``args_mapping``): always warn (global budget) and forward to the active object.
+        """
+        dep = object.__getattribute__(self, "__deprecated__")
+        cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
+
+        if dep.target is TargetMode.ARGS_REMAP:
+            mapping = dep.args_mapping or {}
+            for old_key in mapping:
+                if old_key in kwargs:
+                    self._warn(arg_name=old_key)
+            mapped_kwargs = self._apply_args_mapping(kwargs)
+            return cfg.obj(*args, **mapped_kwargs)
+        if callable(dep.target) and dep.args_mapping:
+            mapping = dep.args_mapping or {}
+            for old_key in mapping:
+                if old_key in kwargs:
+                    self._warn(arg_name=old_key)
+            if not any(old_key in kwargs for old_key in mapping):
+                # No old-style args — still warn because the class itself is deprecated
+                self._warn()
+            mapped_kwargs = self._apply_args_mapping(kwargs)
+            return dep.target(*args, **mapped_kwargs)
+        # NOTIFY or callable without args_mapping: always warn (global budget)
         self._warn()
         mapped_kwargs = self._apply_args_mapping(kwargs)
         return self._get_active()(*args, **mapped_kwargs)
@@ -424,6 +463,16 @@ def deprecated_class(
         args_mapping: Optional dict remapping keyword argument names when the
             decorated class is called.  Keys are old argument names; values
             are new names, or ``None`` to drop the argument entirely.
+            When provided without an explicit callable *target*, the mode
+            auto-resolves to :attr:`~deprecate._types.TargetMode.ARGS_REMAP`:
+            the proxy warns **only when an old argument name is actually used**
+            in the call, matching the per-argument warning behaviour of
+            ``@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)``.
+            Passing ``args_mapping`` together with
+            ``target=TargetMode.NOTIFY`` is a misconfiguration and emits a
+            :class:`UserWarning` at decoration time (will be :class:`TypeError`
+            in v1.0).  Similarly, ``target=TargetMode.ARGS_REMAP`` without
+            ``args_mapping`` emits a :class:`UserWarning` at decoration time.
         update_docstring: If ``True``, inject a deprecation notice into the
             class docstring at decoration time (same behaviour as
             ``@deprecated(update_docstring=True)``).
@@ -435,7 +484,7 @@ def deprecated_class(
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`.
 
-    Example:
+    Examples:
         >>> from enum import Enum
         >>> class NewColor(Enum):
         ...     RED = 1
@@ -446,6 +495,22 @@ def deprecated_class(
         True
         >>> OldColor(1) is NewColor.RED
         True
+
+        When only argument names changed, omit *target* and supply
+        ``args_mapping``.  The proxy auto-resolves to ``TargetMode.ARGS_REMAP``
+        and warns **only when the old argument name is passed**:
+
+        >>> class Config:
+        ...     def __init__(self, timeout: int = 0) -> None:
+        ...         self.timeout = timeout
+        >>> LegacyConfig = deprecated_class(
+        ...     args_mapping={"time_limit": "timeout"},
+        ...     deprecated_in="1.5", remove_in="2.0", stream=None,
+        ... )(Config)
+        >>> LegacyConfig(timeout=30).timeout     # new name — no remap needed
+        30
+        >>> LegacyConfig(time_limit=30).timeout  # old name — remapped to timeout
+        30
 
     """
 
