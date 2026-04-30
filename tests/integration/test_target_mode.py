@@ -2,7 +2,7 @@
 
 These tests were written BEFORE the implementation to crystallise the API contract.
 They define the expected behaviour for:
-- TargetMode.WHOLE  (replaces target=None)
+- TargetMode.TRANSPARENT  (replaces target=None)
 - TargetMode.ARGS_ONLY (replaces target=True)
 - Construction-time UserWarning for misconfigurations
 - FutureWarning for legacy target=None / target=True sentinels
@@ -37,8 +37,8 @@ from tests.collection_targets import tracked_identity_calls
 
 
 def test_target_mode_members_exist() -> None:
-    """TargetMode exposes exactly WHOLE and ARGS_ONLY members."""
-    assert hasattr(TargetMode, "WHOLE")
+    """TargetMode exposes exactly TRANSPARENT and ARGS_ONLY members."""
+    assert hasattr(TargetMode, "TRANSPARENT")
     assert hasattr(TargetMode, "ARGS_ONLY")
     assert len(list(TargetMode)) == 2
 
@@ -49,12 +49,12 @@ def test_target_mode_importable_from_top_level() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TargetMode.WHOLE — warns every call; exec original body
+# TargetMode.TRANSPARENT — warns every call; exec original body
 # ---------------------------------------------------------------------------
 
 
 def test_whole_warns_on_every_call() -> None:
-    """WHOLE mode emits a FutureWarning on every call up to num_warns."""
+    """TRANSPARENT mode emits a FutureWarning on every call up to num_warns."""
     with pytest.warns(FutureWarning):
         result = depr_target_mode_whole_warns_on_every_call(3)
 
@@ -62,7 +62,7 @@ def test_whole_warns_on_every_call() -> None:
 
 
 def test_whole_executes_original_body() -> None:
-    """WHOLE mode executes the original function body unchanged."""
+    """TRANSPARENT mode executes the original function body unchanged."""
     tracked_identity_calls.clear()
 
     with warnings.catch_warnings():
@@ -125,13 +125,13 @@ def test_args_only_without_args_mapping_warns() -> None:
 
 
 def test_whole_with_args_mapping_warns() -> None:
-    """WHOLE ignores args_mapping — should warn at decoration time."""
+    """TRANSPARENT ignores args_mapping — should warn at decoration time."""
     with pytest.warns(UserWarning, match="args_mapping"):
         make_target_mode_whole_with_args_mapping_warns()
 
 
 def test_whole_with_args_extra_warns() -> None:
-    """WHOLE ignores args_extra — should warn at decoration time."""
+    """TRANSPARENT ignores args_extra — should warn at decoration time."""
     with pytest.warns(UserWarning, match="args_extra"):
         make_target_mode_whole_with_args_extra_warns()
 
@@ -148,8 +148,8 @@ def test_target_false_warns() -> None:
 
 
 def test_target_none_sentinel_emits_future_warning() -> None:
-    """target=None triggers FutureWarning at decoration time; use TargetMode.WHOLE."""
-    with pytest.warns(FutureWarning, match="TargetMode.WHOLE"):
+    """target=None triggers FutureWarning at decoration time; use TargetMode.TRANSPARENT."""
+    with pytest.warns(FutureWarning, match="TargetMode\\.TRANSPARENT"):
         make_target_mode_target_none_sentinel_emits_future_warning()
 
 
@@ -188,12 +188,12 @@ def test_args_extra_equivalence_enum_and_legacy(old_x: int, expected: int) -> No
 
 
 # ---------------------------------------------------------------------------
-# WHOLE runtime no-op for args_mapping and args_extra (#19)
+# TRANSPARENT runtime no-op for args_mapping and args_extra (#19)
 # ---------------------------------------------------------------------------
 
 
 def test_whole_with_args_mapping_is_runtime_noop() -> None:
-    """WHOLE + args_mapping: function body executes correctly at runtime despite misconfiguration."""
+    """TRANSPARENT + args_mapping: function body executes correctly at runtime despite misconfiguration."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         fn = make_target_mode_whole_with_args_mapping_warns()
@@ -204,7 +204,7 @@ def test_whole_with_args_mapping_is_runtime_noop() -> None:
 
 
 def test_whole_with_args_extra_is_runtime_noop() -> None:
-    """WHOLE + args_extra: function body executes correctly at runtime despite misconfiguration."""
+    """TRANSPARENT + args_extra: function body executes correctly at runtime despite misconfiguration."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         fn = make_target_mode_whole_with_args_extra_warns()

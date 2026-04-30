@@ -272,7 +272,7 @@ class TestDeprecatedClassMethod:
         assert result == 6
 
     def test_whole_mode_warns_on_call(self) -> None:
-        """TargetMode.WHOLE emits FutureWarning on every call; body executes unchanged."""
+        """TargetMode.TRANSPARENT emits FutureWarning on every call; body executes unchanged."""
         with pytest.warns(FutureWarning):
             result = depr_class_whole_mode_warns_on_call(5)
         assert result == 10

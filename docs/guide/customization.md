@@ -17,13 +17,13 @@ Three built-in templates cover the common scenarios:
 | ---------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                           | `The 'old_func' was deprecated since v1.0 in favor of 'pkg.new_func'. It will be removed in v2.0.`                              |
 | `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_ONLY` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'old_arg' -> 'new_arg'. They were deprecated since v1.0 and will be removed in v2.0.` |
-| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.WHOLE` (notice-only, no forwarding)                                        | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
+| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.TRANSPARENT` (notice-only, no forwarding)                                        | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
 
 The selection logic is:
 
 1. If `target` is a callable (function, method, or class) → `TEMPLATE_WARNING_CALLABLE`
 2. If `TargetMode.ARGS_ONLY` and the caller passes a deprecated argument from `args_mapping` → `TEMPLATE_WARNING_ARGUMENTS`
-3. If `TargetMode.WHOLE` → `TEMPLATE_WARNING_NO_TARGET`
+3. If `TargetMode.TRANSPARENT` → `TEMPLATE_WARNING_NO_TARGET`
 
 When you provide `template_mgs`, your custom template replaces whichever default would have been chosen.
 

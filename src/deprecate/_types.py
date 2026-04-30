@@ -17,7 +17,7 @@ class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
 
     Members:
-        WHOLE: Deprecate the whole callable -- warn on every call; original body
+        TRANSPARENT: Transparent deprecation -- warn on every call; original body
             executes unchanged. Replaces ``target=None``. Passing
             ``args_mapping`` or ``args_extra`` with this mode emits a
             :class:`UserWarning` today; :class:`TypeError` is planned in v1.0.
@@ -30,14 +30,14 @@ class TargetMode(Enum):
 
     Examples:
         >>> from deprecate import TargetMode
-        >>> TargetMode.WHOLE.value
-        'whole'
+        >>> TargetMode.TRANSPARENT.value
+        'transparent'
         >>> TargetMode.ARGS_ONLY.value
         'args_only'
 
     """
 
-    WHOLE = "whole"
+    TRANSPARENT = "transparent"
     ARGS_ONLY = "args_only"
 
 
@@ -53,7 +53,7 @@ class DeprecationConfig:
         remove_in: Version string when the callable will be removed.
         name: Display the name of the deprecated source (function or class name).
         target: None, True, False (legacy sentinels, deprecated since v0.9),
-            TargetMode.WHOLE, TargetMode.ARGS_ONLY, or a callable.
+            TargetMode.TRANSPARENT, TargetMode.ARGS_ONLY, or a callable.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
         docstring_style: Docstring notice output style when ``update_docstring=True``.

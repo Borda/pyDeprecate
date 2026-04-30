@@ -142,7 +142,7 @@ class DeprecationWrapperInfo:
         chain_type: The kind of deprecation chain detected, or ``None`` if no chain.
             See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
         misconfigured_target: True when the wrapper has an invalid target configuration:
-            target=False, TargetMode.WHOLE with args_mapping, or TargetMode.ARGS_ONLY with empty args_mapping.
+            target=False, TargetMode.TRANSPARENT with args_mapping, or TargetMode.ARGS_ONLY with empty args_mapping.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -279,7 +279,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
     # Support both legacy sentinels (target=True/None) and new TargetMode enum values.
     _is_args_only = target is True or target is TargetMode.ARGS_ONLY
-    _is_whole = target is None or target is TargetMode.WHOLE
+    _is_transparent = target is None or target is TargetMode.TRANSPARENT
 
     chain_type: Optional[ChainType] = None
     if callable(target) and _has_deprecation_meta(target):
@@ -312,14 +312,16 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     # - Self-reference (forwards to itself — no meaningful forwarding)
     # - ARGS_ONLY (target=True) AND (empty mapping OR all identity mappings)
     #   → no forwarding, no meaningful arg remapping
-    # Note: WHOLE (target=None) is NOT no_effect — it still emits deprecation warnings.
+    # Note: TRANSPARENT (target=None) is NOT no_effect — it still emits deprecation warnings.
     # Note: When target is a different function, there's ALWAYS an effect (forwarding).
     is_self_deprecation = _is_args_only or self_reference
     no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
 
     # Misconfigured: target+args combination is invalid regardless of whether it has effect.
-    # target=False is never a valid mode. WHOLE ignores args_mapping. ARGS_ONLY needs args_mapping.
-    misconfigured_target = target is False or (_is_whole and bool(args_mapping)) or (_is_args_only and empty_mapping)
+    # target=False is never a valid mode. TRANSPARENT ignores args_mapping. ARGS_ONLY needs args_mapping.
+    misconfigured_target = (
+        target is False or (_is_transparent and bool(args_mapping)) or (_is_args_only and empty_mapping)
+    )
 
     function = dep_info.name or getattr(func, "__name__", str(func))
 

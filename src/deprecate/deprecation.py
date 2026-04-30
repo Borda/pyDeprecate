@@ -113,9 +113,9 @@ def _normalize_target(
 
     Legacy sentinel conversion (emits warning at decoration time):
 
-    - ``target=None`` → :attr:`TargetMode.WHOLE` + :class:`FutureWarning`
+    - ``target=None`` → :attr:`TargetMode.TRANSPARENT` + :class:`FutureWarning`
     - ``target=True`` → :attr:`TargetMode.ARGS_ONLY` + :class:`FutureWarning`
-    - ``target=False`` → :attr:`TargetMode.WHOLE` + :class:`UserWarning`
+    - ``target=False`` → :attr:`TargetMode.TRANSPARENT` + :class:`UserWarning`
 
     Class target handling (unchanged from previous behaviour):
 
@@ -142,11 +142,11 @@ def _normalize_target(
     # stacklevel=3: warn() → _normalize_target() → packing() → @decorator application site
     if target is None:
         warnings.warn(
-            "target=None is deprecated since v0.9; use TargetMode.WHOLE instead. Will be removed in v1.0.",
+            "target=None is deprecated since v0.9; use TargetMode.TRANSPARENT instead. Will be removed in v1.0.",
             FutureWarning,
             stacklevel=3,
         )
-        return TargetMode.WHOLE
+        return TargetMode.TRANSPARENT
     if target is True:
         warnings.warn(
             "target=True is deprecated since v0.9; use TargetMode.ARGS_ONLY instead. Will be removed in v1.0.",
@@ -156,12 +156,12 @@ def _normalize_target(
         return TargetMode.ARGS_ONLY
     if target is False:
         warnings.warn(
-            "'target=False' is not a valid deprecation mode and will be treated as TargetMode.WHOLE."
+            "'target=False' is not a valid deprecation mode and will be treated as TargetMode.TRANSPARENT."
             " This will be TypeError in v1.0.",
             UserWarning,
             stacklevel=3,
         )
-        return TargetMode.WHOLE
+        return TargetMode.TRANSPARENT
 
     # --- TargetMode enum pass-through ---
     if isinstance(target, TargetMode):
@@ -522,7 +522,7 @@ def deprecated(
             Works with both ``target=Callable`` and ``target=True``.
         args_extra: Additional arguments merged into kwargs before the call.
             Used when target is a Callable or ``TargetMode.ARGS_ONLY`` (with ``args_mapping``).
-            Ignored when target is ``TargetMode.WHOLE``.
+            Ignored when target is ``TargetMode.TRANSPARENT``.
             Example: ``{'new_required_arg': 42}``
         skip_if: Conditionally skip deprecation warning and forwarding:
             - ``bool``: Static condition (True = skip deprecation)
@@ -627,17 +627,17 @@ def deprecated(
                     UserWarning,
                     stacklevel=2,
                 )
-            if _target is TargetMode.WHOLE and args_mapping:
+            if _target is TargetMode.TRANSPARENT and args_mapping:
                 warnings.warn(
-                    f"`@deprecated(target=TargetMode.WHOLE)` on `{source.__name__}` ignores "
+                    f"`@deprecated(target=TargetMode.TRANSPARENT)` on `{source.__name__}` ignores "
                     "`args_mapping`. Use `TargetMode.ARGS_ONLY` to rename arguments, or pass a "
                     "callable target to forward the call. This will be TypeError in v1.0.",
                     UserWarning,
                     stacklevel=2,
                 )
-            if _target is TargetMode.WHOLE and args_extra:
+            if _target is TargetMode.TRANSPARENT and args_extra:
                 warnings.warn(
-                    f"`@deprecated(target=TargetMode.WHOLE)` on `{source.__name__}` ignores "
+                    f"`@deprecated(target=TargetMode.TRANSPARENT)` on `{source.__name__}` ignores "
                     "`args_extra`. Use a callable target to forward with extra arguments. "
                     "This will be TypeError in v1.0.",
                     UserWarning,
@@ -664,7 +664,7 @@ def deprecated(
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
-            reason_callable = _target is TargetMode.WHOLE or callable(_target)
+            reason_callable = _target is TargetMode.TRANSPARENT or callable(_target)
             reason_argument = {}
             if args_mapping and (_target is TargetMode.ARGS_ONLY or callable(_target)):
                 # Find which deprecated arguments were actually used in this call

@@ -237,12 +237,12 @@ In particular the target values (cases):
 
 | `target` value         | Use case                                      | `args_mapping`                     | Warning trigger                    |
 | ---------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
-| `TargetMode.WHOLE`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
+| `TargetMode.TRANSPARENT`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
 | `TargetMode.ARGS_ONLY` | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
 | `<callable>`           | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
 
 > [!TIP]
-> `TargetMode.WHOLE` replaces the old `target=None` sentinel and `TargetMode.ARGS_ONLY` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
+> `TargetMode.TRANSPARENT` replaces the old `target=None` sentinel and `TargetMode.ARGS_ONLY` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
 > `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)).
@@ -383,7 +383,7 @@ Base use-case with no forwarding and just raising a warning:
 from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=TargetMode.WHOLE, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.TRANSPARENT, deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b
@@ -965,7 +965,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 <br>
 
 > [!NOTE]
-> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_ONLY` (with `args_mapping`). It is silently ignored for `TargetMode.WHOLE`.
+> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_ONLY` (with `args_mapping`). It is silently ignored for `TargetMode.TRANSPARENT`.
 
 ## 🔇 Understanding the `void()` Helper
 
@@ -1540,12 +1540,12 @@ from enum import Enum
 
 
 # Correct: use @deprecated_class for classes
-@deprecated_class(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
 
 
-@deprecated_class(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
@@ -1556,7 +1556,7 @@ from deprecate import deprecated
 
 
 class MyClass:
-    @deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```

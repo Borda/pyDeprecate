@@ -9,7 +9,7 @@ They simulate common mistakes developers make when setting up deprecation wrappe
 - Mixing identity and valid mappings
 - Creating a self-referencing deprecation (wrapper targets itself)
 - Using target=False (invalid sentinel)
-- Using TargetMode.WHOLE with args_mapping (ignored and emits a construction-time
+- Using TargetMode.TRANSPARENT with args_mapping (ignored and emits a construction-time
   UserWarning at decoration time; TypeError planned in v1.0 — misconfigured)
 - Using TargetMode.ARGS_ONLY without args_mapping (no-op — misconfigured)
 
@@ -129,13 +129,13 @@ with warnings.catch_warnings():
         return x
 
     @deprecated(
-        target=TargetMode.WHOLE,
+        target=TargetMode.TRANSPARENT,
         deprecated_in="0.1",
         remove_in="0.5",
         args_mapping={"old_x": "x"},
     )
     def whole_with_mapping_deprecation(x: int = 1) -> int:
-        """WHOLE + args_mapping — mapping ignored; emits UserWarning at decoration time.
+        """TRANSPARENT + args_mapping — mapping ignored; emits UserWarning at decoration time.
 
         TypeError planned in v1.0; audit flags misconfigured_target.
         """
@@ -147,9 +147,9 @@ with warnings.catch_warnings():
         return x
 
 
-@deprecated(target=TargetMode.WHOLE, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.TRANSPARENT, deprecated_in="0.1", remove_in="0.5")
 def whole_clean_deprecation(x: int = 1) -> int:
-    """WHOLE with no args_mapping — correctly configured; audit should not flag."""
+    """TRANSPARENT with no args_mapping — correctly configured; audit should not flag."""
     return x
 
 

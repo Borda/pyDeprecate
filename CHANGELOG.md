@@ -18,13 +18,13 @@
 
 ### Added
 
-- **`TargetMode` enum exported from `deprecate`.** `TargetMode.WHOLE` replaces `target=None` and `TargetMode.ARGS_ONLY` replaces `target=True`. Both are public API. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`TargetMode` enum exported from `deprecate`.** `TargetMode.TRANSPARENT` replaces `target=None` and `TargetMode.ARGS_ONLY` replaces `target=True`. Both are public API. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
 ### Changed
 
-- **Legacy `target=None` and `target=True` sentinels now warn at decoration time.** Both forms remain accepted in v0.9, emit `FutureWarning`, and map to `TargetMode.WHOLE` / `TargetMode.ARGS_ONLY` respectively. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **Legacy `target=None` and `target=True` sentinels now warn at decoration time.** Both forms remain accepted in v0.9, emit `FutureWarning`, and map to `TargetMode.TRANSPARENT` / `TargetMode.ARGS_ONLY` respectively. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **`target=False` now emits a `UserWarning`.** The sentinel was never valid; it remains tolerated in v0.9 but is scheduled to become a `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
-- **Misconfigured `TargetMode` combinations now warn at construction time.** `TargetMode.ARGS_ONLY` without `args_mapping`, `TargetMode.WHOLE` with `args_mapping`, and `TargetMode.WHOLE` with `args_extra` all surface a `UserWarning` immediately. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **Misconfigured `TargetMode` combinations now warn at construction time.** `TargetMode.ARGS_ONLY` without `args_mapping`, `TargetMode.TRANSPARENT` with `args_mapping`, and `TargetMode.TRANSPARENT` with `args_extra` all surface a `UserWarning` immediately. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
 ______________________________________________________________________
 

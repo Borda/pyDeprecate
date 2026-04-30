@@ -27,12 +27,12 @@ from enum import Enum
 
 
 # Correct: use @deprecated_class for classes
-@deprecated_class(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
 
 
-@deprecated_class(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
@@ -43,7 +43,7 @@ from deprecate import TargetMode, deprecated
 
 
 class MyClass:
-    @deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```
@@ -151,7 +151,7 @@ from deprecate import TargetMode, deprecated
 
 
 class MyService:
-    @deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, host: str) -> None:
         self.host = host  # body executes; warning fires at every MyService(...)
 
@@ -375,7 +375,7 @@ NEW_THRESHOLD = 0.5  # new name
 from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
 def get_old_threshold() -> float:
     """Use NEW_THRESHOLD constant directly instead."""
     return 0.5

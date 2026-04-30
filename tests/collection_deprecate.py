@@ -395,19 +395,19 @@ wrapped_sum_msg = _deprecation_sum_msg(original_sum)
 
 
 @deprecated(
-    target=TargetMode.WHOLE,
+    target=TargetMode.TRANSPARENT,
     deprecated_in="0.9",
     remove_in="1.0",
     num_warns=-1,
 )
 def depr_target_mode_whole_warns_on_every_call(x: int) -> int:
-    """TargetMode.WHOLE wrapper used by integration tests."""
+    """TargetMode.TRANSPARENT wrapper used by integration tests."""
     return double_value(x)
 
 
-@deprecated(target=TargetMode.WHOLE, deprecated_in="0.9", remove_in="1.0")
+@deprecated(target=TargetMode.TRANSPARENT, deprecated_in="0.9", remove_in="1.0")
 def depr_target_mode_whole_executes_original_body(x: int) -> int:
-    """TargetMode.WHOLE wrapper that records body execution."""
+    """TargetMode.TRANSPARENT wrapper that records body execution."""
     return tracked_identity(x)
 
 
@@ -467,10 +467,10 @@ def make_target_mode_args_only_without_args_mapping_warns() -> Callable[[int], i
 
 
 def make_target_mode_whole_with_args_mapping_warns() -> Callable[[int], int]:
-    """Build a TargetMode.WHOLE wrapper that warns about ignored args_mapping."""
+    """Build a TargetMode.TRANSPARENT wrapper that warns about ignored args_mapping."""
 
     @deprecated(
-        target=TargetMode.WHOLE,
+        target=TargetMode.TRANSPARENT,
         deprecated_in="0.9",
         remove_in="1.0",
         args_mapping={"a": "b"},
@@ -482,10 +482,10 @@ def make_target_mode_whole_with_args_mapping_warns() -> Callable[[int], int]:
 
 
 def make_target_mode_whole_with_args_extra_warns() -> Callable[[int], int]:
-    """Build a TargetMode.WHOLE wrapper that warns about ignored args_extra."""
+    """Build a TargetMode.TRANSPARENT wrapper that warns about ignored args_extra."""
 
     @deprecated(
-        target=TargetMode.WHOLE,
+        target=TargetMode.TRANSPARENT,
         deprecated_in="0.9",
         remove_in="1.0",
         args_extra={"z": 1},
@@ -549,9 +549,9 @@ def make_target_mode_target_true_sentinel_emits_future_warning() -> Callable[[in
     return legacy_true
 
 
-@deprecated(target=TargetMode.WHOLE, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 def depr_class_whole_mode_warns_on_call(x: int) -> int:
-    """TargetMode.WHOLE wrapper used by class integration tests."""
+    """TargetMode.TRANSPARENT wrapper used by class integration tests."""
     return double_value(x)
 
 
