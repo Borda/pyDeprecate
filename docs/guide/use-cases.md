@@ -214,7 +214,7 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 ### Behaviour comparison
 
-|                               | `TargetMode.TRANSPARENT`                                                                                        | `TargetMode.ARGS_ONLY` (no `args_mapping`) | `TargetMode.ARGS_ONLY` (with `args_mapping`)                               | `target=<callable>`                               |
+|                               | `TargetMode.TRANSPARENT`                                                                                  | `TargetMode.ARGS_ONLY` (no `args_mapping`) | `TargetMode.ARGS_ONLY` (with `args_mapping`)                               | `target=<callable>`                               |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------- |
 | **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | **Never**                                  | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
 | **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | —                                          | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |

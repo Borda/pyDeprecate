@@ -235,11 +235,11 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 
 In particular the target values (cases):
 
-| `target` value         | Use case                                      | `args_mapping`                     | Warning trigger                    |
-| ---------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
-| `TargetMode.TRANSPARENT`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
-| `TargetMode.ARGS_ONLY` | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
-| `<callable>`           | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
+| `target` value           | Use case                                      | `args_mapping`                     | Warning trigger                    |
+| ------------------------ | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
+| `TargetMode.TRANSPARENT` | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
+| `TargetMode.ARGS_ONLY`   | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
+| `<callable>`             | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
 
 > [!TIP]
 > `TargetMode.TRANSPARENT` replaces the old `target=None` sentinel and `TargetMode.ARGS_ONLY` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
