@@ -272,13 +272,13 @@ class TestDeprecatedClassMethod:
         assert result == 6
 
     def test_whole_mode_warns_on_call(self) -> None:
-        """TargetMode.TRANSPARENT emits FutureWarning on every call; body executes unchanged."""
+        """TargetMode.NOTIFY emits FutureWarning on every call; body executes unchanged."""
         with pytest.warns(FutureWarning):
             result = depr_class_whole_mode_warns_on_call(5)
         assert result == 10
 
     def test_args_only_mode_warns_on_deprecated_arg(self) -> None:
-        """TargetMode.ARGS_ONLY warns when old arg used; silent when new arg used."""
+        """TargetMode.ARGS_REMAP warns when old arg used; silent when new arg used."""
         with pytest.warns(FutureWarning):
             result = depr_class_args_only_mode_warns_on_deprecated_arg(old_x=5)
         assert result == 10
@@ -337,11 +337,11 @@ class TestEnumFormEquivalence(_ClassFormBase):
 
     def test_isinstance_check(self, proxy: _DeprecatedProxy, name: str) -> None:
         """isinstance(NewEnum.ALPHA, proxy) is True via __instancecheck__."""
-        assert isinstance(NewEnum.ALPHA, proxy)  # type: ignore[arg-type]
+        assert isinstance(NewEnum.ALPHA, proxy)
 
     def test_issubclass_check(self, proxy: _DeprecatedProxy, name: str) -> None:
         """issubclass(NewEnum, proxy) is True via __subclasscheck__."""
-        assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
+        assert issubclass(NewEnum, proxy)
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
         """__deprecated__ records correct DeprecationConfig for both forms."""

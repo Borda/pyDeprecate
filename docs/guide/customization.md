@@ -16,14 +16,14 @@ Three built-in templates cover the common scenarios:
 | Template                     | When it fires                                                                          | Example output                                                                                                                  |
 | ---------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                           | `The 'old_func' was deprecated since v1.0 in favor of 'pkg.new_func'. It will be removed in v2.0.`                              |
-| `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_ONLY` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'old_arg' -> 'new_arg'. They were deprecated since v1.0 and will be removed in v2.0.` |
-| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.TRANSPARENT` (notice-only, no forwarding)                                  | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
+| `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_REMAP` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'old_arg' -> 'new_arg'. They were deprecated since v1.0 and will be removed in v2.0.` |
+| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.NOTIFY` (notice-only, no forwarding)                                  | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
 
 The selection logic is:
 
 1. If `target` is a callable (function, method, or class) → `TEMPLATE_WARNING_CALLABLE`
-2. If `TargetMode.ARGS_ONLY` and the caller passes a deprecated argument from `args_mapping` → `TEMPLATE_WARNING_ARGUMENTS`
-3. If `TargetMode.TRANSPARENT` → `TEMPLATE_WARNING_NO_TARGET`
+2. If `TargetMode.ARGS_REMAP` and the caller passes a deprecated argument from `args_mapping` → `TEMPLATE_WARNING_ARGUMENTS`
+3. If `TargetMode.NOTIFY` → `TEMPLATE_WARNING_NO_TARGET`
 
 When you provide `template_mgs`, your custom template replaces whichever default would have been chosen.
 
@@ -39,7 +39,7 @@ Custom templates use Python `%`-style formatting (`%(key)s`). Available placehol
 | `target_path`   | `target` is callable                       | Fully qualified path of the replacement             |
 | `deprecated_in` | Always                                     | Value of `deprecated_in` parameter                  |
 | `remove_in`     | Always                                     | Value of `remove_in` parameter                      |
-| `argument_map`  | `TargetMode.ARGS_ONLY` with `args_mapping` | Formatted string like `` `old` -> `new` ``          |
+| `argument_map`  | `TargetMode.ARGS_REMAP` with `args_mapping` | Formatted string like `` `old` -> `new` ``          |
 
 ### Custom template example
 
@@ -82,7 +82,7 @@ from deprecate import TargetMode, deprecated
 
 
 @deprecated(
-    target=TargetMode.ARGS_ONLY,
+    target=TargetMode.ARGS_REMAP,
     deprecated_in="1.5",
     remove_in="2.0",
     args_mapping={"lr": "learning_rate"},

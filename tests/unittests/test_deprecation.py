@@ -301,12 +301,12 @@ class TestRaiseWarnArguments:
 class TestDeprecatedClassGuard:
     """@deprecated emits UserWarning and delegates to @deprecated_class when applied to a class."""
 
-    _TRANSPARENT_PARAMS = [
-        pytest.param(TargetMode.TRANSPARENT, id="TargetMode.TRANSPARENT"),
+    _NOTIFY_PARAMS = [
+        pytest.param(TargetMode.NOTIFY, id="TargetMode.NOTIFY"),
         pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
     ]
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_warns_for_plain_class(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a plain class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
@@ -317,7 +317,7 @@ class TestDeprecatedClassGuard:
 
         assert isinstance(_MyClass, _DeprecatedProxy)
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_warns_for_enum_class(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to an Enum class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
@@ -328,7 +328,7 @@ class TestDeprecatedClassGuard:
 
         assert isinstance(_MyEnum, _DeprecatedProxy)
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_warns_for_dataclass(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a dataclass emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
@@ -353,17 +353,17 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyClass, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning_whole_class(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated(target=TRANSPARENT) is applied to a plain class."""
+        """stream=None suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
 
-            @deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0", stream=None)
+            @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", stream=None)
             class _MyWholeClass:
                 pass
 
         assert isinstance(_MyWholeClass, _DeprecatedProxy)
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_does_not_raise_for_function(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a regular function does not raise."""
 
@@ -374,7 +374,7 @@ class TestDeprecatedClassGuard:
         with pytest.warns(FutureWarning):
             my_func()
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_does_not_raise_for_init_method(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to __init__ (not the class itself) does not raise."""
 
@@ -452,12 +452,12 @@ class TestCrossClassMethodGuard:
 class TestDocstringStyleValidation:
     """Validation for ``docstring_style`` values."""
 
-    _TRANSPARENT_PARAMS = [
-        pytest.param(TargetMode.TRANSPARENT, id="TargetMode.TRANSPARENT"),
+    _NOTIFY_PARAMS = [
+        pytest.param(TargetMode.NOTIFY, id="TargetMode.NOTIFY"),
         pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
     ]
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_invalid_docstring_style_raises_value_error(self, target_val: Union[TargetMode, None]) -> None:
         """Unsupported ``docstring_style`` values should fail fast at decoration time."""
         with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
@@ -472,7 +472,7 @@ class TestDocstringStyleValidation:
             def some_func() -> None:
                 """A function."""
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_invalid_docstring_style_raises_even_without_update_docstring(
         self, target_val: Union[TargetMode, None]
     ) -> None:
@@ -516,7 +516,7 @@ class TestDocstringStyleValidation:
         monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
         assert normalize_docstring_style("auto") == "mkdocs"
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_update_docstring_idempotent(self, target_val: Union[TargetMode, None]) -> None:
         """Calling ``_update_docstring_with_deprecation`` twice must not duplicate the notice."""
 
@@ -528,7 +528,7 @@ class TestDocstringStyleValidation:
         _update_docstring_with_deprecation(some_func)
         assert some_func.__doc__ == original_doc
 
-    @pytest.mark.parametrize("target_val", _TRANSPARENT_PARAMS)
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
     def test_idempotency_guard_no_false_positive_on_version_prefix(self, target_val: Union[TargetMode, None]) -> None:
         """Guard must not suppress injection when the docstring mentions a longer version.
 

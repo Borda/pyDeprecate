@@ -95,7 +95,7 @@ class TestHasDeprecationMeta:
     @pytest.mark.parametrize(
         "target_val",
         [
-            pytest.param(TargetMode.ARGS_ONLY, id="TargetMode.ARGS_ONLY"),
+            pytest.param(TargetMode.ARGS_REMAP, id="TargetMode.ARGS_REMAP"),
             pytest.param(True, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-True"),
         ],
     )

@@ -113,9 +113,9 @@ def _normalize_target(
 
     Legacy sentinel conversion (emits warning at decoration time):
 
-    - ``target=None`` → :attr:`TargetMode.TRANSPARENT` + :class:`FutureWarning`
-    - ``target=True`` → :attr:`TargetMode.ARGS_ONLY` + :class:`FutureWarning`
-    - ``target=False`` → :attr:`TargetMode.TRANSPARENT` + :class:`UserWarning`
+    - ``target=None`` → :attr:`TargetMode.NOTIFY` + :class:`FutureWarning`
+    - ``target=True`` → :attr:`TargetMode.ARGS_REMAP` + :class:`FutureWarning`
+    - ``target=False`` → :attr:`TargetMode.NOTIFY` + :class:`UserWarning`
 
     Class target handling (unchanged from previous behaviour):
 
@@ -140,28 +140,8 @@ def _normalize_target(
     """
     # --- Legacy sentinel conversion (v0.9 compat shim; removed in v1.0) ---
     # stacklevel=3: warn() → _normalize_target() → packing() → @decorator application site
-    if target is None:
-        warnings.warn(
-            "target=None is deprecated since v0.9; use TargetMode.TRANSPARENT instead. Will be removed in v1.0.",
-            FutureWarning,
-            stacklevel=3,
-        )
-        return TargetMode.TRANSPARENT
-    if target is True:
-        warnings.warn(
-            "target=True is deprecated since v0.9; use TargetMode.ARGS_ONLY instead. Will be removed in v1.0.",
-            FutureWarning,
-            stacklevel=3,
-        )
-        return TargetMode.ARGS_ONLY
-    if target is False:
-        warnings.warn(
-            "'target=False' is not a valid deprecation mode and will be treated as TargetMode.TRANSPARENT."
-            " This will be TypeError in v1.0.",
-            UserWarning,
-            stacklevel=3,
-        )
-        return TargetMode.TRANSPARENT
+    if target is None or isinstance(target, bool):
+        return TargetMode.from_legacy(target)
 
     # --- TargetMode enum pass-through ---
     if isinstance(target, TargetMode):
@@ -521,8 +501,8 @@ def deprecated(
             - ``{}``: Empty mapping (no remapping)
             Works with both ``target=Callable`` and ``target=True``.
         args_extra: Additional arguments merged into kwargs before the call.
-            Used when target is a Callable or ``TargetMode.ARGS_ONLY`` (with ``args_mapping``).
-            Ignored when target is ``TargetMode.TRANSPARENT``.
+            Used when target is a Callable or ``TargetMode.ARGS_REMAP`` (with ``args_mapping``).
+            Ignored when target is ``TargetMode.NOTIFY``.
             Example: ``{'new_required_arg': 42}``
         skip_if: Conditionally skip deprecation warning and forwarding:
             - ``bool``: Static condition (True = skip deprecation)
@@ -619,25 +599,25 @@ def deprecated(
         # Skip for legacy sentinels (target=None/True/False): a warning already
         # fired; user will hit the guard on their migrated call site.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
-            if _target is TargetMode.ARGS_ONLY and not args_mapping:
+            if _target is TargetMode.ARGS_REMAP and not args_mapping:
                 warnings.warn(
-                    f"`@deprecated(target=TargetMode.ARGS_ONLY)` on `{source.__name__}` requires "
+                    f"`@deprecated(target=TargetMode.ARGS_REMAP)` on `{source.__name__}` requires "
                     "`args_mapping` to specify which arguments are being renamed. Without it the "
                     "decorator has zero effect. This will be TypeError in v1.0.",
                     UserWarning,
                     stacklevel=2,
                 )
-            if _target is TargetMode.TRANSPARENT and args_mapping:
+            if _target is TargetMode.NOTIFY and args_mapping:
                 warnings.warn(
-                    f"`@deprecated(target=TargetMode.TRANSPARENT)` on `{source.__name__}` ignores "
-                    "`args_mapping`. Use `TargetMode.ARGS_ONLY` to rename arguments, or pass a "
+                    f"`@deprecated(target=TargetMode.NOTIFY)` on `{source.__name__}` ignores "
+                    "`args_mapping`. Use `TargetMode.ARGS_REMAP` to rename arguments, or pass a "
                     "callable target to forward the call. This will be TypeError in v1.0.",
                     UserWarning,
                     stacklevel=2,
                 )
-            if _target is TargetMode.TRANSPARENT and args_extra:
+            if _target is TargetMode.NOTIFY and args_extra:
                 warnings.warn(
-                    f"`@deprecated(target=TargetMode.TRANSPARENT)` on `{source.__name__}` ignores "
+                    f"`@deprecated(target=TargetMode.NOTIFY)` on `{source.__name__}` ignores "
                     "`args_extra`. Use a callable target to forward with extra arguments. "
                     "This will be TypeError in v1.0.",
                     UserWarning,
@@ -664,9 +644,9 @@ def deprecated(
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
-            reason_callable = _target is TargetMode.TRANSPARENT or callable(_target)
+            reason_callable = _target is TargetMode.NOTIFY or callable(_target)
             reason_argument = {}
-            if args_mapping and (_target is TargetMode.ARGS_ONLY or callable(_target)):
+            if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 # Find which deprecated arguments were actually used in this call
                 reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
             # short cycle with no reason for redirect
@@ -697,14 +677,14 @@ def deprecated(
 
             if reason_callable:
                 kwargs = _update_kwargs_with_defaults(source, kwargs)
-            if args_mapping and (_target is TargetMode.ARGS_ONLY or callable(_target)):
+            if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 # Filter out arguments that should be skipped (mapped to None)
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
                 # Apply argument renaming: use mapped name if exists, otherwise keep original
                 # Skip any arguments that were marked for skipping
                 kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
-            if args_extra and (_target is TargetMode.ARGS_ONLY or callable(_target)):
+            if args_extra and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 # update target argument by extra arguments
                 kwargs.update(args_extra)
 

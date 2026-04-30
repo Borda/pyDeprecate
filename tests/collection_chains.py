@@ -93,7 +93,7 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ outer     | caller_stacked_args_enum   ║
     ║-----------|----------------------------║
-    ║ target    |  TargetMode.ARGS_ONLY      ║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
     ║ mapping   |  "c1" -> "nc2"             ║
     ╚════════════════════╤═══════════════════╝
                          │  [stacked ← chain]
@@ -101,10 +101,10 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ inner     | caller_stacked_args_enum   ║
     ║-----------|----------------------------║
-    ║ target    |  TargetMode.ARGS_ONLY      ║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
     ║ mapping   |  "nc1" -> "nc2"            ║
     ╚════════════════════════════════════════╝
-    # Solution: single @deprecated(TargetMode.ARGS_ONLY, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
+    # Solution: single @deprecated(TargetMode.ARGS_REMAP, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
 
     BAD — outer legacy sentinel, inner TargetMode enum (should be collapsed):
 
@@ -119,17 +119,17 @@ Deprecation Chain Schema:
     ╔════════════════════════════════════════╗
     ║ inner     | caller_stacked_legacy_enum ║
     ║-----------|----------------------------║
-    ║ target    |  TargetMode.ARGS_ONLY      ║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
     ║ mapping   |  "nc1" -> "nc2"            ║
     ╚════════════════════════════════════════╝
-    # Solution: single @deprecated(TargetMode.ARGS_ONLY, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
+    # Solution: single @deprecated(TargetMode.ARGS_REMAP, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
 
     BAD — outer TargetMode enum, inner legacy sentinel (should be collapsed):
 
     ╔════════════════════════════════════════╗
     ║ outer     | caller_stacked_enum_legacy ║
     ║-----------|----------------------------║
-    ║ target    |  TargetMode.ARGS_ONLY      ║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
     ║ mapping   |  "c1" -> "nc2"             ║
     ╚════════════════════╤═══════════════════╝
                          │  [stacked ← chain]
@@ -140,7 +140,7 @@ Deprecation Chain Schema:
     ║ target    |  True (self)               ║
     ║ mapping   |  "nc1" -> "nc2"            ║
     ╚════════════════════════════════════════╝
-    # Solution: single @deprecated(TargetMode.ARGS_ONLY, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
+    # Solution: single @deprecated(TargetMode.ARGS_REMAP, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
 
     BAD — callable target is itself a self-deprecation (mappings must compose):
 
@@ -248,13 +248,13 @@ def caller_stacked_args_map(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) 
 
 
 @deprecated(
-    target=TargetMode.ARGS_ONLY,
+    target=TargetMode.ARGS_REMAP,
     deprecated_in="0.9",
     remove_in="1.0",
     args_mapping={"c1": "nc2"},
 )
 @deprecated(
-    target=TargetMode.ARGS_ONLY,
+    target=TargetMode.ARGS_REMAP,
     deprecated_in="0.9",
     remove_in="1.0",
     args_mapping={"nc1": "nc2"},
@@ -266,7 +266,7 @@ def caller_stacked_args_enum_enum(base: int, c1: int = 0, nc1: int = 0, nc2: int
 
 @deprecated(target=True, deprecated_in="0.9", remove_in="1.0", args_mapping={"c1": "nc2"})
 @deprecated(
-    target=TargetMode.ARGS_ONLY,
+    target=TargetMode.ARGS_REMAP,
     deprecated_in="0.9",
     remove_in="1.0",
     args_mapping={"nc1": "nc2"},
@@ -277,7 +277,7 @@ def caller_stacked_args_legacy_enum(base: int, c1: int = 0, nc1: int = 0, nc2: i
 
 
 @deprecated(
-    target=TargetMode.ARGS_ONLY,
+    target=TargetMode.ARGS_REMAP,
     deprecated_in="0.9",
     remove_in="1.0",
     args_mapping={"c1": "nc2"},

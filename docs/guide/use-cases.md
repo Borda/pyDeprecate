@@ -204,17 +204,17 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 my_func(value=42, legacy_param="old")
 ```
 
-## `TargetMode.TRANSPARENT` vs `TargetMode.ARGS_ONLY` vs `target=<callable>` — key differences
+## `TargetMode.NOTIFY` vs `TargetMode.ARGS_REMAP` vs `target=<callable>` — key differences
 
 These modes differ in whether the function body runs, whether a warning fires, and which parameters take effect.
 
 !!! tip
 
-    `TargetMode.TRANSPARENT` replaces the old `target=None` sentinel and `TargetMode.ARGS_ONLY` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
+    `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 ### Behaviour comparison
 
-|                               | `TargetMode.TRANSPARENT`                                                                                  | `TargetMode.ARGS_ONLY` (no `args_mapping`) | `TargetMode.ARGS_ONLY` (with `args_mapping`)                               | `target=<callable>`                               |
+|                               | `TargetMode.NOTIFY`                                                                                  | `TargetMode.ARGS_REMAP` (no `args_mapping`) | `TargetMode.ARGS_REMAP` (with `args_mapping`)                               | `target=<callable>`                               |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------- |
 | **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | **Never**                                  | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
 | **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | —                                          | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |
@@ -230,10 +230,10 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 ### When to use which
 
-- **`TargetMode.TRANSPARENT`** — function is going away with no replacement. Callers must remove the call. Warning fires up to `num_warns` times (default: once) so each caller is notified on first use. `args_mapping` and `args_extra` are ignored and emit a construction-time `UserWarning`; `TypeError` planned in v1.0.
+- **`TargetMode.NOTIFY`** — function is going away with no replacement. Callers must remove the call. Warning fires up to `num_warns` times (default: once) so each caller is notified on first use. `args_mapping` and `args_extra` are ignored and emit a construction-time `UserWarning`; `TypeError` planned in v1.0.
 - **`target=<callable>`** — function is replaced by another callable. The source body never runs; all calls are forwarded. Use `args_mapping` to rename arguments and `args_extra` to inject new required args.
-- **`TargetMode.ARGS_ONLY` + `args_mapping`** — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.
-- **`TargetMode.ARGS_ONLY` without `args_mapping`** — effectively a no-op. `stream`, `num_warns`, `deprecated_in`, `remove_in`, `args_extra`, and `args_mapping` all have no effect. Avoid this combination unless you explicitly want a zero-effect passthrough.
+- **`TargetMode.ARGS_REMAP` + `args_mapping`** — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.
+- **`TargetMode.ARGS_REMAP` without `args_mapping`** — effectively a no-op. `stream`, `num_warns`, `deprecated_in`, `remove_in`, `args_extra`, and `args_mapping` all have no effect. Avoid this combination unless you explicitly want a zero-effect passthrough.
 
 ### Example — notice the difference in warning behaviour
 
@@ -747,7 +747,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 </details>
 
-`args_extra` merges into kwargs after `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_ONLY` (with `args_mapping`). It is ignored for `TargetMode.TRANSPARENT`.
+`args_extra` merges into kwargs after `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). It is ignored for `TargetMode.NOTIFY`.
 
 ## Suppressing `FutureWarning` in test fixtures with `assert_no_warnings`
 

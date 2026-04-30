@@ -126,7 +126,7 @@
           "name": "How do I fix TypeError: Failed mapping?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=TargetMode.ARGS_ONLY for self-deprecation where the same function handles the renamed argument."
+            "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=TargetMode.ARGS_REMAP for self-deprecation where the same function handles the renamed argument."
           }
         },
         {

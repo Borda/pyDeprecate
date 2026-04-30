@@ -5,9 +5,10 @@ modules so that static analysers can catch schema mismatches at analysis time ra
 than silently returning ``None`` at runtime.
 """
 
+import warnings
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Union, runtime_checkable
 
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
@@ -17,11 +18,11 @@ class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
 
     Members:
-        TRANSPARENT: Transparent deprecation -- warn on every call; original body
+        NOTIFY: Notify-only deprecation -- warn on every call; original body
             executes unchanged. Replaces ``target=None``. Passing
             ``args_mapping`` or ``args_extra`` with this mode emits a
             :class:`UserWarning` today; :class:`TypeError` is planned in v1.0.
-        ARGS_ONLY: Deprecate argument names only -- warn only when deprecated
+        ARGS_REMAP: Deprecate argument names only -- warn only when deprecated
             argument names are passed; remaps kwargs via ``args_mapping`` before
             calling the original body. Replaces ``target=True``. This mode is
             strongly recommended with ``args_mapping``; omitting it emits a
@@ -30,15 +31,80 @@ class TargetMode(Enum):
 
     Examples:
         >>> from deprecate import TargetMode
-        >>> TargetMode.TRANSPARENT.value
-        'transparent'
-        >>> TargetMode.ARGS_ONLY.value
-        'args_only'
+        >>> TargetMode.NOTIFY.value
+        'notify'
+        >>> TargetMode.ARGS_REMAP.value
+        'args_remap'
 
     """
 
-    TRANSPARENT = "transparent"
-    ARGS_ONLY = "args_only"
+    NOTIFY = "notify"
+    ARGS_REMAP = "args_remap"
+
+    @classmethod
+    def from_legacy(cls, target: Union[None, bool], *, warn: bool = True) -> "TargetMode":
+        """Convert a legacy ``target`` sentinel (``None`` / ``True`` / ``False``) to a :class:`TargetMode`.
+
+        Consolidates the v0.9 backwards-compatibility shim used by the
+        ``@deprecated`` decorator. Each legacy sentinel is mapped to its modern
+        :class:`TargetMode` equivalent; a deprecation warning is emitted unless
+        ``warn=False``.
+
+        Args:
+            target: Legacy sentinel value:
+
+                - ``None``   → :attr:`TargetMode.NOTIFY` (emits :class:`FutureWarning`)
+                - ``True``   → :attr:`TargetMode.ARGS_REMAP`   (emits :class:`FutureWarning`)
+                - ``False``  → :attr:`TargetMode.NOTIFY` (emits :class:`UserWarning`;
+                  ``False`` is not a valid mode and is treated as transparent for
+                  backwards compatibility — it will become :class:`TypeError` in v1.0).
+            warn: When ``False``, suppress all deprecation warnings and silently
+                return the mapped :class:`TargetMode`. Defaults to ``True``.
+
+        Returns:
+            The corresponding :class:`TargetMode` member.
+
+        Raises:
+            TypeError: If ``target`` is anything other than ``None``, ``True``, or ``False``
+                (e.g. a callable, a :class:`TargetMode` member, or any other type).
+
+        Examples:
+            >>> TargetMode.from_legacy(None, warn=False)
+            <TargetMode.NOTIFY: 'notify'>
+            >>> TargetMode.from_legacy(True, warn=False)
+            <TargetMode.ARGS_REMAP: 'args_remap'>
+            >>> TargetMode.from_legacy(False, warn=False)
+            <TargetMode.NOTIFY: 'notify'>
+
+        """
+        if target is None:
+            if warn:
+                warnings.warn(
+                    "target=None is deprecated since v0.9; use TargetMode.NOTIFY instead. Will be removed in v1.0.",
+                    FutureWarning,
+                    stacklevel=3,
+                )
+            return cls.NOTIFY
+        if target is True:
+            if warn:
+                warnings.warn(
+                    "target=True is deprecated since v0.9; use TargetMode.ARGS_REMAP instead. Will be removed in v1.0.",
+                    FutureWarning,
+                    stacklevel=3,
+                )
+            return cls.ARGS_REMAP
+        if target is False:
+            if warn:
+                warnings.warn(
+                    "'target=False' is not a valid deprecation mode and will be treated as TargetMode.NOTIFY."
+                    " This will be TypeError in v1.0.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            return cls.NOTIFY
+        raise TypeError(
+            f"`TargetMode.from_legacy` accepts only None, True, or False; got {type(target).__name__}: {target!r}."
+        )
 
 
 @dataclass(frozen=True)
@@ -53,7 +119,7 @@ class DeprecationConfig:
         remove_in: Version string when the callable will be removed.
         name: Display the name of the deprecated source (function or class name).
         target: None, True, False (legacy sentinels, deprecated since v0.9),
-            TargetMode.TRANSPARENT, TargetMode.ARGS_ONLY, or a callable.
+            TargetMode.NOTIFY, TargetMode.ARGS_REMAP, or a callable.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
         docstring_style: Docstring notice output style when ``update_docstring=True``.

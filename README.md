@@ -237,12 +237,12 @@ In particular the target values (cases):
 
 | `target` value           | Use case                                      | `args_mapping`                     | Warning trigger                    |
 | ------------------------ | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
-| `TargetMode.TRANSPARENT` | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
-| `TargetMode.ARGS_ONLY`   | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
+| `TargetMode.NOTIFY` | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
+| `TargetMode.ARGS_REMAP`   | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
 | `<callable>`             | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
 
 > [!TIP]
-> `TargetMode.TRANSPARENT` replaces the old `target=None` sentinel and `TargetMode.ARGS_ONLY` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
+> `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
 > `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)).
@@ -383,7 +383,7 @@ Base use-case with no forwarding and just raising a warning:
 from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=TargetMode.TRANSPARENT, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b
@@ -418,7 +418,7 @@ from deprecate import TargetMode, deprecated
 
 @deprecated(
     # define as deprecation some self argument - mapping
-    target=TargetMode.ARGS_ONLY,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"coef": "new_coef"},
     # common version info
     deprecated_in="0.2",
@@ -454,7 +454,7 @@ from typing import Optional
 
 
 @deprecated(
-    target=TargetMode.ARGS_ONLY,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"legacy_param": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -965,7 +965,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 <br>
 
 > [!NOTE]
-> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_ONLY` (with `args_mapping`). It is silently ignored for `TargetMode.TRANSPARENT`.
+> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). It is silently ignored for `TargetMode.NOTIFY`.
 
 ## 🔇 Understanding the `void()` Helper
 
@@ -1029,7 +1029,7 @@ from deprecate import DeprecationWrapperInfo, TargetMode, deprecated, validate_d
 
 
 # Define your deprecated function
-@deprecated(target=TargetMode.ARGS_ONLY, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
@@ -1049,7 +1049,7 @@ result = validate_deprecation_wrapper(my_func)
 
 
 # Example: Function with invalid args_mapping
-@deprecated(target=TargetMode.ARGS_ONLY, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
 def bad_func(real_arg: int = 0) -> int:
     return real_arg
 
@@ -1060,7 +1060,7 @@ print(result)
 
 
 # Example: Function with empty mapping (no effect)
-@deprecated(target=TargetMode.ARGS_ONLY, args_mapping={}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={}, deprecated_in="1.0")
 def empty_func(arg: int = 0) -> int:
     return arg
 
@@ -1340,7 +1340,7 @@ def power_v2(base: float, exponent: float = 2) -> float:
 
 
 # self-deprecation — renames old arg "exp" -> "exponent" within the same function
-@deprecated(TargetMode.ARGS_ONLY, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
 def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
     return base**exponent
 
@@ -1352,7 +1352,7 @@ def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
     return void(base, exponent)
 
 
-# BAD: targets legacy_power (target=TargetMode.ARGS_ONLY with arg renaming) — ChainType.STACKED
+# BAD: targets legacy_power (target=TargetMode.ARGS_REMAP with arg renaming) — ChainType.STACKED
 # Mappings chain: "power" -> "exp" -> "exponent" — must be composed.
 # SOLUTION: target=new_power, args_mapping={"power": "exponent"}
 @deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})
@@ -1540,12 +1540,12 @@ from enum import Enum
 
 
 # Correct: use @deprecated_class for classes
-@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
 
 
-@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
@@ -1556,7 +1556,7 @@ from deprecate import deprecated
 
 
 class MyClass:
-    @deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```
@@ -1618,7 +1618,7 @@ class MyClass:
 
 
    # Deprecate within same function
-   @deprecated(target=TargetMode.ARGS_ONLY, args_mapping={"old_arg": "new_arg"})
+   @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
    def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
        return new_arg * 2
    ```

@@ -27,12 +27,12 @@ from enum import Enum
 
 
 # Correct: use @deprecated_class for classes
-@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
 
 
-@deprecated_class(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
@@ -43,7 +43,7 @@ from deprecate import TargetMode, deprecated
 
 
 class MyClass:
-    @deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```
@@ -151,7 +151,7 @@ from deprecate import TargetMode, deprecated
 
 
 class MyService:
-    @deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, host: str) -> None:
         self.host = host  # body executes; warning fires at every MyService(...)
 
@@ -173,7 +173,7 @@ True
 
 **Q:** I get `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`. What does this mean?
 
-**A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `TargetMode.ARGS_ONLY` for in-place remapping.
+**A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `TargetMode.ARGS_REMAP` for in-place remapping.
 
 The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `TypeError: Failed mapping of '{source}', arguments not accepted by target: [...]`. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
 
@@ -216,14 +216,14 @@ def old_func(old_name: int) -> int:
     pass
 ```
 
-**Option 3 — Use `TargetMode.ARGS_ONLY`** (deprecating an argument of the same function, not forwarding to a different one):
+**Option 3 — Use `TargetMode.ARGS_REMAP`** (deprecating an argument of the same function, not forwarding to a different one):
 
 ```python
 from deprecate import TargetMode, deprecated
 
 
 # Deprecate within same function
-@deprecated(target=TargetMode.ARGS_ONLY, args_mapping={"old_arg": "new_arg"})
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 ```
@@ -269,7 +269,7 @@ def old_func2():
 
 **A:** By default, pyDeprecate emits the deprecation message only once per function (`num_warns=1`) to avoid log spam. After the first call, subsequent calls are silent. Set `num_warns=-1` for unlimited emissions or `num_warns=N` for exactly `N` emissions.
 
-For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_ONLY`), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default.
+For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default.
 
 ```python
 # Minimal replacement function for examples
@@ -375,7 +375,7 @@ NEW_THRESHOLD = 0.5  # new name
 from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=TargetMode.TRANSPARENT, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 def get_old_threshold() -> float:
     """Use NEW_THRESHOLD constant directly instead."""
     return 0.5
