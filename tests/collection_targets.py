@@ -34,6 +34,64 @@ def base_pow_args(a: float, b: int) -> float:
     return a**b
 
 
+tracked_identity_calls: list[int] = []
+
+
+def double_value(x: int) -> int:
+    """Return double the input value for TargetMode smoke tests."""
+    return x * 2
+
+
+def tracked_identity(x: int) -> int:
+    """Record calls and return the original value for body-execution tests."""
+    tracked_identity_calls.append(x)
+    return x
+
+
+def increment_value(x: int) -> int:
+    """Return the input value plus one for args-only deprecation tests."""
+    return x + 1
+
+
+def power_with_new_coef(base: float, new_coef: float = 1.0) -> float:
+    """Raise a base to a remapped coefficient for args-only tests."""
+    return base**new_coef
+
+
+def add_values(x: int, y: int) -> int:
+    """Add two integers for args-extra injection tests."""
+    return x + y
+
+
+def identity_value(x: int) -> int:
+    """Return the original input value."""
+    return x
+
+
+def stacked_chain_identity(base: int) -> int:
+    """Return the base input unchanged for stacked TargetMode chain fixtures."""
+    return base
+
+
+def return_b(b: int) -> int:
+    """Return the mapped positional argument."""
+    return b
+
+
+def return_z(z: int = 0) -> int:
+    """Return the optional keyword argument used in warning tests."""
+    return z
+
+
+def return_none() -> None:
+    """Return ``None`` for warning-only sentinel tests."""
+
+
+def return_new(new: int = 0) -> int:
+    """Return the remapped value for the ``target=True`` sentinel test."""
+    return new
+
+
 class NewCls:
     """New class for testing deprecation."""
 
@@ -115,6 +173,18 @@ class NewDataClass:
 
     label: str
     total: int = 0
+
+
+class SomeTargetClass:
+    """Simple target class for proxy args_mapping behaviour tests.
+
+    Accepts ``new_key`` as the canonical parameter name; used to verify that
+    ``deprecated_class`` fixtures correctly remap ``old_key`` to ``new_key``.
+    """
+
+    def __init__(self, new_key: int = 0) -> None:
+        """Store the canonical keyword argument."""
+        self.new_key = new_key
 
 
 def timing_wrapper(func: Callable) -> Callable:

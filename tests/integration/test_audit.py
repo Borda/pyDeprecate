@@ -129,6 +129,40 @@ class TestValidateDeprecatedWrapper:
             validate_deprecation_wrapper(plain_function)
 
 
+class TestMisconfiguredTarget:
+    """Tests for the misconfigured_target field in validate_deprecation_wrapper()."""
+
+    @pytest.mark.parametrize(
+        "func_name",
+        [
+            "target_false_deprecation",
+            "whole_with_mapping_deprecation",
+            "args_only_no_mapping_deprecation",
+        ],
+    )
+    def test_misconfigured_target_true(self, func_name: str) -> None:
+        """Invalid target configurations are flagged as misconfigured_target=True."""
+        result = validate_deprecation_wrapper(getattr(sample_module, func_name))
+        assert result.misconfigured_target is True
+
+    @pytest.mark.parametrize(
+        "func_name",
+        [
+            "whole_clean_deprecation",
+            "args_only_clean_deprecation",
+        ],
+    )
+    def test_misconfigured_target_false_for_valid_configs(self, func_name: str) -> None:
+        """Correctly configured TargetMode wrappers have misconfigured_target=False."""
+        result = validate_deprecation_wrapper(getattr(sample_module, func_name))
+        assert result.misconfigured_target is False
+
+    def test_valid_wrapper_also_not_misconfigured(self) -> None:
+        """Callable-target wrapper is not flagged as misconfigured."""
+        result = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
+        assert result.misconfigured_target is False
+
+
 class TestValidateDeprecatedWrapperCallableProxy:
     """validate_deprecation_wrapper with deprecated_class and deprecated_instance proxies."""
 
@@ -364,7 +398,13 @@ class TestValidateDeprecationChains:
 
     @pytest.mark.parametrize(
         "fn_pattern",
-        ["caller_stacked_args_map", "caller_pow_via_self_depr"],
+        [
+            "caller_stacked_args_map",
+            "caller_pow_via_self_depr",
+            "caller_stacked_args_enum_enum",
+            "caller_stacked_args_legacy_enum",
+            "caller_stacked_args_enum_legacy",
+        ],
     )
     def test_detects_stacked_chain(self, chain_issues: list, fn_pattern: str) -> None:
         """Stacked arg-mapping decorators or self-deprecation targets are flagged as STACKED."""

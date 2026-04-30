@@ -13,12 +13,13 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import warnings
 from functools import partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _WrapperState
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -103,11 +104,20 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
 
 def _normalize_target(
     source: Callable,
-    target: Union[bool, None, Callable],
-) -> Union[bool, None, Callable]:
+    target: Union[bool, None, Callable, TargetMode],
+) -> Union[TargetMode, Callable]:
     """Normalise the effective target callable before the wrapper closure captures it.
 
-    Handles three cases when ``target`` is a class:
+    Converts legacy sentinel values to :class:`~deprecate._types.TargetMode` enum
+    members with a deprecation warning, and handles class targets:
+
+    Legacy sentinel conversion (emits warning at decoration time):
+
+    - ``target=None`` → :attr:`TargetMode.NOTIFY` + :class:`FutureWarning`
+    - ``target=True`` → :attr:`TargetMode.ARGS_REMAP` + :class:`FutureWarning`
+    - ``target=False`` → :attr:`TargetMode.NOTIFY` + :class:`UserWarning`
+
+    Class target handling (unchanged from previous behaviour):
 
     1. ``source`` is ``__init__`` → remap ``target=NewCls`` to ``target=NewCls.__init__``
        (constructor forwarding; ``self`` is the new instance so the call is valid).
@@ -116,8 +126,6 @@ def _normalize_target(
        of the wrong type.
     3. ``source`` is a module-level function → keep ``target=NewCls`` as-is;
        calling ``NewCls(**kwargs)`` creates a new instance directly.
-
-    When ``target`` is not a class it is returned unchanged.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
@@ -130,20 +138,32 @@ def _normalize_target(
         TypeError: When a class target is used on a non-``__init__`` class method.
 
     """
-    if not inspect.isclass(target):
+    # --- Legacy sentinel conversion (v0.9 compat shim; removed in v1.0) ---
+    # stacklevel=3: warn() → _normalize_target() → packing() → @decorator application site
+    if target is None or isinstance(target, bool):
+        return TargetMode.from_legacy(target)
+
+    # --- TargetMode enum pass-through ---
+    if isinstance(target, TargetMode):
         return target
-    src_qualname = getattr(source, "__qualname__", "")
-    src_parts = src_qualname.rsplit(".", 1)
-    source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
-    if source.__name__ == "__init__":
-        return target.__init__
-    if source_is_class_method:
-        raise TypeError(
-            f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
-            f"Constructor forwarding via target=ClassName is only supported on `__init__`. "
-            f"Use target={target.__name__}.__init__ explicitly, or apply the decorator to `__init__`."
-        )
-    return target  # module-level function: instantiate directly
+
+    # --- Class target handling ---
+    if inspect.isclass(target):
+        src_qualname = getattr(source, "__qualname__", "")
+        src_parts = src_qualname.rsplit(".", 1)
+        source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
+        if source.__name__ == "__init__":
+            return target.__init__
+        if source_is_class_method:
+            raise TypeError(
+                f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
+                f"Constructor forwarding via target=ClassName is only supported on `__init__`. "
+                f"Use target={target.__name__}.__init__ explicitly, or apply the decorator to `__init__`."
+            )
+        return target  # module-level function: instantiate directly
+
+    # --- Callable target (function/method) ---
+    return target
 
 
 def _prepare_target_call(
@@ -317,7 +337,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
 def _raise_warn_callable(
     stream: Callable,
     source: Callable,
-    target: Union[None, bool, Callable],
+    target: Union[None, bool, Callable, TargetMode],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -432,7 +452,7 @@ def _raise_warn_arguments(
 
 
 def deprecated(
-    target: Union[bool, None, Callable],
+    target: Union[bool, None, Callable, TargetMode],
     deprecated_in: str = "",
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
@@ -480,8 +500,9 @@ def deprecated(
             - ``{'old_arg': None}``: Skip argument (don't forward it)
             - ``{}``: Empty mapping (no remapping)
             Works with both ``target=Callable`` and ``target=True``.
-        args_extra: Additional arguments to pass to target function when forwarding.
-            Only used when target is a Callable.
+        args_extra: Additional arguments merged into kwargs before the call.
+            Used when target is a Callable or ``TargetMode.ARGS_REMAP`` (with ``args_mapping``).
+            Ignored when target is ``TargetMode.NOTIFY``.
             Example: ``{'new_required_arg': 42}``
         skip_if: Conditionally skip deprecation warning and forwarding:
             - ``bool``: Static condition (True = skip deprecation)
@@ -543,7 +564,6 @@ def deprecated(
     def packing(source: Callable) -> Callable:
         if inspect.isclass(source):
             import importlib
-            import warnings
 
             proxy_module = importlib.import_module("deprecate.proxy")
             deprecated_class = proxy_module.deprecated_class
@@ -574,6 +594,19 @@ def deprecated(
         if callable(target) and not inspect.isclass(target):
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
+
+        # Construction-time misconfiguration guards — will become TypeError in v1.0.
+        # Skip for legacy sentinels (target=None/True/False): a warning already
+        # fired; user will hit the guard on their migrated call site.
+        if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
+            TargetMode.validate(
+                _target,
+                source.__name__,
+                args_mapping=args_mapping,
+                args_extra=args_extra,
+                stacklevel=2,
+            )
+
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
@@ -594,9 +627,9 @@ def deprecated(
             # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
-            reason_callable = _target is None or callable(_target)
+            reason_callable = _target is TargetMode.NOTIFY or callable(_target)
             reason_argument = {}
-            if args_mapping and _target:
+            if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 # Find which deprecated arguments were actually used in this call
                 reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
             # short cycle with no reason for redirect
@@ -627,14 +660,14 @@ def deprecated(
 
             if reason_callable:
                 kwargs = _update_kwargs_with_defaults(source, kwargs)
-            if args_mapping and _target:  # covers _target as True and callable
+            if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 # Filter out arguments that should be skipped (mapped to None)
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
                 # Apply argument renaming: use mapped name if exists, otherwise keep original
                 # Skip any arguments that were marked for skipping
                 kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
-            if args_extra and _target:  # covers _target as True and callable
+            if args_extra and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 # update target argument by extra arguments
                 kwargs.update(args_extra)
 

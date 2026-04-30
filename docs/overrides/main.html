@@ -126,7 +126,7 @@
           "name": "How do I fix TypeError: Failed mapping?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=True for self-deprecation where the same function handles the renamed argument."
+            "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=TargetMode.ARGS_REMAP for self-deprecation where the same function handles the renamed argument."
           }
         },
         {
@@ -167,6 +167,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Pass any logging method as the stream parameter: @deprecated(target=new_func, stream=logging.warning). The stream callable receives the formatted deprecation message as a single string argument. The num_warns parameter still controls emission frequency. Benefits over warnings.warn: integrates with log aggregation, respects your log format and handlers, and is always emitted regardless of Python's warning filter state."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why doesn't deprecated_class warn when I call it with the new argument name?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This is intended behaviour. When args_mapping is provided without an explicit callable target, the proxy auto-resolves to TargetMode.ARGS_REMAP and warns only when an old argument name is actually present in the call. Callers already using the new argument name see no warning, matching the per-argument behaviour of @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...). To warn on every call regardless of argument names, set target=TargetMode.NOTIFY explicitly."
           }
         }
       ]

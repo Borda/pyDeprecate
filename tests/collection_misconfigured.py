@@ -8,6 +8,10 @@ They simulate common mistakes developers make when setting up deprecation wrappe
 - Mapping an argument to itself (identity mapping, no actual rename)
 - Mixing identity and valid mappings
 - Creating a self-referencing deprecation (wrapper targets itself)
+- Using target=False (invalid sentinel)
+- Using TargetMode.NOTIFY with args_mapping (ignored and emits a construction-time
+  UserWarning at decoration time; TypeError planned in v1.0 — misconfigured)
+- Using TargetMode.ARGS_REMAP without args_mapping (no-op — misconfigured)
 
 Used by `validate_deprecated_wrapper()` and `find_deprecation_wrappers()` to verify
 that the validation tooling correctly detects these misconfigurations.
@@ -15,11 +19,12 @@ that the validation tooling correctly detects these misconfigurations.
 Copyright (C) 2020-2026 Jiri Borovec <...>.
 """
 
+import warnings
 from dataclasses import replace
 from typing import cast
 
 from deprecate import deprecated, void
-from deprecate._types import _DeprecatedCallable
+from deprecate._types import TargetMode, _DeprecatedCallable
 
 
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"nonexistent_arg": "new_arg"})
@@ -108,3 +113,52 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
 self_ref_typed = cast(_DeprecatedCallable, self_referencing_deprecation)
 deprecated_info = self_ref_typed.__deprecated__
 self_ref_typed.__deprecated__ = replace(deprecated_info, target=self_referencing_deprecation)
+
+
+# ---------------------------------------------------------------------------
+# TargetMode misconfiguration fixtures
+# Construction-time UserWarning is expected — suppress during module load.
+# ---------------------------------------------------------------------------
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", UserWarning)
+
+    @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
+    def target_false_deprecation(x: int = 1) -> int:
+        """target=False is not valid — audit should flag as misconfigured_target."""
+        return x
+
+    @deprecated(
+        target=TargetMode.NOTIFY,
+        deprecated_in="0.1",
+        remove_in="0.5",
+        args_mapping={"old_x": "x"},
+    )
+    def whole_with_mapping_deprecation(x: int = 1) -> int:
+        """NOTIFY + args_mapping — mapping ignored; emits UserWarning at decoration time.
+
+        TypeError planned in v1.0; audit flags misconfigured_target.
+        """
+        return x
+
+    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5")
+    def args_only_no_mapping_deprecation(x: int = 1) -> int:
+        """ARGS_REMAP without args_mapping — no-op; audit flags misconfigured_target."""
+        return x
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
+def whole_clean_deprecation(x: int = 1) -> int:
+    """NOTIFY with no args_mapping — correctly configured; audit should not flag."""
+    return x
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    args_mapping={"old_x": "x"},
+)
+def args_only_clean_deprecation(x: int = 1) -> int:
+    """ARGS_REMAP with args_mapping — correctly configured; audit should not flag."""
+    return x

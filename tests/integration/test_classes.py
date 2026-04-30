@@ -26,6 +26,8 @@ from tests.collection_deprecate import (
     ThisCls,
     WrappedDataClass,
     WrappedEnum,
+    depr_class_args_only_mode_warns_on_deprecated_arg,
+    depr_class_whole_mode_warns_on_call,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
 
@@ -269,6 +271,22 @@ class TestDeprecatedClassMethod:
             result = svc.self_renamed_method(x=3)
         assert result == 6
 
+    def test_whole_mode_warns_on_call(self) -> None:
+        """TargetMode.NOTIFY emits FutureWarning on every call; body executes unchanged."""
+        with pytest.warns(FutureWarning):
+            result = depr_class_whole_mode_warns_on_call(5)
+        assert result == 10
+
+    def test_args_only_mode_warns_on_deprecated_arg(self) -> None:
+        """TargetMode.ARGS_REMAP warns when old arg used; silent when new arg used."""
+        with pytest.warns(FutureWarning):
+            result = depr_class_args_only_mode_warns_on_deprecated_arg(old_x=5)
+        assert result == 10
+
+        with assert_no_warnings():
+            result = depr_class_args_only_mode_warns_on_deprecated_arg(x=5)
+        assert result == 10
+
 
 def test_deprecated_class_attribute_set_at_decoration_time() -> None:
     """Test that __deprecated__ attribute is set at decoration time, not call time.
@@ -319,11 +337,11 @@ class TestEnumFormEquivalence(_ClassFormBase):
 
     def test_isinstance_check(self, proxy: _DeprecatedProxy, name: str) -> None:
         """isinstance(NewEnum.ALPHA, proxy) is True via __instancecheck__."""
-        assert isinstance(NewEnum.ALPHA, proxy)  # type: ignore[arg-type]
+        assert isinstance(NewEnum.ALPHA, proxy)
 
     def test_issubclass_check(self, proxy: _DeprecatedProxy, name: str) -> None:
         """issubclass(NewEnum, proxy) is True via __subclasscheck__."""
-        assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
+        assert issubclass(NewEnum, proxy)
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
         """__deprecated__ records correct DeprecationConfig for both forms."""

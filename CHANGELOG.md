@@ -14,6 +14,18 @@
 
 - **Four CLI subcommands: `check`, `expiry`, `chains`, `all`.** `check` validates wrapper configuration; `expiry` reports wrappers past their `remove_in` deadline (requires `pip install 'pyDeprecate[audit]'`); `chains` detects deprecated-to-deprecated forwarding chains; `all` runs all three in a single scan pass. Flags: `--norecursive`, `--skip_errors`. ([#149](https://github.com/Borda/pyDeprecate/pull/149))
 
+## [0.9.0] — 2026-04-29 — TargetMode transition
+
+### Added
+
+- **`TargetMode` enum exported from `deprecate`.** `TargetMode.NOTIFY` replaces `target=None` and `TargetMode.ARGS_REMAP` replaces `target=True`. Both are public API. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+
+### Changed
+
+- **Legacy `target=None` and `target=True` sentinels now warn at decoration time.** Both forms remain accepted in v0.9, emit `FutureWarning`, and map to `TargetMode.NOTIFY` / `TargetMode.ARGS_REMAP` respectively. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`target=False` now emits a `UserWarning`.** The sentinel was never valid; it remains tolerated in v0.9 but is scheduled to become a `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **Misconfigured `TargetMode` combinations now warn at construction time.** `TargetMode.ARGS_REMAP` without `args_mapping`, `TargetMode.NOTIFY` with `args_mapping`, and `TargetMode.NOTIFY` with `args_extra` all surface a `UserWarning` immediately. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+
 ______________________________________________________________________
 
 ## [0.7.0] — 2026-03-31 — Docstring Tooling

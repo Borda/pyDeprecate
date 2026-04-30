@@ -88,6 +88,60 @@ Deprecation Chain Schema:
     ╚════════════════════════════════════════╝
     # Solution: single @deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
 
+    BAD — stacked self-deprecation arg mappings using TargetMode on both layers (should be collapsed):
+
+    ╔════════════════════════════════════════╗
+    ║ outer     | caller_stacked_args_enum   ║
+    ║-----------|----------------------------║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
+    ║ mapping   |  "c1" -> "nc2"             ║
+    ╚════════════════════╤═══════════════════╝
+                         │  [stacked ← chain]
+                         ▼
+    ╔════════════════════════════════════════╗
+    ║ inner     | caller_stacked_args_enum   ║
+    ║-----------|----------------------------║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
+    ║ mapping   |  "nc1" -> "nc2"            ║
+    ╚════════════════════════════════════════╝
+    # Solution: single @deprecated(TargetMode.ARGS_REMAP, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
+
+    BAD — outer legacy sentinel, inner TargetMode enum (should be collapsed):
+
+    ╔════════════════════════════════════════╗
+    ║ outer     | caller_stacked_legacy_enum ║
+    ║-----------|----------------------------║
+    ║ target    |  True (self)               ║
+    ║ mapping   |  "c1" -> "nc2"             ║
+    ╚════════════════════╤═══════════════════╝
+                         │  [stacked ← chain]
+                         ▼
+    ╔════════════════════════════════════════╗
+    ║ inner     | caller_stacked_legacy_enum ║
+    ║-----------|----------------------------║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
+    ║ mapping   |  "nc1" -> "nc2"            ║
+    ╚════════════════════════════════════════╝
+    # Solution: single @deprecated(TargetMode.ARGS_REMAP, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
+
+    BAD — outer TargetMode enum, inner legacy sentinel (should be collapsed):
+
+    ╔════════════════════════════════════════╗
+    ║ outer     | caller_stacked_enum_legacy ║
+    ║-----------|----------------------------║
+    ║ target    |  TargetMode.ARGS_REMAP     ║
+    ║ mapping   |  "c1" -> "nc2"             ║
+    ╚════════════════════╤═══════════════════╝
+                         │  [stacked ← chain]
+                         ▼
+    ╔════════════════════════════════════════╗
+    ║ inner     | caller_stacked_enum_legacy ║
+    ║-----------|----------------------------║
+    ║ target    |  True (self)               ║
+    ║ mapping   |  "nc1" -> "nc2"            ║
+    ╚════════════════════════════════════════╝
+    # Solution: single @deprecated(TargetMode.ARGS_REMAP, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})
+
     BAD — callable target is itself a self-deprecation (mappings must compose):
 
     ╔════════════════════════════════════════╗
@@ -131,9 +185,9 @@ Deprecation Chain Schema:
         note      : target=True (self-deprecation for arg renaming) is NOT a chain
 """
 
-from deprecate import deprecated, void
+from deprecate import TargetMode, deprecated, void
 from tests.collection_deprecate import decorated_pow_self, decorated_sum, depr_accuracy_map
-from tests.collection_targets import base_sum_kwargs
+from tests.collection_targets import base_sum_kwargs, stacked_chain_identity
 
 
 @deprecated(target=decorated_sum, deprecated_in="1.5", remove_in="2.5")
@@ -191,6 +245,47 @@ def caller_stacked_args_map(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) 
         ``@deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})``.
     """
     return void(base, c1, nc1, nc2)
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.9",
+    remove_in="1.0",
+    args_mapping={"c1": "nc2"},
+)
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.9",
+    remove_in="1.0",
+    args_mapping={"nc1": "nc2"},
+)
+def caller_stacked_args_enum_enum(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
+    """Stacked self-deprecation decorators using TargetMode on both layers."""
+    return stacked_chain_identity(base)
+
+
+@deprecated(target=True, deprecated_in="0.9", remove_in="1.0", args_mapping={"c1": "nc2"})
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.9",
+    remove_in="1.0",
+    args_mapping={"nc1": "nc2"},
+)
+def caller_stacked_args_legacy_enum(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
+    """Stacked self-deprecation decorators mixing legacy and TargetMode forms."""
+    return stacked_chain_identity(base)
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.9",
+    remove_in="1.0",
+    args_mapping={"c1": "nc2"},
+)
+@deprecated(target=True, deprecated_in="0.9", remove_in="1.0", args_mapping={"nc1": "nc2"})
+def caller_stacked_args_enum_legacy(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
+    """Stacked self-deprecation decorators mixing TargetMode and legacy forms."""
+    return stacked_chain_identity(base)
 
 
 @deprecated(target=decorated_pow_self, deprecated_in="1.5", remove_in="2.5", args_mapping={"exp": "coef"})
