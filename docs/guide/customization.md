@@ -13,11 +13,11 @@ pyDeprecate picks a deprecation message template automatically based on how you 
 
 Three built-in templates cover the common scenarios:
 
-| Template                     | When it fires                                                                          | Example output                                                                                                                  |
-| ---------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                           | `The 'old_func' was deprecated since v1.0 in favor of 'pkg.new_func'. It will be removed in v2.0.`                              |
+| Template                     | When it fires                                                                           | Example output                                                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                            | `The 'old_func' was deprecated since v1.0 in favor of 'pkg.new_func'. It will be removed in v2.0.`                              |
 | `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_REMAP` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'old_arg' -> 'new_arg'. They were deprecated since v1.0 and will be removed in v2.0.` |
-| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.NOTIFY` (notice-only, no forwarding)                                  | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
+| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.NOTIFY` (notice-only, no forwarding)                                        | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
 
 The selection logic is:
 
@@ -31,14 +31,14 @@ When you provide `template_mgs`, your custom template replaces whichever default
 
 Custom templates use Python `%`-style formatting (`%(key)s`). Available placeholders depend on the deprecation type:
 
-| Placeholder     | Available when                             | Value                                               |
-| --------------- | ------------------------------------------ | --------------------------------------------------- |
-| `source_name`   | Always                                     | Name of the deprecated function (e.g. `"old_func"`) |
-| `source_path`   | Always                                     | Fully qualified path (e.g. `"mypackage.old_func"`)  |
-| `target_name`   | `target` is callable                       | Name of the replacement function                    |
-| `target_path`   | `target` is callable                       | Fully qualified path of the replacement             |
-| `deprecated_in` | Always                                     | Value of `deprecated_in` parameter                  |
-| `remove_in`     | Always                                     | Value of `remove_in` parameter                      |
+| Placeholder     | Available when                              | Value                                               |
+| --------------- | ------------------------------------------- | --------------------------------------------------- |
+| `source_name`   | Always                                      | Name of the deprecated function (e.g. `"old_func"`) |
+| `source_path`   | Always                                      | Fully qualified path (e.g. `"mypackage.old_func"`)  |
+| `target_name`   | `target` is callable                        | Name of the replacement function                    |
+| `target_path`   | `target` is callable                        | Fully qualified path of the replacement             |
+| `deprecated_in` | Always                                      | Value of `deprecated_in` parameter                  |
+| `remove_in`     | Always                                      | Value of `remove_in` parameter                      |
 | `argument_map`  | `TargetMode.ARGS_REMAP` with `args_mapping` | Formatted string like `` `old` -> `new` ``          |
 
 ### Custom template example

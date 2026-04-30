@@ -457,8 +457,6 @@ ______________________________________________________________________
 
 **A:** No — this is the intended behaviour. When `args_mapping` is provided without an explicit callable `target`, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
 
-
-
 If you want to warn on every call regardless of which argument name is used, set `target=TargetMode.NOTIFY` explicitly (and omit `args_mapping`, which is ignored with `NOTIFY` and emits a construction-time `UserWarning`).
 
 ______________________________________________________________________
@@ -472,17 +470,20 @@ ______________________________________________________________________
 ```python
 from deprecate import deprecated_class
 
+
 class Config:
     def __init__(self, timeout: int = 0) -> None:
         self.timeout = timeout
 
+
 # args_mapping without a callable target → auto ARGS_REMAP
 LegacyConfig = deprecated_class(
     args_mapping={"time_limit": "timeout"},
-    deprecated_in="1.5", remove_in="2.0",
+    deprecated_in="1.5",
+    remove_in="2.0",
 )(Config)
 
-LegacyConfig(timeout=30)     # new name — no warning (caller already migrated)
+LegacyConfig(timeout=30)  # new name — no warning (caller already migrated)
 LegacyConfig(time_limit=30)  # old name — FutureWarning emitted + remapped
 ```
 
