@@ -186,7 +186,7 @@ class TargetMode(Enum):
         args_extra: Optional[dict] = None,
         *,
         stacklevel: int = 2,
-    ) -> None:
+    ) -> bool:
         """Validate a :class:`TargetMode` against the supplied configuration and emit misconfig warnings.
 
         Checks three misconfiguration combinations and emits a :class:`UserWarning`
@@ -206,54 +206,46 @@ class TargetMode(Enum):
                 ``None`` when not provided.
             stacklevel: Stack level forwarded to :func:`warnings.warn` so that
                 reported locations point at the decorator application site.
-                Defaults to ``2``.
+                Pass ``None`` to suppress all warnings.  Defaults to ``2``.
 
         Returns:
-            None
+            ``True`` if any misconfiguration was detected, ``False`` if the
+            configuration is valid.
 
         Examples:
-            >>> import warnings
-            >>> with warnings.catch_warnings(record=True) as w:
-            ...     warnings.simplefilter("always")
-            ...     TargetMode.validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None)
-            ...     assert len(w) == 1
-            ...     assert "args_mapping" in str(w[0].message)
-            >>> with warnings.catch_warnings(record=True) as w:
-            ...     warnings.simplefilter("always")
-            ...     TargetMode.validate(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"})
-            ...     assert len(w) == 1
-            ...     assert "args_mapping" in str(w[0].message)
-            >>> with warnings.catch_warnings(record=True) as w:
-            ...     warnings.simplefilter("always")
-            ...     TargetMode.validate(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1})
-            ...     assert len(w) == 1
-            ...     assert "args_extra" in str(w[0].message)
+            >>> TargetMode.validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None, stacklevel=None)
+            True
+            >>> TargetMode.validate(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"}, stacklevel=None)
+            True
+            >>> TargetMode.validate(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1}, stacklevel=None)
+            True
+            >>> TargetMode.validate(TargetMode.NOTIFY, "my_func", stacklevel=None)
+            False
 
         """
+        messages = []
         if mode is cls.ARGS_REMAP and not args_mapping:
-            warnings.warn(
+            messages.append(
                 f"`@deprecated(target=TargetMode.ARGS_REMAP)` on `{source_name}` requires "
                 "`args_mapping` to specify which arguments are being renamed. Without it the "
-                "decorator has zero effect. This will be TypeError in v1.0.",
-                UserWarning,
-                stacklevel=stacklevel,
+                "decorator has zero effect. This will be TypeError in v1.0."
             )
         if mode is cls.NOTIFY and args_mapping:
-            warnings.warn(
+            messages.append(
                 f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`args_mapping`. Use `TargetMode.ARGS_REMAP` to rename arguments, or pass a "
-                "callable target to forward the call. This will be TypeError in v1.0.",
-                UserWarning,
-                stacklevel=stacklevel,
+                "callable target to forward the call. This will be TypeError in v1.0."
             )
         if mode is cls.NOTIFY and args_extra:
-            warnings.warn(
+            messages.append(
                 f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`args_extra`. Use a callable target to forward with extra arguments. "
-                "This will be TypeError in v1.0.",
-                UserWarning,
-                stacklevel=stacklevel,
+                "This will be TypeError in v1.0."
             )
+        if stacklevel is not None:
+            for msg in messages:
+                warnings.warn(msg, UserWarning, stacklevel=stacklevel)
+        return bool(messages)
 
 
 @dataclass(frozen=True)
