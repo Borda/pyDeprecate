@@ -572,20 +572,47 @@ def deprecated(
                 f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
                 " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release."
             )
-            if target is not None and not inspect.isclass(target):
+            if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
                 message += (
                     " Note: non-class `target` values are ignored when deprecating classes;"
                     " use `@deprecated_class(target=...)` instead."
                 )
             if stream is not None:
                 warnings.warn(message, UserWarning, stacklevel=2)
+
+            # Resolve the target that will be forwarded to ``deprecated_class``.
+            # Class targets and TargetMode enum values pass through; any other
+            # non-class callable is dropped (it has no meaning for class deprecation).
+            if isinstance(target, TargetMode):
+                forward_target: Any = target
+            elif callable(target) and inspect.isclass(target):
+                forward_target = target
+            else:
+                forward_target = None
+
+            # Misconfig guard: TargetMode.NOTIFY ignores args_mapping/args_extra.
+            # Strip both before delegation so the proxy does not inherit a stale config.
+            forward_args_mapping = args_mapping
+            forward_args_extra = args_extra
+            if forward_target is TargetMode.NOTIFY:
+                TargetMode.validate(
+                    forward_target,
+                    source.__name__,
+                    args_mapping=args_mapping,
+                    args_extra=args_extra,
+                    stacklevel=2,
+                )
+                forward_args_mapping = None
+                forward_args_extra = None
+
             return deprecated_class(
-                target=target if callable(target) and inspect.isclass(target) else None,
+                target=forward_target,
                 deprecated_in=deprecated_in,
                 remove_in=remove_in,
                 num_warns=num_warns,
                 stream=stream,
-                args_mapping=args_mapping,
+                args_mapping=forward_args_mapping,
+                args_extra=forward_args_extra,
                 update_docstring=update_docstring,
                 docstring_style=docstring_style,
             )(source)
@@ -659,7 +686,16 @@ def deprecated(
                         state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
 
             if reason_callable:
-                kwargs = _update_kwargs_with_defaults(source, kwargs)
+                # Fix 5: when args_mapping renames `old → new` AND the source signature
+                # also declares `new`, the source default for `new` would otherwise be
+                # merged before the rename — overwriting the renamed value. Filter any
+                # default whose key is a target of a rename (present in args_mapping.values()).
+                if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
+                    rename_targets = {v for v in args_mapping.values() if v}
+                    full_defaults = _update_kwargs_with_defaults(source, kwargs)
+                    kwargs = {k: v for k, v in full_defaults.items() if k in kwargs or k not in rename_targets}
+                else:
+                    kwargs = _update_kwargs_with_defaults(source, kwargs)
             if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 # Filter out arguments that should be skipped (mapped to None)
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
@@ -680,12 +716,26 @@ def deprecated(
             return target_func(**kwargs)
 
         # Static deprecation metadata — consumed by audit tools and docstring helpers.
+        # Fix 2: persist the *enum*-normalised target (NOTIFY/ARGS_REMAP for legacy
+        # None/True/False sentinels) so audit code does not re-derive enum state.
+        # Class targets are kept verbatim — the class→__init__ remap is a call-time
+        # concern and would mislead audit/docstring consumers (they expect the user-
+        # facing class). Raw ``False`` is invalid; flag it as misconfigured.
+        if target is None or isinstance(target, bool):
+            stored_target: Any = TargetMode.from_legacy(target, stacklevel=None)
+        elif isinstance(target, TargetMode):
+            stored_target = target
+        else:
+            # Callable/class target — store the user's value, not the closure-time remap.
+            stored_target = target
+        misconfigured = target is False
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             name=source.__name__,
-            target=target,
+            target=stored_target,
             args_mapping=args_mapping,
+            misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
         )
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)

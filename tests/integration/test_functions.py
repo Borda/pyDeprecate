@@ -35,6 +35,7 @@ from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
+    depr_collision_old_new,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_pow_args,
@@ -293,6 +294,15 @@ class TestArgumentMapping:
         # After the initial warning, calling with the new argument should be quiet.
         with assert_no_warnings():
             assert depr_pow_self_twice(2, c1=3) == 8
+
+    def test_args_mapping_with_source_having_both_old_and_new_params(self) -> None:
+        """When source has both old and new param names, caller's old=X reaches target as new=X."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = depr_collision_old_new(old=42)
+        assert result == 42
 
 
 @pytest.mark.parametrize(

@@ -187,6 +187,24 @@ class SomeTargetClass:
         self.new_key = new_key
 
 
+class TargetWithInjected:
+    """Target class accepting an ``injected`` kwarg for ``args_extra`` tests.
+
+    Used by proxy ``args_extra`` fixtures to verify that deprecated_class()
+    merges configured extra kwargs into forwarded calls.
+    """
+
+    def __init__(self, new_key: int = 0, injected: str = "") -> None:
+        """Store both the canonical keyword and the injected extra value."""
+        self.new_key = new_key
+        self.injected = injected
+
+
+def both_old_new_target(new: int = 0) -> int:
+    """Target callable used by collision-bug fixtures (only ``new`` accepted)."""
+    return new
+
+
 def timing_wrapper(func: Callable) -> Callable:
     """Decorator to measure the execution time of a function."""
 

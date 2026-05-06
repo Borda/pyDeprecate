@@ -216,8 +216,8 @@ Not sure which API to reach for? Start here.
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                         |
 
 > [!TIP]
-> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, and `args_mapping`.
-> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
+> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
+> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 

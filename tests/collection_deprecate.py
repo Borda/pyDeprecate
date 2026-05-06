@@ -56,10 +56,12 @@ from tests.collection_targets import (
     NewIntEnum,
     SomeTargetClass,
     TargetColorEnum,
+    TargetWithInjected,
     TimerDecorator,
     add_values,
     base_pow_args,
     base_sum_kwargs,
+    both_old_new_target,
     cross_guard_standalone_increment,
     double_value,
     identity_value,
@@ -1138,3 +1140,90 @@ def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
         Used to test that validate_deprecation_chains detects function-to-proxy chains.
     """
     void(value)
+
+
+# ========== Fix-set fixtures: misconfig and feature parity additions ==========
+
+
+def make_class_target_notify_with_args() -> type:
+    """Build a class with @deprecated(target=TargetMode.NOTIFY) + args (Fix 1 fixture).
+
+    Applying @deprecated to a class delegates to deprecated_class. With
+    target=TargetMode.NOTIFY the args_mapping/args_extra arguments must be stripped
+    before delegating, and a misconfig UserWarning must be emitted.
+    """
+
+    @deprecated(
+        target=TargetMode.NOTIFY,
+        deprecated_in="0.9",
+        remove_in="1.0",
+        args_mapping={"old_key": "new_key"},
+        args_extra={"injected": "x"},
+        num_warns=-1,
+    )
+    class NotifyMisconfiguredClass:
+        """Source class — deprecated_class delegates to this body unchanged."""
+
+        def __init__(self, new_key: int = 0) -> None:
+            self.new_key = new_key
+
+    return NotifyMisconfiguredClass
+
+
+def make_class_target_args_remap() -> type:
+    """Build a class with @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...) (Fix 1 fixture).
+
+    Verifies that callable TargetMode is forwarded correctly through the class
+    branch of @deprecated rather than being collapsed to None.
+    """
+
+    @deprecated(
+        target=TargetMode.ARGS_REMAP,
+        deprecated_in="0.9",
+        remove_in="1.0",
+        args_mapping={"old_key": "new_key"},
+        num_warns=-1,
+    )
+    class ArgsRemapClass:
+        """Source class with old/new keyword for ARGS_REMAP forwarding."""
+
+        def __init__(self, new_key: int = 0) -> None:
+            self.new_key = new_key
+
+    return ArgsRemapClass
+
+
+# Proxy: deprecated_class(target=NewCls, args_extra={...}) (Fix 3 fixture)
+ProxyClassWithArgsExtra = deprecated_class(
+    deprecated_in="0.9",
+    remove_in="1.0",
+    target=TargetWithInjected,
+    args_extra={"injected": "from-extra"},
+    num_warns=-1,
+)(SomeTargetClass)
+
+
+# Proxy: deprecated_class(target=ARGS_REMAP, args_mapping=...) for per-arg warning template (Fix 4 fixture)
+ProxyArgsRemapForArgWarnMessage = deprecated_class(
+    deprecated_in="0.9",
+    remove_in="1.0",
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_key": "new_key"},
+    num_warns=-1,
+)(SomeTargetClass)
+
+
+# Function with both old and new params + args_mapping (Fix 5 fixture)
+@deprecated(
+    target=both_old_new_target,
+    deprecated_in="0.9",
+    remove_in="1.0",
+    args_mapping={"old": "new"},
+)
+def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
+    """Source has both old and new params; collision triggered when caller passes old=X.
+
+    Without the fix, the source default ``new=0`` would be merged before the
+    rename of ``old → new``, overwriting the renamed value.
+    """
+    return void(old, new)

@@ -29,7 +29,13 @@ from collections.abc import Iterator
 from typing import Any, Callable, Literal, Optional, cast
 
 from deprecate._types import DeprecationConfig, TargetMode, _ProxyConfig
-from deprecate.deprecation import TEMPLATE_WARNING_CALLABLE, TEMPLATE_WARNING_NO_TARGET, deprecation_warning
+from deprecate.deprecation import (
+    TEMPLATE_ARGUMENT_MAPPING,
+    TEMPLATE_WARNING_ARGUMENTS,
+    TEMPLATE_WARNING_CALLABLE,
+    TEMPLATE_WARNING_NO_TARGET,
+    deprecation_warning,
+)
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 
 
@@ -58,6 +64,11 @@ class _DeprecatedProxy:
         stream: Callable used to emit warnings.
             Defaults to :data:`~deprecate.deprecation.deprecation_warning`
             (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.
+        template_mgs: Optional custom warning message template that overrides the
+            built-in templates.  When ``None`` (default), the built-in template for
+            the active scenario is used (callable-target, no-target, or per-argument).
+            See :func:`~deprecate.proxy.deprecated_class` for the available
+            ``%``-style placeholders.
         read_only: If ``True``, raise :class:`AttributeError` on any write
             attempt through the proxy.
         target: Optional replacement object.  When set, all attribute, item,
@@ -75,37 +86,44 @@ class _DeprecatedProxy:
         *,
         target: Any = None,  # noqa: ANN401
         args_mapping: Optional[dict] = None,
+        args_extra: Optional[dict[str, Any]] = None,
         deprecated_in: str = "",
         remove_in: str = "",
         num_warns: int = 1,
         stream: Optional[Callable[..., None]] = deprecation_warning,
+        template_mgs: Optional[str] = None,
         read_only: bool = False,
         docstring_style: str = "auto",
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
 
         ``__config`` stores private mutable runtime state in :class:`~deprecate._types._ProxyConfig`
-        (obj, stream, num_warns, read_only, warned counter).
+        (obj, stream, num_warns, read_only, args_extra, warned counter).
 
         ``__deprecated__`` is the public metadata interface consumed by audit tools
         (``validate_deprecated_callable``, ``find_deprecated_callables``, etc.) as a
         :class:`~deprecate._types.DeprecationConfig` instance aligned with the
         ``@deprecated`` schema.
         """
+        # Track whether the raw ``target=False`` sentinel was passed so audit can flag it.
+        misconfigured = target is False
         if target is True or target is False:
             target = TargetMode.from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
-        # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping)
+        # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra).
         if isinstance(target, TargetMode):
-            TargetMode.validate(target, name, args_mapping=args_mapping, stacklevel=4)
-        # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object.
+            TargetMode.validate(target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4)
+        # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object,
+        # extras to merge after args_mapping at call time, optional custom warning template.
         cfg = _ProxyConfig(
             obj=obj,
             stream=stream,
             num_warns=num_warns,
             read_only=read_only,
+            args_extra=args_extra,
+            template_mgs=template_mgs,
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
         # Static deprecation metadata stored as a dunder attribute — readable by audit tools via __deprecated__.
@@ -115,7 +133,9 @@ class _DeprecatedProxy:
             name=name,
             target=target,
             args_mapping=args_mapping,
+            misconfigured=misconfigured,
             docstring_style=normalize_docstring_style(docstring_style),
+            template_mgs=template_mgs,
         )
         object.__setattr__(self, "__deprecated__", dep_meta)
         # Expose the wrapped object's docstring as an instance attribute so
@@ -154,6 +174,9 @@ class _DeprecatedProxy:
             arg_name: When given, use per-argument warning tracking (``cfg.warned_args``)
                 instead of the global ``cfg.warned`` counter.  The warning is suppressed
                 when the per-argument count has already reached ``cfg.num_warns``.
+                When provided alongside an ``args_mapping`` entry, the emitted message
+                uses the per-argument template (`old -> new`) rather than the generic
+                callable template — matching the decorator's argument-deprecation form.
         """
         cfg = self._cfg
         stream = cfg.stream
@@ -170,10 +193,30 @@ class _DeprecatedProxy:
                 return
         dep = self._dep
         target: Any = dep.target
-        if callable(target):
+        args_mapping = dep.args_mapping
+        # ``cfg.template_mgs`` (when set) overrides the built-in template for every
+        # branch.  Fallback semantics mirror the decorator's ``_raise_warn_callable``
+        # and ``_raise_warn_arguments``: the built-in template appropriate for the
+        # active scenario is used when no override is configured.
+        custom_template = cfg.template_mgs
+        # Per-argument warning: use the same template the decorator emits for
+        # `args_mapping` deprecations so callers see `old -> new` rather than a
+        # generic class-deprecation message.
+        if arg_name is not None and args_mapping and arg_name in args_mapping:
+            new_arg = args_mapping[arg_name]
+            argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
+            template = custom_template or TEMPLATE_WARNING_ARGUMENTS
+            msg = template % {
+                "source_name": dep.name,
+                "deprecated_in": dep.deprecated_in,
+                "remove_in": dep.remove_in,
+                "argument_map": argument_map,
+            }
+        elif callable(target):
             target_name = target.__name__
             target_path = f"{target.__module__}.{target_name}"
-            msg = TEMPLATE_WARNING_CALLABLE % {
+            template = custom_template or TEMPLATE_WARNING_CALLABLE
+            msg = template % {
                 "source_name": dep.name,
                 "deprecated_in": dep.deprecated_in,
                 "remove_in": dep.remove_in,
@@ -181,7 +224,8 @@ class _DeprecatedProxy:
                 "target_path": target_path,
             }
         else:
-            msg = TEMPLATE_WARNING_NO_TARGET % {
+            template = custom_template or TEMPLATE_WARNING_NO_TARGET
+            msg = template % {
                 "source_name": dep.name,
                 "deprecated_in": dep.deprecated_in,
                 "remove_in": dep.remove_in,
@@ -218,6 +262,18 @@ class _DeprecatedProxy:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
         return {args_mapping.get(k, k): v for k, v in kwargs.items() if k not in args_to_drop}
+
+    def _merge_args_extra(self, kwargs: dict) -> dict:
+        """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; user-supplied values win."""
+        args_extra = self._cfg.args_extra
+        if not args_extra:
+            return kwargs
+        # Caller-provided values take precedence over extras (mirror decorator semantics:
+        # decorator overwrites kwargs with extras, but proxy preserves user intent — kwargs win).
+        # Spec for Fix 3 says: "user-supplied values win over extras".
+        merged = dict(args_extra)
+        merged.update(kwargs)
+        return merged
 
     @staticmethod
     def _is_potential_mutator(name: str) -> bool:
@@ -334,11 +390,14 @@ class _DeprecatedProxy:
 
         Branching logic:
         - :attr:`~deprecate._types.TargetMode.ARGS_REMAP`: warn only when a deprecated kwarg name
-          is present in the call; remap and call ``obj``.
+          is present in the call; remap, merge ``args_extra``, and call ``obj``.
         - Callable target with ``args_mapping``: warn per deprecated kwarg present; if none of the
-          old names were passed still warn at the callable level (class is deprecated); forward to target.
-        - Everything else (:attr:`~deprecate._types.TargetMode.NOTIFY` or callable without
-          ``args_mapping``): always warn (global budget) and forward to the active object.
+          old names were passed still warn at the callable level (class is deprecated); remap,
+          merge ``args_extra``, and forward to target.
+        - Callable target without ``args_mapping``: warn (global budget), merge ``args_extra``,
+          and forward to target.
+        - :attr:`~deprecate._types.TargetMode.NOTIFY`: always warn (global budget) and forward
+          kwargs unchanged; ``args_extra`` is intentionally ignored (misconfig).
         """
         dep = object.__getattribute__(self, "__deprecated__")
         cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
@@ -349,6 +408,7 @@ class _DeprecatedProxy:
                 if old_key in kwargs:
                     self._warn(arg_name=old_key)
             mapped_kwargs = self._apply_args_mapping(kwargs)
+            mapped_kwargs = self._merge_args_extra(mapped_kwargs)
             return cfg.obj(*args, **mapped_kwargs)
         if callable(dep.target) and dep.args_mapping:
             mapping = dep.args_mapping or {}
@@ -359,12 +419,19 @@ class _DeprecatedProxy:
                 # No old-style args — still warn because the class itself is deprecated
                 self._warn()
             mapped_kwargs = self._apply_args_mapping(kwargs)
+            mapped_kwargs = self._merge_args_extra(mapped_kwargs)
             return dep.target(*args, **mapped_kwargs)
-        # NOTIFY or callable without args_mapping: always warn (global budget)
-        # and forward kwargs unchanged. In notify-only mode, args_mapping is
-        # intentionally ignored rather than silently renaming or dropping kwargs.
+        # Callable target without args_mapping: warn globally; still merge args_extra so
+        # injected defaults reach the target.
         self._warn()
-        return self._get_active()(*args, **kwargs)
+        if callable(dep.target):
+            return dep.target(*args, **self._merge_args_extra(kwargs))
+        # NOTIFY: forward unchanged — args_extra is intentionally ignored (already warned at construction).
+        if dep.target is TargetMode.NOTIFY:
+            return self._get_active()(*args, **kwargs)
+        # No target configured (e.g. deprecated_instance with no target): merge args_extra
+        # into the call so wrappers can inject default kwargs even without a forwarding target.
+        return self._get_active()(*args, **self._merge_args_extra(kwargs))
 
     # ------------------------------------------------------------------
     # Comparison and hashing
@@ -442,11 +509,13 @@ def deprecated_class(
     remove_in: str = "",
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
+    template_mgs: Optional[str] = None,
     args_mapping: Optional[dict] = None,
+    args_extra: Optional[dict[str, Any]] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
 ) -> Callable[[type], "_DeprecatedProxy"]:
-    """Decorator factory for deprecating class definitions with optional target redirection.
+    r"""Decorator factory for deprecating class definitions with optional target redirection.
 
     Apply ``@deprecated_class(...)`` to an Enum or dataclass to wrap the class
     in a :class:`~deprecate.proxy._DeprecatedProxy`.  All attribute, item, and call access on
@@ -461,6 +530,20 @@ def deprecated_class(
             ``1`` warns once; ``-1`` warns on every access.
         stream: Callable used to emit warnings.
             Defaults to :data:`~deprecate.deprecation.deprecation_warning`.
+        template_mgs: Optional custom warning message template that overrides the
+            built-in templates.  When ``None`` (default), the built-in template for
+            the active scenario is used (callable-target, no-target, or per-argument
+            for ``args_mapping``).  Available ``%``-style placeholders:
+
+            - ``%(source_name)s`` — the deprecated class name (taken from ``cls.__name__``)
+            - ``%(deprecated_in)s`` — value of the ``deprecated_in`` argument
+            - ``%(remove_in)s`` — value of the ``remove_in`` argument
+            - ``%(target_name)s`` — target class name (only when *target* is callable)
+            - ``%(target_path)s`` — fully-qualified target path (only when *target* is callable)
+            - ``%(argument_map)s`` — formatted ``\`old\` -> \`new\``` string (only for
+              per-argument warnings emitted by ``args_mapping``)
+
+            Example: ``"v%(deprecated_in)s: ``%(source_name)s`` -> ``%(target_name)s``"``.
         args_mapping: Optional dict remapping keyword argument names when the
             decorated class is called.  Keys are old argument names; values
             are new names, or ``None`` to drop the argument entirely.
@@ -474,6 +557,12 @@ def deprecated_class(
             :class:`UserWarning` at decoration time (will be :class:`TypeError`
             in v1.0).  Similarly, ``target=TargetMode.ARGS_REMAP`` without
             ``args_mapping`` emits a :class:`UserWarning` at decoration time.
+        args_extra: Optional dict of extra keyword arguments merged into the
+            forwarded call after ``args_mapping`` has been applied. Caller-
+            supplied values override entries with the same key.  Ignored when
+            ``target`` is :attr:`~deprecate._types.TargetMode.NOTIFY` (passing
+            both emits a :class:`UserWarning` at decoration time; will be
+            :class:`TypeError` in v1.0).
         update_docstring: If ``True``, inject a deprecation notice into the
             class docstring at decoration time (same behaviour as
             ``@deprecated(update_docstring=True)``).
@@ -523,9 +612,11 @@ def deprecated_class(
             remove_in=remove_in,
             num_warns=num_warns,
             stream=stream,
+            template_mgs=template_mgs,
             read_only=False,
             target=target,
             args_mapping=args_mapping,
+            args_extra=args_extra,
             docstring_style=docstring_style,
         )
         if update_docstring:
@@ -548,7 +639,9 @@ def deprecated_instance(
     remove_in: str = "",
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
+    template_mgs: Optional[str] = None,
     read_only: bool = False,
+    args_extra: Optional[dict[str, Any]] = None,
 ) -> "_DeprecatedProxy":
     """Wrap any Python object with deprecation warnings.
 
@@ -567,8 +660,15 @@ def deprecated_instance(
         stream: Callable used to emit warnings.
             Defaults to :data:`~deprecate.deprecation.deprecation_warning`
             (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.
+        template_mgs: Optional custom warning message template that overrides the
+            built-in templates.  When ``None`` (default), the built-in template for
+            the active scenario is used.  See :func:`~deprecate.proxy.deprecated_class`
+            for the available ``%``-style placeholders.
         read_only: If ``True``, raise :class:`AttributeError` on any write
             attempt through the proxy.
+        args_extra: Optional dict of extra keyword arguments merged into the
+            forwarded call when the proxy is invoked.  Caller-supplied values
+            override entries with the same key.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*.
@@ -596,5 +696,7 @@ def deprecated_instance(
         remove_in=remove_in,
         num_warns=num_warns,
         stream=stream,
+        template_mgs=template_mgs,
         read_only=read_only,
+        args_extra=args_extra,
     )

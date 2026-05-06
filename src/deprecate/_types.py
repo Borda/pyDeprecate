@@ -259,19 +259,31 @@ class DeprecationConfig:
         deprecated_in: Version string when the callable was deprecated.
         remove_in: Version string when the callable will be removed.
         name: Display the name of the deprecated source (function or class name).
-        target: None, True, False (legacy sentinels, deprecated since v0.9),
-            TargetMode.NOTIFY, TargetMode.ARGS_REMAP, or a callable.
+        target: Normalised target — ``None`` (default), :class:`TargetMode.NOTIFY`,
+            :class:`TargetMode.ARGS_REMAP`, or a callable. Legacy sentinels
+            (``True``/``False``) are normalised at decoration time and never
+            stored verbatim.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to
             drop the argument entirely.
+        misconfigured: ``True`` when an invalid raw target sentinel (``False``) was
+            passed at decoration time. Audit tools surface this via
+            ``DeprecationWrapperInfo.misconfigured_target``.
         docstring_style: Docstring notice output style when ``update_docstring=True``.
+        template_mgs: Optional custom warning-message template (``%``-style placeholders) that
+            overrides the built-in templates at warn time. ``None`` (default) keeps the built-in
+            template selected for the active scenario. Audit tools may surface this for
+            introspection. See :func:`~deprecate.deprecation.deprecated` for the available
+            placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
     """
 
     deprecated_in: str = ""
     remove_in: str = ""
     name: str = ""
-    target: Any = None
+    target: Optional[Union[Callable[..., Any], "TargetMode"]] = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
+    misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
+    template_mgs: Optional[str] = None
 
 
 @runtime_checkable
@@ -323,6 +335,12 @@ class _ProxyConfig:
         stream: Callable used to emit warnings, or ``None`` to suppress them.
         num_warns: Maximum number of warnings to emit; ``-1`` means unlimited.
         read_only: When ``True``, write operations through the proxy raise :class:`AttributeError`.
+        args_extra: Optional dict of extra keyword arguments merged into forwarded calls
+            after ``args_mapping`` has been applied. Ignored when the proxy is in
+            :attr:`TargetMode.NOTIFY` mode.
+        template_mgs: Optional custom warning-message template (``%``-style placeholders) that
+            overrides the built-in templates at warn time. ``None`` (default) keeps the built-in
+            templates. See :func:`~deprecate.proxy.deprecated_class` for the placeholder catalogue.
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations.
             Keys are deprecated argument names; values are emission counts.
@@ -332,6 +350,8 @@ class _ProxyConfig:
     stream: Optional[Callable[..., None]]
     num_warns: int
     read_only: bool
+    args_extra: Optional[dict[str, Any]] = None
+    template_mgs: Optional[str] = None
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
 

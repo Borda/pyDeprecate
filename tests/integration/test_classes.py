@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from deprecate import assert_no_warnings
+from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
@@ -28,6 +28,8 @@ from tests.collection_deprecate import (
     WrappedEnum,
     depr_class_args_only_mode_warns_on_deprecated_arg,
     depr_class_whole_mode_warns_on_call,
+    make_class_target_args_remap,
+    make_class_target_notify_with_args,
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
 
@@ -389,3 +391,34 @@ class TestDataclassFormEquivalence(_ClassFormBase):
         assert dep.remove_in == "1.0"
         assert dep.target is NewDataClass
         assert dep.name == name
+
+
+class TestDeprecatedClassWithTargetMode:
+    """@deprecated applied to a class source with TargetMode values."""
+
+    def test_notify_on_class_source_warns_misconfig_for_args_mapping(self) -> None:
+        """@deprecated(target=TargetMode.NOTIFY) on a class emits UserWarning for args_mapping."""
+        with pytest.warns(UserWarning, match="args_mapping"):
+            make_class_target_notify_with_args()
+
+    def test_notify_on_class_source_warns_misconfig_for_args_extra(self) -> None:
+        """@deprecated(target=TargetMode.NOTIFY) on a class emits UserWarning for args_extra."""
+        with pytest.warns(UserWarning, match="args_extra"):
+            make_class_target_notify_with_args()
+
+    def test_notify_on_class_source_strips_args_mapping_from_proxy(self) -> None:
+        """args_mapping is stripped before delegation; resulting proxy carries no mapping."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            cls = make_class_target_notify_with_args()
+        dep = object.__getattribute__(cls, "__deprecated__")
+        assert dep.args_mapping is None
+
+    def test_args_remap_on_class_source_preserves_target_mode(self) -> None:
+        """@deprecated(target=TargetMode.ARGS_REMAP) on a class preserves TargetMode through delegation."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            cls = make_class_target_args_remap()
+        dep = object.__getattribute__(cls, "__deprecated__")
+        assert dep.target is TargetMode.ARGS_REMAP
+        assert dep.args_mapping == {"old_key": "new_key"}

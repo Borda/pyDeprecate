@@ -117,7 +117,7 @@ class TestValidateDeprecatedWrapper:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             assert proxy_module.DeprecatedColorEnum.__name__ == "TargetColorEnum"
-        assert result.function != result.deprecated_info.target.__name__
+        assert result.function != getattr(result.deprecated_info.target, "__name__", None)
 
     def test_no_deprecated_attr(self) -> None:
         """Non-decorated callable raises ValueError."""
@@ -162,6 +162,14 @@ class TestMisconfiguredTarget:
         result = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
         assert result.misconfigured_target is False
 
+    def test_misconfigured_flag_detected_when_target_false_used(self) -> None:
+        """Audit flags misconfigured_target=True when legacy target=False was passed, even after normalisation."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            fn = proxy_module.make_target_mode_target_false_warns()
+        result = validate_deprecation_wrapper(fn)
+        assert result.misconfigured_target is True
+
 
 class TestValidateDeprecatedWrapperCallableProxy:
     """validate_deprecation_wrapper with deprecated_class and deprecated_instance proxies."""
@@ -179,7 +187,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         assert result.function == fn_name
         assert result.deprecated_info.deprecated_in == "1.0"
         assert result.deprecated_info.remove_in == "2.0"
-        assert result.deprecated_info.target.__name__ == target_name
+        assert getattr(result.deprecated_info.target, "__name__", None) == target_name
         assert result.deprecated_info.args_mapping is None
         assert result.empty_mapping is True  # no args_mapping
         assert result.self_reference is False
@@ -215,7 +223,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         result = validate_deprecation_wrapper(proxy_obj)
         assert result.function == fn_name
         assert result.deprecated_info.args_mapping == expected_mapping
-        assert result.deprecated_info.target.__name__ == target_name
+        assert getattr(result.deprecated_info.target, "__name__", None) == target_name
         assert result.empty_mapping is False
         assert result.identity_mapping == []
         assert result.no_effect is False
@@ -325,10 +333,10 @@ class TestFindDeprecatedWrappers:
         by_name = {r.function: r for r in find_deprecation_wrappers(proxy_module, recursive=False)}
         assert "depr_config_dict" in by_name
         assert "DeprecatedColorEnum" in by_name
-        assert by_name["DeprecatedColorEnum"].deprecated_info.target.__name__ == "TargetColorEnum"
+        assert getattr(by_name["DeprecatedColorEnum"].deprecated_info.target, "__name__", None) == "TargetColorEnum"
         assert by_name["MappedColorEnum"].deprecated_info.args_mapping == {"val": "value"}
         # deprecated_class on dataclass
-        assert by_name["DeprecatedColorDataClass"].deprecated_info.target.__name__ == "NewDataClass"
+        assert getattr(by_name["DeprecatedColorDataClass"].deprecated_info.target, "__name__", None) == "NewDataClass"
         assert by_name["MappedDataClass"].deprecated_info.args_mapping == {"name": "label", "count": "total"}
 
     def test_discovers_proxy_without_target_and_drop_mapping(self) -> None:
