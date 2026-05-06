@@ -214,11 +214,11 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 ### Behaviour comparison
 
-|                               | `TargetMode.NOTIFY`                                                                                       | `TargetMode.ARGS_REMAP` (no `args_mapping`) | `TargetMode.ARGS_REMAP` (with `args_mapping`)                              | `target=<callable>`                               |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------- |
-| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | **Never**                                   | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
-| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | —                                           | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |
-| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | —                                           | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
+|                               | `TargetMode.NOTIFY`                                                                                       | `TargetMode.ARGS_REMAP` (no `args_mapping`)                 | `TargetMode.ARGS_REMAP` (with `args_mapping`)                              | `target=<callable>`                               |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | `UserWarning` at construction time; no call-time warning    | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
+| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | —                                                           | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |
+| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | —                                                           | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
 | **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs with caller's args as-is               | Runs after argument renaming/dropping                                      | **Never runs** — all calls forwarded to target    |
 | **`args_mapping` applied**    | `⚠`                                                                                                       | `⚠`                                         | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding       |
 | **`args_extra` injected**     | `⚠`                                                                                                       | `⚠`                                         | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding          |
@@ -747,7 +747,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 </details>
 
-`args_extra` merges into kwargs after `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). It is ignored for `TargetMode.NOTIFY`.
+`args_extra` merges into kwargs after `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is not used for forwarding; supplying it also triggers a construction-time `UserWarning` when the decorator is applied.
 
 ## Suppressing `FutureWarning` in test fixtures with `assert_no_warnings`
 

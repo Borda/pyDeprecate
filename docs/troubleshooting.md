@@ -487,7 +487,7 @@ LegacyConfig(timeout=30)  # new name — no warning (caller already migrated)
 LegacyConfig(time_limit=30)  # old name — FutureWarning emitted + remapped
 ```
 
-If you want to warn on every call regardless of which argument name is used, set `target=TargetMode.NOTIFY` explicitly (and omit `args_mapping`, which is ignored with `NOTIFY` and emits a construction-time `UserWarning`).
+To emit a warning for every instantiation instead of only when the legacy parameter name is used, configure `target=TargetMode.NOTIFY` explicitly. In that mode, leave out `args_mapping`: it is not applied under `NOTIFY` and will trigger a construction-time `UserWarning`.
 
 ______________________________________________________________________
 

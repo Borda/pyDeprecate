@@ -361,9 +361,10 @@ class _DeprecatedProxy:
             mapped_kwargs = self._apply_args_mapping(kwargs)
             return dep.target(*args, **mapped_kwargs)
         # NOTIFY or callable without args_mapping: always warn (global budget)
+        # and forward kwargs unchanged. In notify-only mode, args_mapping is
+        # intentionally ignored rather than silently renaming or dropping kwargs.
         self._warn()
-        mapped_kwargs = self._apply_args_mapping(kwargs)
-        return self._get_active()(*args, **mapped_kwargs)
+        return self._get_active()(*args, **kwargs)
 
     # ------------------------------------------------------------------
     # Comparison and hashing

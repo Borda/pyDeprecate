@@ -318,8 +318,13 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
 
     # Misconfigured: target+args combination is invalid regardless of whether it has effect.
-    # target=False is never a valid mode. NOTIFY ignores args_mapping. ARGS_REMAP needs args_mapping.
-    misconfigured_target = target is False or (_is_notify and bool(args_mapping)) or (_is_args_remap and empty_mapping)
+    # target=False is never a valid mode. NOTIFY ignores args_mapping and args_extra.
+    # ARGS_REMAP needs args_mapping.
+    misconfigured_target = (
+        target is False
+        or (_is_notify and (bool(args_mapping) or bool(args_extra)))
+        or (_is_args_remap and empty_mapping)
+    )
 
     function = dep_info.name or getattr(func, "__name__", str(func))
 

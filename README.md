@@ -965,7 +965,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 <br>
 
 > [!NOTE]
-> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). It is silently ignored for `TargetMode.NOTIFY`.
+> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is ignored and a construction-time `UserWarning` is emitted by validation.
 
 ## 🔇 Understanding the `void()` Helper
 
