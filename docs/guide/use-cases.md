@@ -214,17 +214,17 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 ### Behaviour comparison
 
-|                               | `TargetMode.NOTIFY`                                                                                       | `TargetMode.ARGS_REMAP` (with `args_mapping`)                              | `target=<callable>`                               |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
-| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |
+| | `TargetMode.NOTIFY` | `TargetMode.ARGS_REMAP` (with `args_mapping`) | `target=<callable>` |
+| \----------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Warning emitted** | Yes — up to `num_warns` times (default: once) | Per deprecated arg, up to `num_warns` times (default: once) | Yes — up to `num_warns` times (default: once) |
+| **Warning template** | `"… was deprecated since vX. It will be removed in vY."` | `"… uses deprecated arguments: …"` | `"… was deprecated … in favour of …"` |
 | **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
-| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs after argument renaming/dropping                                      | **Never runs** — all calls forwarded to target    |
-| **`args_mapping` applied**    | `⚠`                                                                                                       | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding       |
-| **`args_extra` injected**     | `⚠`                                                                                                       | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding          |
-| **Source defaults merged**    | `✓`                                                                                                       | `✗`                                                                        | `✓`                                               |
-| **`skip_if` effect**          | `⊛`                                                                                                       | `⊛`                                                                        | `⊛`                                               |
-| **`stream=None` effect**      | `⊘` body still runs                                                                                       | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                         |
+| **Function body** | Runs with caller's args + source defaults filled in | Runs after argument renaming/dropping | **Never runs** — all calls forwarded to target |
+| **`args_mapping` applied** | `⚠` | `✓` renames or drops listed args | `✓` renames or drops args before forwarding |
+| **`args_extra` injected** | `⚠` | `✓` merged into kwargs before call | `✓` merged into kwargs before forwarding |
+| **Source defaults merged** | `✓` | `✗` | `✓` |
+| **`skip_if` effect** | `⊛` | `⊛` | `⊛` |
+| **`stream=None` effect** | `⊘` body still runs | `⊘` remapping still runs | `⊘` forwarding still runs |
 
 **Legend:** `✓` applied · `✗` not applied · `⚠` ignored with `UserWarning` (will be `TypeError` in v1.0) · `⊘` warning suppressed, processing continues · `⊛` `skip_if` bypasses everything · `—` not applicable
 

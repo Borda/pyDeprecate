@@ -189,13 +189,13 @@ Not sure which API to reach for? Start here.
 
 **Pick the right decorator:**
 
-| Scenario                                      | API to use                                              |
-| --------------------------------------------- | ------------------------------------------------------- |
-| Renaming a function or method                 | `@deprecated(target=new_func)`                          |
+| Scenario                                      | API to use                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| Renaming a function or method                 | `@deprecated(target=new_func)`                                           |
 | Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
-| Warn only — original body still runs          | `@deprecated(target=None)`                              |
-| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                    |
-| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                         |
+| Warn only — original body still runs          | `@deprecated(target=None)`                                               |
+| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
+| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
 
 > **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.9 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
