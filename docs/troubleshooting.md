@@ -457,16 +457,6 @@ ______________________________________________________________________
 
 **A:** No — this is the intended behaviour. When `args_mapping` is provided without an explicit callable `target`, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
 
-If you want to warn on every call regardless of which argument name is used, set `target=TargetMode.NOTIFY` explicitly (and omit `args_mapping`, which is ignored with `NOTIFY` and emits a construction-time `UserWarning`).
-
-______________________________________________________________________
-
-## Why doesn't `deprecated_class` warn when I call it with the new argument name?
-
-**Q:** I set up `deprecated_class(args_mapping={"old_arg": "new_arg"}, ...)` on my class but no warning fires when I call it with `new_arg=...`. Did I configure it incorrectly?
-
-**A:** No — this is the intended behaviour. When `args_mapping` is provided without an explicit callable `target`, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
-
 ```python
 from deprecate import deprecated_class
 
@@ -487,7 +477,44 @@ LegacyConfig(timeout=30)  # new name — no warning (caller already migrated)
 LegacyConfig(time_limit=30)  # old name — FutureWarning emitted + remapped
 ```
 
-To emit a warning for every instantiation instead of only when the legacy parameter name is used, configure `target=TargetMode.NOTIFY` explicitly. In that mode, leave out `args_mapping`: it is not applied under `NOTIFY` and will trigger a construction-time `UserWarning`.
+To emit a deprecation notice for every instantiation regardless of which argument name is used, configure `target=TargetMode.NOTIFY` explicitly. Combining `TargetMode.NOTIFY` with `args_mapping` is a misconfiguration — `args_mapping` is not applied under `NOTIFY` and supplying it emits a construction-time `UserWarning` today that becomes a `TypeError` in v1.0.
+
+______________________________________________________________________
+
+## UserWarning when using `TargetMode.ARGS_REMAP` without `args_mapping`
+
+**Q:** I applied `@deprecated(target=TargetMode.ARGS_REMAP, ...)` and got `UserWarning: `@deprecated(target=TargetMode.ARGS_REMAP)` on `my_func` requires `args_mapping` ...`. Why, and how do I fix it?
+
+**A:** `TargetMode.ARGS_REMAP` is designed exclusively for renaming or dropping arguments within the same function. Without `args_mapping` there is nothing to remap — the decorator has zero call-time effect. This is a misconfiguration that emits a `UserWarning` today and will become a `TypeError` in v1.0.
+
+Choose the mode that matches your intent:
+
+- **Rename or drop a parameter** — provide `args_mapping` as required:
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
+def my_func(old_name: int = 0, new_name: int = 0) -> int:
+    return new_name * 2
+```
+
+- **Warn callers with no forwarding or remapping** — use `TargetMode.NOTIFY` instead:
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+def my_func(x: int) -> int:
+    """Going away — remove all call sites."""
+    return x * 2
+```
+
+!!! danger "This misconfiguration will become a TypeError in v1.0"
+
+    Migrate now to avoid a hard break on upgrade. Use the [audit tools](guide/audit.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
 
 ______________________________________________________________________
 

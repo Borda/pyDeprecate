@@ -205,6 +205,26 @@ def both_old_new_target(new: int = 0) -> int:
     return new
 
 
+def fn_with_default(new_arg: int = 99) -> int:
+    """Target callable carrying its own default for the renamed argument.
+
+    Used by Fix 1 regression tests to verify that the source's stale default for
+    the deprecated argument name does not silently override the target's default
+    when the caller supplies neither name.
+    """
+    return new_arg
+
+
+def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
+    """Source body for Fix 2 regression tests using TargetMode.ARGS_REMAP.
+
+    The body intentionally combines the remapped argument and the injected extra
+    so the test can assert that ``args_extra`` is merged into kwargs even when the
+    caller already uses the new argument name (no remap warning fires).
+    """
+    return new_arg + injected
+
+
 def timing_wrapper(func: Callable) -> Callable:
     """Decorator to measure the execution time of a function."""
 

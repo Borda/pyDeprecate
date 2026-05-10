@@ -192,12 +192,12 @@ Not sure which API to reach for? Start here.
 | Scenario                                      | API to use                                              |
 | --------------------------------------------- | ------------------------------------------------------- |
 | Renaming a function or method                 | `@deprecated(target=new_func)`                          |
-| Renaming an argument within the same function | `@deprecated(target=True, args_mapping={"old": "new"})` |
+| Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
 | Warn only — original body still runs          | `@deprecated(target=None)`                              |
 | Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                    |
 | Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                         |
 
-> **Note:** Legacy `target=None` and `target=True` still work in v0.9 with a `FutureWarning`.
+> **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.9 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
@@ -470,8 +470,8 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 my_func(value=42, legacy_param="old")
 ```
 
-> [!NOTE]
-> `target=True` **requires** `args_mapping` to do anything useful. Without it, no warning is emitted and the function body runs unchanged — the decorator is a passthrough. This is the key difference from `target=None`, which emits a warning regardless of arguments, with warning frequency still controlled by `num_warns`.
+> [!WARNING]
+> `target=True` without `args_mapping` is a misconfiguration. As of v0.9, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`; using either without `args_mapping` emits a construction-time `UserWarning` (and a `FutureWarning` for the legacy sentinel). This will become a `TypeError` in v1.0. If you only want to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
 
 ### 🔗 Multiple deprecation levels
 
@@ -481,18 +481,18 @@ Eventually you can set multiple deprecation levels via chaining deprecation argu
   <summary>Example: chaining two argument deprecations across different versions</summary>
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 @deprecated(
-    True,
+    TargetMode.ARGS_REMAP,
     deprecated_in="0.3",
     remove_in="0.6",
     args_mapping=dict(c1="nc1"),
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 @deprecated(
-    True,
+    TargetMode.ARGS_REMAP,
     deprecated_in="0.4",
     remove_in="0.7",
     args_mapping=dict(nc1="nc2"),

@@ -76,7 +76,7 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 | Scenario                                      | API to use                                              |
 | --------------------------------------------- | ------------------------------------------------------- |
 | Renaming a function or method                 | `@deprecated(target=new_func)`                          |
-| Renaming an argument within the same function | `@deprecated(target=True, args_mapping={"old": "new"})` |
+| Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
 | Notice only — original body still runs        | `@deprecated(target=None)`                              |
 | Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                    |
 | Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                         |

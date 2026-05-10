@@ -162,3 +162,84 @@ def whole_clean_deprecation(x: int = 1) -> int:
 def args_only_clean_deprecation(x: int = 1) -> int:
     """ARGS_REMAP with args_mapping — correctly configured; audit should not flag."""
     return x
+
+
+# ---------------------------------------------------------------------------
+# Fix 3 regression fixtures — class branch of @deprecated must normalise legacy
+# sentinels (None / True / False) before delegating to deprecated_class. Two
+# misconfig scenarios are covered:
+#   * target=None with args_mapping (NOTIFY-intent) → must emit UserWarning at
+#     decoration time and strip args_mapping (proxy must not auto-promote to
+#     ARGS_REMAP).
+#   * target=False (invalid) with or without args_mapping → must surface as
+#     misconfigured=True so audit reports it.
+#
+# Construction-time UserWarnings are expected — suppress during module load and
+# expose factories so tests can re-invoke and assert on warnings explicitly.
+# ---------------------------------------------------------------------------
+
+
+def make_class_target_none_with_args_mapping() -> type:
+    """Build a class deprecation with legacy ``target=None`` + ``args_mapping``.
+
+    Fix 3a: the class branch must normalise ``None`` to :class:`TargetMode.NOTIFY`,
+    emit the NOTIFY+args_mapping misconfig UserWarning, and strip ``args_mapping``
+    before delegating to :func:`~deprecate.proxy.deprecated_class` so the proxy
+    does not auto-promote ``None+args_mapping`` to :class:`TargetMode.ARGS_REMAP`.
+    """
+
+    @deprecated(
+        target=None,
+        deprecated_in="0.1",
+        remove_in="0.5",
+        args_mapping={"old": "new"},
+        num_warns=-1,
+    )
+    class _NoneArgsMappingClass:
+        """Source class — deprecated_class delegates to this body unchanged."""
+
+        def __init__(self, new: int = 0) -> None:
+            self.new = new
+
+    return _NoneArgsMappingClass
+
+
+def make_class_target_false() -> type:
+    """Build a class deprecation with the invalid ``target=False`` sentinel.
+
+    Fix 3b: ``target=False`` was previously collapsed to ``None`` before the
+    proxy's ``misconfigured = target is False`` check ran, so the flag never
+    fired. The fix tracks the raw sentinel separately and forces
+    ``misconfigured=True`` on the resulting proxy's :class:`DeprecationConfig`.
+    """
+
+    @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
+    class _FalseTargetClass:
+        """Source class with no replacement target — invalid configuration."""
+
+        def __init__(self, x: int = 0) -> None:
+            self.x = x
+
+    return _FalseTargetClass
+
+
+def make_class_target_false_with_args_mapping() -> type:
+    """Build a class deprecation with ``target=False`` and ``args_mapping``.
+
+    Fix 3b: combining the invalid ``target=False`` sentinel with ``args_mapping``
+    must still surface ``misconfigured=True`` to audit.
+    """
+
+    @deprecated(
+        target=False,
+        deprecated_in="0.1",
+        remove_in="0.5",
+        args_mapping={"old": "new"},
+    )
+    class _FalseTargetWithArgsMappingClass:
+        """Source class with invalid target sentinel and args_mapping."""
+
+        def __init__(self, new: int = 0) -> None:
+            self.new = new
+
+    return _FalseTargetWithArgsMappingClass

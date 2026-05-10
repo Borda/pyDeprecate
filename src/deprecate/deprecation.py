@@ -580,18 +580,22 @@ def deprecated(
             if stream is not None:
                 warnings.warn(message, UserWarning, stacklevel=2)
 
-            # Resolve the target that will be forwarded to ``deprecated_class``.
-            # Class targets and TargetMode enum values pass through; any other
-            # non-class callable is dropped (it has no meaning for class deprecation).
+            # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
+            # ``misconfigured`` from its own ``target is False`` check — by that point
+            # the original sentinel is already gone.
+            class_misconfigured = target is False
             if isinstance(target, TargetMode):
                 forward_target: Any = target
             elif callable(target) and inspect.isclass(target):
                 forward_target = target
+            elif target is None or isinstance(target, bool):
+                # None/True/False on a class is a class-misconfiguration, not a callable
+                # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
+                forward_target = TargetMode.from_legacy(target, stacklevel=None)
             else:
-                forward_target = None
+                forward_target = TargetMode.NOTIFY
 
-            # Misconfig guard: TargetMode.NOTIFY ignores args_mapping/args_extra.
-            # Strip both before delegation so the proxy does not inherit a stale config.
+            # Proxy metadata is immutable after construction; stale mapping persists to audit tools.
             forward_args_mapping = args_mapping
             forward_args_extra = args_extra
             if forward_target is TargetMode.NOTIFY:
@@ -605,7 +609,7 @@ def deprecated(
                 forward_args_mapping = None
                 forward_args_extra = None
 
-            return deprecated_class(
+            result = deprecated_class(
                 target=forward_target,
                 deprecated_in=deprecated_in,
                 remove_in=remove_in,
@@ -616,15 +620,24 @@ def deprecated(
                 update_docstring=update_docstring,
                 docstring_style=docstring_style,
             )(source)
+            # The proxy's ``misconfigured`` check already ran against ``TargetMode.NOTIFY``; the raw ``False`` is gone.
+            if class_misconfigured:
+                from dataclasses import replace as _dc_replace
+
+                object.__setattr__(
+                    result,
+                    "__deprecated__",
+                    _dc_replace(result.__deprecated__, misconfigured=True),
+                )
+            return result
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
         if callable(target) and not inspect.isclass(target):
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
 
-        # Construction-time misconfiguration guards — will become TypeError in v1.0.
-        # Skip for legacy sentinels (target=None/True/False): a warning already
-        # fired; user will hit the guard on their migrated call site.
+        # Skip for legacy sentinels: _normalize_target already fired a FutureWarning;
+        # re-running the guard here would report the wrong migration path.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             TargetMode.validate(
                 _target,
@@ -640,7 +653,6 @@ def deprecated(
 
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            # check if user requested a skip
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
                 raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
@@ -649,31 +661,24 @@ def deprecated(
 
             state = cast(_DeprecatedCallable, wrapped_fn)._state
             state.called += 1
-            # Preserve original kwargs for var-positional fallback before remapping.
+            # *args sources need the unremapped tuple; remapping happens on kwargs only.
             original_kwargs = dict(kwargs)
-            # convert args to kwargs
             kwargs = _update_kwargs_with_args(source, args, kwargs)
 
             reason_callable = _target is TargetMode.NOTIFY or callable(_target)
             reason_argument = {}
             if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
-                # Find which deprecated arguments were actually used in this call
                 reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
-            # short cycle with no reason for redirect
-            if not (reason_callable or reason_argument):
-                # No forwarding needed: no target to forward to, and no deprecated args used
+            # Migrated callers (using the new arg name) produce empty reason_argument;
+            # without the args_extra guard they short-circuit before extras are injected.
+            if not (reason_callable or reason_argument) and not (args_extra and _target is TargetMode.ARGS_REMAP):
                 return source(**kwargs)
 
-            # warning per argument
             if reason_argument:
-                # For argument deprecation, track warnings per argument
-                # Use the minimum count across all deprecated args used in this call
                 nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
             else:
-                # For callable deprecation, track warnings per function
                 nb_warned = state.warned_calls
 
-            # warn user only N times in lifetime or infinitely...
             if stream and (num_warns < 0 or nb_warned < num_warns):
                 if reason_callable:
                     # Use original `target` (not remapped _target) so the warning
@@ -686,25 +691,38 @@ def deprecated(
                         state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
 
             if reason_callable:
-                # Fix 5: when args_mapping renames `old → new` AND the source signature
-                # also declares `new`, the source default for `new` would otherwise be
-                # merged before the rename — overwriting the renamed value. Filter any
-                # default whose key is a target of a rename (present in args_mapping.values()).
+                # Source defaults for renamed args survive _update_kwargs_with_defaults and
+                # would be forwarded under the new name, silently overriding the target's own
+                # default. Drop only when the caller never supplied the old or new name.
                 if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
+                    caller_keys = set(kwargs)
                     rename_targets = {v for v in args_mapping.values() if v}
+                    rename_sources = set(args_mapping)
+                    # For ARGS_REMAP, source IS the target; Python applies its own default
+                    # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
+                    if callable(_target):
+                        target_defaults = {
+                            arg[0] for arg in get_func_arguments_types_defaults(_target) if arg[2] is not inspect._empty
+                        }
+                    else:
+                        target_defaults = rename_targets
                     full_defaults = _update_kwargs_with_defaults(source, kwargs)
-                    kwargs = {k: v for k, v in full_defaults.items() if k in kwargs or k not in rename_targets}
+                    kwargs = {
+                        k: v
+                        for k, v in full_defaults.items()
+                        if k in caller_keys
+                        or (
+                            k not in rename_targets
+                            and not (k in rename_sources and args_mapping.get(k) in target_defaults)
+                        )
+                    }
                 else:
                     kwargs = _update_kwargs_with_defaults(source, kwargs)
             if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
-                # Filter out arguments that should be skipped (mapped to None)
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
-                # Apply argument renaming: use mapped name if exists, otherwise keep original
-                # Skip any arguments that were marked for skipping
                 kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
             if args_extra and (_target is TargetMode.ARGS_REMAP or callable(_target)):
-                # update target argument by extra arguments
                 kwargs.update(args_extra)
 
             if not callable(_target):
@@ -715,18 +733,14 @@ def deprecated(
             target_func = _prepare_target_call(source, _target, kwargs)
             return target_func(**kwargs)
 
-        # Static deprecation metadata — consumed by audit tools and docstring helpers.
-        # Fix 2: persist the *enum*-normalised target (NOTIFY/ARGS_REMAP for legacy
-        # None/True/False sentinels) so audit code does not re-derive enum state.
-        # Class targets are kept verbatim — the class→__init__ remap is a call-time
-        # concern and would mislead audit/docstring consumers (they expect the user-
-        # facing class). Raw ``False`` is invalid; flag it as misconfigured.
+        # Enum-normalised target stored so audit does not re-derive from raw sentinel.
+        # Class targets kept verbatim: the class→__init__ remap is call-time only;
+        # audit and docstring consumers expect the user-facing class, not __init__.
         if target is None or isinstance(target, bool):
             stored_target: Any = TargetMode.from_legacy(target, stacklevel=None)
         elif isinstance(target, TargetMode):
             stored_target = target
         else:
-            # Callable/class target — store the user's value, not the closure-time remap.
             stored_target = target
         misconfigured = target is False
         dep_meta = DeprecationConfig(
@@ -740,7 +754,6 @@ def deprecated(
         )
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta
-        # Private mutable runtime state — call counter, warning counters.
         wrapped_fn_typed._state = _WrapperState()
 
         if update_docstring:

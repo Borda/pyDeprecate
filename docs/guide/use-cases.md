@@ -214,42 +214,41 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 ### Behaviour comparison
 
-|                               | `TargetMode.NOTIFY`                                                                                       | `TargetMode.ARGS_REMAP` (no `args_mapping`)              | `TargetMode.ARGS_REMAP` (with `args_mapping`)                              | `target=<callable>`                               |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------- |
-| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | `UserWarning` at construction time; no call-time warning | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
-| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | —                                                        | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |
-| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | —                                                        | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
-| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs with caller's args as-is                            | Runs after argument renaming/dropping                                      | **Never runs** — all calls forwarded to target    |
-| **`args_mapping` applied**    | `⚠`                                                                                                       | `⚠`                                                      | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding       |
-| **`args_extra` injected**     | `⚠`                                                                                                       | `⚠`                                                      | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding          |
-| **Source defaults merged**    | `✓`                                                                                                       | `✗`                                                      | `✗`                                                                        | `✓`                                               |
-| **`skip_if` effect**          | `⊛`                                                                                                       | `⊛`                                                      | `⊛`                                                                        | `⊛`                                               |
-| **`stream=None` effect**      | `⊘` body still runs                                                                                       | No observable change                                     | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                         |
+|                               | `TargetMode.NOTIFY`                                                                                       | `TargetMode.ARGS_REMAP` (with `args_mapping`)                              | `target=<callable>`                               |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
+| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |
+| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
+| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs after argument renaming/dropping                                      | **Never runs** — all calls forwarded to target    |
+| **`args_mapping` applied**    | `⚠`                                                                                                       | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding       |
+| **`args_extra` injected**     | `⚠`                                                                                                       | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding          |
+| **Source defaults merged**    | `✓`                                                                                                       | `✗`                                                                        | `✓`                                               |
+| **`skip_if` effect**          | `⊛`                                                                                                       | `⊛`                                                                        | `⊛`                                               |
+| **`stream=None` effect**      | `⊘` body still runs                                                                                       | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                         |
 
 **Legend:** `✓` applied · `✗` not applied · `⚠` ignored with `UserWarning` (will be `TypeError` in v1.0) · `⊘` warning suppressed, processing continues · `⊛` `skip_if` bypasses everything · `—` not applicable
 
 ### When to use which
 
-- **`TargetMode.NOTIFY`** — function is going away with no replacement. Callers must remove the call. Warning fires up to `num_warns` times (default: once) so each caller is notified on first use. `args_mapping` and `args_extra` are ignored and emit a construction-time `UserWarning`; `TypeError` planned in v1.0.
+- **`TargetMode.NOTIFY`** — function is going away with no replacement. Callers must remove the call. Warning fires up to `num_warns` times (default: once) so each caller is notified on first use.
 - **`target=<callable>`** — function is replaced by another callable. The source body never runs; all calls are forwarded. Use `args_mapping` to rename arguments and `args_extra` to inject new required args.
 - **`TargetMode.ARGS_REMAP` + `args_mapping`** — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.
-- **`TargetMode.ARGS_REMAP` without `args_mapping`** — effectively a no-op. `stream`, `num_warns`, `deprecated_in`, `remove_in`, `args_extra`, and `args_mapping` all have no effect. Avoid this combination unless you explicitly want a zero-effect passthrough.
 
 ### Example — notice the difference in warning behaviour
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 import warnings
 
 
-# target=None: warns once by default (num_warns=1)
-@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+# TargetMode.NOTIFY: warns once by default (num_warns=1)
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 def going_away(x: int) -> int:
     return x
 
 
-# target=True: warns only when the old argument name is passed
-@deprecated(target=True, args_mapping={"old_x": "x"}, deprecated_in="1.0", remove_in="2.0")
+# TargetMode.ARGS_REMAP: warns only when the old argument name is passed
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, deprecated_in="1.0", remove_in="2.0")
 def renamed_arg(old_x: int = 0, x: int = 0) -> int:
     return x
 
@@ -264,51 +263,31 @@ with warnings.catch_warnings(record=True) as w:
     print(len(w))  # 2
 ```
 
-### `target=True` without `args_mapping` — silent passthrough
+!!! danger "`target=True` (or `TargetMode.ARGS_REMAP`) without `args_mapping` is a misconfiguration"
 
-```python
-from deprecate import deprecated
-import warnings
-
-
-# No args_mapping → no warning, no remapping, body runs unchanged.
-@deprecated(target=True, deprecated_in="1.0", remove_in="2.0")
-def no_op_wrapper(x: int) -> int:
-    return x * 2
-
-
-with warnings.catch_warnings(record=True) as w:
-    warnings.simplefilter("always")
-    result = no_op_wrapper(3)
-    print(result)  # 6
-    print(len(w))  # 0 — no warning was emitted
-```
-
-!!! warning "`target=True` without `args_mapping` emits no warning"
-
-    This combination is valid Python but has no observable deprecation effect. If your intent is to warn callers that a function is going away, use `target=None` instead.
+    As of v0.9, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings: a `FutureWarning` for the legacy sentinel, and a `UserWarning` because `ARGS_REMAP` requires `args_mapping` to have any effect. This will become a `TypeError` in v1.0. If your intent is to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
 
 ## Chained deprecation levels
 
 !!! warning "Stacked decorators can create unintended deprecation chains"
 
-    Each stacked `@deprecated(True, ...)` decorator emits its own notice. If you accidentally point a decorator's `target` at another deprecated function instead of the final implementation, callers receive redundant warnings. Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch these mistakes automatically.
+    Each stacked `@deprecated(TargetMode.ARGS_REMAP, ...)` decorator emits its own notice. If you accidentally point a decorator's `target` at another deprecated function instead of the final implementation, callers receive redundant warnings. Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch these mistakes automatically.
 
-When arguments are deprecated across multiple releases, stack one `@deprecated(True, ...)` per rename. Each decorator operates on its own version range and emits a separate notice, giving callers version-specific migration guidance.
+When arguments are deprecated across multiple releases, stack one `@deprecated(TargetMode.ARGS_REMAP, ...)` per rename. Each decorator operates on its own version range and emits a separate notice, giving callers version-specific migration guidance.
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 @deprecated(
-    True,
+    TargetMode.ARGS_REMAP,
     deprecated_in="0.3",
     remove_in="0.6",
     args_mapping=dict(c1="nc1"),
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 @deprecated(
-    True,
+    TargetMode.ARGS_REMAP,
     deprecated_in="0.4",
     remove_in="0.7",
     args_mapping=dict(nc1="nc2"),
@@ -338,7 +317,7 @@ print(any_pow(2, 3))
 `skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency.
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 FAKE_VERSION = 1
 
@@ -347,7 +326,7 @@ def version_greater_1():
     return FAKE_VERSION > 1
 
 
-@deprecated(True, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
+@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
 def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 

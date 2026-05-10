@@ -64,6 +64,8 @@ from tests.collection_targets import (
     both_old_new_target,
     cross_guard_standalone_increment,
     double_value,
+    fn_remap_with_extra_body,
+    fn_with_default,
     identity_value,
     increment_value,
     power_with_new_coef,
@@ -1227,3 +1229,41 @@ def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
     rename of ``old → new``, overwriting the renamed value.
     """
     return void(old, new)
+
+
+# ========== Regression fixtures: Fix 1 + Fix 2 ==========
+
+
+@deprecated(
+    target=fn_with_default,
+    args_mapping={"old_arg": "new_arg"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def fn_old_default(old_arg: int = 1, new_arg: int = 99) -> int:
+    """Source whose stale default for the deprecated arg shadows the target's default.
+
+    Regression for Fix 1: when the caller supplies neither name, the source's
+    ``old_arg=1`` default would otherwise be renamed to ``new_arg=1`` and forwarded,
+    silently overriding the target's own ``new_arg=99`` default. The fix drops the
+    stale source default in that case so the target's default is used.
+    """
+    return void(old_arg, new_arg)
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_arg": "new_arg"},
+    args_extra={"injected": 100},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def fn_remap_with_extra(old_arg: int = 0, new_arg: int = 0, injected: int = 0) -> int:
+    """ARGS_REMAP source body using both a remapped arg and an injected extra arg.
+
+    Regression for Fix 2: when the caller uses the new argument name, the early
+    return short-circuit would skip the ``args_extra`` merge before the original
+    fix. The body delegates to the target so the test asserts that ``injected=100``
+    reaches the body regardless of whether the caller passes the old or new name.
+    """
+    return fn_remap_with_extra_body(new_arg=new_arg, injected=injected)
