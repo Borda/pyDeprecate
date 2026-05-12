@@ -275,14 +275,13 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     # - ChainType.STACKED: arg mappings chain/compose and need collapsing. Two sub-cases:
     #   (a) target is a deprecated callable whose own target=True (self-deprecation with renaming).
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
-    # Support both legacy sentinels (target=True/None) and new TargetMode enum values.
-    _is_args_remap = target is True or target is TargetMode.ARGS_REMAP
-    _is_notify = target is None or target is TargetMode.NOTIFY
+    _is_args_remap = target is TargetMode.ARGS_REMAP
+    _is_notify = target is TargetMode.NOTIFY
 
     chain_type: Optional[ChainType] = None
     if callable(target) and _has_deprecation_meta(target):
         wrp_depr_tgt = target.__deprecated__.target
-        is_stacked = wrp_depr_tgt is True or wrp_depr_tgt is TargetMode.ARGS_REMAP
+        is_stacked = wrp_depr_tgt is TargetMode.ARGS_REMAP
         # target is self-deprecation (mappings compose) or forwarding
         chain_type = ChainType.STACKED if is_stacked else ChainType.TARGET
     elif _is_args_remap:

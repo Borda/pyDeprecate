@@ -542,7 +542,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
                 all_args_found = False  # missing arg → general notice still needed
         # ARGS_REMAP (or legacy target=True) means only individual args are deprecated,
         # not the function itself.
-        if all_args_found and (dep_info.target is TargetMode.ARGS_REMAP or dep_info.target is True):
+        if all_args_found and dep_info.target is TargetMode.ARGS_REMAP:
             wrapped_fn.__doc__ = inspect.cleandoc("\n".join(lines))
             return
 
