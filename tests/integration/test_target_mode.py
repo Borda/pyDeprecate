@@ -18,10 +18,20 @@ from deprecate import TargetMode as top_level_TargetMode
 from deprecate._types import _DeprecatedCallable
 from tests.collection_depr_legacy import (
     depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs,
+)
+from tests.collection_depr_legacy import (
     depr_target_mode_args_only_silent_when_new_arg_passed as legacy_silent_when_new_arg_passed,
+)
+from tests.collection_depr_legacy import (
     depr_target_mode_args_only_warns_when_old_arg_passed as legacy_warns_when_old_arg_passed,
+)
+from tests.collection_depr_legacy import (
     depr_target_mode_args_only_with_args_extra_injects_kwargs as depr_legacy_args_extra,
+)
+from tests.collection_depr_legacy import (
     depr_target_mode_whole_executes_original_body as legacy_executes_original_body,
+)
+from tests.collection_depr_legacy import (
     depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call,
 )
 from tests.collection_deprecate import (
