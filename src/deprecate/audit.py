@@ -168,6 +168,11 @@ class DeprecationWrapperInfo:
     chain_type: Optional[ChainType] = None
 
 
+def _member_name_key(item: tuple[str, Any]) -> str:
+    """Extract the member name for sorting."""
+    return item[0]
+
+
 def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN401
     """Return members without triggering dynamic ``getattr`` side effects.
 
@@ -183,7 +188,7 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
     for name in names:
         with suppress(AttributeError):
             members.append((name, inspect.getattr_static(obj, name)))
-    return sorted(members, key=lambda item: item[0])
+    return sorted(members, key=_member_name_key)
 
 
 def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:

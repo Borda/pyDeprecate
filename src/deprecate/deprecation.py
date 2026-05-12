@@ -601,11 +601,7 @@ def deprecated(
             if class_misconfigured:
                 from dataclasses import replace as _dc_replace
 
-                object.__setattr__(
-                    result,
-                    "__deprecated__",
-                    _dc_replace(result.__deprecated__, misconfigured=True),
-                )
+                object.__setattr__(result, "__deprecated__", _dc_replace(result.__deprecated__, misconfigured=True))
             return result
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
@@ -680,15 +676,12 @@ def deprecated(
                     else:
                         target_defaults = rename_targets
                     full_defaults = _update_kwargs_with_defaults(source, kwargs)
-                    kwargs = {
-                        k: v
-                        for k, v in full_defaults.items()
-                        if k in caller_keys
-                        or (
-                            k not in rename_targets
-                            and not (k in rename_sources and args_mapping.get(k) in target_defaults)
-                        )
-                    }
+
+                    def is_default_dropped(k: str) -> bool:
+                        remapped = k in rename_sources and args_mapping.get(k) in target_defaults
+                        return k not in rename_targets and not remapped
+
+                    kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_default_dropped(k)}
                 else:
                     kwargs = _update_kwargs_with_defaults(source, kwargs)
             if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
