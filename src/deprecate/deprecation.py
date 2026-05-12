@@ -613,8 +613,9 @@ def deprecated(
 
         # Skip for legacy sentinels: _normalize_target already fired a FutureWarning;
         # re-running the guard here would report the wrong migration path.
+        _function_misconfigured = False
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
-            TargetMode._validate(
+            _function_misconfigured = TargetMode._validate(
                 _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
             )
 
@@ -632,6 +633,15 @@ def deprecated(
 
             state = cast(_DeprecatedCallable, wrapped_fn)._state
             state.called += 1
+            dep_cfg = cast(_DeprecatedCallable, wrapped_fn).__deprecated__
+            if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
+                warnings.warn(
+                    f"'{source.__name__}' has an invalid deprecation configuration;"
+                    " verify your `@deprecated(target=...)` arguments. Will be TypeError in v1.0.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                state.warned_misconfigured = True
             # *args sources need the unremapped tuple; remapping happens on kwargs only.
             original_kwargs = dict(kwargs)
             kwargs = _update_kwargs_with_args(source, args, kwargs)
@@ -710,7 +720,7 @@ def deprecated(
             stored_target = target
         else:
             stored_target = target
-        misconfigured = target is False
+        misconfigured = target is False or _function_misconfigured
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,

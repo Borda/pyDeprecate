@@ -152,7 +152,8 @@ class TargetMode(Enum):
                 return cls.ARGS_REMAP
             if stacklevel is not None:
                 warnings.warn(
-                    "target=True without args_mapping resolves to TargetMode.NOTIFY (warns on every access). Will be TypeError in v1.0.",
+                    "target=True without args_mapping resolves to TargetMode.NOTIFY"
+                    " (warns on every access). Will be TypeError in v1.0.",
                     FutureWarning,
                     stacklevel=stacklevel,
                 )
@@ -345,11 +346,13 @@ class _WrapperState:
         warned_calls: Number of callable-level deprecation warnings emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
+        warned_misconfigured: ``True`` after the one-time misconfiguration UserWarning has been emitted at call time.
     """
 
     called: int = 0
     warned_calls: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
+    warned_misconfigured: bool = False
 
 
 @runtime_checkable
