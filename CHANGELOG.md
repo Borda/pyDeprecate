@@ -16,7 +16,6 @@
 
 - **`target=None` sentinel — use `TargetMode.NOTIFY`.** Passing `target=None` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.NOTIFY`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **`target=True` sentinel — use `TargetMode.ARGS_REMAP`.** Passing `target=True` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.ARGS_REMAP`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
-- **`target=False` sentinel — never valid, will become `TypeError` in v1.0.** Now emits a `UserWarning` at decoration time. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
 ### Changed
 
@@ -27,7 +26,8 @@
 
 ### Fixed
 
-- **`args_mapping` rename no longer clobbers source default when both old and new parameter names are present.** Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames `old=X` to `new=X` without discarding a separately supplied `new` value.
+- **`args_mapping` rename no longer clobbers source default when both old and new parameter names are present.** Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames `old=X` to `new=X` without discarding a separately supplied `new` value. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`target=False` sentinel now emits `UserWarning` at decoration time.** `target=False` was never a valid configuration; previously the behavior was undefined. The sentinel now surfaces a `UserWarning` immediately and will raise `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
 ______________________________________________________________________
 
