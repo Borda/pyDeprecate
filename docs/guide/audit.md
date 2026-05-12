@@ -11,6 +11,16 @@ Three things go wrong with deprecations in practice: a `remove_in` deadline pass
 
     `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
 
+!!! warning "Breaking change in v0.8: `__deprecated__.target` type changed"
+
+    In v0.8, `DeprecationConfig.target` now always stores a `TargetMode` enum member or a `Callable` — never a raw boolean sentinel. Code inspecting this attribute must be updated:
+
+    | Before v0.8 | v0.8+ |
+    |-------------|-------|
+    | `func.__deprecated__.target is None` | `func.__deprecated__.target is TargetMode.NOTIFY` |
+    | `func.__deprecated__.target is True` | `func.__deprecated__.target is TargetMode.ARGS_REMAP` |
+    | `func.__deprecated__.target is False` | `func.__deprecated__.misconfigured` |
+
 ## Validating Wrapper Configuration
 
 Use these utilities to verify that a deprecated wrapper is correctly configured: that `args_mapping` keys exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. `validate_deprecation_wrapper()` inspects a single function; `find_deprecation_wrappers()` scans an entire package.
