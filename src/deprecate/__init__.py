@@ -57,8 +57,8 @@ Complete Documentation:
     Topics covered:
     - Simple function forwarding
     - Advanced argument mapping
-    - Warning-only deprecation (target=None)
-    - Self-deprecation (target=True)
+    - Warning-only deprecation (TargetMode.NOTIFY)
+    - Self-deprecation (TargetMode.ARGS_REMAP)
     - Multiple deprecation levels
     - Conditional skip (skip_if parameter)
     - Class deprecation
