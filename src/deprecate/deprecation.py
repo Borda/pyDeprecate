@@ -576,6 +576,13 @@ def deprecated(
             else:
                 forward_target = TargetMode.NOTIFY
 
+            # Capture all misconfig signals *before* rewriting forward_args_mapping / forward_args_extra
+            # so we can forward them via ``_misconfigured_override`` instead of mutating the frozen
+            # ``DeprecationConfig`` after construction. NOTIFY + (args_mapping or args_extra) is the
+            # second misconfig source the proxy can no longer detect once we strip those fields.
+            notify_misconfig = forward_target is TargetMode.NOTIFY and bool(args_mapping or args_extra)
+            force_misconfigured = class_misconfigured or notify_misconfig
+
             # Proxy metadata is immutable after construction; stale mapping persists to audit tools.
             forward_args_mapping = args_mapping
             forward_args_extra = args_extra
@@ -586,7 +593,7 @@ def deprecated(
                 forward_args_mapping = None
                 forward_args_extra = None
 
-            result = deprecated_class(
+            return deprecated_class(
                 target=forward_target,
                 deprecated_in=deprecated_in,
                 remove_in=remove_in,
@@ -596,13 +603,8 @@ def deprecated(
                 args_extra=forward_args_extra,
                 update_docstring=update_docstring,
                 docstring_style=docstring_style,
+                _misconfigured_override=force_misconfigured,
             )(source)
-            # The proxy's ``misconfigured`` check already ran against ``TargetMode.NOTIFY``; the raw ``False`` is gone.
-            if class_misconfigured:
-                from dataclasses import replace as _dc_replace
-
-                object.__setattr__(result, "__deprecated__", _dc_replace(result.__deprecated__, misconfigured=True))
-            return result
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
         if callable(target) and not inspect.isclass(target):
@@ -715,6 +717,7 @@ def deprecated(
             name=source.__name__,
             target=stored_target,
             args_mapping=args_mapping,
+            args_extra=args_extra,
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
         )

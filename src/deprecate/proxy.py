@@ -85,6 +85,7 @@ class _DeprecatedProxy:
         template_mgs: Optional[str] = None,
         read_only: bool = False,
         docstring_style: str = "auto",
+        _misconfigured_override: bool = False,
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
 
@@ -94,17 +95,27 @@ class _DeprecatedProxy:
         ``__deprecated__`` is the public metadata interface consumed by audit tools (``validate_deprecated_callable``,
         ``find_deprecated_callables``, etc.) as a :class:`~deprecate._types.DeprecationConfig` instance aligned with
         the ``@deprecated`` schema.
+
+        ``_misconfigured_override`` is a private hook used by ``@deprecated`` when it delegates to
+        ``deprecated_class`` for class targets: it lets the caller pre-compute misconfig signals (raw
+        ``target=False`` plus NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy
+        rewrites them away, so the final frozen :class:`DeprecationConfig` records every signal in one place.
         """
-        # Track whether the raw ``target=False`` sentinel was passed so audit can flag it.
-        misconfigured = target is False
+        # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
+        # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
+        misconfigured = target is False or _misconfigured_override
         if isinstance(target, bool):
             target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
-        # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra).
+        # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
+        # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
+        # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all four signals.
         if isinstance(target, TargetMode):
-            TargetMode._validate(target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4)
+            misconfigured |= TargetMode._validate(
+                target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4
+            )
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object,
         # extras to merge after args_mapping at call time, optional custom warning template.
         cfg = _ProxyConfig(
@@ -123,6 +134,7 @@ class _DeprecatedProxy:
             name=name,
             target=target,
             args_mapping=args_mapping,
+            args_extra=args_extra,
             misconfigured=misconfigured,
             docstring_style=normalize_docstring_style(docstring_style),
             template_mgs=template_mgs,
@@ -496,6 +508,7 @@ def deprecated_class(
     args_extra: Optional[dict[str, Any]] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    _misconfigured_override: bool = False,
 ) -> Callable[[type], "_DeprecatedProxy"]:
     r"""Decorator factory for deprecating class definitions with optional target redirection.
 
@@ -588,6 +601,7 @@ def deprecated_class(
             args_mapping=args_mapping,
             args_extra=args_extra,
             docstring_style=docstring_style,
+            _misconfigured_override=_misconfigured_override,
         )
         if update_docstring:
             # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set

@@ -514,7 +514,8 @@ class TestDecoratorFactory:
             (
                 True,
                 FutureWarning,
-                "target=True is not valid for deprecated_class() and is ignored. Will be TypeError in v1.0.",
+                "target=True without args_mapping resolves to TargetMode.NOTIFY"
+                " (warns on every access). Will be TypeError in v1.0.",
             ),
             (
                 False,

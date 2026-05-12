@@ -247,6 +247,7 @@ class DeprecationConfig:
             or a callable. Legacy sentinels (``True``/``False``) are normalised at decoration time and never stored
             verbatim.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to drop the argument entirely.
+        args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
         misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.
             Audit tools surface this via ``DeprecationWrapperInfo.misconfigured_target``.
         docstring_style: Docstring notice output style when ``update_docstring=True``.
@@ -261,6 +262,7 @@ class DeprecationConfig:
     name: str = ""
     target: Optional[Union[Callable[..., Any], "TargetMode"]] = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
+    args_extra: Optional[dict[str, Any]] = None
     misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     template_mgs: Optional[str] = None
