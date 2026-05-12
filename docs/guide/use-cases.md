@@ -118,13 +118,15 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
     Unlike `target=<callable>` (where the body is dead code), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You must keep a working implementation in the function body.
 
-Use `TargetMode.NOTIFY` when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
+Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
+
+Since `target` defaults to `TargetMode.NOTIFY`, you can omit it entirely:
 
 ```python
-from deprecate import TargetMode, deprecated
+from deprecate import deprecated
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
+@deprecated(deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b

@@ -41,6 +41,8 @@ from tests.collection_deprecate import (
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
     depr_target_mode_whole_executes_original_body,
     depr_target_mode_whole_warns_on_every_call,
+    make_default_target_no_versions_warns,
+    make_default_target_with_versions,
     make_target_mode_args_only_without_args_mapping_warns,
     make_target_mode_whole_with_args_extra_warns,
     make_target_mode_whole_with_args_mapping_warns,
@@ -249,6 +251,50 @@ class TestArgsRemapMode:
             warnings.simplefilter("ignore", FutureWarning)
             result = func(old_x=old_x)
         assert result == expected
+
+
+class TestDefaultTarget:
+    """Omitting `target` defaults to TargetMode.NOTIFY — warn-only, no forwarding."""
+
+    def test_default_target_resolves_to_notify(self) -> None:
+        """Omitting target stores TargetMode.NOTIFY in __deprecated__.target."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fn = make_default_target_with_versions()
+        assert cast(_DeprecatedCallable, fn).__deprecated__.target is TargetMode.NOTIFY
+
+    def test_default_target_no_decoration_time_future_warning(self) -> None:
+        """Omitting target emits no FutureWarning at decoration time (unlike target=None)."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            make_default_target_with_versions()
+        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert future_warns == []
+
+    def test_default_target_warns_on_call(self) -> None:
+        """Omitting target still emits FutureWarning when the decorated function is called."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fn = make_default_target_with_versions()
+        with pytest.warns(FutureWarning):
+            fn(1)
+
+    def test_default_target_executes_body(self) -> None:
+        """Omitting target executes the original function body and returns its value."""
+        tracked_identity_calls.clear()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fn = make_default_target_with_versions()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = fn(42)
+        assert result == 42
+        assert tracked_identity_calls == [42]
+
+    def test_empty_versions_warns_at_decoration(self) -> None:
+        """@deprecated() with no versions emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match="deprecated_in.*remove_in|version"):
+            make_default_target_no_versions_warns()
 
 
 class TestLegacySentinels:

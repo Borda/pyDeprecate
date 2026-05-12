@@ -1204,3 +1204,34 @@ def fn_remap_with_extra(old_arg: int = 0, new_arg: int = 0, injected: int = 0) -
     reaches the body regardless of whether the caller passes the old or new name.
     """
     return fn_remap_with_extra_body(new_arg=new_arg, injected=injected)
+
+
+# ========== Default-target fixtures (target omitted → TargetMode.NOTIFY) ==========
+
+
+def make_default_target_with_versions() -> Callable[[int], int]:
+    """Build a @deprecated(deprecated_in='1.0', remove_in='2.0') wrapper with no explicit target.
+
+    No FutureWarning should be emitted at decoration time (unlike target=None).
+    Source body must execute on call and a FutureWarning must be emitted.
+    """
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def fn(x: int) -> int:
+        return tracked_identity(x)
+
+    return fn
+
+
+def make_default_target_no_versions_warns() -> Callable[[int], int]:
+    """Build a @deprecated() wrapper with no versions and no target.
+
+    An empty-version UserWarning must be emitted at decoration time because
+    the resulting deprecation notice would contain empty version strings.
+    """
+
+    @deprecated()
+    def fn(x: int) -> int:
+        return identity_value(x)
+
+    return fn

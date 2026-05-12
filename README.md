@@ -193,7 +193,7 @@ Not sure which API to reach for? Start here.
 | --------------------------------------------- | ------------------------------------------------------------------------ |
 | Renaming a function or method                 | `@deprecated(target=new_func)`                                           |
 | Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
-| Warn only — original body still runs          | `@deprecated(target=TargetMode.NOTIFY)`                                  |
+| Warn only — original body still runs          | `@deprecated(deprecated_in="1.0", remove_in="2.0")`                      |
 | Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
 | Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
 
@@ -202,18 +202,18 @@ Not sure which API to reach for? Start here.
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
 
-| Param              | Default               | Purpose                                                                     |
-| ------------------ | --------------------- | --------------------------------------------------------------------------- |
-| `target`           | —                     | `Callable` to forward to · `True` to remap args in-place · `None` warn-only |
-| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                      |
-| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                         |
-| `stream`           | `deprecation_warning` | Warning sink callable (set `None` to silence warnings)                      |
-| `num_warns`        | `1`                   | `1` once · `-1` always · `N` exactly N times                                |
-| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                              |
-| `template_mgs`     | `None`                | Custom warning message template (`%`-style placeholders)                    |
-| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                  |
-| `skip_if`          | `False`               | `bool` or `Callable → bool`; skip deprecation when true                     |
-| `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                         |
+| Param              | Default               | Purpose                                                                                                    |
+| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `target`           | `TargetMode.NOTIFY`   | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
+| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                                                     |
+| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                                                        |
+| `stream`           | `deprecation_warning` | Warning sink callable (set `None` to silence warnings)                                                     |
+| `num_warns`        | `1`                   | `1` once · `-1` always · `N` exactly N times                                                               |
+| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
+| `template_mgs`     | `None`                | Custom warning message template (`%`-style placeholders)                                                   |
+| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                                                 |
+| `skip_if`          | `False`               | `bool` or `Callable → bool`; skip deprecation when true                                                    |
+| `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
