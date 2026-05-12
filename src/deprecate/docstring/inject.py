@@ -509,7 +509,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
         >>> fn_with_args.__deprecated__ = DeprecationConfig(
         ...     deprecated_in='1.0',
         ...     remove_in='2.0',
-        ...     target=True,
+        ...     target=TargetMode.ARGS_REMAP,
         ...     args_mapping={'old_arg': None},
         ... )
         >>> _update_docstring_with_deprecation(fn_with_args)
