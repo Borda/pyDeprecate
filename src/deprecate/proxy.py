@@ -98,13 +98,13 @@ class _DeprecatedProxy:
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it.
         misconfigured = target is False
         if isinstance(target, bool):
-            target = TargetMode.from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
+            target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
         # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra).
         if isinstance(target, TargetMode):
-            TargetMode.validate(target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4)
+            TargetMode._validate(target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4)
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object,
         # extras to merge after args_mapping at call time, optional custom warning template.
         cfg = _ProxyConfig(

@@ -139,7 +139,7 @@ def _normalize_target(
     # --- Legacy sentinel conversion (v0.8 compat shim; removed in v1.0) ---
     # stacklevel=3: warn() → _normalize_target() → packing() → @decorator application site
     if target is None or isinstance(target, bool):
-        return TargetMode.from_legacy(target)
+        return TargetMode._from_legacy(target)
 
     # --- TargetMode enum pass-through ---
     if isinstance(target, TargetMode):
@@ -572,7 +572,7 @@ def deprecated(
             elif target is None or isinstance(target, bool):
                 # None/True/False on a class is a class-misconfiguration, not a callable
                 # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
-                forward_target = TargetMode.from_legacy(target, stacklevel=None)
+                forward_target = TargetMode._from_legacy(target, stacklevel=None)
             else:
                 forward_target = TargetMode.NOTIFY
 
@@ -580,7 +580,7 @@ def deprecated(
             forward_args_mapping = args_mapping
             forward_args_extra = args_extra
             if forward_target is TargetMode.NOTIFY:
-                TargetMode.validate(
+                TargetMode._validate(
                     forward_target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=2
                 )
                 forward_args_mapping = None
@@ -612,7 +612,7 @@ def deprecated(
         # Skip for legacy sentinels: _normalize_target already fired a FutureWarning;
         # re-running the guard here would report the wrong migration path.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
-            TargetMode.validate(
+            TargetMode._validate(
                 _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=2
             )
 
@@ -703,7 +703,7 @@ def deprecated(
         # Class targets kept verbatim: the class→__init__ remap is call-time only;
         # audit and docstring consumers expect the user-facing class, not __init__.
         if target is None or isinstance(target, bool):
-            stored_target: Any = TargetMode.from_legacy(target, stacklevel=None)
+            stored_target: Any = TargetMode._from_legacy(target, stacklevel=None)
         elif isinstance(target, TargetMode):
             stored_target = target
         else:

@@ -38,7 +38,7 @@ class TargetMode(Enum):
     ARGS_REMAP = "args_remap"
 
     @classmethod
-    def from_legacy(
+    def _from_legacy(
         cls,
         target: Union[None, bool],
         *,
@@ -62,11 +62,11 @@ class TargetMode(Enum):
             TypeError: If ``target`` is anything other than ``None``, ``True``, or ``False``.
 
         Examples:
-            >>> TargetMode.from_legacy(None, stacklevel=None)
+            >>> TargetMode._from_legacy(None, stacklevel=None)
             <TargetMode.NOTIFY: 'notify'>
-            >>> TargetMode.from_legacy(True, stacklevel=None)
+            >>> TargetMode._from_legacy(True, stacklevel=None)
             <TargetMode.ARGS_REMAP: 'args_remap'>
-            >>> TargetMode.from_legacy(False, stacklevel=None)
+            >>> TargetMode._from_legacy(False, stacklevel=None)
             <TargetMode.NOTIFY: 'notify'>
 
         """
@@ -96,11 +96,11 @@ class TargetMode(Enum):
                 )
             return cls.NOTIFY
         raise TypeError(
-            f"`TargetMode.from_legacy` accepts only None, True, or False; got {type(target).__name__}: {target!r}."
+            f"`TargetMode._from_legacy` accepts only None, True, or False; got {type(target).__name__}: {target!r}."
         )
 
     @classmethod
-    def from_legacy_proxy(
+    def _from_legacy_proxy(
         cls,
         target: Any,  # noqa: ANN401
         *,
@@ -128,15 +128,15 @@ class TargetMode(Enum):
             otherwise ``target`` unchanged.
 
         Examples:
-            >>> TargetMode.from_legacy_proxy(True, stacklevel=None)
+            >>> TargetMode._from_legacy_proxy(True, stacklevel=None)
             <TargetMode.NOTIFY: 'notify'>
-            >>> TargetMode.from_legacy_proxy(True, args_mapping={"old": "new"}, stacklevel=None)
+            >>> TargetMode._from_legacy_proxy(True, args_mapping={"old": "new"}, stacklevel=None)
             <TargetMode.ARGS_REMAP: 'args_remap'>
-            >>> TargetMode.from_legacy_proxy(False, stacklevel=None)
+            >>> TargetMode._from_legacy_proxy(False, stacklevel=None)
             <TargetMode.NOTIFY: 'notify'>
-            >>> TargetMode.from_legacy_proxy(None) is None
+            >>> TargetMode._from_legacy_proxy(None) is None
             True
-            >>> TargetMode.from_legacy_proxy(TargetMode.NOTIFY)
+            >>> TargetMode._from_legacy_proxy(TargetMode.NOTIFY)
             <TargetMode.NOTIFY: 'notify'>
 
         """
@@ -168,7 +168,7 @@ class TargetMode(Enum):
         return target
 
     @classmethod
-    def validate(
+    def _validate(
         cls,
         mode: "TargetMode",
         source_name: str,
@@ -197,13 +197,13 @@ class TargetMode(Enum):
             ``True`` if any misconfiguration was detected, ``False`` if the configuration is valid.
 
         Examples:
-            >>> TargetMode.validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None, stacklevel=None)
+            >>> TargetMode._validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None, stacklevel=None)
             True
-            >>> TargetMode.validate(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"}, stacklevel=None)
+            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"}, stacklevel=None)
             True
-            >>> TargetMode.validate(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1}, stacklevel=None)
+            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1}, stacklevel=None)
             True
-            >>> TargetMode.validate(TargetMode.NOTIFY, "my_func", stacklevel=None)
+            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", stacklevel=None)
             False
 
         """
