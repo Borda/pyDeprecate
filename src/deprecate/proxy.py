@@ -253,15 +253,12 @@ class _DeprecatedProxy:
         return {args_mapping.get(k, k): v for k, v in kwargs.items() if k not in args_to_drop}
 
     def _merge_args_extra(self, kwargs: dict) -> dict:
-        """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; user-supplied values win."""
+        """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; extra values win."""
         args_extra = self._cfg.args_extra
         if not args_extra:
             return kwargs
-        # Caller-provided values take precedence over extras (mirror decorator semantics:
-        # decorator overwrites kwargs with extras, but proxy preserves user intent — kwargs win).
-        # Spec for Fix 3 says: "user-supplied values win over extras".
-        merged = dict(args_extra)
-        merged.update(kwargs)
+        merged = dict(kwargs)
+        merged.update(args_extra)
         return merged
 
     @staticmethod
