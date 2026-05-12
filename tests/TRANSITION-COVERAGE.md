@@ -99,23 +99,23 @@ ______________________________________________________________________
 
 ## `tests/collection_misconfigured.py`
 
-| Wrapper                                     | `target=`               | Modern | Legacy | Notes                                                       |
-| ------------------------------------------- | ----------------------- | :----: | :----: | ----------------------------------------------------------- |
-| `invalid_args_deprecation`                  | `TargetMode.ARGS_REMAP` |   ✓    |        | Nonexistent key in `args_mapping`                           |
-| `empty_mapping_deprecation`                 | `TargetMode.ARGS_REMAP` |   ✓    |        | `args_mapping={}` — no-op                                   |
-| `none_mapping_deprecation`                  | `TargetMode.ARGS_REMAP` |   ✓    |        | `args_mapping=None` — no-op                                 |
-| `identity_mapping_deprecation`              | `TargetMode.ARGS_REMAP` |   ✓    |        | Single identity mapping                                     |
-| `all_identity_mapping_deprecation`          | `TargetMode.ARGS_REMAP` |   ✓    |        | All-identity mapping                                        |
-| `partial_identity_mapping_deprecation`      | `TargetMode.ARGS_REMAP` |   ✓    |        | Mixed identity + valid mapping                              |
-| `self_referencing_deprecation`              | callable (patched)      |   ✓    |        | Wrapper targeting itself                                    |
-| `target_false_deprecation`                  | `target=False`          |        |   ✓    | Invalid sentinel; audit flags as misconfigured              |
-| `whole_with_mapping_deprecation`            | `TargetMode.NOTIFY`     |   ✓    |        | NOTIFY + `args_mapping` ignored                             |
-| `args_only_no_mapping_deprecation`          | `TargetMode.ARGS_REMAP` |   ✓    |        | ARGS_REMAP without `args_mapping`                           |
-| `whole_clean_deprecation`                   | `TargetMode.NOTIFY`     |   ✓    |        | Correctly configured NOTIFY                                 |
-| `args_only_clean_deprecation`               | `TargetMode.ARGS_REMAP` |   ✓    |        | Correctly configured ARGS_REMAP                             |
-| `make_class_target_none_with_args_mapping`  | `target=None`           |        |   ✓    | `target=None` normalised to NOTIFY; `args_mapping` stripped |
-| `make_class_target_false`                   | `target=False`          |        |   ✓    | `target=False` invalid; surfaces as misconfig               |
-| `make_class_target_false_with_args_mapping` | `target=False`          |        |   ✓    | `target=False` + `args_mapping`; both flagged as misconfig  |
+| Wrapper                                     | `target=`               | Notes                                                       |
+| ------------------------------------------- | ----------------------- | ----------------------------------------------------------- |
+| `invalid_args_deprecation`                  | `TargetMode.ARGS_REMAP` | Nonexistent key in `args_mapping`                           |
+| `empty_mapping_deprecation`                 | `TargetMode.ARGS_REMAP` | `args_mapping={}` — no-op                                   |
+| `none_mapping_deprecation`                  | `TargetMode.ARGS_REMAP` | `args_mapping=None` — no-op                                 |
+| `identity_mapping_deprecation`              | `TargetMode.ARGS_REMAP` | Single identity mapping                                     |
+| `all_identity_mapping_deprecation`          | `TargetMode.ARGS_REMAP` | All-identity mapping                                        |
+| `partial_identity_mapping_deprecation`      | `TargetMode.ARGS_REMAP` | Mixed identity + valid mapping                              |
+| `self_referencing_deprecation`              | callable (patched)      | Wrapper targeting itself                                    |
+| `target_false_deprecation`                  | `target=False`          | Invalid sentinel; audit flags as misconfigured              |
+| `whole_with_mapping_deprecation`            | `TargetMode.NOTIFY`     | NOTIFY + `args_mapping` ignored                             |
+| `args_only_no_mapping_deprecation`          | `TargetMode.ARGS_REMAP` | ARGS_REMAP without `args_mapping`                           |
+| `whole_clean_deprecation`                   | `TargetMode.NOTIFY`     | Correctly configured NOTIFY                                 |
+| `args_only_clean_deprecation`               | `TargetMode.ARGS_REMAP` | Correctly configured ARGS_REMAP                             |
+| `make_class_target_none_with_args_mapping`  | `target=None`           | `target=None` normalised to NOTIFY; `args_mapping` stripped |
+| `make_class_target_false`                   | `target=False`          | `target=False` invalid; surfaces as misconfig               |
+| `make_class_target_false_with_args_mapping` | `target=False`          | `target=False` + `args_mapping`; both flagged as misconfig  |
 
 ______________________________________________________________________
 
