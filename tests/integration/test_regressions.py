@@ -18,11 +18,14 @@ Three-layer rule: the deprecated wrappers and target callables live in
 """
 
 import warnings
+from typing import Callable, cast
 
 import pytest
 
 from deprecate import TargetMode
+from deprecate._types import _DeprecatedCallable
 from deprecate.audit import validate_deprecation_wrapper
+from tests.collection_depr_legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
 from tests.collection_deprecate import fn_old_default, fn_remap_with_extra
 from tests.collection_misconfigured import (
     make_class_target_false,
@@ -59,18 +62,40 @@ class TestFix1StaleSourceDefault:
 class TestFix2ArgsExtraOnArgsRemap:
     """Fix 2 — ``args_extra`` must be injected on ARGS_REMAP regardless of caller arg name."""
 
-    def test_old_name_merges_args_extra(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _reset_deprecation_state(self) -> None:
+        """Reset warning state before each test."""
+        for func in (fn_remap_with_extra, legacy_fn_remap_with_extra):
+            state = cast(_DeprecatedCallable, func)._state
+            state.warned_calls = 0
+            state.warned_args.clear()
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(fn_remap_with_extra, id="modern"),
+            pytest.param(legacy_fn_remap_with_extra, id="legacy"),
+        ],
+    )
+    def test_old_name_merges_args_extra(self, func: Callable[..., int]) -> None:
         """Caller using the deprecated name receives ``args_extra``."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            result = fn_remap_with_extra(old_arg=5)
+            result = func(old_arg=5)
         assert result == 105
 
-    def test_new_name_merges_args_extra(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(fn_remap_with_extra, id="modern"),
+            pytest.param(legacy_fn_remap_with_extra, id="legacy"),
+        ],
+    )
+    def test_new_name_merges_args_extra(self, func: Callable[..., int]) -> None:
         """Caller using the new name still receives ``args_extra`` (regression case)."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            result = fn_remap_with_extra(new_arg=5)
+            result = func(new_arg=5)
         assert result == 105
 
 

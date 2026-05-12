@@ -97,6 +97,19 @@ ini_options.addopts = [
   "--disable-pytest-warnings",
 ]
 # filterwarnings = ["error::FutureWarning"]
+# Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`
+# and the construction-time misconfig warnings from `TargetMode.validate()` so that legacy
+# test fixtures can be imported at module load without polluting test output.  Patterns are
+# scoped by message regex AND originating module (`deprecate._types`) so that warnings of
+# the same class from any other source still surface.
+ini_options.filterwarnings = [
+  "ignore:target=None is deprecated since v0\\.8.*:FutureWarning:deprecate._types",
+  "ignore:target=True is deprecated since v0\\.8.*:FutureWarning:deprecate._types",
+  "ignore:'target=False' is not a valid deprecation mode.*:UserWarning:deprecate._types",
+  "ignore:.*requires `args_mapping` to specify which arguments are being renamed.*:UserWarning:deprecate._types",
+  "ignore:.*ignores `args_mapping`\\..*:UserWarning:deprecate._types",
+  "ignore:.*ignores `args_extra`\\..*:UserWarning:deprecate._types",
+]
 ini_options.xfail_strict = true
 ini_options.junit_duration_report = "call"
 

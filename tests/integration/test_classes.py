@@ -8,6 +8,8 @@ import pytest
 from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
+from tests.collection_depr_legacy import ServiceCls as LegacyServiceCls
+from tests.collection_depr_legacy import ThisCls as LegacyThisCls
 from tests.collection_deprecate import (
     DecoratedDataClass,
     DecoratedEnum,
@@ -33,6 +35,19 @@ from tests.collection_deprecate import (
 )
 from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
 
+# Parametrize cases for ServiceCls method tests that exist on BOTH the modern (TargetMode.NOTIFY /
+# TargetMode.ARGS_REMAP) and legacy (target=None / target=True) ServiceCls fixtures.
+_SERVICE_CLS_CASES = [
+    pytest.param(ServiceCls, id="modern"),
+    pytest.param(LegacyServiceCls, id="legacy"),
+]
+
+# Parametrize cases for ThisCls self-deprecation tests across modern and legacy variants.
+_THIS_CLS_CASES = [
+    pytest.param(ThisCls, id="modern"),
+    pytest.param(LegacyThisCls, id="legacy"),
+]
+
 # Parametrize cases: (proxy, expected_name) for each form of deprecated_class()
 _ENUM_CASES = [
     pytest.param(WrappedEnum, "_OriginalEnum", id="wrapper-form"),
@@ -52,6 +67,14 @@ class TestDeprecatedClass:
         """Reset deprecation state for PastCls and PastClsMapped __init__."""
         cast(_DeprecatedCallable, PastCls.__init__)._state.warned_calls = 0
         cast(_DeprecatedCallable, PastClsMapped.__init__)._state.warned_calls = 0
+
+    @pytest.fixture(autouse=True)
+    def _reset_this_cls_state(self) -> None:
+        """Reset warning state before each test."""
+        for cls in (ThisCls, LegacyThisCls):
+            state = cast(_DeprecatedCallable, cls.__init__)._state
+            state.warned_calls = 0
+            state.warned_args.clear()
 
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
@@ -88,23 +111,25 @@ class TestDeprecatedClass:
         assert isinstance(past, NewCls)
         assert isinstance(past, PastClsMapped)
 
-    def test_class_self_new_args(self) -> None:
+    @pytest.mark.parametrize("cls", _THIS_CLS_CASES)
+    def test_class_self_new_args(self, cls: type) -> None:
         """Test deprecated class with self-referencing __init__, using new arguments."""
         with assert_no_warnings():
-            this = ThisCls(nc=1)
+            this = cls(nc=1)
         assert this.my_c == 1
-        assert isinstance(this, ThisCls)
+        assert isinstance(this, cls)
 
-    def test_class_self_deprecated_args(self) -> None:
+    @pytest.mark.parametrize("cls", _THIS_CLS_CASES)
+    def test_class_self_deprecated_args(self, cls: type) -> None:
         """Test deprecated class with self-referencing __init__, using deprecated arguments."""
         with pytest.warns(
             DeprecationWarning,
-            match="The `ThisCls` uses deprecated arguments: `c` -> `nc`."
+            match=rf"The `{cls.__name__}` uses deprecated arguments: `c` -> `nc`."
             " They were deprecated since v0.3 and will be removed in v0.5.",
         ):
-            this = ThisCls(2)
+            this = cls(2)
         assert this.my_c == 2
-        assert isinstance(this, ThisCls)
+        assert isinstance(this, cls)
 
 
 class TestDeprecatedEnums:
@@ -201,21 +226,25 @@ class TestDeprecatedClassMethod:
             ServiceCls.old_redirect_method,
             ServiceCls.old_mapped_method,
             ServiceCls.self_renamed_method,
+            LegacyServiceCls.old_warn_method,
+            LegacyServiceCls.self_renamed_method,
         ):
             state = cast(_DeprecatedCallable, method)._state
             state.called = 0
             state.warned_calls = 0
 
-    def test_warn_only_method_emits_warning(self) -> None:
+    @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
+    def test_warn_only_method_emits_warning(self, service_cls: type) -> None:
         """@deprecated(target=None) on a method emits FutureWarning."""
-        svc = ServiceCls()
+        svc = service_cls()
         with pytest.warns(FutureWarning, match="old_warn_method"):
             result = svc.old_warn_method(5)
         assert result == 10
 
-    def test_warn_only_method_body_executes(self) -> None:
+    @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
+    def test_warn_only_method_body_executes(self, service_cls: type) -> None:
         """With target=None the method body still runs and returns its result."""
-        svc = ServiceCls()
+        svc = service_cls()
         with pytest.warns(FutureWarning):
             assert svc.old_warn_method(3) == 6
 
@@ -233,9 +262,10 @@ class TestDeprecatedClassMethod:
             redirected = svc.old_redirect_method(4)
         assert redirected == svc.compute(4)
 
-    def test_warn_only_warning_content(self) -> None:
+    @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
+    def test_warn_only_warning_content(self, service_cls: type) -> None:
         """FutureWarning message contains source name, version info, and removal hint."""
-        svc = ServiceCls()
+        svc = service_cls()
         with pytest.warns(FutureWarning, match="deprecated since v1.0.*removed in v2.0"):
             svc.old_warn_method(1)
 
@@ -259,16 +289,18 @@ class TestDeprecatedClassMethod:
             result = svc.old_mapped_method(5)
         assert result == 10
 
-    def test_self_rename_with_deprecated_arg_warns(self) -> None:
+    @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
+    def test_self_rename_with_deprecated_arg_warns(self, service_cls: type) -> None:
         """target=True with args_mapping renames old_x->x within the same method."""
-        svc = ServiceCls()
+        svc = service_cls()
         with pytest.warns(FutureWarning, match="self_renamed_method.*old_x.*x"):
             result = svc.self_renamed_method(old_x=5)
         assert result == 10
 
-    def test_self_rename_with_new_arg_no_warning(self) -> None:
+    @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
+    def test_self_rename_with_new_arg_no_warning(self, service_cls: type) -> None:
         """Calling with the new arg name (x) does not trigger a deprecation warning."""
-        svc = ServiceCls()
+        svc = service_cls()
         with assert_no_warnings():
             result = svc.self_renamed_method(x=3)
         assert result == 6

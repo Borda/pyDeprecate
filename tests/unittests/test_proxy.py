@@ -698,8 +698,8 @@ class TestArgsExtra:
             warnings.simplefilter("ignore", UserWarning)
             proxy = deprecated_class(
                 target=TargetWithInjected,
-                deprecated_in="0.9",
-                remove_in="1.0",
+                deprecated_in="1.2",
+                remove_in="2.0",
                 args_mapping={"old_key": "new_key"},
                 args_extra={"injected": "extra"},
                 num_warns=-1,
@@ -715,8 +715,8 @@ class TestArgsExtra:
         proxy = deprecated_instance(
             TargetWithInjected,
             name="LegacyTarget",
-            deprecated_in="0.9",
-            remove_in="1.0",
+            deprecated_in="1.2",
+            remove_in="2.0",
             args_extra={"injected": "via-instance"},
             stream=None,
         )
@@ -950,8 +950,8 @@ class TestProxyArgsMappingBehavior:
         proxy = _DeprecatedProxy(
             obj=SomeTargetClass,
             name="SomeTargetClass",
-            deprecated_in="0.9",
-            remove_in="1.0",
+            deprecated_in="1.2",
+            remove_in="2.0",
             num_warns=-1,
             target=SomeTargetClass,
             args_mapping={"old_key": "new_key"},
@@ -963,8 +963,8 @@ class TestProxyArgsMappingBehavior:
         """NOTIFY + args_mapping on proxy emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match="args_mapping"):
             deprecated_class(
-                deprecated_in="0.9",
-                remove_in="1.0",
+                deprecated_in="1.2",
+                remove_in="2.0",
                 target=TargetMode.NOTIFY,
                 args_mapping={"old_key": "new_key"},
             )(ProxyNotifyWithArgsMapping.__class__)
@@ -973,8 +973,8 @@ class TestProxyArgsMappingBehavior:
         """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match="args_mapping"):
             deprecated_class(
-                deprecated_in="0.9",
-                remove_in="1.0",
+                deprecated_in="1.2",
+                remove_in="2.0",
                 target=TargetMode.ARGS_REMAP,
             )(ProxyArgsRemapNoMapping.__class__)
 

@@ -672,7 +672,7 @@ class TestNormalizeTargetInvalidInputs:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
 
-            @deprecated(target=cast(Any, bad_target), deprecated_in="0.9", remove_in="1.0")
+            @deprecated(target=cast(Any, bad_target), deprecated_in="1.2", remove_in="2.0")
             def fn(x: int) -> int:
                 return x + 1
 

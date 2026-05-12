@@ -166,7 +166,11 @@ class TestMisconfiguredTarget:
         """Audit flags misconfigured_target=True when legacy target=False was passed, even after normalisation."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            fn = proxy_module.make_target_mode_target_false_warns()
+
+            @deprecated(target=False, deprecated_in="1.2", remove_in="2.0")
+            def fn() -> None:
+                return None
+
         result = validate_deprecation_wrapper(fn)
         assert result.misconfigured_target is True
 

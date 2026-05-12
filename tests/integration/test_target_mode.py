@@ -9,11 +9,21 @@ They define the expected behaviour for:
 """
 
 import warnings
+from typing import Callable, cast
 
 import pytest
 
-from deprecate import TargetMode
+from deprecate import TargetMode, deprecated
 from deprecate import TargetMode as top_level_TargetMode
+from deprecate._types import _DeprecatedCallable
+from tests.collection_depr_legacy import (
+    depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs,
+    depr_target_mode_args_only_silent_when_new_arg_passed as legacy_silent_when_new_arg_passed,
+    depr_target_mode_args_only_warns_when_old_arg_passed as legacy_warns_when_old_arg_passed,
+    depr_target_mode_args_only_with_args_extra_injects_kwargs as depr_legacy_args_extra,
+    depr_target_mode_whole_executes_original_body as legacy_executes_original_body,
+    depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call,
+)
 from tests.collection_deprecate import (
     depr_target_mode_args_only_remaps_kwargs,
     depr_target_mode_args_only_silent_when_new_arg_passed,
@@ -21,11 +31,7 @@ from tests.collection_deprecate import (
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
     depr_target_mode_whole_executes_original_body,
     depr_target_mode_whole_warns_on_every_call,
-    make_target_mode_args_only_legacy_args_extra,
     make_target_mode_args_only_without_args_mapping_warns,
-    make_target_mode_target_false_warns,
-    make_target_mode_target_none_sentinel_emits_future_warning,
-    make_target_mode_target_true_sentinel_emits_future_warning,
     make_target_mode_whole_with_args_extra_warns,
     make_target_mode_whole_with_args_mapping_warns,
 )
@@ -49,20 +55,47 @@ class TestTargetModeContract:
 class TestNotifyMode:
     """TargetMode.NOTIFY — warns every call; executes original body."""
 
-    def test_warns_on_every_call(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _reset_deprecation_state(self) -> None:
+        """Reset warning state before each test."""
+        for func in (
+            depr_target_mode_whole_warns_on_every_call,
+            depr_target_mode_whole_executes_original_body,
+            legacy_warns_on_every_call,
+            legacy_executes_original_body,
+        ):
+            state = cast(_DeprecatedCallable, func)._state
+            state.warned_calls = 0
+            state.warned_args.clear()
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_target_mode_whole_warns_on_every_call, id="modern"),
+            pytest.param(legacy_warns_on_every_call, id="legacy"),
+        ],
+    )
+    def test_warns_on_every_call(self, func: Callable[..., int]) -> None:
         """NOTIFY mode emits a FutureWarning on every call up to num_warns."""
         with pytest.warns(FutureWarning):
-            result = depr_target_mode_whole_warns_on_every_call(3)
+            result = func(3)
 
         assert result == 6
 
-    def test_executes_original_body(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_target_mode_whole_executes_original_body, id="modern"),
+            pytest.param(legacy_executes_original_body, id="legacy"),
+        ],
+    )
+    def test_executes_original_body(self, func: Callable[..., int]) -> None:
         """NOTIFY mode executes the original function body unchanged."""
         tracked_identity_calls.clear()
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            result = depr_target_mode_whole_executes_original_body(42)
+            result = func(42)
 
         assert result == 42
         assert tracked_identity_calls == [42]
@@ -101,26 +134,62 @@ class TestNotifyMode:
 class TestArgsRemapMode:
     """TargetMode.ARGS_REMAP — warns only when old arg names passed; remaps kwargs."""
 
-    def test_warns_when_old_arg_passed(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _reset_deprecation_state(self) -> None:
+        """Reset warning state before each test."""
+        for func in (
+            depr_target_mode_args_only_warns_when_old_arg_passed,
+            depr_target_mode_args_only_silent_when_new_arg_passed,
+            depr_target_mode_args_only_remaps_kwargs,
+            legacy_warns_when_old_arg_passed,
+            legacy_silent_when_new_arg_passed,
+            legacy_remaps_kwargs,
+        ):
+            state = cast(_DeprecatedCallable, func)._state
+            state.warned_calls = 0
+            state.warned_args.clear()
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_target_mode_args_only_warns_when_old_arg_passed, id="modern"),
+            pytest.param(legacy_warns_when_old_arg_passed, id="legacy"),
+        ],
+    )
+    def test_warns_when_old_arg_passed(self, func: Callable[..., int]) -> None:
         """ARGS_REMAP emits FutureWarning only when deprecated arg name is used."""
         with pytest.warns(FutureWarning):
-            result = depr_target_mode_args_only_warns_when_old_arg_passed(old_x=5)
+            result = func(old_x=5)
 
         assert result == 6
 
-    def test_silent_when_new_arg_passed(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_target_mode_args_only_silent_when_new_arg_passed, id="modern"),
+            pytest.param(legacy_silent_when_new_arg_passed, id="legacy"),
+        ],
+    )
+    def test_silent_when_new_arg_passed(self, func: Callable[..., int]) -> None:
         """ARGS_REMAP does NOT warn when caller uses the new argument name."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")  # any warning would raise
-            result = depr_target_mode_args_only_silent_when_new_arg_passed(x=5)
+            result = func(x=5)
 
         assert result == 6
 
-    def test_remaps_kwargs(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_target_mode_args_only_remaps_kwargs, id="modern"),
+            pytest.param(legacy_remaps_kwargs, id="legacy"),
+        ],
+    )
+    def test_remaps_kwargs(self, func: Callable[..., float]) -> None:
         """ARGS_REMAP renames old arg to new name before calling the function body."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            result = depr_target_mode_args_only_remaps_kwargs(2.0, coef=3.0)
+            result = func(2.0, coef=3.0)
 
         assert result == 8.0
 
@@ -137,21 +206,34 @@ class TestArgsRemapMode:
         with pytest.warns(UserWarning, match="args_mapping"):
             make_target_mode_args_only_without_args_mapping_warns()
 
-    def test_positional_passthrough(self) -> None:
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_target_mode_args_only_remaps_kwargs, id="modern"),
+            pytest.param(legacy_remaps_kwargs, id="legacy"),
+        ],
+    )
+    def test_positional_passthrough(self, func: Callable[..., float]) -> None:
         """ARGS_REMAP with all-positional args bypasses mapping and emits no warning."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            result = depr_target_mode_args_only_remaps_kwargs(2.0, 3.0)
+            result = func(2.0, 3.0)
         assert result == 8.0
 
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_target_mode_args_only_with_args_extra_injects_kwargs, id="modern"),
+            pytest.param(depr_legacy_args_extra, id="legacy"),
+        ],
+    )
     @pytest.mark.parametrize(("old_x", "expected"), [(5, 15), (0, 10), (-3, 7)])
-    def test_args_extra_equivalence_with_legacy(self, old_x: int, expected: int) -> None:
+    def test_args_extra_equivalence_with_legacy(self, func: Callable[..., int], old_x: int, expected: int) -> None:
         """args_extra injects kwargs identically for TargetMode.ARGS_REMAP and legacy target=True."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            enum_result = depr_target_mode_args_only_with_args_extra_injects_kwargs(old_x=old_x)
-            legacy_result = make_target_mode_args_only_legacy_args_extra()(old_x=old_x)  # type: ignore[call-arg]
-        assert enum_result == legacy_result == expected
+            result = func(old_x=old_x)
+        assert result == expected
 
 
 class TestLegacySentinels:
@@ -160,35 +242,56 @@ class TestLegacySentinels:
     def test_none_emits_future_warning(self) -> None:
         """target=None triggers FutureWarning at decoration time; use TargetMode.NOTIFY."""
         with pytest.warns(FutureWarning, match="TargetMode\\.NOTIFY"):
-            make_target_mode_target_none_sentinel_emits_future_warning()
+
+            @deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
+            def _fn(x: int) -> int:
+                return x
 
     def test_true_emits_future_warning(self) -> None:
         """target=True triggers FutureWarning at decoration time; use TargetMode.ARGS_REMAP."""
         with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP"):
-            make_target_mode_target_true_sentinel_emits_future_warning()
+
+            @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"})
+            def _fn(x: int) -> int:
+                return x
 
     def test_false_emits_user_warning(self) -> None:
         """target=False is not valid — should warn at decoration time."""
         with pytest.warns(UserWarning, match="target=False' is not a valid deprecation mode"):
-            make_target_mode_target_false_warns()
+
+            @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
+            def _fn(x: int) -> int:
+                return x
 
     def test_false_stores_notify_enum_in_deprecated_config(self) -> None:
         """target=False is normalised to TargetMode.NOTIFY in __deprecated__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            fn = make_target_mode_target_false_warns()
-        assert fn.__deprecated__.target is TargetMode.NOTIFY  # type: ignore[attr-defined]
+
+            @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
+            def _fn(x: int) -> int:
+                return x
+
+        assert _fn.__deprecated__.target is TargetMode.NOTIFY  # type: ignore[attr-defined]
 
     def test_true_stores_args_remap_enum_in_deprecated_config(self) -> None:
         """target=True is normalised to TargetMode.ARGS_REMAP in __deprecated__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            fn = make_target_mode_target_true_sentinel_emits_future_warning()
-        assert fn.__deprecated__.target is TargetMode.ARGS_REMAP  # type: ignore[attr-defined]
+
+            @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"})
+            def _fn(x: int) -> int:
+                return x
+
+        assert _fn.__deprecated__.target is TargetMode.ARGS_REMAP  # type: ignore[attr-defined]
 
     def test_none_stores_notify_enum_in_deprecated_config(self) -> None:
         """target=None is normalised to TargetMode.NOTIFY in __deprecated__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            fn = make_target_mode_target_none_sentinel_emits_future_warning()
-        assert fn.__deprecated__.target is TargetMode.NOTIFY  # type: ignore[attr-defined]
+
+            @deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
+            def _fn(x: int) -> int:
+                return x
+
+        assert _fn.__deprecated__.target is TargetMode.NOTIFY  # type: ignore[attr-defined]
