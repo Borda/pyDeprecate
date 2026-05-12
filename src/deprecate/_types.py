@@ -175,7 +175,7 @@ class TargetMode(Enum):
         args_mapping: Optional[dict] = None,
         args_extra: Optional[dict] = None,
         *,
-        stacklevel: int = 2,
+        stacklevel: Optional[int] = 2,
     ) -> bool:
         """Validate a :class:`TargetMode` against the supplied configuration and emit misconfig warnings.
 
