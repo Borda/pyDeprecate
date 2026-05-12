@@ -552,6 +552,25 @@ class TestDecoratorFactory:
         obj = OldClass()
         assert obj.method() == "ok"
 
+    def test_true_with_args_mapping_resolves_to_args_remap(self) -> None:
+        """target=True + non-empty args_mapping resolves to ARGS_REMAP with FutureWarning."""
+        with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP") as caught:
+
+            @deprecated_class(
+                target=True,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                args_mapping={"old_attr": "new_attr"},
+                stream=None,
+            )
+            class OldClass:
+                def method(self) -> str:
+                    return "ok"
+
+        assert len(caught) == 1
+        dep = object.__getattribute__(OldClass, "__deprecated__")
+        assert dep.target is TargetMode.ARGS_REMAP
+
 
 class TestDecoratorEnum:
     """@deprecated_class applied to Enum classes."""

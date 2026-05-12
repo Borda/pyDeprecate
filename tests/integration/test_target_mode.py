@@ -310,3 +310,84 @@ class TestLegacySentinels:
                 return x
 
         assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.NOTIFY
+
+
+class TestFromLegacyErrors:
+    """TargetMode._from_legacy TypeError for non-sentinel inputs."""
+
+    @pytest.mark.parametrize(
+        "bad_value",
+        [
+            pytest.param(42, id="int"),
+            pytest.param("notify", id="str"),
+            pytest.param(object(), id="object"),
+            pytest.param(TargetMode.NOTIFY, id="TargetMode_member"),
+        ],
+    )
+    def test_raises_type_error_for_non_sentinel(self, bad_value: object) -> None:
+        """_from_legacy raises TypeError for any value that is not None, True, or False."""
+        with pytest.raises(TypeError, match="_from_legacy` accepts only None, True, or False"):
+            TargetMode._from_legacy(bad_value, stacklevel=None)
+
+
+class TestTargetModeValidate:
+    """TargetMode._validate — direct unit tests for all misconfig combinations."""
+
+    def test_args_remap_without_mapping_returns_true(self) -> None:
+        """ARGS_REMAP with no args_mapping is misconfigured; returns True."""
+        assert TargetMode._validate(TargetMode.ARGS_REMAP, "fn", args_mapping=None, stacklevel=None) is True
+
+    def test_notify_with_args_mapping_returns_true(self) -> None:
+        """NOTIFY with args_mapping is misconfigured; returns True."""
+        assert TargetMode._validate(TargetMode.NOTIFY, "fn", args_mapping={"old": "new"}, stacklevel=None) is True
+
+    def test_notify_with_args_extra_returns_true(self) -> None:
+        """NOTIFY with args_extra is misconfigured; returns True."""
+        assert TargetMode._validate(TargetMode.NOTIFY, "fn", args_extra={"bias": 1}, stacklevel=None) is True
+
+    def test_valid_notify_returns_false(self) -> None:
+        """NOTIFY with no extra kwargs is valid; returns False."""
+        assert TargetMode._validate(TargetMode.NOTIFY, "fn", stacklevel=None) is False
+
+    def test_valid_args_remap_returns_false(self) -> None:
+        """ARGS_REMAP with args_mapping is valid; returns False."""
+        assert TargetMode._validate(TargetMode.ARGS_REMAP, "fn", args_mapping={"old": "new"}, stacklevel=None) is False
+
+    def test_misconfig_emits_user_warning(self) -> None:
+        """_validate emits UserWarning when misconfigured (stacklevel != None)."""
+        with pytest.warns(UserWarning, match="args_mapping"):
+            TargetMode._validate(TargetMode.NOTIFY, "my_fn", args_mapping={"old": "new"}, stacklevel=2)
+
+    def test_valid_emits_no_warning(self) -> None:
+        """_validate does not emit any warning when configuration is valid."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            TargetMode._validate(TargetMode.NOTIFY, "my_fn", stacklevel=2)
+
+
+class TestNotifyLegacyMessageParity:
+    """NOTIFY mode: modern TargetMode.NOTIFY and legacy target=None emit identical call-time warnings."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_state(self) -> None:
+        """Reset warned_calls before each test."""
+        for func in (
+            depr_target_mode_whole_warns_on_every_call,
+            legacy_warns_on_every_call,
+        ):
+            state = cast(_DeprecatedCallable, func)._state
+            state.warned_calls = 0
+            state.warned_args.clear()
+
+    def test_modern_and_legacy_emit_identical_warning_text(self) -> None:
+        """TargetMode.NOTIFY and target=None produce the same FutureWarning text at call time."""
+        with warnings.catch_warnings(record=True) as modern_caught:
+            warnings.simplefilter("always", FutureWarning)
+            depr_target_mode_whole_warns_on_every_call(1)
+        with warnings.catch_warnings(record=True) as legacy_caught:
+            warnings.simplefilter("always", FutureWarning)
+            legacy_warns_on_every_call(1)
+
+        modern_msgs = [str(w.message) for w in modern_caught if issubclass(w.category, FutureWarning)]
+        legacy_msgs = [str(w.message) for w in legacy_caught if issubclass(w.category, FutureWarning)]
+        assert modern_msgs == legacy_msgs
