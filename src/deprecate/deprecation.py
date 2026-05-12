@@ -581,11 +581,7 @@ def deprecated(
             forward_args_extra = args_extra
             if forward_target is TargetMode.NOTIFY:
                 TargetMode.validate(
-                    forward_target,
-                    source.__name__,
-                    args_mapping=args_mapping,
-                    args_extra=args_extra,
-                    stacklevel=2,
+                    forward_target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=2
                 )
                 forward_args_mapping = None
                 forward_args_extra = None
@@ -621,11 +617,7 @@ def deprecated(
         # re-running the guard here would report the wrong migration path.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             TargetMode.validate(
-                _target,
-                source.__name__,
-                args_mapping=args_mapping,
-                args_extra=args_extra,
-                stacklevel=2,
+                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=2
             )
 
         source_has_var_positional = any(
