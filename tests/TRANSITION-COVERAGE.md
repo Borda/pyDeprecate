@@ -57,19 +57,19 @@ All modern — no legacy sentinels.
 
 ### Class / instance deprecation (`deprecated_class`, `deprecated_instance`)
 
-| Wrapper                                                                                  | API                                              | Notes                           |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------- |
-| `{Decorated/Wrapped}Enum`                                                                | `deprecated_class(target=NewEnum)`               | Enum form-equivalence pair      |
-| `DeprecatedEnum` / `DeprecatedIntEnum`                                                   | `deprecated_class` (no target)                   | Warn-only enum                  |
-| `RedirectedEnum` / `MappedEnum` / `MappedIntEnum` / `MappedValueEnum` / `SelfMappedEnum` | `deprecated_class(target=...)`                   | Enum variants                   |
-| `{Decorated/Wrapped}DataClass`                                                           | `deprecated_class(target=NewDataClass)`          | Dataclass form-equivalence pair |
-| `DeprecatedDataClass` / `RedirectedDataClass`                                            | `deprecated_class`                               | Dataclass variants              |
-| `DeprecatedColorEnum` / `WarnOnlyColorEnum` / `MappedColorEnum`                          | `deprecated_class`                               | Color enum variants             |
-| `MappedDataClass` / `MappedDropArgDataClass` / `DeprecatedColorDataClass`                | `deprecated_class(target=...)`                   | Dataclass with mapping          |
-| `ProxyNotifyWithArgsMapping` / `ProxyArgsRemapNoMapping` / `ProxyArgsRemapAuto`          | `deprecated_class` misconfig                     | Proxy misconfiguration          |
-| `ProxyCallableWithArgsMapping` / `ProxyClassWithArgsExtra` / `ChainedProxyColorEnum`     | `deprecated_class(target=...)`                   | Proxy edge cases                |
-| `ProxyArgsRemapForArgWarnMessage`                                                        | `deprecated_class(target=TargetMode.ARGS_REMAP)` | Per-arg warning via proxy       |
-| `depr_config_dict` / `depr_config_dict_read_only`                                        | `deprecated_instance(...)`                       | Instance deprecation            |
+| Wrapper                                                                                  | API                                              | Notes                            |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------- |
+| `{Decorated/Wrapped}Enum`                                                                | `deprecated_class(target=NewEnum)`               | Enum form-equivalence pair       |
+| `DeprecatedEnum` / `DeprecatedIntEnum`                                                   | `deprecated_class` (no target)                   | Warn-only enum                   |
+| `RedirectedEnum` / `MappedEnum` / `MappedIntEnum` / `MappedValueEnum` / `SelfMappedEnum` | `deprecated_class(target=...)`                   | Enum variants                    |
+| `{Decorated/Wrapped}DataClass`                                                           | `deprecated_class(target=NewDataClass)`          | Dataclass form-equivalence pair  |
+| `DeprecatedDataClass` / `RedirectedDataClass`                                            | `deprecated_class`                               | Dataclass variants               |
+| `DeprecatedColorEnum` / `WarnOnlyColorEnum` / `MappedColorEnum`                          | `deprecated_class`                               | Color enum variants              |
+| `MappedDataClass` / `MappedDropArgDataClass` / `DeprecatedColorDataClass`                | `deprecated_class(target=...)`                   | Dataclass with mapping           |
+| `ProxyArgsRemapAuto`                                                                     | `deprecated_class`                               | Auto-promotes via `args_mapping` |
+| `ProxyCallableWithArgsMapping` / `ProxyClassWithArgsExtra` / `ChainedProxyColorEnum`     | `deprecated_class(target=...)`                   | Proxy edge cases                 |
+| `ProxyArgsRemapForArgWarnMessage`                                                        | `deprecated_class(target=TargetMode.ARGS_REMAP)` | Per-arg warning via proxy        |
+| `depr_config_dict` / `depr_config_dict_read_only`                                        | `deprecated_instance(...)`                       | Instance deprecation             |
 
 ______________________________________________________________________
 

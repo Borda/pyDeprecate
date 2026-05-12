@@ -38,7 +38,6 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 - DecoratedDataClass: decorator-form dataclass equivalent of WrappedDataClass
 """
 
-import warnings
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -1041,25 +1040,6 @@ class MappedDropArgDataClass:
 
 # ========== Proxy args_mapping behaviour fixtures ==========
 
-
-# Proxy: NOTIFY + args_mapping (misconfig — UserWarning at decoration time)
-with warnings.catch_warnings():
-    warnings.simplefilter("always")
-    ProxyNotifyWithArgsMapping = deprecated_class(
-        deprecated_in="1.2",
-        remove_in="2.0",
-        target=TargetMode.NOTIFY,
-        args_mapping={"old_key": "new_key"},
-    )(SomeTargetClass)
-
-# Proxy: ARGS_REMAP + no args_mapping (misconfig — UserWarning at decoration time)
-with warnings.catch_warnings():
-    warnings.simplefilter("always")
-    ProxyArgsRemapNoMapping = deprecated_class(
-        deprecated_in="1.2",
-        remove_in="2.0",
-        target=TargetMode.ARGS_REMAP,
-    )(SomeTargetClass)
 
 # Proxy: auto ARGS_REMAP via args_mapping only (no explicit target)
 ProxyArgsRemapAuto = deprecated_class(

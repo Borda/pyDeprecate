@@ -134,6 +134,52 @@ tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
 
 </details>
 
+### Scanning a misconfigured collection
+
+`tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references,
+and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
+
+```python
+from deprecate import find_deprecation_wrappers
+
+# For testing purposes, we use the misconfigured test module; normally you would import your own package
+from tests import collection_misconfigured as my_package
+
+results = find_deprecation_wrappers(my_package, recursive=False)
+
+invalid_args = [r for r in results if r.invalid_args]
+empty_mappings = [r for r in results if r.empty_mapping]
+identity_mappings = [r for r in results if r.identity_mapping]
+self_refs = [r for r in results if r.self_reference]
+misconfigured_targets = [r for r in results if r.misconfigured_target]
+no_effect = [r for r in results if r.no_effect]
+
+print("=== Misconfiguration Report ===")
+print(f"Wrappers scanned: {len(results)}")
+print(f"Invalid arguments: {len(invalid_args)}")
+print(f"Empty mappings: {len(empty_mappings)}")
+print(f"Identity mappings: {len(identity_mappings)}")
+print(f"Self-references: {len(self_refs)}")
+print(f"Misconfigured targets: {len(misconfigured_targets)}")
+print(f"No effect: {len(no_effect)}")
+```
+
+<details>
+  <summary>Output: <code>print(f"No effect: {len(no_effect)}")</code></summary>
+
+```
+=== Misconfiguration Report ===
+Wrappers scanned: 13
+Invalid arguments: 3
+Empty mappings: 5
+Identity mappings: 3
+Self-references: 2
+Misconfigured targets: 5
+No effect: 7
+```
+
+</details>
+
 Group results by issue type for structured reports — separate hard errors (invalid argument names) from advisory notes (identity mappings):
 
 ```python

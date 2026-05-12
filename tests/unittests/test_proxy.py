@@ -17,10 +17,8 @@ from tests.collection_deprecate import (
     MappedDropArgDataClass,
     ProxyArgsRemapAuto,
     ProxyArgsRemapForArgWarnMessage,
-    ProxyArgsRemapNoMapping,
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
-    ProxyNotifyWithArgsMapping,
     WarnOnlyColorEnum,
 )
 from tests.collection_targets import NewDataClass, TargetColorEnum, TargetWithInjected
@@ -962,21 +960,27 @@ class TestProxyArgsMappingBehavior:
     def test_notify_with_args_mapping_emits_misconfig_warning(self) -> None:
         """NOTIFY + args_mapping on proxy emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match="args_mapping"):
-            deprecated_class(
+
+            @deprecated_class(
                 deprecated_in="1.2",
                 remove_in="2.0",
                 target=TargetMode.NOTIFY,
                 args_mapping={"old_key": "new_key"},
-            )(ProxyNotifyWithArgsMapping.__class__)
+            )
+            class _ProxyNotifyWithArgsMapping:
+                pass
 
     def test_args_remap_no_mapping_emits_misconfig_warning(self) -> None:
         """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match="args_mapping"):
-            deprecated_class(
+
+            @deprecated_class(
                 deprecated_in="1.2",
                 remove_in="2.0",
                 target=TargetMode.ARGS_REMAP,
-            )(ProxyArgsRemapNoMapping.__class__)
+            )
+            class _ProxyArgsRemapNoMapping:
+                pass
 
     def test_num_warns_respected_per_arg(self) -> None:
         """Per-argument warn budget: second call with same old arg does not warn."""
