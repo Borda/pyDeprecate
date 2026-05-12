@@ -32,11 +32,11 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 `validate_deprecation_wrapper()` extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.
 
 ```python
-from deprecate import validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
+from deprecate import TargetMode, validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
 
 
 # Define your deprecated function
-@deprecated(target=True, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
@@ -56,7 +56,7 @@ result = validate_deprecation_wrapper(my_func)
 
 
 # Example: Function with invalid args_mapping
-@deprecated(target=True, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
 def bad_func(real_arg: int = 0) -> int:
     return real_arg
 
@@ -67,7 +67,7 @@ print(result)
 
 
 # Example: Function with empty mapping (no effect)
-@deprecated(target=True, args_mapping={}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={}, deprecated_in="1.0")
 def empty_func(arg: int = 0) -> int:
     return arg
 

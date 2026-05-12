@@ -114,17 +114,17 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 ## Notice-only deprecation
 
-!!! note "The function body still executes with `target=None`"
+!!! note "The function body still executes with `TargetMode.NOTIFY`"
 
-    Unlike `target=<callable>` (where the body is dead code), `target=None` runs the original function body after emitting the deprecation notice. You must keep a working implementation in the function body.
+    Unlike `target=<callable>` (where the body is dead code), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You must keep a working implementation in the function body.
 
-Use `target=None` when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
+Use `TargetMode.NOTIFY` when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b
@@ -146,15 +146,15 @@ print(my_sum(1, 2))
 
 ## Self argument mapping
 
-Use `target=True` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.
+Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 @deprecated(
     # define as deprecation some self argument - mapping
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"coef": "new_coef"},
     # common version info
     deprecated_in="0.2",
@@ -183,12 +183,12 @@ print(any_pow(2, 3))
 To drop an argument entirely, map it to `None`. The decorator emits a deprecation notice when the argument is passed and then discards it.
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 from typing import Optional
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"legacy_param": None},
     deprecated_in="1.8",
     remove_in="1.9",
