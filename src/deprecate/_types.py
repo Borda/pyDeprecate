@@ -1,8 +1,7 @@
 """Shared type definitions for pyDeprecate.
 
-This module provides typed interfaces consumed by the decorator, proxy, and audit
-modules so that static analysers can catch schema mismatches at analysis time rather
-than silently returning ``None`` at runtime.
+This module provides typed interfaces consumed by the decorator, proxy, and audit modules so that static analysers
+can catch schema mismatches at analysis time rather than silently returning ``None`` at runtime.
 """
 
 import warnings
@@ -18,16 +17,13 @@ class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
 
     Members:
-        NOTIFY: Notify-only deprecation -- warn on every call; original body
-            executes unchanged. Replaces ``target=None``. Passing
-            ``args_mapping`` or ``args_extra`` with this mode emits a
-            :class:`UserWarning` today; :class:`TypeError` is planned in v1.0.
-        ARGS_REMAP: Deprecate argument names only -- warn only when deprecated
-            argument names are passed; remaps kwargs via ``args_mapping`` before
-            calling the original body. Replaces ``target=True``. This mode is
-            strongly recommended with ``args_mapping``; omitting it emits a
-            :class:`UserWarning` today, and :class:`TypeError` is planned in
-            v1.0.
+        NOTIFY: Notify-only deprecation -- warn on every call; original body executes unchanged. Replaces
+            ``target=None``. Passing ``args_mapping`` or ``args_extra`` with this mode emits a :class:`UserWarning`
+            today; :class:`TypeError` is planned in v1.0.
+        ARGS_REMAP: Deprecate argument names only -- warn only when deprecated argument names are passed; remaps
+            kwargs via ``args_mapping`` before calling the original body. Replaces ``target=True``. This mode is
+            strongly recommended with ``args_mapping``; omitting it emits a :class:`UserWarning` today, and
+            :class:`TypeError` is planned in v1.0.
 
     Examples:
         >>> from deprecate import TargetMode
@@ -50,24 +46,20 @@ class TargetMode(Enum):
     ) -> "TargetMode":
         """Convert a legacy ``target`` sentinel (``None`` / ``True`` / ``False``) to a :class:`TargetMode`.
 
-        Backwards-compatibility shim for the ``@deprecated`` decorator.  Each
-        sentinel is mapped to its modern equivalent and a deprecation warning is
-        emitted.  Pass ``stacklevel=None`` to suppress all warnings.
+        Backwards-compatibility shim for the ``@deprecated`` decorator.  Each sentinel is mapped to its modern
+        equivalent and a deprecation warning is emitted.  Pass ``stacklevel=None`` to suppress all warnings.
 
         Args:
-            target: Legacy sentinel — ``None`` → :attr:`TargetMode.NOTIFY`,
-                ``True`` → :attr:`TargetMode.ARGS_REMAP`, ``False`` →
-                :attr:`TargetMode.NOTIFY` (not a valid mode; :class:`TypeError`
-                in v1.0).
-            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass
-                ``None`` to suppress all warnings entirely.  Defaults to ``3``.
+            target: Legacy sentinel — ``None`` → :attr:`TargetMode.NOTIFY`, ``True`` → :attr:`TargetMode.ARGS_REMAP`,
+                ``False`` → :attr:`TargetMode.NOTIFY` (not a valid mode; :class:`TypeError` in v1.0).
+            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass ``None`` to suppress all warnings
+                entirely.  Defaults to ``3``.
 
         Returns:
             The corresponding :class:`TargetMode` member.
 
         Raises:
-            TypeError: If ``target`` is anything other than ``None``, ``True``,
-                or ``False``.
+            TypeError: If ``target`` is anything other than ``None``, ``True``, or ``False``.
 
         Examples:
             >>> TargetMode.from_legacy(None, stacklevel=None)
@@ -117,25 +109,23 @@ class TargetMode(Enum):
     ) -> Optional["TargetMode"]:
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
 
-        ``True`` and ``False`` are invalid for the proxy context and normalise to
-        :attr:`TargetMode.NOTIFY` (or :attr:`TargetMode.ARGS_REMAP` when ``args_mapping`` is non-empty)
-        after emitting a warning.  All other values pass through unchanged.
-        Pass ``stacklevel=None`` to suppress warnings.
+        ``True`` and ``False`` are invalid for the proxy context and normalise to :attr:`TargetMode.NOTIFY`
+        (or :attr:`TargetMode.ARGS_REMAP` when ``args_mapping`` is non-empty) after emitting a warning.
+        All other values pass through unchanged.  Pass ``stacklevel=None`` to suppress warnings.
 
         Args:
-            target: Raw ``target`` value from the caller.  Only ``True`` and
-                ``False`` trigger normalisation; any other value is returned as-is.
-            args_mapping: The ``args_mapping`` dict supplied to ``deprecated_class``, or
-                ``None`` when not provided.  When ``target=True`` and ``args_mapping`` is
-                non-empty the result is :attr:`TargetMode.ARGS_REMAP` instead of
-                :attr:`TargetMode.NOTIFY`, and a :class:`FutureWarning` is emitted.
-            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass
-                ``None`` to suppress all warnings.  Defaults to ``3``.
+            target: Raw ``target`` value from the caller.  Only ``True`` and ``False`` trigger normalisation;
+                any other value is returned as-is.
+            args_mapping: The ``args_mapping`` dict supplied to ``deprecated_class``, or ``None`` when not provided.
+                When ``target=True`` and ``args_mapping`` is non-empty the result is :attr:`TargetMode.ARGS_REMAP`
+                instead of :attr:`TargetMode.NOTIFY`, and a :class:`FutureWarning` is emitted.
+            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass ``None`` to suppress all warnings.
+                Defaults to ``3``.
 
         Returns:
             :attr:`TargetMode.ARGS_REMAP` when ``target=True`` and ``args_mapping`` is non-empty;
-            :attr:`TargetMode.NOTIFY` when ``target`` was ``True`` (without ``args_mapping``) or
-            ``False``; otherwise ``target`` unchanged.
+            :attr:`TargetMode.NOTIFY` when ``target`` was ``True`` (without ``args_mapping``) or ``False``;
+            otherwise ``target`` unchanged.
 
         Examples:
             >>> TargetMode.from_legacy_proxy(True, stacklevel=None)
@@ -189,28 +179,22 @@ class TargetMode(Enum):
     ) -> bool:
         """Validate a :class:`TargetMode` against the supplied configuration and emit misconfig warnings.
 
-        Checks three misconfiguration combinations and emits a :class:`UserWarning`
-        for each one found.  These warnings will become :class:`TypeError` in v1.0.
+        Checks three misconfiguration combinations and emits a :class:`UserWarning` for each one found.
+        These warnings will become :class:`TypeError` in v1.0.
 
-        Misconfiguration warnings are always emitted via :func:`warnings.warn` with
-        ``UserWarning`` — they are construction-time guards independent of the
-        runtime ``stream`` callable used for deprecation notices.
+        Misconfiguration warnings are always emitted via :func:`warnings.warn` with ``UserWarning`` — they are
+        construction-time guards independent of the runtime ``stream`` callable used for deprecation notices.
 
         Args:
             mode: The resolved :class:`TargetMode` to validate.
-            source_name: ``__name__`` of the decorated source callable, used in
-                warning messages.
-            args_mapping: The ``args_mapping`` dict supplied to ``@deprecated``, or
-                ``None`` when not provided.
-            args_extra: The ``args_extra`` dict supplied to ``@deprecated``, or
-                ``None`` when not provided.
-            stacklevel: Stack level forwarded to :func:`warnings.warn` so that
-                reported locations point at the decorator application site.
-                Pass ``None`` to suppress all warnings.  Defaults to ``2``.
+            source_name: ``__name__`` of the decorated source callable, used in warning messages.
+            args_mapping: The ``args_mapping`` dict supplied to ``@deprecated``, or ``None`` when not provided.
+            args_extra: The ``args_extra`` dict supplied to ``@deprecated``, or ``None`` when not provided.
+            stacklevel: Stack level forwarded to :func:`warnings.warn` so that reported locations point at the
+                decorator application site.  Pass ``None`` to suppress all warnings.  Defaults to ``2``.
 
         Returns:
-            ``True`` if any misconfiguration was detected, ``False`` if the
-            configuration is valid.
+            ``True`` if any misconfiguration was detected, ``False`` if the configuration is valid.
 
         Examples:
             >>> TargetMode.validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None, stacklevel=None)
@@ -259,21 +243,17 @@ class DeprecationConfig:
         deprecated_in: Version string when the callable was deprecated.
         remove_in: Version string when the callable will be removed.
         name: Display the name of the deprecated source (function or class name).
-        target: Normalised target — ``None`` (default), :class:`TargetMode.NOTIFY`,
-            :class:`TargetMode.ARGS_REMAP`, or a callable. Legacy sentinels
-            (``True``/``False``) are normalised at decoration time and never
-            stored verbatim.
-        args_mapping: Optional dict remapping argument names; values may be ``None`` to
-            drop the argument entirely.
-        misconfigured: ``True`` when an invalid raw target sentinel (``False``) was
-            passed at decoration time. Audit tools surface this via
-            ``DeprecationWrapperInfo.misconfigured_target``.
+        target: Normalised target — ``None`` (default), :class:`TargetMode.NOTIFY`, :class:`TargetMode.ARGS_REMAP`,
+            or a callable. Legacy sentinels (``True``/``False``) are normalised at decoration time and never stored
+            verbatim.
+        args_mapping: Optional dict remapping argument names; values may be ``None`` to drop the argument entirely.
+        misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.
+            Audit tools surface this via ``DeprecationWrapperInfo.misconfigured_target``.
         docstring_style: Docstring notice output style when ``update_docstring=True``.
-        template_mgs: Optional custom warning-message template (``%``-style placeholders) that
-            overrides the built-in templates at warn time. ``None`` (default) keeps the built-in
-            template selected for the active scenario. Audit tools may surface this for
-            introspection. See :func:`~deprecate.deprecation.deprecated` for the available
-            placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
+        template_mgs: Optional custom warning-message template (``%``-style placeholders) that overrides the built-in
+            templates at warn time. ``None`` (default) keeps the built-in template selected for the active scenario.
+            Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated` for the
+            available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
     """
 
     deprecated_in: str = ""
@@ -290,12 +270,11 @@ class DeprecationConfig:
 class _HasDeprecationMeta(Protocol):
     """Structural type for any callable that carries ``__deprecated__`` metadata.
 
-    Both ``@deprecated``-decorated functions and :class:`~deprecate.proxy._DeprecatedProxy`
-    instances satisfy this protocol once the decorator has been applied.
+    Both ``@deprecated``-decorated functions and :class:`~deprecate.proxy._DeprecatedProxy` instances satisfy this
+    protocol once the decorator has been applied.
 
-    Used as a TypeGuard target so that a ``hasattr`` guard narrows the type of an
-    arbitrary callable to one whose ``__deprecated__`` attribute is typed — eliminating
-    the need for a ``cast`` after the guard.
+    Used as a TypeGuard target so that a ``hasattr`` guard narrows the type of an arbitrary callable to one whose
+    ``__deprecated__`` attribute is typed — eliminating the need for a ``cast`` after the guard.
     """
 
     __deprecated__: DeprecationConfig
@@ -308,16 +287,15 @@ class _HasDeprecationMeta(Protocol):
 def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
     """Return ``True`` if *obj* carries typed :class:`DeprecationConfig` metadata.
 
-    Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to
-    :class:`_HasDeprecationMeta`, allowing direct typed access to ``obj.__deprecated__``
-    without a ``cast``.
+    Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to :class:`_HasDeprecationMeta`,
+    allowing direct typed access to ``obj.__deprecated__`` without a ``cast``.
 
     Args:
         obj: Any object to test.
 
     Returns:
-        ``True`` if ``__deprecated__`` exists and is a
-        :class:`~deprecate._types.DeprecationConfig`; ``False`` otherwise.
+        ``True`` if ``__deprecated__`` exists and is a :class:`~deprecate._types.DeprecationConfig`;
+        ``False`` otherwise.
 
     """
     return isinstance(getattr(obj, "__deprecated__", None), DeprecationConfig)
@@ -327,23 +305,21 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
 class _ProxyConfig:
     """Private mutable runtime state for :class:`~deprecate.proxy._DeprecatedProxy`.
 
-    This is an internal type — not exported from the package and not referenced
-    outside of :mod:`deprecate.proxy`.
+    This is an internal type — not exported from the package and not referenced outside of :mod:`deprecate.proxy`.
 
     Attributes:
         obj: The wrapped (source) object.
         stream: Callable used to emit warnings, or ``None`` to suppress them.
         num_warns: Maximum number of warnings to emit; ``-1`` means unlimited.
         read_only: When ``True``, write operations through the proxy raise :class:`AttributeError`.
-        args_extra: Optional dict of extra keyword arguments merged into forwarded calls
-            after ``args_mapping`` has been applied. Ignored when the proxy is in
-            :attr:`TargetMode.NOTIFY` mode.
-        template_mgs: Optional custom warning-message template (``%``-style placeholders) that
-            overrides the built-in templates at warn time. ``None`` (default) keeps the built-in
-            templates. See :func:`~deprecate.proxy.deprecated_class` for the placeholder catalogue.
+        args_extra: Optional dict of extra keyword arguments merged into forwarded calls after ``args_mapping`` has
+            been applied. Ignored when the proxy is in :attr:`TargetMode.NOTIFY` mode.
+        template_mgs: Optional custom warning-message template (``%``-style placeholders) that overrides the built-in
+            templates at warn time. ``None`` (default) keeps the built-in templates. See
+            :func:`~deprecate.proxy.deprecated_class` for the placeholder catalogue.
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
-        warned_args: Per-argument warning counts for argument-level deprecations.
-            Keys are deprecated argument names; values are emission counts.
+        warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
+            values are emission counts.
     """
 
     obj: Any
@@ -360,14 +336,13 @@ class _ProxyConfig:
 class _WrapperState:
     """Private mutable runtime state for ``@deprecated``-decorated callables.
 
-    This is an internal type — not exported from the package and not referenced
-    outside of :mod:`deprecate.deprecation`.
+    This is an internal type — not exported from the package and not referenced outside of :mod:`deprecate.deprecation`.
 
     Attributes:
         called: Total invocation count, including calls where the warning was suppressed.
         warned_calls: Number of callable-level deprecation warnings emitted so far.
-        warned_args: Per-argument warning counts for argument-level deprecations.
-            Keys are deprecated argument names; values are emission counts.
+        warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
+            values are emission counts.
     """
 
     called: int = 0
@@ -379,9 +354,8 @@ class _WrapperState:
 class _DeprecatedCallable(Protocol):
     """Structural type for a ``@deprecated``-decorated callable with mutable runtime state.
 
-    This protocol describes the shape of a function or method after the ``@deprecated``
-    decorator has been applied. It includes both static metadata (``__deprecated__``)
-    and mutable runtime state (``_state``).
+    This protocol describes the shape of a function or method after the ``@deprecated`` decorator has been applied.
+    It includes both static metadata (``__deprecated__``) and mutable runtime state (``_state``).
 
     Used to type-safely access ``_state`` on decorated callables without casting.
     """

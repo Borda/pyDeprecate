@@ -54,9 +54,8 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
     """Raise TypeError when target is a method on a different class than source.
 
-    Forwarding a class method to a method on a *different* class silently passes
-    ``self`` of the wrong type, causing runtime attribute errors.  This guard
-    detects the misconfiguration at decoration time by comparing the immediate
+    Forwarding a class method to a method on a *different* class silently passes ``self`` of the wrong type, causing
+    runtime attribute errors.  This guard detects the misconfiguration at decoration time by comparing the immediate
     class name extracted from each callable's ``__qualname__``.
 
     Qualname patterns and how they are handled:
@@ -71,8 +70,8 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
         target: The replacement callable supplied as the ``target`` argument.
 
     Raises:
-        TypeError: If both callables appear to be class methods (their qualname
-            contains a class-prefix component) and those class names differ.
+        TypeError: If both callables appear to be class methods (their qualname contains a class-prefix component)
+            and those class names differ.
 
     """
     # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
@@ -108,8 +107,8 @@ def _normalize_target(
 ) -> Union[TargetMode, Callable]:
     """Normalise the effective target callable before the wrapper closure captures it.
 
-    Converts legacy sentinel values to :class:`~deprecate._types.TargetMode` enum
-    members with a deprecation warning, and handles class targets:
+    Converts legacy sentinel values to :class:`~deprecate._types.TargetMode` enum members with a deprecation
+    warning, and handles class targets:
 
     Legacy sentinel conversion (emits warning at decoration time):
 
@@ -121,11 +120,10 @@ def _normalize_target(
 
     1. ``source`` is ``__init__`` → remap ``target=NewCls`` to ``target=NewCls.__init__``
        (constructor forwarding; ``self`` is the new instance so the call is valid).
-    2. ``source`` is a class method (non-``__init__``) → raise :exc:`TypeError`;
-       passing a class as target for a bound method silently passes ``self``
-       of the wrong type.
-    3. ``source`` is a module-level function → keep ``target=NewCls`` as-is;
-       calling ``NewCls(**kwargs)`` creates a new instance directly.
+    2. ``source`` is a class method (non-``__init__``) → raise :exc:`TypeError`; passing a class as target for a
+       bound method silently passes ``self`` of the wrong type.
+    3. ``source`` is a module-level function → keep ``target=NewCls`` as-is; calling ``NewCls(**kwargs)`` creates
+       a new instance directly.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
@@ -173,9 +171,8 @@ def _prepare_target_call(
 ) -> Callable:
     """Validate mapped keyword arguments and return the target callable.
 
-    ``packing()`` normalises the target before ``wrapped_fn`` runs — class
-    targets are remapped to ``target.__init__`` — so by the time this function
-    is called, ``target`` is always a plain callable, never a class.
+    ``packing()`` normalises the target before ``wrapped_fn`` runs — class targets are remapped to
+    ``target.__init__`` — so by the time this function is called, ``target`` is always a plain callable, never a class.
 
     Args:
         source: Deprecated callable being wrapped.
@@ -216,9 +213,8 @@ def _prepare_target_call(
 def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
     """Convert positional arguments to keyword arguments using function signature.
 
-    This helper function takes positional arguments and converts them to keyword
-    arguments by matching them with parameter names from the function signature.
-    This enables consistent argument handling in the deprecation wrapper.
+    This helper function takes positional arguments and converts them to keyword arguments by matching them with
+    parameter names from the function signature.  This enables consistent argument handling in the deprecation wrapper.
 
     Args:
         func: Function whose signature provides parameter names.
@@ -226,9 +222,8 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
         fn_kwargs: Dictionary of keyword arguments already passed.
 
     Returns:
-        Dictionary combining converted positional arguments and existing kwargs,
-        where positional args are now mapped to their parameter names. Conversion
-        stops when encountering var-positional parameters (``*args``) because
+        Dictionary combining converted positional arguments and existing kwargs, where positional args are now mapped
+        to their parameter names.  Conversion stops when encountering var-positional parameters (``*args``) because
         they cannot be safely represented as keyword arguments.
 
     Example:
@@ -270,17 +265,15 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
 def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
     """Merge function default values with provided keyword arguments.
 
-    This helper fills in default parameter values from the function signature
-    for any parameters not explicitly provided. Provided kwargs take precedence
-    over defaults.
+    This helper fills in default parameter values from the function signature for any parameters not explicitly
+    provided.  Provided kwargs take precedence over defaults.
 
     Args:
         func: Function whose signature provides default parameter values.
         fn_kwargs: Dictionary of keyword arguments provided by caller.
 
     Returns:
-        Dictionary with defaults merged with provided kwargs, where provided
-        values override defaults.
+        Dictionary with defaults merged with provided kwargs, where provided values override defaults.
 
     Example:
         >>> from pprint import pprint
@@ -301,16 +294,14 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
 def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras: str) -> None:
     """Issue a deprecation warning using the specified stream and message template.
 
-    This is the core warning issuer that formats and emits deprecation warnings.
-    It extracts source function metadata and combines it with provided template
-    variables to generate the final warning message.
+    This is the core warning issuer that formats and emits deprecation warnings.  It extracts source function metadata
+    and combines it with provided template variables to generate the final warning message.
 
     Args:
         stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
         source: The deprecated function/method being wrapped.
         template_mgs: Python format string with placeholders for message variables.
-        **extras: Additional string values to substitute into the template
-            (e.g., deprecated_in="1.0", remove_in="2.0").
+        **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
 
     Note:
         Automatically extracts source_name and source_path from the source callable:
@@ -344,10 +335,9 @@ def _raise_warn_callable(
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
 
-    This specialized warning issuer handles deprecation of entire functions or
-    classes that are being replaced by new implementations. It automatically
-    determines the appropriate message template based on whether a target
-    callable is specified.
+    This specialized warning issuer handles deprecation of entire functions or classes that are being replaced by new
+    implementations.  It automatically determines the appropriate message template based on whether a target callable
+    is specified.
 
     Args:
         stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
@@ -358,8 +348,8 @@ def _raise_warn_callable(
             - bool: Not applicable for this function (use _raise_warn_arguments instead)
         deprecated_in: Version when the source was marked deprecated (e.g., "1.0.0").
         remove_in: Version when the source will be removed (e.g., "2.0.0").
-        template_mgs: Custom message template. If None, uses default template based
-            on whether target is callable or None.
+        template_mgs: Custom message template. If None, uses default template based on whether target is callable
+            or None.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -412,15 +402,14 @@ def _raise_warn_arguments(
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
 
-    This specialized warning issuer handles deprecation of specific function
-    parameters that are being renamed or removed. It generates a mapping
-    string showing the old-to-new argument names.
+    This specialized warning issuer handles deprecation of specific function parameters that are being renamed or
+    removed.  It generates a mapping string showing the old-to-new argument names.
 
     Args:
         stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
         source: The function/method whose arguments are deprecated.
-        arguments: Mapping from deprecated argument names to new names
-            (e.g., {'old_arg': 'new_arg', 'removed_arg': None}).
+        arguments: Mapping from deprecated argument names to new names (e.g., ``{'old_arg': 'new_arg',
+            'removed_arg': None}``).
         deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses default template.
@@ -466,22 +455,18 @@ def deprecated(
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target.
 
-    This decorator marks a function or method as deprecated and can automatically forward
-    all calls to a replacement implementation. It supports argument mapping, custom
-    warning messages, and flexible warning control.
+    This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement
+    implementation.  It supports argument mapping, custom warning messages, and flexible warning control.
 
     Args:
         target: How to handle the deprecation:
             - ``Callable``: Forward all calls to this callable (function, method, or class target)
             - ``True``: Self-deprecation mode (deprecate arguments within same function)
             - ``None``: Warning-only mode (no forwarding, function body executes normally)
-        deprecated_in: Version when the function was deprecated (e.g., "1.0.0").
-            Default is empty string.
-        remove_in: Version when the function will be removed (e.g., "2.0.0").
-            Default is empty string.
+        deprecated_in: Version when the function was deprecated (e.g., "1.0.0"). Default is empty string.
+        remove_in: Version when the function will be removed (e.g., "2.0.0"). Default is empty string.
         stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
-            :func:`warnings.warn` with ``FutureWarning`` category).
-            Set to ``None`` to disable warnings entirely.
+            :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely.
         num_warns: Number of times to show warning per function or per deprecated argument:
             - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
@@ -500,25 +485,22 @@ def deprecated(
             - ``{'old_arg': None}``: Skip argument (don't forward it)
             - ``{}``: Empty mapping (no remapping)
             Works with both ``target=Callable`` and ``target=True``.
-        args_extra: Additional arguments merged into kwargs before the call.
-            Used when target is a Callable or ``TargetMode.ARGS_REMAP`` (with ``args_mapping``).
-            Ignored when target is ``TargetMode.NOTIFY``.
+        args_extra: Additional arguments merged into kwargs before the call. Used when target is a Callable or
+            ``TargetMode.ARGS_REMAP`` (with ``args_mapping``). Ignored when target is ``TargetMode.NOTIFY``.
             Example: ``{'new_required_arg': 42}``
         skip_if: Conditionally skip deprecation warning and forwarding:
             - ``bool``: Static condition (True = skip deprecation)
             - ``Callable``: Function returning bool (checked at runtime, must return bool)
             If condition is True, original function executes without warning.
-        update_docstring: If True, automatically inject a deprecation notice into
-            the function's docstring (inserted before Google/NumPy-style sections when present,
-            otherwise appended at the end).
-        docstring_style: Output style for injected deprecation notice when
-            ``update_docstring=True``. Supported values:
-            - ``"auto"`` (default): Automatically choose a style based on the current
-              environment (e.g., loaded modules, CLI/tooling context). This may resolve
-              to either ``"rst"`` or ``"mkdocs"``/``"markdown"`` at decoration time.
+        update_docstring: If True, automatically inject a deprecation notice into the function's docstring (inserted
+            before Google/NumPy-style sections when present, otherwise appended at the end).
+        docstring_style: Output style for injected deprecation notice when ``update_docstring=True``. Supported values:
+            - ``"auto"`` (default): Automatically choose a style based on the current environment (e.g., loaded
+              modules, CLI/tooling context). This may resolve to either ``"rst"`` or ``"mkdocs"``/``"markdown"``
+              at decoration time.
             - ``"rst"``: Explicitly force Sphinx-style ``.. deprecated::`` directive.
-            - ``"mkdocs"`` or ``"markdown"``: Explicitly force a Markdown admonition
-              of the form ``!!! warning "Deprecated in X"``.
+            - ``"mkdocs"`` or ``"markdown"``: Explicitly force a Markdown admonition of the form
+              ``!!! warning "Deprecated in X"``.
             Validated eagerly at decoration time regardless of ``update_docstring``.
 
     Returns:
@@ -526,16 +508,15 @@ def deprecated(
 
     Warns:
         UserWarning: If applied directly to a class. The decorator delegates to
-            :func:`~deprecate.proxy.deprecated_class` and emits this warning.
-            Use ``@deprecated_class()`` directly to suppress it. Suppressed when ``stream=None``.
+            :func:`~deprecate.proxy.deprecated_class` and emits this warning. Use ``@deprecated_class()`` directly
+            to suppress it. Suppressed when ``stream=None``.
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
-        TypeError: If arguments in args_mapping don't exist in target function
-            and target doesn't accept **kwargs.
-        TypeError: If the source is a class method and target is a method on a *different*
-            class (cross-class method forwarding). The target must be a method on the same
-            class, or a full class (``target=NewClass``) for constructor forwarding.
+        TypeError: If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs.
+        TypeError: If the source is a class method and target is a method on a *different* class (cross-class method
+            forwarding). The target must be a method on the same class, or a full class (``target=NewClass``) for
+            constructor forwarding.
 
     Example:
         >>> # Basic forwarding

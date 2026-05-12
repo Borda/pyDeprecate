@@ -483,7 +483,7 @@ ______________________________________________________________________
 
 ## UserWarning when using `TargetMode.ARGS_REMAP` without `args_mapping`
 
-**Q:** I applied `@deprecated(target=TargetMode.ARGS_REMAP, ...)` and got `UserWarning: `@deprecated(target=TargetMode.ARGS_REMAP)` on `my_func` requires `args_mapping` ...`. Why, and how do I fix it?
+**Q:** I applied `@deprecated(target=TargetMode.ARGS_REMAP, ...)` and got the warning `UserWarning: @deprecated(target=TargetMode.ARGS_REMAP) on my_func requires args_mapping ...`. Why, and how do I fix it?
 
 **A:** `TargetMode.ARGS_REMAP` is designed exclusively for renaming or dropping arguments within the same function. Without `args_mapping` there is nothing to remap — the decorator has zero call-time effect. This is a misconfiguration that emits a `UserWarning` today and will become a `TypeError` in v1.0.
 
