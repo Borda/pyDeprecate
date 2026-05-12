@@ -94,7 +94,7 @@
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
   "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] },
-  "dateModified": "2026-04-29"
+  "dateModified": "2026-05-12"
 }
 </script>
 
@@ -638,6 +638,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#changed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -649,10 +671,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Added
+        Fixed
       
     </span>
   </a>
@@ -688,7 +710,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -766,7 +788,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated" class="md-nav__link">
+  <a href="#deprecated_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Deprecated
@@ -777,7 +799,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed_1" class="md-nav__link">
+  <a href="#fixed_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -816,7 +838,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed_2" class="md-nav__link">
+  <a href="#fixed_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -911,7 +933,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_3" class="md-nav__link">
+  <a href="#fixed_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -1195,6 +1217,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#changed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1206,10 +1250,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Added
+        Fixed
       
     </span>
   </a>
@@ -1245,7 +1289,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -1323,7 +1367,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated" class="md-nav__link">
+  <a href="#deprecated_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Deprecated
@@ -1334,7 +1378,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed_1" class="md-nav__link">
+  <a href="#fixed_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -1373,7 +1417,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed_2" class="md-nav__link">
+  <a href="#fixed_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -1468,7 +1512,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_3" class="md-nav__link">
+  <a href="#fixed_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -1614,21 +1658,32 @@
 
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">🔗</a></h1>
 <h2 id="unreleased">[Unreleased]<a class="headerlink" href="#unreleased" title="Permanent link">🔗</a></h2>
-<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
-<ul>
-<li><strong>Docs site URL layout is now versioned.</strong> Content is published under <code>https://borda.github.io/pyDeprecate/latest/</code> (for <code>main</code>) and <code>https://borda.github.io/pyDeprecate/&lt;tag&gt;/</code> (for release tags). The root URL (<code>https://borda.github.io/pyDeprecate/</code>) redirects to <code>latest/</code>. External bookmarks to flat paths like <code>.../pyDeprecate/troubleshooting.html</code> will break on first deploy — update them to <code>.../pyDeprecate/latest/troubleshooting.html</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/148">#148</a>)</li>
-</ul>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
 <ul>
-<li>
-<p><strong>Multi-page topic documentation site.</strong> Replaced the monolithic README-copy home page with a curated 7-page MkDocs Material site: Home, Getting Started, User Guide (Use Cases / void() Helper / Audit Tools), Troubleshooting, and demo links. Switched theme to Material, added Open Graph tags, JSON-LD structured data (SoftwareApplication / FAQPage / TechArticle per page), spec-compliant <code>llms.txt</code>, and <code>git-revision-date-localized</code> plugin. README is unchanged (still the PyPI cover page).</p>
-</li>
-<li>
-<p><strong><code>pydeprecate</code> CLI command.</strong> Run <code>pydeprecate &lt;subcommand&gt; path/to/your/package</code> to scan any package or module for misconfigured <code>@deprecated</code> wrappers — reports invalid argument mappings, identity mappings, and no-effect wrappers with rich-formatted output when <code>rich</code> is available. Also available as <code>python -m deprecate</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/76">#76</a>)</p>
-</li>
-<li>
-<p><strong>Four CLI subcommands: <code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>.</strong> <code>check</code> validates wrapper configuration; <code>expiry</code> reports wrappers past their <code>remove_in</code> deadline (requires <code>pip install 'pyDeprecate[audit]'</code>); <code>chains</code> detects deprecated-to-deprecated forwarding chains; <code>all</code> runs all three in a single scan pass. Flags: <code>--norecursive</code>, <code>--skip_errors</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/149">#149</a>)</p>
-</li>
+<li><strong><code>TargetMode</code> enum exported from <code>deprecate</code>.</strong> <code>TargetMode.NOTIFY</code> replaces <code>target=None</code> and <code>TargetMode.ARGS_REMAP</code> replaces <code>target=True</code>. Both are public API. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
+<li><strong><code>args_extra</code> parameter for <code>deprecated_class()</code> and <code>deprecated_instance()</code>.</strong> Injects fixed keyword arguments into forwarded calls after <code>args_mapping</code> has been applied, matching the same semantics as <code>@deprecated(args_extra=...)</code>. Ignored (with a construction-time <code>UserWarning</code>) when <code>target</code> is <code>TargetMode.NOTIFY</code>.</li>
+<li><strong><code>template_mgs</code> parameter for <code>deprecated_class()</code> and <code>deprecated_instance()</code>.</strong> Overrides the built-in warning message template with a <code>%</code>-style format string, matching the same semantics as <code>@deprecated(template_mgs=...)</code>. Available placeholders: <code>%(source_name)s</code>, <code>%(deprecated_in)s</code>, <code>%(remove_in)s</code>, <code>%(target_name)s</code> (callable target only), <code>%(target_path)s</code> (callable target only), <code>%(argument_map)s</code> (<code>args_mapping</code> warnings only).</li>
+<li><strong><code>DeprecationConfig.misconfigured</code> field.</strong> Boolean field on the shared metadata dataclass; <code>True</code> when an invalid raw target sentinel (<code>False</code>) was passed at decoration time. Audit tools surface this via <code>DeprecationWrapperInfo.misconfigured_target</code>.</li>
+<li><strong>Multi-page topic documentation site.</strong> Replaced the monolithic README-copy home page with a curated 7-page MkDocs Material site: Home, Getting Started, User Guide (Use Cases / void() Helper / Audit Tools), Troubleshooting, and demo links. Switched theme to Material, added Open Graph tags, JSON-LD structured data (SoftwareApplication / FAQPage / TechArticle per page), spec-compliant <code>llms.txt</code>, and <code>git-revision-date-localized</code> plugin. README is unchanged (still the PyPI cover page).</li>
+<li><strong><code>pydeprecate</code> CLI command.</strong> Run <code>pydeprecate &lt;subcommand&gt; path/to/your/package</code> to scan any package or module for misconfigured <code>@deprecated</code> wrappers — reports invalid argument mappings, identity mappings, and no-effect wrappers with rich-formatted output when <code>rich</code> is available. Also available as <code>python -m deprecate</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/76">#76</a>)</li>
+<li><strong>Four CLI subcommands: <code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>.</strong> <code>check</code> validates wrapper configuration; <code>expiry</code> reports wrappers past their <code>remove_in</code> deadline (requires <code>pip install 'pyDeprecate[audit]'</code>); <code>chains</code> detects deprecated-to-deprecated forwarding chains; <code>all</code> runs all three in a single scan pass. Flags: <code>--norecursive</code>, <code>--skip_errors</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/149">#149</a>)</li>
+</ul>
+<h3 id="deprecated">Deprecated<a class="headerlink" href="#deprecated" title="Permanent link">🔗</a></h3>
+<ul>
+<li><strong><code>target=None</code> sentinel — use <code>TargetMode.NOTIFY</code>.</strong> Passing <code>target=None</code> now emits a <code>FutureWarning</code> at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to <code>target=TargetMode.NOTIFY</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
+<li><strong><code>target=True</code> sentinel — use <code>TargetMode.ARGS_REMAP</code>.</strong> Passing <code>target=True</code> now emits a <code>FutureWarning</code> at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to <code>target=TargetMode.ARGS_REMAP</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
+</ul>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
+<ul>
+<li><strong>Misconfigured <code>TargetMode</code> combinations now warn at construction time.</strong> <code>TargetMode.ARGS_REMAP</code> without <code>args_mapping</code>, <code>TargetMode.NOTIFY</code> with <code>args_mapping</code>, and <code>TargetMode.NOTIFY</code> with <code>args_extra</code> all surface a <code>UserWarning</code> immediately. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
+<li><strong><code>DeprecationConfig.target</code> always stores a normalised <code>TargetMode</code> or callable.</strong> Legacy boolean sentinels (<code>True</code> / <code>False</code>) are now normalised at decoration time and are never stored verbatim in <code>DeprecationConfig.target</code>. Code that inspects <code>__deprecated__.target</code> must compare against <code>TargetMode.NOTIFY</code>, <code>TargetMode.ARGS_REMAP</code>, a callable, or <code>None</code> — never against <code>True</code> or <code>False</code>.</li>
+<li><strong><code>deprecated_class()</code> with <code>target=TargetMode.NOTIFY</code> now emits <code>UserWarning</code> at decoration time when <code>args_mapping</code> or <code>args_extra</code> is supplied.</strong> These parameters are ignored in <code>NOTIFY</code> mode; passing them has always been a misconfiguration. The warning will become <code>TypeError</code> in v1.0.</li>
+<li><strong>Docs site URL layout is now versioned.</strong> Content is published under <code>https://borda.github.io/pyDeprecate/latest/</code> (for <code>main</code>) and <code>https://borda.github.io/pyDeprecate/&lt;tag&gt;/</code> (for release tags). The root URL (<code>https://borda.github.io/pyDeprecate/</code>) redirects to <code>latest/</code>. External bookmarks to flat paths like <code>.../pyDeprecate/troubleshooting.html</code> will break on first deploy — update them to <code>.../pyDeprecate/latest/troubleshooting.html</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/148">#148</a>)</li>
+</ul>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
+<ul>
+<li><strong><code>args_mapping</code> rename no longer clobbers source default when both old and new parameter names are present.</strong> Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames <code>old=X</code> to <code>new=X</code> without discarding a separately supplied <code>new</code> value. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
+<li><strong><code>target=False</code> sentinel now emits <code>UserWarning</code> at decoration time.</strong> <code>target=False</code> was never a valid configuration; previously the behavior was undefined. The sentinel now surfaces a <code>UserWarning</code> immediately and will raise <code>TypeError</code> in v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
 </ul>
 <hr />
 <h2 id="070-2026-03-31-docstring-tooling">[0.7.0] — 2026-03-31 — Docstring Tooling<a class="headerlink" href="#070-2026-03-31-docstring-tooling" title="Permanent link">🔗</a></h2>
@@ -1640,7 +1695,7 @@
 <li><strong>Griffe extension for mkdocstrings</strong> (<code>deprecate.docstring.griffe_ext</code>, beta) and <strong>Sphinx autodoc extension for deprecated classes</strong> (<code>deprecate.docstring.sphinx_ext</code>, beta). (<a href="https://github.com/Borda/pyDeprecate/pull/134">#134</a>)</li>
 <li><strong>Live demo documentation</strong> published to GitHub Pages — MkDocs demo, Sphinx demo, and portal landing page. (<a href="https://github.com/Borda/pyDeprecate/pull/134">#134</a>, <a href="https://github.com/Borda/pyDeprecate/pull/137">#137</a>)</li>
 </ul>
-<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
+<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">🔗</a></h3>
 <ul>
 <li>Fixed <code>getattr</code>/<code>setattr</code> string-literal calls (B009/B010) replaced with direct attribute access. (<a href="https://github.com/Borda/pyDeprecate/pull/139">#139</a>)</li>
 <li>Fixed proxy swap skipped correctly when <code>super().import_object()</code> returns <code>False</code> in the Griffe extension; empty <code>_proxy_doc</code> now delegates to <code>super().get_doc()</code> in the Sphinx extension. (<a href="https://github.com/Borda/pyDeprecate/pull/139">#139</a>)</li>
@@ -1661,7 +1716,7 @@
 <ul>
 <li><strong><code>@deprecated</code> on a class raises <code>TypeError</code>.</strong> Applying <code>@deprecated</code> directly to a class now raises <code>TypeError</code> at decoration time instead of silently misbehaving. Superseded in <code>v0.6.0.post0</code> by a <code>UserWarning</code> + delegation to <code>deprecated_class()</code>. Use <code>@deprecated_class()</code> for class-level deprecation. (<a href="https://github.com/Borda/pyDeprecate/pull/120">#120</a>)</li>
 </ul>
-<h3 id="deprecated">Deprecated<a class="headerlink" href="#deprecated" title="Permanent link">🔗</a></h3>
+<h3 id="deprecated_1">Deprecated<a class="headerlink" href="#deprecated_1" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong>Audit API renamed for consistency.</strong> Old names remain as <code>@deprecated</code> shims until v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/125">#125</a>)</li>
 </ul>
@@ -1690,7 +1745,7 @@
 <ul>
 <li><strong><code>no_warning_call</code> renamed to <code>assert_no_warnings</code>.</strong> The new name mirrors <code>assertWarns</code> / <code>assertRaises</code> from the standard library, making test intent immediately obvious. Old name kept as a deprecated alias until v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/131">#131</a>)</li>
 </ul>
-<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">🔗</a></h3>
+<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong>Cross-class method forwarding now fails at decoration time.</strong> Passing a class as <code>target</code> on a non-<code>__init__</code> method previously silently forwarded <code>self</code> of the wrong type — always a runtime bug, never a valid pattern. The guard now raises <code>TypeError</code> at decoration time so the misconfiguration is caught immediately. (<a href="https://github.com/Borda/pyDeprecate/pull/121">#121</a>)</li>
 <li><strong><code>find_deprecation_wrappers()</code> no longer reports false <code>invalid_args</code> for proxy objects.</strong> The proxy <code>__call__</code> catch-all signature previously caused all <code>args_mapping</code> keys to be flagged as invalid; signature validation is now skipped for proxy objects. (<a href="https://github.com/Borda/pyDeprecate/pull/124">#124</a>)</li>
@@ -1704,7 +1759,7 @@
 <li><strong><code>validate_deprecation_expiry()</code> — enforce removal deadlines in CI.</strong> Scans a module or package and returns all wrappers whose <code>remove_in</code> version has been reached or passed. Auto-detects the installed package version. Integrate as a pytest fixture or CI step to prevent zombie code from shipping past its scheduled removal. (<a href="https://github.com/Borda/pyDeprecate/pull/89">#89</a>)</li>
 <li><strong><code>validate_deprecation_chains()</code> — detect deprecated-to-deprecated forwarding.</strong> Identifies wrappers whose <code>target</code> is itself a deprecated callable, forming chains that users traverse unnecessarily. Reports two chain kinds via the <code>ChainType</code> enum: <code>TARGET</code> (forwarding chain) and <code>STACKED</code> (composed argument mappings). (<a href="https://github.com/Borda/pyDeprecate/pull/90">#90</a>)</li>
 </ul>
-<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">🔗</a></h3>
+<h3 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong><code>@deprecated</code> wrappers now correctly handle var-positional Enum signatures.</strong> A subtle edge case where callables with var-positional parameters in their Enum signature caused incorrect argument forwarding is now resolved. (<a href="https://github.com/Borda/pyDeprecate/pull/104">#104</a>)</li>
 </ul>
@@ -1728,7 +1783,7 @@
 <li><strong><code>target</code> functions using <code>**kwargs</code> are now supported.</strong> Previously, forwarding to a target that accepted <code>**kwargs</code> and accessed them via <code>kwargs.get(...)</code> raised <code>TypeError</code> for unrecognised argument names. Extra arguments from the deprecated call are now forwarded correctly. (<a href="https://github.com/Borda/pyDeprecate/pull/6">#6</a>)</li>
 </ul>
 <h2 id="031-2021-05-31-fixed-void-typing">[0.3.1] — 2021-05-31 — Fixed <code>void</code> typing<a class="headerlink" href="#031-2021-05-31-fixed-void-typing" title="Permanent link">🔗</a></h2>
-<h3 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">🔗</a></h3>
+<h3 id="fixed_4">Fixed<a class="headerlink" href="#fixed_4" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong><code>void()</code> type annotation corrected to satisfy mypy.</strong> The return type of <code>void()</code> is now properly annotated — IDE and type checker warnings about unused parameters in deprecated function bodies are suppressed correctly.</li>
 </ul>
@@ -1785,7 +1840,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 29, 2026 09:44:56 UTC">2026-04-29</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 12, 2026 22:52:42 UTC">2026-05-12</span>
   </span>
 
     
