@@ -104,9 +104,9 @@ class TargetMode(Enum):
         cls,
         target: Any,  # noqa: ANN401
         *,
-        args_mapping: Optional[dict] = None,
+        args_mapping: Optional[dict[str, Optional[str]]] = None,
         stacklevel: Optional[int] = 3,
-    ) -> Optional["TargetMode"]:
+    ) -> "Union[Callable[..., Any], TargetMode, None]":
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
 
         ``True`` and ``False`` are invalid for the proxy context and normalise to :attr:`TargetMode.NOTIFY`
@@ -173,8 +173,8 @@ class TargetMode(Enum):
         cls,
         mode: "TargetMode",
         source_name: str,
-        args_mapping: Optional[dict] = None,
-        args_extra: Optional[dict] = None,
+        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        args_extra: Optional[dict[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
     ) -> bool:

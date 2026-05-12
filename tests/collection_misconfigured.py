@@ -171,6 +171,20 @@ def args_only_no_mapping_deprecation(x: int = 1) -> int:
     return x
 
 
+@deprecated(
+    target=TargetMode.NOTIFY,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    args_extra={"bias": 1},
+)
+def whole_with_args_extra_deprecation(x: int = 1) -> int:
+    """NOTIFY + args_extra — extra ignored; emits UserWarning at decoration time.
+
+    TypeError planned in v1.0; audit flags misconfigured_target.
+    """
+    return x
+
+
 @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
 def whole_clean_deprecation(x: int = 1) -> int:
     """NOTIFY with no args_mapping — correctly configured; audit should not flag."""

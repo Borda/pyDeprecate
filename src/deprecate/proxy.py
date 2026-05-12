@@ -76,7 +76,7 @@ class _DeprecatedProxy:
         name: str,
         *,
         target: Any = None,  # noqa: ANN401
-        args_mapping: Optional[dict] = None,
+        args_mapping: Optional[dict[str, Optional[str]]] = None,
         args_extra: Optional[dict[str, Any]] = None,
         deprecated_in: str = "",
         remove_in: str = "",
@@ -504,7 +504,7 @@ def deprecated_class(
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
     template_mgs: Optional[str] = None,
-    args_mapping: Optional[dict] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",

@@ -137,6 +137,7 @@ class TestMisconfiguredTarget:
         [
             "target_false_deprecation",
             "whole_with_mapping_deprecation",
+            "whole_with_args_extra_deprecation",
             "args_only_no_mapping_deprecation",
         ],
     )

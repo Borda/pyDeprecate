@@ -86,11 +86,16 @@ class TestNotifyMode:
         ],
     )
     def test_warns_on_every_call(self, func: Callable[..., int]) -> None:
-        """NOTIFY mode emits a FutureWarning on every call up to num_warns."""
-        with pytest.warns(FutureWarning):
-            result = func(3)
+        """NOTIFY mode emits a FutureWarning on each of 3 consecutive calls (num_warns=-1)."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", FutureWarning)
+            func(1)
+            func(2)
+            func(3)
 
-        assert result == 6
+        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warns) == 3
+        assert all("deprecated" in str(w.message).lower() for w in future_warns)
 
     @pytest.mark.parametrize(
         "func",
@@ -282,7 +287,7 @@ class TestLegacySentinels:
             def _fn(x: int) -> int:
                 return x
 
-        assert _fn.__deprecated__.target is TargetMode.NOTIFY  # type: ignore[attr-defined]
+        assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.NOTIFY
 
     def test_true_stores_args_remap_enum_in_deprecated_config(self) -> None:
         """target=True is normalised to TargetMode.ARGS_REMAP in __deprecated__.target."""
@@ -293,7 +298,7 @@ class TestLegacySentinels:
             def _fn(x: int) -> int:
                 return x
 
-        assert _fn.__deprecated__.target is TargetMode.ARGS_REMAP  # type: ignore[attr-defined]
+        assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.ARGS_REMAP
 
     def test_none_stores_notify_enum_in_deprecated_config(self) -> None:
         """target=None is normalised to TargetMode.NOTIFY in __deprecated__.target."""
@@ -304,4 +309,4 @@ class TestLegacySentinels:
             def _fn(x: int) -> int:
                 return x
 
-        assert _fn.__deprecated__.target is TargetMode.NOTIFY  # type: ignore[attr-defined]
+        assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.NOTIFY
