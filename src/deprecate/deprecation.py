@@ -138,7 +138,7 @@ def _normalize_target(
         TypeError: When a class target is used on a non-``__init__`` class method.
 
     """
-    # --- Legacy sentinel conversion (v0.9 compat shim; removed in v1.0) ---
+    # --- Legacy sentinel conversion (v0.8 compat shim; removed in v1.0) ---
     # stacklevel=3: warn() → _normalize_target() → packing() → @decorator application site
     if target is None or isinstance(target, bool):
         return TargetMode.from_legacy(target)

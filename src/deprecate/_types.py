@@ -81,7 +81,7 @@ class TargetMode(Enum):
         if target is None:
             if stacklevel is not None:
                 warnings.warn(
-                    "target=None is deprecated since v0.9; use TargetMode.NOTIFY instead. Will be removed in v1.0.",
+                    "target=None is deprecated since v0.8; use TargetMode.NOTIFY instead. Will be removed in v1.0.",
                     FutureWarning,
                     stacklevel=stacklevel,
                 )
@@ -89,7 +89,7 @@ class TargetMode(Enum):
         if target is True:
             if stacklevel is not None:
                 warnings.warn(
-                    "target=True is deprecated since v0.9; use TargetMode.ARGS_REMAP instead. Will be removed in v1.0.",
+                    "target=True is deprecated since v0.8; use TargetMode.ARGS_REMAP instead. Will be removed in v1.0.",
                     FutureWarning,
                     stacklevel=stacklevel,
                 )
