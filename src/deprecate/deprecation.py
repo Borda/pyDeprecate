@@ -623,7 +623,8 @@ def deprecated(
         if not deprecated_in and not remove_in:
             warnings.warn(
                 f"`@deprecated` on `{source.__name__}` has no `deprecated_in` or `remove_in` set."
-                " The emitted warning will contain empty version strings."
+                " Depending on configuration, deprecation notices or generated documentation may"
+                " contain empty version strings."
                 " Pass at least `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
                 stacklevel=2,
