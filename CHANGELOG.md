@@ -12,10 +12,14 @@
 - **`pydeprecate` CLI command.** Run `pydeprecate <subcommand> path/to/your/package` to scan any package or module for misconfigured `@deprecated` wrappers — reports invalid argument mappings, identity mappings, and no-effect wrappers with rich-formatted output when `rich` is available. Also available as `python -m deprecate`. ([#76](https://github.com/Borda/pyDeprecate/pull/76))
 - **Four CLI subcommands: `check`, `expiry`, `chains`, `all`.** `check` validates wrapper configuration; `expiry` reports wrappers past their `remove_in` deadline (requires `pip install 'pyDeprecate[audit]'`); `chains` detects deprecated-to-deprecated forwarding chains; `all` runs all three in a single scan pass. Flags: `--norecursive`, `--skip_errors`. ([#149](https://github.com/Borda/pyDeprecate/pull/149))
 
+### Deprecated
+
+- **`target=None` sentinel — use `TargetMode.NOTIFY`.** Passing `target=None` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.NOTIFY`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`target=True` sentinel — use `TargetMode.ARGS_REMAP`.** Passing `target=True` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.ARGS_REMAP`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`target=False` sentinel — never valid, will become `TypeError` in v1.0.** Now emits a `UserWarning` at decoration time. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+
 ### Changed
 
-- **Legacy `target=None` and `target=True` sentinels now warn at decoration time.** Both forms remain accepted, emit `FutureWarning`, and map to `TargetMode.NOTIFY` / `TargetMode.ARGS_REMAP` respectively. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
-- **`target=False` now emits a `UserWarning`.** The sentinel was never valid; it remains tolerated but is scheduled to become a `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **Misconfigured `TargetMode` combinations now warn at construction time.** `TargetMode.ARGS_REMAP` without `args_mapping`, `TargetMode.NOTIFY` with `args_mapping`, and `TargetMode.NOTIFY` with `args_extra` all surface a `UserWarning` immediately. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **`DeprecationConfig.target` always stores a normalised `TargetMode` or callable.** Legacy boolean sentinels (`True` / `False`) are now normalised at decoration time and are never stored verbatim in `DeprecationConfig.target`. Code that inspects `__deprecated__.target` must compare against `TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, a callable, or `None` — never against `True` or `False`.
 - **`deprecated_class()` with `target=TargetMode.NOTIFY` now emits `UserWarning` at decoration time when `args_mapping` or `args_extra` is supplied.** These parameters are ignored in `NOTIFY` mode; passing them has always been a misconfiguration. The warning will become `TypeError` in v1.0.
