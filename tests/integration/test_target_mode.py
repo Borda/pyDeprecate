@@ -327,7 +327,7 @@ class TestFromLegacyErrors:
     def test_raises_type_error_for_non_sentinel(self, bad_value: object) -> None:
         """_from_legacy raises TypeError for any value that is not None, True, or False."""
         with pytest.raises(TypeError, match="_from_legacy` accepts only None, True, or False"):
-            TargetMode._from_legacy(bad_value, stacklevel=None)
+            TargetMode._from_legacy(cast(bool, bad_value), stacklevel=None)
 
 
 class TestTargetModeValidate:
