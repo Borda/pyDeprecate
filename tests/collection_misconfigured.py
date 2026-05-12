@@ -19,15 +19,22 @@ that the validation tooling correctly detects these misconfigurations.
 Copyright (C) 2020-2026 Jiri Borovec <...>.
 """
 
-import warnings
 from dataclasses import replace
 from typing import cast
 
 from deprecate import deprecated, void
 from deprecate._types import TargetMode, _DeprecatedCallable
 
+# Construction-time UserWarning is expected for empty/None args_mapping; it is suppressed via the
+# targeted `filterwarnings` entries in pyproject.toml (scoped by message + `deprecate._types` module).
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"nonexistent_arg": "new_arg"})
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    args_mapping={"nonexistent_arg": "new_arg"},
+)
 def invalid_args_deprecation(real_arg: int = 1) -> int:
     """Nonexistent argument name in args_mapping.
 
@@ -38,7 +45,7 @@ def invalid_args_deprecation(real_arg: int = 1) -> int:
     return real_arg
 
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={})
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={})
 def empty_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """Empty args_mapping dict.
 
@@ -48,7 +55,7 @@ def empty_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping=None)
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping=None)
 def none_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """`None` passed as `args_mapping`.
 
@@ -58,7 +65,12 @@ def none_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"arg1": "arg1"})
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    args_mapping={"arg1": "arg1"},
+)
 def identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """Single identity mapping (arg mapped to itself).
 
@@ -68,7 +80,12 @@ def identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"arg1": "arg1", "arg2": "arg2"})
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    args_mapping={"arg1": "arg1", "arg2": "arg2"},
+)
 def all_identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """All arguments are identity mapped.
 
@@ -78,7 +95,12 @@ def all_identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"arg1": "arg1", "arg2": "new_arg2"})
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    args_mapping={"arg1": "arg1", "arg2": "new_arg2"},
+)
 def partial_identity_mapping_deprecation(arg1: int = 1, arg2: int = 0, new_arg2: int = 2) -> int:
     """Mix of identity and valid mappings.
 
@@ -117,34 +139,36 @@ self_ref_typed.__deprecated__ = replace(deprecated_info, target=self_referencing
 
 # ---------------------------------------------------------------------------
 # TargetMode misconfiguration fixtures
-# Construction-time UserWarning is expected — suppress during module load.
+# Construction-time UserWarnings/FutureWarnings are expected; they are suppressed via the
+# targeted `filterwarnings` entries in pyproject.toml (scoped by message + `deprecate._types`
+# module) so they do not pollute test output at module import time.
 # ---------------------------------------------------------------------------
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", UserWarning)
 
-    @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
-    def target_false_deprecation(x: int = 1) -> int:
-        """target=False is not valid — audit should flag as misconfigured_target."""
-        return x
+@deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
+def target_false_deprecation(x: int = 1) -> int:
+    """target=False is not valid — audit should flag as misconfigured_target."""
+    return x
 
-    @deprecated(
-        target=TargetMode.NOTIFY,
-        deprecated_in="0.1",
-        remove_in="0.5",
-        args_mapping={"old_x": "x"},
-    )
-    def whole_with_mapping_deprecation(x: int = 1) -> int:
-        """NOTIFY + args_mapping — mapping ignored; emits UserWarning at decoration time.
 
-        TypeError planned in v1.0; audit flags misconfigured_target.
-        """
-        return x
+@deprecated(
+    target=TargetMode.NOTIFY,
+    deprecated_in="0.1",
+    remove_in="0.5",
+    args_mapping={"old_x": "x"},
+)
+def whole_with_mapping_deprecation(x: int = 1) -> int:
+    """NOTIFY + args_mapping — mapping ignored; emits UserWarning at decoration time.
 
-    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5")
-    def args_only_no_mapping_deprecation(x: int = 1) -> int:
-        """ARGS_REMAP without args_mapping — no-op; audit flags misconfigured_target."""
-        return x
+    TypeError planned in v1.0; audit flags misconfigured_target.
+    """
+    return x
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5")
+def args_only_no_mapping_deprecation(x: int = 1) -> int:
+    """ARGS_REMAP without args_mapping — no-op; audit flags misconfigured_target."""
+    return x
 
 
 @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")

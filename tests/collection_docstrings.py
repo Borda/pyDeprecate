@@ -1,6 +1,6 @@
 """Target and deprecated callables for testing update_docstring=True behaviour."""
 
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 def new_function(a: int, b: str = "default") -> str:
@@ -75,7 +75,7 @@ def old_no_remove_version_function(a: int, b: str = "old") -> str:
     return f"old {a} {b}"
 
 
-@deprecated(target=None, deprecated_in="0.1", update_docstring=True, docstring_style="rst")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", update_docstring=True, docstring_style="rst")
 def old_no_target_function(a: int, b: str = "old") -> str:
     """Old function without target."""
     return f"old {a} {b}"
@@ -143,7 +143,7 @@ class OldClassPlain:  # noqa: D101
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"train_config": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -163,7 +163,7 @@ def google_args_removed(lr: float = 0.01, train_config: object = None) -> str:
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"train_config": "config"},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -184,7 +184,7 @@ def google_args_renamed(lr: float = 0.01, train_config: object = None, config: o
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"train_config": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -201,7 +201,7 @@ def sphinx_args_removed(lr: float = 0.01, train_config: object = None) -> str:
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"missing_arg": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -218,7 +218,7 @@ def args_not_in_docstring(lr: float = 0.01) -> str:
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"old_a": "new_a", "old_b": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -239,7 +239,7 @@ def google_multi_args_all_found(new_a: int = 0, old_a: int = 0, old_b: str = "")
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"old_a": "new_a", "missing_b": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -260,7 +260,7 @@ def google_partial_annotation(new_a: int = 0, old_a: int = 0) -> str:
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"train_config": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -280,7 +280,7 @@ def google_arguments_header(lr: float = 0.01, train_config: object = None) -> st
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"missing_arg": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -297,7 +297,7 @@ def sphinx_arg_not_in_docstring(lr: float = 0.01) -> str:
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"train_config": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -320,7 +320,7 @@ def google_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"train_config": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -361,7 +361,7 @@ def callable_target_with_args_mapping(a: int, b: str = "old") -> str:
 
 
 @deprecated(
-    target=None,
+    target=TargetMode.NOTIFY,
     args_mapping={"b": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -382,7 +382,7 @@ def no_target_with_args_mapping(a: int, b: str = "old") -> str:
 
 
 @deprecated(
-    target=None,
+    target=TargetMode.NOTIFY,
     args_mapping={"b": None},
     deprecated_in="1.8",
     remove_in="1.9",

@@ -70,8 +70,6 @@ from tests.collection_targets import (
     increment_value,
     power_with_new_coef,
     return_b,
-    return_new,
-    return_none,
     return_z,
     timing_wrapper,
     tracked_identity,
@@ -269,7 +267,7 @@ def original_sum_warn_only(a: int, b: int = 5) -> int:
     return void(a, b)
 
 
-_deprecation_sum_warn_only = deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+_deprecation_sum_warn_only = deprecated(target=TargetMode.NOTIFY, deprecated_in="0.2", remove_in="0.3")
 
 
 @_deprecation_sum_warn_only
@@ -401,8 +399,8 @@ wrapped_sum_msg = _deprecation_sum_msg(original_sum)
 
 @deprecated(
     target=TargetMode.NOTIFY,
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     num_warns=-1,
 )
 def depr_target_mode_whole_warns_on_every_call(x: int) -> int:
@@ -410,7 +408,7 @@ def depr_target_mode_whole_warns_on_every_call(x: int) -> int:
     return double_value(x)
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.9", remove_in="1.0")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.2", remove_in="2.0")
 def depr_target_mode_whole_executes_original_body(x: int) -> int:
     """TargetMode.NOTIFY wrapper that records body execution."""
     return tracked_identity(x)
@@ -418,8 +416,8 @@ def depr_target_mode_whole_executes_original_body(x: int) -> int:
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     args_mapping={"old_x": "x"},
 )
 def depr_target_mode_args_only_warns_when_old_arg_passed(x: int = 0, old_x: int = 0) -> int:
@@ -429,8 +427,8 @@ def depr_target_mode_args_only_warns_when_old_arg_passed(x: int = 0, old_x: int 
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     args_mapping={"old_x": "x"},
 )
 def depr_target_mode_args_only_silent_when_new_arg_passed(x: int = 0, old_x: int = 0) -> int:
@@ -440,8 +438,8 @@ def depr_target_mode_args_only_silent_when_new_arg_passed(x: int = 0, old_x: int
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     args_mapping={"coef": "new_coef"},
 )
 def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0, coef: float = 1.0) -> float:
@@ -451,8 +449,8 @@ def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0,
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     args_mapping={"old_x": "x"},
     args_extra={"y": 10},
 )
@@ -464,7 +462,7 @@ def depr_target_mode_args_only_with_args_extra_injects_kwargs(x: int = 0, y: int
 def make_target_mode_args_only_without_args_mapping_warns() -> Callable[[int], int]:
     """Build a TargetMode.ARGS_REMAP wrapper that warns about missing args_mapping."""
 
-    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.9", remove_in="1.0")
+    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0")
     def noop(x: int) -> int:
         return identity_value(x)
 
@@ -476,8 +474,8 @@ def make_target_mode_whole_with_args_mapping_warns() -> Callable[[int], int]:
 
     @deprecated(
         target=TargetMode.NOTIFY,
-        deprecated_in="0.9",
-        remove_in="1.0",
+        deprecated_in="1.2",
+        remove_in="2.0",
         args_mapping={"a": "b"},
     )
     def fn(b: int) -> int:
@@ -491,67 +489,14 @@ def make_target_mode_whole_with_args_extra_warns() -> Callable[[int], int]:
 
     @deprecated(
         target=TargetMode.NOTIFY,
-        deprecated_in="0.9",
-        remove_in="1.0",
+        deprecated_in="1.2",
+        remove_in="2.0",
         args_extra={"z": 1},
     )
     def fn(z: int = 0) -> int:
         return return_z(z)
 
     return fn
-
-
-def make_target_mode_args_only_legacy_args_extra() -> Callable[[int], int]:
-    """Build a legacy ``target=True`` wrapper with ``args_extra`` for equivalence tests."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", FutureWarning)
-
-        @deprecated(
-            target=True,
-            deprecated_in="0.9",
-            remove_in="1.0",
-            args_mapping={"old_x": "x"},
-            args_extra={"y": 10},
-        )
-        def fn(x: int, y: int) -> int:
-            return add_values(x, y)
-
-    return fn
-
-
-def make_target_mode_target_false_warns() -> Callable[[], None]:
-    """Build a wrapper that warns for the unsupported ``target=False`` sentinel."""
-
-    @deprecated(target=False, deprecated_in="0.9", remove_in="1.0")
-    def fn() -> None:
-        return return_none()
-
-    return fn
-
-
-def make_target_mode_target_none_sentinel_emits_future_warning() -> Callable[[], None]:
-    """Build a wrapper that warns for the legacy ``target=None`` sentinel."""
-
-    @deprecated(target=None, deprecated_in="0.9", remove_in="1.0")
-    def legacy_none() -> None:
-        return return_none()
-
-    return legacy_none
-
-
-def make_target_mode_target_true_sentinel_emits_future_warning() -> Callable[[int], int]:
-    """Build a wrapper that warns for the legacy ``target=True`` sentinel."""
-
-    @deprecated(
-        target=True,
-        deprecated_in="0.9",
-        remove_in="1.0",
-        args_mapping={"old": "new"},
-    )
-    def legacy_true(new: int = 0) -> int:
-        return return_new(new)
-
-    return legacy_true
 
 
 @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
@@ -643,7 +588,9 @@ def original_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> floa
     return base**new_coef
 
 
-_deprecation_pow_self = deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
+_deprecation_pow_self = deprecated(
+    target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"}
+)
 
 
 @_deprecation_pow_self
@@ -661,7 +608,7 @@ wrapped_pow_self = _deprecation_pow_self(original_pow_self)
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     template_mgs="The `%(source_name)s` uses depr. args: %(argument_map)s.",
     args_mapping={"c1": "nc1", "c2": "nc2"},
 )
@@ -675,8 +622,8 @@ def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float =
     return base ** (c1 + c2 + nc1 + nc2)
 
 
-@deprecated(True, "0.3", "0.6", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS)
-@deprecated(True, "0.4", "0.7", args_mapping={"nc1": "nc2"}, template_mgs=_SHORT_MSG_ARGS)
+@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS)
+@deprecated(TargetMode.ARGS_REMAP, "0.4", "0.7", args_mapping={"nc1": "nc2"}, template_mgs=_SHORT_MSG_ARGS)
 def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
     """Chained deprecation: multi-step parameter migration across versions.
 
@@ -687,8 +634,10 @@ def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float =
     return base ** (c1 + nc1 + nc2)
 
 
-@deprecated(True, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
-@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False)
+@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(
+    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False
+)
 def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Conditional skip: outer decorator skipped, inner fires.
 
@@ -699,8 +648,10 @@ def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> f
     return base ** (c1 - nc1)
 
 
-@deprecated(True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False)
-@deprecated(True, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated(
+    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False
+)
+@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
 def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Conditional skip: inner decorator skipped, outer fires.
 
@@ -717,7 +668,7 @@ def original_pow_skip(base: float, c1: float = 1, nc1: float = 1) -> float:
 
 
 _deprecation_pow_skip_if_true = deprecated(
-    True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
+    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
 )
 
 
@@ -736,7 +687,7 @@ wrapped_pow_skip_if_true = _deprecation_pow_skip_if_true(original_pow_skip)
 
 
 _deprecation_pow_skip_if_func = deprecated(
-    True, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True
+    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True
 )
 
 
@@ -754,7 +705,9 @@ def decorated_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> fl
 wrapped_pow_skip_if_func = _deprecation_pow_skip_if_func(original_pow_skip)
 
 
-@deprecated(True, "0.1", "0.3", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42)
+@deprecated(
+    TargetMode.ARGS_REMAP, "0.1", "0.3", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42
+)
 def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Invalid skip_if callback returning non-bool (expected failure).
 
@@ -809,7 +762,7 @@ class DeprecatedTimerDecorator(TimerDecorator):
 # ========== Testing Expiry Enforcement Examples ==========
 
 
-@deprecated(target=None, deprecated_in="1.0")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0")
 def depr_func_no_remove_in(x: int) -> int:
     """Warning-only deprecation with no removal deadline.
 
@@ -848,7 +801,11 @@ class ThisCls(NewCls):
     """Class with deprecated __init__ remapping argument via self-deprecation."""
 
     @deprecated(
-        target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"}, stream=_deprecation_warning
+        target=TargetMode.ARGS_REMAP,
+        deprecated_in="0.3",
+        remove_in="0.5",
+        args_mapping={"c": "nc"},
+        stream=_deprecation_warning,
     )
     def __init__(self, c: int = 3, nc: int = 5) -> None:
         """Initialize ThisCls."""
@@ -881,7 +838,7 @@ class ServiceCls:
         """Current implementation with renamed and extended signature."""
         return value * 2 * scale
 
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def old_warn_method(self, x: int) -> int:
         """Deprecated — warns only, body still executes.
 
@@ -917,13 +874,13 @@ class ServiceCls:
         return void(x)
 
     @deprecated(
-        target=True,
+        target=TargetMode.ARGS_REMAP,
         deprecated_in="1.0",
         remove_in="2.0",
         args_mapping={"old_x": "x"},
     )
     def self_renamed_method(self, old_x: int = 0, x: int = 0) -> int:
-        """Deprecated argument renamed within the same method (target=True).
+        """Deprecated argument renamed within the same method (TargetMode.ARGS_REMAP).
 
         Examples:
             User calls `self_renamed_method(old_x=5)` and the decorator
@@ -1089,8 +1046,8 @@ class MappedDropArgDataClass:
 with warnings.catch_warnings():
     warnings.simplefilter("always")
     ProxyNotifyWithArgsMapping = deprecated_class(
-        deprecated_in="0.9",
-        remove_in="1.0",
+        deprecated_in="1.2",
+        remove_in="2.0",
         target=TargetMode.NOTIFY,
         args_mapping={"old_key": "new_key"},
     )(SomeTargetClass)
@@ -1099,22 +1056,22 @@ with warnings.catch_warnings():
 with warnings.catch_warnings():
     warnings.simplefilter("always")
     ProxyArgsRemapNoMapping = deprecated_class(
-        deprecated_in="0.9",
-        remove_in="1.0",
+        deprecated_in="1.2",
+        remove_in="2.0",
         target=TargetMode.ARGS_REMAP,
     )(SomeTargetClass)
 
 # Proxy: auto ARGS_REMAP via args_mapping only (no explicit target)
 ProxyArgsRemapAuto = deprecated_class(
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     args_mapping={"old_key": "new_key"},
 )(SomeTargetClass)
 
 # Proxy: callable target + args_mapping
 ProxyCallableWithArgsMapping = deprecated_class(
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     target=SomeTargetClass,
     args_mapping={"old_key": "new_key"},
 )(SomeTargetClass)
@@ -1157,8 +1114,8 @@ def make_class_target_notify_with_args() -> type:
 
     @deprecated(
         target=TargetMode.NOTIFY,
-        deprecated_in="0.9",
-        remove_in="1.0",
+        deprecated_in="1.2",
+        remove_in="2.0",
         args_mapping={"old_key": "new_key"},
         args_extra={"injected": "x"},
         num_warns=-1,
@@ -1181,8 +1138,8 @@ def make_class_target_args_remap() -> type:
 
     @deprecated(
         target=TargetMode.ARGS_REMAP,
-        deprecated_in="0.9",
-        remove_in="1.0",
+        deprecated_in="1.2",
+        remove_in="2.0",
         args_mapping={"old_key": "new_key"},
         num_warns=-1,
     )
@@ -1197,8 +1154,8 @@ def make_class_target_args_remap() -> type:
 
 # Proxy: deprecated_class(target=NewCls, args_extra={...}) (Fix 3 fixture)
 ProxyClassWithArgsExtra = deprecated_class(
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     target=TargetWithInjected,
     args_extra={"injected": "from-extra"},
     num_warns=-1,
@@ -1207,8 +1164,8 @@ ProxyClassWithArgsExtra = deprecated_class(
 
 # Proxy: deprecated_class(target=ARGS_REMAP, args_mapping=...) for per-arg warning template (Fix 4 fixture)
 ProxyArgsRemapForArgWarnMessage = deprecated_class(
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     target=TargetMode.ARGS_REMAP,
     args_mapping={"old_key": "new_key"},
     num_warns=-1,
@@ -1218,8 +1175,8 @@ ProxyArgsRemapForArgWarnMessage = deprecated_class(
 # Function with both old and new params + args_mapping (Fix 5 fixture)
 @deprecated(
     target=both_old_new_target,
-    deprecated_in="0.9",
-    remove_in="1.0",
+    deprecated_in="1.2",
+    remove_in="2.0",
     args_mapping={"old": "new"},
 )
 def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
