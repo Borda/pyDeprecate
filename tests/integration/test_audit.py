@@ -147,10 +147,7 @@ class TestMisconfiguredTarget:
 
     @pytest.mark.parametrize(
         "func_name",
-        [
-            "whole_clean_deprecation",
-            "args_only_clean_deprecation",
-        ],
+        ["whole_clean_deprecation", "args_only_clean_deprecation"],
     )
     def test_misconfigured_target_false_for_valid_configs(self, func_name: str) -> None:
         """Correctly configured TargetMode wrappers have misconfigured_target=False."""

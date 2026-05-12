@@ -97,7 +97,7 @@ class _DeprecatedProxy:
         """
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it.
         misconfigured = target is False
-        if target is True or target is False:
+        if isinstance(target, bool):
             target = TargetMode.from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
@@ -560,9 +560,8 @@ def deprecated_class(
         >>> OldColor(1) is NewColor.RED
         True
 
-        When only argument names changed, omit *target* and supply
-        ``args_mapping``.  The proxy auto-resolves to ``TargetMode.ARGS_REMAP``
-        and warns **only when the old argument name is passed**:
+        When only argument names changed, omit *target* and supply ``args_mapping``. The proxy auto-resolves to
+        ``TargetMode.ARGS_REMAP`` and warns **only when the old argument name is passed**:
 
         >>> class Config:
         ...     def __init__(self, timeout: int = 0) -> None:
