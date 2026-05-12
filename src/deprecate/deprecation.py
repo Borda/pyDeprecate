@@ -137,9 +137,9 @@ def _normalize_target(
 
     """
     # --- Legacy sentinel conversion (v0.8 compat shim; removed in v1.0) ---
-    # stacklevel=3: warn() → _normalize_target() → packing() → @decorator application site
+    # stacklevel=4: warn() → _from_legacy() → _normalize_target() → packing() → @decorator application site
     if target is None or isinstance(target, bool):
-        return TargetMode._from_legacy(target)
+        return TargetMode._from_legacy(target, stacklevel=4)
 
     # --- TargetMode enum pass-through ---
     if isinstance(target, TargetMode):
@@ -572,7 +572,7 @@ def deprecated(
             elif target is None or isinstance(target, bool):
                 # None/True/False on a class is a class-misconfiguration, not a callable
                 # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
-                forward_target = TargetMode._from_legacy(target, stacklevel=None)
+                forward_target = TargetMode._from_legacy(target, stacklevel=3)
             else:
                 forward_target = TargetMode.NOTIFY
 
@@ -588,7 +588,7 @@ def deprecated(
             forward_args_extra = args_extra
             if forward_target is TargetMode.NOTIFY:
                 TargetMode._validate(
-                    forward_target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=2
+                    forward_target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
                 )
                 forward_args_mapping = None
                 forward_args_extra = None
@@ -615,7 +615,7 @@ def deprecated(
         # re-running the guard here would report the wrong migration path.
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             TargetMode._validate(
-                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=2
+                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
             )
 
         source_has_var_positional = any(
