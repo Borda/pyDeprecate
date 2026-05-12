@@ -96,7 +96,7 @@ if result.no_effect:
 
 ```
 DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None)
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -148,6 +148,8 @@ tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
 
 `tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references,
 and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
+The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 14 bindings even though there are
+13 unique function objects.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -179,12 +181,12 @@ print(f"No effect: {len(no_effect)}")
 
 ```
 === Misconfiguration Report ===
-Wrappers scanned: 13
+Wrappers scanned: 14
 Invalid arguments: 3
-Empty mappings: 5
+Empty mappings: 6
 Identity mappings: 3
 Self-references: 2
-Misconfigured targets: 5
+Misconfigured targets: 6
 No effect: 7
 ```
 
