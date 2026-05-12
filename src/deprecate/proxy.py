@@ -256,15 +256,15 @@ class _DeprecatedProxy:
             return target
         return self._cfg.obj
 
-    def _apply_args_mapping(self, kwargs: dict) -> dict:
+    def _apply_args_mapping(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Apply args_mapping to *kwargs*, renaming or dropping keys as configured."""
         args_mapping = self._dep.args_mapping
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
-        return {args_mapping.get(k, k): v for k, v in kwargs.items() if k not in args_to_drop}
+        return {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
 
-    def _merge_args_extra(self, kwargs: dict) -> dict:
+    def _merge_args_extra(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; extra values win."""
         args_extra = self._cfg.args_extra
         if not args_extra:

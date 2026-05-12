@@ -210,7 +210,7 @@ def _prepare_target_call(
     return target
 
 
-def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) -> dict:
+def _update_kwargs_with_args(func: Callable, fn_args: tuple[Any, ...], fn_kwargs: dict[str, Any]) -> dict[str, Any]:
     """Convert positional arguments to keyword arguments using function signature.
 
     This helper function takes positional arguments and converts them to keyword arguments by matching them with
@@ -262,7 +262,7 @@ def _update_kwargs_with_args(func: Callable, fn_args: tuple, fn_kwargs: dict) ->
     return updated_kwargs
 
 
-def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict) -> dict:
+def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> dict[str, Any]:
     """Merge function default values with provided keyword arguments.
 
     This helper fills in default parameter values from the function signature for any parameters not explicitly
@@ -698,7 +698,7 @@ def deprecated(
                     kwargs = _update_kwargs_with_defaults(source, kwargs)
             if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
-                kwargs = {args_mapping.get(arg, arg): val for arg, val in kwargs.items() if arg not in args_skip}
+                kwargs = {(args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
             if args_extra and (_target is TargetMode.ARGS_REMAP or callable(_target)):
                 kwargs.update(args_extra)
