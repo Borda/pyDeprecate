@@ -3,17 +3,16 @@
 This module provides two kinds of helpers:
 
 **Internal** (used by :mod:`deprecate.deprecation` and :mod:`deprecate.audit`):
-    - :func:`~deprecate.utils.get_func_arguments_types_defaults`: Extract parameter names, annotations,
-      and defaults from a callable's signature. Used when applying ``args_mapping``
-      and when auditing wrapper configuration.
+    - :func:`~deprecate.utils.get_func_arguments_types_defaults`: Extract parameter names, annotations, and defaults
+      from a callable's signature. Used when applying ``args_mapping`` and when auditing wrapper configuration.
 
 **Public — decorator companion** (exported via :mod:`deprecate`):
-    - :func:`~deprecate.utils.void`: Accepts any arguments and returns ``None``. Used in deprecated
-      function stubs to satisfy IDEs and mypy about unused parameters.
+    - :func:`~deprecate.utils.void`: Accepts any arguments and returns ``None``. Used in deprecated function stubs
+      to satisfy IDEs and mypy about unused parameters.
 
 **Public — testing** (exported via :mod:`deprecate`):
-    - :func:`~deprecate.utils.assert_no_warnings`: Context manager that asserts no warnings are raised
-      during a block — the inverse of ``pytest.warns()``.
+    - :func:`~deprecate.utils.assert_no_warnings`: Context manager that asserts no warnings are raised during a
+      block — the inverse of ``pytest.warns()``.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
@@ -29,9 +28,8 @@ from typing import Any, Callable, Optional, Union
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, Any]]:
     """Parse function arguments, types and default values.
 
-    This introspection helper extracts the complete signature information from
-    a function, including parameter names, type annotations, and default values.
-    Useful for dynamic argument handling and validation in wrapper functions.
+    This introspection helper extracts the complete signature information from a function, including parameter names,
+    type annotations, and default values.  Useful for dynamic argument handling and validation in wrapper functions.
 
     Args:
         func: A function to be examined.
@@ -105,19 +103,18 @@ def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str
 def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
     """Context manager asserting that no warnings are raised — the inverse of ``pytest.warns()``.
 
-    Useful for testing that refactored code properly avoids deprecated functionality
-    or that new implementations don't trigger warnings.
+    Useful for testing that refactored code properly avoids deprecated functionality or that new implementations don't
+    trigger warnings.
 
     Args:
         warning_type: The warning type that must NOT be raised (e.g., :class:`FutureWarning`,
-            :class:`DeprecationWarning`). If ``None``, asserts that no warnings of any
-            type are raised.
-        match: If given, only fail if a warning message contains this string.
-            If ``None``, fails on any warning of the specified type.
+            :class:`DeprecationWarning`). If ``None``, asserts that no warnings of any type are raised.
+        match: If given, only fail if a warning message contains this string. If ``None``, fails on any warning of
+            the specified type.
 
     Raises:
-        AssertionError: If a warning of the specified type (and optionally matching
-            the message pattern) was raised during the context.
+        AssertionError: If a warning of the specified type (and optionally matching the message pattern) was raised
+            during the context.
 
     Example:
         >>> # Assert new function doesn't trigger FutureWarning
@@ -143,8 +140,8 @@ def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Opti
         ...     some_function()
 
     Note:
-        This context manager is particularly useful in pytest for testing that
-        refactored code properly uses new APIs without triggering deprecation warnings.
+        This context manager is particularly useful in pytest for testing that refactored code properly uses new APIs
+        without triggering deprecation warnings.
 
     """
     with warnings.catch_warnings(record=True) as called:
@@ -178,9 +175,8 @@ def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Opti
 def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
     """Deprecated alias for :func:`~deprecate.utils.assert_no_warnings`.
 
-    This context manager is kept for backward compatibility so that existing
-    imports like ``from deprecate.utils import no_warning_call`` continue to
-    work until v1.0.
+    This context manager is kept for backward compatibility so that existing imports like
+    ``from deprecate.utils import no_warning_call`` continue to work until v1.0.
     """
     warnings.warn(
         "`deprecate.utils.no_warning_call` is deprecated in `0.6` and will be removed in `1.0`; "
@@ -195,9 +191,8 @@ def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optiona
 def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401
     """Empty function that accepts any arguments and returns None.
 
-    This helper function is used to silence IDE warnings about unused parameters
-    in deprecated functions where the body is never executed (calls are forwarded
-    to a target function). It's purely a convenience for developers.
+    This helper function is used to silence IDE warnings about unused parameters in deprecated functions where the
+    body is never executed (calls are forwarded to a target function). It's purely a convenience for developers.
 
     Args:
         *args: Any positional arguments (ignored).
@@ -218,8 +213,8 @@ def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401
         ...     # This line is never reached - call forwarded to new_func
 
     Note:
-        This function has no runtime effect - it's purely for developer convenience.
-        You can also use ``pass`` or just a docstring instead of calling ``void()``.
+        This function has no runtime effect - it's purely for developer convenience. You can also use ``pass`` or
+        just a docstring instead of calling ``void()``.
 
     """
     _, _ = args, kwrgs

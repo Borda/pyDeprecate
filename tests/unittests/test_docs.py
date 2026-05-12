@@ -6,7 +6,7 @@ from typing import cast
 
 import pytest
 
-from deprecate._types import DeprecationConfig, _DeprecatedCallable
+from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
 from deprecate.docstring.inject import (
     _annotate_google_style_arg,
     _annotate_sphinx_style_arg,
@@ -224,7 +224,7 @@ class TestUpdateDocstringIdempotent:
         config = DeprecationConfig(
             deprecated_in="1.0",
             remove_in="2.0",
-            target=True,
+            target=TargetMode.ARGS_REMAP,
             args_mapping={"old": None},
         )
         cast(_DeprecatedCallable, my_fn).__deprecated__ = config
@@ -247,7 +247,7 @@ class TestUpdateDocstringIdempotent:
         config = DeprecationConfig(
             deprecated_in="1.0",
             remove_in="2.0",
-            target=True,
+            target=TargetMode.ARGS_REMAP,
             args_mapping={"old": None},
         )
         cast(_DeprecatedCallable, my_fn).__deprecated__ = config

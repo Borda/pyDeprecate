@@ -22,28 +22,28 @@ That warning is triggered specifically when `@deprecated` is applied directly to
 There are two supported alternatives depending on what you need. Use `@deprecated_class()` when you want to deprecate the class name itself (including Enums and dataclasses). Use `@deprecated` on `__init__` when you want to emit a deprecation notice only at instantiation time while keeping the class name in place.
 
 ```python
-from deprecate import deprecated_class
+from deprecate import TargetMode, deprecated_class
 from enum import Enum
 
 
 # Correct: use @deprecated_class for classes
-@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
 
 
-@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
 
 
 # Alternative: decorate __init__ to warn at instantiation while keeping the class name
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 class MyClass:
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```
@@ -147,11 +147,11 @@ True
 If you need to emit a deprecation notice only at instantiation time without deprecating the class name itself, decorate `__init__` instead — this keeps the class object intact and `isinstance`/`issubclass` unaffected:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 class MyService:
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, host: str) -> None:
         self.host = host  # body executes; warning fires at every MyService(...)
 
@@ -173,7 +173,7 @@ True
 
 **Q:** I get `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`. What does this mean?
 
-**A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `target=True` for in-place remapping.
+**A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `TargetMode.ARGS_REMAP` for in-place remapping.
 
 The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `TypeError: Failed mapping of '{source}', arguments not accepted by target: [...]`. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
 
@@ -216,14 +216,14 @@ def old_func(old_name: int) -> int:
     pass
 ```
 
-**Option 3 — Use `target=True`** (deprecating an argument of the same function, not forwarding to a different one):
+**Option 3 — Use `TargetMode.ARGS_REMAP`** (deprecating an argument of the same function, not forwarding to a different one):
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 # Deprecate within same function
-@deprecated(target=True, args_mapping={"old_arg": "new_arg"})
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 ```
@@ -269,7 +269,7 @@ def old_func2():
 
 **A:** By default, pyDeprecate emits the deprecation message only once per function (`num_warns=1`) to avoid log spam. After the first call, subsequent calls are silent. Set `num_warns=-1` for unlimited emissions or `num_warns=N` for exactly `N` emissions.
 
-For per-argument deprecation (when using `args_mapping` with `target=True`), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default.
+For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default.
 
 ```python
 # Minimal replacement function for examples
@@ -372,10 +372,10 @@ NEW_THRESHOLD = 0.5  # new name
 1. **Use a deprecated function wrapper** — if you need deprecation notices on read access to a bare value, expose it through a function that you can decorate:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 def get_old_threshold() -> float:
     """Use NEW_THRESHOLD constant directly instead."""
     return 0.5
@@ -448,6 +448,73 @@ old_endpoint("/api/users")
 - Timestamps included automatically if your formatter adds them
 
 **Note:** When using `stream=logging.warning`, the `num_warns` parameter still controls how many times the message is emitted. The combination of `num_warns=-1` with `stream=logging.warning` ensures every deprecated call site is logged — useful for measuring migration progress via log analytics.
+
+______________________________________________________________________
+
+## Why doesn't `deprecated_class` warn when I call it with the new argument name?
+
+**Q:** I set up `deprecated_class(args_mapping={"old_arg": "new_arg"}, ...)` on my class but no warning fires when I call it with `new_arg=...`. Did I configure it incorrectly?
+
+**A:** No — this is the intended behaviour. When `args_mapping` is provided without an explicit callable `target`, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
+
+```python
+from deprecate import deprecated_class
+
+
+class Config:
+    def __init__(self, timeout: int = 0) -> None:
+        self.timeout = timeout
+
+
+# args_mapping without a callable target → auto ARGS_REMAP
+LegacyConfig = deprecated_class(
+    args_mapping={"time_limit": "timeout"},
+    deprecated_in="1.5",
+    remove_in="2.0",
+)(Config)
+
+LegacyConfig(timeout=30)  # new name — no warning (caller already migrated)
+LegacyConfig(time_limit=30)  # old name — FutureWarning emitted + remapped
+```
+
+To emit a deprecation notice for every instantiation regardless of which argument name is used, configure `target=TargetMode.NOTIFY` explicitly. Combining `TargetMode.NOTIFY` with `args_mapping` is a misconfiguration — `args_mapping` is not applied under `NOTIFY` and supplying it emits a construction-time `UserWarning` today that becomes a `TypeError` in v1.0.
+
+______________________________________________________________________
+
+## UserWarning when using `TargetMode.ARGS_REMAP` without `args_mapping`
+
+**Q:** I applied `@deprecated(target=TargetMode.ARGS_REMAP, ...)` and got the warning `UserWarning: @deprecated(target=TargetMode.ARGS_REMAP) on my_func requires args_mapping ...`. Why, and how do I fix it?
+
+**A:** `TargetMode.ARGS_REMAP` is designed exclusively for renaming or dropping arguments within the same function. Without `args_mapping` there is nothing to remap — the decorator has zero call-time effect. This is a misconfiguration that emits a `UserWarning` today and will become a `TypeError` in v1.0.
+
+Choose the mode that matches your intent:
+
+- **Rename or drop a parameter** — provide `args_mapping` as required:
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
+def my_func(old_name: int = 0, new_name: int = 0) -> int:
+    return new_name * 2
+```
+
+- **Warn callers with no forwarding or remapping** — use `TargetMode.NOTIFY` instead:
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+def my_func(x: int) -> int:
+    """Going away — remove all call sites."""
+    return x * 2
+```
+
+!!! danger "This misconfiguration will become a TypeError in v1.0"
+
+    Migrate now to avoid a hard break on upgrade. Use the [audit tools](guide/audit.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
 
 ______________________________________________________________________
 

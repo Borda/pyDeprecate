@@ -189,13 +189,15 @@ Not sure which API to reach for? Start here.
 
 **Pick the right decorator:**
 
-| Scenario                                      | API to use                                              |
-| --------------------------------------------- | ------------------------------------------------------- |
-| Renaming a function or method                 | `@deprecated(target=new_func)`                          |
-| Renaming an argument within the same function | `@deprecated(target=True, args_mapping={"old": "new"})` |
-| Warn only — original body still runs          | `@deprecated(target=None)`                              |
-| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                    |
-| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                         |
+| Scenario                                      | API to use                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| Renaming a function or method                 | `@deprecated(target=new_func)`                                           |
+| Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
+| Warn only — original body still runs          | `@deprecated(target=TargetMode.NOTIFY)`                                  |
+| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
+| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
+
+> **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.8 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
@@ -214,8 +216,8 @@ Not sure which API to reach for? Start here.
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                         |
 
 > [!TIP]
-> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, and `args_mapping`.
-> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
+> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
+> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 
@@ -233,9 +235,14 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 
 In particular the target values (cases):
 
-- _None_ - raise only warning message (ignore all argument mapping)
-- _True_ - deprecate some argument of itself (argument mapping should be specified)
-- _Callable_ - forward call to new methods (optionally also argument mapping or extras)
+| `target` value          | Use case                                      | `args_mapping`                     | Warning trigger                    |
+| ----------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
+| `TargetMode.NOTIFY`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
+| `TargetMode.ARGS_REMAP` | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
+| `<callable>`            | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
+
+> [!TIP]
+> `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
 > `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)).
@@ -373,10 +380,10 @@ sample output:
 Base use-case with no forwarding and just raising a warning:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b
@@ -399,19 +406,19 @@ print(my_sum(1, 2))
 <br>
 
 > [!NOTE]
-> When using `target=None`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
+> When using `TargetMode.NOTIFY`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
 
 ### 🔄 Self argument mapping
 
 We also support deprecation and argument mapping for the function itself:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 @deprecated(
     # define as deprecation some self argument - mapping
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"coef": "new_coef"},
     # common version info
     deprecated_in="0.2",
@@ -442,12 +449,12 @@ print(any_pow(2, 3))
 To **drop** an argument entirely (warn when it's passed, then discard it), map it to `None`:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 from typing import Optional
 
 
 @deprecated(
-    target=True,
+    target=TargetMode.ARGS_REMAP,
     args_mapping={"legacy_param": None},
     deprecated_in="1.8",
     remove_in="1.9",
@@ -463,8 +470,8 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 my_func(value=42, legacy_param="old")
 ```
 
-> [!NOTE]
-> `target=True` **requires** `args_mapping` to do anything useful. Without it, no warning is emitted and the function body runs unchanged — the decorator is a passthrough. This is the key difference from `target=None`, which emits a warning regardless of arguments, with warning frequency still controlled by `num_warns`.
+> [!WARNING]
+> `TargetMode.ARGS_REMAP` without `args_mapping` is a misconfiguration; using it emits a construction-time `UserWarning`. This will become a `TypeError` in v1.0. If you only want to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
 
 ### 🔗 Multiple deprecation levels
 
@@ -474,18 +481,18 @@ Eventually you can set multiple deprecation levels via chaining deprecation argu
   <summary>Example: chaining two argument deprecations across different versions</summary>
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
 @deprecated(
-    True,
+    TargetMode.ARGS_REMAP,
     deprecated_in="0.3",
     remove_in="0.6",
     args_mapping=dict(c1="nc1"),
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 @deprecated(
-    True,
+    TargetMode.ARGS_REMAP,
     deprecated_in="0.4",
     remove_in="0.7",
     args_mapping=dict(nc1="nc2"),
@@ -519,7 +526,7 @@ Conditional skip of which can be used for mapping between different target funct
 <summary>Example: <code>skip_if</code> based on a runtime condition</summary>
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 FAKE_VERSION = 1
 
@@ -528,7 +535,7 @@ def version_greater_1():
     return FAKE_VERSION > 1
 
 
-@deprecated(True, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
+@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
 def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
@@ -958,7 +965,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 <br>
 
 > [!NOTE]
-> `args_extra` is only used when `target` is a `Callable` (i.e., when calls are forwarded to a replacement). It is merged into the forwarded kwargs _after_ `args_mapping` is applied, so extra values can also override mapped ones. It is ignored for `target=True` self-deprecation, where no forwarding occurs.
+> `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is ignored and a construction-time `UserWarning` is emitted by validation.
 
 ## 🔇 Understanding the `void()` Helper
 
@@ -1018,11 +1025,11 @@ The `DeprecationWrapperInfo` dataclass contains:
 The `validate_deprecation_wrapper()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
-from deprecate import validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
+from deprecate import DeprecationWrapperInfo, TargetMode, deprecated, validate_deprecation_wrapper
 
 
 # Define your deprecated function
-@deprecated(target=True, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
@@ -1042,7 +1049,7 @@ result = validate_deprecation_wrapper(my_func)
 
 
 # Example: Function with invalid args_mapping
-@deprecated(target=True, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
 def bad_func(real_arg: int = 0) -> int:
     return real_arg
 
@@ -1053,7 +1060,7 @@ print(result)
 
 
 # Example: Function with empty mapping (no effect)
-@deprecated(target=True, args_mapping={}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={}, deprecated_in="1.0")
 def empty_func(arg: int = 0) -> int:
     return arg
 
@@ -1319,7 +1326,7 @@ The `validate_deprecation_chains()` utility scans a module or package for deprec
 <summary><b>Example: Detecting Both Chain Types</b></summary>
 
 ```python
-from deprecate import deprecated, validate_deprecation_wrapper, void
+from deprecate import TargetMode, deprecated, validate_deprecation_wrapper, void
 
 
 def new_power(base: float, exponent: float = 2) -> float:
@@ -1333,7 +1340,7 @@ def power_v2(base: float, exponent: float = 2) -> float:
 
 
 # self-deprecation — renames old arg "exp" -> "exponent" within the same function
-@deprecated(True, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
 def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
     return base**exponent
 
@@ -1345,7 +1352,7 @@ def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
     return void(base, exponent)
 
 
-# BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED
+# BAD: targets legacy_power (target=TargetMode.ARGS_REMAP with arg renaming) — ChainType.STACKED
 # Mappings chain: "power" -> "exp" -> "exponent" — must be composed.
 # SOLUTION: target=new_power, args_mapping={"power": "exponent"}
 @deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})
@@ -1528,17 +1535,17 @@ def old_func_warn_n_times(x: int) -> int:
 Use `@deprecated_class()` for class-level deprecation:
 
 ```python
-from deprecate import deprecated_class
+from deprecate import TargetMode, deprecated, deprecated_class
 from enum import Enum
 
 
 # Correct: use @deprecated_class for classes
-@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
 
 
-@deprecated_class(target=None, deprecated_in="1.0", remove_in="2.0")
+@deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyEnum(Enum):
     A = 1
     B = 2
@@ -1549,7 +1556,7 @@ from deprecate import deprecated
 
 
 class MyClass:
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
 ```
@@ -1607,11 +1614,11 @@ class MyClass:
 3. **Use target=True for self-deprecation** (deprecate argument of same function):
 
    ```python
-   from deprecate import deprecated
+   from deprecate import TargetMode, deprecated
 
 
    # Deprecate within same function
-   @deprecated(target=True, args_mapping={"old_arg": "new_arg"})
+   @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
    def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
        return new_arg * 2
    ```
@@ -1665,7 +1672,7 @@ def old_func2():
 **Problem:** You don't see the deprecation warning.
 
 **Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam.
-For per-argument deprecation (when using `args_mapping` with `target=True`), each deprecated argument
+For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument
 has its own warning counter, meaning warnings for different arguments are tracked independently.
 
 <details>

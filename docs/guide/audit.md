@@ -11,6 +11,16 @@ Three things go wrong with deprecations in practice: a `remove_in` deadline pass
 
     `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
 
+!!! warning "Breaking change in v0.8: `__deprecated__.target` type changed"
+
+    In v0.8, `DeprecationConfig.target` now always stores a `TargetMode` enum member or a `Callable` — never a raw boolean sentinel. Code inspecting this attribute must be updated:
+
+    | Before v0.8                           | v0.8+                                                 |
+    | ------------------------------------- | ----------------------------------------------------- |
+    | `func.__deprecated__.target is None`  | `func.__deprecated__.target is TargetMode.NOTIFY`     |
+    | `func.__deprecated__.target is True`  | `func.__deprecated__.target is TargetMode.ARGS_REMAP` |
+    | `func.__deprecated__.target is False` | `func.__deprecated__.misconfigured`                   |
+
 ## Validating Wrapper Configuration
 
 Use these utilities to verify that a deprecated wrapper is correctly configured: that `args_mapping` keys exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. `validate_deprecation_wrapper()` inspects a single function; `find_deprecation_wrappers()` scans an entire package.
@@ -32,11 +42,11 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 `validate_deprecation_wrapper()` extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.
 
 ```python
-from deprecate import validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
+from deprecate import TargetMode, validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
 
 
 # Define your deprecated function
-@deprecated(target=True, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg
 
@@ -56,7 +66,7 @@ result = validate_deprecation_wrapper(my_func)
 
 
 # Example: Function with invalid args_mapping
-@deprecated(target=True, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
 def bad_func(real_arg: int = 0) -> int:
     return real_arg
 
@@ -67,7 +77,7 @@ print(result)
 
 
 # Example: Function with empty mapping (no effect)
-@deprecated(target=True, args_mapping={}, deprecated_in="1.0")
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={}, deprecated_in="1.0")
 def empty_func(arg: int = 0) -> int:
     return arg
 
@@ -85,8 +95,8 @@ if result.no_effect:
   <summary>Output: <code>print("Warning: This wrapper configuration has zero impact!")</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=True, args_mapping={'nonexistent': 'new_arg'}, docstring_style='rst'), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, all_identity=False, chain_type=None)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=True, args_mapping={}, docstring_style='rst'), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, all_identity=False, chain_type=None)
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None)
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -108,80 +118,76 @@ results = find_deprecation_wrappers(my_package)
 # Or scan using a string module path
 results = find_deprecation_wrappers("tests.collection_deprecate")
 
-# Check results - each item is a DeprecationWrapperInfo dataclass
-for r in results:
+# Filter to only ineffective wrappers
+ineffective = [r for r in results if r.no_effect]
+print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
+
+# Check some results - each item is a DeprecationWrapperInfo dataclass
+for r in results[:5]:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
         print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
-
-# Filter to only ineffective wrappers
-ineffective = [r for r in results if r.no_effect]
-if ineffective:
-    print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
 ```
 
 <details>
   <summary>Output: <code>print(f"Found {len(ineffective)</code></summary>
 
 ```
+Found 0 deprecated wrappers with zero impact!
 tests.collection_deprecate.ChainedProxyColorEnum: no_effect=False
 tests.collection_deprecate.DecoratedDataClass: no_effect=False
 tests.collection_deprecate.DecoratedEnum: no_effect=False
 tests.collection_deprecate.DeprecatedColorDataClass: no_effect=False
 tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
-tests.collection_deprecate.DeprecatedDataClass: no_effect=False
-tests.collection_deprecate.DeprecatedEnum: no_effect=False
-tests.collection_deprecate.DeprecatedIntEnum: no_effect=False
-tests.collection_deprecate.MappedColorEnum: no_effect=False
-tests.collection_deprecate.MappedDataClass: no_effect=False
-tests.collection_deprecate.MappedDropArgDataClass: no_effect=False
-tests.collection_deprecate.MappedEnum: no_effect=False
-tests.collection_deprecate.MappedIntEnum: no_effect=False
-tests.collection_deprecate.MappedValueEnum: no_effect=False
-tests.collection_deprecate.RedirectedDataClass: no_effect=False
-tests.collection_deprecate.RedirectedEnum: no_effect=False
-tests.collection_deprecate.SelfMappedEnum: no_effect=False
-tests.collection_deprecate.WarnOnlyColorEnum: no_effect=False
-tests.collection_deprecate.WrappedDataClass: no_effect=False
-tests.collection_deprecate.WrappedEnum: no_effect=False
-tests.collection_deprecate.decorated_pow_self: no_effect=False
-tests.collection_deprecate.decorated_pow_skip_if_func: no_effect=False
-tests.collection_deprecate.decorated_pow_skip_if_true: no_effect=False
-tests.collection_deprecate.decorated_sum: no_effect=False
-tests.collection_deprecate.decorated_sum_calls_2: no_effect=False
-tests.collection_deprecate.decorated_sum_calls_inf: no_effect=False
-tests.collection_deprecate.decorated_sum_msg: no_effect=False
-tests.collection_deprecate.decorated_sum_no_stream: no_effect=False
-tests.collection_deprecate.decorated_sum_warn_only: no_effect=False
-tests.collection_deprecate.depr_accuracy_extra: no_effect=False
-tests.collection_deprecate.depr_accuracy_map: no_effect=False
-tests.collection_deprecate.depr_accuracy_skip: no_effect=False
-tests.collection_deprecate.depr_accuracy_target: no_effect=False
-tests.collection_deprecate.depr_config_dict: no_effect=False
-tests.collection_deprecate.depr_config_dict_read_only: no_effect=False
-tests.collection_deprecate.depr_func_no_remove_in: no_effect=False
-tests.collection_deprecate.depr_func_targeting_proxy: no_effect=False
-tests.collection_deprecate.depr_make_new_cls: no_effect=False
-tests.collection_deprecate.depr_make_new_cls_mapped: no_effect=False
-tests.collection_deprecate.depr_pow_args: no_effect=False
-tests.collection_deprecate.depr_pow_mix: no_effect=False
-tests.collection_deprecate.depr_pow_self_double: no_effect=False
-tests.collection_deprecate.depr_pow_self_twice: no_effect=False
-tests.collection_deprecate.depr_pow_skip_if_false_true: no_effect=False
-tests.collection_deprecate.depr_pow_skip_if_func_int: no_effect=False
-tests.collection_deprecate.depr_pow_skip_if_true_false: no_effect=False
-tests.collection_deprecate.depr_pow_wrong: no_effect=False
-tests.collection_deprecate.depr_timing_wrapper: no_effect=False
-tests.collection_deprecate.wrapped_pow_self: no_effect=False
-tests.collection_deprecate.wrapped_pow_skip_if_func: no_effect=False
-tests.collection_deprecate.wrapped_pow_skip_if_true: no_effect=False
-tests.collection_deprecate.wrapped_sum: no_effect=False
-tests.collection_deprecate.wrapped_sum_calls_2: no_effect=False
-tests.collection_deprecate.wrapped_sum_calls_inf: no_effect=False
-tests.collection_deprecate.wrapped_sum_msg: no_effect=False
-tests.collection_deprecate.wrapped_sum_no_stream: no_effect=False
-tests.collection_deprecate.wrapped_sum_warn_only: no_effect=False
+```
+
+</details>
+
+### Scanning a misconfigured collection
+
+`tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references,
+and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
+The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 14 bindings even though there are
+13 unique function objects.
+
+```python
+from deprecate import find_deprecation_wrappers
+
+# For testing purposes, we use the misconfigured test module; normally you would import your own package
+from tests import collection_misconfigured as my_package
+
+results = find_deprecation_wrappers(my_package, recursive=False)
+
+invalid_args = [r for r in results if r.invalid_args]
+empty_mappings = [r for r in results if r.empty_mapping]
+identity_mappings = [r for r in results if r.identity_mapping]
+self_refs = [r for r in results if r.self_reference]
+misconfigured_targets = [r for r in results if r.misconfigured_target]
+no_effect = [r for r in results if r.no_effect]
+
+print("=== Misconfiguration Report ===")
+print(f"Wrappers scanned: {len(results)}")
+print(f"Invalid arguments: {len(invalid_args)}")
+print(f"Empty mappings: {len(empty_mappings)}")
+print(f"Identity mappings: {len(identity_mappings)}")
+print(f"Self-references: {len(self_refs)}")
+print(f"Misconfigured targets: {len(misconfigured_targets)}")
+print(f"No effect: {len(no_effect)}")
+```
+
+<details>
+  <summary>Output: <code>print(f"No effect: {len(no_effect)}")</code></summary>
+
+```
+=== Misconfiguration Report ===
+Wrappers scanned: 14
+Invalid arguments: 3
+Empty mappings: 6
+Identity mappings: 3
+Self-references: 2
+Misconfigured targets: 6
+No effect: 7
 ```
 
 </details>

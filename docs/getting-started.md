@@ -73,13 +73,13 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 **Pick the right decorator:**
 
-| Scenario                                      | API to use                                              |
-| --------------------------------------------- | ------------------------------------------------------- |
-| Renaming a function or method                 | `@deprecated(target=new_func)`                          |
-| Renaming an argument within the same function | `@deprecated(target=True, args_mapping={"old": "new"})` |
-| Notice only — original body still runs        | `@deprecated(target=None)`                              |
-| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                    |
-| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                         |
+| Scenario                                      | API to use                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| Renaming a function or method                 | `@deprecated(target=new_func)`                                           |
+| Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
+| Notice only — original body still runs        | `@deprecated(target=TargetMode.NOTIFY)`                                  |
+| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
+| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
 
 **All `@deprecated` parameters:**
 
@@ -97,7 +97,7 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                           |
 | `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`     |
 
-`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
+`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 ______________________________________________________________________
 

@@ -22,6 +22,9 @@ import pytest
 
 from deprecate import assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
+from tests.collection_depr_legacy import decorated_pow_self as legacy_pow_self
+from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_warn_only
+from tests.collection_depr_legacy import depr_pow_self_double as legacy_pow_self_double
 from tests.collection_deprecate import (
     decorated_pow_self,
     decorated_pow_skip_if_func,
@@ -35,6 +38,7 @@ from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
+    depr_collision_old_new,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_pow_args,
@@ -66,6 +70,7 @@ class TestDeprecationWarnings:
         [
             pytest.param(decorated_sum_warn_only, "decorated_sum_warn_only", id="decorated-form"),
             pytest.param(wrapped_sum_warn_only, "original_sum_warn_only", id="wrapped-form"),
+            pytest.param(legacy_sum_warn_only, "decorated_sum_warn_only", id="legacy"),
         ],
     )
     def test_warn_only(self, func: Callable, name: str) -> None:
@@ -214,7 +219,14 @@ class TestArgumentMapping:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for functions with chained or multiple deprecations."""
-        for func in (decorated_pow_self, depr_pow_self_double, depr_pow_self_twice, wrapped_pow_self):
+        for func in (
+            decorated_pow_self,
+            depr_pow_self_double,
+            depr_pow_self_twice,
+            wrapped_pow_self,
+            legacy_pow_self,
+            legacy_pow_self_double,
+        ):
             state = cast(_DeprecatedCallable, func)._state
             state.warned_calls = 0
             state.warned_args.clear()
@@ -224,6 +236,7 @@ class TestArgumentMapping:
         [
             pytest.param(decorated_pow_self, id="decorated-form"),
             pytest.param(wrapped_pow_self, id="wrapped-form"),
+            pytest.param(legacy_pow_self, id="legacy"),
         ],
     )
     def test_arguments_new_only(self, func: Callable) -> None:
@@ -236,6 +249,7 @@ class TestArgumentMapping:
         [
             pytest.param(decorated_pow_self, "decorated_pow_self", id="decorated-form"),
             pytest.param(wrapped_pow_self, "original_pow_self", id="wrapped-form"),
+            pytest.param(legacy_pow_self, "decorated_pow_self", id="legacy"),
         ],
     )
     def test_arguments_deprecated(self, func: Callable, name: str) -> None:
@@ -248,16 +262,25 @@ class TestArgumentMapping:
             assert func(2, 3) == 8
 
     @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_pow_self_double, id="modern"),
+            pytest.param(legacy_pow_self_double, id="legacy"),
+        ],
+    )
+    @pytest.mark.parametrize(
         ("kwargs", "match_fragment", "expected"),
         [
             pytest.param({"c1": 3}, r"`c1` -> `nc1`", 32, id="c1-deprecated"),
             pytest.param({"c2": 2}, r"`c2` -> `nc2`", 8, id="c2-deprecated"),
         ],
     )
-    def test_arguments_double_deprecated(self, kwargs: dict, match_fragment: str, expected: int) -> None:
+    def test_arguments_double_deprecated(
+        self, func: Callable, kwargs: dict, match_fragment: str, expected: int
+    ) -> None:
         """Test double mapping, calling with each deprecated argument individually."""
         with pytest.warns(FutureWarning, match=f"The `depr_pow_self_double` uses depr. args: {match_fragment}."):
-            assert depr_pow_self_double(2, **kwargs) == expected
+            assert func(2, **kwargs) == expected
 
     def test_arguments_double_mixed(self) -> None:
         """Testing that preferable use the new arguments when both are provided."""
@@ -293,6 +316,15 @@ class TestArgumentMapping:
         # After the initial warning, calling with the new argument should be quiet.
         with assert_no_warnings():
             assert depr_pow_self_twice(2, c1=3) == 8
+
+    def test_args_mapping_with_source_having_both_old_and_new_params(self) -> None:
+        """When source has both old and new param names, caller's old=X reaches target as new=X."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = depr_collision_old_new(old=42)
+        assert result == 42
 
 
 @pytest.mark.parametrize(

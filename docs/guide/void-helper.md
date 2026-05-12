@@ -13,7 +13,7 @@ When `@deprecated` forwards to a `target` callable, the deprecated function's bo
 
 Use `void(...)` when all three of these are true:
 
-- The deprecated function forwards to a `target` callable (not `target=None` or `target=True`).
+- The deprecated function forwards to a `target` callable (not `TargetMode.NOTIFY` or `TargetMode.ARGS_REMAP`).
 - Your IDE or linter flags the function parameters as unused.
 - You want the code to clearly signal that the empty body is deliberate.
 
