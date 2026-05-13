@@ -468,10 +468,9 @@ def deprecated(
             - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding, source body executes
               normally
 
-            .. note::
-                Omitting ``target`` is the preferred way to express warn-only deprecation.  Passing ``target=None``
-                is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a
-                :class:`FutureWarning` directing you to use the enum form.
+            Omitting ``target`` is the preferred way to express warn-only deprecation.  Passing ``target=None``
+            is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a
+            :class:`FutureWarning` directing you to use the enum form.
 
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0"). Default is empty string.
         remove_in: Version when the function will be removed (e.g., "2.0.0"). Default is empty string.
@@ -545,7 +544,8 @@ def deprecated(
         ...     pass
 
         >>> # Self-deprecation
-        >>> @deprecated(target=True, args_mapping={'old_arg': 'new_arg'})
+        >>> from deprecate import TargetMode
+        >>> @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={'old_arg': 'new_arg'})
         ... def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
         ...     return new_arg * 2
 
@@ -558,6 +558,15 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
+        if target is TargetMode.NOTIFY and not deprecated_in and not remove_in and stream is not None:
+            warnings.warn(
+                f"`@deprecated` on `{source.__name__}` has no `deprecated_in` or `remove_in` set."
+                " Depending on configuration, deprecation notices or generated documentation may"
+                " contain empty version strings."
+                " Pass at least `deprecated_in` for a meaningful deprecation notice.",
+                FutureWarning,
+                stacklevel=2,
+            )
         if inspect.isclass(source):
             import importlib
 
@@ -620,15 +629,6 @@ def deprecated(
                 docstring_style=docstring_style,
                 _misconfigured_override=force_misconfigured,
             )(source)
-        if not deprecated_in and not remove_in:
-            warnings.warn(
-                f"`@deprecated` on `{source.__name__}` has no `deprecated_in` or `remove_in` set."
-                " Depending on configuration, deprecation notices or generated documentation may"
-                " contain empty version strings."
-                " Pass at least `deprecated_in` for a meaningful deprecation notice.",
-                UserWarning,
-                stacklevel=2,
-            )
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
         if callable(target) and not inspect.isclass(target):

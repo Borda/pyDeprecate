@@ -1226,11 +1226,50 @@ def make_default_target_with_versions() -> Callable[[int], int]:
 def make_default_target_no_versions_warns() -> Callable[[int], int]:
     """Build a @deprecated() wrapper with no versions and no target.
 
-    An empty-version UserWarning must be emitted at decoration time because
+    An empty-version FutureWarning must be emitted at decoration time because
     the resulting deprecation notice would contain empty version strings.
     """
 
     @deprecated()
+    def fn(x: int) -> int:
+        return identity_value(x)
+
+    return fn
+
+
+def make_partial_version_no_guard_warn() -> Callable[[int], int]:
+    """Build @deprecated(deprecated_in='1.0') with only deprecated_in set.
+
+    Guard must NOT fire — requires both version parameters to be empty.
+    """
+
+    @deprecated(deprecated_in="1.0")
+    def fn(x: int) -> int:
+        return identity_value(x)
+
+    return fn
+
+
+def make_callable_target_no_versions_no_guard_warn() -> Callable[[int], int]:
+    """Build @deprecated(target=identity_value) with no version strings.
+
+    Guard must NOT fire — scoped to TargetMode.NOTIFY only; callable target skips it.
+    """
+
+    @deprecated(target=identity_value)
+    def fn(x: int) -> int:
+        return identity_value(x)
+
+    return fn
+
+
+def make_explicit_notify_no_versions_warns() -> Callable[[int], int]:
+    """Build @deprecated(target=TargetMode.NOTIFY) with no version strings.
+
+    Guard MUST fire — explicit NOTIFY + both versions empty triggers the warning.
+    """
+
+    @deprecated(target=TargetMode.NOTIFY)
     def fn(x: int) -> int:
         return identity_value(x)
 
