@@ -589,7 +589,7 @@ def deprecated_class(
     """
 
     def decorator(cls: type) -> "_DeprecatedProxy":
-        if stream is not None and not deprecated_in and not remove_in and template_mgs is None:
+        if stream is not None and not deprecated_in and not remove_in and not template_mgs:
             warnings.warn(
                 f"`@deprecated_class` on `{cls.__name__}` has no `deprecated_in` or `remove_in` set."
                 " Depending on configuration, deprecation notices or generated documentation may"
@@ -678,7 +678,7 @@ def deprecated_instance(
 
     """
     resolved_name = name or type(obj).__name__
-    if stream is not None and not deprecated_in and not remove_in:
+    if stream is not None and not deprecated_in and not remove_in and not template_mgs:
         warnings.warn(
             f"`deprecated_instance()` on `{resolved_name}` has no `deprecated_in` or `remove_in` set."
             " Depending on configuration, deprecation notices or generated documentation may"
