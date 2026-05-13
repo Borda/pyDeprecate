@@ -785,6 +785,47 @@ class TestDeprecatedClassReadOnly:
         assert "read_only" not in inspect.signature(deprecated_class).parameters
 
 
+class TestEmptyVersionGuard:
+    """Decoration-time FutureWarning when both ``deprecated_in`` and ``remove_in`` are empty.
+
+    Both ``deprecated_class()`` and ``deprecated_instance()`` warn at construction
+    time when neither version string is provided, because the rendered notice
+    would otherwise contain empty ``v`` placeholders. ``stream=None`` suppresses
+    the guard so callers that opt out of warnings entirely remain silent.
+    """
+
+    def test_deprecated_class_empty_versions_warns(self) -> None:
+        """@deprecated_class() with empty versions emits FutureWarning at decoration time."""
+        with pytest.warns(FutureWarning, match=r"no `deprecated_in` or `remove_in`"):
+
+            @deprecated_class()
+            class OldEmptyVersions:
+                """Source class with no version metadata supplied."""
+
+    def test_deprecated_class_empty_versions_stream_none_silent(self) -> None:
+        """@deprecated_class(stream=None) suppresses the empty-versions FutureWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated_class(stream=None)
+            class OldEmptyVersionsSilent:
+                """Source class with stream=None — guard must stay silent."""
+
+        assert not caught
+
+    def test_deprecated_instance_empty_versions_warns(self) -> None:
+        """deprecated_instance() with empty versions emits FutureWarning at instantiation time."""
+        with pytest.warns(FutureWarning, match=r"no `deprecated_in` or `remove_in`"):
+            deprecated_instance({"k": 1})
+
+    def test_deprecated_instance_empty_versions_stream_none_silent(self) -> None:
+        """deprecated_instance(stream=None) suppresses the empty-versions FutureWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            deprecated_instance({"k": 1}, stream=None)
+        assert not caught
+
+
 class TestDeprecatedInstance:
     """deprecated_instance() wraps any Python object with transparent deprecation warnings."""
 
