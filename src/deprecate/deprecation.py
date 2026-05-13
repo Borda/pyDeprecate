@@ -558,7 +558,14 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
-        if target is TargetMode.NOTIFY and not deprecated_in and not remove_in and stream is not None:
+        if (
+            target is TargetMode.NOTIFY
+            and not deprecated_in
+            and not remove_in
+            and stream is not None
+            and template_mgs is None
+            and not inspect.isclass(source)
+        ):
             warnings.warn(
                 f"`@deprecated` on `{source.__name__}` has no `deprecated_in` or `remove_in` set."
                 " Depending on configuration, deprecation notices or generated documentation may"

@@ -6,7 +6,7 @@
 
 - **`target` parameter of `@deprecated` now defaults to `TargetMode.NOTIFY`.** Callers can omit `target` entirely for warn-only deprecation: `@deprecated(deprecated_in="1.0", remove_in="2.0")` is now the canonical form. Passing `target=TargetMode.NOTIFY` explicitly remains valid. This default is permanent and will not change in future releases. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
 
-- **Decoration-time `FutureWarning` when `@deprecated` has no version strings.** When `target` resolves to `TargetMode.NOTIFY` and both `deprecated_in` and `remove_in` are absent, a `FutureWarning` is emitted immediately at decoration time (not at call time). Applies to functions, methods, and classes. Suppressed when `stream=None`. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
+- **Decoration-time `FutureWarning` when `@deprecated` has no version strings.** When `target` is `TargetMode.NOTIFY` (the default or explicitly passed) and both `deprecated_in` and `remove_in` are absent, a `FutureWarning` is emitted immediately at decoration time (not at call time). Applies to functions, methods, and classes. Suppressed when `stream=None`. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
 
 - **`TargetMode` enum exported from `deprecate`.** `TargetMode.NOTIFY` replaces `target=None` and `TargetMode.ARGS_REMAP` replaces `target=True`. Both are public API. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
