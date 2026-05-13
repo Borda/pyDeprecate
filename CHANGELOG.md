@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+[0.8.0] — 2026-05-DD — Default `TargetMode` enum & CLI audit tools
 
 ### Added
 
