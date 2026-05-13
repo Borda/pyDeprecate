@@ -441,7 +441,7 @@ def _raise_warn_arguments(
 
 
 def deprecated(
-    target: Union[bool, None, Callable, TargetMode],
+    target: Union[bool, None, Callable, TargetMode] = TargetMode.NOTIFY,
     deprecated_in: str = "",
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
@@ -459,10 +459,19 @@ def deprecated(
     implementation.  It supports argument mapping, custom warning messages, and flexible warning control.
 
     Args:
-        target: How to handle the deprecation:
+        target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
+            body executes unchanged). Pass an explicit value to forward calls or remap arguments:
+
             - ``Callable``: Forward all calls to this callable (function, method, or class target)
-            - ``True``: Self-deprecation mode (deprecate arguments within same function)
-            - ``None``: Warning-only mode (no forwarding, function body executes normally)
+            - :attr:`~deprecate.TargetMode.ARGS_REMAP` (or legacy ``True``): Self-deprecation — deprecate argument
+              names only, remapping them within the same function body
+            - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding, source body executes
+              normally
+
+            Omitting ``target`` is the preferred way to express warn-only deprecation.  Passing ``target=None``
+            is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a
+            :class:`FutureWarning` directing you to use the enum form.
+
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0"). Default is empty string.
         remove_in: Version when the function will be removed (e.g., "2.0.0"). Default is empty string.
         stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
@@ -535,14 +544,36 @@ def deprecated(
         ...     pass
 
         >>> # Self-deprecation
-        >>> @deprecated(target=True, args_mapping={'old_arg': 'new_arg'})
+        >>> from deprecate import TargetMode
+        >>> @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={'old_arg': 'new_arg'})
         ... def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
         ...     return new_arg * 2
+
+        >>> # Warn-only (default — no target needed)
+        >>> @deprecated(deprecated_in="1.0", remove_in="2.0")
+        ... def legacy_func(x: int) -> int:
+        ...     return x
 
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
+        if (
+            target is TargetMode.NOTIFY
+            and not deprecated_in
+            and not remove_in
+            and stream is not None
+            and not template_mgs
+            and not inspect.isclass(source)
+        ):
+            warnings.warn(
+                f"`@deprecated` on `{source.__name__}` has no `deprecated_in` or `remove_in` set."
+                " Depending on configuration, deprecation notices or generated documentation may"
+                " contain empty version strings."
+                " Pass at least `deprecated_in` for a meaningful deprecation notice.",
+                FutureWarning,
+                stacklevel=2,
+            )
         if inspect.isclass(source):
             import importlib
 

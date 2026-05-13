@@ -25,6 +25,7 @@ Example:
 """
 
 import types
+import warnings
 from collections.abc import Iterator
 from typing import Any, Callable, Literal, Optional, cast
 
@@ -588,6 +589,15 @@ def deprecated_class(
     """
 
     def decorator(cls: type) -> "_DeprecatedProxy":
+        if stream is not None and not deprecated_in and not remove_in and not template_mgs:
+            warnings.warn(
+                f"`@deprecated_class` on `{cls.__name__}` has no `deprecated_in` or `remove_in` set."
+                " Depending on configuration, deprecation notices or generated documentation may"
+                " contain empty version strings."
+                " Pass at least `deprecated_in` for a meaningful deprecation notice.",
+                FutureWarning,
+                stacklevel=2,
+            )
         proxy = _DeprecatedProxy(
             obj=cls,
             name=cls.__name__,
@@ -668,6 +678,15 @@ def deprecated_instance(
 
     """
     resolved_name = name or type(obj).__name__
+    if stream is not None and not deprecated_in and not remove_in and not template_mgs:
+        warnings.warn(
+            f"`deprecated_instance()` on `{resolved_name}` has no `deprecated_in` or `remove_in` set."
+            " Depending on configuration, deprecation notices or generated documentation may"
+            " contain empty version strings."
+            " Pass at least `deprecated_in` for a meaningful deprecation notice.",
+            FutureWarning,
+            stacklevel=2,
+        )
     return _DeprecatedProxy(
         obj=obj,
         name=resolved_name,
