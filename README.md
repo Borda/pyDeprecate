@@ -380,10 +380,10 @@ sample output:
 Base use-case with no forwarding and just raising a warning:
 
 ```python
-from deprecate import TargetMode, deprecated
+from deprecate import deprecated
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
+@deprecated(deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b
