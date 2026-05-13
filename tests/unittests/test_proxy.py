@@ -802,6 +802,8 @@ class TestEmptyVersionGuard:
             class OldEmptyVersions:
                 """Source class with no version metadata supplied."""
 
+                pass
+
     def test_deprecated_class_empty_versions_stream_none_silent(self) -> None:
         """@deprecated_class(stream=None) suppresses the empty-versions FutureWarning."""
         with warnings.catch_warnings(record=True) as caught:
@@ -810,6 +812,8 @@ class TestEmptyVersionGuard:
             @deprecated_class(stream=None)
             class OldEmptyVersionsSilent:
                 """Source class with stream=None — guard must stay silent."""
+
+                pass
 
         assert not caught
 
