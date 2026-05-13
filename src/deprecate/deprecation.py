@@ -563,7 +563,7 @@ def deprecated(
             and not deprecated_in
             and not remove_in
             and stream is not None
-            and template_mgs is None
+            and not template_mgs
             and not inspect.isclass(source)
         ):
             warnings.warn(
