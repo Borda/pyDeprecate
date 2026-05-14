@@ -54,11 +54,11 @@ def old_func(x: int) -> int:
 @deprecated(target=NewCls, deprecated_in="1.0", remove_in="2.0")
 class OldCls: ...
 
-# CORRECT — use @deprecated_class for classes, Enums, and dataclasses
-OldCls = deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")(NewCls)
-# or:
+# CORRECT — use @deprecated_class on the OLD class so warnings name `OldCls`
 @deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")
-class OldCls: ...
+class OldCls(NewCls): ...
+# Passing the new class as the source (e.g. `deprecated_class(...)(NewCls)`) names
+# `NewCls` in the warning instead of the deprecated API — wrong message to users.
 ```
 
 **Missing implementation in NOTIFY mode** — empty body when no target callable:
