@@ -615,12 +615,12 @@ When making changes, keep all three surfaces in sync:
 
 **The five-surface sync rule:** these surfaces must always agree: `deprecation.py` docstring ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt` ↔ inline code examples in `docs/guide/*.md`.
 
-| When you change... | Also update... |
-| --- | --- |
+| When you change...                                                          | Also update...                                                                                                   |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Public API behavior (parameter meaning, forwarding semantics, default mode) | `deprecation.py` docstring · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
-| A new supported deprecation pattern | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart |
-| A newly discovered anti-pattern | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition) |
-| A `TargetMode` value (added, renamed, removed) | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md` |
+| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                     |
+| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                  |
+| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`           |
 
 > [!IMPORTANT]
 > `docs/llms.txt` is the highest-leverage surface for AI agents. Update it in the same commit as the code change — never as a follow-up.
