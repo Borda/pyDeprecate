@@ -104,19 +104,25 @@ def my_func(new: int) -> int:
 ### Decision Flowchart
 
 ```
-Does the deprecated callable have a replacement callable?
-  YES → use target=<callable>; leave body empty (pass / void())
-    └─ Do argument names differ between old and new?
-         YES → also add args_mapping={"old_name": "new_name"}
-  NO  → Is only an argument being renamed within the same function?
-         YES → use target=TargetMode.ARGS_REMAP with args_mapping; keep working body
-         NO  → use default (TargetMode.NOTIFY, omit target); keep working body
+What is being deprecated?
 
-Is the thing being deprecated a module-level object instance (dict, list, config object)?
-  YES → use deprecated_instance(obj, deprecated_in=..., remove_in=...)
-  NO  → Is it a class, Enum, or dataclass?
-         YES → use deprecated_class() — not @deprecated
-         NO  → use @deprecated on the function or method
+  ├─ A module-level object instance (dict, list, config object)?
+  │    → use deprecated_instance(obj, deprecated_in=..., remove_in=...)
+  │
+  ├─ A class, Enum, or dataclass?
+  │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
+  │      (classes are callables, but @deprecated is for functions/methods only)
+  │
+  └─ A function or method?
+       → use @deprecated; then choose target= based on the replacement:
+         ├─ Has a replacement function/method?
+         │    → target=<callable>; leave body empty (pass / void())
+         │      └─ Argument names differ between old and new?
+         │           → also add args_mapping={"old_name": "new_name"}
+         ├─ Only renaming an argument within the same function?
+         │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
+         └─ No replacement, warn-only?
+              → omit target (defaults to TargetMode.NOTIFY); keep working body
 ```
 
 ## Resources
