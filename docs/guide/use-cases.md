@@ -25,7 +25,7 @@ The two most common reasons to deprecate something are renaming a function and r
     # CORRECT — body is empty; pyDeprecate handles all forwarding automatically
     @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
     def old_func(x: int) -> int:
-        return void(x)  # or: pass  or: """Deprecated — use new_func() instead."""
+        return void(x)  # or: pass  or: """Original function describtion."""
     ```
 
 Apply `@deprecated(target=new_func)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. Under normal forwarding the body is dead code, so leave it empty or put a docstring there (see also [void() helper](void-helper.md) for a null-forwarding idiom). The one exception is `skip_if=True` at call time — see the danger admonition above — where the source body executes as a fallback; keep a working body when combining `target=<callable>` with `skip_if`.
