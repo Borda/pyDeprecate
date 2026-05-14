@@ -153,6 +153,16 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Suggest documentation updates** when you find mismatches between docs and actual configuration
 - **Update docs immediately after any structural change** — adding, moving, renaming, or deleting files/folders/modules must be followed by updating `.github/CONTRIBUTING.md` (project structure tree, Test Organisation table) and any other `*.md` that references affected paths or names. Do not wait to be asked.
 - **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` **and** the FAQPage JSON-LD in `docs/overrides/main.html`
+- **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times. Apply this sync table on every relevant change:
+
+  | Change made | Also update |
+  | --- | --- |
+  | Public API behavior change | `deprecation.py` docstring · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
+  | New deprecation pattern | `docs/llms.txt` Decision Flowchart · `docs/guide/use-cases.md` |
+  | New anti-pattern discovered | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` |
+  | `TargetMode` enum value added or removed | `docs/llms.txt` Critical Mental Model · Decision Flowchart · `docs/guide/use-cases.md` |
+
+  `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale.
 - Ensure pre-commit hooks are installed (they run automatically on commit)
 - Provide `deprecated_in` and `remove_in` versions
 - Include migration messages in deprecation warnings

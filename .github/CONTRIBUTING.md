@@ -607,6 +607,24 @@ When making changes, keep all three surfaces in sync:
 4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
 5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
 
+### Keeping AI-agent documentation in sync
+
+`docs/llms.txt` is a machine-readable contract. AI coding assistants and agent frameworks fetch it before generating any pyDeprecate code. An inaccuracy there propagates into every AI-generated snippet at scale.
+
+**What `docs/llms.txt` contains:** package facts, links to human-facing docs, and Agent Notes (critical mental model, anti-patterns with WRONG/CORRECT pairs, decision flowchart for choosing the right API).
+
+**The five-surface sync rule:** these surfaces must always agree: `deprecation.py` docstring ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt` ↔ inline code examples in `docs/guide/*.md`.
+
+| When you change... | Also update... |
+| --- | --- |
+| Public API behavior (parameter meaning, forwarding semantics, default mode) | `deprecation.py` docstring · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
+| A new supported deprecation pattern | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart |
+| A newly discovered anti-pattern | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition) |
+| A `TargetMode` value (added, renamed, removed) | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md` |
+
+> [!IMPORTANT]
+> `docs/llms.txt` is the highest-leverage surface for AI agents. Update it in the same commit as the code change — never as a follow-up.
+
 ### Template Override
 
 `docs/overrides/main.html` is a Jinja2 template (MkDocs Material `custom_dir`). It is excluded from prettier (`^docs/overrides/.*\.html$` in `.pre-commit-config.yaml`) because prettier corrupts Jinja2 syntax. Do not put Markdown content files in `docs/overrides/` — that directory is excluded from MkDocs page output via `exclude_docs` in `mkdocs.yml`.

@@ -462,7 +462,11 @@ def deprecated(
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
             body executes unchanged). Pass an explicit value to forward calls or remap arguments:
 
-            - ``Callable``: Forward all calls to this callable (function, method, or class target)
+            - ``Callable``: Forward all calls to this callable (function, method, or class target). The
+              decorated function's body is **not executed** under normal forwarding — use ``pass`` or ``...``
+              as the body. **Exception**: when ``skip_if`` evaluates ``True`` at call time, the source body
+              executes as a fallback, so keep a working implementation if you combine ``target=Callable``
+              with ``skip_if``.
             - :attr:`~deprecate.TargetMode.ARGS_REMAP` (or legacy ``True``): Self-deprecation — deprecate argument
               names only, remapping them within the same function body
             - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding, source body executes

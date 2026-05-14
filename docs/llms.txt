@@ -24,6 +24,86 @@
 - [Audit Tools](https://borda.github.io/pyDeprecate/latest/guide/audit.html): CI/CD enforcement of removal deadlines and deprecation chain detection
 - [Troubleshooting](https://borda.github.io/pyDeprecate/latest/troubleshooting.html): Common errors and their fixes
 
+## Agent Notes
+
+### Critical Mental Model — body execution
+
+- `target=<callable>`: the decorator **intercepts every call before the body runs** (unless `skip_if` evaluates `True` at call time — in that case the source body executes as the fallback). Under normal forwarding, the body is dead code; leave it empty (`pass`, a docstring, or `return void(...)`). If you also use `skip_if`, keep a working fallback body because `skip_if=True` calls the source directly.
+- `TargetMode.NOTIFY` (the default when `target` is omitted): warning fires, then the **body executes normally**. The body must contain a working implementation.
+- `TargetMode.ARGS_REMAP`: arguments are renamed/dropped, then the **body executes normally**. The body must contain a working implementation that uses the new argument names.
+- `void()` is an IDE-silence utility only. It returns `None` and has no routing effect. The decorator routes calls regardless of what the body contains.
+
+### Anti-Patterns
+
+**Dead body anti-pattern** — body calls target when `target=<callable>`:
+```python
+# WRONG — body never executes; new_func(x) is never called
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+def old_func(x: int) -> int:
+    return new_func(x)
+
+# CORRECT — body is empty; decorator handles forwarding
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+def old_func(x: int) -> int:
+    return void(x)  # or: pass  or: """Deprecated — use new_func() instead."""
+```
+
+**Class API confusion** — using `@deprecated` on a class instead of `@deprecated_class`:
+```python
+# WRONG — @deprecated is for functions and methods only
+@deprecated(target=NewCls, deprecated_in="1.0", remove_in="2.0")
+class OldCls: ...
+
+# CORRECT — use @deprecated_class for classes, Enums, and dataclasses
+OldCls = deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")(NewCls)
+# or:
+@deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")
+class OldCls: ...
+```
+
+**Missing implementation in NOTIFY mode** — empty body when no target callable:
+```python
+# WRONG — NOTIFY always executes the body; pass returns None instead of the intended value
+@deprecated(deprecated_in="1.0", remove_in="2.0")
+def my_func(x: int) -> int:
+    pass  # returns None instead of a value
+
+# CORRECT — keep the working implementation
+@deprecated(deprecated_in="1.0", remove_in="2.0")
+def my_func(x: int) -> int:
+    return x * 2
+```
+
+
+**Legacy sentinel anti-pattern** — `target=None` or `target=True`:
+```python
+# WRONG — both emit FutureWarning now and become TypeError in v1.0
+@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")   # → use TargetMode.NOTIFY (or omit target)
+@deprecated(target=True, args_mapping={"old": "new"}, ...)        # → use TargetMode.ARGS_REMAP
+
+# CORRECT
+@deprecated(deprecated_in="1.0", remove_in="2.0")                  # NOTIFY: omit target entirely
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, ...)
+```
+
+### Decision Flowchart
+
+```
+Does the deprecated callable have a replacement callable?
+  YES → use target=<callable>; leave body empty (pass / void())
+    └─ Do argument names differ between old and new?
+         YES → also add args_mapping={"old_name": "new_name"}
+  NO  → Is only an argument being renamed within the same function?
+         YES → use target=TargetMode.ARGS_REMAP with args_mapping; keep working body
+         NO  → use default (TargetMode.NOTIFY, omit target); keep working body
+
+Is the thing being deprecated a module-level object instance (dict, list, config object)?
+  YES → use deprecated_instance(obj, deprecated_in=..., remove_in=...)
+  NO  → Is it a class, Enum, or dataclass?
+         YES → use deprecated_class() — not @deprecated
+         NO  → use @deprecated on the function or method
+```
+
 ## Resources
 
 - [PyPI](https://pypi.org/project/pyDeprecate/): Package installation and release history

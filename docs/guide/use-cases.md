@@ -9,6 +9,24 @@ The two most common reasons to deprecate something are renaming a function and r
 
 ## Simple function forwarding
 
+!!! danger "Body is dead code when `target=<callable>`"
+
+    When `target` is set to a callable, pyDeprecate intercepts every call **before** the function body runs — the body is dead code under normal forwarding. **Exception**: if you also use `skip_if` and it evaluates `True` at call time, the source body executes as a fallback. In that case keep a working body; otherwise `skip_if=True` calls silently return `None`.
+
+    Do **not** call the target from inside the body:
+
+    ```python
+    # WRONG — new_func(x) is never reached; the decorator forwards before the body runs
+    @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+    def old_func(x: int) -> int:
+        return new_func(x)
+
+    # CORRECT — body is empty; pyDeprecate handles all forwarding automatically
+    @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+    def old_func(x: int) -> int:
+        return void(x)  # or: pass  or: """Deprecated — use new_func() instead."""
+    ```
+
 Apply `@deprecated(target=new_func)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. The body of the deprecated function is never executed, so leave it empty or put a docstring there (see also [void() helper](void-helper.md) for a null-forwarding idiom).
 
 ```python
@@ -114,9 +132,9 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 ## Notice-only deprecation
 
-!!! note "The function body still executes with `TargetMode.NOTIFY`"
+!!! warning "The function body still executes with `TargetMode.NOTIFY` — keep a working implementation"
 
-    Unlike `target=<callable>` (where the body is dead code), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You must keep a working implementation in the function body.
+    Unlike `target=<callable>` (where the body is **dead code** and never executes), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You **must** keep a working implementation in the function body. An empty body (`pass`) will cause the function to return `None` instead of the intended value (the deprecation warning still fires).
 
 Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
 
@@ -221,7 +239,7 @@ These modes differ in whether the function body runs, whether a warning fires, a
 | **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)     |
 | **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`             |
 | **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path` |
-| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs after argument renaming/dropping                                      | **Never runs** — all calls forwarded to target    |
+| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs after argument renaming/dropping                                      | **NEVER runs** — body is dead code; all calls intercepted before body executes |
 | **`args_mapping` applied**    | `⚠`                                                                                                       | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding       |
 | **`args_extra` injected**     | `⚠`                                                                                                       | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding          |
 | **Source defaults merged**    | `✓`                                                                                                       | `✗`                                                                        | `✓`                                               |
@@ -233,7 +251,7 @@ These modes differ in whether the function body runs, whether a warning fires, a
 ### When to use which
 
 - **`TargetMode.NOTIFY`** — function is going away with no replacement. Callers must remove the call. Warning fires up to `num_warns` times (default: once) so each caller is notified on first use.
-- **`target=<callable>`** — function is replaced by another callable. The source body never runs; all calls are forwarded. Use `args_mapping` to rename arguments and `args_extra` to inject new required args.
+- **`target=<callable>`** — function is replaced by another callable. The source body never runs under normal forwarding (exception: `skip_if=True` bypasses forwarding and executes the source body as fallback). Use `args_mapping` to rename arguments and `args_extra` to inject new required args.
 - **`TargetMode.ARGS_REMAP` + `args_mapping`** — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.
 
 ### Example — notice the difference in warning behaviour
