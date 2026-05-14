@@ -16,6 +16,7 @@ The two most common reasons to deprecate something are renaming a function and r
     Do **not** call the target from inside the body:
 
     ```python
+    # phmdoctest:skip
     # WRONG — new_func(x) is never reached; the decorator forwards before the body runs
     @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
     def old_func(x: int) -> int:
