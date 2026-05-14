@@ -184,7 +184,7 @@ result = addition(1, 2)  # Returns 3
 That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
 > [!IMPORTANT]
-> When `target=` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=` with `skip_if`.
+> When `target=<callable>` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=<callable>` with `skip_if`.
 
 ## 🗺 API at a Glance
 
