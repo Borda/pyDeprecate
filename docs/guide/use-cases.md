@@ -135,7 +135,7 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 !!! warning "The function body still executes with `TargetMode.NOTIFY` — keep a working implementation"
 
-    Unlike `target=<callable>` (where the body is **dead code** and never executes), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You **must** keep a working implementation in the function body. An empty body (`pass`) will cause the function to return `None` instead of the intended value (the deprecation warning still fires).
+    Unlike `target=<callable>` (where the body is **dead code** under normal forwarding, but still executes as a fallback when `skip_if=True` at call time), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You **must** keep a working implementation in the function body. An empty body (`pass`) will cause the function to return `None` instead of the intended value (the deprecation warning still fires).
 
 Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
 
