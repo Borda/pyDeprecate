@@ -75,15 +75,30 @@ def my_func(x: int) -> int:
 ```
 
 
-**Legacy sentinel anti-pattern** — `target=None` or `target=True`:
-```python
-# WRONG — both emit FutureWarning now and become TypeError in v1.0
-@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")   # → use TargetMode.NOTIFY (or omit target)
-@deprecated(target=True, args_mapping={"old": "new"}, ...)        # → use TargetMode.ARGS_REMAP
+**Legacy sentinel anti-pattern** — `target=None` or `target=True` both emit `FutureWarning` now and become `TypeError` in v1.0:
 
-# CORRECT
-@deprecated(deprecated_in="1.0", remove_in="2.0")                  # NOTIFY: omit target entirely
-@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, ...)
+```python
+# WRONG — `target=None` sentinel → use TargetMode.NOTIFY (or omit `target` entirely)
+@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+def my_func(x: int) -> int:
+    return x * 2
+
+# CORRECT — omit `target` to default to TargetMode.NOTIFY
+@deprecated(deprecated_in="1.0", remove_in="2.0")
+def my_func(x: int) -> int:
+    return x * 2
+```
+
+```python
+# WRONG — `target=True` sentinel → use TargetMode.ARGS_REMAP
+@deprecated(target=True, args_mapping={"old": "new"}, deprecated_in="1.0", remove_in="2.0")
+def my_func(new: int) -> int:
+    return new * 2
+
+# CORRECT — pass the TargetMode enum explicitly
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, deprecated_in="1.0", remove_in="2.0")
+def my_func(new: int) -> int:
+    return new * 2
 ```
 
 ### Decision Flowchart
