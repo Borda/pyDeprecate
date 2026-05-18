@@ -237,7 +237,7 @@ def _dwi_compat_init(self: DeprecationWrapperInfo, *args: object, **kwargs: obje
                 stacklevel=2,
             )
             kwargs.setdefault(new, kwargs.pop(old))
-    _dwi_orig_init(self, *args, **kwargs)
+    _dwi_orig_init(self, *args, **kwargs)  # type: ignore[arg-type]
 
 
 DeprecationWrapperInfo.__init__ = _dwi_compat_init  # type: ignore[method-assign]

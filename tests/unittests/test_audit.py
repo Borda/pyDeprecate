@@ -4,6 +4,7 @@ import importlib
 import importlib.metadata
 import importlib.util
 import types
+import warnings
 from typing import Union
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
+    DeprecationWrapperInfo,
     _get_package_version,
     _parse_version,
     find_deprecation_wrappers,
@@ -282,8 +284,6 @@ class TestDeprecationWrapperInfoEmptyVersions:
 
     def test_empty_deprecated_in_true_when_both_missing(self) -> None:
         """empty_deprecated_in=True when both deprecated_in and remove_in are absent."""
-        import warnings
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
 
@@ -313,3 +313,92 @@ class TestDeprecationWrapperInfoEmptyVersions:
 
         info = validate_deprecation_wrapper(fn_complete)
         assert info.empty_deprecated_in is False
+
+
+class TestDeprecationWrapperInfoCompatAliases:
+    """Deprecated @property aliases emit DeprecationWarning on access (H3)."""
+
+    def _make_info(self) -> DeprecationWrapperInfo:
+        """Return a minimal DeprecationWrapperInfo for alias access tests."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated()
+            def _fn() -> None:
+                pass
+
+        return validate_deprecation_wrapper(_fn)
+
+    def test_empty_mapping_alias_emits_deprecation_warning(self) -> None:
+        """Accessing .empty_mapping emits DeprecationWarning naming the replacement."""
+        info = self._make_info()
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            _ = info.empty_mapping
+
+    def test_empty_mapping_alias_returns_correct_value(self) -> None:
+        """Accessing .empty_mapping returns the same value as .empty_args_mapping."""
+        info = self._make_info()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert info.empty_mapping == info.empty_args_mapping
+
+    def test_identity_mapping_alias_emits_deprecation_warning(self) -> None:
+        """Accessing .identity_mapping emits DeprecationWarning naming the replacement."""
+        info = self._make_info()
+        with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
+            _ = info.identity_mapping
+
+    def test_identity_mapping_alias_returns_correct_value(self) -> None:
+        """Accessing .identity_mapping returns the same value as .identity_args_mapping."""
+        info = self._make_info()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert info.identity_mapping == info.identity_args_mapping
+
+
+class TestDwiCompatInit:
+    """_dwi_compat_init shim translates legacy constructor kwargs with DeprecationWarning (H4)."""
+
+    def test_old_empty_mapping_kwarg_is_translated(self) -> None:
+        """DeprecationWrapperInfo(empty_mapping=True) emits DeprecationWarning and sets empty_args_mapping."""
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            info = DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                empty_mapping=True,
+            )
+        assert info.empty_args_mapping is True
+
+    def test_old_identity_mapping_kwarg_is_translated(self) -> None:
+        """DeprecationWrapperInfo(identity_mapping=[...]) emits DeprecationWarning and sets identity_args_mapping."""
+        with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
+            info = DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                identity_mapping=["a"],
+            )
+        assert info.identity_args_mapping == ["a"]
+
+    def test_both_old_kwargs_each_emit_deprecation_warning(self) -> None:
+        """Passing both old kwargs emits one DeprecationWarning per renamed field."""
+        with pytest.warns(DeprecationWarning, match="renamed") as caught:
+            DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                empty_mapping=True,
+                identity_mapping=["b"],
+            )
+        categories = [str(w.message) for w in caught.list if issubclass(w.category, DeprecationWarning)]
+        assert any("empty_args_mapping" in m for m in categories)
+        assert any("identity_args_mapping" in m for m in categories)
+
+    def test_new_name_wins_when_both_old_and_new_supplied(self) -> None:
+        """When old and new kwarg both present, the explicit new-name value is kept (setdefault semantics)."""
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            info = DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                empty_mapping=True,
+                empty_args_mapping=False,
+            )
+        assert info.empty_args_mapping is False

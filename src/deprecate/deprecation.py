@@ -114,7 +114,8 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
         f"because `self` would carry the wrong type. "
         f"The target must be a method on the same class ('{src_class_name}') "
         f"or a full class (use target={tgt_class_name} for class migration). "
-        f"Suppress via warnings.filterwarnings('ignore', category=UserWarning).",
+        "Suppress via warnings.filterwarnings("
+        "'ignore', message='cross-class method forwarding', category=UserWarning).",
         UserWarning,
         stacklevel=3,
     )

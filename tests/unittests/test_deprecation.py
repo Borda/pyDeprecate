@@ -855,3 +855,41 @@ class TestEmptyVersionGuardSymmetry:
                 pass
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    def test_guard_fires_when_remove_in_set_but_deprecated_in_absent(self) -> None:
+        """@deprecated(remove_in='2.0') with no deprecated_in still emits the empty-version UserWarning."""
+
+        def new_fn() -> None:
+            pass
+
+        with pytest.warns(UserWarning, match="no `deprecated_in` set") as caught:
+
+            @deprecated(target=new_fn, remove_in="2.0")
+            def old_fn() -> None:
+                pass
+
+        user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
+        assert len(user_warnings) == 1
+
+    def test_guard_silent_when_template_mgs_provided(self) -> None:
+        """@deprecated with template_mgs and no deprecated_in does not emit the empty-version UserWarning."""
+
+        def new_fn() -> None:
+            pass
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated(target=new_fn, template_mgs="%(source_name)s is gone, use new_fn.")
+            def old_fn_notify() -> None:
+                pass
+
+            @deprecated(
+                target=TargetMode.ARGS_REMAP,
+                args_mapping={"a": "b"},
+                template_mgs="%(source_name)s arg 'a' renamed.",
+            )
+            def old_fn_remap(a: int = 0, b: int = 0) -> int:
+                return b
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
