@@ -600,7 +600,9 @@ def deprecated(
             to suppress it. Suppressed when ``stream=None``.
         UserWarning: If the source is a class method and target appears to be a method on a *different* class
             (cross-class method forwarding). The heuristic uses ``__qualname__`` and may produce false positives for
-            metaclass-generated or decorator-rewritten qualnames — suppress with ``warnings.filterwarnings``.
+            metaclass-generated or decorator-rewritten qualnames — suppress with ``warnings.filterwarnings``. This
+            warning is emitted with ``stacklevel=3`` (unlike the other guard warnings documented here), so warning
+            attribution may point at a different frame.
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
