@@ -598,13 +598,13 @@ def deprecated(
         UserWarning: If applied directly to a class. The decorator delegates to
             :func:`~deprecate.proxy.deprecated_class` and emits this warning. Use ``@deprecated_class()`` directly
             to suppress it. Suppressed when ``stream=None``.
+        UserWarning: If the source is a class method and target appears to be a method on a *different* class
+            (cross-class method forwarding). The heuristic uses ``__qualname__`` and may produce false positives for
+            metaclass-generated or decorator-rewritten qualnames — suppress with ``warnings.filterwarnings``.
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs.
-        UserWarning: If the source is a class method and target appears to be a method on a *different* class
-            (cross-class method forwarding). The heuristic uses ``__qualname__`` and may produce false positives for
-            metaclass-generated or decorator-rewritten qualnames — suppress with ``warnings.filterwarnings``.
 
     Example:
         >>> # Basic forwarding
