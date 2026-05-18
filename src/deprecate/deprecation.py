@@ -575,7 +575,7 @@ def deprecated(
                 " Depending on configuration, deprecation notices or generated documentation may"
                 " contain empty version strings."
                 " Pass at least `deprecated_in` for a meaningful deprecation notice.",
-                FutureWarning,
+                UserWarning,
                 stacklevel=2,
             )
         if inspect.isclass(source):
