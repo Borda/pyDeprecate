@@ -133,7 +133,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
 >
-> **When to prefer `typing.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
 
 ## 💾 Installation
 
