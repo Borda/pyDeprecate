@@ -305,8 +305,7 @@ class TestDefaultTarget:
             warnings.simplefilter("always")
             make_partial_version_no_guard_warn()
         assert not any(
-            issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message)
-            for w in caught
+            issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message) for w in caught
         )
 
     def test_callable_target_no_versions_warns_at_decoration(self) -> None:

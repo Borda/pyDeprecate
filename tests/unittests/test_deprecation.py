@@ -748,9 +748,7 @@ class TestEmptyVersionGuardOnClasses:
                 """Source class with no version metadata supplied."""
 
         user_warnings = [
-            w
-            for w in caught
-            if issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message)
+            w for w in caught if issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message)
         ]
         assert len(user_warnings) == 1
 
