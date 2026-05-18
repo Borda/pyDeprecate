@@ -13,7 +13,6 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
-import sys
 import warnings
 from functools import partial, wraps
 from inspect import Parameter
@@ -52,65 +51,7 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
     return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
 
 
-def _resolve_qualname_owner(func: Callable) -> Optional[type]:
-    """Resolve a callable's declared owning class via ``sys.modules`` lookup.
-
-    Attempts to traverse the dotted owner prefix of ``func.__qualname__`` starting from the module recorded on
-    ``func.__module__``.  Returns the resolved class only when:
-
-    1. The module is loaded in :data:`sys.modules`.
-    2. Every dotted component along the owner path resolves to an attribute.
-    3. The final resolved attribute is a class.
-    4. The attribute referenced at ``cls.<final-name>`` on that class is the **same** callable object (identity check)
-       — confirming the qualname is not a display lie set by a decorator or by ``type()`` metaclass machinery.
-
-    Any failure returns ``None`` (qualname is unverifiable, do not trust it for cross-class detection).
-
-    Args:
-        func: Callable whose declared owner should be resolved.
-
-    Returns:
-        The resolved owning :class:`type`, or ``None`` if resolution fails for any reason.
-
-    """
-    qualname = getattr(func, "__qualname__", "") or ""
-    module_name = getattr(func, "__module__", "") or ""
-    if "." not in qualname or not module_name:
-        return None
-    prefix, final_name = qualname.rsplit(".", 1)
-    # Skip nested closures / lambdas whose qualname carries "<locals>"
-    if "<locals>" in prefix:
-        return None
-    module = sys.modules.get(module_name)
-    if module is None:
-        return None
-    # Walk dotted owner path: e.g. "Outer.Inner" → module.Outer, then .Inner
-    obj: Any = module
-    for part in prefix.split("."):
-        obj = getattr(obj, part, None)
-        if obj is None:
-            return None
-    if not isinstance(obj, type):
-        return None
-    # Identity check: the qualname must reflect actual attachment, not a display string.
-    # ``getattr(cls, name)`` triggers descriptor binding; ``__dict__`` access returns the raw function.
-    attached = obj.__dict__.get(final_name)
-    if attached is None:
-        # Inherited or absent — without exact attachment we cannot trust the qualname.
-        return None
-    # ``staticmethod``/``classmethod`` descriptors wrap the underlying callable; unwrap one level.
-    underlying = getattr(attached, "__func__", attached)
-    if underlying is func or attached is func:
-        return obj
-    return None
-
-
-def _check_cross_class_method_target(
-    source: Callable,
-    target: Callable,
-    *,
-    allow_cross_class: bool = False,
-) -> None:
+def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
     """Warn when target is a method on a different class than source.
 
     Forwarding a class method to a method on a *different* class silently passes ``self`` of the wrong type, causing
@@ -124,29 +65,22 @@ def _check_cross_class_method_target(
     - ``"outer.<locals>.<lambda>"``          → skipped; prefix ends with ``<locals>``
     - ``"base_sum_kwargs"``                  → skipped; no dot means module-level function
 
-    False-positive mitigations applied automatically:
+    Known limitations — ``__qualname__`` is a display string, not an ownership API.  These scenarios may produce
+    false positive warnings that are irresolvable at decoration time:
 
-    - **Explicit opt-out** (``allow_cross_class=True``): callers who intentionally want to forward across classes
-      (rare; the resulting wrapper must not rely on ``self``) can suppress the guard entirely.
-    - **Target-side qualname verification**: when the target's declared owner class can be located in
-      :data:`sys.modules`, the guard confirms via identity check that ``target`` is actually attached at the
-      qualname-implied path.  Metaclass-generated classes (``type("Name", bases, ns)``) and decorators that
-      rewrite ``__qualname__`` (e.g. some dataclass field descriptors) typically fail this check, and the warning
-      is automatically suppressed — preserving genuine cross-class detection while eliminating spurious warnings
-      for the common cases where the target is a real bound method on a real class.
+    - **Metaclass-generated classes**: ``type("Name", bases, ns)`` or ``__init_subclass__`` may assign qualnames
+      like ``"Outer.Inner"`` even for unrelated types; the guard treats them as methods on ``Outer`` and warns.
+    - **Decorators that rewrite ``__qualname__``**: a decorator applied before ``@deprecated`` that sets
+      ``fn.__qualname__ = "SomeClass.method"`` (e.g. some dataclass field descriptors) causes false positives.
 
-    Source-side qualname falsification (rare; source is being defined right now and not yet bound in
-    :data:`sys.modules`) cannot be auto-verified — use ``allow_cross_class=True`` to opt out.
+    Both cases are irresolvable at decoration time without inspecting the live call frame.  Suppress false positives
+    via ``warnings.filterwarnings("ignore", category=UserWarning, module=...)``.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
         target: The replacement callable supplied as the ``target`` argument.
-        allow_cross_class: When ``True``, skip the guard entirely.  Use for genuine cross-class forwarding
-            scenarios or to suppress unverifiable source-side false positives.
 
     """
-    if allow_cross_class:
-        return
     # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
     # including across different classes, because PastCls inherits NewCls so `self`
     # is a valid NewCls instance.
@@ -168,20 +102,13 @@ def _check_cross_class_method_target(
     tgt_owner = f"{getattr(target, '__module__', '')}.{tgt_prefix}"
     if src_owner == tgt_owner:
         return
-    # False-positive mitigation: when the target's qualname does not actually correspond to a real
-    # attachment on a real class (metaclass-generated qualnames, decorator-rewritten qualnames),
-    # the comparison above is meaningless — skip the warning.  We verify the *target* side only;
-    # the source side is being defined right now and is intentionally unverifiable here.
-    if _resolve_qualname_owner(target) is None:
-        return
     warnings.warn(
         f"Cannot use @deprecated on '{source.__qualname__}' with target "
         f"'{target.__qualname__}': cross-class method forwarding is not supported "
         f"because `self` would carry the wrong type. "
         f"The target must be a method on the same class ('{src_class_name}') "
         f"or a full class (use target={tgt_class_name} for class migration). "
-        f"Pass `allow_cross_class=True` to opt out, or suppress via "
-        f"warnings.filterwarnings('ignore', category=UserWarning).",
+        f"Suppress via warnings.filterwarnings('ignore', category=UserWarning).",
         UserWarning,
         stacklevel=3,
     )
@@ -600,7 +527,6 @@ def deprecated(
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
-    allow_cross_class: bool = False,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target.
 
@@ -664,13 +590,6 @@ def deprecated(
             - ``"mkdocs"`` or ``"markdown"``: Explicitly force a Markdown admonition of the form
               ``!!! warning "Deprecated in X"``.
             Validated eagerly at decoration time regardless of ``update_docstring``.
-        allow_cross_class: Opt out of the cross-class method-target guard. The guard warns when ``target`` looks
-            like a method on a *different* class than ``source`` (because forwarding would silently pass ``self`` of
-            the wrong type). False positives can occur when the **source** class is generated by a metaclass
-            (``type("Name", bases, ns)``) or has had its ``__qualname__`` rewritten by a decorator applied before
-            ``@deprecated``.  Pass ``True`` to skip the guard entirely in those scenarios.  Target-side false
-            positives are auto-detected via ``sys.modules`` identity check and do **not** require this flag.
-            Defaults to ``False``.
 
     Returns:
         Decorator function that wraps the source function/method.
