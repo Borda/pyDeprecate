@@ -732,7 +732,11 @@ class TestEmptyVersionGuardOnClasses:
             class _OldClassNoVersions:
                 """Source class with no version metadata supplied."""
 
-        user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "no `deprecated_in` or `remove_in`" in str(w.message)]
+        user_warnings = [
+            w
+            for w in caught
+            if issubclass(w.category, UserWarning) and "no `deprecated_in` or `remove_in`" in str(w.message)
+        ]
         assert len(user_warnings) == 1
 
     def test_class_empty_versions_stream_none_silent(self) -> None:
