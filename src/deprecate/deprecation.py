@@ -343,11 +343,11 @@ def _format_callable_message(source_name: str, target_path: str, deprecated_in: 
 
     Example:
         >>> _format_callable_message("old_fn", "mod.new_fn", "1.0", "2.0")
-        "The `old_fn` was deprecated since v1.0 in favor of `mod.new_fn`. It will be removed in v2.0."
+        'The `old_fn` was deprecated since v1.0 in favor of `mod.new_fn`. It will be removed in v2.0.'
         >>> _format_callable_message("old_fn", "mod.new_fn", "", "")
-        "The `old_fn` was deprecated in favor of `mod.new_fn`."
+        'The `old_fn` was deprecated in favor of `mod.new_fn`.'
         >>> _format_callable_message("old_fn", "", "", "")
-        "The `old_fn` was deprecated."
+        'The `old_fn` was deprecated.'
 
     """
     parts = [f"The `{source_name}` was deprecated"]
@@ -367,9 +367,9 @@ def _format_arguments_message(source_name: str, argument_map: str, deprecated_in
 
     Example:
         >>> _format_arguments_message("f", "`a` -> `b`", "1.0", "2.0")
-        "The `f` uses deprecated arguments: `a` -> `b`. They were deprecated since v1.0 and will be removed in v2.0."
+        'The `f` uses deprecated arguments: `a` -> `b`. They were deprecated since v1.0 and will be removed in v2.0.'
         >>> _format_arguments_message("f", "`a` -> `b`", "", "")
-        "The `f` uses deprecated arguments: `a` -> `b`."
+        'The `f` uses deprecated arguments: `a` -> `b`.'
 
     """
     msg = f"The `{source_name}` uses deprecated arguments: {argument_map}."
