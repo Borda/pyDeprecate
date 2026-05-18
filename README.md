@@ -129,6 +129,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 | **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
 
 ✍️ = possible but requires manual implementation
+✍️ (_Zero Extra Depend._ row) = stdlib on Python 3.13+; requires `typing_extensions` backport on Python < 3.13
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
