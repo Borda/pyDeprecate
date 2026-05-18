@@ -112,21 +112,21 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 | _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
 | ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------------------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                              ✅                               |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                              ❌                               |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                              ❌                               |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                              ✅                               |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                              ❌                               |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                              ❌                               |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                              ❌                               |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                              ❌                               |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |             ✍️              |
-| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |             ❌              |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                               ✅                               |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                               ✅                               |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                               ❌                               |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                               ❌                               |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                               ✍️                               |
+| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
 
 ✍️ = possible but requires manual implementation
 
