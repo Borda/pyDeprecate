@@ -79,7 +79,7 @@ warn_redundant_casts = "True"
 warn_unused_configs = "True"
 warn_unused_ignores = "True"
 allow_redefinition = "True"
-warn_no_return = "False"
+warn_no_return = "True"
 
 [tool.pytest]
 ini_options.testpaths = [ "src", "tests" ]
