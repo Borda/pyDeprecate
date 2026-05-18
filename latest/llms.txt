@@ -104,6 +104,14 @@ def my_func(new: int) -> int:
 ### Decision Flowchart
 
 ```
+Choose your tool first:
+
+  ├─ Python 3.13+ only, static-checker warnings, no call-forwarding or remapping?
+  │    → use `warnings.deprecated` (PEP 702 stdlib) — zero dependencies
+  │      backport: `typing_extensions.deprecated` for Python < 3.13
+  └─ Need call-forwarding, argument remapping, class/instance proxy, or CI audit?
+       → use pyDeprecate (see below)
+
 What is being deprecated?
 
   ├─ A module-level object instance (dict, list, config object)?
