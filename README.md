@@ -1026,8 +1026,8 @@ The `DeprecationWrapperInfo` dataclass contains:
 - `function`: Function name
 - `deprecated_info`: The `__deprecated__` attribute dict from the decorator
 - `invalid_args`: List of args_mapping keys that don't exist in the function signature
-- `empty_mapping`: True if args_mapping is None or empty (no argument remapping)
-- `identity_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
+- `empty_args_mapping`: True if args_mapping is None or empty (no argument remapping)
+- `identity_args_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 
@@ -1053,8 +1053,8 @@ result = validate_deprecation_wrapper(my_func)
 # DeprecationWrapperInfo(
 #   function='my_func',
 #   invalid_args=[],
-#   empty_mapping=False,
-#   identity_mapping=[],
+#   empty_args_mapping=False,
+#   identity_args_mapping=[],
 #   self_reference=False,
 #   no_effect=False
 # )
@@ -1078,7 +1078,7 @@ def empty_func(arg: int = 0) -> int:
 
 
 result = validate_deprecation_wrapper(empty_func)
-# result.empty_mapping == True, result.no_effect == True
+# result.empty_args_mapping == True, result.no_effect == True
 print(result)
 
 # Quick check if wrapper has any effect
@@ -1112,7 +1112,7 @@ for r in results:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
+        print(f"  invalid_args: {r.invalid_args}, identity_args_mapping: {r.identity_args_mapping}")
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if r.no_effect]
@@ -1139,7 +1139,7 @@ results = find_deprecation_wrappers(my_package)
 
 # Group by issue type (using dataclass attribute access)
 wrong_args = [r for r in results if r.invalid_args]
-identity_mappings = [r for r in results if r.identity_mapping]
+identity_mappings = [r for r in results if r.identity_args_mapping]
 self_refs = [r for r in results if r.self_reference]
 
 print(f"=== Deprecation Validation Report ===")
@@ -1202,7 +1202,7 @@ def test_deprecated_wrappers_are_valid():
 
     # Collect issues — wrong arg names are errors, identity mappings are worth a warning
     wrong_args = [r for r in results if r.invalid_args]
-    identity_mappings = [r for r in results if r.identity_mapping]
+    identity_mappings = [r for r in results if r.identity_args_mapping]
 
     # Raise errors for wrong arguments (critical issues)
     if wrong_args:

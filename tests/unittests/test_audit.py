@@ -202,7 +202,7 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.deprecated_info.args_mapping == {"old_key": "value"}
         assert result.invalid_args == []
 
-    def test_proxy_with_identity_mapping_detected(self) -> None:
+    def test_proxy_with_identity_args_mapping_detected(self) -> None:
         """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
         from tests.collection_targets import TargetColorEnum
 
@@ -216,7 +216,7 @@ class TestValidateDeprecationWrapperWithProxy:
             stream=None,
         )
         result = validate_deprecation_wrapper(proxy)
-        assert result.identity_mapping == ["value"]
+        assert result.identity_args_mapping == ["value"]
         assert result.invalid_args == []
 
     def test_proxy_no_target_with_args_mapping(self) -> None:
@@ -248,12 +248,12 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.function == "SourceName"
         assert result.function != TargetColorEnum.__name__
 
-    def test_proxy_empty_mapping_true_when_no_args_mapping(self) -> None:
-        """Proxy with args_mapping=None reports empty_mapping=True."""
+    def test_proxy_empty_args_mapping_true_when_no_args_mapping(self) -> None:
+        """Proxy with args_mapping=None reports empty_args_mapping=True."""
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         result = validate_deprecation_wrapper(proxy)
         assert result.deprecated_info.args_mapping is None
-        assert result.empty_mapping is True
+        assert result.empty_args_mapping is True
 
 
 class TestFindDeprecationWrappersWarningBudget:
@@ -278,10 +278,10 @@ class TestFindDeprecationWrappersWarningBudget:
 
 
 class TestDeprecationWrapperInfoEmptyVersions:
-    """DeprecationWrapperInfo.empty_versions reflects missing version metadata (F1b)."""
+    """DeprecationWrapperInfo.missing_ver_deprecated_in reflects missing version metadata (F1b)."""
 
-    def test_empty_versions_true_when_both_missing(self) -> None:
-        """empty_versions=True when both deprecated_in and remove_in are absent."""
+    def test_missing_ver_deprecated_in_true_when_both_missing(self) -> None:
+        """missing_ver_deprecated_in=True when both deprecated_in and remove_in are absent."""
         import warnings
 
         with warnings.catch_warnings():
@@ -292,24 +292,24 @@ class TestDeprecationWrapperInfoEmptyVersions:
                 pass
 
         info = validate_deprecation_wrapper(fn_no_versions)
-        assert info.empty_versions is True
+        assert info.missing_ver_deprecated_in is True
 
-    def test_empty_versions_false_when_remove_in_only_missing(self) -> None:
-        """empty_versions=False when deprecated_in is set but remove_in is omitted — valid use case."""
+    def test_missing_ver_deprecated_in_false_when_remove_in_only_missing(self) -> None:
+        """missing_ver_deprecated_in=False when deprecated_in is set but remove_in is omitted — valid use case."""
 
         @deprecated(deprecated_in="1.0")
         def fn_partial() -> None:
             pass
 
         info = validate_deprecation_wrapper(fn_partial)
-        assert info.empty_versions is False
+        assert info.missing_ver_deprecated_in is False
 
-    def test_empty_versions_false_when_both_present(self) -> None:
-        """empty_versions=False when both deprecated_in and remove_in are set."""
+    def test_missing_ver_deprecated_in_false_when_both_present(self) -> None:
+        """missing_ver_deprecated_in=False when both deprecated_in and remove_in are set."""
 
         @deprecated(deprecated_in="1.0", remove_in="2.0")
         def fn_complete() -> None:
             pass
 
         info = validate_deprecation_wrapper(fn_complete)
-        assert info.empty_versions is False
+        assert info.missing_ver_deprecated_in is False

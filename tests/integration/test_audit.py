@@ -42,8 +42,8 @@ class TestValidateDeprecatedWrapper:
         result = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
         assert isinstance(result, DeprecationWrapperInfo)
         assert result.invalid_args == []
-        assert result.empty_mapping is False
-        assert result.identity_mapping == []
+        assert result.empty_args_mapping is False
+        assert result.identity_args_mapping == []
         assert result.self_reference is False
         assert result.no_effect is False
 
@@ -51,46 +51,46 @@ class TestValidateDeprecatedWrapper:
         """args_mapping keys absent from the function signature are reported."""
         result = validate_deprecation_wrapper(sample_module.invalid_args_deprecation)
         assert result.invalid_args == ["nonexistent_arg"]
-        assert result.empty_mapping is False
-        assert result.identity_mapping == []
+        assert result.empty_args_mapping is False
+        assert result.identity_args_mapping == []
         assert result.self_reference is False
 
     @pytest.mark.parametrize("func_name", ["empty_mapping_deprecation", "none_mapping_deprecation"])
-    def test_empty_mapping(self, func_name: str) -> None:
+    def test_empty_args_mapping(self, func_name: str) -> None:
         """Empty or None args_mapping on a self-deprecation yields no_effect=True."""
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
         assert result.invalid_args == []
-        assert result.empty_mapping is True
-        assert result.identity_mapping == []
+        assert result.empty_args_mapping is True
+        assert result.identity_args_mapping == []
         assert result.self_reference is False
         assert result.no_effect is True
 
-    def test_single_identity_mapping(self) -> None:
+    def test_single_identity_args_mapping(self) -> None:
         """A single key==value entry in args_mapping is detected as identity."""
         result = validate_deprecation_wrapper(sample_module.identity_mapping_deprecation)
         assert result.invalid_args == []
-        assert result.empty_mapping is False
-        assert result.identity_mapping == ["arg1"]
+        assert result.empty_args_mapping is False
+        assert result.identity_args_mapping == ["arg1"]
         assert result.no_effect is True
 
     def test_all_identity_mappings(self) -> None:
         """All key==value entries in args_mapping yield no_effect=True."""
         result = validate_deprecation_wrapper(sample_module.all_identity_mapping_deprecation)
-        assert result.identity_mapping == ["arg1", "arg2"]
+        assert result.identity_args_mapping == ["arg1", "arg2"]
         assert result.no_effect is True
 
-    def test_partial_identity_mapping(self) -> None:
+    def test_partial_identity_args_mapping(self) -> None:
         """Partially identity args_mapping still has effect via non-identity entries."""
         result = validate_deprecation_wrapper(sample_module.partial_identity_mapping_deprecation)
-        assert result.identity_mapping == ["arg1"]
+        assert result.identity_args_mapping == ["arg1"]
         assert result.no_effect is False
 
     def test_self_reference(self) -> None:
         """Target pointing to the same function yields self_reference=True and no_effect=True."""
         result = validate_deprecation_wrapper(sample_module.self_referencing_deprecation)
         assert result.invalid_args == []
-        assert result.empty_mapping is False
-        assert result.identity_mapping == []
+        assert result.empty_args_mapping is False
+        assert result.identity_args_mapping == []
         assert result.self_reference is True
         assert result.no_effect is True
 
@@ -98,8 +98,8 @@ class TestValidateDeprecatedWrapper:
         """Forwarding to a different function has effect: no_effect=False."""
         result = validate_deprecation_wrapper(proxy_module.depr_accuracy_target)
         assert result.invalid_args == []
-        assert result.empty_mapping is False
-        assert result.identity_mapping == []
+        assert result.empty_args_mapping is False
+        assert result.identity_args_mapping == []
         assert result.self_reference is False
         assert result.no_effect is False
 
@@ -191,7 +191,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         assert result.deprecated_info.remove_in == "2.0"
         assert getattr(result.deprecated_info.target, "__name__", None) == target_name
         assert result.deprecated_info.args_mapping is None
-        assert result.empty_mapping is True  # no args_mapping
+        assert result.empty_args_mapping is True  # no args_mapping
         assert result.self_reference is False
         assert result.no_effect is False  # has a different target → effective
         assert result.chain_type is None
@@ -226,8 +226,8 @@ class TestValidateDeprecatedWrapperCallableProxy:
         assert result.function == fn_name
         assert result.deprecated_info.args_mapping == expected_mapping
         assert getattr(result.deprecated_info.target, "__name__", None) == target_name
-        assert result.empty_mapping is False
-        assert result.identity_mapping == []
+        assert result.empty_args_mapping is False
+        assert result.identity_args_mapping == []
         assert result.no_effect is False
 
     def test_deprecated_class_warn_only(self) -> None:
@@ -235,7 +235,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         result = validate_deprecation_wrapper(proxy_module.WarnOnlyColorEnum)
         assert result.function == "WarnOnlyColorEnum"
         assert result.deprecated_info.target is None
-        assert result.empty_mapping is True
+        assert result.empty_args_mapping is True
         assert result.no_effect is False  # target=None still warns
 
     def test_deprecated_instance_uses_type_name(self) -> None:
@@ -246,7 +246,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         assert result.deprecated_info.deprecated_in == "1.0"
         assert result.deprecated_info.remove_in == "2.0"
         assert result.deprecated_info.target is None
-        assert result.empty_mapping is True
+        assert result.empty_args_mapping is True
         assert result.no_effect is False  # still emits warnings
 
     def test_deprecated_instance_read_only_same_audit_result(self) -> None:
@@ -256,7 +256,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         assert read_only.function == read_write.function == "dict"
         assert read_only.deprecated_info.deprecated_in == read_write.deprecated_info.deprecated_in
         assert read_only.deprecated_info.remove_in == read_write.deprecated_info.remove_in
-        assert read_only.empty_mapping == read_write.empty_mapping
+        assert read_only.empty_args_mapping == read_write.empty_args_mapping
         assert read_only.no_effect == read_write.no_effect
 
     @pytest.mark.parametrize(
@@ -313,10 +313,10 @@ class TestFindDeprecatedWrappers:
         assert "identity_mapping_deprecation" in func_names
 
     def test_detects_no_effect_wrappers(self) -> None:
-        """Identifies zero-impact wrappers via empty_mapping and identity_mapping fields."""
+        """Identifies zero-impact wrappers via empty_args_mapping and identity_args_mapping fields."""
         by_name = {r.function: r for r in find_deprecation_wrappers(sample_module, recursive=False)}
-        assert by_name["empty_mapping_deprecation"].empty_mapping is True
-        assert "arg1" in by_name["identity_mapping_deprecation"].identity_mapping
+        assert by_name["empty_mapping_deprecation"].empty_args_mapping is True
+        assert "arg1" in by_name["identity_mapping_deprecation"].identity_args_mapping
 
     def test_accepts_string_module_path(self) -> None:
         """String module paths are accepted in addition to module objects."""
@@ -325,10 +325,10 @@ class TestFindDeprecatedWrappers:
         assert all(isinstance(r, DeprecationWrapperInfo) for r in results)
 
     def test_results_groupable_by_issue_type(self) -> None:
-        """Results can be filtered by invalid_args, empty_mapping, and identity_mapping."""
+        """Results can be filtered by invalid_args, empty_args_mapping, and identity_args_mapping."""
         results = find_deprecation_wrappers(sample_module, recursive=False)
         assert len([r for r in results if r.invalid_args]) > 0
-        assert len([r for r in results if r.empty_mapping]) > 0
+        assert len([r for r in results if r.empty_args_mapping]) > 0
 
     def test_discovers_proxy_based_deprecations(self) -> None:
         """Proxy-based deprecations are discoverable with correct names and metadata."""

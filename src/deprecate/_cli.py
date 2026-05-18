@@ -236,14 +236,14 @@ class _Reporter:
         )
 
     @staticmethod
-    def identity_mappings(items: list[DeprecationWrapperInfo]) -> None:
+    def identity_args_mappings(items: list[DeprecationWrapperInfo]) -> None:
         """Report wrappers whose ``args_mapping`` maps an argument to itself."""
         _Reporter._render_table(
             "Identity Argument Mappings (arg -> arg)",
             "Identity Args",
             title_style="bold yellow",
             col_style="yellow",
-            rows=[(r.module, r.function, ", ".join(r.identity_mapping)) for r in items],
+            rows=[(r.module, r.function, ", ".join(r.identity_args_mapping)) for r in items],
             plain_prefix="[WARNING] Found functions with identity argument mappings (arg -> arg):",
         )
 
@@ -253,7 +253,7 @@ class _Reporter:
 
         def _reasons(r: DeprecationWrapperInfo) -> str:
             parts = []
-            if r.empty_mapping:
+            if r.empty_args_mapping:
                 parts.append("Empty mapping")
             if r.self_reference:
                 parts.append("Self reference")
@@ -305,17 +305,17 @@ class _Reporter:
     def issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bool = False) -> bool:
         """Print categorised diagnostics and return whether any issues were found."""
         invalid_args = [r for r in results if r.invalid_args]
-        identity_mappings = [r for r in results if r.identity_mapping]
+        identity_args_mappings = [r for r in results if r.identity_args_mapping]
         no_effect = [r for r in results if r.no_effect]
         chains = [r for r in results if r.chain_type is not None]
 
-        if not (invalid_args or identity_mappings or no_effect or chains):
+        if not (invalid_args or identity_args_mappings or no_effect or chains):
             return False
 
         if invalid_args:
             _Reporter.invalid_args(invalid_args)
-        if identity_mappings:
-            _Reporter.identity_mappings(identity_mappings)
+        if identity_args_mappings:
+            _Reporter.identity_args_mappings(identity_args_mappings)
         if no_effect:
             _Reporter.no_effect(no_effect)
         if chains:
