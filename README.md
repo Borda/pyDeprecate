@@ -110,28 +110,31 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 <br>
 
-| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) |
-| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |
-| **Custom Streams**       |      ✅       |            ✅            |         ❌          |          ❌          |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |
+| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
+| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------------------------------------: |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                               ✅                               |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                               ❌                               |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                               ❌                               |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                               ✍️                               |
+| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
 
 ✍️ = possible but requires manual implementation
+✍️ (_Zero Extra Depend._ row) = stdlib on Python 3.13+; requires `typing_extensions` backport on Python < 3.13
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
+>
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
 
 ## 💾 Installation
 
@@ -488,14 +491,14 @@ from deprecate import TargetMode, deprecated
 
 
 @deprecated(
-    TargetMode.ARGS_REMAP,
+    target=TargetMode.ARGS_REMAP,
     deprecated_in="0.3",
     remove_in="0.6",
     args_mapping=dict(c1="nc1"),
     template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 @deprecated(
-    TargetMode.ARGS_REMAP,
+    target=TargetMode.ARGS_REMAP,
     deprecated_in="0.4",
     remove_in="0.7",
     args_mapping=dict(nc1="nc2"),
@@ -538,7 +541,13 @@ def version_greater_1():
     return FAKE_VERSION > 1
 
 
-@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.3",
+    remove_in="0.6",
+    args_mapping=dict(c1="nc1"),
+    skip_if=version_greater_1,
+)
 def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
