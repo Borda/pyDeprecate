@@ -595,7 +595,7 @@ def deprecated_class(
                 " Depending on configuration, deprecation notices or generated documentation may"
                 " contain empty version strings."
                 " Pass at least `deprecated_in` for a meaningful deprecation notice.",
-                FutureWarning,
+                UserWarning,
                 stacklevel=2,
             )
         proxy = _DeprecatedProxy(
@@ -684,7 +684,7 @@ def deprecated_instance(
             " Depending on configuration, deprecation notices or generated documentation may"
             " contain empty version strings."
             " Pass at least `deprecated_in` for a meaningful deprecation notice.",
-            FutureWarning,
+            UserWarning,
             stacklevel=2,
         )
     return _DeprecatedProxy(

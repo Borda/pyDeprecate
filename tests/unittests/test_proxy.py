@@ -786,7 +786,7 @@ class TestDeprecatedClassReadOnly:
 
 
 class TestEmptyVersionGuard:
-    """Decoration-time FutureWarning when both ``deprecated_in`` and ``remove_in`` are empty.
+    """Decoration-time UserWarning when both ``deprecated_in`` and ``remove_in`` are empty.
 
     Both ``deprecated_class()`` and ``deprecated_instance()`` warn at construction
     time when neither version string is provided, because the rendered notice
@@ -795,8 +795,8 @@ class TestEmptyVersionGuard:
     """
 
     def test_deprecated_class_empty_versions_warns(self) -> None:
-        """@deprecated_class() with empty versions emits FutureWarning at decoration time."""
-        with pytest.warns(FutureWarning, match=r"no `deprecated_in` or `remove_in`"):
+        """@deprecated_class() with empty versions emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` or `remove_in`"):
 
             @deprecated_class()
             class OldEmptyVersions:
@@ -805,7 +805,7 @@ class TestEmptyVersionGuard:
                 pass
 
     def test_deprecated_class_empty_versions_stream_none_silent(self) -> None:
-        """@deprecated_class(stream=None) suppresses the empty-versions FutureWarning."""
+        """@deprecated_class(stream=None) suppresses the empty-versions UserWarning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -818,12 +818,12 @@ class TestEmptyVersionGuard:
         assert not caught
 
     def test_deprecated_instance_empty_versions_warns(self) -> None:
-        """deprecated_instance() with empty versions emits FutureWarning at instantiation time."""
-        with pytest.warns(FutureWarning, match=r"no `deprecated_in` or `remove_in`"):
+        """deprecated_instance() with empty versions emits UserWarning at instantiation time."""
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` or `remove_in`"):
             deprecated_instance({"k": 1})
 
     def test_deprecated_instance_empty_versions_stream_none_silent(self) -> None:
-        """deprecated_instance(stream=None) suppresses the empty-versions FutureWarning."""
+        """deprecated_instance(stream=None) suppresses the empty-versions UserWarning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             deprecated_instance({"k": 1}, stream=None)
