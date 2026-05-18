@@ -278,10 +278,10 @@ class TestFindDeprecationWrappersWarningBudget:
 
 
 class TestDeprecationWrapperInfoEmptyVersions:
-    """DeprecationWrapperInfo.missing_ver_deprecated_in reflects missing version metadata (F1b)."""
+    """DeprecationWrapperInfo.empty_deprecated_in reflects missing version metadata (F1b)."""
 
-    def test_missing_ver_deprecated_in_true_when_both_missing(self) -> None:
-        """missing_ver_deprecated_in=True when both deprecated_in and remove_in are absent."""
+    def test_empty_deprecated_in_true_when_both_missing(self) -> None:
+        """empty_deprecated_in=True when both deprecated_in and remove_in are absent."""
         import warnings
 
         with warnings.catch_warnings():
@@ -292,24 +292,24 @@ class TestDeprecationWrapperInfoEmptyVersions:
                 pass
 
         info = validate_deprecation_wrapper(fn_no_versions)
-        assert info.missing_ver_deprecated_in is True
+        assert info.empty_deprecated_in is True
 
-    def test_missing_ver_deprecated_in_false_when_remove_in_only_missing(self) -> None:
-        """missing_ver_deprecated_in=False when deprecated_in is set but remove_in is omitted — valid use case."""
+    def test_empty_deprecated_in_false_when_remove_in_only_missing(self) -> None:
+        """empty_deprecated_in=False when deprecated_in is set but remove_in is omitted — valid use case."""
 
         @deprecated(deprecated_in="1.0")
         def fn_partial() -> None:
             pass
 
         info = validate_deprecation_wrapper(fn_partial)
-        assert info.missing_ver_deprecated_in is False
+        assert info.empty_deprecated_in is False
 
-    def test_missing_ver_deprecated_in_false_when_both_present(self) -> None:
-        """missing_ver_deprecated_in=False when both deprecated_in and remove_in are set."""
+    def test_empty_deprecated_in_false_when_both_present(self) -> None:
+        """empty_deprecated_in=False when both deprecated_in and remove_in are set."""
 
         @deprecated(deprecated_in="1.0", remove_in="2.0")
         def fn_complete() -> None:
             pass
 
         info = validate_deprecation_wrapper(fn_complete)
-        assert info.missing_ver_deprecated_in is False
+        assert info.empty_deprecated_in is False

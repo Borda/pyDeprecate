@@ -140,10 +140,9 @@ class DeprecationWrapperInfo:
             See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
         misconfigured_target: True when the wrapper has an invalid target configuration:
             target=False, TargetMode.NOTIFY with args_mapping, or TargetMode.ARGS_REMAP with empty args_mapping.
-        missing_ver_deprecated_in: True when ``deprecated_in`` is empty.  Missing ``remove_in`` alone is a valid use
-            case
+        empty_deprecated_in: True when ``deprecated_in`` is empty. Missing ``remove_in`` alone is a valid use case
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
-            is treated as a misconfiguration signal.  CI pipelines can filter on this field to surface wrappers
+            is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
             that lack the introductory version metadata without crashing callers.
 
     Example:
@@ -172,7 +171,7 @@ class DeprecationWrapperInfo:
     misconfigured_target: bool = False
     all_identity: bool = False
     chain_type: Optional[ChainType] = None
-    missing_ver_deprecated_in: bool = False
+    empty_deprecated_in: bool = False
 
     @property
     def empty_mapping(self) -> bool:
@@ -349,7 +348,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     )
 
     function = dep_info.name or getattr(func, "__name__", str(func))
-    missing_ver_deprecated_in = not dep_info.deprecated_in
+    empty_deprecated_in = not dep_info.deprecated_in
 
     return DeprecationWrapperInfo(
         function=function,
@@ -362,7 +361,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         misconfigured_target=misconfigured_target,
         all_identity=all_identity,
         chain_type=chain_type,
-        missing_ver_deprecated_in=missing_ver_deprecated_in,
+        empty_deprecated_in=empty_deprecated_in,
     )
 
 
