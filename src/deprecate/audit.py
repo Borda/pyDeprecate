@@ -223,7 +223,7 @@ class DeprecationWrapperInfo:
 _dwi_orig_init = DeprecationWrapperInfo.__init__
 
 
-def _dwi_compat_init(self: DeprecationWrapperInfo, *args: Any, **kwargs: Any) -> None:
+def _dwi_compat_init(self: DeprecationWrapperInfo, *args: object, **kwargs: object) -> None:
     """Wrap the auto-generated __init__ to accept legacy constructor kwargs."""
     for old, new in (
         ("empty_mapping", "empty_args_mapping"),
