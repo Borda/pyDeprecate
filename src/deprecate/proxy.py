@@ -680,7 +680,7 @@ def deprecated_instance(
     if stream is not None and not deprecated_in and not template_mgs:
         warnings.warn(
             f"`deprecated_instance()` on `{resolved_name}` has no `deprecated_in` set."
-            " Deprecation notices and generated documentation will omit the version."
+            " Deprecation notices and generated documentation will omit the `deprecated_in` version."
             " Pass `deprecated_in` for a meaningful deprecation notice.",
             UserWarning,
             stacklevel=2,

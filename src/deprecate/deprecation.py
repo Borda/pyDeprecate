@@ -643,10 +643,12 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
+        # Note: template_mgs intentionally bypasses this guard — callers with custom templates
+        # control their own messaging and may not rely on deprecated_in being present.
         if not deprecated_in and stream is not None and not template_mgs and not inspect.isclass(source):
             warnings.warn(
                 f"`@deprecated` on `{source.__name__}` has no `deprecated_in` set."
-                " Deprecation notices and generated documentation will omit the version."
+                " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
                 stacklevel=2,
