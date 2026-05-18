@@ -295,8 +295,8 @@ class TestDefaultTarget:
         assert tracked_identity_calls == [42]
 
     def test_empty_versions_warns_at_decoration(self) -> None:
-        """@deprecated() with no versions emits FutureWarning at decoration time."""
-        with pytest.warns(FutureWarning, match=r"has no .deprecated_in. or .remove_in."):
+        """@deprecated() with no versions emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match=r"has no .deprecated_in. or .remove_in."):
             make_default_target_no_versions_warns()
 
     def test_partial_version_does_not_warn_at_decoration(self) -> None:
@@ -316,7 +316,7 @@ class TestDefaultTarget:
 
     def test_explicit_notify_no_versions_warns_at_decoration(self) -> None:
         """@deprecated(target=TargetMode.NOTIFY) with empty versions must warn at decoration time."""
-        with pytest.warns(FutureWarning, match=r"has no .deprecated_in. or .remove_in."):
+        with pytest.warns(UserWarning, match=r"has no .deprecated_in. or .remove_in."):
             make_explicit_notify_no_versions_warns()
 
 

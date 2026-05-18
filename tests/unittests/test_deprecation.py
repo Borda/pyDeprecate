@@ -684,26 +684,26 @@ class TestNormalizeTargetInvalidInputs:
 
 
 class TestEmptyVersionGuardOnFunctions:
-    """@deprecated() on a function with no version strings emits FutureWarning at decoration time.
+    """@deprecated() on a function with no version strings emits UserWarning at decoration time.
 
     Mirrors the proxy-side coverage in tests/unittests/test_proxy.py so the function form of
-    @deprecated is held to the same contract: a single FutureWarning when both ``deprecated_in``
+    @deprecated is held to the same contract: a single UserWarning when both ``deprecated_in``
     and ``remove_in`` are absent, suppressed when ``stream=None``.
     """
 
     def test_function_empty_versions_warns_once(self) -> None:
-        """@deprecated() on a function with no version strings emits exactly one FutureWarning."""
-        with pytest.warns(FutureWarning, match=r"no `deprecated_in` or `remove_in`") as caught:
+        """@deprecated() on a function with no version strings emits exactly one UserWarning."""
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` or `remove_in`") as caught:
 
             @deprecated()
             def _fn_no_versions() -> None:
                 """Source function with no version metadata supplied."""
 
-        future_warnings = [w for w in caught.list if issubclass(w.category, FutureWarning)]
+        future_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
         assert len(future_warnings) == 1
 
     def test_function_empty_versions_stream_none_silent(self) -> None:
-        """@deprecated(stream=None) on a function with no version strings emits no FutureWarning."""
+        """@deprecated(stream=None) on a function with no version strings emits no UserWarning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
