@@ -23,6 +23,12 @@ from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable,
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
+# TEMPLATE_* constants are the legacy %-style formatting path used when callers supply a custom
+# template_mgs string. The default (template_mgs=None) path uses _format_callable_message /
+# _format_arguments_message helpers instead, which gracefully omit version clauses when
+# deprecated_in or remove_in are absent. TEMPLATE_* remain public API and are not scheduled
+# for removal — they co-exist permanently to support callers that rely on the %(key)s interface.
+
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
