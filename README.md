@@ -1030,6 +1030,7 @@ The `DeprecationWrapperInfo` dataclass contains:
 - `identity_args_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
+- `empty_deprecated_in`: True if `deprecated_in` is absent (CI misconfiguration signal — missing introductory version metadata)
 
 <details>
 <summary><b>Validating a Single Function</b></summary>
@@ -1212,7 +1213,7 @@ def test_deprecated_wrappers_are_valid():
 
     # Warn for identity mappings (less severe)
     for r in identity_mappings:
-        pytest.warns(UserWarning, match=f"{r.function} has identity mapping")
+        warnings.warn(f"{r.function} has identity mapping", UserWarning)
 ```
 
 </details>
