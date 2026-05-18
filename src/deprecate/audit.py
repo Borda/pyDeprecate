@@ -215,10 +215,15 @@ class DeprecationWrapperInfo:
 # receive a ``DeprecationWarning`` and are redirected to the new names
 # rather than getting a ``TypeError``.
 #
-# Note: ``dataclasses.replace(info, empty_mapping=...)`` is NOT covered by
-# this shim because ``dataclasses.replace`` validates kwargs against the
-# declared field set before calling ``__init__``.  Callers using
-# ``replace()`` must switch to the new field names directly.
+# Note on ``dataclasses.replace()``: ``replace`` does NOT validate kwargs
+# before forwarding — it collects all current field values, merges in the
+# caller's changes, and calls ``cls(**merged)``.  That means our shim IS
+# invoked by ``replace(info, empty_mapping=...)``.  However, because
+# ``replace`` already includes the current value of ``empty_args_mapping``
+# in the merged dict, passing the old name alongside it creates a conflict.
+# We raise ``TypeError`` in that case instead of silently discarding the
+# old-name value, so the misbehaviour is immediately visible.  Callers
+# must use ``replace(info, empty_args_mapping=...)`` directly.
 # ---------------------------------------------------------------------------
 _dwi_orig_init = DeprecationWrapperInfo.__init__
 
@@ -236,7 +241,15 @@ def _dwi_compat_init(self: DeprecationWrapperInfo, *args: object, **kwargs: obje
                 DeprecationWarning,
                 stacklevel=2,
             )
-            kwargs.setdefault(new, kwargs.pop(old))
+            old_value = kwargs.pop(old)  # always remove old kwarg so it isn't forwarded
+            if new in kwargs:
+                # Both old and new names were supplied (common via dataclasses.replace).
+                # Silently discarding would be surprising, so raise explicitly.
+                raise TypeError(
+                    f"Cannot specify both deprecated '{old}' and its replacement '{new}' simultaneously. "
+                    f"Use '{new}' only (e.g. dataclasses.replace(info, {new}=...))."
+                )
+            kwargs[new] = old_value
     _dwi_orig_init(self, *args, **kwargs)  # type: ignore[arg-type]
 
 

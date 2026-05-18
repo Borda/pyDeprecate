@@ -818,7 +818,7 @@ class TestEmptyVersionGuardSymmetry:
         user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
         assert len(user_warnings) == 1
 
-    def test_guard_silent_when_template_mgs_provided(self) -> None:
+    def test_guard_silent_when_template_msg_provided(self) -> None:
         """@deprecated with template_mgs and no deprecated_in does not emit the empty-version UserWarning."""
 
         def new_fn() -> None:

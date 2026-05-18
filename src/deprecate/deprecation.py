@@ -109,7 +109,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
         f"The target must be a method on the same class ('{src_class_name}') "
         f"or a full class (use target={tgt_class_name} for class migration). "
         "Suppress via warnings.filterwarnings("
-        "'ignore', message='cross-class method forwarding', category=UserWarning).",
+        "'ignore', message='.*cross-class method forwarding', category=UserWarning).",
         UserWarning,
         stacklevel=3,
     )
@@ -556,7 +556,11 @@ def deprecated(
             For CI enforcement (to restore the pre-0.8 hard-failure behaviour), escalate this warning to an error::
 
                 import warnings
-                warnings.filterwarnings("error", message="cross-class method forwarding", category=UserWarning)
+                warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
+
+        UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, no ``template_mgs`` is set,
+            and the decorated source is not a class. Fired at decoration time (not call time) to catch missing
+            version metadata early. Suppressed by passing ``stream=None`` or ``template_mgs``.
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
