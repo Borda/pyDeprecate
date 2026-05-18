@@ -715,7 +715,7 @@ class TestEmptyVersionGuardOnFunctions:
 
 
 class TestEmptyVersionGuardOnClasses:
-    """@deprecated() on a class with no version strings emits exactly one UserWarning.
+    """@deprecated() on a class with no version strings emits exactly one empty-version guard warning.
 
     When ``@deprecated`` is applied to a class, ``packing()`` delegates to ``deprecated_class()``.
     The empty-version guard must fire at the proxy layer only — duplicating it inside
@@ -724,7 +724,7 @@ class TestEmptyVersionGuardOnClasses:
     """
 
     def test_class_empty_versions_warns_once(self) -> None:
-        """@deprecated() applied to a class with no version strings emits exactly one UserWarning."""
+        """@deprecated() applied to a class with no version strings emits exactly one empty-version guard warning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
