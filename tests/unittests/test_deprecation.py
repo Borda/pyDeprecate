@@ -708,7 +708,7 @@ class TestEmptyVersionGuardOnFunctions:
 
     def test_function_empty_versions_warns_once(self) -> None:
         """@deprecated() on a function with no version strings emits exactly one UserWarning."""
-        with pytest.warns(UserWarning, match=r"no `deprecated_in` or `remove_in`") as caught:
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` set") as caught:
 
             @deprecated()
             def _fn_no_versions() -> None:
@@ -750,7 +750,7 @@ class TestEmptyVersionGuardOnClasses:
         user_warnings = [
             w
             for w in caught
-            if issubclass(w.category, UserWarning) and "no `deprecated_in` or `remove_in`" in str(w.message)
+            if issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message)
         ]
         assert len(user_warnings) == 1
 
@@ -805,7 +805,7 @@ class TestWarnMessageVersionClauses:
 
     def test_message_with_no_versions(self) -> None:
         """Neither version set: message mentions function name but no bare 'v' token."""
-        with pytest.warns(UserWarning, match="no `deprecated_in` or `remove_in`"):
+        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
 
             @deprecated()  # target=NOTIFY triggers guard for missing versions
             def old_fn() -> None:
@@ -829,7 +829,7 @@ class TestEmptyVersionGuardSymmetry:
         def new_fn() -> None:
             pass
 
-        with pytest.warns(UserWarning, match="no `deprecated_in` or `remove_in`"):
+        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
 
             @deprecated(target=new_fn)
             def old_fn() -> None:
@@ -837,7 +837,7 @@ class TestEmptyVersionGuardSymmetry:
 
     def test_guard_fires_for_args_remap_target(self) -> None:
         """@deprecated(target=ARGS_REMAP) with no versions emits UserWarning at decoration time."""
-        with pytest.warns(UserWarning, match="no `deprecated_in` or `remove_in`"):
+        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
 
             @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})
             def old_fn(old: int = 0, new: int = 0) -> int:

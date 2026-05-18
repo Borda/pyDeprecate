@@ -639,10 +639,9 @@ def deprecated(
     def packing(source: Callable) -> Callable:
         if not deprecated_in and stream is not None and not template_mgs and not inspect.isclass(source):
             warnings.warn(
-                f"`@deprecated` on `{source.__name__}` has no `deprecated_in` or `remove_in` set."
-                " Depending on configuration, deprecation notices or generated documentation may"
-                " contain empty version strings."
-                " Pass at least `deprecated_in` for a meaningful deprecation notice.",
+                f"`@deprecated` on `{source.__name__}` has no `deprecated_in` set."
+                " Deprecation notices and generated documentation will omit the version."
+                " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
                 stacklevel=2,
             )

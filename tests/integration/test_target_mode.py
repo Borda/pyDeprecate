@@ -296,7 +296,7 @@ class TestDefaultTarget:
 
     def test_empty_versions_warns_at_decoration(self) -> None:
         """@deprecated() with no versions emits UserWarning at decoration time."""
-        with pytest.warns(UserWarning, match=r"has no .deprecated_in. or .remove_in."):
+        with pytest.warns(UserWarning, match=r"has no `deprecated_in` set"):
             make_default_target_no_versions_warns()
 
     def test_partial_version_does_not_warn_at_decoration(self) -> None:
@@ -305,18 +305,18 @@ class TestDefaultTarget:
             warnings.simplefilter("always")
             make_partial_version_no_guard_warn()
         assert not any(
-            issubclass(w.category, UserWarning) and "no `deprecated_in` or `remove_in`" in str(w.message)
+            issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message)
             for w in caught
         )
 
     def test_callable_target_no_versions_warns_at_decoration(self) -> None:
         """@deprecated(target=callable) with empty versions emits UserWarning — guard applies to all targets."""
-        with pytest.warns(UserWarning, match=r"has no .deprecated_in. or .remove_in."):
+        with pytest.warns(UserWarning, match=r"has no `deprecated_in` set"):
             make_callable_target_no_versions_warns()
 
     def test_explicit_notify_no_versions_warns_at_decoration(self) -> None:
         """@deprecated(target=TargetMode.NOTIFY) with empty versions must warn at decoration time."""
-        with pytest.warns(UserWarning, match=r"has no .deprecated_in. or .remove_in."):
+        with pytest.warns(UserWarning, match=r"has no `deprecated_in` set"):
             make_explicit_notify_no_versions_warns()
 
 

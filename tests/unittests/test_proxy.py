@@ -796,7 +796,7 @@ class TestEmptyVersionGuard:
 
     def test_deprecated_class_empty_versions_warns(self) -> None:
         """@deprecated_class() with empty versions emits UserWarning at decoration time."""
-        with pytest.warns(UserWarning, match=r"no `deprecated_in` or `remove_in`"):
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` set"):
 
             @deprecated_class()
             class OldEmptyVersions:
@@ -819,7 +819,7 @@ class TestEmptyVersionGuard:
 
     def test_deprecated_instance_empty_versions_warns(self) -> None:
         """deprecated_instance() with empty versions emits UserWarning at instantiation time."""
-        with pytest.warns(UserWarning, match=r"no `deprecated_in` or `remove_in`"):
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` set"):
             deprecated_instance({"k": 1})
 
     def test_deprecated_instance_empty_versions_stream_none_silent(self) -> None:
