@@ -699,7 +699,7 @@ class TestEmptyVersionGuardOnFunctions:
             def _fn_no_versions() -> None:
                 """Source function with no version metadata supplied."""
 
-        future_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
+        user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
         assert len(future_warnings) == 1
 
     def test_function_empty_versions_stream_none_silent(self) -> None:
