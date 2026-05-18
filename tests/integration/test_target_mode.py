@@ -304,14 +304,21 @@ class TestDefaultTarget:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             make_partial_version_no_guard_warn()
-        assert not any(issubclass(w.category, FutureWarning) for w in caught if "deprecated_in" in str(w.message))
+        assert not any(
+            issubclass(w.category, UserWarning) and "no `deprecated_in` or `remove_in`" in str(w.message)
+            for w in caught
+        )
 
     def test_callable_target_no_versions_does_not_warn_at_decoration(self) -> None:
         """@deprecated(target=callable) with empty versions must not warn — guard is NOTIFY-scoped."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             make_callable_target_no_versions_no_guard_warn()
-        guard_warns = [w for w in caught if issubclass(w.category, FutureWarning) and "deprecated_in" in str(w.message)]
+        guard_warns = [
+            w
+            for w in caught
+            if issubclass(w.category, UserWarning) and "no `deprecated_in` or `remove_in`" in str(w.message)
+        ]
         assert guard_warns == []
 
     def test_explicit_notify_no_versions_warns_at_decoration(self) -> None:
