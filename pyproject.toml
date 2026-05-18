@@ -71,6 +71,7 @@ ignore = [
 files = [
   "src/deprecate",
 ]
+python_version = "3.9"
 disallow_untyped_defs = "True"
 ignore_missing_imports = "True"
 show_error_codes = "True"
