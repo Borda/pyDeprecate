@@ -332,10 +332,15 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         ... )
 
     """
-    source_name = source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
+    source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
     stream(template_mgs % msg_args)
+
+
+def _source_display_name(source: Callable) -> str:
+    """Return display name: class name for __init__, function name otherwise."""
+    return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
 
 
 def _format_callable_message(source_name: str, target_path: str, deprecated_in: str, remove_in: str) -> str:
@@ -432,7 +437,7 @@ def _raise_warn_callable(
         >>> #           `__main__.new_func`. It will be removed in v2.0."
 
     """
-    source_name = source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
+    source_name = _source_display_name(source)
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
@@ -502,8 +507,7 @@ def _raise_warn_arguments(
     """
     args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
     if template_mgs is None:
-        source_name = source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
-        stream(_format_arguments_message(source_name, args_map, deprecated_in, remove_in))
+        stream(_format_arguments_message(_source_display_name(source), args_map, deprecated_in, remove_in))
         return
     _raise_warn(
         stream,
