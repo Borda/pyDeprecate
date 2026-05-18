@@ -110,16 +110,16 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 <br>
 
-| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `typing.deprecated` (3.13+) |
-| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :-------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |             ✅              |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |             ✅              |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |             ❌              |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |             ❌              |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |             ❌              |
+| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
+| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------------------------------------: |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                              ✅                               |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                              ❌                               |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                              ❌                               |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                              ✅                               |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                              ❌                               |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                              ❌                               |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                              ❌                               |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                              ❌                               |
 | **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |             ✍️              |
 | **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |             ❌              |
 | **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
