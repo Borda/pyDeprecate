@@ -700,7 +700,7 @@ class TestEmptyVersionGuardOnFunctions:
                 """Source function with no version metadata supplied."""
 
         user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
-        assert len(future_warnings) == 1
+        assert len(user_warnings) == 1
 
     def test_function_empty_versions_stream_none_silent(self) -> None:
         """@deprecated(stream=None) on a function with no version strings emits no UserWarning."""
