@@ -389,27 +389,42 @@ class TestDeprecatedClassGuard:
 
 
 class TestCrossClassMethodGuard:
-    """@deprecated raises TypeError when target is a method on a different class."""
+    """@deprecated warns when target is a method on a different class."""
 
-    def test_raises_for_cross_class_method_target(self) -> None:
-        """Forwarding to a method on a different class raises TypeError at decoration time.
+    def test_warns_for_cross_class_method_target(self) -> None:
+        """Forwarding to a method on a different class emits UserWarning at decoration time.
 
         The misconfigured classes are defined inline (not in collection_deprecate.py)
-        because placing ``@deprecated`` with an invalid cross-class target at module
-        level would raise ``TypeError`` at import time, breaking every test that
-        imports the collection module.
+        because placing ``@deprecated`` with a cross-class target at module level would
+        emit a UserWarning at import time for every test that imports the collection module.
         """
 
         class OtherClass:
             def other_method(self, x: int) -> int:
                 return x
 
-        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+        with pytest.warns(UserWarning, match="cross-class method forwarding is not supported"):
 
             class MyClass:
                 @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
                 def old_method(self, x: int) -> int:
                     return void(x)
+
+    def test_cross_class_warn_can_be_escalated_to_error(self) -> None:
+        """filterwarnings('error') converts the UserWarning into a raised exception."""
+
+        class OtherClass:
+            def other_method(self, x: int) -> int:
+                return x
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=UserWarning)
+            with pytest.raises(UserWarning, match="cross-class method forwarding is not supported"):
+
+                class MyClass:
+                    @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
+                    def old_method(self, x: int) -> int:
+                        return void(x)
 
     def test_raises_for_class_target_on_non_init_method(self) -> None:
         """@deprecated(target=SomeClass) on a non-__init__ class method raises TypeError.
@@ -750,3 +765,95 @@ class TestEmptyVersionGuardOnClasses:
 
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
         assert not user_warnings
+
+
+class TestWarnMessageVersionClauses:
+    """Default warning messages skip version clauses gracefully when versions are absent."""
+
+    def test_message_with_both_versions(self) -> None:
+        """Both deprecated_in and remove_in produce the full message with version strings."""
+
+        def new_fn() -> None:
+            pass
+
+        @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+        def old_fn() -> None:
+            pass
+
+        with pytest.warns(FutureWarning) as caught:
+            old_fn()
+        msg = str(caught[0].message)
+        assert "since v1.0" in msg
+        assert "removed in v2.0" in msg
+
+    def test_message_with_only_deprecated_in(self) -> None:
+        """Only deprecated_in set: 'since vX' present, no 'removed in' clause."""
+
+        def new_fn() -> None:
+            pass
+
+        @deprecated(target=new_fn, deprecated_in="1.0")
+        def old_fn() -> None:
+            pass
+
+        with pytest.warns(FutureWarning) as caught:
+            old_fn()
+        msg = str(caught[0].message)
+        assert "since v1.0" in msg
+        assert "removed in" not in msg
+        assert " v " not in msg  # no dangling bare "v"
+
+    def test_message_with_no_versions(self) -> None:
+        """Neither version set: message mentions function name but no bare 'v' token."""
+        with pytest.warns(UserWarning, match="no `deprecated_in` or `remove_in`"):
+
+            @deprecated()  # target=NOTIFY triggers guard for missing versions
+            def old_fn() -> None:
+                pass
+
+        with pytest.warns(FutureWarning) as caught:
+            old_fn()
+        msg = str(caught[0].message)
+        assert "old_fn" in msg
+        assert " v " not in msg  # no dangling bare "v"
+        assert "since v" not in msg
+        assert "removed in" not in msg
+
+
+class TestEmptyVersionGuardSymmetry:
+    """Guard fires for all target shapes when deprecated_in and remove_in are absent (F1b)."""
+
+    def test_guard_fires_for_callable_target(self) -> None:
+        """@deprecated(target=<callable>) with no versions emits UserWarning at decoration time."""
+
+        def new_fn() -> None:
+            pass
+
+        with pytest.warns(UserWarning, match="no `deprecated_in` or `remove_in`"):
+
+            @deprecated(target=new_fn)
+            def old_fn() -> None:
+                pass
+
+    def test_guard_fires_for_args_remap_target(self) -> None:
+        """@deprecated(target=ARGS_REMAP) with no versions emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match="no `deprecated_in` or `remove_in`"):
+
+            @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})
+            def old_fn(old: int = 0, new: int = 0) -> int:
+                return new
+
+    def test_guard_silent_when_stream_none(self) -> None:
+        """@deprecated(target=<callable>, stream=None) with no versions does not emit UserWarning."""
+
+        def new_fn() -> None:
+            pass
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated(target=new_fn, stream=None)
+            def old_fn() -> None:
+                pass
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]

@@ -1250,10 +1250,10 @@ def make_partial_version_no_guard_warn() -> Callable[[int], int]:
     return fn
 
 
-def make_callable_target_no_versions_no_guard_warn() -> Callable[[int], int]:
+def make_callable_target_no_versions_warns() -> Callable[[int], int]:
     """Build @deprecated(target=identity_value) with no version strings.
 
-    Guard must NOT fire — scoped to TargetMode.NOTIFY only; callable target skips it.
+    Guard MUST fire — F1b removed the NOTIFY-only restriction; all target shapes warn.
     """
 
     @deprecated(target=identity_value)

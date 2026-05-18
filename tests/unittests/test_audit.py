@@ -275,3 +275,41 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestDeprecationWrapperInfoEmptyVersions:
+    """DeprecationWrapperInfo.empty_versions reflects missing version metadata (F1b)."""
+
+    def test_empty_versions_true_when_both_missing(self) -> None:
+        """empty_versions=True when both deprecated_in and remove_in are absent."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated()
+            def fn_no_versions() -> None:
+                pass
+
+        info = validate_deprecation_wrapper(fn_no_versions)
+        assert info.empty_versions is True
+
+    def test_empty_versions_false_when_remove_in_only_missing(self) -> None:
+        """empty_versions=False when deprecated_in is set but remove_in is omitted — valid use case."""
+
+        @deprecated(deprecated_in="1.0")
+        def fn_partial() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(fn_partial)
+        assert info.empty_versions is False
+
+    def test_empty_versions_false_when_both_present(self) -> None:
+        """empty_versions=False when both deprecated_in and remove_in are set."""
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def fn_complete() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(fn_complete)
+        assert info.empty_versions is False

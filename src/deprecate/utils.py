@@ -37,8 +37,8 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
     Returns:
         List of tuples, one per argument, each containing:
             - str: argument name
-            - Any: argument type annotation (or inspect._empty if no annotation)
-            - Any: default value (or inspect._empty if no default)
+            - Any: argument type annotation (or inspect.Parameter.empty if no annotation)
+            - Any: default value (or inspect.Parameter.empty if no default)
 
     Example:
         >>> def example_func(x: int, y: str = "hello", z=42) -> None:
@@ -51,8 +51,8 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
         z: type=<class 'inspect._empty'>, default=42
 
     Note:
-        - Parameters without type annotations have annotation = inspect._empty
-        - Parameters without defaults have default = inspect._empty
+        - Parameters without type annotations have annotation = inspect.Parameter.empty
+        - Parameters without defaults have default = inspect.Parameter.empty
         - Excludes *args and **kwargs (use inspect.getfullargspec for those)
 
     """
