@@ -175,7 +175,12 @@ class DeprecationWrapperInfo:
 
     @property
     def empty_mapping(self) -> bool:
-        """Deprecated alias for ``empty_args_mapping``. Renamed in 0.8, removed in 1.0."""
+        """Deprecated alias for ``empty_args_mapping``. Renamed in 0.8, removed in 1.0.
+
+        Note:
+            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
+            so accessing this property in a loop from the same call site emits at most one warning.
+        """
         warnings.warn(
             "'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
             DeprecationWarning,
@@ -185,13 +190,57 @@ class DeprecationWrapperInfo:
 
     @property
     def identity_mapping(self) -> list[str]:
-        """Deprecated alias for ``identity_args_mapping``. Renamed in 0.8, removed in 1.0."""
+        """Deprecated alias for ``identity_args_mapping``. Renamed in 0.8, removed in 1.0.
+
+        Note:
+            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
+            so accessing this property in a loop from the same call site emits at most one warning.
+        """
         warnings.warn(
             "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0.",
             DeprecationWarning,
             stacklevel=2,
         )
         return self.identity_args_mapping
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible constructor shim for DeprecationWrapperInfo
+#
+# The fields ``empty_mapping`` and ``identity_mapping`` were renamed to
+# ``empty_args_mapping`` and ``identity_args_mapping`` in 0.8.  The
+# ``@property`` aliases above cover attribute *reads*.  The shim below
+# patches ``__init__`` so that callers who still pass the old names as
+# keyword arguments (e.g. ``DeprecationWrapperInfo(empty_mapping=True)``)
+# receive a ``DeprecationWarning`` and are redirected to the new names
+# rather than getting a ``TypeError``.
+#
+# Note: ``dataclasses.replace(info, empty_mapping=...)`` is NOT covered by
+# this shim because ``dataclasses.replace`` validates kwargs against the
+# declared field set before calling ``__init__``.  Callers using
+# ``replace()`` must switch to the new field names directly.
+# ---------------------------------------------------------------------------
+_dwi_orig_init = DeprecationWrapperInfo.__init__
+
+
+def _dwi_compat_init(self: DeprecationWrapperInfo, *args: Any, **kwargs: Any) -> None:
+    """Wrap the auto-generated __init__ to accept legacy constructor kwargs."""
+    for old, new in (
+        ("empty_mapping", "empty_args_mapping"),
+        ("identity_mapping", "identity_args_mapping"),
+    ):
+        if old in kwargs:
+            warnings.warn(
+                f"'{old}' was renamed to '{new}' in 0.8 and will be removed in 1.0."
+                " Update your code to use the new name.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            kwargs.setdefault(new, kwargs.pop(old))
+    _dwi_orig_init(self, *args, **kwargs)
+
+
+DeprecationWrapperInfo.__init__ = _dwi_compat_init  # type: ignore[method-assign]
 
 
 def _member_name_key(item: tuple[str, Any]) -> str:

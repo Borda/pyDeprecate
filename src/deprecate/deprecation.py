@@ -613,6 +613,10 @@ def deprecated(
             metaclass-generated or decorator-rewritten qualnames — suppress with ``warnings.filterwarnings``. This
             warning is emitted with ``stacklevel=3``; this skips the internal ``packing`` frame, so the attributed
             line is the ``@deprecated`` decoration site rather than the helper internals.
+            For CI enforcement (to restore the pre-0.8 hard-failure behaviour), escalate this warning to an error::
+
+                import warnings
+                warnings.filterwarnings("error", message="cross-class method forwarding", category=UserWarning)
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.

@@ -418,7 +418,7 @@ class TestCrossClassMethodGuard:
                 return x
 
         with warnings.catch_warnings():
-            warnings.filterwarnings("error", category=UserWarning)
+            warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
             with pytest.raises(UserWarning, match="cross-class method forwarding is not supported"):
 
                 class MyClass:
