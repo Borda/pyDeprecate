@@ -112,21 +112,21 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 | _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `typing.deprecated` (3.13+) |
 | ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :-------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |              ✅             |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |              ✅             |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |              ❌             |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |              ❌             |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |              ❌             |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |              ✍️             |
-| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |              ❌             |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |              ❌             |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |             ✅              |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |             ✅              |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |             ❌              |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |             ❌              |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |             ❌              |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |             ✍️              |
+| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |             ❌              |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |             ❌              |
 
 ✍️ = possible but requires manual implementation
 
@@ -540,7 +540,13 @@ def version_greater_1():
     return FAKE_VERSION > 1
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.3", remove_in="0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    deprecated_in="0.3",
+    remove_in="0.6",
+    args_mapping=dict(c1="nc1"),
+    skip_if=version_greater_1,
+)
 def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
