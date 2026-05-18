@@ -23,12 +23,6 @@ from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable,
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
-# TEMPLATE_* constants are the legacy %-style formatting path used when callers supply a custom
-# template_mgs string. The default (template_mgs=None) path uses _format_callable_message /
-# _format_arguments_message helpers instead, which gracefully omit version clauses when
-# deprecated_in or remove_in are absent. TEMPLATE_* remain public API and are not scheduled
-# for removal — they co-exist permanently to support callers that rely on the %(key)s interface.
-
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
@@ -350,51 +344,6 @@ def _source_display_name(source: Callable) -> str:
     return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
 
 
-def _format_callable_message(source_name: str, target_path: str, deprecated_in: str, remove_in: str) -> str:
-    """Build the default callable-deprecation message, omitting version clauses when empty.
-
-    Example:
-        >>> _format_callable_message("old_fn", "mod.new_fn", "1.0", "2.0")
-        'The `old_fn` was deprecated since v1.0 in favor of `mod.new_fn`. It will be removed in v2.0.'
-        >>> _format_callable_message("old_fn", "mod.new_fn", "", "")
-        'The `old_fn` was deprecated in favor of `mod.new_fn`.'
-        >>> _format_callable_message("old_fn", "", "", "")
-        'The `old_fn` was deprecated.'
-
-    """
-    parts = [f"The `{source_name}` was deprecated"]
-    if deprecated_in:
-        parts.append(f" since v{deprecated_in}")
-    if target_path:
-        parts.append(f" in favor of `{target_path}`.")
-    else:
-        parts.append(".")
-    if remove_in:
-        parts.append(f" It will be removed in v{remove_in}.")
-    return "".join(parts)
-
-
-def _format_arguments_message(source_name: str, argument_map: str, deprecated_in: str, remove_in: str) -> str:
-    """Build the default argument-deprecation message, omitting version clauses when empty.
-
-    Example:
-        >>> _format_arguments_message("f", "`a` -> `b`", "1.0", "2.0")
-        'The `f` uses deprecated arguments: `a` -> `b`. They were deprecated since v1.0 and will be removed in v2.0.'
-        >>> _format_arguments_message("f", "`a` -> `b`", "", "")
-        'The `f` uses deprecated arguments: `a` -> `b`.'
-
-    """
-    msg = f"The `{source_name}` uses deprecated arguments: {argument_map}."
-    if deprecated_in or remove_in:
-        msg += " They were deprecated"
-        if deprecated_in:
-            msg += f" since v{deprecated_in}"
-        if remove_in:
-            msg += f" and will be removed in v{remove_in}"
-        msg += "."
-    return msg
-
-
 def _raise_warn_callable(
     stream: Callable,
     source: Callable,
@@ -418,8 +367,8 @@ def _raise_warn_callable(
             - bool: Not applicable for this function (use _raise_warn_arguments instead)
         deprecated_in: Version when the source was marked deprecated (e.g., "1.0.0").
         remove_in: Version when the source will be removed (e.g., "2.0.0").
-        template_mgs: Custom message template. If None, uses default template based on whether target is callable
-            or None.
+        template_mgs: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
+            callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -444,24 +393,17 @@ def _raise_warn_callable(
         >>> #           `__main__.new_func`. It will be removed in v2.0."
 
     """
-    source_name = _source_display_name(source)
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
-        if template_mgs is None:
-            stream(_format_callable_message(source_name, target_path, deprecated_in, remove_in))
-            return
-        template_mgs = template_mgs or TEMPLATE_WARNING_CALLABLE
+        template = template_mgs or TEMPLATE_WARNING_CALLABLE
     else:
         target_name, target_path = "", ""
-        if template_mgs is None:
-            stream(_format_callable_message(source_name, "", deprecated_in, remove_in))
-            return
-        template_mgs = template_mgs or TEMPLATE_WARNING_NO_TARGET
+        template = template_mgs or TEMPLATE_WARNING_NO_TARGET
     _raise_warn(
         stream=stream,
         source=source,
-        template_mgs=template_mgs,
+        template_mgs=template,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
@@ -513,9 +455,6 @@ def _raise_warn_arguments(
 
     """
     args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
-    if template_mgs is None:
-        stream(_format_arguments_message(_source_display_name(source), args_map, deprecated_in, remove_in))
-        return
     _raise_warn(
         stream,
         source,

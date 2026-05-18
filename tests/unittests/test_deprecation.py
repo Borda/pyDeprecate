@@ -765,59 +765,6 @@ class TestEmptyVersionGuardOnClasses:
         assert not user_warnings
 
 
-class TestWarnMessageVersionClauses:
-    """Default warning messages skip version clauses gracefully when versions are absent."""
-
-    def test_message_with_both_versions(self) -> None:
-        """Both deprecated_in and remove_in produce the full message with version strings."""
-
-        def new_fn() -> None:
-            pass
-
-        @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
-        def old_fn() -> None:
-            pass
-
-        with pytest.warns(FutureWarning) as caught:
-            old_fn()
-        msg = str(caught[0].message)
-        assert "since v1.0" in msg
-        assert "removed in v2.0" in msg
-
-    def test_message_with_only_deprecated_in(self) -> None:
-        """Only deprecated_in set: 'since vX' present, no 'removed in' clause."""
-
-        def new_fn() -> None:
-            pass
-
-        @deprecated(target=new_fn, deprecated_in="1.0")
-        def old_fn() -> None:
-            pass
-
-        with pytest.warns(FutureWarning) as caught:
-            old_fn()
-        msg = str(caught[0].message)
-        assert "since v1.0" in msg
-        assert "removed in" not in msg
-        assert " v " not in msg  # no dangling bare "v"
-
-    def test_message_with_no_versions(self) -> None:
-        """Neither version set: message mentions function name but no bare 'v' token."""
-        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
-
-            @deprecated()  # target=NOTIFY triggers guard for missing versions
-            def old_fn() -> None:
-                pass
-
-        with pytest.warns(FutureWarning) as caught:
-            old_fn()
-        msg = str(caught[0].message)
-        assert "old_fn" in msg
-        assert " v " not in msg  # no dangling bare "v"
-        assert "since v" not in msg
-        assert "removed in" not in msg
-
-
 class TestEmptyVersionGuardSymmetry:
     """Guard fires for all target shapes when deprecated_in and remove_in are absent (F1b)."""
 
