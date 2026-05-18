@@ -715,16 +715,16 @@ class TestEmptyVersionGuardOnFunctions:
 
 
 class TestEmptyVersionGuardOnClasses:
-    """@deprecated() on a class with no version strings emits exactly one FutureWarning.
+    """@deprecated() on a class with no version strings emits exactly one UserWarning.
 
     When ``@deprecated`` is applied to a class, ``packing()`` delegates to ``deprecated_class()``.
     The empty-version guard must fire at the proxy layer only — duplicating it inside
-    ``packing()`` would surface two FutureWarnings for a single decoration. The inline class
+    ``packing()`` would surface two UserWarnings for a single decoration. The inline class
     fixtures here are mechanical one-offs per the AGENTS.md test-three-layer exception.
     """
 
     def test_class_empty_versions_warns_once(self) -> None:
-        """@deprecated() applied to a class with no version strings emits exactly one FutureWarning."""
+        """@deprecated() applied to a class with no version strings emits exactly one UserWarning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -732,12 +732,11 @@ class TestEmptyVersionGuardOnClasses:
             class _OldClassNoVersions:
                 """Source class with no version metadata supplied."""
 
-        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
-        assert len(future_warnings) == 1
-        assert "no `deprecated_in` or `remove_in`" in str(future_warnings[0].message)
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "no `deprecated_in` or `remove_in`" in str(w.message)]
+        assert len(user_warnings) == 1
 
     def test_class_empty_versions_stream_none_silent(self) -> None:
-        """@deprecated(stream=None) applied to a class with no version strings emits no FutureWarning."""
+        """@deprecated(stream=None) applied to a class with no version strings emits no UserWarning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -745,5 +744,5 @@ class TestEmptyVersionGuardOnClasses:
             class _OldClassNoVersionsSilent:
                 """Source class with stream=None — guard must stay silent."""
 
-        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
-        assert not future_warnings
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert not user_warnings
