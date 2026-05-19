@@ -65,6 +65,7 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
 # Legacy form — UserWarning now; invalid going forward
 from deprecate import deprecated
 
+
 @deprecated(target=False, deprecated_in="1.0", remove_in="2.0")
 def my_func(x: int) -> int:
     return x * 2
