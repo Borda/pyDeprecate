@@ -105,9 +105,14 @@ def my_func(new: int) -> int:
 `@deprecated(target=OtherClass.method)` no longer raises `TypeError` at decoration time. Code that caught `TypeError` from this guard must update:
 
 ```python
+class OtherClass:
+    def method(self): ...
+
 # v0.8+: decoration succeeds with UserWarning; TypeError is no longer raised
-@deprecated(target=OtherClass.method, deprecated_in="1.0", remove_in="2.0")
-def my_method(self): ...
+# (guard requires both source and target to be class methods — qualname contains ".")
+class MyClass:
+    @deprecated(target=OtherClass.method, deprecated_in="1.0", remove_in="2.0")
+    def my_method(self): ...
 
 # To restore hard-fail semantics add a warning filter before decoration:
 import warnings
