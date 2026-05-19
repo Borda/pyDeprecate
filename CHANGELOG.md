@@ -28,7 +28,7 @@
 
 - **`target=None` sentinel — use `TargetMode.NOTIFY`.** Passing `target=None` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.NOTIFY`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **`target=True` sentinel — use `TargetMode.ARGS_REMAP`.** Passing `target=True` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.ARGS_REMAP`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
-- **`DeprecationWrapperInfo.empty_mapping` → `empty_args_mapping` and `identity_mapping` → `identity_args_mapping`.** Old names are kept as deprecated `@property` aliases that emit `DeprecationWarning` on access and will be removed in v1.0. **Migration note — read access only:** the aliases cover attribute reads but not `dataclasses.replace()` or keyword construction; update call sites to the new names before v1.0. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
+- **`DeprecationWrapperInfo.empty_mapping` → `empty_args_mapping` and `identity_mapping` → `identity_args_mapping`.** Old names are kept as deprecated `@property` aliases that emit `DeprecationWarning` on access and will be removed in v1.0. **Migration note:** the aliases cover attribute reads; keyword construction and `dataclasses.replace()` are supported via a constructor shim, all emitting `DeprecationWarning`; update call sites to the new names before v1.0. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
 
 ### Changed
 
