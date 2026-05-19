@@ -626,17 +626,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#breaking" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Breaking
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#added" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1199,17 +1188,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#breaking" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Breaking
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#added" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1646,10 +1624,6 @@
 
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">🔗</a></h1>
 <p>[0.8.0] — 2026-05-DD — Default <code>TargetMode</code> enum &amp; CLI audit tools</p>
-<h3 id="breaking">Breaking<a class="headerlink" href="#breaking" title="Permanent link">🔗</a></h3>
-<ul>
-<li><strong>Cross-class method guard downgrades from <code>TypeError</code> to <code>UserWarning</code>.</strong> <code>@deprecated(target=OtherClass.method)</code> no longer raises <code>TypeError</code> at decoration time — it emits a <code>UserWarning</code> instead. Code that previously caught <code>TypeError</code> from this guard must migrate to <code>warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)</code> for equivalent strict behaviour. The guard heuristic uses <code>__qualname__</code> and may produce false positives for metaclass-generated or decorator-rewritten qualnames — downgrading to <code>UserWarning</code> allows those cases to be suppressed. (<a href="https://github.com/Borda/pyDeprecate/pull/166">#166</a>)</li>
-</ul>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
 <ul>
 <li>
@@ -1694,8 +1668,15 @@
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
-<li><strong><code>args_mapping</code> rename no longer clobbers source default when both old and new parameter names are present.</strong> Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames <code>old=X</code> to <code>new=X</code> without discarding a separately supplied <code>new</code> value. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
-<li><strong><code>target=False</code> sentinel now emits <code>UserWarning</code> at decoration time.</strong> <code>target=False</code> was never a valid configuration; previously the behavior was undefined. The sentinel now surfaces a <code>UserWarning</code> immediately and will raise <code>TypeError</code> in v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
+<li>
+<p><strong>Cross-class guard false positives resolved; <code>TypeError</code> semantics preserved.</strong> Two previously documented "irresolvable" false-positive scenarios are now handled: (1) targets with metaclass/dynamic-class qualnames (e.g. <code>type("Name", bases, ns)</code> or manual <code>fn.__qualname__ = "FakeOwner.method"</code>) — guard now skips silently when the named class is absent from the target's module globals; (2) pre-applied decorators that rewrite the source's <code>__qualname__</code> — guard reads the true enclosing class from the Python class-body frame, which cannot be mutated by user decorators. The guard continues to raise <code>TypeError</code> at decoration time for genuine cross-class forwarding.</p>
+</li>
+<li>
+<p><strong><code>args_mapping</code> rename no longer clobbers source default when both old and new parameter names are present.</strong> Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames <code>old=X</code> to <code>new=X</code> without discarding a separately supplied <code>new</code> value. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</p>
+</li>
+<li>
+<p><strong><code>target=False</code> sentinel now emits <code>UserWarning</code> at decoration time.</strong> <code>target=False</code> was never a valid configuration; previously the behavior was undefined. The sentinel now surfaces a <code>UserWarning</code> immediately and will raise <code>TypeError</code> in v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</p>
+</li>
 </ul>
 <hr />
 <h2 id="070-2026-03-31-docstring-tooling">[0.7.0] — 2026-03-31 — Docstring Tooling<a class="headerlink" href="#070-2026-03-31-docstring-tooling" title="Permanent link">🔗</a></h2>
@@ -1852,7 +1833,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 19, 2026 09:50:46 UTC">2026-05-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 19, 2026 14:17:53 UTC">2026-05-19</span>
   </span>
 
     
