@@ -323,6 +323,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
             - identity_args_mapping: List of args where key equals value (no effect)
             - self_reference: True if target is the same as the wrapper
             - no_effect: True if wrapper has zero impact (all checks combined)
+            - empty_deprecated_in: True when ``deprecated_in`` is absent or empty
 
     Raises:
         ValueError: If the wrapper has missing or invalid ``__deprecated__`` metadata (expected
