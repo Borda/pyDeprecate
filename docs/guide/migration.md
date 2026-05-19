@@ -1,22 +1,20 @@
 ---
 id: migration
-description: 'Upgrade guide for pyDeprecate: breaking changes introduced in v1.0 and v0.8, with concrete before/after code snippets for each item.'
+description: Align your pyDeprecate usage with the current idiomatic API — each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer.
 ---
 
 # Migration Guide
 
-## Upgrade to Latest API (v1.0)
+## Align with the Current API
 
-pyDeprecate v1.0 will introduce several breaking changes that were soft-deprecated with `UserWarning` or `FutureWarning` in v0.8. Each item below shows the warning you see now, explains what will break in v1.0, and gives the corrected code.
+v0.8 introduced `TargetMode` as the explicit, readable way to express deprecation intent. If you are still using the legacy boolean shorthands (`None`, `True`, `False` as `target` values), the snippets below show the modern equivalent — they are clearer, pass linting cleanly, and are what we will require going forward.
 
 ### `target=None` → `TargetMode.NOTIFY`
 
-**Current behaviour (v0.8):** `target=None` is accepted but emits a `FutureWarning` at decoration time.
-
-**v1.0 behaviour:** `target=None` raises `TypeError` immediately at decoration time.
+`target=None` was a magic sentinel meaning "emit a deprecation notice, then run the function body". Using it today emits a `FutureWarning` at decoration time because the intent was ambiguous — `None` could plausibly mean "no target" rather than "notify-only mode". `TargetMode.NOTIFY` says that intent explicitly. Better still, `TargetMode.NOTIFY` is the default, so you can often drop `target` entirely:
 
 ```python
-# BEFORE (v0.8 — emits FutureWarning; breaks in v1.0)
+# Legacy form — still works, but emits FutureWarning
 from deprecate import deprecated
 
 
@@ -25,8 +23,8 @@ def my_func(x: int) -> int:
     return x * 2
 
 
-# AFTER — use TargetMode.NOTIFY, or omit target entirely (defaults to NOTIFY)
-from deprecate import TargetMode, deprecated
+# Idiomatic pyDeprecate — target omitted; NOTIFY is the default
+from deprecate import deprecated
 
 
 @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -34,16 +32,14 @@ def my_func(x: int) -> int:
     return x * 2
 ```
 
-`TargetMode.NOTIFY` is the default when `target` is omitted; it emits a deprecation warning on every call and then executes the function body as normal.
+`TargetMode.NOTIFY` emits a deprecation notice on every call and then executes the function body as normal.
 
 ### `target=True` → `TargetMode.ARGS_REMAP`
 
-**Current behaviour (v0.8):** `target=True` is accepted but emits a `FutureWarning` at decoration time.
-
-**v1.0 behaviour:** `target=True` raises `TypeError` immediately at decoration time.
+`target=True` was the shorthand for argument-rename mode — it told pyDeprecate to remap kwargs and run the function body. Using a boolean for this was always a bit of a guess for readers; `TargetMode.ARGS_REMAP` makes the intent self-documenting:
 
 ```python
-# BEFORE (v0.8 — emits FutureWarning; breaks in v1.0)
+# Legacy form — still works, but emits FutureWarning
 from deprecate import deprecated
 
 
@@ -52,7 +48,7 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 
 
-# AFTER — use TargetMode.ARGS_REMAP explicitly
+# Modern form
 from deprecate import TargetMode, deprecated
 
 
@@ -61,22 +57,18 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 ```
 
-### `target=False` → remove the decorator
+### `target=False` → `TargetMode.NOTIFY` or a callable target
 
-**Current behaviour (v0.8):** `target=False` emits a `UserWarning` at decoration time and falls through to `TargetMode.NOTIFY`.
-
-**v1.0 behaviour:** `target=False` raises `TypeError` immediately at decoration time.
-
-`target=False` was never a valid deprecation mode. Fix by replacing it with either `TargetMode.NOTIFY` (warn-only) or a callable target (forwarding):
+`target=False` was never a well-defined mode — passing `False` as a target callable made no semantic sense, so pyDeprecate fell through to `TargetMode.NOTIFY` while emitting a `UserWarning`. The modern form picks the mode you actually want:
 
 ```python
-# BEFORE (v0.8 — UserWarning now, TypeError in v1.0)
+# Legacy form — UserWarning now; invalid going forward
 @deprecated(target=False, deprecated_in="1.0", remove_in="2.0")
 def my_func(x: int) -> int:
     return x * 2
 
 
-# AFTER — use TargetMode.NOTIFY (warn-only, body executes)
+# Modern form — warn only, body executes unchanged
 from deprecate import TargetMode, deprecated
 
 
@@ -85,33 +77,29 @@ def my_func(x: int) -> int:
     return x * 2
 ```
 
-The same applies inside `deprecated_class()` and the proxy path — `target=False` is invalid in all contexts.
+The same applies inside `deprecated_class()` and the proxy path — `target=False` is not a valid mode in any context.
 
 ### Misconfigured `TargetMode` combinations
 
-**Current behaviour (v0.8):** Three combinations emit `UserWarning` at decoration time.
+Some `TargetMode` + argument combinations are contradictory; pyDeprecate emits a `UserWarning` at decoration time when it detects them. Resolving these makes the intent unambiguous and silences the notice:
 
-**v1.0 behaviour:** All three raise `TypeError` at decoration time.
-
-| Misconfiguration                               | Fix                                                                                            |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `TargetMode.ARGS_REMAP` without `args_mapping` | Add `args_mapping={"old": "new"}`, or switch to `TargetMode.NOTIFY` if you only need a warning |
-| `TargetMode.NOTIFY` with `args_mapping`        | Switch to `TargetMode.ARGS_REMAP` if you want argument remapping, or remove `args_mapping`     |
-| `TargetMode.NOTIFY` with `args_extra`          | Switch to a callable `target=` if you need to inject extra kwargs into a forwarded call        |
+| Combination                                    | Cleaner alternative                                                                                       |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `TargetMode.ARGS_REMAP` without `args_mapping` | Add `args_mapping={"old": "new"}`, or switch to `TargetMode.NOTIFY` if you only need a deprecation notice |
+| `TargetMode.NOTIFY` with `args_mapping`        | Switch to `TargetMode.ARGS_REMAP` if you want argument remapping, or remove `args_mapping`                |
+| `TargetMode.NOTIFY` with `args_extra`          | Use a callable `target=` if you need to inject extra kwargs into a forwarded call                         |
 
 ### `DeprecationWrapperInfo` field renames
 
-**Current behaviour (v0.8):** `empty_mapping` and `identity_mapping` are deprecated property aliases that emit `DeprecationWarning` on access.
-
-**v1.0 behaviour:** Both old names are removed.
+Two fields on `DeprecationWrapperInfo` were renamed in v0.8 to be consistent with the rest of the API. The old names still work but emit a `DeprecationWarning` on access — swapping them out is a one-line change:
 
 ```python
-# BEFORE (emits DeprecationWarning; removed in v1.0)
+# Legacy names — emit DeprecationWarning on access
 info.empty_mapping
 info.identity_mapping
 dataclasses.replace(info, empty_mapping=True)
 
-# AFTER
+# Modern names
 info.empty_args_mapping
 info.identity_args_mapping
 dataclasses.replace(info, empty_args_mapping=True)
@@ -119,9 +107,9 @@ dataclasses.replace(info, empty_args_mapping=True)
 
 ______________________________________________________________________
 
-## Upgrade to v0.8
+## Coming from v0.7
 
-v0.8 introduced the `TargetMode` enum as the canonical API for non-callable `target` values. The legacy boolean sentinels (`None`, `True`, `False`) still work but emit deprecation warnings as described above. The key additions in v0.8 are:
+Here is what changed in v0.8 that you might have missed:
 
 - `TargetMode.NOTIFY` — replaces `target=None`; warn-only mode where the function body runs unchanged.
 - `TargetMode.ARGS_REMAP` — replaces `target=True`; argument-rename mode where kwargs are remapped and the body runs.
@@ -131,3 +119,7 @@ v0.8 introduced the `TargetMode` enum as the canonical API for non-callable `tar
 - New `DeprecationWrapperInfo.empty_deprecated_in` field for CI detection of wrappers with no version annotation.
 
 See the [Changelog](../changelog.md) for the complete v0.8 release notes.
+
+______________________________________________________________________
+
+If you hit anything not covered here, [open an issue](https://github.com/Borda/pyDeprecate/issues) — we are happy to help.
