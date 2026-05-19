@@ -22,6 +22,7 @@ from deprecate import deprecated
 Not:
 
 ```python
+# phmdoctest:skip
 from pydeprecate import deprecated  # wrong — no such module
 ```
 
