@@ -101,24 +101,22 @@ def my_func(new: int) -> int:
     return new * 2
 ```
 
-**Cross-class method forwarding — emits `UserWarning`, not `TypeError` (v0.8+)**:
-`@deprecated(target=OtherClass.method)` no longer raises `TypeError` at decoration time. Code that caught `TypeError` from this guard must update:
+**Cross-class method forwarding raises `TypeError`**:
+`@deprecated(target=OtherClass.method)` raises `TypeError` at decoration time when target is a method on a different class than source:
 
 ```python
 class OtherClass:
     def method(self): ...
 
-# v0.8+: decoration succeeds with UserWarning; TypeError is no longer raised
+# WRONG — raises TypeError at decoration time
 class MyClass:
     @deprecated(target=OtherClass.method, deprecated_in="1.0", remove_in="2.0")
     def my_method(self): ...
 
-# To restore hard-fail semantics add a warning filter before decoration:
-import warnings
-warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
+# CORRECT — target must be on the same class, or use a full class for constructor forwarding
 ```
 
-The guard uses `__qualname__` heuristics with two automatic false-positive defences: (1) targets whose qualname prefix names a class absent from the callable's module globals are skipped silently; (2) the source's true enclosing class is read from the Python class-body frame, so pre-applied decorators that rewrite `source.__qualname__` cannot cause spurious warnings on same-class forwards.
+The guard uses `__qualname__` heuristics with two automatic false-positive defences: (1) targets whose qualname prefix names a class absent from the callable's module globals are skipped silently; (2) the source's true enclosing class is read from the Python class-body frame, so pre-applied decorators that rewrite `source.__qualname__` cannot cause spurious `TypeError` on same-class forwards.
 
 **`DeprecationWrapperInfo` field renames (v0.8+)** — `empty_mapping` → `empty_args_mapping`; `identity_mapping` → `identity_args_mapping`. Legacy names are still accepted by the compat `__init__` shim for constructor kwargs and `dataclasses.replace()`, but they emit `DeprecationWarning` and are translated to the new field names:
 

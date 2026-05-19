@@ -391,40 +391,24 @@ class TestDeprecatedClassGuard:
 class TestCrossClassMethodGuard:
     """@deprecated warns when target is a method on a different class."""
 
-    def test_warns_for_cross_class_method_target(self) -> None:
-        """Forwarding to a method on a different class emits UserWarning at decoration time.
+    def test_raises_for_cross_class_method_target(self) -> None:
+        """Forwarding to a method on a different class raises TypeError at decoration time.
 
         The misconfigured classes are defined inline (not in collection_deprecate.py)
         because placing ``@deprecated`` with a cross-class target at module level would
-        emit a UserWarning at import time for every test that imports the collection module.
+        raise TypeError at import time for every test that imports the collection module.
         """
 
         class OtherClass:
             def other_method(self, x: int) -> int:
                 return x
 
-        with pytest.warns(UserWarning, match="cross-class method forwarding is not supported"):
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
 
             class MyClass:
                 @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
                 def old_method(self, x: int) -> int:
                     return void(x)
-
-    def test_cross_class_warn_can_be_escalated_to_error(self) -> None:
-        """filterwarnings('error') converts the UserWarning into a raised exception."""
-
-        class OtherClass:
-            def other_method(self, x: int) -> int:
-                return x
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
-            with pytest.raises(UserWarning, match="cross-class method forwarding is not supported"):
-
-                class MyClass:
-                    @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
-                    def old_method(self, x: int) -> int:
-                        return void(x)
 
     def test_raises_for_class_target_on_non_init_method(self) -> None:
         """@deprecated(target=SomeClass) on a non-__init__ class method raises TypeError.
@@ -463,30 +447,6 @@ class TestCrossClassMethodGuard:
         assert isinstance(old, CrossGuardOldClass)
         assert old.x == 3
 
-    def test_cross_class_warn_attributed_to_decoration_site(self) -> None:
-        """stacklevel=3 attributes UserWarning to the @deprecated line, not an internal frame."""
-        frame = inspect.currentframe()
-        assert frame is not None
-        test_start_line = frame.f_lineno
-
-        class OtherClass:
-            def other_method(self, x: int) -> int:
-                return x
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-
-            class MyClass:
-                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
-                def old_method(self, x: int) -> int:
-                    return void(x)
-
-        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
-        assert len(cross_warns) == 1
-        w = cross_warns[0]
-        assert w.filename == __file__, f"Warning must point to {__file__!r}, got {w.filename!r}"
-        assert w.lineno > test_start_line, "Warning must point inside this test method"
-
     def test_metaclass_generated_qualname_skips_guard(self) -> None:
         """A target with a metaclass-style rewritten ``__qualname__`` is detected and the guard returns silently.
 
@@ -504,16 +464,10 @@ class TestCrossClassMethodGuard:
         # test module, so the module-globals check in the guard detects the unreliable qualname.
         replacement.__qualname__ = "FakeOwner.replacement"
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-
-            class RealOwner:
-                @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
-                def old_method(self, x: int) -> int:
-                    return void(x)
-
-        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
-        assert cross_warns == [], f"Unexpected cross-class warning: {[str(w.message) for w in cross_warns]}"
+        class RealOwner:  # decoration must not raise TypeError
+            @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
+            def old_method(self, x: int) -> int:
+                return void(x)
 
     def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
         """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
@@ -528,23 +482,17 @@ class TestCrossClassMethodGuard:
             fn.__qualname__ = "AlienClass.method"
             return fn
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        class MyClass:  # decoration must not raise TypeError
+            def new_method(self, x: int) -> int:
+                return x
 
-            class MyClass:
-                def new_method(self, x: int) -> int:
-                    return x
+            @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
+            @rewrite_to_alien_class
+            def old_method(self, x: int) -> int:
+                return void(x)
 
-                @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
-                @rewrite_to_alien_class
-                def old_method(self, x: int) -> int:
-                    return void(x)
-
-        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
-        assert cross_warns == [], f"Unexpected cross-class warning: {[str(w.message) for w in cross_warns]}"
-
-    def test_decorator_rewriting_qualname_warns_and_is_suppressible(self) -> None:
-        """A pre-applied decorator rewriting source qualname to a genuinely different class still warns.
+    def test_decorator_rewriting_qualname_raises_for_cross_class(self) -> None:
+        """A pre-applied decorator rewriting source qualname to a genuinely different class still raises TypeError.
 
         Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken
         from the class body's locals.  When the recovered class differs from the target's class, the guard
@@ -560,26 +508,13 @@ class TestCrossClassMethodGuard:
             def target_method(self, x: int) -> int:
                 return x
 
-        with pytest.warns(UserWarning, match="cross-class method forwarding is not supported"):
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
 
             class RealOwner:
                 @deprecated(target=TargetOwner.target_method, deprecated_in="1.0", remove_in="2.0")
                 @rewrite_qualname
                 def old_method(self, x: int) -> int:
                     return void(x)
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            warnings.filterwarnings("ignore", message=".*cross-class method forwarding", category=UserWarning)
-
-            class RealOwnerSuppressed:
-                @deprecated(target=TargetOwner.target_method, deprecated_in="1.0", remove_in="2.0")
-                @rewrite_qualname
-                def old_method(self, x: int) -> int:
-                    return void(x)
-
-        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
-        assert cross_warns == []
 
 
 class TestDocstringStyleValidation:
