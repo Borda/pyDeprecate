@@ -94,7 +94,7 @@
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda"] },
   "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] },
-  "dateModified": "2026-05-13"
+  "dateModified": "2026-05-19"
 }
 </script>
 
@@ -624,6 +624,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#breaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#added" class="md-nav__link">
@@ -1188,6 +1199,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#breaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#added" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1624,6 +1646,10 @@
 
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">🔗</a></h1>
 <p>[0.8.0] — 2026-05-DD — Default <code>TargetMode</code> enum &amp; CLI audit tools</p>
+<h3 id="breaking">Breaking<a class="headerlink" href="#breaking" title="Permanent link">🔗</a></h3>
+<ul>
+<li><strong>Cross-class method guard downgrades from <code>TypeError</code> to <code>UserWarning</code>.</strong> <code>@deprecated(target=OtherClass.method)</code> no longer raises <code>TypeError</code> at decoration time — it emits a <code>UserWarning</code> instead. Code that previously caught <code>TypeError</code> from this guard must migrate to <code>warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)</code> for equivalent strict behaviour. The guard heuristic uses <code>__qualname__</code> and may produce false positives for metaclass-generated or decorator-rewritten qualnames — downgrading to <code>UserWarning</code> allows those cases to be suppressed. (<a href="https://github.com/Borda/pyDeprecate/pull/166">#166</a>)</li>
+</ul>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
 <ul>
 <li>
@@ -1647,11 +1673,15 @@
 <li>
 <p><strong>Four CLI subcommands: <code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>.</strong> <code>check</code> validates wrapper configuration; <code>expiry</code> reports wrappers past their <code>remove_in</code> deadline (requires <code>pip install 'pyDeprecate[audit]'</code>); <code>chains</code> detects deprecated-to-deprecated forwarding chains; <code>all</code> runs all three in a single scan pass. Flags: <code>--norecursive</code>, <code>--skip_errors</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/149">#149</a>)</p>
 </li>
+<li>
+<p><strong>New <code>DeprecationWrapperInfo.empty_deprecated_in</code> field.</strong> <code>True</code> when <code>deprecated_in</code> is absent on a wrapper; intended for CI pipeline introspection. <code>dataclasses.asdict()</code> output and <code>repr()</code> now include this field. (<a href="https://github.com/Borda/pyDeprecate/pull/166">#166</a>)</p>
+</li>
 </ul>
 <h3 id="deprecated">Deprecated<a class="headerlink" href="#deprecated" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong><code>target=None</code> sentinel — use <code>TargetMode.NOTIFY</code>.</strong> Passing <code>target=None</code> now emits a <code>FutureWarning</code> at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to <code>target=TargetMode.NOTIFY</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
 <li><strong><code>target=True</code> sentinel — use <code>TargetMode.ARGS_REMAP</code>.</strong> Passing <code>target=True</code> now emits a <code>FutureWarning</code> at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to <code>target=TargetMode.ARGS_REMAP</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
+<li><strong><code>DeprecationWrapperInfo.empty_mapping</code> → <code>empty_args_mapping</code> and <code>identity_mapping</code> → <code>identity_args_mapping</code>.</strong> Old names are kept as deprecated <code>@property</code> aliases that emit <code>DeprecationWarning</code> on access and will be removed in v1.0. <strong>Migration note:</strong> the aliases cover attribute reads; keyword construction and <code>dataclasses.replace()</code> are supported via a constructor shim, all emitting <code>DeprecationWarning</code>; update call sites to the new names before v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/166">#166</a>)</li>
 </ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
 <ul>
@@ -1660,7 +1690,7 @@
 <li><strong><code>deprecated_class()</code> with <code>target=TargetMode.NOTIFY</code> now emits <code>UserWarning</code> at decoration time when <code>args_mapping</code> or <code>args_extra</code> is supplied.</strong> These parameters are ignored in <code>NOTIFY</code> mode; passing them has always been a misconfiguration. The warning will become <code>TypeError</code> in v1.0.</li>
 <li><strong>Docs site URL layout is now versioned.</strong> Content is published under <code>https://borda.github.io/pyDeprecate/latest/</code> (for <code>main</code>) and <code>https://borda.github.io/pyDeprecate/&lt;tag&gt;/</code> (for release tags). The root URL (<code>https://borda.github.io/pyDeprecate/</code>) redirects to <code>latest/</code>. External bookmarks to flat paths like <code>.../pyDeprecate/troubleshooting.html</code> will break on first deploy — update them to <code>.../pyDeprecate/latest/troubleshooting.html</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/148">#148</a>)</li>
 <li><strong><code>target</code> parameter of <code>@deprecated</code> now defaults to <code>TargetMode.NOTIFY</code>.</strong> Callers can omit <code>target</code> entirely for warn-only deprecation: <code>@deprecated(deprecated_in="1.0", remove_in="2.0")</code> is now the canonical form. Passing <code>target=TargetMode.NOTIFY</code> explicitly remains valid. This default is permanent and will not change in future releases. (<a href="https://github.com/Borda/pyDeprecate/pull/162">#162</a>)</li>
-<li><strong>Decoration-time <code>FutureWarning</code> when <code>@deprecated</code> has no version strings.</strong> When <code>target</code> is <code>TargetMode.NOTIFY</code> (the default or explicitly passed) and both <code>deprecated_in</code> and <code>remove_in</code> are absent, a <code>FutureWarning</code> is emitted immediately at decoration time (not at call time). Applies to functions, methods, and classes. Suppressed when <code>stream=None</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/162">#162</a>)</li>
+<li><strong>Decoration-time <code>UserWarning</code> when <code>@deprecated</code> omits <code>deprecated_in</code>.</strong> When <code>deprecated_in</code> is absent a <code>UserWarning</code> is emitted immediately at decoration time (not at call time) regardless of <code>target</code> shape (<code>TargetMode.NOTIFY</code>, callable, or <code>ARGS_REMAP</code>), even if <code>remove_in</code> is set. Applies to functions and methods (not classes). Suppressed when <code>stream=None</code> or when a custom <code>template_mgs</code> is provided. (<a href="https://github.com/Borda/pyDeprecate/pull/162">#162</a>)</li>
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
@@ -1822,7 +1852,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 13, 2026 10:43:26 UTC">2026-05-13</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 19, 2026 09:50:46 UTC">2026-05-19</span>
   </span>
 
     

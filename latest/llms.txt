@@ -101,6 +101,38 @@ def my_func(new: int) -> int:
     return new * 2
 ```
 
+**Cross-class method forwarding — emits `UserWarning`, not `TypeError` (v0.8+)**:
+`@deprecated(target=OtherClass.method)` no longer raises `TypeError` at decoration time. Code that caught `TypeError` from this guard must update:
+
+```python
+class OtherClass:
+    def method(self): ...
+
+# v0.8+: decoration succeeds with UserWarning; TypeError is no longer raised
+# (guard requires both source and target to be class methods — qualname contains ".")
+class MyClass:
+    @deprecated(target=OtherClass.method, deprecated_in="1.0", remove_in="2.0")
+    def my_method(self): ...
+
+# To restore hard-fail semantics add a warning filter before decoration:
+import warnings
+warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
+```
+
+**`DeprecationWrapperInfo` field renames (v0.8+)** — `empty_mapping` → `empty_args_mapping`; `identity_mapping` → `identity_args_mapping`. Legacy names are still accepted by the compat `__init__` shim for constructor kwargs and `dataclasses.replace()`, but they emit `DeprecationWarning` and are translated to the new field names:
+
+```python
+import dataclasses
+
+# Deprecated legacy spelling — works via compat shim but emits DeprecationWarning
+dataclasses.replace(info, empty_mapping=True)
+
+# CORRECT
+dataclasses.replace(info, empty_args_mapping=True)
+```
+
+**`DeprecationWrapperInfo.empty_deprecated_in: bool`** (v0.8+) — `True` when the wrapper's `deprecated_in` string is absent or empty. Included in `dataclasses.asdict()` and `repr()`. Use in CI pipelines to surface wrappers with no version annotation.
+
 ### Decision Flowchart
 
 ```
