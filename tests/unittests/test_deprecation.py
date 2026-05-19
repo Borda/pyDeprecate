@@ -5,7 +5,7 @@ import sys
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Union, cast
+from typing import Any, Callable, Union, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -486,6 +486,71 @@ class TestCrossClassMethodGuard:
         w = cross_warns[0]
         assert w.filename == __file__, f"Warning must point to {__file__!r}, got {w.filename!r}"
         assert w.lineno > test_start_line, "Warning must point inside this test method"
+
+    def test_metaclass_generated_qualname_warns_and_is_suppressible(self) -> None:
+        """A target with a metaclass-style rewritten ``__qualname__`` yields a suppressible UserWarning."""
+
+        def replacement(instance: object, x: int) -> int:
+            void(instance)
+            return x
+
+        # Simulate a metaclass / type(...) assigning a qualname that looks like a method on FakeOwner,
+        # even though `replacement` is unrelated to any such class.  The guard cannot tell this apart from
+        # a genuine cross-class method target.
+        replacement.__qualname__ = "FakeOwner.replacement"
+
+        with pytest.warns(UserWarning, match="cross-class method forwarding is not supported"):
+
+            class RealOwner:
+                @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
+        # Same construction under a filterwarnings("ignore", ...) block must emit no UserWarning.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warnings.filterwarnings("ignore", message=".*cross-class method forwarding", category=UserWarning)
+
+            class RealOwnerSuppressed:
+                @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
+        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
+        assert cross_warns == []
+
+    def test_decorator_rewriting_qualname_warns_and_is_suppressible(self) -> None:
+        """A pre-applied decorator that rewrites the source ``__qualname__`` yields a suppressible UserWarning."""
+
+        def rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
+            """Test fixture: an outer decorator that retags the wrapped function as living on ``OtherOwner``."""
+            fn.__qualname__ = "OtherOwner.rewritten_method"
+            return fn
+
+        class TargetOwner:
+            def target_method(self, x: int) -> int:
+                return x
+
+        with pytest.warns(UserWarning, match="cross-class method forwarding is not supported"):
+
+            class RealOwner:
+                @deprecated(target=TargetOwner.target_method, deprecated_in="1.0", remove_in="2.0")
+                @rewrite_qualname
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warnings.filterwarnings("ignore", message=".*cross-class method forwarding", category=UserWarning)
+
+            class RealOwnerSuppressed:
+                @deprecated(target=TargetOwner.target_method, deprecated_in="1.0", remove_in="2.0")
+                @rewrite_qualname
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
+        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
+        assert cross_warns == []
 
 
 class TestDocstringStyleValidation:
