@@ -463,6 +463,30 @@ class TestCrossClassMethodGuard:
         assert isinstance(old, CrossGuardOldClass)
         assert old.x == 3
 
+    def test_cross_class_warn_attributed_to_decoration_site(self) -> None:
+        """stacklevel=3 attributes UserWarning to the @deprecated line, not an internal frame."""
+        frame = inspect.currentframe()
+        assert frame is not None
+        test_start_line = frame.f_lineno
+
+        class OtherClass:
+            def other_method(self, x: int) -> int:
+                return x
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class MyClass:
+                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
+        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
+        assert len(cross_warns) == 1
+        w = cross_warns[0]
+        assert w.filename == __file__, f"Warning must point to {__file__!r}, got {w.filename!r}"
+        assert w.lineno > test_start_line, "Warning must point inside this test method"
+
 
 class TestDocstringStyleValidation:
     """Validation for ``docstring_style`` values."""
