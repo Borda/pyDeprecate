@@ -340,7 +340,7 @@ class TestLegacySentinels:
 
     def test_false_emits_user_warning(self) -> None:
         """target=False is not valid — should warn at decoration time."""
-        with pytest.warns(UserWarning, match="target=False' is not a valid deprecation mode"):
+        with pytest.warns(UserWarning, match=r"target=False.*is not a valid deprecation mode"):
 
             @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
             def _fn(x: int) -> int:

@@ -132,6 +132,8 @@ dataclasses.replace(info, empty_args_mapping=True)
 
 **`DeprecationWrapperInfo.empty_deprecated_in: bool`** (v0.8+) — `True` when the wrapper's `deprecated_in` string is absent or empty. Included in `dataclasses.asdict()` and `repr()`. Use in CI pipelines to surface wrappers with no version annotation.
 
+**Install vs import name confusion** — import as `deprecate`, not `pydeprecate` (install: `pip install pyDeprecate`; import: `from deprecate import deprecated`).
+
 ### Decision Flowchart
 
 ```

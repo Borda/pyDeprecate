@@ -514,13 +514,15 @@ class TestDecoratorFactory:
             (
                 True,
                 FutureWarning,
-                "target=True without args_mapping resolves to TargetMode.NOTIFY"
-                " (warns on every access). Will be TypeError in v1.0.",
+                "`target=True` without `args_mapping` resolves to `TargetMode.NOTIFY`"
+                " (warns on every access). Will be `TypeError` in `v1.0`."
+                " See docs/guide/migration.md for upgrade steps.",
             ),
             (
                 False,
                 UserWarning,
-                "target=False is not valid for deprecated_class(). Will be TypeError in v1.0.",
+                "`target=False` is not valid for `deprecated_class()`. Will be `TypeError` in `v1.0`."
+                " See docs/guide/migration.md for upgrade steps.",
             ),
         ],
     )

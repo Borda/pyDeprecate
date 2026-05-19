@@ -7,6 +7,24 @@ description: 'Fix common pyDeprecate errors: missing deprecation notices, TypeEr
 
 This page covers the most common problems encountered when using pyDeprecate, with direct answers and corrected code for each. If your issue is not listed here, see the "Still stuck?" section at the bottom.
 
+## ModuleNotFoundError: No module named 'pydeprecate'
+
+**Q:** I installed the package with `pip install pyDeprecate` but get `ModuleNotFoundError: No module named 'pydeprecate'` when I try to import it.
+
+**A:** The install name and the import name are different. The package installs as `pyDeprecate` but imports as `deprecate`.
+
+Use:
+
+```python
+from deprecate import deprecated
+```
+
+Not:
+
+```python
+from pydeprecate import deprecated  # wrong — no such module
+```
+
 ## UserWarning when decorating a class
 
 **Q:** I applied `@deprecated` directly to a class and got `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.` Why, and how do I fix it?
