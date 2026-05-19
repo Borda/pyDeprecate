@@ -366,7 +366,7 @@ class TestDwiCompatInit:
             info = DeprecationWrapperInfo(
                 function="f",
                 deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
+                empty_mapping=True,  # type: ignore[call-arg]
             )
         assert info.empty_args_mapping is True
 
@@ -376,7 +376,7 @@ class TestDwiCompatInit:
             info = DeprecationWrapperInfo(
                 function="f",
                 deprecated_info=DeprecationConfig(),
-                identity_mapping=["a"],
+                identity_mapping=["a"],  # type: ignore[call-arg]
             )
         assert info.identity_args_mapping == ["a"]
 
@@ -386,8 +386,8 @@ class TestDwiCompatInit:
             DeprecationWrapperInfo(
                 function="f",
                 deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
-                identity_mapping=["b"],
+                empty_mapping=True,  # type: ignore[call-arg]
+                identity_mapping=["b"],  # type: ignore[call-arg]
             )
         categories = [str(w.message) for w in caught.list if issubclass(w.category, DeprecationWarning)]
         assert any("empty_args_mapping" in m for m in categories)
@@ -399,7 +399,7 @@ class TestDwiCompatInit:
             info = DeprecationWrapperInfo(
                 function="f",
                 deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
+                empty_mapping=True,  # type: ignore[call-arg]
                 empty_args_mapping=False,  # auto-injected by replace(); caller's old-name wins
             )
         assert info.empty_args_mapping is True
@@ -418,6 +418,6 @@ class TestDwiCompatInit:
         )
 
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
-            result = dataclasses.replace(base, empty_mapping=True)
+            result = dataclasses.replace(base, empty_mapping=True)  # type: ignore[call-arg]
 
         assert result.empty_args_mapping is True
