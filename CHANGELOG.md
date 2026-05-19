@@ -4,7 +4,7 @@
 
 ### Breaking
 
-- **Cross-class method guard downgrades from `TypeError` to `UserWarning`.** `@deprecated(target=OtherClass.method)` no longer raises `TypeError` at decoration time — it emits a `UserWarning` instead. Code that previously caught `TypeError` from this guard must migrate to `warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)` for equivalent strict behaviour. The guard heuristic uses `__qualname__` and may produce false positives for metaclass-generated or decorator-rewritten qualnames — downgrading to `UserWarning` allows those cases to be suppressed. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
+- **Cross-class method guard downgrades from `TypeError` to `UserWarning`.** `@deprecated(target=OtherClass.method)` no longer raises `TypeError` at decoration time — it emits a `UserWarning` instead. Code that previously caught `TypeError` from this guard must migrate to `warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)` for equivalent strict behaviour. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
 
 ### Added
 
@@ -41,7 +41,10 @@
 
 ### Fixed
 
+- **Cross-class guard no longer fires false positives for metaclass-generated qualnames.** When a target callable's `__qualname__` prefix refers to a class that does not exist in the callable's module globals (e.g. qualname set by `type("Name", bases, ns)` or manual `fn.__qualname__ = "FakeOwner.method"` assignment), the guard now skips silently instead of warning. The two documented "irresolvable" false-positive scenarios are fully resolved: (1) metaclass/dynamic-class qualnames, (2) pre-applied decorators that rewrite the source's `__qualname__` — the guard now reads the enclosing class name directly from the Python class-body frame, which cannot be mutated by user decorators.
+
 - **`args_mapping` rename no longer clobbers source default when both old and new parameter names are present.** Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames `old=X` to `new=X` without discarding a separately supplied `new` value. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+
 - **`target=False` sentinel now emits `UserWarning` at decoration time.** `target=False` was never a valid configuration; previously the behavior was undefined. The sentinel now surfaces a `UserWarning` immediately and will raise `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
 ______________________________________________________________________
