@@ -22,12 +22,13 @@
 
 - **Four CLI subcommands: `check`, `expiry`, `chains`, `all`.** `check` validates wrapper configuration; `expiry` reports wrappers past their `remove_in` deadline (requires `pip install 'pyDeprecate[audit]'`); `chains` detects deprecated-to-deprecated forwarding chains; `all` runs all three in a single scan pass. Flags: `--norecursive`, `--skip_errors`. ([#149](https://github.com/Borda/pyDeprecate/pull/149))
 
+- **New `DeprecationWrapperInfo.empty_deprecated_in` field.** `True` when `deprecated_in` is absent on a wrapper; intended for CI pipeline introspection. `dataclasses.asdict()` output and `repr()` now include this field. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
+
 ### Deprecated
 
 - **`target=None` sentinel — use `TargetMode.NOTIFY`.** Passing `target=None` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.NOTIFY`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **`target=True` sentinel — use `TargetMode.ARGS_REMAP`.** Passing `target=True` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.ARGS_REMAP`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **`DeprecationWrapperInfo.empty_mapping` → `empty_args_mapping` and `identity_mapping` → `identity_args_mapping`.** Old names are kept as deprecated `@property` aliases that emit `DeprecationWarning` on access and will be removed in v1.0. **Migration note — read access only:** the aliases cover attribute reads but not `dataclasses.replace()` or keyword construction; update call sites to the new names before v1.0. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
-- **New `DeprecationWrapperInfo.empty_deprecated_in` field.** `True` when `deprecated_in` is absent on a wrapper; intended for CI pipeline introspection. `dataclasses.asdict()` output and `repr()` now include this field. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
 
 ### Changed
 
