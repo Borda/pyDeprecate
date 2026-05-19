@@ -392,15 +392,13 @@ class TestDwiCompatInit:
         assert any("empty_args_mapping" in m for m in categories)
         assert any("identity_args_mapping" in m for m in categories)
 
-    def test_conflict_raises_when_both_old_and_new_supplied(self) -> None:
-        """When both the deprecated old name and its replacement are supplied, a TypeError is raised."""
-        with (
-            pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"),
-            pytest.raises(TypeError, match="Cannot specify both deprecated 'empty_mapping'"),
-        ):
-            DeprecationWrapperInfo(
+    def test_conflict_old_name_wins_when_both_supplied(self) -> None:
+        """When both old and new names are supplied (as in replace()), old-name value is honoured."""
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            info = DeprecationWrapperInfo(
                 function="f",
                 deprecated_info=DeprecationConfig(),
                 empty_mapping=True,
-                empty_args_mapping=False,
+                empty_args_mapping=False,  # auto-injected by replace(); caller's old-name wins
             )
+        assert info.empty_args_mapping is True

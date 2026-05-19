@@ -215,15 +215,14 @@ class DeprecationWrapperInfo:
 # receive a ``DeprecationWarning`` and are redirected to the new names
 # rather than getting a ``TypeError``.
 #
-# Note on ``dataclasses.replace()``: ``replace`` does NOT validate kwargs
-# before forwarding — it collects all current field values, merges in the
-# caller's changes, and calls ``cls(**merged)``.  That means our shim IS
-# invoked by ``replace(info, empty_mapping=...)``.  However, because
-# ``replace`` already includes the current value of ``empty_args_mapping``
-# in the merged dict, passing the old name alongside it creates a conflict.
-# We raise ``TypeError`` in that case instead of silently discarding the
-# old-name value, so the misbehaviour is immediately visible.  Callers
-# must use ``replace(info, empty_args_mapping=...)`` directly.
+# Note on ``dataclasses.replace()``: ``replace`` collects all current field
+# values, merges in the caller's changes, and calls ``cls(**merged)``.  When
+# a caller passes the old name (e.g. ``replace(info, empty_mapping=True)``),
+# ``replace`` also auto-injects the current value of ``empty_args_mapping``
+# into the merged dict.  The shim detects this conflict and honours the
+# old-name value (the caller's explicit intent), discarding the auto-injected
+# new-name value.  A ``DeprecationWarning`` is still emitted so callers know
+# to migrate to ``replace(info, empty_args_mapping=...)``.
 # ---------------------------------------------------------------------------
 _dwi_orig_init = DeprecationWrapperInfo.__init__
 
@@ -243,12 +242,10 @@ def _dwi_compat_init(self: DeprecationWrapperInfo, *args: object, **kwargs: obje
             )
             old_value = kwargs.pop(old)  # always remove old kwarg so it isn't forwarded
             if new in kwargs:
-                # Both old and new names were supplied (common via dataclasses.replace).
-                # Silently discarding would be surprising, so raise explicitly.
-                raise TypeError(
-                    f"Cannot specify both deprecated '{old}' and its replacement '{new}' simultaneously. "
-                    f"Use '{new}' only (e.g. dataclasses.replace(info, {new}=...))."
-                )
+                # Both names present — common via dataclasses.replace() which auto-injects
+                # the current field value under the new name.  Honour the old-name value
+                # (the caller's explicit intent) and discard the auto-injected value.
+                kwargs.pop(new)
             kwargs[new] = old_value
     _dwi_orig_init(self, *args, **kwargs)  # type: ignore[arg-type]
 
