@@ -208,41 +208,24 @@ class DeprecationWrapperInfo:
         )
         return self.identity_args_mapping
 
-    # -----------------------------------------------------------------------
-    # Maintenance note — KEEP THIS COMMENT HERE, close to the field list.
-    #
-    # A backward-compatible constructor shim (_dwi_compat_init) is applied to
-    # this class at module load time, just below.  The shim redirects old
-    # constructor kwargs (``empty_mapping``, ``identity_mapping``) to the
-    # renamed fields (``empty_args_mapping``, ``identity_args_mapping``).
-    #
-    # If you ADD a new field here, check whether it needs a compat alias:
-    #   1. Add a ``@property`` alias above (read access).
-    #   2. Add the (old, new) pair to the loop in ``_dwi_compat_init`` below
-    #      (keyword-argument construction and ``dataclasses.replace()``).
-    # If you RENAME or REMOVE a field: update _dwi_compat_init accordingly.
-    # -----------------------------------------------------------------------
-
 
 # ---------------------------------------------------------------------------
 # Backward-compatible constructor shim for DeprecationWrapperInfo
 #
-# The fields ``empty_mapping`` and ``identity_mapping`` were renamed to
-# ``empty_args_mapping`` and ``identity_args_mapping`` in 0.8.  The
-# ``@property`` aliases above cover attribute *reads*.  The shim below
-# patches ``__init__`` so that callers who still pass the old names as
-# keyword arguments (e.g. ``DeprecationWrapperInfo(empty_mapping=True)``)
-# receive a ``DeprecationWarning`` and are redirected to the new names
-# rather than getting a ``TypeError``.
+# ``empty_mapping`` and ``identity_mapping`` were renamed to
+# ``empty_args_mapping`` / ``identity_args_mapping`` in 0.8.  The
+# ``@property`` aliases above cover attribute *reads*; this shim patches
+# ``__init__`` so old keyword arguments emit ``DeprecationWarning`` and are
+# redirected to the new names rather than raising ``TypeError``.
 #
-# Note on ``dataclasses.replace()``: ``replace`` collects all current field
-# values, merges in the caller's changes, and calls ``cls(**merged)``.  When
-# a caller passes the old name (e.g. ``replace(info, empty_mapping=True)``),
-# ``replace`` also auto-injects the current value of ``empty_args_mapping``
-# into the merged dict.  The shim detects this conflict and honours the
-# old-name value (the caller's explicit intent), discarding the auto-injected
-# new-name value.  A ``DeprecationWarning`` is still emitted so callers know
-# to migrate to ``replace(info, empty_args_mapping=...)``.
+# dataclasses.replace() merges all current field values with the caller's
+# changes before calling ``cls(**merged)``.  Passing an old name (e.g.
+# ``replace(info, empty_mapping=True)``) injects the old kwarg alongside
+# the auto-copied ``empty_args_mapping`` value.  The shim detects that
+# conflict and honours the old-name value (discards the auto-injected one).
+#
+# ADD field → add @property alias above + (old, new) pair in _dwi_compat_init.
+# RENAME/REMOVE field → update _dwi_compat_init accordingly.
 # ---------------------------------------------------------------------------
 _dwi_orig_init = DeprecationWrapperInfo.__init__
 
