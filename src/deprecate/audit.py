@@ -39,6 +39,7 @@ import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from enum import Enum
+from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 if TYPE_CHECKING:
@@ -227,6 +228,7 @@ class DeprecationWrapperInfo:
 _dwi_orig_init = DeprecationWrapperInfo.__init__
 
 
+@wraps(_dwi_orig_init)
 def _dwi_compat_init(self: DeprecationWrapperInfo, *args: object, **kwargs: object) -> None:
     """Wrap the auto-generated __init__ to accept legacy constructor kwargs."""
     for old, new in (
