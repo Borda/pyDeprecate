@@ -19,11 +19,11 @@ class TargetMode(Enum):
     Members:
         NOTIFY: Notify-only deprecation -- warn on every call; original body executes unchanged. Replaces
             ``target=None``. Passing ``args_mapping`` or ``args_extra`` with this mode emits a :class:`UserWarning`
-            today; :class:`TypeError` is planned in ``v1.0`` (see ``docs/guide/migration.md``).
+            today; :class:`TypeError` is planned in ``v1.0`` (see ``https://borda.github.io/pyDeprecate/guide/migration/``).
         ARGS_REMAP: Deprecate argument names only -- warn only when deprecated argument names are passed; remaps
             kwargs via ``args_mapping`` before calling the original body. Replaces ``target=True``. This mode is
             strongly recommended with ``args_mapping``; omitting it emits a :class:`UserWarning` today, and
-            :class:`TypeError` is planned in ``v1.0`` (see ``docs/guide/migration.md``).
+            :class:`TypeError` is planned in ``v1.0`` (see ``https://borda.github.io/pyDeprecate/guide/migration/``).
 
     Examples:
         >>> from deprecate import TargetMode
@@ -52,7 +52,7 @@ class TargetMode(Enum):
         Args:
             target: Legacy sentinel — ``None`` → :attr:`TargetMode.NOTIFY`, ``True`` → :attr:`TargetMode.ARGS_REMAP`,
                 ``False`` → :attr:`TargetMode.NOTIFY` (not a valid mode; :class:`TypeError` in v1.0 —
-                see ``docs/guide/migration.md``).
+                see ``https://borda.github.io/pyDeprecate/guide/migration/``).
             stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass ``None`` to suppress all warnings
                 entirely.  Defaults to ``3``.
 
@@ -75,7 +75,8 @@ class TargetMode(Enum):
             if stacklevel is not None:
                 warnings.warn(
                     "target=None is deprecated since `v0.8`; use `TargetMode.NOTIFY` instead."
-                    " Will be removed in `v1.0`. See docs/guide/migration.md for upgrade steps.",
+                    " Will be removed in `v1.0`."
+                    " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
                     FutureWarning,
                     stacklevel=stacklevel,
                 )
@@ -84,7 +85,8 @@ class TargetMode(Enum):
             if stacklevel is not None:
                 warnings.warn(
                     "target=True is deprecated since `v0.8`; use `TargetMode.ARGS_REMAP` instead."
-                    " Will be removed in `v1.0`. See docs/guide/migration.md for upgrade steps.",
+                    " Will be removed in `v1.0`."
+                    " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
                     FutureWarning,
                     stacklevel=stacklevel,
                 )
@@ -93,7 +95,8 @@ class TargetMode(Enum):
             if stacklevel is not None:
                 warnings.warn(
                     "`target=False` is not a valid deprecation mode and will be treated as `TargetMode.NOTIFY`."
-                    " This will be `TypeError` in `v1.0`. See docs/guide/migration.md for upgrade steps.",
+                    " This will be `TypeError` in `v1.0`."
+                    " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
                     UserWarning,
                     stacklevel=stacklevel,
                 )
@@ -148,7 +151,8 @@ class TargetMode(Enum):
                 if stacklevel is not None:
                     warnings.warn(
                         "`target=True` with `args_mapping` will resolve to `TargetMode.ARGS_REMAP`."
-                        " Will be `TypeError` in `v1.0`. See docs/guide/migration.md for upgrade steps.",
+                        " Will be `TypeError` in `v1.0`."
+                        " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
                         FutureWarning,
                         stacklevel=stacklevel,
                     )
@@ -157,7 +161,7 @@ class TargetMode(Enum):
                 warnings.warn(
                     "`target=True` without `args_mapping` resolves to `TargetMode.NOTIFY`"
                     " (warns on every access). Will be `TypeError` in `v1.0`."
-                    " See docs/guide/migration.md for upgrade steps.",
+                    " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
                     FutureWarning,
                     stacklevel=stacklevel,
                 )
@@ -166,7 +170,7 @@ class TargetMode(Enum):
             if stacklevel is not None:
                 warnings.warn(
                     "`target=False` is not valid for `deprecated_class()`. Will be `TypeError` in `v1.0`."
-                    " See docs/guide/migration.md for upgrade steps.",
+                    " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
                     UserWarning,
                     stacklevel=stacklevel,
                 )
@@ -186,7 +190,7 @@ class TargetMode(Enum):
         """Validate a :class:`TargetMode` against the supplied configuration and emit misconfig warnings.
 
         Checks three misconfiguration combinations and emits a :class:`UserWarning` for each one found.
-        These warnings will become :class:`TypeError` in ``v1.0`` (see ``docs/guide/migration.md``).
+        These warnings will become :class:`TypeError` in ``v1.0`` (see ``https://borda.github.io/pyDeprecate/guide/migration/``).
 
         Misconfiguration warnings are always emitted via :func:`warnings.warn` with ``UserWarning`` — they are
         construction-time guards independent of the runtime ``stream`` callable used for deprecation notices.
@@ -219,21 +223,21 @@ class TargetMode(Enum):
                 f"`@deprecated(target=TargetMode.ARGS_REMAP)` on `{source_name}` requires "
                 "`args_mapping` to specify which arguments are being renamed. Without it the "
                 "decorator has zero effect. This will be `TypeError` in `v1.0`."
-                " See docs/guide/migration.md for upgrade steps."
+                " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps."
             )
         if mode is cls.NOTIFY and args_mapping:
             messages.append(
                 f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`args_mapping`. Use `TargetMode.ARGS_REMAP` to rename arguments, or pass a "
                 "callable target to forward the call. This will be `TypeError` in `v1.0`."
-                " See docs/guide/migration.md for upgrade steps."
+                " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps."
             )
         if mode is cls.NOTIFY and args_extra:
             messages.append(
                 f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`args_extra`. Use a callable target to forward with extra arguments. "
                 "This will be `TypeError` in `v1.0`."
-                " See docs/guide/migration.md for upgrade steps."
+                " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps."
             )
         if stacklevel is not None:
             for msg in messages:
