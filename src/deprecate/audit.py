@@ -35,9 +35,11 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 # so ``validate_deprecation_wrapper`` can read it correctly for proxy objects too.
 
 import inspect
+import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from enum import Enum
+from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 if TYPE_CHECKING:
@@ -130,8 +132,8 @@ class DeprecationWrapperInfo:
         deprecated_info: The ``__deprecated__`` attribute from the decorator,
             as a :class:`~deprecate._types.DeprecationConfig`.
         invalid_args: List of ``args_mapping`` keys that don't exist in the wrapper's signature.
-        empty_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
-        identity_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
+        empty_args_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
+        identity_args_mapping: List of args where key equals value (e.g., ``{'arg': 'arg'}``).
         self_reference: True if target points to the same wrapper.
         no_effect: True if wrapper has zero impact (combines all checks).
         all_identity: True when every configured mapping is an identity mapping (key == value, non-empty).
@@ -139,6 +141,10 @@ class DeprecationWrapperInfo:
             See :class:`~deprecate.audit.ChainType` for values (``TARGET`` or ``STACKED``).
         misconfigured_target: True when the wrapper has an invalid target configuration:
             target=False, TargetMode.NOTIFY with args_mapping, or TargetMode.ARGS_REMAP with empty args_mapping.
+        empty_deprecated_in: True when ``deprecated_in`` is empty. Missing ``remove_in`` alone is a valid use case
+            (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
+            is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
+            that lack the introductory version metadata without crashing callers.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -159,13 +165,96 @@ class DeprecationWrapperInfo:
     function: str = ""
     deprecated_info: DeprecationConfig = field(default_factory=DeprecationConfig)
     invalid_args: list[str] = field(default_factory=list)
-    empty_mapping: bool = False
-    identity_mapping: list[str] = field(default_factory=list)
+    empty_args_mapping: bool = False
+    identity_args_mapping: list[str] = field(default_factory=list)
     self_reference: bool = False
     no_effect: bool = False
     misconfigured_target: bool = False
     all_identity: bool = False
     chain_type: Optional[ChainType] = None
+    empty_deprecated_in: bool = field(init=False, default=False)
+
+    def __post_init__(self) -> None:
+        """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
+        object.__setattr__(self, "empty_deprecated_in", not self.deprecated_info.deprecated_in)
+
+    @property
+    def empty_mapping(self) -> bool:
+        """Deprecated alias for ``empty_args_mapping``. Renamed in 0.8, removed in 1.0.
+
+        Note:
+            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
+            so accessing this property in a loop from the same call site emits at most one warning.
+        """
+        warnings.warn(
+            "'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.empty_args_mapping
+
+    @property
+    def identity_mapping(self) -> list[str]:
+        """Deprecated alias for ``identity_args_mapping``. Renamed in 0.8, removed in 1.0.
+
+        Note:
+            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
+            so accessing this property in a loop from the same call site emits at most one warning.
+        """
+        warnings.warn(
+            "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.identity_args_mapping
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible constructor shim for DeprecationWrapperInfo
+#
+# ``empty_mapping`` and ``identity_mapping`` were renamed to
+# ``empty_args_mapping`` / ``identity_args_mapping`` in 0.8.  The
+# ``@property`` aliases above cover attribute *reads*; this shim patches
+# ``__init__`` so old keyword arguments emit ``DeprecationWarning`` and are
+# redirected to the new names rather than raising ``TypeError``.
+#
+# dataclasses.replace() merges all current field values with the caller's
+# changes before calling ``cls(**merged)``.  Passing an old name (e.g.
+# ``replace(info, empty_mapping=True)``) injects the old kwarg alongside
+# the auto-copied ``empty_args_mapping`` value.  The shim detects that
+# conflict and honours the old-name value (discards the auto-injected one).
+#
+# ADD field → add @property alias above + (old, new) pair in _dwi_compat_init.
+# RENAME/REMOVE field → update _dwi_compat_init accordingly.
+# ---------------------------------------------------------------------------
+_dwi_orig_init = DeprecationWrapperInfo.__init__
+
+
+@wraps(_dwi_orig_init)
+def _dwi_compat_init(self: DeprecationWrapperInfo, *args: object, **kwargs: object) -> None:
+    """Wrap the auto-generated __init__ to accept legacy constructor kwargs."""
+    for old, new in (
+        ("empty_mapping", "empty_args_mapping"),
+        ("identity_mapping", "identity_args_mapping"),
+    ):
+        if old in kwargs:
+            warnings.warn(
+                f"'{old}' was renamed to '{new}' in 0.8 and will be removed in 1.0."
+                " Update your code to use the new name.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            old_value = kwargs.pop(old)  # always remove old kwarg so it isn't forwarded
+            if new in kwargs:
+                # Both names present — common via dataclasses.replace() which auto-injects
+                # the current field value under the new name.  Honour the old-name value
+                # (the caller's explicit intent) and discard the auto-injected value.
+                kwargs.pop(new)
+            kwargs[new] = old_value
+    _dwi_orig_init(self, *args, **kwargs)  # type: ignore[arg-type]
+
+
+DeprecationWrapperInfo.__init__ = _dwi_compat_init  # type: ignore[method-assign]
 
 
 def _member_name_key(item: tuple[str, Any]) -> str:
@@ -213,10 +302,11 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
             - function: Name of the wrapper being validated
             - deprecated_info: The typed :class:`~deprecate._types.DeprecationConfig` metadata from ``__deprecated__``
             - invalid_args: List of args_mapping keys not in wrapper signature
-            - empty_mapping: True if args_mapping is None or empty
-            - identity_mapping: List of args where key equals value (no effect)
+            - empty_args_mapping: True if args_mapping is None or empty
+            - identity_args_mapping: List of args where key equals value (no effect)
             - self_reference: True if target is the same as the wrapper
             - no_effect: True if wrapper has zero impact (all checks combined)
+            - empty_deprecated_in: True when ``deprecated_in`` is absent or empty
 
     Raises:
         ValueError: If the wrapper has missing or invalid ``__deprecated__`` metadata (expected
@@ -244,7 +334,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         >>>
         >>> # Identity mapping with self-deprecation - no effect
         >>> result = validate_deprecation_wrapper(identity_func)
-        >>> result.identity_mapping
+        >>> result.identity_args_mapping
         ['arg']
         >>> result.no_effect
         True
@@ -266,8 +356,8 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     target = dep_info.target
 
     invalid_args: list[str] = []
-    empty_mapping = not args_mapping
-    identity_mapping: list[str] = []
+    empty_args_mapping = not args_mapping
+    identity_args_mapping: list[str] = []
     self_reference = target is func if target is not None else False
     # chain_type distinguishes two chain problems:
     # - ChainType.TARGET: target is a deprecated callable that itself forwards to another function
@@ -298,9 +388,9 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         else:
             func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
             invalid_args = [arg for arg in args_mapping if arg not in func_args]
-        identity_mapping = [arg for arg, val in args_mapping.items() if arg == val]
+        identity_args_mapping = [arg for arg, val in args_mapping.items() if arg == val]
         # Check if ALL mappings are identity (complete no-op)
-        all_identity = len(identity_mapping) == len(args_mapping) and len(args_mapping) > 0
+        all_identity = len(identity_args_mapping) == len(args_mapping) and len(args_mapping) > 0
 
     # Wrapper has no effect if it provides no call forwarding, arg mapping, or warning:
     # - Self-reference (forwards to itself — no meaningful forwarding)
@@ -309,7 +399,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     # Note: NOTIFY (target=None) is NOT no_effect — it still emits deprecation warnings.
     # Note: When target is a different function, there's ALWAYS an effect (forwarding).
     is_self_deprecation = _is_args_remap or self_reference
-    no_effect = self_reference or (is_self_deprecation and (empty_mapping or all_identity))
+    no_effect = self_reference or (is_self_deprecation and (empty_args_mapping or all_identity))
 
     # Misconfigured: target+args combination is invalid regardless of whether it has effect.
     # Construction-time `target=False` is captured in DeprecationConfig.misconfigured by the
@@ -318,7 +408,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     misconfigured_target = (
         bool(getattr(dep_info, "misconfigured", False))
         or (_is_notify and bool(args_mapping))
-        or (_is_args_remap and empty_mapping)
+        or (_is_args_remap and empty_args_mapping)
     )
 
     function = dep_info.name or getattr(func, "__name__", str(func))
@@ -327,8 +417,8 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         function=function,
         deprecated_info=dep_info,
         invalid_args=invalid_args,
-        empty_mapping=empty_mapping,
-        identity_mapping=identity_mapping,
+        empty_args_mapping=empty_args_mapping,
+        identity_args_mapping=identity_args_mapping,
         self_reference=self_reference,
         no_effect=no_effect,
         misconfigured_target=misconfigured_target,
@@ -563,8 +653,8 @@ def find_deprecation_wrappers(
             - function: Wrapper name
             - deprecated_info: DeprecationConfig metadata from the decorator (``__deprecated__`` attribute)
             - invalid_args: List of args_mapping keys not in wrapper signature
-            - empty_mapping: True if args_mapping is None or empty
-            - identity_mapping: List of identity mappings (key == value)
+            - empty_args_mapping: True if args_mapping is None or empty
+            - identity_args_mapping: List of identity mappings (key == value)
             - self_reference: True if target points to same wrapper
             - no_effect: True if wrapper has zero impact
 

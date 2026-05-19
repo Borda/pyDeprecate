@@ -98,15 +98,17 @@ class TestCmdCheckScanning:
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_found_warnings_only(self, mock_find: MagicMock) -> None:
         """Identity mapping (warning only) exits 0."""
-        info = DeprecationWrapperInfo(module="test_mod", function="test_func", identity_mapping=["arg"], no_effect=True)
+        info = DeprecationWrapperInfo(
+            module="test_mod", function="test_func", identity_args_mapping=["arg"], no_effect=True
+        )
         mock_find.return_value = [info]
 
         assert cmd_check(path="some_module") == 0
 
     @patch("deprecate._cli.find_deprecation_wrappers")
-    def test_no_effect_empty_mapping(self, mock_find: MagicMock) -> None:
+    def test_no_effect_empty_args_mapping(self, mock_find: MagicMock) -> None:
         """Empty mapping reported as no-effect reason; exits 0."""
-        info = DeprecationWrapperInfo(module="test_mod", function="test_func", empty_mapping=True, no_effect=True)
+        info = DeprecationWrapperInfo(module="test_mod", function="test_func", empty_args_mapping=True, no_effect=True)
         mock_find.return_value = [info]
 
         assert cmd_check(path="some_module") == 0
@@ -536,12 +538,12 @@ class TestReportIssues:
                 id="invalid-args",
             ),
             pytest.param(
-                [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"])],
+                [DeprecationWrapperInfo(module="mod", function="fn", identity_args_mapping=["a"])],
                 True,
                 id="identity-mapping",
             ),
             pytest.param(
-                [DeprecationWrapperInfo(module="mod", function="fn", empty_mapping=True, no_effect=True)],
+                [DeprecationWrapperInfo(module="mod", function="fn", empty_args_mapping=True, no_effect=True)],
                 True,
                 id="no-effect-empty-mapping",
             ),
@@ -551,7 +553,7 @@ class TestReportIssues:
                 id="no-effect-self-reference",
             ),
             pytest.param(
-                [DeprecationWrapperInfo(module="mod", function="fn", identity_mapping=["a"], no_effect=True)],
+                [DeprecationWrapperInfo(module="mod", function="fn", identity_args_mapping=["a"], no_effect=True)],
                 True,
                 id="no-effect-identity-only",
             ),
@@ -593,7 +595,7 @@ class TestReportIssues:
                 module="mod",
                 function="fn",
                 deprecated_info=DeprecationConfig(args_mapping={"a": "a", "b": "c"}),
-                identity_mapping=["a"],
+                identity_args_mapping=["a"],
                 self_reference=True,
                 no_effect=True,
             )

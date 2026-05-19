@@ -52,7 +52,7 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
 
 
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
-    """Raise TypeError when target is a method on a different class than source.
+    """Warn when target is a method on a different class than source.
 
     Forwarding a class method to a method on a *different* class silently passes ``self`` of the wrong type, causing
     runtime attribute errors.  This guard detects the misconfiguration at decoration time by comparing the immediate
@@ -65,13 +65,20 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     - ``"outer.<locals>.<lambda>"``          → skipped; prefix ends with ``<locals>``
     - ``"base_sum_kwargs"``                  → skipped; no dot means module-level function
 
+    Known limitations — ``__qualname__`` is a display string, not an ownership API.  These scenarios may produce
+    false positive warnings that are irresolvable at decoration time:
+
+    - **Metaclass-generated classes**: ``type("Name", bases, ns)`` or ``__init_subclass__`` may assign qualnames
+      like ``"Outer.Inner"`` even for unrelated types; the guard treats them as methods on ``Outer`` and warns.
+    - **Decorators that rewrite ``__qualname__``**: a decorator applied before ``@deprecated`` that sets
+      ``fn.__qualname__ = "SomeClass.method"`` (e.g. some dataclass field descriptors) causes false positives.
+
+    Both cases are irresolvable at decoration time without inspecting the live call frame.  Suppress false positives
+    via ``warnings.filterwarnings("ignore", category=UserWarning, module=...)``.
+
     Args:
         source: The callable being decorated with ``@deprecated``.
         target: The replacement callable supplied as the ``target`` argument.
-
-    Raises:
-        TypeError: If both callables appear to be class methods (their qualname contains a class-prefix component)
-            and those class names differ.
 
     """
     # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
@@ -83,22 +90,29 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     tgt_qualname = getattr(target, "__qualname__", "")
     src_parts = src_qualname.rsplit(".", 1)
     tgt_parts = tgt_qualname.rsplit(".", 1)
-    if len(src_parts) == 2 and len(tgt_parts) == 2:
-        src_prefix, tgt_prefix = src_parts[0], tgt_parts[0]
-        # Skip nested functions / lambdas whose prefix ends with "<locals>"
-        if not src_prefix.endswith("<locals>") and not tgt_prefix.endswith("<locals>"):
-            src_class = src_prefix.rsplit(".", 1)[-1]
-            tgt_class = tgt_prefix.rsplit(".", 1)[-1]
-            src_owner = f"{getattr(source, '__module__', '')}.{src_prefix}"
-            tgt_owner = f"{getattr(target, '__module__', '')}.{tgt_prefix}"
-            if src_owner != tgt_owner:
-                raise TypeError(
-                    f"Cannot use @deprecated on '{source.__qualname__}' with target "
-                    f"'{target.__qualname__}': cross-class method forwarding is not supported "
-                    f"because `self` would carry the wrong type. "
-                    f"The target must be a method on the same class ('{src_class}') "
-                    f"or a full class (use target={tgt_class} for class migration)."
-                )
+    if len(src_parts) != 2 or len(tgt_parts) != 2:
+        return
+    src_prefix, tgt_prefix = src_parts[0], tgt_parts[0]
+    # Skip nested functions / lambdas whose prefix ends with "<locals>"
+    if src_prefix.endswith("<locals>") or tgt_prefix.endswith("<locals>"):
+        return
+    src_class_name = src_prefix.rsplit(".", 1)[-1]
+    tgt_class_name = tgt_prefix.rsplit(".", 1)[-1]
+    src_owner = f"{getattr(source, '__module__', '')}.{src_prefix}"
+    tgt_owner = f"{getattr(target, '__module__', '')}.{tgt_prefix}"
+    if src_owner == tgt_owner:
+        return
+    warnings.warn(
+        f"Cannot use @deprecated on '{source.__qualname__}' with target "
+        f"'{target.__qualname__}': cross-class method forwarding is not supported "
+        f"because `self` would carry the wrong type. "
+        f"The target must be a method on the same class ('{src_class_name}') "
+        f"or a full class (use target={tgt_class_name} for class migration). "
+        "Suppress via warnings.filterwarnings("
+        "'ignore', message='.*cross-class method forwarding', category=UserWarning).",
+        UserWarning,
+        stacklevel=3,
+    )
 
 
 def _normalize_target(
@@ -282,12 +296,12 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
         {'a': 1, 'b': 20, 'c': 3}
 
     Note:
-        Parameters without defaults (inspect._empty) are not included in the result.
+        Parameters without defaults (inspect.Parameter.empty) are not included in the result.
 
     """
     func_arg_type_val = get_func_arguments_types_defaults(func)
     # fill by source defaults
-    fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect._empty}
+    fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect.Parameter.empty}
     return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
@@ -319,10 +333,15 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         ... )
 
     """
-    source_name = source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
+    source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
     stream(template_mgs % msg_args)
+
+
+def _source_display_name(source: Callable) -> str:
+    """Return display name: class name for __init__, function name otherwise."""
+    return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
 
 
 def _raise_warn_callable(
@@ -348,8 +367,8 @@ def _raise_warn_callable(
             - bool: Not applicable for this function (use _raise_warn_arguments instead)
         deprecated_in: Version when the source was marked deprecated (e.g., "1.0.0").
         remove_in: Version when the source will be removed (e.g., "2.0.0").
-        template_mgs: Custom message template. If None, uses default template based on whether target is callable
-            or None.
+        template_mgs: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
+            callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -377,14 +396,14 @@ def _raise_warn_callable(
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
-        template_mgs = template_mgs or TEMPLATE_WARNING_CALLABLE
+        template_warn = TEMPLATE_WARNING_CALLABLE
     else:
         target_name, target_path = "", ""
-        template_mgs = template_mgs or TEMPLATE_WARNING_NO_TARGET
+        template_warn = TEMPLATE_WARNING_NO_TARGET
     _raise_warn(
         stream=stream,
         source=source,
-        template_mgs=template_mgs,
+        template_mgs=template_mgs or template_warn,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
@@ -436,8 +455,14 @@ def _raise_warn_arguments(
 
     """
     args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
-    template_mgs = template_mgs or TEMPLATE_WARNING_ARGUMENTS
-    _raise_warn(stream, source, template_mgs, deprecated_in=deprecated_in, remove_in=remove_in, argument_map=args_map)
+    _raise_warn(
+        stream,
+        source,
+        template_mgs or TEMPLATE_WARNING_ARGUMENTS,
+        deprecated_in=deprecated_in,
+        remove_in=remove_in,
+        argument_map=args_map,
+    )
 
 
 def deprecated(
@@ -523,13 +548,23 @@ def deprecated(
         UserWarning: If applied directly to a class. The decorator delegates to
             :func:`~deprecate.proxy.deprecated_class` and emits this warning. Use ``@deprecated_class()`` directly
             to suppress it. Suppressed when ``stream=None``.
+        UserWarning: If the source is a class method and target appears to be a method on a *different* class
+            (cross-class method forwarding). The heuristic uses ``__qualname__`` and may produce false positives for
+            metaclass-generated or decorator-rewritten qualnames — suppress with ``warnings.filterwarnings``. This
+            warning is emitted with ``stacklevel=3``; this skips the internal ``packing`` frame, so the attributed
+            line is the ``@deprecated`` decoration site rather than the helper internals.
+            For CI enforcement (to restore the pre-0.8 hard-failure behaviour), escalate this warning to an error::
+
+                import warnings
+                warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
+
+        UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, no ``template_mgs`` is set,
+            and the decorated source is not a class. Fired at decoration time (not call time) to catch missing
+            version metadata early. Suppressed by passing ``stream=None`` or ``template_mgs``.
 
     Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs.
-        TypeError: If the source is a class method and target is a method on a *different* class (cross-class method
-            forwarding). The target must be a method on the same class, or a full class (``target=NewClass``) for
-            constructor forwarding.
 
     Example:
         >>> # Basic forwarding
@@ -562,19 +597,13 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
-        if (
-            target is TargetMode.NOTIFY
-            and not deprecated_in
-            and not remove_in
-            and stream is not None
-            and not template_mgs
-            and not inspect.isclass(source)
-        ):
+        # Note: template_mgs intentionally bypasses this guard — callers with custom templates
+        # control their own messaging and may not rely on deprecated_in being present.
+        if not deprecated_in and stream is not None and not template_mgs and not inspect.isclass(source):
             warnings.warn(
-                f"`@deprecated` on `{source.__name__}` has no `deprecated_in` or `remove_in` set."
-                " Depending on configuration, deprecation notices or generated documentation may"
-                " contain empty version strings."
-                " Pass at least `deprecated_in` for a meaningful deprecation notice.",
+                f"`@deprecated` on `{source.__name__}` has no `deprecated_in` set."
+                " Deprecation notices and generated documentation will omit the `deprecated_in` version."
+                " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -718,7 +747,9 @@ def deprecated(
                     # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
                     if callable(_target):
                         target_defaults = {
-                            arg[0] for arg in get_func_arguments_types_defaults(_target) if arg[2] is not inspect._empty
+                            arg[0]
+                            for arg in get_func_arguments_types_defaults(_target)
+                            if arg[2] is not inspect.Parameter.empty
                         }
                     else:
                         target_defaults = rename_targets

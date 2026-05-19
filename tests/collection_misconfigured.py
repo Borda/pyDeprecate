@@ -261,6 +261,16 @@ def make_class_target_false() -> type:
     return _FalseTargetClass
 
 
+@deprecated(target=TargetMode.NOTIFY, remove_in="1.0")
+def no_version_deprecation(x: int = 1) -> int:
+    """NOTIFY with no ``deprecated_in`` — audit should report ``empty_deprecated_in=True``.
+
+    Examples:
+        Developer omits the ``deprecated_in`` version; audit tooling detects the gap.
+    """
+    return x
+
+
 def make_class_target_false_with_args_mapping() -> type:
     """Build a class deprecation with ``target=False`` and ``args_mapping``.
 

@@ -31,11 +31,14 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `function` — function name
 - `deprecated_info` — the `__deprecated__` attribute as a `DeprecationConfig` dataclass from the decorator
 - `invalid_args` — list of `args_mapping` keys that do not exist in the function signature
-- `empty_mapping` — `True` if `args_mapping` is `None` or empty
-- `identity_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
+- `empty_args_mapping` — `True` if `args_mapping` is `None` or empty
+- `identity_args_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
 - `self_reference` — `True` if target points to the same function
 - `no_effect` — `True` if the wrapper has zero impact (self-reference, empty mapping, or all-identity)
+- `misconfigured_target` — `True` if an invalid raw target sentinel (`False`) was passed at decoration time
+- `all_identity` — `True` if every entry in `args_mapping` maps a key to itself
 - `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
+- `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
 
 ### Validating a single function
 
@@ -58,8 +61,8 @@ result = validate_deprecation_wrapper(my_func)
 # DeprecationWrapperInfo(
 #   function='my_func',
 #   invalid_args=[],
-#   empty_mapping=False,
-#   identity_mapping=[],
+#   empty_args_mapping=False,
+#   identity_args_mapping=[],
 #   self_reference=False,
 #   no_effect=False
 # )
@@ -83,7 +86,7 @@ def empty_func(arg: int = 0) -> int:
 
 
 result = validate_deprecation_wrapper(empty_func)
-# result.empty_mapping == True, result.no_effect == True
+# result.empty_args_mapping == True, result.no_effect == True
 print(result)
 
 # Quick check if wrapper has any effect
@@ -95,8 +98,8 @@ if result.no_effect:
   <summary>Output: <code>print("Warning: This wrapper configuration has zero impact!")</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None), invalid_args=['nonexistent'], empty_mapping=False, identity_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None), invalid_args=[], empty_mapping=True, identity_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None)
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False)
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -127,7 +130,7 @@ for r in results[:5]:
     print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
     if r.no_effect:
         print(f"  Warning: This wrapper has zero impact!")
-        print(f"  invalid_args: {r.invalid_args}, identity_mapping: {r.identity_mapping}")
+        print(f"  invalid_args: {r.invalid_args}, identity_args_mapping: {r.identity_args_mapping}")
 ```
 
 <details>
@@ -148,8 +151,8 @@ tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
 
 `tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references,
 and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
-The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 14 bindings even though there are
-13 unique function objects.
+The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 15 bindings even though there are
+14 unique function objects.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -160,8 +163,8 @@ from tests import collection_misconfigured as my_package
 results = find_deprecation_wrappers(my_package, recursive=False)
 
 invalid_args = [r for r in results if r.invalid_args]
-empty_mappings = [r for r in results if r.empty_mapping]
-identity_mappings = [r for r in results if r.identity_mapping]
+empty_mappings = [r for r in results if r.empty_args_mapping]
+identity_mappings = [r for r in results if r.identity_args_mapping]
 self_refs = [r for r in results if r.self_reference]
 misconfigured_targets = [r for r in results if r.misconfigured_target]
 no_effect = [r for r in results if r.no_effect]
@@ -181,9 +184,9 @@ print(f"No effect: {len(no_effect)}")
 
 ```
 === Misconfiguration Report ===
-Wrappers scanned: 14
+Wrappers scanned: 15
 Invalid arguments: 3
-Empty mappings: 6
+Empty mappings: 7
 Identity mappings: 3
 Self-references: 2
 Misconfigured targets: 6
@@ -204,7 +207,7 @@ results = find_deprecation_wrappers(my_package)
 
 # Group by issue type (using dataclass attribute access)
 wrong_args = [r for r in results if r.invalid_args]
-identity_mappings = [r for r in results if r.identity_mapping]
+identity_mappings = [r for r in results if r.identity_args_mapping]
 self_refs = [r for r in results if r.self_reference]
 
 print(f"=== Deprecation Validation Report ===")
@@ -249,7 +252,7 @@ def test_deprecated_wrappers_are_valid():
 
     # Collect issues — wrong arg names are errors, identity mappings are worth a warning
     wrong_args = [r for r in results if r.invalid_args]
-    identity_mappings = [r for r in results if r.identity_mapping]
+    identity_mappings = [r for r in results if r.identity_args_mapping]
 
     # Raise errors for wrong arguments (critical issues)
     if wrong_args:

@@ -1,9 +1,11 @@
 """Unit tests for private helpers in deprecate.audit."""
 
+import dataclasses
 import importlib
 import importlib.metadata
 import importlib.util
 import types
+import warnings
 from typing import Union
 
 import pytest
@@ -11,6 +13,7 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
+    DeprecationWrapperInfo,
     _get_package_version,
     _parse_version,
     find_deprecation_wrappers,
@@ -202,7 +205,7 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.deprecated_info.args_mapping == {"old_key": "value"}
         assert result.invalid_args == []
 
-    def test_proxy_with_identity_mapping_detected(self) -> None:
+    def test_proxy_with_identity_args_mapping_detected(self) -> None:
         """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
         from tests.collection_targets import TargetColorEnum
 
@@ -216,7 +219,7 @@ class TestValidateDeprecationWrapperWithProxy:
             stream=None,
         )
         result = validate_deprecation_wrapper(proxy)
-        assert result.identity_mapping == ["value"]
+        assert result.identity_args_mapping == ["value"]
         assert result.invalid_args == []
 
     def test_proxy_no_target_with_args_mapping(self) -> None:
@@ -248,12 +251,12 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.function == "SourceName"
         assert result.function != TargetColorEnum.__name__
 
-    def test_proxy_empty_mapping_true_when_no_args_mapping(self) -> None:
-        """Proxy with args_mapping=None reports empty_mapping=True."""
+    def test_proxy_empty_args_mapping_true_when_no_args_mapping(self) -> None:
+        """Proxy with args_mapping=None reports empty_args_mapping=True."""
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         result = validate_deprecation_wrapper(proxy)
         assert result.deprecated_info.args_mapping is None
-        assert result.empty_mapping is True
+        assert result.empty_args_mapping is True
 
 
 class TestFindDeprecationWrappersWarningBudget:
@@ -275,3 +278,146 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestDeprecationWrapperInfoEmptyVersions:
+    """DeprecationWrapperInfo.empty_deprecated_in reflects missing version metadata (F1b)."""
+
+    def test_empty_deprecated_in_true_when_both_missing(self) -> None:
+        """empty_deprecated_in=True when both deprecated_in and remove_in are absent."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated()
+            def fn_no_versions() -> None:
+                pass
+
+        info = validate_deprecation_wrapper(fn_no_versions)
+        assert info.empty_deprecated_in is True
+
+    def test_empty_deprecated_in_false_when_remove_in_only_missing(self) -> None:
+        """empty_deprecated_in=False when deprecated_in is set but remove_in is omitted — valid use case."""
+
+        @deprecated(deprecated_in="1.0")
+        def fn_partial() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(fn_partial)
+        assert info.empty_deprecated_in is False
+
+    def test_empty_deprecated_in_false_when_both_present(self) -> None:
+        """empty_deprecated_in=False when both deprecated_in and remove_in are set."""
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def fn_complete() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(fn_complete)
+        assert info.empty_deprecated_in is False
+
+
+class TestDeprecationWrapperInfoCompatAliases:
+    """Deprecated @property aliases emit DeprecationWarning on access (H3)."""
+
+    def _make_info(self) -> DeprecationWrapperInfo:
+        """Return a minimal DeprecationWrapperInfo for alias access tests."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated()
+            def _fn() -> None:
+                pass
+
+        return validate_deprecation_wrapper(_fn)
+
+    def test_empty_mapping_alias_emits_deprecation_warning(self) -> None:
+        """Accessing .empty_mapping emits DeprecationWarning naming the replacement."""
+        info = self._make_info()
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            _ = info.empty_mapping
+
+    def test_empty_mapping_alias_returns_correct_value(self) -> None:
+        """Accessing .empty_mapping returns the same value as .empty_args_mapping."""
+        info = self._make_info()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert info.empty_mapping == info.empty_args_mapping
+
+    def test_identity_mapping_alias_emits_deprecation_warning(self) -> None:
+        """Accessing .identity_mapping emits DeprecationWarning naming the replacement."""
+        info = self._make_info()
+        with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
+            _ = info.identity_mapping
+
+    def test_identity_mapping_alias_returns_correct_value(self) -> None:
+        """Accessing .identity_mapping returns the same value as .identity_args_mapping."""
+        info = self._make_info()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert info.identity_mapping == info.identity_args_mapping
+
+
+class TestDwiCompatInit:
+    """_dwi_compat_init shim translates legacy constructor kwargs with DeprecationWarning (H4)."""
+
+    def test_old_empty_mapping_kwarg_is_translated(self) -> None:
+        """DeprecationWrapperInfo(empty_mapping=True) emits DeprecationWarning and sets empty_args_mapping."""
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            info = DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                empty_mapping=True,  # type: ignore[call-arg]
+            )
+        assert info.empty_args_mapping is True
+
+    def test_old_identity_mapping_kwarg_is_translated(self) -> None:
+        """DeprecationWrapperInfo(identity_mapping=[...]) emits DeprecationWarning and sets identity_args_mapping."""
+        with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
+            info = DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                identity_mapping=["a"],  # type: ignore[call-arg]
+            )
+        assert info.identity_args_mapping == ["a"]
+
+    def test_both_old_kwargs_each_emit_deprecation_warning(self) -> None:
+        """Passing both old kwargs emits one DeprecationWarning per renamed field."""
+        with pytest.warns(DeprecationWarning, match="renamed") as caught:
+            DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                empty_mapping=True,  # type: ignore[call-arg]
+                identity_mapping=["b"],
+            )
+        categories = [str(w.message) for w in caught.list if issubclass(w.category, DeprecationWarning)]
+        assert any("empty_args_mapping" in m for m in categories)
+        assert any("identity_args_mapping" in m for m in categories)
+
+    def test_conflict_old_name_wins_when_both_supplied(self) -> None:
+        """When both old and new names are supplied (as in replace()), old-name value is honoured."""
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            info = DeprecationWrapperInfo(
+                function="f",
+                deprecated_info=DeprecationConfig(),
+                empty_mapping=True,  # type: ignore[call-arg]
+                empty_args_mapping=False,  # auto-injected by replace(); caller's old-name wins
+            )
+        assert info.empty_args_mapping is True
+
+    def test_replace_with_old_name_honoured_over_auto_injected_new(self) -> None:
+        """dataclasses.replace() with old name honours caller intent over auto-injected new name.
+
+        ``dataclasses.replace(info, empty_mapping=True)`` merges the caller's ``empty_mapping=True``
+        with the current ``empty_args_mapping=False`` (auto-injected by replace()).  The shim must
+        detect this conflict, discard the auto-injected value, and honour the old-name value.
+        """
+        base = DeprecationWrapperInfo(
+            function="f",
+            deprecated_info=DeprecationConfig(),
+            empty_args_mapping=False,
+        )
+
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            result = dataclasses.replace(base, empty_mapping=True)  # type: ignore[call-arg]
+
+        assert result.empty_args_mapping is True

@@ -2,6 +2,10 @@
 
 [0.8.0] — 2026-05-DD — Default `TargetMode` enum & CLI audit tools
 
+### Breaking
+
+- **Cross-class method guard downgrades from `TypeError` to `UserWarning`.** `@deprecated(target=OtherClass.method)` no longer raises `TypeError` at decoration time — it emits a `UserWarning` instead. Code that previously caught `TypeError` from this guard must migrate to `warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)` for equivalent strict behaviour. The guard heuristic uses `__qualname__` and may produce false positives for metaclass-generated or decorator-rewritten qualnames — downgrading to `UserWarning` allows those cases to be suppressed. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
+
 ### Added
 
 - **`TargetMode` enum exported from `deprecate`.** `TargetMode.NOTIFY` replaces `target=None` and `TargetMode.ARGS_REMAP` replaces `target=True`. Both are public API. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
@@ -18,10 +22,13 @@
 
 - **Four CLI subcommands: `check`, `expiry`, `chains`, `all`.** `check` validates wrapper configuration; `expiry` reports wrappers past their `remove_in` deadline (requires `pip install 'pyDeprecate[audit]'`); `chains` detects deprecated-to-deprecated forwarding chains; `all` runs all three in a single scan pass. Flags: `--norecursive`, `--skip_errors`. ([#149](https://github.com/Borda/pyDeprecate/pull/149))
 
+- **New `DeprecationWrapperInfo.empty_deprecated_in` field.** `True` when `deprecated_in` is absent on a wrapper; intended for CI pipeline introspection. `dataclasses.asdict()` output and `repr()` now include this field. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
+
 ### Deprecated
 
 - **`target=None` sentinel — use `TargetMode.NOTIFY`.** Passing `target=None` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.NOTIFY`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 - **`target=True` sentinel — use `TargetMode.ARGS_REMAP`.** Passing `target=True` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.ARGS_REMAP`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`DeprecationWrapperInfo.empty_mapping` → `empty_args_mapping` and `identity_mapping` → `identity_args_mapping`.** Old names are kept as deprecated `@property` aliases that emit `DeprecationWarning` on access and will be removed in v1.0. **Migration note:** the aliases cover attribute reads; keyword construction and `dataclasses.replace()` are supported via a constructor shim, all emitting `DeprecationWarning`; update call sites to the new names before v1.0. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
 
 ### Changed
 
@@ -30,7 +37,7 @@
 - **`deprecated_class()` with `target=TargetMode.NOTIFY` now emits `UserWarning` at decoration time when `args_mapping` or `args_extra` is supplied.** These parameters are ignored in `NOTIFY` mode; passing them has always been a misconfiguration. The warning will become `TypeError` in v1.0.
 - **Docs site URL layout is now versioned.** Content is published under `https://borda.github.io/pyDeprecate/latest/` (for `main`) and `https://borda.github.io/pyDeprecate/<tag>/` (for release tags). The root URL (`https://borda.github.io/pyDeprecate/`) redirects to `latest/`. External bookmarks to flat paths like `.../pyDeprecate/troubleshooting.html` will break on first deploy — update them to `.../pyDeprecate/latest/troubleshooting.html`. ([#148](https://github.com/Borda/pyDeprecate/pull/148))
 - **`target` parameter of `@deprecated` now defaults to `TargetMode.NOTIFY`.** Callers can omit `target` entirely for warn-only deprecation: `@deprecated(deprecated_in="1.0", remove_in="2.0")` is now the canonical form. Passing `target=TargetMode.NOTIFY` explicitly remains valid. This default is permanent and will not change in future releases. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
-- **Decoration-time `FutureWarning` when `@deprecated` has no version strings.** When `target` is `TargetMode.NOTIFY` (the default or explicitly passed) and both `deprecated_in` and `remove_in` are absent, a `FutureWarning` is emitted immediately at decoration time (not at call time). Applies to functions, methods, and classes. Suppressed when `stream=None`. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
+- **Decoration-time `UserWarning` when `@deprecated` omits `deprecated_in`.** When `deprecated_in` is absent a `UserWarning` is emitted immediately at decoration time (not at call time) regardless of `target` shape (`TargetMode.NOTIFY`, callable, or `ARGS_REMAP`), even if `remove_in` is set. Applies to functions and methods (not classes). Suppressed when `stream=None` or when a custom `template_mgs` is provided. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
 
 ### Fixed
 
