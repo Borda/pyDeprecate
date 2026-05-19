@@ -77,7 +77,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     - **Metaclass-generated classes** (``type("Name", bases, ns)``, ``__init_subclass__``, or manual assignment
       producing qualnames like ``"FakeOwner.method"`` for unrelated types): resolved by verifying that the
       top-level class name in the qualname prefix actually exists in the callable's module globals.  When the
-      referenced class does not exist, the qualname is unreliable and the guard returns without warning.
+      referenced class does not exist, the qualname is unreliable and the guard returns without raising.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
