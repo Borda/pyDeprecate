@@ -174,6 +174,10 @@ class DeprecationWrapperInfo:
     chain_type: Optional[ChainType] = None
     empty_deprecated_in: bool = False
 
+    def __post_init__(self) -> None:
+        """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
+        object.__setattr__(self, "empty_deprecated_in", not self.deprecated_info.deprecated_in)
+
     @property
     def empty_mapping(self) -> bool:
         """Deprecated alias for ``empty_args_mapping``. Renamed in 0.8, removed in 1.0.
