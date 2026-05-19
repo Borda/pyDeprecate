@@ -13,6 +13,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import sys
 import warnings
 from functools import partial, wraps
 from inspect import Parameter
@@ -65,16 +66,22 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     - ``"outer.<locals>.<lambda>"``          → skipped; prefix ends with ``<locals>``
     - ``"base_sum_kwargs"``                  → skipped; no dot means module-level function
 
-    Known limitations — ``__qualname__`` is a display string, not an ownership API.  These scenarios may produce
-    false positive warnings that are irresolvable at decoration time:
+    False positive resolution — ``__qualname__`` is a display string, not an ownership API, so two scenarios used to
+    yield spurious warnings.  Both are now handled:
 
-    - **Metaclass-generated classes**: ``type("Name", bases, ns)`` or ``__init_subclass__`` may assign qualnames
-      like ``"Outer.Inner"`` even for unrelated types; the guard treats them as methods on ``Outer`` and warns.
-    - **Decorators that rewrite ``__qualname__``**: a decorator applied before ``@deprecated`` that sets
-      ``fn.__qualname__ = "SomeClass.method"`` (e.g. some dataclass field descriptors) causes false positives.
+    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before ``@deprecated`` that sets
+      ``fn.__qualname__ = "OtherClass.method"``): resolved by reading ``__qualname__`` from the enclosing class
+      body frame via :func:`sys._getframe`.  Python itself sets ``__qualname__`` in the class-body locals at
+      class-definition time, so this value reflects the true enclosing class regardless of any decorator that
+      mutated the source callable's ``__qualname__`` attribute.
+    - **Metaclass-generated classes** (``type("Name", bases, ns)``, ``__init_subclass__``, or manual assignment
+      producing qualnames like ``"FakeOwner.method"`` for unrelated types): resolved by verifying that the
+      top-level class name in the qualname prefix actually exists in the callable's module globals.  When the
+      referenced class does not exist, the qualname is unreliable and the guard returns without warning.
 
-    Both cases are irresolvable at decoration time without inspecting the live call frame.  Suppress false positives
-    via ``warnings.filterwarnings("ignore", category=UserWarning, module=...)``.
+    Remaining corner cases (callables whose ``__module__`` is missing or points to a synthetic module) can still
+    be suppressed explicitly via
+    ``warnings.filterwarnings("ignore", message=".*cross-class method forwarding", category=UserWarning)``.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
@@ -96,6 +103,36 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     # Skip nested functions / lambdas whose prefix ends with "<locals>"
     if src_prefix.endswith("<locals>") or tgt_prefix.endswith("<locals>"):
         return
+
+    # Fix 1 — decorator-rewriting FP: a decorator applied before @deprecated may have
+    # mutated source.__qualname__.  Python sets __qualname__ in the class body's locals
+    # at class-definition time, before any decorator runs, so the frame value is the
+    # authoritative source class name.  Frame layout when this helper executes:
+    #   0: _check_cross_class_method_target
+    #   1: packing() (closure inside `deprecated`)
+    #   2: enclosing class body (where `@deprecated(...)` is written)
+    # The final-segment bracket filter rejects lambda/comprehension/genexp scopes
+    # (whose qualname's last component is ``<lambda>`` / ``<listcomp>`` / etc.); class
+    # bodies always end in a plain identifier, even when nested inside a function
+    # (e.g. ``"outer.<locals>.MyClass"``).
+    try:
+        frame_qn = sys._getframe(2).f_locals.get("__qualname__", "")
+        if frame_qn and not frame_qn.rsplit(".", 1)[-1].startswith("<"):
+            src_prefix = frame_qn
+    except (ValueError, AttributeError):
+        pass
+
+    # Fix 2 — metaclass/synthetic-qualname FP: a target whose __qualname__ refers to a
+    # class that does not actually exist in the target's module is unreliable; the guard
+    # has no way to verify the cross-class claim, so it must skip rather than warn.
+    # Applied to both target and source (source-side acts as a fallback when frame
+    # inspection above could not refine `src_prefix`, e.g. module-scope decoration).
+    for prefix, callable_obj in ((tgt_prefix, target), (src_prefix, source)):
+        top_class = prefix.split(".", 1)[0]
+        module = sys.modules.get(getattr(callable_obj, "__module__", ""), None)
+        if module is not None and not hasattr(module, top_class):
+            return
+
     src_class_name = src_prefix.rsplit(".", 1)[-1]
     tgt_class_name = tgt_prefix.rsplit(".", 1)[-1]
     src_owner = f"{getattr(source, '__module__', '')}.{src_prefix}"

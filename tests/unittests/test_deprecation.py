@@ -487,40 +487,69 @@ class TestCrossClassMethodGuard:
         assert w.filename == __file__, f"Warning must point to {__file__!r}, got {w.filename!r}"
         assert w.lineno > test_start_line, "Warning must point inside this test method"
 
-    def test_metaclass_generated_qualname_warns_and_is_suppressible(self) -> None:
-        """A target with a metaclass-style rewritten ``__qualname__`` yields a suppressible UserWarning."""
+    def test_metaclass_generated_qualname_skips_guard(self) -> None:
+        """A target with a metaclass-style rewritten ``__qualname__`` is detected and the guard returns silently.
+
+        The module-globals check verifies that the top-level class name in the target's qualname actually exists
+        in the target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname
+        produced by ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
+        """
 
         def replacement(instance: object, x: int) -> int:
             void(instance)
             return x
 
         # Simulate a metaclass / type(...) assigning a qualname that looks like a method on FakeOwner,
-        # even though `replacement` is unrelated to any such class.  The guard cannot tell this apart from
-        # a genuine cross-class method target.
+        # even though `replacement` is unrelated to any such class.  FakeOwner does not exist in this
+        # test module, so the module-globals check in the guard detects the unreliable qualname.
         replacement.__qualname__ = "FakeOwner.replacement"
 
-        with pytest.warns(UserWarning, match="cross-class method forwarding is not supported"):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
 
             class RealOwner:
                 @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
                 def old_method(self, x: int) -> int:
                     return void(x)
 
-        # Same construction under a filterwarnings("ignore", ...) block must emit no UserWarning.
+        cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
+        assert cross_warns == [], f"Unexpected cross-class warning: {[str(w.message) for w in cross_warns]}"
+
+    def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
+        """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
+
+        Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator
+        runs.  Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a
+        pre-applied decorator has overwritten ``fn.__qualname__`` on the source callable.
+        """
+
+        def rewrite_to_alien_class(fn: Callable[..., Any]) -> Callable[..., Any]:
+            """Test fixture: outer decorator that retags the wrapped function as living on ``AlienClass``."""
+            fn.__qualname__ = "AlienClass.method"
+            return fn
+
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            warnings.filterwarnings("ignore", message=".*cross-class method forwarding", category=UserWarning)
 
-            class RealOwnerSuppressed:
-                @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
+            class MyClass:
+                def new_method(self, x: int) -> int:
+                    return x
+
+                @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
+                @rewrite_to_alien_class
                 def old_method(self, x: int) -> int:
                     return void(x)
 
         cross_warns = [w for w in caught if issubclass(w.category, UserWarning) and "cross-class" in str(w.message)]
-        assert cross_warns == []
+        assert cross_warns == [], f"Unexpected cross-class warning: {[str(w.message) for w in cross_warns]}"
 
     def test_decorator_rewriting_qualname_warns_and_is_suppressible(self) -> None:
-        """A pre-applied decorator that rewrites the source ``__qualname__`` yields a suppressible UserWarning."""
+        """A pre-applied decorator rewriting source qualname to a genuinely different class still warns.
+
+        Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken
+        from the class body's locals.  When the recovered class differs from the target's class, the guard
+        still fires correctly — this guards against an over-eager FP suppression.
+        """
 
         def rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
             """Test fixture: an outer decorator that retags the wrapped function as living on ``OtherOwner``."""
