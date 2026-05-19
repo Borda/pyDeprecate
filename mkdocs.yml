@@ -59,6 +59,7 @@ nav:
       - Audit Tools: guide/audit.md
       - CLI: guide/cli.md
       - Customization: guide/customization.md
+      - Migration Guide: guide/migration.md
   - Troubleshooting: troubleshooting.md
   - Changelog: changelog.md
   - Demos:
