@@ -204,6 +204,21 @@ class DeprecationWrapperInfo:
         )
         return self.identity_args_mapping
 
+    # -----------------------------------------------------------------------
+    # Maintenance note — KEEP THIS COMMENT HERE, close to the field list.
+    #
+    # A backward-compatible constructor shim (_dwi_compat_init) is applied to
+    # this class at module load time, just below.  The shim redirects old
+    # constructor kwargs (``empty_mapping``, ``identity_mapping``) to the
+    # renamed fields (``empty_args_mapping``, ``identity_args_mapping``).
+    #
+    # If you ADD a new field here, check whether it needs a compat alias:
+    #   1. Add a ``@property`` alias above (read access).
+    #   2. Add the (old, new) pair to the loop in ``_dwi_compat_init`` below
+    #      (keyword-argument construction and ``dataclasses.replace()``).
+    # If you RENAME or REMOVE a field: update _dwi_compat_init accordingly.
+    # -----------------------------------------------------------------------
+
 
 # ---------------------------------------------------------------------------
 # Backward-compatible constructor shim for DeprecationWrapperInfo
