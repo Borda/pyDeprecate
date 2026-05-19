@@ -1,5 +1,6 @@
 """Unit tests for private helpers in deprecate.audit."""
 
+import dataclasses
 import importlib
 import importlib.metadata
 import importlib.util
@@ -402,3 +403,21 @@ class TestDwiCompatInit:
                 empty_args_mapping=False,  # auto-injected by replace(); caller's old-name wins
             )
         assert info.empty_args_mapping is True
+
+    def test_replace_with_old_name_honoured_over_auto_injected_new(self) -> None:
+        """dataclasses.replace() with old name honours caller intent over auto-injected new name.
+
+        ``dataclasses.replace(info, empty_mapping=True)`` merges the caller's ``empty_mapping=True``
+        with the current ``empty_args_mapping=False`` (auto-injected by replace()).  The shim must
+        detect this conflict, discard the auto-injected value, and honour the old-name value.
+        """
+        base = DeprecationWrapperInfo(
+            function="f",
+            deprecated_info=DeprecationConfig(),
+            empty_args_mapping=False,
+        )
+
+        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+            result = dataclasses.replace(base, empty_mapping=True)
+
+        assert result.empty_args_mapping is True
