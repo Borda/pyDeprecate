@@ -377,6 +377,13 @@ class TestFindDeprecatedWrappers:
             results = find_deprecation_wrappers(tests, recursive=True)
         assert isinstance(results, list)
 
+    def test_empty_deprecated_in_flag_reported_via_find(self) -> None:
+        """find_deprecation_wrappers sets empty_deprecated_in=True for wrappers with no version."""
+        by_name = {r.function: r for r in find_deprecation_wrappers(sample_module, recursive=False)}
+        assert "no_version_deprecation" in by_name
+        assert by_name["no_version_deprecation"].empty_deprecated_in is True
+        assert by_name["no_version_deprecation"].deprecated_info.deprecated_in == ""
+
 
 class TestValidateDeprecationChains:
     """Tests for validate_deprecation_chains()."""
