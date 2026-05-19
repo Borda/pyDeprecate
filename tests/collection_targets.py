@@ -225,6 +225,16 @@ def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
     return new_arg + injected
 
 
+def pep702_target(x: int) -> int:
+    """Target for PEP 702 stacking regression tests.
+
+    Doubles the input value so the wrapping test can confirm the inner pyDeprecate
+    @deprecated forwarded the call after PEP 702 ``typing_extensions.deprecated``
+    overwrote ``__deprecated__`` on the wrapper.
+    """
+    return x * 2
+
+
 def timing_wrapper(func: Callable) -> Callable:
     """Decorator to measure the execution time of a function."""
 

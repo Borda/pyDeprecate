@@ -719,7 +719,12 @@ def deprecated(
 
             state = cast(_DeprecatedCallable, wrapped_fn)._state
             state.called += 1
-            dep_cfg = cast(_DeprecatedCallable, wrapped_fn).__deprecated__
+            # Read DeprecationConfig from the closure rather than re-reading
+            # ``wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
+            # decorator stacked outside this one overwrites that attribute with a plain
+            # string, which then crashes on ``.misconfigured`` access. ``_state`` must
+            # still be read via attribute because it is mutable and updated between calls.
+            dep_cfg = _dep_cfg
             if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
                 warnings.warn(
                     f"'{source.__name__}' has an invalid deprecation configuration;"
@@ -819,6 +824,12 @@ def deprecated(
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
         )
+        # Bind ``DeprecationConfig`` into the wrapper closure so call-time reads
+        # survive PEP 702 ``typing_extensions.deprecated`` stacked outside this
+        # decorator overwriting ``wrapped_fn.__deprecated__`` with a string.
+        # ``wrapped_fn`` already captured this name from the enclosing scope via
+        # the late-binding closure rule; the assignment here is what populates it.
+        _dep_cfg = dep_meta
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta
         wrapped_fn_typed._state = _WrapperState()
