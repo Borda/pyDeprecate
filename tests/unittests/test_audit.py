@@ -387,7 +387,7 @@ class TestDwiCompatInit:
                 function="f",
                 deprecated_info=DeprecationConfig(),
                 empty_mapping=True,  # type: ignore[call-arg]
-                identity_mapping=["b"],  # type: ignore[call-arg]
+                identity_mapping=["b"],
             )
         categories = [str(w.message) for w in caught.list if issubclass(w.category, DeprecationWarning)]
         assert any("empty_args_mapping" in m for m in categories)

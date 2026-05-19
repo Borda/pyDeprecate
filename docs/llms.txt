@@ -119,10 +119,12 @@ import warnings
 warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
 ```
 
-**`DeprecationWrapperInfo` field renames (v0.8+)** — `empty_mapping` → `empty_args_mapping`; `identity_mapping` → `identity_args_mapping`. Old names are deprecated `@property` read aliases only — they do **not** work in `dataclasses.replace()` or as constructor keyword arguments:
+**`DeprecationWrapperInfo` field renames (v0.8+)** — `empty_mapping` → `empty_args_mapping`; `identity_mapping` → `identity_args_mapping`. Legacy names are still accepted by the compat `__init__` shim for constructor kwargs and `dataclasses.replace()`, but they emit `DeprecationWarning` and are translated to the new field names:
 
 ```python
-# WRONG — raises TypeError via compat shim (old name collides with replace()-injected new field)
+import dataclasses
+
+# Deprecated legacy spelling — works via compat shim but emits DeprecationWarning
 dataclasses.replace(info, empty_mapping=True)
 
 # CORRECT
