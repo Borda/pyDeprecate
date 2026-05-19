@@ -151,8 +151,8 @@ tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
 
 `tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references,
 and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
-The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 14 bindings even though there are
-13 unique function objects.
+The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 15 bindings even though there are
+14 unique function objects.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -184,9 +184,9 @@ print(f"No effect: {len(no_effect)}")
 
 ```
 === Misconfiguration Report ===
-Wrappers scanned: 14
+Wrappers scanned: 15
 Invalid arguments: 3
-Empty mappings: 6
+Empty mappings: 7
 Identity mappings: 3
 Self-references: 2
 Misconfigured targets: 6

@@ -376,6 +376,14 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
+> [!NOTE]
+> **Some docs examples use collection modules as fixtures and report hardcoded counts.** `docs/guide/audit.md` embeds expected output from scanning `tests.collection_misconfigured` with hardcoded numbers (wrappers scanned, empty mappings, etc.). When you add or remove entries from any `collection_*.py` module:
+>
+> - Update the expected counts in the relevant `docs/guide/*.md` code block output.
+> - Regenerate the corresponding test file: `phmdoctest docs/guide/audit.md -s "phmdoctest:skip" --outfile tests/docs/test_guide_audit.py`
+>
+> Failing to do this causes `tests/docs/test_guide_audit.py` to fail in CI.
+
 **`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `audit.py`, `utils.py`).
 
 > [!IMPORTANT]
