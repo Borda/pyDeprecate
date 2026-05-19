@@ -396,14 +396,14 @@ def _raise_warn_callable(
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
-        template = template_mgs or TEMPLATE_WARNING_CALLABLE
+        template_warn = TEMPLATE_WARNING_CALLABLE
     else:
         target_name, target_path = "", ""
-        template = template_mgs or TEMPLATE_WARNING_NO_TARGET
+        template_warn = TEMPLATE_WARNING_NO_TARGET
     _raise_warn(
         stream=stream,
         source=source,
-        template_mgs=template,
+        template_mgs=template_mgs or template_warn,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
