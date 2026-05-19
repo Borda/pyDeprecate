@@ -13,6 +13,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import sys
 import warnings
 from functools import partial, wraps
 from inspect import Parameter
@@ -52,7 +53,7 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
 
 
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
-    """Warn when target is a method on a different class than source.
+    """Raise ``TypeError`` when target is a method on a different class than source.
 
     Forwarding a class method to a method on a *different* class silently passes ``self`` of the wrong type, causing
     runtime attribute errors.  This guard detects the misconfiguration at decoration time by comparing the immediate
@@ -65,16 +66,18 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     - ``"outer.<locals>.<lambda>"``          → skipped; prefix ends with ``<locals>``
     - ``"base_sum_kwargs"``                  → skipped; no dot means module-level function
 
-    Known limitations — ``__qualname__`` is a display string, not an ownership API.  These scenarios may produce
-    false positive warnings that are irresolvable at decoration time:
+    False positive resolution — ``__qualname__`` is a display string, not an ownership API, so two scenarios used to
+    yield spurious warnings.  Both are now handled:
 
-    - **Metaclass-generated classes**: ``type("Name", bases, ns)`` or ``__init_subclass__`` may assign qualnames
-      like ``"Outer.Inner"`` even for unrelated types; the guard treats them as methods on ``Outer`` and warns.
-    - **Decorators that rewrite ``__qualname__``**: a decorator applied before ``@deprecated`` that sets
-      ``fn.__qualname__ = "SomeClass.method"`` (e.g. some dataclass field descriptors) causes false positives.
-
-    Both cases are irresolvable at decoration time without inspecting the live call frame.  Suppress false positives
-    via ``warnings.filterwarnings("ignore", category=UserWarning, module=...)``.
+    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before ``@deprecated`` that sets
+      ``fn.__qualname__ = "OtherClass.method"``): resolved by reading ``__qualname__`` from the enclosing class
+      body frame via :func:`sys._getframe`.  Python itself sets ``__qualname__`` in the class-body locals at
+      class-definition time, so this value reflects the true enclosing class regardless of any decorator that
+      mutated the source callable's ``__qualname__`` attribute.
+    - **Metaclass-generated classes** (``type("Name", bases, ns)``, ``__init_subclass__``, or manual assignment
+      producing qualnames like ``"FakeOwner.method"`` for unrelated types): resolved by verifying that the
+      top-level class name in the qualname prefix actually exists in the callable's module globals.  When the
+      referenced class does not exist, the qualname is unreliable and the guard returns without raising.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
@@ -96,22 +99,48 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     # Skip nested functions / lambdas whose prefix ends with "<locals>"
     if src_prefix.endswith("<locals>") or tgt_prefix.endswith("<locals>"):
         return
+
+    # Fix 1 — decorator-rewriting FP: a decorator applied before @deprecated may have
+    # mutated source.__qualname__.  Python sets __qualname__ in the class body's locals
+    # at class-definition time, before any decorator runs, so the frame value is the
+    # authoritative source class name.  Frame layout when this helper executes:
+    #   0: _check_cross_class_method_target
+    #   1: packing() (closure inside `deprecated`)
+    #   2: enclosing class body (where `@deprecated(...)` is written)
+    # The final-segment bracket filter rejects lambda/comprehension/genexp scopes
+    # (whose qualname's last component is ``<lambda>`` / ``<listcomp>`` / etc.); class
+    # bodies always end in a plain identifier, even when nested inside a function
+    # (e.g. ``"outer.<locals>.MyClass"``).
+    try:
+        frame_qn = sys._getframe(2).f_locals.get("__qualname__", "")
+        if frame_qn and not frame_qn.rsplit(".", 1)[-1].startswith("<"):
+            src_prefix = frame_qn
+    except (ValueError, AttributeError):
+        pass
+
+    # Fix 2 — metaclass/synthetic-qualname FP: a target whose __qualname__ refers to a
+    # class that does not actually exist in the target's module is unreliable; the guard
+    # has no way to verify the cross-class claim, so it must skip rather than raise.
+    # Applied to the target only — the source class is mid-definition when this helper
+    # runs, so it cannot appear in module globals yet; applying the check to the source
+    # would silently disable the guard for all module-level class definitions.
+    tgt_top_class = tgt_prefix.split(".", 1)[0]
+    tgt_module = sys.modules.get(getattr(target, "__module__", ""), None)
+    if tgt_module is not None and not hasattr(tgt_module, tgt_top_class):
+        return
+
     src_class_name = src_prefix.rsplit(".", 1)[-1]
     tgt_class_name = tgt_prefix.rsplit(".", 1)[-1]
     src_owner = f"{getattr(source, '__module__', '')}.{src_prefix}"
     tgt_owner = f"{getattr(target, '__module__', '')}.{tgt_prefix}"
     if src_owner == tgt_owner:
         return
-    warnings.warn(
+    raise TypeError(
         f"Cannot use @deprecated on '{source.__qualname__}' with target "
         f"'{target.__qualname__}': cross-class method forwarding is not supported "
         f"because `self` would carry the wrong type. "
         f"The target must be a method on the same class ('{src_class_name}') "
-        f"or a full class (use target={tgt_class_name} for class migration). "
-        "Suppress via warnings.filterwarnings("
-        "'ignore', message='.*cross-class method forwarding', category=UserWarning).",
-        UserWarning,
-        stacklevel=3,
+        f"or a full class (use target={tgt_class_name} for class migration).",
     )
 
 
@@ -548,21 +577,14 @@ def deprecated(
         UserWarning: If applied directly to a class. The decorator delegates to
             :func:`~deprecate.proxy.deprecated_class` and emits this warning. Use ``@deprecated_class()`` directly
             to suppress it. Suppressed when ``stream=None``.
-        UserWarning: If the source is a class method and target appears to be a method on a *different* class
-            (cross-class method forwarding). The heuristic uses ``__qualname__`` and may produce false positives for
-            metaclass-generated or decorator-rewritten qualnames — suppress with ``warnings.filterwarnings``. This
-            warning is emitted with ``stacklevel=3``; this skips the internal ``packing`` frame, so the attributed
-            line is the ``@deprecated`` decoration site rather than the helper internals.
-            For CI enforcement (to restore the pre-0.8 hard-failure behaviour), escalate this warning to an error::
-
-                import warnings
-                warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)
-
         UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, no ``template_mgs`` is set,
             and the decorated source is not a class. Fired at decoration time (not call time) to catch missing
             version metadata early. Suppressed by passing ``stream=None`` or ``template_mgs``.
 
     Raises:
+        TypeError: If the source is a class method and target is a method on a *different* class (cross-class
+            method forwarding detected at decoration time via ``__qualname__`` comparison). Skipped silently
+            when the target's qualname prefix names a class absent from the target's module globals.
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs.
 

@@ -2,10 +2,6 @@
 
 [0.8.0] — 2026-05-DD — Default `TargetMode` enum & CLI audit tools
 
-### Breaking
-
-- **Cross-class method guard downgrades from `TypeError` to `UserWarning`.** `@deprecated(target=OtherClass.method)` no longer raises `TypeError` at decoration time — it emits a `UserWarning` instead. Code that previously caught `TypeError` from this guard must migrate to `warnings.filterwarnings("error", message=".*cross-class method forwarding", category=UserWarning)` for equivalent strict behaviour. The guard heuristic uses `__qualname__` and may produce false positives for metaclass-generated or decorator-rewritten qualnames — downgrading to `UserWarning` allows those cases to be suppressed. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
-
 ### Added
 
 - **`TargetMode` enum exported from `deprecate`.** `TargetMode.NOTIFY` replaces `target=None` and `TargetMode.ARGS_REMAP` replaces `target=True`. Both are public API. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
@@ -41,7 +37,10 @@
 
 ### Fixed
 
+- **Cross-class guard false positives resolved; `TypeError` semantics preserved.** Two previously documented "irresolvable" false-positive scenarios are now handled: (1) targets with metaclass/dynamic-class qualnames (e.g. `type("Name", bases, ns)` or manual `fn.__qualname__ = "FakeOwner.method"`) — guard now skips silently when the named class is absent from the target's module globals; (2) pre-applied decorators that rewrite the source's `__qualname__` — guard reads the true enclosing class from the Python class-body frame, which cannot be mutated by user decorators. The guard continues to raise `TypeError` at decoration time for genuine cross-class forwarding.
+
 - **`args_mapping` rename no longer clobbers source default when both old and new parameter names are present.** Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames `old=X` to `new=X` without discarding a separately supplied `new` value. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+
 - **`target=False` sentinel now emits `UserWarning` at decoration time.** `target=False` was never a valid configuration; previously the behavior was undefined. The sentinel now surfaces a `UserWarning` immediately and will raise `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
 ______________________________________________________________________
