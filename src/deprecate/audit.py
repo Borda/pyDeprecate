@@ -172,7 +172,7 @@ class DeprecationWrapperInfo:
     misconfigured_target: bool = False
     all_identity: bool = False
     chain_type: Optional[ChainType] = None
-    empty_deprecated_in: bool = False
+    empty_deprecated_in: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
@@ -412,7 +412,6 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     )
 
     function = dep_info.name or getattr(func, "__name__", str(func))
-    empty_deprecated_in = not dep_info.deprecated_in
 
     return DeprecationWrapperInfo(
         function=function,
@@ -425,7 +424,6 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         misconfigured_target=misconfigured_target,
         all_identity=all_identity,
         chain_type=chain_type,
-        empty_deprecated_in=empty_deprecated_in,
     )
 
 
