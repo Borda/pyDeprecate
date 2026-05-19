@@ -515,14 +515,12 @@ class TestDecoratorFactory:
                 True,
                 FutureWarning,
                 "`target=True` without `args_mapping` resolves to `TargetMode.NOTIFY`"
-                " (warns on every access). Will be `TypeError` in `v1.0`."
-                " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
+                " (warns on every access). Will be `TypeError` in `v1.0`.",
             ),
             (
                 False,
                 UserWarning,
-                "`target=False` is not valid for `deprecated_class()`. Will be `TypeError` in `v1.0`."
-                " See https://borda.github.io/pyDeprecate/guide/migration/ for upgrade steps.",
+                "`target=False` is not valid for `deprecated_class()`. Will be `TypeError` in `v1.0`.",
             ),
         ],
     )
