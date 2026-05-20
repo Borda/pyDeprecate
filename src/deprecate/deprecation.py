@@ -46,6 +46,40 @@ deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
 
+#: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
+#: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(unknwn)s``) and
+#: malformed conversion specifiers (``%(source_name)d``) before any call site ever triggers them.
+_TEMPLATE_MGS_PROBE_ARGS: dict[str, str] = {
+    "source_name": "x",
+    "source_path": "x.y",
+    "deprecated_in": "0.0",
+    "remove_in": "1.0",
+    "target_name": "x",
+    "target_path": "x.y",
+    "argument_map": "x -> y",
+}
+
+
+def _validate_template_mgs(template_mgs: Optional[str]) -> None:
+    """Probe ``template_mgs`` with every documented placeholder, raising at decoration time on failure.
+
+    Args:
+        template_mgs: User-supplied warning message template, or ``None``.  ``None`` and empty strings are
+            no-ops because the call sites already fall back to the built-in templates.
+
+    Raises:
+        ValueError: When ``template_mgs`` references an unknown ``%(...)s`` key, uses a malformed conversion
+            specifier, or otherwise fails ``%``-formatting against the full placeholder set.
+    """
+    if not template_mgs:
+        return
+    try:
+        template_mgs % _TEMPLATE_MGS_PROBE_ARGS
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid template_mgs: {exc!r}. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
+        ) from exc
+
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
     """Filter positional-only and positional-or-keyword parameters."""
@@ -619,6 +653,9 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
+        # Probe ``template_mgs`` against every documented placeholder so typos and malformed
+        # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
+        _validate_template_mgs(template_mgs)
         # Note: template_mgs intentionally bypasses this guard — callers with custom templates
         # control their own messaging and may not rely on deprecated_in being present.
         if not deprecated_in and stream is not None and not template_mgs and not inspect.isclass(source):

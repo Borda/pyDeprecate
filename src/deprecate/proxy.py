@@ -35,6 +35,7 @@ from deprecate.deprecation import (
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
+    _validate_template_mgs,
     deprecation_warning,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
@@ -102,6 +103,9 @@ class _DeprecatedProxy:
         ``target=False`` plus NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy
         rewrites them away, so the final frozen :class:`DeprecationConfig` records every signal in one place.
         """
+        # Probe ``template_mgs`` against every documented placeholder so typos and malformed
+        # conversion specifiers fail at decoration time instead of on the first proxy access.
+        _validate_template_mgs(template_mgs)
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
         misconfigured = target is False or _misconfigured_override
