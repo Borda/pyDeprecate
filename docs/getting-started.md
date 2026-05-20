@@ -85,7 +85,7 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 | Param              | Default               | Purpose                                                                       |
 | ------------------ | --------------------- | ----------------------------------------------------------------------------- |
-| `target`           | —                     | `Callable` to forward to · `True` to remap args in-place · `None` notice-only |
+| `target`           | `TargetMode.NOTIFY`   | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
 | `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                        |
 | `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                           |
 | `stream`           | `deprecation_warning` | Output sink callable (set `None` to silence deprecation messages)             |
@@ -97,7 +97,7 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                           |
 | `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`     |
 
-`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
+`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 ______________________________________________________________________
 

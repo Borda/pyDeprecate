@@ -226,7 +226,7 @@ Not sure which API to reach for? Start here.
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 
 > [!TIP]
-> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
+> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
 > `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
@@ -1164,6 +1164,12 @@ print(f"Self-references: {len(self_refs)}")
 
 You can also use the CLI to validate your deprecations directly from the command line.
 
+The CLI requires the `cli` extra (includes `fire` and `rich`). Install it with:
+
+```bash
+pip install 'pyDeprecate[audit,cli]'
+```
+
 The CLI has four subcommands.
 
 ```bash
@@ -1470,8 +1476,8 @@ def enforce_no_deprecation_chains():
 > - Returns `list[DeprecationWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
 > - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
 > - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
->   - Callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming) — mappings compose across hops
->   - Stacked `@deprecated(True, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
+>   - Callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming) — mappings compose across hops
+>   - Stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
 > - Use `recursive=False` to scan only the top-level module
 
 ## 🧪 Testing Deprecated Code
@@ -1648,7 +1654,7 @@ class MyClass:
        pass
    ```
 
-3. **Use target=True for self-deprecation** (deprecate argument of same function):
+3. **Use `TargetMode.ARGS_REMAP` for self-deprecation** (deprecate argument of same function):
 
    ```python
    from deprecate import TargetMode, deprecated
