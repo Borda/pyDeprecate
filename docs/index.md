@@ -91,11 +91,11 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 | MkDocs Plugin        |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 
 ✍️ = possible but requires manual implementation
-† stdlib on Python 3.13+; also available as `typing_extensions.deprecated` backport for Python < 3.13
+† `typing.deprecated` in the stdlib on Python 3.13+; also available as the `typing_extensions.deprecated` backport for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
-> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
+> **When to prefer `typing.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
 
 ## Where to go next
 
