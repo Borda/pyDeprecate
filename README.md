@@ -224,7 +224,7 @@ Not sure which API to reach for? Start here.
 
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
-> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
+> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only` (blocks standard collection mutators: `append`, `pop`, `update`, etc.; custom mutator names bypass this guard).
 
 </details>
 
@@ -708,7 +708,9 @@ TRAINING_CONFIG = {"lr": 0.001, "batch_size": 32, "epochs": 10}
 # DEFAULTS = {"lr": 0.001, "batch_size": 32, "epochs": 10}
 
 # DEPRECATED API — `DEFAULTS` was the original name; read-only so
-# callers cannot mutate shared state through the deprecated alias
+# callers cannot mutate shared state through the deprecated alias.
+# Note: read_only=True blocks only standard collection mutators (append, pop,
+# update, etc.); custom method names on the wrapped object bypass this guard.
 DEFAULTS = deprecated_instance(
     TRAINING_CONFIG,
     deprecated_in="1.2",

@@ -65,6 +65,9 @@ class _DeprecatedProxy:
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
         read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
+            Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
+            ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
+            Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
         target: Optional replacement object.  When set, all attribute, item, and call access is forwarded to *target*
             instead of *obj*.
         args_mapping: Optional dict remapping keyword argument names when the proxy is called.  Keys are old argument
@@ -659,6 +662,9 @@ def deprecated_instance(
             (default), the built-in template for the active scenario is used.  See
             :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
         read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
+            Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
+            ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
+            Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
             Caller-supplied values override entries with the same key.
 

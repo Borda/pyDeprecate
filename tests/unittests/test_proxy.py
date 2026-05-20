@@ -308,6 +308,22 @@ class TestProxyReadOnly:
         assert "k" not in inner
         assert "m" in inner
 
+    def test_custom_mutator_bypasses_read_only_guard(self) -> None:
+        """Custom method names not in the blocked set pass through read_only=True (known limitation)."""
+
+        class RegistryWithCustomMutator:
+            def __init__(self) -> None:
+                self.items: list[str] = []
+
+            def register(self, item: str) -> None:
+                self.items.append(item)
+
+        obj = RegistryWithCustomMutator()
+        proxy = deprecated_instance(obj, deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        # `register` is not in the blocked set — it must NOT raise
+        proxy.register("x")
+        assert obj.items == ["x"]
+
 
 class TestProxyGetActive:
     """Active object selection: source vs. target."""

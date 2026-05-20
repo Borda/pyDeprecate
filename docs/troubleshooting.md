@@ -537,6 +537,26 @@ def my_func(x: int) -> int:
 
 ______________________________________________________________________
 
+## My object mutated despite `read_only=True`
+
+**Q:** I passed `read_only=True` to `deprecated_instance()` but a method on my object still mutated its state. Why?
+
+**A:** `read_only=True` intercepts only the following standard collection mutator names: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update`, `add`. These cover the mutating methods on Python's built-in `list`, `dict`, and `set` types.
+
+Custom method names — for example `register()`, `reload()`, or `set_value()` — are not in this list and call through to the underlying object without any guard.
+
+**Workaround:** Subclass the wrapped object's type and override the custom mutator method to raise explicitly:
+
+```python
+class ReadOnlyRegistry(dict):
+    def register(self, item):
+        raise AttributeError("'LEGACY_REGISTRY' is deprecated and read-only. Migrate away from this object.")
+```
+
+Then wrap an instance of `ReadOnlyRegistry` instead of a plain `dict`. This keeps `read_only=True` in place for standard collection mutators while adding explicit guards for your custom methods.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"
