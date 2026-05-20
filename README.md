@@ -108,33 +108,35 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 </details>
 
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+
 <br>
 
-| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
+| _Feature_ | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
 | ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------------------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                               ✅                               |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                               ❌                               |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                               ❌                               |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                               ✍️                               |
-| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Simple Warnings** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Auto-Forward Calls** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Argument Mapping** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Argument Deprecation** | ✅ | ✍️ | ❌ | ❌ | ❌ |
+| **Class/Instance Proxy** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Docstring Updates** | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Version Tracking** | ✅ | ✍️ | ✅ | ✅ | ❌ |
+| **Prevent Log Spam** | ✅ | ✍️ | ❌ | ❌ | ❌ |
+| **Zero Extra Depend.** | ✅ | ✅ | ❌ | ❌ | ✍️ |
+| **Custom Streams** | ✅ | ✍️ | ❌ | ❌ | ❌ |
+| **Testing Helpers** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **CI/Audit Tools** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Decorator Stacking** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Sphinx Plugin** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **MkDocs Plugin** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ✍️ = possible but requires manual implementation
 ✍️ (_Zero Extra Depend._ row) = stdlib on Python 3.13+; requires `typing_extensions` backport on Python < 3.13
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
->
-> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+
+> **Note:** Every deprecation variant writes the same `DeprecationConfig` — `@deprecated`, `deprecated_class`, `deprecated_instance`, and the audit tools all read from a single source of truth. This means your CI pipeline (`pydeprecate check src/`) catches misconfigured wrappers across all three variants with one scan.
 
 ## 💾 Installation
 
@@ -195,36 +197,36 @@ Not sure which API to reach for? Start here.
 
 **Pick the right decorator:**
 
-| Scenario                                      | API to use                                                               |
+| Scenario | API to use |
 | --------------------------------------------- | ------------------------------------------------------------------------ |
-| Renaming a function or method                 | `@deprecated(target=new_func)`                                           |
+| Renaming a function or method | `@deprecated(target=new_func)` |
 | Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
-| Warn only — original body still runs          | `@deprecated(deprecated_in="1.0", remove_in="2.0")`                      |
-| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
-| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
+| Warn only — original body still runs | `@deprecated(deprecated_in="1.0", remove_in="2.0")` |
+| Deprecating a class, Enum, or dataclass name | `@deprecated_class(target=NewClass)` |
+| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)` |
 
 > **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.8 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
 
-| Param              | Default                     | Purpose                                                                                                    |
+| Param | Default | Purpose |
 | ------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `target`           | `TargetMode.NOTIFY`         | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
-| `deprecated_in`    | `""`                        | Version when deprecated (e.g. `"1.0"`)                                                                     |
-| `remove_in`        | `""`                        | Version when removed (e.g. `"2.0"`)                                                                        |
-|                    | **Advanced: ~10% of cases** |                                                                                                            |
-| `stream`           | `deprecation_warning`       | Warning sink callable (set `None` to silence warnings)                                                     |
-| `num_warns`        | `1`                         | `1` once · `-1` always · `N` exactly N times                                                               |
-| `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
-| `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                   |
-| `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                 |
-| `skip_if`          | `False`                     | `bool` or `Callable → bool`; skip deprecation when true                                                    |
-| `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
+| `target` | `TargetMode.NOTIFY` | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
+| `deprecated_in` | `""` | Version when deprecated (e.g. `"1.0"`) |
+| `remove_in` | `""` | Version when removed (e.g. `"2.0"`) |
+| | **Advanced: ~10% of cases** | |
+| `stream` | `deprecation_warning` | Warning sink callable (set `None` to silence warnings) |
+| `num_warns` | `1` | `1` once · `-1` always · `N` exactly N times |
+| `args_mapping` | `None` | `{"old": "new"}` rename · `{"old": None}` drop |
+| `template_mgs` | `None` | Custom warning message template (`%`-style placeholders) |
+| `args_extra` | `None` | Fixed kwargs injected into the target call |
+| `skip_if` | `False` | `bool` or `Callable → bool`; skip deprecation when true |
+| `update_docstring` | `False` | Append Sphinx `.. deprecated::` notice to docstring |
 
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
-> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only` (blocks standard collection mutators: `append`, `pop`, `update`, etc.; custom mutator names bypass this guard).
+> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 
@@ -242,11 +244,11 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 
 In particular the target values (cases):
 
-| `target` value          | Use case                                      | `args_mapping`                     | Warning trigger                    |
+| `target` value | Use case | `args_mapping` | Warning trigger |
 | ----------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
-| `TargetMode.NOTIFY`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
-| `TargetMode.ARGS_REMAP` | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
-| `<callable>`            | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
+| `TargetMode.NOTIFY` | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call |
+| `TargetMode.ARGS_REMAP` | Callable stays; argument names are renamed | Required | Only when old arg names are passed |
+| `<callable>` | Callable replaced by another; calls forwarded | Optional | Every call |
 
 > [!TIP]
 > `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
@@ -698,6 +700,8 @@ strings, prefer wrapping them in a container (such as a dict or configuration ob
 directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
 `name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
 
+The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code.
+
 ```python
 from deprecate import deprecated_instance
 
@@ -708,9 +712,7 @@ TRAINING_CONFIG = {"lr": 0.001, "batch_size": 32, "epochs": 10}
 # DEFAULTS = {"lr": 0.001, "batch_size": 32, "epochs": 10}
 
 # DEPRECATED API — `DEFAULTS` was the original name; read-only so
-# callers cannot mutate shared state through the deprecated alias.
-# Note: read_only=True blocks only standard collection mutators (append, pop,
-# update, etc.); custom method names on the wrapped object bypass this guard.
+# callers cannot mutate shared state through the deprecated alias
 DEFAULTS = deprecated_instance(
     TRAINING_CONFIG,
     deprecated_in="1.2",
@@ -1182,6 +1184,24 @@ pydeprecate all path/to/your/package --version 2.0.0
 
 **Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
 `expiry` and `all` also accept `--version VERSION` to set the current version explicitly.
+
+**Example: catching a deprecated-to-deprecated chain**
+
+```
+$ pydeprecate chains src/mypackage
+⚠  Deprecated chain detected: old_fn → legacy_fn → new_fn
+   old_fn is deprecated and forwards to legacy_fn, which is also deprecated.
+   Update old_fn to forward directly to new_fn.
+```
+
+**Example: combined one-liner scan across all checks**
+
+```
+$ pydeprecate all src/mypackage
+✓ check:  12 wrappers validated, 0 misconfigured
+⚠ expiry: 2 wrappers past remove_in deadline
+✓ chains: no deprecated→deprecated chains detected
+```
 
 </details>
 
