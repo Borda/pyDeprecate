@@ -275,7 +275,7 @@ jobs:
               exit 0
             fi
             VERSION_PATH="${GITHUB_REF_NAME}"
-            STABLE_TAG="$((git tag --list | { grep -E "${RELEASE_TAG_PATTERN}" || true; } | sort -V | tail -1))"
+            STABLE_TAG="$(git tag --list | { grep -E "${RELEASE_TAG_PATTERN}" || true; } | sort -V | tail -1)"
             if [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
               ALIASES="stable"
               SET_DEFAULT="stable"
