@@ -283,6 +283,7 @@ class _HasDeprecationMeta(Protocol):
     """
 
     __deprecated__: DeprecationConfig
+    __name__: str
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the deprecated object."""

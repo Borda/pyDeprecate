@@ -47,7 +47,7 @@ deprecation_warning = partial(warn, category=FutureWarning)
 ArgsMapping = dict[str, Optional[str]]
 
 #: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
-#: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(unknwn)s``) and
+#: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
 #: malformed conversion specifiers (``%(source_name)d``) before any call site ever triggers them.
 _TEMPLATE_MGS_PROBE_ARGS: dict[str, str] = {
     "source_name": "x",
