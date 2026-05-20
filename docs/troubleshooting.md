@@ -559,7 +559,13 @@ ______________________________________________________________________
 
 ## TypeError at decoration time: cross-class method target
 
-**Q:** I got `TypeError: @deprecated on method 'old_method' (owner class 'Foo') targets method 'new_method' on a different class 'Bar'. Cross-class method forwarding silently passes the wrong self type ...`. What does this mean and how do I fix it?
+**Q:** I got the following error at decoration time — what does it mean and how do I fix it?
+
+```
+TypeError: Cannot use @deprecated on 'Foo.old_method' with target 'Bar.new_method':
+cross-class method forwarding is not supported because `self` would carry the wrong type.
+The target must be a method on the same class ('Foo') or a full class (use target=Bar for class migration).
+```
 
 **A:** The cross-class guard in pyDeprecate raises `TypeError` at **decoration time** (when the class body is executed), not at call time. It fires when `@deprecated` on a method in class `Foo` points to a method defined on a different class `Bar`. Forwarding to a method on a different class silently passes `self` of the wrong type, causing `AttributeError` or incorrect behaviour at runtime — the guard prevents this misconfiguration from reaching production.
 
