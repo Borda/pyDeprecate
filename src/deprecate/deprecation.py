@@ -20,7 +20,7 @@ from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _WrapperState, _has_deprecation_meta
+from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _has_deprecation_meta, _WrapperState
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 

@@ -112,23 +112,23 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 <br>
 
-| _Feature_ | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
+| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
 | ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------------------------------------: |
-| **Simple Warnings** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Auto-Forward Calls** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Argument Mapping** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Argument Deprecation** | ✅ | ✍️ | ❌ | ❌ | ❌ |
-| **Class/Instance Proxy** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Docstring Updates** | ✅ | ❌ | ✅ | ✅ | ❌ |
-| **Version Tracking** | ✅ | ✍️ | ✅ | ✅ | ❌ |
-| **Prevent Log Spam** | ✅ | ✍️ | ❌ | ❌ | ❌ |
-| **Zero Extra Depend.** | ✅ | ✅ | ❌ | ❌ | ✍️ |
-| **Custom Streams** | ✅ | ✍️ | ❌ | ❌ | ❌ |
-| **Testing Helpers** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **CI/Audit Tools** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Decorator Stacking** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Sphinx Plugin** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **MkDocs Plugin** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                               ✅                               |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                               ❌                               |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                               ❌                               |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                               ✍️                               |
+| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
 
 ✍️ = possible but requires manual implementation
 ✍️ (_Zero Extra Depend._ row) = stdlib on Python 3.13+; requires `typing_extensions` backport on Python < 3.13
@@ -197,32 +197,32 @@ Not sure which API to reach for? Start here.
 
 **Pick the right decorator:**
 
-| Scenario | API to use |
+| Scenario                                      | API to use                                                               |
 | --------------------------------------------- | ------------------------------------------------------------------------ |
-| Renaming a function or method | `@deprecated(target=new_func)` |
+| Renaming a function or method                 | `@deprecated(target=new_func)`                                           |
 | Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
-| Warn only — original body still runs | `@deprecated(deprecated_in="1.0", remove_in="2.0")` |
-| Deprecating a class, Enum, or dataclass name | `@deprecated_class(target=NewClass)` |
-| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)` |
+| Warn only — original body still runs          | `@deprecated(deprecated_in="1.0", remove_in="2.0")`                      |
+| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
+| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
 
 > **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.8 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
 
-| Param | Default | Purpose |
+| Param              | Default                     | Purpose                                                                                                    |
 | ------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `target` | `TargetMode.NOTIFY` | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
-| `deprecated_in` | `""` | Version when deprecated (e.g. `"1.0"`) |
-| `remove_in` | `""` | Version when removed (e.g. `"2.0"`) |
-| | **Advanced: ~10% of cases** | |
-| `stream` | `deprecation_warning` | Warning sink callable (set `None` to silence warnings) |
-| `num_warns` | `1` | `1` once · `-1` always · `N` exactly N times |
-| `args_mapping` | `None` | `{"old": "new"}` rename · `{"old": None}` drop |
-| `template_mgs` | `None` | Custom warning message template (`%`-style placeholders) |
-| `args_extra` | `None` | Fixed kwargs injected into the target call |
-| `skip_if` | `False` | `bool` or `Callable → bool`; skip deprecation when true |
-| `update_docstring` | `False` | Append Sphinx `.. deprecated::` notice to docstring |
+| `target`           | `TargetMode.NOTIFY`         | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
+| `deprecated_in`    | `""`                        | Version when deprecated (e.g. `"1.0"`)                                                                     |
+| `remove_in`        | `""`                        | Version when removed (e.g. `"2.0"`)                                                                        |
+|                    | **Advanced: ~10% of cases** |                                                                                                            |
+| `stream`           | `deprecation_warning`       | Warning sink callable (set `None` to silence warnings)                                                     |
+| `num_warns`        | `1`                         | `1` once · `-1` always · `N` exactly N times                                                               |
+| `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
+| `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                   |
+| `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                 |
+| `skip_if`          | `False`                     | `bool` or `Callable → bool`; skip deprecation when true                                                    |
+| `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
@@ -244,11 +244,11 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 
 In particular the target values (cases):
 
-| `target` value | Use case | `args_mapping` | Warning trigger |
+| `target` value          | Use case                                      | `args_mapping`                     | Warning trigger                    |
 | ----------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
-| `TargetMode.NOTIFY` | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call |
-| `TargetMode.ARGS_REMAP` | Callable stays; argument names are renamed | Required | Only when old arg names are passed |
-| `<callable>` | Callable replaced by another; calls forwarded | Optional | Every call |
+| `TargetMode.NOTIFY`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
+| `TargetMode.ARGS_REMAP` | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
+| `<callable>`            | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
 
 > [!TIP]
 > `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.

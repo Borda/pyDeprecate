@@ -453,11 +453,11 @@ old_endpoint("/api/users")
 
 **Choosing the log level:**
 
-| Level | When to use |
+| Level             | When to use                                   |
 | ----------------- | --------------------------------------------- |
-| `logging.info` | Early deprecation window; low urgency |
-| `logging.warning` | Standard choice; default log configs show it |
-| `logging.error` | Critical deprecation nearing removal deadline |
+| `logging.info`    | Early deprecation window; low urgency         |
+| `logging.warning` | Standard choice; default log configs show it  |
+| `logging.error`   | Critical deprecation nearing removal deadline |
 
 **Benefits over `warnings.warn`:**
 
