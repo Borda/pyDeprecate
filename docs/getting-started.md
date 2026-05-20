@@ -12,7 +12,7 @@ You renamed a function (or retired an argument) and now you need the old name to
 `warnings.warn` tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:
 
 - **Automatic call forwarding** — every call to the old function is transparently redirected to the replacement; no stale code runs.
-- **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}`; callers who have already migrated see no noise.
+- **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}` to help callers migrate to the new signature.
 - **CI deadline enforcement** — `validate_deprecation_expiry()` (via `pip install pyDeprecate[audit]`) raises in CI when a removal date has passed, so deprecated code cannot quietly outlive its deadline.
 
 If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.
