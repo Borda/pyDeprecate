@@ -72,7 +72,7 @@ pip install "pyDeprecate[audit]"
 
 The alternatives emit a deprecation notice but leave forwarding, argument mapping, and deadline enforcement to you. Here is what each tool covers:
 
-| Feature              | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
+| Feature              | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
 | -------------------- | :---------: | :-------------: | :-----------: | :------------------: | :------------------------------: |
 | Simple Warnings      |     ✅      |       ✅        |      ✅       |          ✅          |                ✅                |
 | Auto call forwarding |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |

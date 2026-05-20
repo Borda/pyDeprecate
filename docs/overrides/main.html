@@ -64,14 +64,14 @@
   ],
   "keywords": "Python, deprecation, decorator, API migration, backwards compatibility, code quality, CI/CD",
   "isAccessibleForFree": true,
-  "releaseNotes": "{{ config.site_url }}changelog.html",
+  "releaseNotes": "{{ page.canonical_url | replace('index.html', 'changelog.html') }}",
   "subjectOf": {
     "@type": "Article",
     "headline": "Mastering API Deprecation in Python — the pain points and how pyDeprecate can help",
     "url": "https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62",
     "publisher": { "@type": "Organization", "name": "CodeX", "url": "https://medium.com/codex" }
   },
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "{{ config.site_url }}" }
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "{{ page.canonical_url }}" }
 }
 </script>
 <script type="application/ld+json">
