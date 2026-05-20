@@ -58,6 +58,7 @@ from tests.collection_targets import (
     TargetColorEnum,
     TargetWithInjected,
     TimerDecorator,
+    _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
     base_pow_args,
     base_sum_kwargs,
@@ -1304,3 +1305,33 @@ def pep702_stacked(x: int) -> int:
     Forwards the call (and all warnings) to the stacked wrapper.
     """
     return _pep702_stacked(x)
+
+
+# ========== PEP 702 stacking regression fixture (B1b — deprecated_class proxy) ==========
+# ``typing_extensions.deprecated`` stacked OUTSIDE pyDeprecate's ``deprecated_class``
+# proxy wrapper.  The inner ``deprecated_class(...)`` returns a ``_DeprecatedProxy``
+# instance whose ``__deprecated__`` slot lives in the proxy instance ``__dict__``
+# (set via ``object.__setattr__``) and is read back via ``object.__getattribute__``.
+#
+# PEP 702's outer wrapper assigns ``arg.__deprecated__ = msg`` on the proxy.  That
+# attribute set routes through the proxy's forwarding ``__setattr__``, which calls
+# ``setattr(self._get_active(), "__deprecated__", msg)`` — landing on the wrapped
+# class, not on the proxy's own instance ``__dict__``.  As a result, the proxy's
+# ``object.__getattribute__(self, "__deprecated__")`` reads in ``_dep`` and ``__call__``
+# still resolve to the original ``DeprecationConfig`` and instantiation survives.
+#
+# This fixture is the B1b regression guard against re-introducing a clobber path.
+# Both intermediate bindings are underscore-prefixed so audit walkers do not probe
+# the PEP 702-wrapped plain function as a pyDeprecate target.
+_pep702_proxy_inner = deprecated_class(deprecated_in="0.8", remove_in="1.0")(_Pep702ProxyTarget)
+_pep702_proxy_stacked = typing_extensions.deprecated("use `Pep702ProxyTarget`")(_pep702_proxy_inner)
+
+
+def pep702_proxy_stacked() -> _Pep702ProxyTarget:
+    """Tiny re-export thunk for the PEP 702 + ``deprecated_class`` stacked proxy (B1b).
+
+    Returns a fresh instance produced by invoking the stacked wrapper.  Defined as
+    a function (not a module-level binding) so audit walkers skip the PEP 702
+    wrapper whose ``__deprecated__`` is a plain string.
+    """
+    return _pep702_proxy_stacked()

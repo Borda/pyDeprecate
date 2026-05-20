@@ -235,6 +235,25 @@ def pep702_target(x: int) -> int:
     return x * 2
 
 
+class _Pep702ProxyTarget:
+    """Target class for PEP 702 stacking on ``deprecated_class`` proxy (B1b).
+
+    Provides a stable ``value()`` method so the stacking test can confirm that
+    instantiation and method dispatch survive after PEP 702
+    ``typing_extensions.deprecated`` was applied on top of the ``deprecated_class``
+    proxy wrapper.
+
+    Underscore-prefixed so :func:`deprecate.find_deprecation_wrappers` skips it: the
+    outer PEP 702 wrapper forwards its ``__deprecated__ = msg`` assignment through the
+    proxy's ``__setattr__`` onto this wrapped class, leaving a plain string on the
+    class attribute that would otherwise crash the audit walker.
+    """
+
+    def value(self) -> int:
+        """Return a stable sentinel value used by the B1b regression test."""
+        return 42
+
+
 def timing_wrapper(func: Callable) -> Callable:
     """Decorator to measure the execution time of a function."""
 
