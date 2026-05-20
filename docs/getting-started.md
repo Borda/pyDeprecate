@@ -7,6 +7,16 @@ description: Install pyDeprecate and write your first deprecation in minutes. Co
 
 You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.
 
+## Why pyDeprecate instead of `warnings.warn`?
+
+`warnings.warn` tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:
+
+- **Automatic call forwarding** — every call to the old function is transparently redirected to the replacement; no stale code runs.
+- **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}`; callers who have already migrated see no noise.
+- **CI deadline enforcement** — `validate_deprecation_expiry()` (via `pip install pyDeprecate[audit]`) raises in CI when a removal date has passed, so deprecated code cannot quietly outlive its deadline.
+
+If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.
+
 ## Installation
 
 pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies.

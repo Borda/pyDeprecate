@@ -42,7 +42,7 @@
   "license": "https://github.com/Borda/pyDeprecate/blob/main/LICENSE",
   "codeRepository": "https://github.com/Borda/pyDeprecate",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
   "sameAs": [
     "https://pypi.org/project/pyDeprecate/",
     "https://github.com/Borda/pyDeprecate",
@@ -65,6 +65,12 @@
   "keywords": "Python, deprecation, decorator, API migration, backwards compatibility, code quality, CI/CD",
   "isAccessibleForFree": true,
   "releaseNotes": "https://borda.github.io/pyDeprecate/stable/changelog.html",
+  "subjectOf": {
+    "@type": "Article",
+    "headline": "Mastering API Deprecation in Python — the pain points and how pyDeprecate can help",
+    "url": "https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62",
+    "publisher": { "@type": "Organization", "name": "CodeX", "url": "https://medium.com/codex" }
+  },
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/" }
 }
 </script>
@@ -74,6 +80,7 @@
   "@type": "Person",
   "name": "Jiri Borovec",
   "url": "https://github.com/Borda",
+  "image": "https://avatars.githubusercontent.com/u/6035284",
   "sameAs": [
     "https://github.com/Borda",
     "https://www.linkedin.com/in/jiraborovec",
@@ -113,8 +120,8 @@
       "description": "Fix common pyDeprecate errors: class decoration warnings, TypeError mapping failures, skip_if return type errors, missing deprecation notices, cross-module path issues, proxy dunder limitations, and logging integration.",
       "url": "{{ page.canonical_url }}",
       "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
-      "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
-      "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h2", ".md-content h3"] }
+      "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+      "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h2", ".md-content h3", ".md-content > p"] }
     },
     {
       "@type": "FAQPage",
@@ -222,9 +229,9 @@
   "url": {{ page.canonical_url | tojson }},
   "mainEntityOfPage": { "@type": "WebPage", "@id": {{ page.canonical_url | tojson }} },
   "image": "{{ config.site_url.rstrip('/') }}/assets/images/demo-docs-mkdocs.png",
-  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
-  "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
-  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] }{% if page.meta.git_creation_date_localized %},
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
+  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] }{% if page.meta.git_creation_date_localized %},
   "datePublished": {{ page.meta.git_creation_date_localized | striptags | trim | tojson }}{% endif %}{% if page.meta.git_revision_date_localized %},
   "dateModified": {{ page.meta.git_revision_date_localized | striptags | trim | tojson }}{% endif %}
 }

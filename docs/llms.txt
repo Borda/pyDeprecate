@@ -171,6 +171,7 @@ What is being deprecated?
 - [PyPI](https://pypi.org/project/pyDeprecate/): Package installation and release history
 - [GitHub](https://github.com/Borda/pyDeprecate): Source code and issue tracker
 - [Changelog](https://borda.github.io/pyDeprecate/stable/changelog.html): Release notes and version history
+- [Medium article](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62): "Mastering API Deprecation in Python" — background on the problem space and how pyDeprecate solves it
 
 ## Optional
 
