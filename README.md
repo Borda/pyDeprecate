@@ -115,22 +115,22 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 <br>
 
 | _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
-| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                ✅                |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                ❌                |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                ❌                |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                †                 |
-| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :----------------------------: |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |               ✅               |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |               ❌               |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |               ❌               |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |               †                |
+| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
 
 ✍️ = possible but requires manual implementation
 † `typing.deprecated` in the stdlib on Python 3.13+; also available as `typing_extensions.deprecated` for Python < 3.13
