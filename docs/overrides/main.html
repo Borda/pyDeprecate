@@ -64,14 +64,14 @@
   ],
   "keywords": "Python, deprecation, decorator, API migration, backwards compatibility, code quality, CI/CD",
   "isAccessibleForFree": true,
-  "releaseNotes": "https://borda.github.io/pyDeprecate/stable/changelog.html",
+  "releaseNotes": "{{ config.site_url }}changelog.html",
   "subjectOf": {
     "@type": "Article",
     "headline": "Mastering API Deprecation in Python — the pain points and how pyDeprecate can help",
     "url": "https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62",
     "publisher": { "@type": "Organization", "name": "CodeX", "url": "https://medium.com/codex" }
   },
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/" }
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "{{ config.site_url }}" }
 }
 </script>
 <script type="application/ld+json">
@@ -102,7 +102,7 @@
     "@type": "SearchAction",
     "target": {
       "@type": "EntryPoint",
-      "urlTemplate": "https://borda.github.io/pyDeprecate/stable/search/?q={search_term_string}"
+      "urlTemplate": "{{ config.site_url }}?q={search_term_string}"
     },
     "query-input": "required name=search_term_string"
   }
@@ -266,28 +266,28 @@
       "position": 1,
       "name": "Install pyDeprecate",
       "text": "Run pip install pyDeprecate in your Python 3.9+ environment. No runtime dependencies are added.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#installation"
+      "url": "{{ config.site_url }}getting-started.html#installation"
     },
     {
       "@type": "HowToStep",
       "position": 2,
       "name": "Import the decorator",
       "text": "Add from deprecate import deprecated at the top of your Python file.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#quick-start"
+      "url": "{{ config.site_url }}getting-started.html#quick-start"
     },
     {
       "@type": "HowToStep",
       "position": 3,
       "name": "Apply @deprecated to the old function",
       "text": "Decorate the old function with @deprecated(target=new_function, deprecated_in='1.0', remove_in='2.0'). Calls to the old name emit a FutureWarning and automatically forward to the new function.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#quick-start"
+      "url": "{{ config.site_url }}getting-started.html#quick-start"
     },
     {
       "@type": "HowToStep",
       "position": 4,
       "name": "Enforce the removal deadline in CI",
       "text": "Install the audit extra with pip install pyDeprecate[audit] and call validate_deprecation_expiry() in your CI pipeline to catch deprecated code past its deadline.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#installation"
+      "url": "{{ config.site_url }}getting-started.html#installation"
     }
   ]
 }
