@@ -23,6 +23,6 @@ User-agent: Google-Extended
 Allow: /
 
 # AI crawler access — llms.txt available
-# https://borda.github.io/pyDeprecate/latest/llms.txt
+# https://borda.github.io/pyDeprecate/stable/llms.txt
 
-Sitemap: https://borda.github.io/pyDeprecate/latest/sitemap.xml
+Sitemap: https://borda.github.io/pyDeprecate/stable/sitemap.xml
