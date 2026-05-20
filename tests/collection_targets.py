@@ -269,6 +269,16 @@ def timing_wrapper(func: Callable) -> Callable:
     return wrapper
 
 
+def stacked_inner_target(x: int) -> int:
+    """Inner target for stacked-callable-target guard tests."""
+    return x * 3
+
+
+def stacked_outer_target(x: int) -> int:
+    """Outer target for stacked-callable-target guard tests."""
+    return x * 5
+
+
 class TimerDecorator:
     """A class-based decorator to time functions and methods."""
 

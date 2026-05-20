@@ -944,3 +944,49 @@ class TestPEP702StackingRegression:
         assert future_warnings, "expected at least one FutureWarning from pyDeprecate"
         assert any("pep702_target" in str(w.message) for w in future_warnings)
         assert result == 6
+
+
+class TestTemplateMgsValidation:
+    """A malformed ``template_mgs`` is detected at decoration time, not at first call (B6)."""
+
+    def test_unknown_placeholder_raises_at_decoration(self) -> None:
+        """An unknown ``%(...)s`` key raises ``ValueError`` when ``@deprecated`` is applied — before any call."""
+        from tests.collection_targets import base_sum_kwargs
+
+        with pytest.raises(ValueError, match="Invalid template_mgs"):
+            deprecated(
+                target=base_sum_kwargs,
+                deprecated_in="0.8",
+                remove_in="1.0",
+                template_mgs="bad %(unknown_key)s",
+            )(base_sum_kwargs)
+
+    def test_valid_template_accepted_at_decoration(self) -> None:
+        """A template using only documented placeholders is accepted at decoration time."""
+        from tests.collection_targets import base_sum_kwargs
+
+        # Must not raise — covers happy path of the probe.
+        wrapper = deprecated(
+            target=base_sum_kwargs,
+            deprecated_in="0.8",
+            remove_in="1.0",
+            template_mgs="`%(source_name)s` -> `%(target_name)s` since v%(deprecated_in)s",
+        )(base_sum_kwargs)
+        assert callable(wrapper)
+
+
+class TestStackedCallableTargetGuard:
+    """Stacking ``@deprecated(target=fn_a)`` over ``@deprecated(target=fn_b)`` warns at decoration time (B4).
+
+    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the
+    inner wrapper's signature does not match the outer target's remapped kwargs. The guard surfaces
+    this misconfiguration at decoration time so authors catch it without exercising the call path.
+    """
+
+    def test_stacked_callable_targets_warn_at_decoration(self) -> None:
+        """Decorating a callable-target wrapper with another callable target emits ``UserWarning``."""
+        from tests.collection_targets import stacked_inner_target, stacked_outer_target
+
+        inner = deprecated(target=stacked_inner_target, deprecated_in="0.8", remove_in="1.0")(stacked_outer_target)
+        with pytest.warns(UserWarning, match="callable target stacked"):
+            deprecated(target=stacked_outer_target, deprecated_in="0.8", remove_in="1.0")(inner)

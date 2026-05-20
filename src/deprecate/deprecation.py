@@ -20,7 +20,7 @@ from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _WrapperState, _has_deprecation_meta
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -696,6 +696,19 @@ def deprecated(
         if callable(target) and not inspect.isclass(target):
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
+
+        # Stacked callable-target guard: detect ``@deprecated(target=fn_a)`` applied over an
+        # already-wrapped callable that itself has a callable target. Only ARGS_REMAP stacking
+        # is supported; callable-over-callable stacking silently raises ``TypeError`` at the
+        # first call because the inner wrapper's signature does not match the outer target's
+        # remapped kwargs. Surface this at decoration time instead.
+        if callable(_target) and _has_deprecation_meta(source) and callable(source.__deprecated__.target):
+            warnings.warn(
+                f"'{source.__name__}' has a callable target stacked over another callable-target @deprecated."
+                " Only ARGS_REMAP stacking is supported. This will raise TypeError at call time.",
+                UserWarning,
+                stacklevel=3,
+            )
 
         # Skip for legacy sentinels: _normalize_target already fired a FutureWarning;
         # re-running the guard here would report the wrong migration path.
