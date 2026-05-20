@@ -571,7 +571,7 @@ def deprecated(
         num_warns: Number of times to show warning per function or per deprecated argument:
             - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
-            - ``0``: suppresses all warnings (equivalent to ``stream=None``)
+            - ``0``: Suppress deprecation warnings emitted for the decorated function/argument
             - ``N > 1``: Show warning N times total
         template_mgs: Custom warning message template with format specifiers:
             - ``source_name``: Function name (e.g., "my_func")
