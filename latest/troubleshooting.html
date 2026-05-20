@@ -171,6 +171,22 @@
             "@type": "Answer",
             "text": "This is intended behaviour. When args_mapping is provided without an explicit callable target, the proxy auto-resolves to TargetMode.ARGS_REMAP and warns only when an old argument name is actually present in the call. Callers already using the new argument name see no warning, matching the per-argument behaviour of @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...). To warn on every call regardless of argument names, set target=TargetMode.NOTIFY explicitly."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why did my object mutate despite setting read_only=True on deprecated_instance?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why did I get TypeError at decoration time about a cross-class method target?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8."
+          }
         }
       ]
     }
@@ -828,6 +844,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#my-object-mutated-despite-read_onlytrue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My object mutated despite read_only=True
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-at-decoration-time-cross-class-method-target" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError at decoration time: cross-class method target
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#still-stuck" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1124,6 +1162,28 @@
     <span class="md-ellipsis">
       
         UserWarning when using TargetMode.ARGS_REMAP without args_mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-object-mutated-despite-read_onlytrue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My object mutated despite read_only=True
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-at-decoration-time-cross-class-method-target" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError at decoration time: cross-class method target
       
     </span>
   </a>
@@ -1610,6 +1670,46 @@
 <p>Migrate now to avoid a hard break on upgrade. Use the <a href="guide/audit.html">audit tools</a> to detect this combination across your codebase automatically — <code>find_deprecation_wrappers()</code> reports it via the <code>misconfigured_target</code> flag on <code>DeprecationWrapperInfo</code>.</p>
 </div>
 <hr />
+<h2 id="my-object-mutated-despite-read_onlytrue">My object mutated despite <code>read_only=True</code><a class="headerlink" href="#my-object-mutated-despite-read_onlytrue" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I passed <code>read_only=True</code> to <code>deprecated_instance()</code> but a method on my object still mutated its state. Why?</p>
+<p><strong>A:</strong> <code>read_only=True</code> intercepts only the following standard collection mutator names: <code>append</code>, <code>clear</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code>, <code>add</code>. These cover the mutating methods on Python's built-in <code>list</code>, <code>dict</code>, and <code>set</code> types.</p>
+<p>Custom method names — for example <code>register()</code>, <code>reload()</code>, or <code>set_value()</code> — are not in this list and call through to the underlying object without any guard.</p>
+<p><strong>Workaround:</strong> Subclass the wrapped object's type and override the custom mutator method to raise explicitly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ReadOnlyRegistry</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;&#39;LEGACY_REGISTRY&#39; is deprecated and read-only. Migrate away from this object.&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Then wrap an instance of <code>ReadOnlyRegistry</code> instead of a plain <code>dict</code>. This keeps <code>read_only=True</code> in place for standard collection mutators while adding explicit guards for your custom methods.</p>
+<hr />
+<h2 id="typeerror-at-decoration-time-cross-class-method-target">TypeError at decoration time: cross-class method target<a class="headerlink" href="#typeerror-at-decoration-time-cross-class-method-target" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I got the following error at decoration time — what does it mean and how do I fix it?</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>TypeError: Cannot use @deprecated on &#39;Foo.old_method&#39; with target &#39;Bar.new_method&#39;:
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>cross-class method forwarding is not supported because `self` would carry the wrong type.
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>The target must be a method on the same class (&#39;Foo&#39;) or a full class (use target=Bar for class migration).
+</code></pre></div>
+<p><strong>A:</strong> The cross-class guard in pyDeprecate raises <code>TypeError</code> at <strong>decoration time</strong> (when the class body is executed), not at call time. It fires when <code>@deprecated</code> on a method in class <code>Foo</code> points to a method defined on a different class <code>Bar</code>. Forwarding to a method on a different class silently passes <code>self</code> of the wrong type, causing <code>AttributeError</code> or incorrect behaviour at runtime — the guard prevents this misconfiguration from reaching production.</p>
+<p><strong>Common fix — forward to the correct target within the same class or to a standalone function:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyService</span><span class="p">:</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>        <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>    <span class="c1"># Correct: target is on the same class</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">execute</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>        <span class="k">pass</span>
+</code></pre></div>
+<p>If you are intentionally delegating to another class, convert the target to a standalone function or use <code>@deprecated_class</code> to deprecate the whole class instead.</p>
+<p><strong>False-positive triggers fixed in v0.8:</strong></p>
+<p>Before v0.8, two patterns produced spurious <code>TypeError</code> raises from the guard:</p>
+<ul>
+<li><strong>Decorators that rewrite <code>__qualname__</code></strong> — a decorator applied before <code>@deprecated</code> that sets <code>fn.__qualname__ = "OtherClass.method"</code> caused the guard to see the wrong owner class. Fixed in v0.8 by reading <code>__qualname__</code> from the enclosing class-body frame, which Python sets before any decorator runs.</li>
+<li><strong>Metaclass-generated classes</strong> — <code>type("Name", bases, ns)</code> and similar patterns produce qualnames like <code>"FakeOwner.method"</code> for methods that are not actually on <code>FakeOwner</code>. Fixed in v0.8 by verifying that the class name in the qualname prefix actually exists in the module globals; when it does not, the guard skips the check.</li>
+</ul>
+<p>If you are on v0.8+ and still seeing an unexpected <code>TypeError</code> from the cross-class guard, open an issue with a minimal reproducer.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
@@ -1637,7 +1737,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 19, 2026 19:31:09 UTC">2026-05-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 20, 2026 08:48:07 UTC">2026-05-20</span>
   </span>
 
     
