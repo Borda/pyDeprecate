@@ -133,7 +133,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 | **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
 
 ✍️ = possible but requires manual implementation
-† stdlib on Python 3.13+; also available as `typing_extensions.deprecated` backport for Python < 3.13
+† `typing.deprecated` in the stdlib on Python 3.13+; also available as `typing_extensions.deprecated` for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
