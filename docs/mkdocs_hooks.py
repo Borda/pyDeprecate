@@ -7,11 +7,25 @@ Injects a ``<link>`` element pointing to ``/llms.txt`` into every page's
 from __future__ import annotations
 
 import logging
+import os
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mkdocs.config.defaults import MkDocsConfig
     from mkdocs.structure.pages import Page
+
+
+def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
+    """Inject package version into extra config so templates can reference it."""
+    try:
+        about = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "deprecate", "__about__.py")
+        with open(about) as f:
+            match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', f.read())
+        config.extra["package_version"] = match.group(1) if match else ""
+    except Exception:
+        config.extra["package_version"] = ""
+    return config
 
 
 def on_post_page(output: str, page: Page, config: MkDocsConfig, **_kwargs: object) -> str:

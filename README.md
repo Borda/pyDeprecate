@@ -112,26 +112,26 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 <br>
 
-| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
-| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------------------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                               ✅                               |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                               ❌                               |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                               ❌                               |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                               ✍️                               |
-| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                               ❌                               |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                               ❌                               |
+| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+)  |
+| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :-------------------------------: |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                ✅                 |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                 |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                ❌                 |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                ❌                 |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                 |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                 †                 |
+| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                 |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                 |
 
 ✍️ = possible but requires manual implementation
-✍️ (_Zero Extra Depend._ row) = stdlib on Python 3.13+; requires `typing_extensions` backport on Python < 3.13
+† stdlib on Python 3.13+; also available as `typing_extensions.deprecated` backport for Python < 3.13
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.

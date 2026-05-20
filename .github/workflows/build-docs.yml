@@ -4,20 +4,21 @@
 # Flow:
 #
 #   Triggers (filtered at the workflow level):
-#     - push → main                                    → build + deploy to latest/
+#     - push → main                                    → build + deploy to dev/
 #     - push → version-like tag (v1.2, 1.2.3, …)       → build + deploy to <tag>/ (and stable/ if highest)
 #     - pull_request → main                            → build only (no deploy)
+#     - workflow_dispatch (tag input)                  → build + deploy to <tag>/ (no set-default change)
 #
 #   Jobs:
 #     build-landing-docs ──┐
-#     build-demo-sphinx ───┤  (run on every trigger)
+#     build-demo-sphinx ───┤  (run on every trigger; demo jobs skip gracefully if source absent)
 #     build-demo-mkdocs ───┤
 #                          ▼
 #                       assemble-site  (run on every trigger)
 #                          ├─ inject sphinx + mkdocs artifacts into docs/
 #                          ├─ mike deploy <version_path> [aliases…] --update-aliases
-#                          ├─ mike set-default <latest|stable>
-#                          ├─ git push gh-pages [push events only] — this IS the deploy
+#                          ├─ mike set-default <latest|stable>  [skipped on workflow_dispatch]
+#                          ├─ git push gh-pages [push + workflow_dispatch events] — this IS the deploy
 #                          │  (GitHub Pages serves directly from the gh-pages branch)
 #                          └─ upload built site as workflow artifact (manual inspection)
 #
@@ -38,6 +39,17 @@ on:
       - "[0-9]*.[0-9]*" # 1.2, 1.2.3 — no v prefix
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to backfill (e.g. v0.7.0). Must already exist on the remote."
+        required: true
+        type: string
+      alias:
+        description: "Optional mike alias to attach (e.g. stable). Leave empty for none."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -63,6 +75,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || '' }}
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -70,13 +83,30 @@ jobs:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
 
+      - name: 🔎 Verify mkdocs.yml exists at this ref
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ ! -f mkdocs.yml ]; then
+            echo "::error::Tag '${{ inputs.tag }}' has no mkdocs.yml — cannot build docs. Earliest supported tag: v0.7.0."
+            exit 1
+          fi
+
       - name: 📦 Install portal dependencies
         run: pip install -r docs/requirements.txt
 
+      - name: 📄 Generate docs/index.md from README if missing
+        # Historical tags (e.g. v0.7.0) expected docs/index.md to be generated at build time.
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ ! -f docs/index.md ] && [ -f README.md ]; then
+            mkdir -p docs
+            cp README.md docs/index.md
+          fi
+
       - name: 📖 Build portal
-        # Documentation screenshots (demo-docs-*.png) live under docs/assets/images/ so MkDocs picks them up
-        # natively without a copy step.
-        run: mkdocs build --strict
+        # Drop --strict for dispatch: historical docs may have nav entries pointing to demo dirs
+        # that are injected only at assemble time. Strict is enforced on push/PR where it matters.
+        run: mkdocs build ${{ github.event_name != 'workflow_dispatch' && '--strict' || '' }}
 
       - name: 📄 Copy Markdown sources into site for .md URL support
         run: |
@@ -97,6 +127,8 @@ jobs:
     steps:
       - name: 🔀 Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ inputs.tag || '' }}
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -105,17 +137,21 @@ jobs:
           cache: pip
 
       - name: 📦 Install package + Sphinx dependencies
-        run: pip install . -r demo-docs/sphinx/requirements.txt
+        run: |
+          [ -d demo-docs/sphinx ] || { echo "::notice::demo-docs/sphinx absent at this ref — skipping Sphinx demo."; exit 0; }
+          pip install . -r demo-docs/sphinx/requirements.txt
 
       - name: 📖 Build Sphinx documentation
-        working-directory: demo-docs/sphinx
-        run: make html
+        run: |
+          [ -d demo-docs/sphinx ] || exit 0
+          cd demo-docs/sphinx && make html
 
       - name: 📤 Upload Sphinx docs artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: sphinx-docs
           path: demo-docs/sphinx/build/html/
+          if-no-files-found: warn
           retention-days: 7
 
   build-demo-mkdocs:
@@ -125,6 +161,8 @@ jobs:
     steps:
       - name: 🔀 Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ inputs.tag || '' }}
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -133,17 +171,21 @@ jobs:
           cache: pip
 
       - name: 📦 Install package + MkDocs dependencies
-        run: pip install . -r demo-docs/mkdocs/requirements.txt
+        run: |
+          [ -d demo-docs/mkdocs ] || { echo "::notice::demo-docs/mkdocs absent at this ref — skipping MkDocs demo."; exit 0; }
+          pip install . -r demo-docs/mkdocs/requirements.txt
 
       - name: 📖 Build MkDocs documentation
-        working-directory: demo-docs/mkdocs
-        run: mkdocs build --strict
+        run: |
+          [ -d demo-docs/mkdocs ] || exit 0
+          cd demo-docs/mkdocs && mkdocs build --strict
 
       - name: 📤 Upload MkDocs docs artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: mkdocs-docs
           path: demo-docs/mkdocs/site/
+          if-no-files-found: warn
           retention-days: 7
 
   assemble-site:
@@ -161,6 +203,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || '' }}
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -169,7 +212,10 @@ jobs:
           cache: pip
 
       - name: 📦 Install mike
-        run: pip install -r docs/requirements.txt
+        run: |
+          pip install -r docs/requirements.txt
+          # Ensure mike is available even when not listed in historical tags' requirements.txt
+          pip install "mike>=2.1,<3"
 
       - name: 🔑 Configure git identity for mike
         run: |
@@ -183,6 +229,15 @@ jobs:
             git fetch origin "${GH_PAGES_BRANCH}:${GH_PAGES_BRANCH}"
           else
             echo "No remote ${GH_PAGES_BRANCH} branch yet — mike will create it on first deploy."
+          fi
+
+      - name: 📄 Generate docs/index.md from README if missing
+        # Historical tags (e.g. v0.7.0) expected docs/index.md to be generated at build time.
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ ! -f docs/index.md ] && [ -f README.md ]; then
+            mkdir -p docs
+            cp README.md docs/index.md
           fi
 
       - name: 📥 Download Sphinx artifact
@@ -201,10 +256,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
-            VERSION_PATH="latest"
-            STABLE_TAG=""
-            SKIP="false"
+          SKIP="false"
+          ALIASES=""
+          SET_DEFAULT=""
+          STABLE_TAG=""
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            # Backfill: use the user-supplied tag; never change set-default.
+            VERSION_PATH="${{ inputs.tag }}"
+            ALIASES="${{ inputs.alias }}"
+          elif [ "${GITHUB_REF_TYPE}" = "branch" ]; then
+            # Unreleased main branch — never set as default; users want stable docs by default.
+            VERSION_PATH="dev"
           else
             if [[ ! "${GITHUB_REF_NAME}" =~ ${RELEASE_TAG_PATTERN} ]]; then
               echo "Skipping docs deploy for non-final tag: ${GITHUB_REF_NAME}"
@@ -213,17 +276,10 @@ jobs:
             fi
             VERSION_PATH="${GITHUB_REF_NAME}"
             STABLE_TAG="$((git tag --list | { grep -E "${RELEASE_TAG_PATTERN}" || true; } | sort -V | tail -1))"
-            SKIP="false"
-          fi
-
-          ALIASES=""
-          SET_DEFAULT=""
-
-          if [ "${VERSION_PATH}" = "latest" ]; then
-            SET_DEFAULT="latest"
-          elif [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
-            ALIASES="stable"
-            SET_DEFAULT="stable"
+            if [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
+              ALIASES="stable"
+              SET_DEFAULT="stable"
+            fi
           fi
 
           {
@@ -254,7 +310,10 @@ jobs:
         if: env.SKIP != 'true' && env.SET_DEFAULT != ''
         run: |
           set -euo pipefail
-          mike set-default --branch "${GH_PAGES_BRANCH}" "${SET_DEFAULT}"
+          mike set-default \
+            --branch "${GH_PAGES_BRANCH}" \
+            --template docs/overrides/mike_redirect.html \
+            "${SET_DEFAULT}"
 
       - name: 📦 Export built site
         if: env.SKIP != 'true'
@@ -271,5 +330,5 @@ jobs:
           retention-days: 7
 
       - name: 📤 Push gh-pages branch
-        if: github.event_name == 'push' && env.SKIP != 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && env.SKIP != 'true'
         run: git push origin "${GH_PAGES_BRANCH}"
