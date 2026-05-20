@@ -9,6 +9,7 @@ from typing import Any, Callable, Union, cast
 from unittest.mock import MagicMock
 
 import pytest
+import typing_extensions
 
 from deprecate import TargetMode, deprecated, void
 from deprecate.deprecation import (
@@ -29,7 +30,12 @@ from deprecate.docstring.inject import (
     normalize_docstring_style,
 )
 from deprecate.proxy import _DeprecatedProxy
-from tests.collection_deprecate import CrossGuardModuleLevel, CrossGuardOldClass, CrossGuardSameClass
+from tests.collection_deprecate import (
+    CrossGuardModuleLevel,
+    CrossGuardOldClass,
+    CrossGuardSameClass,
+    pep702_stacked,
+)
 from tests.collection_targets import KeywordCallTarget, call_signature_source
 
 
@@ -893,3 +899,94 @@ class TestEmptyVersionGuardSymmetry:
                 return b
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+
+class TestPEP702StackingRegression:
+    """Stacking ``typing_extensions.deprecated`` outside ``@deprecated`` no longer crashes (B1a).
+
+    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's
+    ``__deprecated__`` attribute with the message string. Before the fix, ``wrapped_fn``
+    re-read that attribute at call time and crashed with
+    ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures
+    the ``DeprecationConfig`` instance in a closure variable so the call path survives
+    arbitrary outer decorators rewriting ``__deprecated__``.
+    """
+
+    def test_pep702_stacked_call_does_not_crash(self) -> None:
+        """Stacked PEP 702 + pyDeprecate wrapper forwards the call and returns the target's result."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = pep702_stacked(1)
+        assert result == 2
+
+    def test_pep702_stacked_emits_pep702_deprecation_warning(self) -> None:
+        """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning at call time."""
+        with pytest.warns(DeprecationWarning, match="use `pep702_target`"):
+            pep702_stacked(2)
+
+    def test_pep702_stacked_emits_pydeprecate_warning_on_first_call(self) -> None:
+        """Inner ``@deprecated`` still emits its FutureWarning naming the target.
+
+        Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter
+        is zero — the module-level ``pep702_stacked`` fixture may already have warned
+        in earlier tests under ``num_warns=1``.
+        """
+        from tests.collection_targets import pep702_target
+
+        inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
+        stacked = typing_extensions.deprecated("use `pep702_target`")(inner)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = stacked(3)
+
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert future_warnings, "expected at least one FutureWarning from pyDeprecate"
+        assert any("pep702_target" in str(w.message) for w in future_warnings)
+        assert result == 6
+
+
+class TestTemplateMgsValidation:
+    """A malformed ``template_mgs`` is detected at decoration time, not at first call (B6)."""
+
+    def test_unknown_placeholder_raises_at_decoration(self) -> None:
+        """An unknown ``%(...)s`` key raises ``ValueError`` when ``@deprecated`` is applied — before any call."""
+        from tests.collection_targets import base_sum_kwargs
+
+        with pytest.raises(ValueError, match="Invalid template_mgs"):
+            deprecated(
+                target=base_sum_kwargs,
+                deprecated_in="0.8",
+                remove_in="1.0",
+                template_mgs="bad %(unknown_key)s",
+            )(base_sum_kwargs)
+
+    def test_valid_template_accepted_at_decoration(self) -> None:
+        """A template using only documented placeholders is accepted at decoration time."""
+        from tests.collection_targets import base_sum_kwargs
+
+        # Must not raise — covers happy path of the probe.
+        wrapper = deprecated(
+            target=base_sum_kwargs,
+            deprecated_in="0.8",
+            remove_in="1.0",
+            template_mgs="`%(source_name)s` -> `%(target_name)s` since v%(deprecated_in)s",
+        )(base_sum_kwargs)
+        assert callable(wrapper)
+
+
+class TestStackedCallableTargetGuard:
+    """Stacking ``@deprecated(target=fn_a)`` over ``@deprecated(target=fn_b)`` warns at decoration time (B4).
+
+    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the
+    inner wrapper's signature does not match the outer target's remapped kwargs. The guard surfaces
+    this misconfiguration at decoration time so authors catch it without exercising the call path.
+    """
+
+    def test_stacked_callable_targets_warn_at_decoration(self) -> None:
+        """Decorating a callable-target wrapper with another callable target emits ``UserWarning``."""
+        from tests.collection_targets import stacked_inner_target, stacked_outer_target
+
+        inner = deprecated(target=stacked_inner_target, deprecated_in="0.8", remove_in="1.0")(stacked_outer_target)
+        with pytest.warns(UserWarning, match="callable target stacked"):
+            deprecated(target=stacked_outer_target, deprecated_in="0.8", remove_in="1.0")(inner)

@@ -20,8 +20,9 @@ from tests.collection_deprecate import (
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
+    pep702_proxy_stacked,
 )
-from tests.collection_targets import NewDataClass, TargetColorEnum, TargetWithInjected
+from tests.collection_targets import NewDataClass, TargetColorEnum, TargetWithInjected, _Pep702ProxyTarget
 
 
 class TestProxyInit:
@@ -306,6 +307,22 @@ class TestProxyReadOnly:
         del proxy["k"]
         assert "k" not in inner
         assert "m" in inner
+
+    def test_custom_mutator_bypasses_read_only_guard(self) -> None:
+        """Custom method names not in the blocked set pass through read_only=True (known limitation)."""
+
+        class RegistryWithCustomMutator:
+            def __init__(self) -> None:
+                self.items: list[str] = []
+
+            def register(self, item: str) -> None:
+                self.items.append(item)
+
+        obj = RegistryWithCustomMutator()
+        proxy = deprecated_instance(obj, deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        # `register` is not in the blocked set — it must NOT raise
+        proxy.register("x")
+        assert obj.items == ["x"]
 
 
 class TestProxyGetActive:
@@ -1064,3 +1081,35 @@ class TestProxyArgsMappingBehavior:
             warnings.simplefilter("always")
             proxy(old_key=2)
         assert not caught
+
+
+class TestPEP702ProxyStackingRegression:
+    """Stacking ``typing_extensions.deprecated`` outside ``deprecated_class`` does not break the proxy (B1b).
+
+    PEP 702's ``typing_extensions.deprecated`` assigns ``arg.__deprecated__ = msg`` on the
+    object it decorates.  For a ``_DeprecatedProxy`` instance, that assignment routes
+    through the proxy's forwarding ``__setattr__`` and lands on the wrapped class — it
+    does **not** clobber the proxy's own instance ``__dict__`` slot (which was set via
+    ``object.__setattr__`` at construction time and is read back via
+    ``object.__getattribute__`` in ``_dep`` and ``__call__``).  These tests guard against
+    a future refactor re-introducing a clobber path on the proxy.
+    """
+
+    def test_pep702_proxy_stacked_instantiation_does_not_crash(self) -> None:
+        """Stacked PEP 702 + ``deprecated_class`` proxy instantiates and dispatches methods."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            instance = pep702_proxy_stacked()
+            assert instance.value() == 42
+
+    def test_pep702_proxy_stacked_returns_target_instance(self) -> None:
+        """The stacked wrapper produces an instance of the wrapped target class."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            instance = pep702_proxy_stacked()
+        assert isinstance(instance, _Pep702ProxyTarget)
+
+    def test_pep702_proxy_stacked_emits_pep702_deprecation_warning(self) -> None:
+        """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning on call."""
+        with pytest.warns(DeprecationWarning, match="use `Pep702ProxyTarget`"):
+            pep702_proxy_stacked()

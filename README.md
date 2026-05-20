@@ -108,6 +108,8 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 </details>
 
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+
 <br>
 
 | _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated` (3.13+) / `typing_extensions.deprecated` |
@@ -133,8 +135,9 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
->
-> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+
+> [!NOTE]
+> Every deprecation variant writes the same `DeprecationConfig` — `@deprecated`, `deprecated_class`, `deprecated_instance`, and the audit tools all read from a single source of truth. This means your CI pipeline (`pydeprecate check src/`) catches misconfigured wrappers across all three variants with one scan.
 
 ## 💾 Installation
 
@@ -698,6 +701,8 @@ strings, prefer wrapping them in a container (such as a dict or configuration ob
 directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
 `name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
 
+The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code.
+
 ```python
 from deprecate import deprecated_instance
 
@@ -1180,6 +1185,24 @@ pydeprecate all path/to/your/package --version 2.0.0
 
 **Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
 `expiry` and `all` also accept `--version VERSION` to set the current version explicitly.
+
+**Example: catching a deprecated-to-deprecated chain**
+
+```
+$ pydeprecate chains src/mypackage
+⚠  Deprecated chain detected: old_fn → legacy_fn → new_fn
+   old_fn is deprecated and forwards to legacy_fn, which is also deprecated.
+   Update old_fn to forward directly to new_fn.
+```
+
+**Example: combined one-liner scan across all checks**
+
+```
+$ pydeprecate all src/mypackage
+✓ check:  12 wrappers validated, 0 misconfigured
+⚠ expiry: 2 wrappers past remove_in deadline
+✓ chains: no deprecated→deprecated chains detected
+```
 
 </details>
 

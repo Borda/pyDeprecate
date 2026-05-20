@@ -537,6 +537,67 @@ def my_func(x: int) -> int:
 
 ______________________________________________________________________
 
+## My object mutated despite `read_only=True`
+
+**Q:** I passed `read_only=True` to `deprecated_instance()` but a method on my object still mutated its state. Why?
+
+**A:** `read_only=True` intercepts only the following standard collection mutator names: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update`, `add`. These cover the mutating methods on Python's built-in `list`, `dict`, and `set` types.
+
+Custom method names — for example `register()`, `reload()`, or `set_value()` — are not in this list and call through to the underlying object without any guard.
+
+**Workaround:** Subclass the wrapped object's type and override the custom mutator method to raise explicitly:
+
+```python
+class ReadOnlyRegistry(dict):
+    def register(self, item):
+        raise AttributeError("'LEGACY_REGISTRY' is deprecated and read-only. Migrate away from this object.")
+```
+
+Then wrap an instance of `ReadOnlyRegistry` instead of a plain `dict`. This keeps `read_only=True` in place for standard collection mutators while adding explicit guards for your custom methods.
+
+______________________________________________________________________
+
+## TypeError at decoration time: cross-class method target
+
+**Q:** I got the following error at decoration time — what does it mean and how do I fix it?
+
+```text
+TypeError: Cannot use @deprecated on 'Foo.old_method' with target 'Bar.new_method':
+cross-class method forwarding is not supported because `self` would carry the wrong type.
+The target must be a method on the same class ('Foo') or a full class (use target=Bar for class migration).
+```
+
+**A:** The cross-class guard in pyDeprecate raises `TypeError` at **decoration time** (when the class body is executed), not at call time. It fires when `@deprecated` on a method in class `Foo` points to a method defined on a different class `Bar`. Forwarding to a method on a different class silently passes `self` of the wrong type, causing `AttributeError` or incorrect behaviour at runtime — the guard prevents this misconfiguration from reaching production.
+
+**Common fix — forward to the correct target within the same class or to a standalone function:**
+
+```python
+from deprecate import deprecated
+
+
+class MyService:
+    def execute(self, x: int) -> int:
+        return x * 2
+
+    # Correct: target is on the same class
+    @deprecated(target=execute, deprecated_in="1.0", remove_in="2.0")
+    def run(self, x: int) -> int:
+        pass
+```
+
+If you are intentionally delegating to another class, convert the target to a standalone function or use `@deprecated_class` to deprecate the whole class instead.
+
+**False-positive triggers fixed in v0.8:**
+
+Before v0.8, two patterns produced spurious `TypeError` raises from the guard:
+
+- **Decorators that rewrite `__qualname__`** — a decorator applied before `@deprecated` that sets `fn.__qualname__ = "OtherClass.method"` caused the guard to see the wrong owner class. Fixed in v0.8 by reading `__qualname__` from the enclosing class-body frame, which Python sets before any decorator runs.
+- **Metaclass-generated classes** — `type("Name", bases, ns)` and similar patterns produce qualnames like `"FakeOwner.method"` for methods that are not actually on `FakeOwner`. Fixed in v0.8 by verifying that the class name in the qualname prefix actually exists in the module globals; when it does not, the guard skips the check.
+
+If you are on v0.8+ and still seeing an unexpected `TypeError` from the cross-class guard, open an issue with a minimal reproducer.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

@@ -20,7 +20,7 @@ from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _has_deprecation_meta, _WrapperState
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
@@ -45,6 +45,40 @@ POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 deprecation_warning = partial(warn, category=FutureWarning)
 
 ArgsMapping = dict[str, Optional[str]]
+
+#: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
+#: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
+#: malformed conversion specifiers (``%(source_name)d``) before any call site ever triggers them.
+_TEMPLATE_MGS_PROBE_ARGS: dict[str, str] = {
+    "source_name": "x",
+    "source_path": "x.y",
+    "deprecated_in": "0.0",
+    "remove_in": "1.0",
+    "target_name": "x",
+    "target_path": "x.y",
+    "argument_map": "x -> y",
+}
+
+
+def _validate_template_mgs(template_mgs: Optional[str]) -> None:
+    """Probe ``template_mgs`` with every documented placeholder, raising at decoration time on failure.
+
+    Args:
+        template_mgs: User-supplied warning message template, or ``None``.  ``None`` and empty strings are
+            no-ops because the call sites already fall back to the built-in templates.
+
+    Raises:
+        ValueError: When ``template_mgs`` references an unknown ``%(...)s`` key, uses a malformed conversion
+            specifier, or otherwise fails ``%``-formatting against the full placeholder set.
+    """
+    if not template_mgs:
+        return
+    try:
+        template_mgs % _TEMPLATE_MGS_PROBE_ARGS
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid template_mgs: {exc!r}. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
+        ) from exc
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
@@ -537,6 +571,7 @@ def deprecated(
         num_warns: Number of times to show warning per function or per deprecated argument:
             - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
+            - ``0``: Suppress deprecation warnings emitted for the decorated function/argument
             - ``N > 1``: Show warning N times total
         template_mgs: Custom warning message template with format specifiers:
             - ``source_name``: Function name (e.g., "my_func")
@@ -619,6 +654,9 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
+        # Probe ``template_mgs`` against every documented placeholder so typos and malformed
+        # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
+        _validate_template_mgs(template_mgs)
         # Note: template_mgs intentionally bypasses this guard — callers with custom templates
         # control their own messaging and may not rely on deprecated_in being present.
         if not deprecated_in and stream is not None and not template_mgs and not inspect.isclass(source):
@@ -697,6 +735,19 @@ def deprecated(
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
 
+        # Stacked callable-target guard: detect ``@deprecated(target=fn_a)`` applied over an
+        # already-wrapped callable that itself has a callable target. Only ARGS_REMAP stacking
+        # is supported; callable-over-callable stacking silently raises ``TypeError`` at the
+        # first call because the inner wrapper's signature does not match the outer target's
+        # remapped kwargs. Surface this at decoration time instead.
+        if callable(_target) and _has_deprecation_meta(source) and callable(source.__deprecated__.target):
+            warnings.warn(
+                f"'{source.__name__}' has a callable target stacked over another callable-target @deprecated."
+                " Only ARGS_REMAP stacking is supported. This will raise TypeError at call time.",
+                UserWarning,
+                stacklevel=3,
+            )
+
         # Skip for legacy sentinels: _normalize_target already fired a FutureWarning;
         # re-running the guard here would report the wrong migration path.
         _function_misconfigured = False
@@ -719,7 +770,12 @@ def deprecated(
 
             state = cast(_DeprecatedCallable, wrapped_fn)._state
             state.called += 1
-            dep_cfg = cast(_DeprecatedCallable, wrapped_fn).__deprecated__
+            # Read DeprecationConfig from the closure rather than re-reading
+            # ``wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
+            # decorator stacked outside this one overwrites that attribute with a plain
+            # string, which then crashes on ``.misconfigured`` access. ``_state`` must
+            # still be read via attribute because it is mutable and updated between calls.
+            dep_cfg = _dep_cfg
             if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
                 warnings.warn(
                     f"'{source.__name__}' has an invalid deprecation configuration;"
@@ -819,6 +875,12 @@ def deprecated(
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
         )
+        # Bind ``DeprecationConfig`` into the wrapper closure so call-time reads
+        # survive PEP 702 ``typing_extensions.deprecated`` stacked outside this
+        # decorator overwriting ``wrapped_fn.__deprecated__`` with a string.
+        # ``wrapped_fn`` already captured this name from the enclosing scope via
+        # the late-binding closure rule; the assignment here is what populates it.
+        _dep_cfg = dep_meta
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta
         wrapped_fn_typed._state = _WrapperState()

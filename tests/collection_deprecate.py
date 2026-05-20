@@ -44,6 +44,7 @@ from functools import partial
 from typing import Any, Callable
 from warnings import warn
 
+import typing_extensions
 from sklearn.metrics import accuracy_score
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
@@ -57,6 +58,7 @@ from tests.collection_targets import (
     TargetColorEnum,
     TargetWithInjected,
     TimerDecorator,
+    _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
     base_pow_args,
     base_sum_kwargs,
@@ -67,6 +69,7 @@ from tests.collection_targets import (
     fn_with_default,
     identity_value,
     increment_value,
+    pep702_target,
     power_with_new_coef,
     return_b,
     return_z,
@@ -1274,3 +1277,61 @@ def make_explicit_notify_no_versions_warns() -> Callable[[int], int]:
         return identity_value(x)
 
     return fn
+
+
+# ========== PEP 702 stacking regression fixture (B1a) ==========
+# ``typing_extensions.deprecated`` stacked OUTSIDE pyDeprecate's ``@deprecated``
+# overwrites the inner wrapper's ``__deprecated__`` attribute with a plain string.
+# Pre-fix, ``wrapped_fn`` re-read ``__deprecated__`` from itself at call time and
+# crashed with ``AttributeError: 'str' object has no attribute 'misconfigured'``.
+# Capturing ``DeprecationConfig`` in a closure variable inside ``packing()`` keeps
+# the metadata reachable even after PEP 702 overwrites the attribute.
+#
+# Both intermediate bindings are underscore-prefixed so ``find_deprecation_wrappers``
+# skips them: the inner pyDeprecate wrapper is exposed through PEP 702, which sets a
+# plain string ``__deprecated__`` and would otherwise crash ``validate_deprecation_wrapper``.
+# The public ``pep702_stacked`` re-export is a thunk function with no ``__deprecated__``
+# attribute, so the audit walker steps over it without probing.
+_pep702_inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
+_pep702_stacked = typing_extensions.deprecated("use `pep702_target`")(_pep702_inner)
+
+
+def pep702_stacked(x: int) -> int:
+    """Tiny re-export thunk for the PEP 702 + pyDeprecate stacked wrapper.
+
+    Defined as a function (not a direct module-level binding to ``_pep702_stacked``) so
+    ``find_deprecation_wrappers`` does not treat the PEP 702 wrapper — whose
+    ``__deprecated__`` is a plain string — as a pyDeprecate audit target.
+    Forwards the call (and all warnings) to the stacked wrapper.
+    """
+    return _pep702_stacked(x)
+
+
+# ========== PEP 702 stacking regression fixture (B1b — deprecated_class proxy) ==========
+# ``typing_extensions.deprecated`` stacked OUTSIDE pyDeprecate's ``deprecated_class``
+# proxy wrapper.  The inner ``deprecated_class(...)`` returns a ``_DeprecatedProxy``
+# instance whose ``__deprecated__`` slot lives in the proxy instance ``__dict__``
+# (set via ``object.__setattr__``) and is read back via ``object.__getattribute__``.
+#
+# PEP 702's outer wrapper assigns ``arg.__deprecated__ = msg`` on the proxy.  That
+# attribute set routes through the proxy's forwarding ``__setattr__``, which calls
+# ``setattr(self._get_active(), "__deprecated__", msg)`` — landing on the wrapped
+# class, not on the proxy's own instance ``__dict__``.  As a result, the proxy's
+# ``object.__getattribute__(self, "__deprecated__")`` reads in ``_dep`` and ``__call__``
+# still resolve to the original ``DeprecationConfig`` and instantiation survives.
+#
+# This fixture is the B1b regression guard against re-introducing a clobber path.
+# Both intermediate bindings are underscore-prefixed so audit walkers do not probe
+# the PEP 702-wrapped plain function as a pyDeprecate target.
+_pep702_proxy_inner = deprecated_class(deprecated_in="0.8", remove_in="1.0")(_Pep702ProxyTarget)
+_pep702_proxy_stacked = typing_extensions.deprecated("use `Pep702ProxyTarget`")(_pep702_proxy_inner)
+
+
+def pep702_proxy_stacked() -> _Pep702ProxyTarget:
+    """Tiny re-export thunk for the PEP 702 + ``deprecated_class`` stacked proxy (B1b).
+
+    Returns a fresh instance produced by invoking the stacked wrapper.  Defined as
+    a function (not a module-level binding) so audit walkers skip the PEP 702
+    wrapper whose ``__deprecated__`` is a plain string.
+    """
+    return _pep702_proxy_stacked()

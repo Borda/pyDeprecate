@@ -176,6 +176,22 @@
             "@type": "Answer",
             "text": "This is intended behaviour. When args_mapping is provided without an explicit callable target, the proxy auto-resolves to TargetMode.ARGS_REMAP and warns only when an old argument name is actually present in the call. Callers already using the new argument name see no warning, matching the per-argument behaviour of @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...). To warn on every call regardless of argument names, set target=TargetMode.NOTIFY explicitly."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why did my object mutate despite setting read_only=True on deprecated_instance?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why did I get TypeError at decoration time about a cross-class method target?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8."
+          }
         }
       ]
     }

@@ -35,6 +35,7 @@ from deprecate.deprecation import (
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
+    _validate_template_mgs,
     deprecation_warning,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
@@ -64,6 +65,9 @@ class _DeprecatedProxy:
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
         read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
+            Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
+            ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
+            Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
         target: Optional replacement object.  When set, all attribute, item, and call access is forwarded to *target*
             instead of *obj*.
         args_mapping: Optional dict remapping keyword argument names when the proxy is called.  Keys are old argument
@@ -102,6 +106,9 @@ class _DeprecatedProxy:
         ``target=False`` plus NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy
         rewrites them away, so the final frozen :class:`DeprecationConfig` records every signal in one place.
         """
+        # Probe ``template_mgs`` against every documented placeholder so typos and malformed
+        # conversion specifiers fail at decoration time instead of on the first proxy access.
+        _validate_template_mgs(template_mgs)
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
         misconfigured = target is False or _misconfigured_override
@@ -655,6 +662,9 @@ def deprecated_instance(
             (default), the built-in template for the active scenario is used.  See
             :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
         read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
+            Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
+            ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
+            Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
             Caller-supplied values override entries with the same key.
 

@@ -225,6 +225,35 @@ def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
     return new_arg + injected
 
 
+def pep702_target(x: int) -> int:
+    """Target for PEP 702 stacking regression tests.
+
+    Doubles the input value so the wrapping test can confirm the inner pyDeprecate
+    @deprecated forwarded the call after PEP 702 ``typing_extensions.deprecated``
+    overwrote ``__deprecated__`` on the wrapper.
+    """
+    return x * 2
+
+
+class _Pep702ProxyTarget:
+    """Target class for PEP 702 stacking on ``deprecated_class`` proxy (B1b).
+
+    Provides a stable ``value()`` method so the stacking test can confirm that
+    instantiation and method dispatch survive after PEP 702
+    ``typing_extensions.deprecated`` was applied on top of the ``deprecated_class``
+    proxy wrapper.
+
+    Underscore-prefixed so :func:`deprecate.find_deprecation_wrappers` skips it: the
+    outer PEP 702 wrapper forwards its ``__deprecated__ = msg`` assignment through the
+    proxy's ``__setattr__`` onto this wrapped class, leaving a plain string on the
+    class attribute that would otherwise crash the audit walker.
+    """
+
+    def value(self) -> int:
+        """Return a stable sentinel value used by the B1b regression test."""
+        return 42
+
+
 def timing_wrapper(func: Callable) -> Callable:
     """Decorator to measure the execution time of a function."""
 
@@ -238,6 +267,16 @@ def timing_wrapper(func: Callable) -> Callable:
         return result
 
     return wrapper
+
+
+def stacked_inner_target(x: int) -> int:
+    """Inner target for stacked-callable-target guard tests."""
+    return x * 3
+
+
+def stacked_outer_target(x: int) -> int:
+    """Outer target for stacked-callable-target guard tests."""
+    return x * 5
 
 
 class TimerDecorator:
