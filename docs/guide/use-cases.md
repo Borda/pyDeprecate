@@ -355,8 +355,8 @@ def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
 
 
 compute_power(2, factor=3)  # → 2 warnings (arg rename + function deprecated), returns 8.0
-compute_power(2, scale=3)   # → 1 warning  (function deprecated only),          returns 8.0
-compute_power(2)             # → 1 warning  (function deprecated only),          returns 2.0
+compute_power(2, scale=3)  # → 1 warning  (function deprecated only),          returns 8.0
+compute_power(2)  # → 1 warning  (function deprecated only),          returns 2.0
 ```
 
 !!! danger "Wrong order raises `UserWarning` at decoration time"
@@ -365,14 +365,14 @@ compute_power(2)             # → 1 warning  (function deprecated only),       
 
 ### Supported stacking combinations
 
-| Outer (top) | Inner (bottom) | Status | Notes |
-|---|---|---|---|
-| `ARGS_REMAP` | `ARGS_REMAP` | ✓ Supported | Multi-step argument renames across versions |
-| `ARGS_REMAP` | `NOTIFY` | ✓ Supported | Lifecycle: rename args first, then deprecate the whole function |
-| `callable` | `ARGS_REMAP` | ✗ `UserWarning` at decoration | Collapse to `@deprecated(target=fn, args_mapping={...})` |
-| `ARGS_REMAP` | `callable` | ✗ `UserWarning` at decoration | Update the inner decorator to include both `target=` and `args_mapping=` |
-| `NOTIFY` | `NOTIFY` | ✗ `UserWarning` at decoration | Update the existing decorator's versions instead of adding a second one |
-| `NOTIFY` | `ARGS_REMAP` | ✗ `UserWarning` at decoration | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below |
+| Outer (top)  | Inner (bottom) | Status                        | Notes                                                                    |
+| ------------ | -------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| `ARGS_REMAP` | `ARGS_REMAP`   | ✓ Supported                   | Multi-step argument renames across versions                              |
+| `ARGS_REMAP` | `NOTIFY`       | ✓ Supported                   | Lifecycle: rename args first, then deprecate the whole function          |
+| `callable`   | `ARGS_REMAP`   | ✗ `UserWarning` at decoration | Collapse to `@deprecated(target=fn, args_mapping={...})`                 |
+| `ARGS_REMAP` | `callable`     | ✗ `UserWarning` at decoration | Update the inner decorator to include both `target=` and `args_mapping=` |
+| `NOTIFY`     | `NOTIFY`       | ✗ `UserWarning` at decoration | Update the existing decorator's versions instead of adding a second one  |
+| `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below                  |
 
 Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch accidental deprecated-to-deprecated chains automatically.
 

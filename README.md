@@ -547,16 +547,16 @@ def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
 
 
 compute_power(2, factor=3)  # → 2 warnings (arg rename + function deprecated), returns 8.0
-compute_power(2, scale=3)   # → 1 warning  (function deprecated only),          returns 8.0
+compute_power(2, scale=3)  # → 1 warning  (function deprecated only),          returns 8.0
 ```
 
 </details>
 
-| Outer (top) | Inner (bottom) | Status |
-|---|---|---|
-| `ARGS_REMAP` | `ARGS_REMAP` | ✓ Supported |
-| `ARGS_REMAP` | `NOTIFY` | ✓ Supported |
-| `callable` / `NOTIFY` | anything else | ✗ `UserWarning` at decoration time |
+| Outer (top)           | Inner (bottom) | Status                             |
+| --------------------- | -------------- | ---------------------------------- |
+| `ARGS_REMAP`          | `ARGS_REMAP`   | ✓ Supported                        |
+| `ARGS_REMAP`          | `NOTIFY`       | ✓ Supported                        |
+| `callable` / `NOTIFY` | anything else  | ✗ `UserWarning` at decoration time |
 
 <br>
 
