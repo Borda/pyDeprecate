@@ -42,6 +42,7 @@ repos:
     rev: v1.7.8
     hooks:
       - id: docformatter
+        # python3.10: wheel/compat issue prevents running the hook under 3.12+; revisit after next rev bump
         # TODO: remove language_version pin after new docformatter release with python 3.14 support
         language_version: python3.10
         additional_dependencies: [tomli]
