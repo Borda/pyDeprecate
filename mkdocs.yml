@@ -1,5 +1,8 @@
 site_name: pyDeprecate — Python Deprecation Library
-site_description: Simple tooling for marking deprecated functions or classes and re-routing to their successors.
+site_description: >-
+  Python deprecation decorator library for API migration: automatic call forwarding,
+  argument renaming, class and instance deprecation, warning control, and CI audit
+  checks for removal deadlines. Zero runtime dependencies.
 site_url: https://borda.github.io/pyDeprecate/
 repo_url: https://github.com/Borda/pyDeprecate
 repo_name: Borda/pyDeprecate
@@ -55,6 +58,13 @@ nav:
   - Getting Started: getting-started.md
   - User Guide:
       - Use Cases: guide/use-cases.md
+      - Python Deprecation Decorator: guide/python-deprecation-decorator.md
+      - Replace warnings.warn: guide/replace-warnings-warn.md
+      - Deprecate Arguments: guide/deprecate-arguments.md
+      - API Migration CI: guide/api-migration-ci.md
+      - Agent Recipes: guide/agent-recipes.md
+      - Class and Object Deprecation: guide/class-object-deprecation.md
+      - Compare Python Deprecation Tools: guide/compare-python-deprecation-tools.md
       - void() Helper: guide/void-helper.md
       - Audit Tools: guide/audit.md
       - CLI: guide/cli.md
