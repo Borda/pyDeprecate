@@ -43,7 +43,7 @@ repos:
     hooks:
       - id: docformatter
         # TODO: remove language_version pin after new docformatter release with python 3.14 support
-        language_version: python3.12
+        language_version: python3.10
         additional_dependencies: [tomli]
         args: ["--in-place"]
 
