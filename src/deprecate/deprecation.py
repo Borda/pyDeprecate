@@ -185,7 +185,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     )
 
 
-def _warn_stacking_misconfiguration(source: "_HasDeprecationMeta", outer_target: Union[TargetMode, Callable]) -> None:
+def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: Union[TargetMode, Callable]) -> None:
     """Emit ``UserWarning`` at decoration time for unsupported stacking combinations.
 
     Only called when ``source`` already carries ``__deprecated__`` metadata (i.e. is itself a
