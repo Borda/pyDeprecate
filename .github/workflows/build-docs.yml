@@ -315,6 +315,24 @@ jobs:
             --template docs/overrides/mike_redirect.html \
             "${SET_DEFAULT}"
 
+      - name: 🤖 Deploy root-level AI discoverability files
+        if: env.SKIP != 'true'
+        run: |
+          set -euo pipefail
+          # robots.txt and llms.txt must live at the gh-pages root so AI crawlers find them
+          # at the canonical paths /robots.txt and /llms.txt. Mike deploys versioned content
+          # only to subdirectories, so we inject these files directly into the branch root.
+          # Use a non-existent path — git worktree add creates it; mktemp -d would pre-create
+          # the directory and cause "already exists" failure.
+          TMPWORKTREE="/tmp/pyDeprecate-gh-pages-$$"
+          git worktree add "$TMPWORKTREE" "${GH_PAGES_BRANCH}"
+          cp docs/robots.txt "$TMPWORKTREE/robots.txt"
+          cp docs/llms.txt "$TMPWORKTREE/llms.txt"
+          git -C "$TMPWORKTREE" add robots.txt llms.txt
+          git -C "$TMPWORKTREE" diff --cached --quiet \
+            || git -C "$TMPWORKTREE" commit -m "chore(deploy): sync root robots.txt and llms.txt for AI crawler discoverability"
+          git worktree remove --force "$TMPWORKTREE"
+
       - name: 📦 Export built site
         if: env.SKIP != 'true'
         run: |

@@ -31,7 +31,10 @@ def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
 def on_post_page(output: str, page: Page, config: MkDocsConfig, **_kwargs: object) -> str:
     """Inject the llms.txt link directive into every rendered page's <head>."""
     site_url = str(getattr(config, "site_url", "") or "").rstrip("/")
-    llms_url = f"{site_url}/llms.txt" if site_url else "/llms.txt"
+    # mike overrides site_url with a versioned path (e.g. .../v0.8.0) during versioned builds;
+    # strip the trailing version/alias segment so the link always points to the root llms.txt.
+    root_url = re.sub(r"/(?:v?\d[\w.]*|stable|dev|latest)$", "", site_url)
+    llms_url = f"{root_url}/llms.txt" if root_url else "/llms.txt"
     link_tag = f'  <link rel="alternate" type="text/markdown" href="{llms_url}">\n'
     head_marker = "</head>"
     html_marker = "</html>"
