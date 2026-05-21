@@ -153,7 +153,8 @@ class TestDeprecatedEnums:
     def test_enum_attribute_access_warns(self) -> None:
         """Test that attribute access on a deprecated Enum proxy emits a FutureWarning.
 
-        Unlike the old _DeprecatedEnumWrapper, _DeprecatedProxy warns on every access (attribute, subscript, call) —
+        Unlike the old ``_DeprecatedEnumWrapper``, ``_DeprecatedProxy`` warns on every access (attribute, subscript,
+        call) —
         consistent with deprecating the class as a whole.
 
         """
