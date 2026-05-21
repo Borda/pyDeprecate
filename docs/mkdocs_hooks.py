@@ -183,8 +183,9 @@ def _pydeprecate_json_ld(page: Page) -> list[dict[str, Any]]:
 
 
 def on_page_context(context: dict[str, object], page: Page, config: MkDocsConfig, nav: object) -> dict[str, object]:
-    context["pydeprecate_canonical_url"] = _pydeprecate_public_url(page)
-    page.canonical_url = context["pydeprecate_canonical_url"]
+    canonical = _pydeprecate_public_url(page)
+    context["pydeprecate_canonical_url"] = canonical
+    page.canonical_url = canonical
     return context
 
 
