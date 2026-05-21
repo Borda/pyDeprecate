@@ -622,18 +622,18 @@ class TestCliEntryPoint:
     """Tests for the cli() Fire-based entry point."""
 
     def test_no_subcommand_shows_help(self) -> None:
-        """Cli() with no arguments prints help and returns (Fire does not exit for dict components)."""
+        """``cli()`` with no arguments prints help and returns (Fire does not exit for dict components)."""
         with patch("sys.argv", ["pydeprecate"]):
             cli()  # no SystemExit — Fire prints help and returns
 
     def test_help_exits_zero(self) -> None:
-        """Cli() with --help exits 0."""
+        """``cli()`` with --help exits 0."""
         with patch("sys.argv", ["pydeprecate", "--help"]), pytest.raises(SystemExit) as exc_info:
             cli()
         assert exc_info.value.code == 0
 
     def test_check_subcommand_dispatches(self) -> None:
-        """Cli() with check subcommand calls cmd_check and exits via _wrap(sys.exit)."""
+        """``cli()`` with check subcommand calls cmd_check and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
             patch("deprecate._cli.cmd_check", return_value=0) as mock_check,
@@ -644,7 +644,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_expiry_subcommand_dispatches(self) -> None:
-        """Cli() with expiry subcommand calls cmd_expiry and exits via _wrap(sys.exit)."""
+        """``cli()`` with expiry subcommand calls cmd_expiry and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--version", "2.0"]),
             patch("deprecate._cli.cmd_expiry", return_value=0) as mock_expiry,
@@ -655,7 +655,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_chains_subcommand_dispatches(self) -> None:
-        """Cli() with chains subcommand calls cmd_chains and exits via _wrap(sys.exit)."""
+        """``cli()`` with chains subcommand calls cmd_chains and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "chains", "some_module"]),
             patch("deprecate._cli.cmd_chains", return_value=0) as mock_chains,
@@ -666,7 +666,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_all_subcommand_dispatches(self) -> None:
-        """Cli() with all subcommand calls cmd_all and exits via _wrap(sys.exit)."""
+        """``cli()`` with all subcommand calls cmd_all and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "all", "some_module"]),
             patch("deprecate._cli.cmd_all", return_value=0) as mock_all,
@@ -677,7 +677,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_exit_code_propagated(self) -> None:
-        """Cli() propagates the non-zero exit code from the subcommand."""
+        """``cli()`` propagates the non-zero exit code from the subcommand."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
             patch("deprecate._cli.cmd_check", return_value=1),
