@@ -127,9 +127,7 @@ if _SPHINX_AVAILABLE:
                 return result
 
             def get_doc(self) -> list[list[str]] | None:
-                """Return the proxy docstring so the deprecated block is rendered.
-
-                """
+                """Return the proxy docstring so the deprecated block is rendered."""
                 proxy_doc: str = getattr(self, "_proxy_doc", "")
                 if proxy_doc:
                     return [prepare_docstring(proxy_doc)]
