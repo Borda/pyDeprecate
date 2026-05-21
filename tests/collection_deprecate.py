@@ -63,6 +63,7 @@ from tests.collection_targets import (
     base_pow_args,
     base_sum_kwargs,
     both_old_new_target,
+    compute_power,
     cross_guard_standalone_increment,
     double_value,
     fn_remap_with_extra_body,
@@ -636,28 +637,27 @@ def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float =
     return base ** (c1 + nc1 + nc2)
 
 
-@deprecated(TargetMode.ARGS_REMAP, "1.0", "2.0", args_mapping={"factor": "scale"})
-@deprecated(TargetMode.NOTIFY, "2.0", "3.0")
-def depr_compute_power_stacked(base: float, factor: float = 1, scale: float = 1) -> float:
-    """Lifecycle stacking: arg rename (v1.0) + whole-function notice (v2.0).
+def make_depr_compute_power_stacked() -> Callable:
+    """Return a fresh ARGS_REMAP-outer + NOTIFY-inner stacked fixture.
 
-    The outer ARGS_REMAP layer warns when ``factor`` is used (renamed to ``scale`` in
-    v1.0). The inner NOTIFY layer warns on every call that the whole function is
-    deprecated since v2.0. Both layers fire independently, so callers still using the
-    old name receive both warnings.
+    Each call produces a new wrapper pair with an independent ``_WrapperState``,
+    preventing ``num_warns`` counter exhaustion across tests.
 
     Examples:
-        Calling with the old name raises two warnings (arg rename + function deprecated).
+        Calling with the old arg name raises two warnings.
 
         >>> import warnings
+        >>> fn = make_depr_compute_power_stacked()
         >>> with warnings.catch_warnings(record=True) as w:
         ...     warnings.simplefilter("always")
-        ...     result = depr_compute_power_stacked(2, factor=3)
-        ... # doctest: +SKIP
-        >>> result  # doctest: +SKIP
+        ...     result = fn(2.0, factor=3.0)
+        >>> result
         8.0
+        >>> len(w)
+        2
     """
-    return base**scale
+    inner = deprecated(TargetMode.NOTIFY, "2.0", "3.0")(compute_power)
+    return deprecated(TargetMode.ARGS_REMAP, "1.0", "2.0", args_mapping={"factor": "scale"})(inner)
 
 
 @deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)

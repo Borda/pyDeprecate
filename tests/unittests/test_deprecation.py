@@ -34,6 +34,7 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    make_depr_compute_power_stacked,
     pep702_stacked,
 )
 from tests.collection_targets import KeywordCallTarget, call_signature_source
@@ -1055,14 +1056,7 @@ class TestStackedArgsRemapNotify:
 
     def _make_fresh(self) -> object:
         """Return a fresh stacked fixture each time to avoid num_warns counter exhaustion."""
-
-        def compute(base: float, factor: float = 1, scale: float = 1) -> float:
-            return base**scale
-
-        inner = deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(compute)
-        return deprecated(
-            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"factor": "scale"}
-        )(inner)
+        return make_depr_compute_power_stacked()
 
     def test_old_arg_fires_two_warnings(self) -> None:
         """Calling with the old arg name raises both the arg-rename and the function-deprecated warning."""
