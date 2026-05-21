@@ -73,6 +73,16 @@ def stacked_chain_identity(base: int) -> int:
     return base
 
 
+def compute_power(base: float, scale: float = 1) -> float:
+    """Return ``base ** scale``.
+
+    Target for the ARGS_REMAP-outer + NOTIFY-inner lifecycle stacking fixture.
+    The old parameter name ``factor`` was renamed to ``scale`` in v1.0; the whole
+    function is deprecated since v2.0.
+    """
+    return base**scale
+
+
 def return_b(b: int) -> int:
     """Return the mapped positional argument."""
     return b

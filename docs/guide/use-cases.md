@@ -289,13 +289,17 @@ with warnings.catch_warnings(record=True) as w:
 
     As of v0.8, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings: a `FutureWarning` for the legacy sentinel, and a `UserWarning` because `ARGS_REMAP` requires `args_mapping` to have any effect. This will become a `TypeError` in v1.0. If your intent is to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
 
-## Chained deprecation levels
+## Stacked deprecation decorators
 
-!!! warning "Stacked decorators can create unintended deprecation chains"
+Stack multiple `@deprecated` decorators on a single function to handle migrations that span several releases. Each layer tracks its own version range and warning count independently.
 
-    Each stacked `@deprecated(TargetMode.ARGS_REMAP, ...)` decorator emits its own notice. If you accidentally point a decorator's `target` at another deprecated function instead of the final implementation, callers receive redundant warnings. Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch these mistakes automatically.
+!!! warning "Not all stacking combinations are supported"
 
-When arguments are deprecated across multiple releases, stack one `@deprecated(TargetMode.ARGS_REMAP, ...)` per rename. Each decorator operates on its own version range and emits a separate notice, giving callers version-specific migration guidance.
+    Only two combinations work correctly. Everything else emits `UserWarning` at **decoration time** (not at call time) so you catch the misconfiguration immediately. See the [supported combinations table](#supported-stacking-combinations) below.
+
+### Pattern 1 — multi-step argument renames (ARGS_REMAP + ARGS_REMAP)
+
+When an argument is renamed more than once across releases, stack one `@deprecated(TargetMode.ARGS_REMAP, ...)` per rename. Each decorator operates on its own version range and emits a separate notice, giving callers version-specific migration guidance.
 
 ```python
 from deprecate import TargetMode, deprecated
@@ -326,13 +330,51 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>print(any_pow(2, 3)</code></summary>
+  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
 
 ```
 8
 ```
 
 </details>
+
+### Pattern 2 — lifecycle migration (ARGS_REMAP + NOTIFY)
+
+The most common real-world lifecycle: an argument is renamed in an early release (`ARGS_REMAP`), then the entire function is deprecated in a later release once a complete replacement exists (`NOTIFY`). Put `ARGS_REMAP` outermost (top decorator) and `NOTIFY` below it.
+
+Callers still using the old argument name receive **both** warnings — the arg-rename notice and the function-deprecated notice. Callers already using the new name receive only the function-deprecated notice.
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"factor": "scale"})
+@deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")
+def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
+    return base**scale
+
+
+compute_power(2, factor=3)  # → 2 warnings (arg rename + function deprecated), returns 8.0
+compute_power(2, scale=3)   # → 1 warning  (function deprecated only),          returns 8.0
+compute_power(2)             # → 1 warning  (function deprecated only),          returns 2.0
+```
+
+!!! danger "Wrong order raises `UserWarning` at decoration time"
+
+    `@deprecated(NOTIFY)` on top of `@deprecated(ARGS_REMAP)` is the wrong order — pyDeprecate detects it and warns immediately at decoration time with the message *"Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost"*.
+
+### Supported stacking combinations
+
+| Outer (top) | Inner (bottom) | Status | Notes |
+|---|---|---|---|
+| `ARGS_REMAP` | `ARGS_REMAP` | ✓ Supported | Multi-step argument renames across versions |
+| `ARGS_REMAP` | `NOTIFY` | ✓ Supported | Lifecycle: rename args first, then deprecate the whole function |
+| `callable` | `ARGS_REMAP` | ✗ `UserWarning` at decoration | Collapse to `@deprecated(target=fn, args_mapping={...})` |
+| `ARGS_REMAP` | `callable` | ✗ `UserWarning` at decoration | Update the inner decorator to include both `target=` and `args_mapping=` |
+| `NOTIFY` | `NOTIFY` | ✗ `UserWarning` at decoration | Update the existing decorator's versions instead of adding a second one |
+| `NOTIFY` | `ARGS_REMAP` | ✗ `UserWarning` at decoration | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below |
+
+Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch accidental deprecated-to-deprecated chains automatically.
 
 ## Conditional skip
 

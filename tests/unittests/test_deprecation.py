@@ -990,3 +990,109 @@ class TestStackedCallableTargetGuard:
         inner = deprecated(target=stacked_inner_target, deprecated_in="0.8", remove_in="1.0")(stacked_outer_target)
         with pytest.warns(UserWarning, match="callable target stacked"):
             deprecated(target=stacked_outer_target, deprecated_in="0.8", remove_in="1.0")(inner)
+
+
+class TestStackingGuards:
+    """Decoration-time ``UserWarning`` for every unsupported stacking combination.
+
+    Each guard surfaces a misconfiguration before the first call rather than producing
+    silently wrong results or raising ``TypeError`` at runtime.  The callable+callable
+    case is covered by ``TestStackedCallableTargetGuard``; this class covers the four
+    remaining combinations.
+    """
+
+    def _make_source(self, **kwargs: object) -> object:
+        """Return a minimal function decorated with @deprecated using the given kwargs."""
+
+        def fn(x: int = 0) -> int:
+            return x
+
+        return deprecated(**kwargs)(fn)
+
+    def test_callable_over_args_remap_warns(self) -> None:
+        """Callable-target outer stacked over ARGS_REMAP inner emits ``UserWarning``."""
+        from tests.collection_targets import stacked_outer_target
+
+        inner = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
+        )
+        with pytest.warns(UserWarning, match="callable target stacked over.*ARGS_REMAP"):
+            deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
+
+    def test_args_remap_over_callable_warns(self) -> None:
+        """ARGS_REMAP outer stacked over callable-target inner emits ``UserWarning``."""
+        from tests.collection_targets import stacked_outer_target
+
+        inner = self._make_source(target=stacked_outer_target, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(UserWarning, match="ARGS_REMAP.*stacked over a callable"):
+            deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"x": "y"})(
+                inner
+            )
+
+    def test_notify_over_notify_warns(self) -> None:
+        """Duplicate NOTIFY layers emit ``UserWarning`` at decoration time."""
+        inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(UserWarning, match="duplicate.*NOTIFY"):
+            deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+
+    def test_notify_over_args_remap_warns_with_order_hint(self) -> None:
+        """NOTIFY outer + ARGS_REMAP inner (wrong order) emits ``UserWarning`` with order hint."""
+        inner = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
+        )
+        with pytest.warns(UserWarning, match="Reverse the decorator order"):
+            deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+
+
+class TestStackedArgsRemapNotify:
+    """Behaviour of the supported ARGS_REMAP-outer + NOTIFY-inner lifecycle stacking.
+
+    Pattern: ``@deprecated(ARGS_REMAP, ...)`` on top, ``@deprecated(NOTIFY, ...)`` below.
+    This matches the lifecycle where arguments are renamed in an earlier release and the
+    whole function is deprecated in a later one.  Both warning layers must fire
+    independently; the inner NOTIFY must run even when no deprecated argument is present.
+    """
+
+    def _make_fresh(self) -> object:
+        """Return a fresh stacked fixture each time to avoid num_warns counter exhaustion."""
+
+        def compute(base: float, factor: float = 1, scale: float = 1) -> float:
+            return base**scale
+
+        inner = deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(compute)
+        return deprecated(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"factor": "scale"}
+        )(inner)
+
+    def test_old_arg_fires_two_warnings(self) -> None:
+        """Calling with the old arg name raises both the arg-rename and the function-deprecated warning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2, factor=3)  # type: ignore[operator]
+        assert result == 8.0
+        assert len(record) == 2
+
+    def test_new_arg_fires_only_notify(self) -> None:
+        """Calling with the new arg name raises only the function-deprecated (NOTIFY) warning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2, scale=3)  # type: ignore[operator]
+        assert result == 8.0
+        assert len(record) == 1
+
+    def test_no_deprecated_args_fires_only_notify(self) -> None:
+        """Calling with no arguments at all still fires the NOTIFY warning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2)  # type: ignore[operator]
+        assert result == 2.0
+        assert len(record) == 1
+
+    def test_positional_call_fires_two_warnings(self) -> None:
+        """Positional call mapping to the old arg position fires both warnings."""
+        fn = self._make_fresh()
+        # positional: base=2, factor=3 (old positional slot)
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2, 3)  # type: ignore[operator]
+        assert result == 8.0
+        assert len(record) == 2

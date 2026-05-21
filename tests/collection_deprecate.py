@@ -636,6 +636,30 @@ def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float =
     return base ** (c1 + nc1 + nc2)
 
 
+@deprecated(TargetMode.ARGS_REMAP, "1.0", "2.0", args_mapping={"factor": "scale"})
+@deprecated(TargetMode.NOTIFY, "2.0", "3.0")
+def depr_compute_power_stacked(base: float, factor: float = 1, scale: float = 1) -> float:
+    """Lifecycle stacking: arg rename (v1.0) + whole-function notice (v2.0).
+
+    The outer ARGS_REMAP layer warns when ``factor`` is used (renamed to ``scale`` in
+    v1.0). The inner NOTIFY layer warns on every call that the whole function is
+    deprecated since v2.0. Both layers fire independently, so callers still using the
+    old name receive both warnings.
+
+    Examples:
+        Calling with the old name raises two warnings (arg rename + function deprecated).
+
+        >>> import warnings
+        >>> with warnings.catch_warnings(record=True) as w:
+        ...     warnings.simplefilter("always")
+        ...     result = depr_compute_power_stacked(2, factor=3)
+        ... # doctest: +SKIP
+        >>> result  # doctest: +SKIP
+        8.0
+    """
+    return base**scale
+
+
 @deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
 @deprecated(
     TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False

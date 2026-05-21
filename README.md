@@ -37,7 +37,7 @@ ______________________________________________________________________
   - [Advanced target argument mapping](#advanced-target-argument-mapping)
   - [Deprecation warning only](#deprecation-warning-only)
   - [Self argument mapping](#self-argument-mapping)
-  - [Multiple deprecation levels](#multiple-deprecation-levels)
+  - [Stacked deprecation decorators](#stacked-deprecation-decorators)
   - [Conditional skip](#conditional-skip)
   - [Class deprecation](#class-deprecation)
   - [Deprecating constants and instances](#deprecating-constants-and-instances)
@@ -104,7 +104,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 - **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
 - **CI/Audit Tools**: Validate wrapper configuration, and—when installed with the `pyDeprecate[audit]` extra—enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
-- **Decorator Stacking**: Stack multiple `@deprecated` decorators on one function for multi-level argument migration, with each layer tracking its own version range and warning count independently.
+- **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
 - **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
 - **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
 
@@ -488,12 +488,12 @@ my_func(value=42, legacy_param="old")
 > [!WARNING]
 > `TargetMode.ARGS_REMAP` without `args_mapping` is a misconfiguration; using it emits a construction-time `UserWarning`. This will become a `TypeError` in v1.0. If you only want to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
 
-### 🔗 Multiple deprecation levels
+### 🔗 Stacked deprecation decorators
 
-Eventually you can set multiple deprecation levels via chaining deprecation arguments as each could be deprecated in another version:
+Stack `@deprecated` decorators to handle multi-version deprecation migrations. Each layer tracks its own version range and warning count independently.
 
 <details>
-  <summary>Example: chaining two argument deprecations across different versions</summary>
+  <summary>Pattern 1: multi-step argument renames (ARGS_REMAP + ARGS_REMAP)</summary>
 
 ```python
 from deprecate import TargetMode, deprecated
@@ -530,6 +530,33 @@ code output:
 ```
 
 </details>
+
+<details>
+  <summary>Pattern 2: lifecycle migration (ARGS_REMAP + NOTIFY)</summary>
+
+Rename an argument in v1.0, then deprecate the whole function in v2.0 when a complete replacement exists. `ARGS_REMAP` must be the outermost (top) decorator; `NOTIFY` goes below it.
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"factor": "scale"})
+@deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")
+def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
+    return base**scale
+
+
+compute_power(2, factor=3)  # → 2 warnings (arg rename + function deprecated), returns 8.0
+compute_power(2, scale=3)   # → 1 warning  (function deprecated only),          returns 8.0
+```
+
+</details>
+
+| Outer (top) | Inner (bottom) | Status |
+|---|---|---|
+| `ARGS_REMAP` | `ARGS_REMAP` | ✓ Supported |
+| `ARGS_REMAP` | `NOTIFY` | ✓ Supported |
+| `callable` / `NOTIFY` | anything else | ✗ `UserWarning` at decoration time |
 
 <br>
 
