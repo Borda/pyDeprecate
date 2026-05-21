@@ -89,11 +89,11 @@
   "url": "https://borda.github.io/pyDeprecate/dev/getting-started.html",
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/dev/getting-started.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
-  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
-  "publisher": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
-  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2"] },
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
+  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-05-12"
+  "dateModified": "2026-05-21"
 }
 </script>
 
@@ -126,28 +126,28 @@
       "position": 1,
       "name": "Install pyDeprecate",
       "text": "Run pip install pyDeprecate in your Python 3.9+ environment. No runtime dependencies are added.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#installation"
+      "url": "https://borda.github.io/pyDeprecate/devgetting-started.html#installation"
     },
     {
       "@type": "HowToStep",
       "position": 2,
       "name": "Import the decorator",
       "text": "Add from deprecate import deprecated at the top of your Python file.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#quick-start"
+      "url": "https://borda.github.io/pyDeprecate/devgetting-started.html#quick-start"
     },
     {
       "@type": "HowToStep",
       "position": 3,
       "name": "Apply @deprecated to the old function",
       "text": "Decorate the old function with @deprecated(target=new_function, deprecated_in='1.0', remove_in='2.0'). Calls to the old name emit a FutureWarning and automatically forward to the new function.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#quick-start"
+      "url": "https://borda.github.io/pyDeprecate/devgetting-started.html#quick-start"
     },
     {
       "@type": "HowToStep",
       "position": 4,
       "name": "Enforce the removal deadline in CI",
       "text": "Install the audit extra with pip install pyDeprecate[audit] and call validate_deprecation_expiry() in your CI pipeline to catch deprecated code past its deadline.",
-      "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html#installation"
+      "url": "https://borda.github.io/pyDeprecate/devgetting-started.html#installation"
     }
   ]
 }
@@ -414,6 +414,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-pydeprecate-instead-of-warningswarn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why pyDeprecate instead of warnings.warn?
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#installation" class="md-nav__link">
@@ -869,6 +880,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#why-pydeprecate-instead-of-warningswarn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why pyDeprecate instead of warnings.warn?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#installation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -920,6 +942,14 @@
 
 <h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">🔗</a></h1>
 <p>You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.</p>
+<h2 id="why-pydeprecate-instead-of-warningswarn">Why pyDeprecate instead of <code>warnings.warn</code>?<a class="headerlink" href="#why-pydeprecate-instead-of-warningswarn" title="Permanent link">🔗</a></h2>
+<p><code>warnings.warn</code> tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:</p>
+<ul>
+<li><strong>Automatic call forwarding</strong> — every call to the old function is transparently redirected to the replacement; no stale code runs.</li>
+<li><strong>Argument mapping</strong> — rename or drop arguments across the API boundary with <code>args_mapping={"old": "new"}</code> to help callers migrate to the new signature.</li>
+<li><strong>CI deadline enforcement</strong> — <code>validate_deprecation_expiry()</code> (via <code>pip install pyDeprecate[audit]</code>) raises in CI when a removal date has passed, so deprecated code cannot quietly outlive its deadline.</li>
+</ul>
+<p>If you only need a one-line notice with no forwarding and no deadline tracking, <code>warnings.warn</code> is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.</p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">🔗</a></h2>
 <p>pyDeprecate requires <strong>Python 3.9 or later</strong> and has zero runtime dependencies.</p>
 <p>Install from PyPI:</p>
@@ -1008,8 +1038,8 @@
 <tbody>
 <tr>
 <td><code>target</code></td>
-<td>—</td>
-<td><code>Callable</code> to forward to · <code>True</code> to remap args in-place · <code>None</code> notice-only</td>
+<td><code>TargetMode.NOTIFY</code></td>
+<td><code>Callable</code> to forward to · <code>TargetMode.ARGS_REMAP</code> to remap args · <code>TargetMode.NOTIFY</code> (default) warn-only</td>
 </tr>
 <tr>
 <td><code>deprecated_in</code></td>
@@ -1063,7 +1093,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>@deprecated_class()</code> shares <code>target</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_mapping</code>, <code>args_extra</code>, <code>template_mgs</code>, <code>update_docstring</code>, and <code>docstring_style</code>. <code>deprecated_instance()</code> shares <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, and <code>stream</code>; it requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
+<p><code>@deprecated_class()</code> shares <code>target</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_mapping</code>, <code>args_extra</code>, <code>template_mgs</code>, <code>update_docstring</code>, and <code>docstring_style</code>. <code>deprecated_instance()</code> shares <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_extra</code>, and <code>template_mgs</code>; it requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
 <hr />
 <p>Next: <a href="guide/use-cases.html">Use Cases</a> — thirteen real-world deprecation patterns with full code examples. See also: <a href="guide/customization.html">Customization</a> · <a href="guide/audit.html">Audit Tools</a> · <a href="troubleshooting.html">Troubleshooting</a></p>
 
@@ -1088,7 +1118,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 12, 2026 22:52:42 UTC">2026-05-12</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 21, 2026 05:00:20 UTC">2026-05-21</span>
   </span>
 
     
