@@ -77,7 +77,7 @@ class TestProxyWarnBehavior:
         assert len(caught) == 2
 
     def test_warn_no_stream(self) -> None:
-        """Stream=None suppresses all warnings."""
+        """``stream=None`` suppresses all warnings."""
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -450,7 +450,7 @@ class TestProxyNoWarnMethods:
         assert p1 != p2
 
     def test_hash_matches_inner(self) -> None:
-        """Hash(proxy) equals hash(wrapped object) for hashable types, without emitting a warning."""
+        """``hash(proxy)`` equals hash(wrapped object) for hashable types, without emitting a warning."""
         inner = (1, 2, 3)
         proxy = _DeprecatedProxy(obj=inner, name="t", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
@@ -774,7 +774,7 @@ class TestContainerProtocolWithTarget:
     """
 
     def test_bool_reads_from_target_when_set(self) -> None:
-        """Bool(proxy) evaluates the active object (target when set), not the original source."""
+        """``bool(proxy)`` evaluates the active object (target when set), not the original source."""
         proxy = _DeprecatedProxy(
             obj=[1, 2, 3],  # truthy source
             target=[],  # falsy target
@@ -787,10 +787,10 @@ class TestContainerProtocolWithTarget:
 
 
 class TestHashOnUnhashableType:
-    """Hash() behaviour for proxies wrapping unhashable objects."""
+    """``hash()`` behaviour for proxies wrapping unhashable objects."""
 
     def test_hash_raises_for_unhashable_source(self) -> None:
-        """Hash(proxy) raises TypeError when the wrapped object is unhashable (e.g. dict).
+        """``hash(proxy)`` raises TypeError when the wrapped object is unhashable (e.g. dict).
 
         Propagates TypeError from the underlying hash() call with no additional context.
 
@@ -902,7 +902,7 @@ class TestDeprecatedInstance:
         assert len(caught) == 1
 
     def test_stream_none_suppresses_on_item_access(self) -> None:
-        """Stream=None suppresses warnings even when items are accessed via __getitem__."""
+        """``stream=None`` suppresses warnings even when items are accessed via __getitem__."""
         proxy = deprecated_instance({"k": "v"}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
