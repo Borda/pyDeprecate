@@ -153,8 +153,9 @@ class TestDeprecatedEnums:
     def test_enum_attribute_access_warns(self) -> None:
         """Test that attribute access on a deprecated Enum proxy emits a FutureWarning.
 
-        Unlike the old _DeprecatedEnumWrapper, _DeprecatedProxy warns on every access
-        (attribute, subscript, call) — consistent with deprecating the class as a whole.
+        Unlike the old _DeprecatedEnumWrapper, _DeprecatedProxy warns on every access (attribute, subscript, call) —
+        consistent with deprecating the class as a whole.
+
         """
         with pytest.warns(FutureWarning):
             assert DeprecatedEnum.ALPHA.value == "alpha"
@@ -291,7 +292,7 @@ class TestDeprecatedClassMethod:
 
     @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
     def test_self_rename_with_deprecated_arg_warns(self, service_cls: type) -> None:
-        """target=True with args_mapping renames old_x->x within the same method."""
+        """Target=True with args_mapping renames old_x->x within the same method."""
         svc = service_cls()
         with pytest.warns(FutureWarning, match="self_renamed_method.*old_x.*x"):
             result = svc.self_renamed_method(old_x=5)
@@ -325,8 +326,9 @@ class TestDeprecatedClassMethod:
 def test_deprecated_class_attribute_set_at_decoration_time() -> None:
     """Test that __deprecated__ attribute is set at decoration time, not call time.
 
-    This verifies that the __deprecated__ attribute is available immediately
-    after the decorator is applied, without needing to call the class first.
+    This verifies that the __deprecated__ attribute is available immediately after the decorator is applied, without
+    needing to call the class first.
+
     """
     # Verify __deprecated__ is set on the __init__ WITHOUT instantiating the class
     assert hasattr(PastCls.__init__, "__deprecated__")
@@ -374,7 +376,7 @@ class TestEnumFormEquivalence(_ClassFormBase):
         assert isinstance(NewEnum.ALPHA, proxy)  # type: ignore[arg-type]
 
     def test_issubclass_check(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """issubclass(NewEnum, proxy) is True via __subclasscheck__."""
+        """Issubclass(NewEnum, proxy) is True via __subclasscheck__."""
         assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
@@ -408,7 +410,7 @@ class TestDataclassFormEquivalence(_ClassFormBase):
             proxy(label="x")
 
     def test_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """proxy(label='x') returns a NewDataClass instance with correct fields."""
+        """Proxy(label='x') returns a NewDataClass instance with correct fields."""
         with pytest.warns(FutureWarning):
             instance = proxy(label="x")
         assert isinstance(instance, NewDataClass)

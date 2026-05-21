@@ -20,6 +20,7 @@ Key Components:
     - Orchestrator: :func:`_update_docstring_with_deprecation`
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
+
 """
 
 import inspect
@@ -110,6 +111,7 @@ def _auto_detect_style() -> Literal["rst", "mkdocs"]:
     2. ``sys.modules`` — ``mkdocs`` imported → MkDocs build in progress.
     3. ``sys.argv[0]`` full path — ``mkdocs`` anywhere in the path string.
     4. Default → ``"rst"``.
+
     """
     env_style = os.environ.get("DEPRECATE_DOCSTRING_STYLE", "").lower()
     if env_style in ("mkdocs", "markdown"):
@@ -552,6 +554,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
         """Return True if ``block_lines`` appears as a contiguous block in ``doc_lines``.
 
         Lines are compared using ``.strip()`` to ignore leading/trailing whitespace.
+
         """
         if not block_lines:
             return False

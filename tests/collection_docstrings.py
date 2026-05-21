@@ -51,6 +51,7 @@ def old_google_style_function(a: int, b: str = "old") -> str:
 
     Returns:
         A formatted output.
+
     """
     return f"old {a} {b}"
 
@@ -65,6 +66,7 @@ def old_numpy_style_function(a: int, b: str = "old") -> str:
         Number argument.
     b : str
         Text argument.
+
     """
     return f"old {a} {b}"
 
@@ -97,6 +99,7 @@ def old_mkdocs_style_function(a: int, b: str = "old") -> str:
 
     Returns:
         A formatted output.
+
     """
     return f"old {a} {b}"
 
@@ -117,6 +120,7 @@ def old_markdown_alias_function(a: int, b: str = "old") -> str:
 
     Returns:
         A formatted output.
+
     """
     return f"old {a} {b}"
 
@@ -158,6 +162,7 @@ def google_args_removed(lr: float = 0.01, train_config: object = None) -> str:
 
     Returns:
         Training result.
+
     """
     return f"lr={lr}"
 
@@ -179,6 +184,7 @@ def google_args_renamed(lr: float = 0.01, train_config: object = None, config: o
 
     Returns:
         Training result.
+
     """
     return f"lr={lr}"
 
@@ -196,6 +202,7 @@ def sphinx_args_removed(lr: float = 0.01, train_config: object = None) -> str:
     :param lr: Learning rate for training.
     :param train_config: Training configuration object.
     :returns: Training result.
+
     """
     return f"lr={lr}"
 
@@ -213,6 +220,7 @@ def args_not_in_docstring(lr: float = 0.01) -> str:
 
     Args:
         lr: Learning rate for training.
+
     """
     return f"lr={lr}"
 
@@ -234,6 +242,7 @@ def google_multi_args_all_found(new_a: int = 0, old_a: int = 0, old_b: str = "")
 
     Returns:
         Result.
+
     """
     return f"{new_a}"
 
@@ -255,6 +264,7 @@ def google_partial_annotation(new_a: int = 0, old_a: int = 0) -> str:
 
     Returns:
         Result.
+
     """
     return f"{new_a}"
 
@@ -275,6 +285,7 @@ def google_arguments_header(lr: float = 0.01, train_config: object = None) -> st
 
     Returns:
         Training result.
+
     """
     return f"lr={lr}"
 
@@ -292,6 +303,7 @@ def sphinx_arg_not_in_docstring(lr: float = 0.01) -> str:
 
     :param lr: Learning rate for training.
     :returns: Training result.
+
     """
     return f"lr={lr}"
 
@@ -315,6 +327,7 @@ def google_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
 
     Returns:
         Training result.
+
     """
     return f"lr={lr}"
 
@@ -335,6 +348,7 @@ def sphinx_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
         Passed directly to the trainer.
         Ignored when ``None``.
     :returns: Training result.
+
     """
     return f"lr={lr}"
 
@@ -356,6 +370,7 @@ def callable_target_with_args_mapping(a: int, b: str = "old") -> str:
 
     Returns:
         Forwarded result.
+
     """
     return new_function(a, b)
 
@@ -377,6 +392,7 @@ def no_target_with_args_mapping(a: int, b: str = "old") -> str:
 
     Returns:
         Result.
+
     """
     return f"{a}"
 
@@ -398,5 +414,6 @@ def mkdocs_no_target_with_args_mapping(a: int, b: str = "old") -> str:
 
     Returns:
         Result.
+
     """
     return f"{a}"

@@ -25,6 +25,7 @@ info and structured validation results for programmatic processing.
    version comparison. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
+
 """
 
 # Note: Proxy objects are discoverable via the generic ``callable(obj)`` +
@@ -112,6 +113,7 @@ class ChainType(Enum):
             caller's mapping feeds into the target's self-renaming, so both hops must be
             collapsed into one. (b) Multiple ``@deprecated(True, args_mapping=...)`` decorators
             are stacked on the same function and should be merged into a single decorator.
+
     """
 
     TARGET = "target"
@@ -185,6 +187,7 @@ class DeprecationWrapperInfo:
         Note:
             Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
             so accessing this property in a loop from the same call site emits at most one warning.
+
         """
         warnings.warn(
             "'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
@@ -200,6 +203,7 @@ class DeprecationWrapperInfo:
         Note:
             Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
             so accessing this property in a loop from the same call site emits at most one warning.
+
         """
         warnings.warn(
             "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0.",
@@ -267,6 +271,7 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
 
     Uses ``inspect.getmembers_static`` when available (Python 3.11+). For Python
     3.9/3.10 compatibility, falls back to ``dir()`` + ``inspect.getattr_static``.
+
     """
     getmembers_static = getattr(inspect, "getmembers_static", None)
     if callable(getmembers_static):
@@ -534,6 +539,7 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
 
     Raises:
         ImportError: If the ``packaging`` library is not installed.
+
     """
     current_ver = _parse_version(current_version)
     expired = []
@@ -805,4 +811,8 @@ def find_deprecated_callables(
 
 @deprecated_class(target=DeprecationWrapperInfo, deprecated_in="0.6", remove_in="1.0")
 class DeprecatedCallableInfo:
-    """Deprecated name for :class:`DeprecationWrapperInfo`. Use that instead."""
+    """Deprecated name for :class:`DeprecationWrapperInfo`.
+
+    Use that instead.
+
+    """

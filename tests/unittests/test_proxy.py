@@ -77,7 +77,7 @@ class TestProxyWarnBehavior:
         assert len(caught) == 2
 
     def test_warn_no_stream(self) -> None:
-        """stream=None suppresses all warnings."""
+        """Stream=None suppresses all warnings."""
         proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -126,6 +126,7 @@ class TestProxyTemplateMgs:
     Mirrors the parity that ``@deprecated`` already offers, so that switching from
     ``@deprecated`` to ``deprecated_class``/``deprecated_instance`` does not cause
     the loss of custom warning-message control.
+
     """
 
     def test_custom_template_used_in_warning_message_no_target(self) -> None:
@@ -449,7 +450,7 @@ class TestProxyNoWarnMethods:
         assert p1 != p2
 
     def test_hash_matches_inner(self) -> None:
-        """hash(proxy) equals hash(wrapped object) for hashable types, without emitting a warning."""
+        """Hash(proxy) equals hash(wrapped object) for hashable types, without emitting a warning."""
         inner = (1, 2, 3)
         proxy = _DeprecatedProxy(obj=inner, name="t", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
@@ -570,7 +571,7 @@ class TestDecoratorFactory:
         assert obj.method() == "ok"
 
     def test_true_with_args_mapping_resolves_to_args_remap(self) -> None:
-        """target=True + non-empty args_mapping resolves to ARGS_REMAP with FutureWarning."""
+        """Target=True + non-empty args_mapping resolves to ARGS_REMAP with FutureWarning."""
         with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP") as caught:
 
             @deprecated_class(
@@ -658,6 +659,7 @@ class TestArgsMapping:
         When an old kwarg name is passed (e.g. ``name`` mapped to ``label``), the proxy
         emits the per-argument deprecation template (``old -> new``) — matching the
         decorator's argument-deprecation form.
+
         """
         with pytest.warns(
             FutureWarning,
@@ -673,6 +675,7 @@ class TestArgsMapping:
 
         Old kwarg names (``name`` and the dropped ``legacy_flag``) emit per-argument
         deprecation messages; ``legacy_flag`` is dropped before forwarding.
+
         """
         with pytest.warns(
             FutureWarning,
@@ -692,6 +695,7 @@ class TestArgsMapping:
 
         Passing the old kwarg name (``val``) triggers the per-argument warning template
         (``val -> value``), matching the decorator's argument-deprecation form.
+
         """
         with pytest.warns(
             FutureWarning,
@@ -763,13 +767,14 @@ class TestArgsExtra:
 class TestContainerProtocolWithTarget:
     """Container protocol behaviour when a target is set on the proxy.
 
-    Pins the source-vs-target routing so it is not silently changed.
-    __len__, __contains__, and __bool__ all use _get_active() (the target when set).
-    See TestProxyNoWarnMethods for the no-target variants of __len__ and __contains__.
+    Pins the source-vs-target routing so it is not silently changed. __len__, __contains__, and __bool__ all use
+    _get_active() (the target when set). See TestProxyNoWarnMethods for the no-target variants of __len__ and
+    __contains__.
+
     """
 
     def test_bool_reads_from_target_when_set(self) -> None:
-        """bool(proxy) evaluates the active object (target when set), not the original source."""
+        """Bool(proxy) evaluates the active object (target when set), not the original source."""
         proxy = _DeprecatedProxy(
             obj=[1, 2, 3],  # truthy source
             target=[],  # falsy target
@@ -782,12 +787,13 @@ class TestContainerProtocolWithTarget:
 
 
 class TestHashOnUnhashableType:
-    """hash() behaviour for proxies wrapping unhashable objects."""
+    """Hash() behaviour for proxies wrapping unhashable objects."""
 
     def test_hash_raises_for_unhashable_source(self) -> None:
-        """hash(proxy) raises TypeError when the wrapped object is unhashable (e.g. dict).
+        """Hash(proxy) raises TypeError when the wrapped object is unhashable (e.g. dict).
 
         Propagates TypeError from the underlying hash() call with no additional context.
+
         """
         proxy = _DeprecatedProxy(obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
         with pytest.raises(TypeError):
@@ -809,6 +815,7 @@ class TestEmptyVersionGuard:
     time when neither version string is provided, because the rendered notice
     would otherwise contain empty ``v`` placeholders. ``stream=None`` suppresses
     the guard so callers that opt out of warnings entirely remain silent.
+
     """
 
     def test_deprecated_class_empty_versions_warns(self) -> None:
@@ -883,8 +890,9 @@ class TestDeprecatedInstance:
     def test_warns_once_by_default(self) -> None:
         """Default num_warns=1 means only the first access emits a warning.
 
-        This is specific to deprecated_instance() — unlike _DeprecatedProxy which requires
-        an explicit num_warns, deprecated_instance() defaults to num_warns=1.
+        This is specific to deprecated_instance() — unlike _DeprecatedProxy which requires an explicit num_warns,
+        deprecated_instance() defaults to num_warns=1.
+
         """
         proxy = deprecated_instance({"k": 1}, deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
@@ -894,7 +902,7 @@ class TestDeprecatedInstance:
         assert len(caught) == 1
 
     def test_stream_none_suppresses_on_item_access(self) -> None:
-        """stream=None suppresses warnings even when items are accessed via __getitem__."""
+        """Stream=None suppresses warnings even when items are accessed via __getitem__."""
         proxy = deprecated_instance({"k": "v"}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -906,7 +914,7 @@ class TestTypeProtocol:
     """Tests for __instancecheck__ and __subclasscheck__ on _DeprecatedProxy."""
 
     def test_isinstance_delegates_to_target_class(self) -> None:
-        """isinstance(x, proxy) returns True when x is an instance of the target class."""
+        """Isinstance(x, proxy) returns True when x is an instance of the target class."""
 
         class NewConfig:
             pass
@@ -919,7 +927,7 @@ class TestTypeProtocol:
         assert isinstance(obj, OldConfig)
 
     def test_isinstance_returns_false_for_unrelated_type(self) -> None:
-        """isinstance(x, proxy) returns False when x is not an instance of the target."""
+        """Isinstance(x, proxy) returns False when x is not an instance of the target."""
 
         class NewConfig:
             pass
@@ -931,7 +939,7 @@ class TestTypeProtocol:
         assert not isinstance(42, OldConfig)
 
     def test_isinstance_no_warning_emitted(self) -> None:
-        """isinstance(x, proxy) is a structural check — must not consume the warning budget."""
+        """Isinstance(x, proxy) is a structural check — must not consume the warning budget."""
 
         class Target:
             pass
@@ -948,7 +956,7 @@ class TestTypeProtocol:
             proxy()  # warning budget remains untouched
 
     def test_issubclass_delegates_to_target_class(self) -> None:
-        """issubclass(Sub, proxy) returns True when Sub is a subclass of the target."""
+        """Issubclass(Sub, proxy) returns True when Sub is a subclass of the target."""
 
         class Base:
             pass
@@ -981,7 +989,7 @@ class TestTypeProtocol:
         assert issubclass(VirtualSubclass, OldAbstractBase)
 
     def test_issubclass_no_warning_emitted(self) -> None:
-        """issubclass(Sub, proxy) is structural and must not consume warning budget."""
+        """Issubclass(Sub, proxy) is structural and must not consume warning budget."""
 
         class Base:
             pass
@@ -998,7 +1006,7 @@ class TestTypeProtocol:
             proxy()  # warning budget remains untouched
 
     def test_isinstance_returns_false_for_non_type_active(self) -> None:
-        """isinstance(x, proxy) returns False when the active object is not a type."""
+        """Isinstance(x, proxy) returns False when the active object is not a type."""
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
         assert not isinstance(42, cast(Any, proxy))
 
@@ -1093,6 +1101,7 @@ class TestPEP702ProxyStackingRegression:
     ``object.__setattr__`` at construction time and is read back via
     ``object.__getattribute__`` in ``_dep`` and ``__call__``).  These tests guard against
     a future refactor re-introducing a clobber path on the proxy.
+
     """
 
     def test_pep702_proxy_stacked_instantiation_does_not_crash(self) -> None:

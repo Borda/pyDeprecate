@@ -12,6 +12,7 @@ def new_add(x: int, y: int) -> int:
 
     Returns:
         The sum of *x* and *y*.
+
     """
     return x + y
 
@@ -37,6 +38,7 @@ def old_add_with_verbose(x: int, y: int, verbose: bool = False) -> int:
 
     Returns:
         The sum of *x* and *y*.
+
     """
     return x + y
 
@@ -49,6 +51,7 @@ class NewCalculator:
 
         Args:
             precision: Number of decimal places to round to.
+
         """
         self.precision = precision
 
@@ -61,6 +64,7 @@ class NewCalculator:
 
         Returns:
             Rounded sum.
+
         """
         return round(x + y, self.precision)
 
@@ -79,6 +83,7 @@ class OldCalculator:
 
         Args:
             precision: Number of decimal places to round to.
+
         """
         self.precision = precision
 
@@ -91,5 +96,6 @@ class OldCalculator:
 
         Returns:
             Rounded sum.
+
         """
         return round(x + y, self.precision)

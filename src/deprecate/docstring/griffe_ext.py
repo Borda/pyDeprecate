@@ -50,6 +50,7 @@ if griffe is not None:
             For each function or method in *mod* that carries a ``__deprecated__``
             attribute (set by pyDeprecate), replace the Griffe docstring with the
             runtime value so that mkdocstrings renders the injected notice.
+
             """
             runtime_mod = self._import_module(mod)
             if runtime_mod is None:
@@ -69,6 +70,7 @@ if griffe is not None:
             per dotted name component so that both single-file modules (``demo``) and
             package sub-modules (``pkg.submod``) resolve correctly — and temporarily
             add it to sys.path so the import can succeed.
+
             """
             # Fast path: module is already importable (installed package, etc.)
             try:

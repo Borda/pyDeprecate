@@ -10,6 +10,7 @@ Subcommands:
     expiry  — Check for deprecated wrappers that have passed their scheduled ``remove_in`` deadline.
     chains  — Detect deprecated wrappers whose ``target`` is itself a deprecated callable.
     all     — Run all three checks in a single scan pass.
+
 """
 
 import functools
@@ -43,6 +44,7 @@ def _print(msg: str, *, stderr: bool = False) -> None:
     Args:
         msg: The message to print.
         stderr: If ``True``, send the message to *stderr* instead of *stdout*.
+
     """
     if _Reporter._HAS_RICH:
         _Reporter._console(stderr).print(msg, markup=False, highlight=False)
@@ -62,6 +64,7 @@ def _managed_sys_path(path: str) -> Generator[None, None, None]:
     For package directories (containing ``__init__.py``), inserts the parent directory so
     the package name resolves as an importable module. For plain directories, inserts the
     directory itself. Importable module name strings are passed through unchanged.
+
     """
     abs_path: Path = Path(path).resolve()
     original = list(sys.path)
@@ -91,6 +94,7 @@ def _resolve_module_name(path: str) -> str:
     Raises:
         ValueError: If path is a plain directory without ``__init__.py``, a ``.py``
             file, or cannot be resolved to an importable module name.
+
     """
     pth = Path(path)
     if pth.is_file():
@@ -110,10 +114,10 @@ def _resolve_module_name(path: str) -> str:
 def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     """Scan a plain directory of top-level Python files.
 
-    Nested Python files in subdirectories are skipped unless they are part of an
-    importable package layout. Plain directories do not generally support dotted
-    imports for nested modules, so this function only scans top-level modules and
-    warns when deeper files are present.
+    Nested Python files in subdirectories are skipped unless they are part of an importable package layout. Plain
+    directories do not generally support dotted imports for nested modules, so this function only scans top-level
+    modules and warns when deeper files are present.
+
     """
     abs_path: Path = Path(path).resolve()
     results: list[DeprecationWrapperInfo] = []
@@ -152,6 +156,7 @@ def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo
 
     File paths are not accepted because ``find_deprecation_wrappers()`` expects an
     importable module or package name, not a filesystem path.
+
     """
     pth: Path = Path(path)
     if pth.is_dir():
@@ -337,6 +342,7 @@ def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[l
     Returns:
         List of expired wrapper message strings (may be empty), or None when the
         ``packaging`` library is unavailable (advisory — warning already printed to stderr).
+
     """
     module_name = _resolve_module_name(path)
     try:
@@ -367,6 +373,7 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
 
     Returns:
         True if the error indicates that the ``packaging`` library is unavailable.
+
     """
     for exc in (error, getattr(error, "__cause__", None)):
         if exc is None:
@@ -393,6 +400,7 @@ def _auto_detect_version(module_name: str) -> Optional[str]:
     Returns:
         Version string (e.g. ``"1.2.3"``) or ``None`` when the package is not
         installed or the version cannot be determined.
+
     """
     try:
         import importlib.metadata
@@ -429,6 +437,7 @@ def cmd_check(
 
     Returns:
         0 on success or advisory-only issues; 1 when hard errors are found and ``skip_errors`` is False.
+
     """
     if _wrappers is None:
         _print(f"Scanning path: {path} ...")
@@ -475,6 +484,7 @@ def cmd_expiry(
     Returns:
         0 on success or when the ``packaging`` library is unavailable; 1 when expired
         wrappers are found and ``skip_errors`` is False.
+
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
     if version is not None:
@@ -531,6 +541,7 @@ def cmd_chains(
 
     Returns:
         0 when no chains are found or ``skip_errors`` is True; 1 when chains are found.
+
     """
     if _wrappers is None:
         _print(f"Scanning path: {path} ...")
@@ -605,6 +616,7 @@ def _wrap(fn: Callable[..., int]) -> Callable[..., None]:
     are converted to a non-zero sys.exit with the exception message as the exit code
     string. SystemExit is re-raised unchanged so Fire's --help and normal exits pass
     through unmodified.
+
     """
 
     @functools.wraps(fn)

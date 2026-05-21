@@ -2,6 +2,7 @@
 
 This module provides typed interfaces consumed by the decorator, proxy, and audit modules so that static analysers
 can catch schema mismatches at analysis time rather than silently returning ``None`` at runtime.
+
 """
 
 import warnings
@@ -258,6 +259,7 @@ class DeprecationConfig:
             templates at warn time. ``None`` (default) keeps the built-in template selected for the active scenario.
             Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated` for the
             available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
+
     """
 
     deprecated_in: str = ""
@@ -280,6 +282,7 @@ class _HasDeprecationMeta(Protocol):
 
     Used as a TypeGuard target so that a ``hasattr`` guard narrows the type of an arbitrary callable to one whose
     ``__deprecated__`` attribute is typed — eliminating the need for a ``cast`` after the guard.
+
     """
 
     __deprecated__: DeprecationConfig
@@ -326,6 +329,7 @@ class _ProxyConfig:
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
+
     """
 
     obj: Any
@@ -350,6 +354,7 @@ class _WrapperState:
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
         warned_misconfigured: ``True`` after the one-time misconfiguration UserWarning has been emitted at call time.
+
     """
 
     called: int = 0
@@ -366,6 +371,7 @@ class _DeprecatedCallable(Protocol):
     It includes both static metadata (``__deprecated__``) and mutable runtime state (``_state``).
 
     Used to type-safely access ``_state`` on decorated callables without casting.
+
     """
 
     __deprecated__: DeprecationConfig

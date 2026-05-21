@@ -26,6 +26,7 @@ def test_readme_images_covered_by_setup() -> None:
     """Every docs/assets/images/ reference in README must be in _README_IMAGE_FILES.
 
     Prevents silent broken PyPI long-description image links when new screenshots are added.
+
     """
     readme_images = _parse_readme_image_files()
     setup_images = _parse_setup_image_files()
@@ -41,6 +42,7 @@ def test_setup_images_present_in_readme() -> None:
     """Every entry in _README_IMAGE_FILES must actually appear in README.
 
     Catches stale entries left in _README_IMAGE_FILES after a screenshot is renamed or removed.
+
     """
     readme_images = _parse_readme_image_files()
     setup_images = _parse_setup_image_files()

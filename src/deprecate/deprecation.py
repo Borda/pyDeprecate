@@ -10,6 +10,7 @@ Key Components:
     - Internal helpers for argument mapping and warning management
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
+
 """
 
 import inspect
@@ -70,6 +71,7 @@ def _validate_template_mgs(template_mgs: Optional[str]) -> None:
     Raises:
         ValueError: When ``template_mgs`` references an unknown ``%(...)s`` key, uses a malformed conversion
             specifier, or otherwise fails ``%``-formatting against the full placeholder set.
+
     """
     if not template_mgs:
         return

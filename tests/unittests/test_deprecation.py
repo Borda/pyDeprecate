@@ -347,7 +347,7 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyData, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
+        """Stream=None suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             warnings.filterwarnings("ignore", category=FutureWarning)
@@ -359,7 +359,7 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyClass, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning_whole_class(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
+        """Stream=None suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
 
@@ -403,6 +403,7 @@ class TestCrossClassMethodGuard:
         The misconfigured classes are defined inline (not in collection_deprecate.py)
         because placing ``@deprecated`` with a cross-class target at module level would
         raise TypeError at import time for every test that imports the collection module.
+
         """
 
         class OtherClass:
@@ -459,6 +460,7 @@ class TestCrossClassMethodGuard:
         The module-globals check verifies that the top-level class name in the target's qualname actually exists
         in the target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname
         produced by ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
+
         """
 
         def replacement(instance: object, x: int) -> int:
@@ -481,6 +483,7 @@ class TestCrossClassMethodGuard:
         Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator
         runs.  Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a
         pre-applied decorator has overwritten ``fn.__qualname__`` on the source callable.
+
         """
 
         def rewrite_to_alien_class(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -500,9 +503,10 @@ class TestCrossClassMethodGuard:
     def test_decorator_rewriting_qualname_raises_for_cross_class(self) -> None:
         """A pre-applied decorator rewriting source qualname to a genuinely different class still raises TypeError.
 
-        Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken
-        from the class body's locals.  When the recovered class differs from the target's class, the guard
-        still fires correctly — this guards against an over-eager FP suppression.
+        Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken from the
+        class body's locals.  When the recovered class differs from the target's class, the guard still fires correctly
+        — this guards against an over-eager FP suppression.
+
         """
 
         def rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -610,11 +614,16 @@ class TestDocstringStyleValidation:
         existing docstring contains ``.. deprecated:: 1.0`` in prose — the "1"
         string is a substring of "1.0" so a naive ``in`` check would cause a
         false positive.
+
         """
 
         @deprecated(target=target_val, deprecated_in="1", update_docstring=True, docstring_style="rst")
         def some_func() -> None:
-            """Summary. See also .. deprecated:: 1.0 handling."""
+            """Summary.
+
+            See also .. deprecated:: 1.0 handling.
+
+            """
 
         assert some_func.__doc__ is not None
         lines = [line.strip() for line in some_func.__doc__.splitlines()]
@@ -702,6 +711,7 @@ class TestDocstringStyleOutput:
 
             Args:
                 x: A value.
+
             """
 
         assert _fn.__doc__ is not None
@@ -910,6 +920,7 @@ class TestPEP702StackingRegression:
     ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures
     the ``DeprecationConfig`` instance in a closure variable so the call path survives
     arbitrary outer decorators rewriting ``__deprecated__``.
+
     """
 
     def test_pep702_stacked_call_does_not_crash(self) -> None:
@@ -930,6 +941,7 @@ class TestPEP702StackingRegression:
         Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter
         is zero — the module-level ``pep702_stacked`` fixture may already have warned
         in earlier tests under ``num_warns=1``.
+
         """
         from tests.collection_targets import pep702_target
 
@@ -981,6 +993,7 @@ class TestStackedCallableTargetGuard:
     Callable-over-callable stacking silently raises ``TypeError`` at the first call because the
     inner wrapper's signature does not match the outer target's remapped kwargs. The guard surfaces
     this misconfiguration at decoration time so authors catch it without exercising the call path.
+
     """
 
     def test_stacked_callable_targets_warn_at_decoration(self) -> None:

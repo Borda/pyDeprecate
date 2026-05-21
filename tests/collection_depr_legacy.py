@@ -14,6 +14,7 @@ during test discovery via the targeted ``filterwarnings`` entries in
 The file scope makes the purpose self-evident, so fixture names here match
 their modern counterparts in :mod:`tests.collection_deprecate` without any
 ``legacy_`` prefix.
+
 """
 
 from functools import partial

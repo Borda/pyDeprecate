@@ -33,7 +33,11 @@ class TestDeprecationDocstrings:
     """Tests for deprecation documentation strings."""
 
     def test_deprecated_func_docstring(self) -> None:
-        """Deprecated function docstring gets a ``.. deprecated::`` block appended."""
+        """Deprecated function docstring gets a ``..
+
+        deprecated::`` block appended.
+
+        """
         expected = """An old function that is deprecated.
 
 .. deprecated:: 0.1
@@ -42,7 +46,11 @@ class TestDeprecationDocstrings:
         assert old_function.__doc__ == expected
 
     def test_deprecated_class_docstring(self) -> None:
-        """Deprecated __init__ gets a ``.. deprecated::`` block appended."""
+        """Deprecated __init__ gets a ``..
+
+        deprecated::`` block appended.
+
+        """
         expected = """Initialize the old class.
 
 .. deprecated:: 0.2
@@ -200,7 +208,11 @@ Returns:
         assert sphinx_args_removed.__doc__ == expected
 
     def test_args_not_in_docstring(self) -> None:
-        """Arg absent from the docstring falls back to a general ``.. deprecated::`` block."""
+        """Arg absent from the docstring falls back to a general ``..
+
+        deprecated::`` block.
+
+        """
         expected = """Train the model.
 
 Args:
@@ -312,7 +324,7 @@ Returns:
         assert callable_target_with_args_mapping.__doc__ == expected
 
     def test_no_target_with_args_mapping(self) -> None:
-        """target=None: inline note inserted AND general block appended (no :func: ref)."""
+        """Target=None: inline note inserted AND general block appended (no :func: ref)."""
         expected = """Warning-only deprecation with a deprecated argument.
 
 Args:

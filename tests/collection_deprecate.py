@@ -36,6 +36,7 @@ corresponding _Original* type.
 Decorator-form equivalents (same deprecated_class config as Wrapped* — for parametrize comparison):
 - DecoratedEnum: decorator-form enum equivalent of WrappedEnum
 - DecoratedDataClass: decorator-form dataclass equivalent of WrappedDataClass
+
 """
 
 from dataclasses import dataclass
@@ -89,6 +90,7 @@ class DeprecatedEnum(Enum):
 
     Example:
         A user can still resolve DeprecatedEnum("alpha") via value lookup (DeprecatedEnum.ALPHA).
+
     """
 
     ALPHA = "alpha"
@@ -101,6 +103,7 @@ class DeprecatedIntEnum(Enum):
 
     Example:
         A user can still resolve a deprecated enum by integer value such as 1.
+
     """
 
     ONE = 1
@@ -113,6 +116,7 @@ class RedirectedEnum(Enum):
 
     Example:
         A user can still call RedirectedEnum("alpha") via value lookup and receive NewEnum.ALPHA.
+
     """
 
     ALPHA = "alpha"
@@ -131,6 +135,7 @@ class MappedEnum(Enum):
 
     Example:
         A user can pass old_value="alpha" and resolve NewEnum.ALPHA.
+
     """
 
     OLD_ALPHA = "alpha"
@@ -149,6 +154,7 @@ class MappedIntEnum(Enum):
 
     Example:
         A user can pass old_value=1 and resolve NewIntEnum.ALPHA.
+
     """
 
     ONE = 1
@@ -167,6 +173,7 @@ class MappedValueEnum(Enum):
 
     Example:
         A user can pass old_value="alpha" even though ALPHA stores "old-alpha".
+
     """
 
     ALPHA = "old-alpha"
@@ -178,6 +185,7 @@ class _SelfMappedEnum(Enum):
 
     Example:
         A user can call SelfMappedEnum(old_value="alpha") to resolve SelfMappedEnum.ALPHA.
+
     """
 
     ALPHA = "alpha"
@@ -245,6 +253,7 @@ class DeprecatedDataClass:
 
     Example:
         A user can still instantiate DeprecatedDataClass(label="alpha", total=2).
+
     """
 
     label: str
@@ -258,6 +267,7 @@ class RedirectedDataClass:
 
     Example:
         A user can still instantiate RedirectedDataClass(label="alpha", total=2).
+
     """
 
     label: str
@@ -279,6 +289,7 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
     Examples:
         The function is going away but has no replacement yet. The user gets
         warned, but the original body still executes (`target=None`).
+
     """
     return void(a, b)
 
@@ -301,6 +312,7 @@ def decorated_sum(a: int, b: int = 5) -> int:
     Examples:
         User calls an old function that has been replaced. Warns and
         transparently forwards the call to `base_sum_kwargs`.
+
     """
     return void(a, b)
 
@@ -314,6 +326,7 @@ def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noq
 
     Examples:
         Users call the old function but receive a ``NewCls`` instance.
+
     """
     return void(c, d, kwargs)
 
@@ -324,6 +337,7 @@ def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> New
 
     Examples:
         Old argument ``old_c`` is renamed to ``c`` before forwarding to ``NewCls``.
+
     """
     return void(old_c, d, kwargs)
 
@@ -338,6 +352,7 @@ def decorated_sum_no_stream(a: int, b: int = 5) -> int:
     Examples:
         Library silently redirects calls without bothering the user.
         Forwards to `base_sum_kwargs` with `stream=None`.
+
     """
     return void(a, b)
 
@@ -354,6 +369,7 @@ def decorated_sum_calls_2(a: int, b: int = 5) -> int:
 
     Examples:
         Warn the user only the first 2 times, then forward silently (`num_warns=2`).
+
     """
     return void(a, b)
 
@@ -370,6 +386,7 @@ def decorated_sum_calls_inf(a: int, b: int = 5) -> int:
 
     Examples:
         Critical migration where users must be reminded every time (`num_warns=-1`).
+
     """
     return void(a, b)
 
@@ -392,6 +409,7 @@ def decorated_sum_msg(a: int, b: int = 5) -> int:
     Examples:
         Library wants to control exactly what the user sees instead of the default
         template. Uses `template_mgs` with format specifiers.
+
     """
     return void(a, b)
 
@@ -526,6 +544,7 @@ def depr_pow_args(a: float, b: float) -> float:
     Examples:
         Both old and new functions take positional args; the library wants
         a short, machine-readable warning format.
+
     """
     return void(a, b)
 
@@ -537,6 +556,7 @@ def depr_pow_mix(a: int, b: float = 4) -> float:
     Examples:
         Old function has `(int, float)` but target expects `(float, int)`. Tests
         that the forwarding handles type differences gracefully.
+
     """
     return void(a, b)
 
@@ -548,6 +568,7 @@ def depr_pow_wrong(a: int, c: float = 4) -> float:
     Examples:
         Developer misconfigures deprecation — param `c` in source doesn't exist
         in target (expects `b`), which triggers a `TypeError` at call time.
+
     """
     return void(a, c)
 
@@ -559,6 +580,7 @@ def depr_accuracy_skip(preds: list, y_true: tuple = (0, 1, 1, 2), yeah_arg: floa
     Examples:
         Old API had extra args the new API doesn't need. `preds` is renamed
         to `y_pred`, `yeah_arg` is dropped (mapped to `None`).
+
     """
     return void(preds, y_true, yeah_arg)
 
@@ -570,6 +592,7 @@ def depr_accuracy_map(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
     Examples:
         Old API used different param names. `preds` -> `y_pred` and
         `truth` -> `y_true`; user calls with old names, target receives new ones.
+
     """
     return void(preds, truth)
 
@@ -581,6 +604,7 @@ def depr_accuracy_extra(y_pred: list, y_true: tuple = (0, 1, 1, 2)) -> float:
     Examples:
         The wrapper forces a fixed `y_pred` to be sent to `accuracy_score`,
         overriding any user-provided `y_pred` via `args_extra={"y_pred": ...}`.
+
     """
     return void(y_pred, y_true)
 
@@ -681,6 +705,7 @@ def decorated_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> fl
     Examples:
         `skip_if=True` means the deprecation is inactive — user calls the function
         normally with no warning and no remapping.
+
     """
     return base ** (c1 - nc1)
 
@@ -700,6 +725,7 @@ def decorated_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> fl
     Examples:
         `skip_if` is a callable (e.g., checking an env var or feature flag) that
         returns `True`, so the deprecation is bypassed dynamically.
+
     """
     return base ** (c1 - nc1)
 
@@ -716,6 +742,7 @@ def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> flo
     Examples:
         Developer accidentally returns `42` instead of `bool` from `skip_if` —
         tests that `TypeError` is raised at call time.
+
     """
     return base ** (c1 - nc1)
 
@@ -727,6 +754,7 @@ def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
     Examples:
         Positive control — both arg renames are valid and the target accepts
         them. Used by validation tests (`find_deprecation_wrappers`) to verify correct configs.
+
     """
     return void(preds, truth)
 
@@ -742,6 +770,7 @@ def depr_timing_wrapper(func: Callable) -> Callable:
     Examples:
         Library replaces a decorator function with an improved version.
         User's code uses `@depr_timing_wrapper` — the call forwards to `timing_wrapper`.
+
     """
     return void(func)
 
@@ -753,6 +782,7 @@ class DeprecatedTimerDecorator(TimerDecorator):
     Examples:
         Library replaces a class-based decorator with an improved version.
         User's code uses `DeprecatedTimerDecorator(func)` — the `__init__` forwards to `TimerDecorator`.
+
     """
 
     @deprecated(target=TimerDecorator, deprecated_in="1.0", remove_in="2.0")
@@ -772,6 +802,7 @@ def depr_func_no_remove_in(x: int) -> int:
         Function is deprecated but no specific removal version is set yet.
         This tests that expiry enforcement gracefully handles callables
         without a `remove_in` field.
+
     """
     return x
 
@@ -830,6 +861,7 @@ class ServiceCls:
         because ``self`` would carry the wrong type.  To forward to a different class
         entirely, use ``target=NewClass`` (constructor forwarding via ``__init__``).
         String targets (``target="compute"``) are **not** supported.
+
     """
 
     def compute(self, x: int) -> int:
@@ -847,6 +879,7 @@ class ServiceCls:
         Examples:
             User is notified the method is going away but it keeps working
             (`target=None`). Body delegates to the current implementation.
+
         """
         return self.compute(x)
 
@@ -857,6 +890,7 @@ class ServiceCls:
         Examples:
             User calls the old name; the decorator transparently remaps the
             call to `compute()` on the same object (`target=compute`).
+
         """
         return void(x)
 
@@ -872,6 +906,7 @@ class ServiceCls:
         Examples:
             User calls `old_mapped_method(x=5)` and receives the result of
             `compute_scaled(value=5)` after the argument is renamed transparently.
+
         """
         return void(x)
 
@@ -887,6 +922,7 @@ class ServiceCls:
         Examples:
             User calls `self_renamed_method(old_x=5)` and the decorator
             transparently remaps `old_x` -> `x` before running the body.
+
         """
         return self.compute(x)
 
@@ -952,6 +988,7 @@ class DeprecatedColorEnum(Enum):
 
     Example:
         A user calling DeprecatedColorEnum.RED receives TargetColorEnum.RED.
+
     """
 
     RED = 1
@@ -965,6 +1002,7 @@ class DeprecatedColorDataClass:
 
     Example:
         A user instantiating DeprecatedColorDataClass(label="x") receives a NewDataClass instance.
+
     """
 
     label: str
@@ -977,6 +1015,7 @@ class WarnOnlyColorEnum(Enum):
 
     Example:
         A user accessing WarnOnlyColorEnum.A receives the original member with a warning.
+
     """
 
     A = "a"
@@ -1067,6 +1106,7 @@ class ChainedProxyColorEnum(Enum):
     Example:
         This creates a two-hop chain: ChainedProxyColorEnum → DeprecatedColorEnum → TargetColorEnum.
         Used to test that validate_deprecation_chains detects proxy-to-proxy chains.
+
     """
 
     RED = 1
@@ -1080,6 +1120,7 @@ def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
     Examples:
         This creates a cross-kind chain: a @deprecated function forwards to a _DeprecatedProxy.
         Used to test that validate_deprecation_chains detects function-to-proxy chains.
+
     """
     void(value)
 
@@ -1090,9 +1131,9 @@ def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
 def make_class_target_notify_with_args() -> type:
     """Build a class with @deprecated(target=TargetMode.NOTIFY) + args (Fix 1 fixture).
 
-    Applying @deprecated to a class delegates to deprecated_class. With
-    target=TargetMode.NOTIFY the args_mapping/args_extra arguments must be stripped
-    before delegating, and a misconfig UserWarning must be emitted.
+    Applying @deprecated to a class delegates to deprecated_class. With target=TargetMode.NOTIFY the
+    args_mapping/args_extra arguments must be stripped before delegating, and a misconfig UserWarning must be emitted.
+
     """
 
     @deprecated(
@@ -1115,8 +1156,9 @@ def make_class_target_notify_with_args() -> type:
 def make_class_target_args_remap() -> type:
     """Build a class with @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...) (Fix 1 fixture).
 
-    Verifies that callable TargetMode is forwarded correctly through the class
-    branch of @deprecated rather than being collapsed to None.
+    Verifies that callable TargetMode is forwarded correctly through the class branch of @deprecated rather than being
+    collapsed to None.
+
     """
 
     @deprecated(
@@ -1167,6 +1209,7 @@ def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
 
     Without the fix, the source default ``new=0`` would be merged before the
     rename of ``old → new``, overwriting the renamed value.
+
     """
     return void(old, new)
 
@@ -1187,6 +1230,7 @@ def fn_old_default(old_arg: int = 1, new_arg: int = 99) -> int:
     ``old_arg=1`` default would otherwise be renamed to ``new_arg=1`` and forwarded,
     silently overriding the target's own ``new_arg=99`` default. The fix drops the
     stale source default in that case so the target's default is used.
+
     """
     return void(old_arg, new_arg)
 
@@ -1205,6 +1249,7 @@ def fn_remap_with_extra(old_arg: int = 0, new_arg: int = 0, injected: int = 0) -
     return short-circuit would skip the ``args_extra`` merge before the original
     fix. The body delegates to the target so the test asserts that ``injected=100``
     reaches the body regardless of whether the caller passes the old or new name.
+
     """
     return fn_remap_with_extra_body(new_arg=new_arg, injected=injected)
 
@@ -1215,8 +1260,9 @@ def fn_remap_with_extra(old_arg: int = 0, new_arg: int = 0, injected: int = 0) -
 def make_default_target_with_versions() -> Callable[[int], int]:
     """Build a @deprecated(deprecated_in='1.0', remove_in='2.0') wrapper with no explicit target.
 
-    No FutureWarning should be emitted at decoration time (unlike target=None).
-    Source body must execute on call and a FutureWarning must be emitted.
+    No FutureWarning should be emitted at decoration time (unlike target=None). Source body must execute on call and a
+    FutureWarning must be emitted.
+
     """
 
     @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -1229,8 +1275,9 @@ def make_default_target_with_versions() -> Callable[[int], int]:
 def make_default_target_no_versions_warns() -> Callable[[int], int]:
     """Build a @deprecated() wrapper with no versions and no target.
 
-    An empty-version FutureWarning must be emitted at decoration time because
-    the resulting deprecation notice would contain empty version strings.
+    An empty-version FutureWarning must be emitted at decoration time because the resulting deprecation notice would
+    contain empty version strings.
+
     """
 
     @deprecated()
@@ -1244,6 +1291,7 @@ def make_partial_version_no_guard_warn() -> Callable[[int], int]:
     """Build @deprecated(deprecated_in='1.0') with only deprecated_in set.
 
     Guard must NOT fire — requires both version parameters to be empty.
+
     """
 
     @deprecated(deprecated_in="1.0")
@@ -1257,6 +1305,7 @@ def make_callable_target_no_versions_warns() -> Callable[[int], int]:
     """Build @deprecated(target=identity_value) with no version strings.
 
     Guard MUST fire — F1b removed the NOTIFY-only restriction; all target shapes warn.
+
     """
 
     @deprecated(target=identity_value)
@@ -1270,6 +1319,7 @@ def make_explicit_notify_no_versions_warns() -> Callable[[int], int]:
     """Build @deprecated(target=TargetMode.NOTIFY) with no version strings.
 
     Guard MUST fire — explicit NOTIFY + both versions empty triggers the warning.
+
     """
 
     @deprecated(target=TargetMode.NOTIFY)
@@ -1303,6 +1353,7 @@ def pep702_stacked(x: int) -> int:
     ``find_deprecation_wrappers`` does not treat the PEP 702 wrapper — whose
     ``__deprecated__`` is a plain string — as a pyDeprecate audit target.
     Forwards the call (and all warnings) to the stacked wrapper.
+
     """
     return _pep702_stacked(x)
 
@@ -1333,5 +1384,6 @@ def pep702_proxy_stacked() -> _Pep702ProxyTarget:
     Returns a fresh instance produced by invoking the stacked wrapper.  Defined as
     a function (not a module-level binding) so audit walkers skip the PEP 702
     wrapper whose ``__deprecated__`` is a plain string.
+
     """
     return _pep702_proxy_stacked()

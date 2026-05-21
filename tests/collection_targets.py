@@ -1,7 +1,7 @@
 """Target functions for deprecation testing.
 
-This module provides base functions that are used as targets for deprecated
-functions in other test modules.
+This module provides base functions that are used as targets for deprecated functions in other test modules.
+
 """
 
 import functools
@@ -180,6 +180,7 @@ class SomeTargetClass:
 
     Accepts ``new_key`` as the canonical parameter name; used to verify that
     ``deprecated_class`` fixtures correctly remap ``old_key`` to ``new_key``.
+
     """
 
     def __init__(self, new_key: int = 0) -> None:
@@ -192,6 +193,7 @@ class TargetWithInjected:
 
     Used by proxy ``args_extra`` fixtures to verify that deprecated_class()
     merges configured extra kwargs into forwarded calls.
+
     """
 
     def __init__(self, new_key: int = 0, injected: str = "") -> None:
@@ -208,9 +210,9 @@ def both_old_new_target(new: int = 0) -> int:
 def fn_with_default(new_arg: int = 99) -> int:
     """Target callable carrying its own default for the renamed argument.
 
-    Used by Fix 1 regression tests to verify that the source's stale default for
-    the deprecated argument name does not silently override the target's default
-    when the caller supplies neither name.
+    Used by Fix 1 regression tests to verify that the source's stale default for the deprecated argument name does not
+    silently override the target's default when the caller supplies neither name.
+
     """
     return new_arg
 
@@ -221,6 +223,7 @@ def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
     The body intentionally combines the remapped argument and the injected extra
     so the test can assert that ``args_extra`` is merged into kwargs even when the
     caller already uses the new argument name (no remap warning fires).
+
     """
     return new_arg + injected
 
@@ -231,6 +234,7 @@ def pep702_target(x: int) -> int:
     Doubles the input value so the wrapping test can confirm the inner pyDeprecate
     @deprecated forwarded the call after PEP 702 ``typing_extensions.deprecated``
     overwrote ``__deprecated__`` on the wrapper.
+
     """
     return x * 2
 
@@ -247,6 +251,7 @@ class _Pep702ProxyTarget:
     outer PEP 702 wrapper forwards its ``__deprecated__ = msg`` assignment through the
     proxy's ``__setattr__`` onto this wrapped class, leaving a plain string on the
     class attribute that would otherwise crash the audit walker.
+
     """
 
     def value(self) -> int:

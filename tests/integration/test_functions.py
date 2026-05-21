@@ -14,6 +14,7 @@ with function/class deprecation patterns.
 Current test coverage:
 - TestDeprecatedFunctionWrappers.test_with_decorator_syntax (line ~348)
 - TestDeprecatedClassWrappers.test_with_decorator_syntax (line ~447)
+
 """
 
 from typing import Callable, cast
@@ -419,8 +420,9 @@ def test_deprecated_func_accuracy(func: Callable, expected: float) -> None:
 def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     """Test that __deprecated__ attribute is set at decoration time, not call time.
 
-    This verifies that the __deprecated__ attribute is available immediately
-    after the decorator is applied, without needing to call the function first.
+    This verifies that the __deprecated__ attribute is available immediately after the decorator is applied, without
+    needing to call the function first.
+
     """
     from tests.collection_targets import base_sum_kwargs
 

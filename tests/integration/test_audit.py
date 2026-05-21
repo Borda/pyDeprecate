@@ -110,6 +110,7 @@ class TestValidateDeprecatedWrapper:
         ``getattr(proxy, "__name__")`` returns the *target's* name.  The audit function
         must read ``dep_info.name`` (always set by the proxy at decoration time) to avoid
         reporting the wrong callable name.
+
         """
         result = validate_deprecation_wrapper(proxy_module.DeprecatedColorEnum)
         assert result.function == "DeprecatedColorEnum"
@@ -285,9 +286,10 @@ class TestValidateDeprecatedWrapperCallableProxy:
     ) -> None:
         """All 8 proxy objects (6 deprecated_class + 2 deprecated_instance) pass validate_deprecation_wrapper.
 
-        Verifies the unified DeprecationConfig schema — function name, version fields, and
-        chain_type — for every proxy variant. Proxy __call__ is (*args, **kwargs) so the
-        signature check is skipped and invalid_args is always [] for proxy objects.
+        Verifies the unified DeprecationConfig schema — function name, version fields, and chain_type — for every proxy
+        variant. Proxy __call__ is (*args, **kwargs) so the signature check is skipped and invalid_args is always [] for
+        proxy objects.
+
         """
         result = validate_deprecation_wrapper(proxy_obj)
         assert result.function == fn_name
@@ -355,6 +357,7 @@ class TestFindDeprecatedWrappers:
         ``deprecated_instance`` stores the wrapped type name (``"dict"``) in ``dep_info.name``,
         but the scanner overrides ``function`` with the attribute name from ``inspect.getmembers``.
         Calling ``validate_deprecation_wrapper`` directly uses ``dep_info.name`` instead.
+
         """
         # Direct validation: uses dep_info.name → "dict" (wrapped type)
         direct = validate_deprecation_wrapper(proxy_module.depr_config_dict)
@@ -624,6 +627,7 @@ class TestCheckModuleDeprecationExpiry:
         resolution step, ensuring only the recursive per-submodule imports are patched.
         Those are wrapped in ``contextlib.suppress(ImportError)``, so the scan must
         not raise and must return a plain list.
+
         """
         with patch.object(importlib, "import_module", side_effect=ImportError("bad submodule")):
             result = validate_deprecation_expiry(tests, "2.0", recursive=True)

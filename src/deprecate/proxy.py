@@ -105,6 +105,7 @@ class _DeprecatedProxy:
         ``deprecated_class`` for class targets: it lets the caller pre-compute misconfig signals (raw
         ``target=False`` plus NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy
         rewrites them away, so the final frozen :class:`DeprecationConfig` records every signal in one place.
+
         """
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of on the first proxy access.
@@ -165,6 +166,7 @@ class _DeprecatedProxy:
         """Private mutable runtime state (warn counter, stream, read-only flag, wrapped object).
 
         Private to this class — not part of the public API and not consumed by audit tools.
+
         """
         return cast(_ProxyConfig, object.__getattribute__(self, "_DeprecatedProxy__config"))
 
@@ -174,6 +176,7 @@ class _DeprecatedProxy:
 
         Stored as ``__deprecated__`` (dunder, not name-mangled) — audit tools and external code may read it directly;
         this property simply provides a typed view of the same object.
+
         """
         return cast(DeprecationConfig, object.__getattribute__(self, "__deprecated__"))
 
@@ -186,6 +189,7 @@ class _DeprecatedProxy:
                 ``cfg.num_warns``.  When provided alongside an ``args_mapping`` entry, the emitted message uses the
                 per-argument template (`old -> new`) rather than the generic callable template — matching the
                 decorator's argument-deprecation form.
+
         """
         cfg = self._cfg
         stream = cfg.stream
@@ -250,6 +254,7 @@ class _DeprecatedProxy:
 
         Raises:
             AttributeError: If ``read_only=True`` was set at construction time.
+
         """
         if self._cfg.read_only:
             name: str = self._dep.name
@@ -285,8 +290,9 @@ class _DeprecatedProxy:
     def _is_potential_mutator(name: str) -> bool:
         """Heuristic to detect common mutating methods on built-in collections.
 
-        This is intentionally conservative and only covers the most common
-        mutating APIs on built-in container types (lists, dicts, sets).
+        This is intentionally conservative and only covers the most common mutating APIs on built-in container types
+        (lists, dicts, sets).
+
         """
         mutating_names = {
             "append",
@@ -311,6 +317,7 @@ class _DeprecatedProxy:
 
         In read-only mode, common mutating methods on built-in collections (for example, ``append`` or ``update``)
         are wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
+
         """
         self._warn()
         attr = getattr(self._get_active(), name)
@@ -328,6 +335,7 @@ class _DeprecatedProxy:
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
+
         """
         self._check_read_only(f"Setting attribute '{name}'")
         setattr(self._get_active(), name, value)
@@ -337,6 +345,7 @@ class _DeprecatedProxy:
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
+
         """
         self._check_read_only(f"Deleting attribute '{name}'")
         delattr(self._get_active(), name)
@@ -355,6 +364,7 @@ class _DeprecatedProxy:
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
+
         """
         self._check_read_only(f"Setting item '{key}'")
         self._get_active()[key] = value
@@ -364,6 +374,7 @@ class _DeprecatedProxy:
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
+
         """
         self._check_read_only(f"Deleting item '{key}'")
         del self._get_active()[key]
@@ -401,6 +412,7 @@ class _DeprecatedProxy:
         - Callable target without ``args_mapping``: warn (global budget), merge ``args_extra``, and forward to target.
         - :attr:`~deprecate._types.TargetMode.NOTIFY`: always warn (global budget) and forward kwargs unchanged;
           ``args_extra`` is intentionally ignored (misconfig).
+
         """
         dep = object.__getattribute__(self, "__deprecated__")
         cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
@@ -482,6 +494,7 @@ class _DeprecatedProxy:
         warning — type checks are structural, not a use of the deprecated API.
 
         Returns False when the active object is not a type.
+
         """
         active = self._get_active()
         if isinstance(active, type):
@@ -495,6 +508,7 @@ class _DeprecatedProxy:
         Same rationale as :meth:`__instancecheck__` — no warning emitted.
 
         Returns False when the active object is not a type.
+
         """
         active = self._get_active()
         if isinstance(active, type):

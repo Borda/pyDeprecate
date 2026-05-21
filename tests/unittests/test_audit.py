@@ -166,6 +166,7 @@ class TestValidateDeprecationWrapperWithProxy:
     """Unit tests for validate_deprecation_wrapper with inline _DeprecatedProxy objects.
 
     Uses _DeprecatedProxy directly (not collection fixtures) for true isolation.
+
     """
 
     def test_proxy_without_target_no_effect_false(self) -> None:
@@ -241,6 +242,7 @@ class TestValidateDeprecationWrapperWithProxy:
         """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
 
         Without this, getattr routes through __getattr__ and leaks the target's __name__.
+
         """
         from tests.collection_targets import TargetColorEnum
 
@@ -269,6 +271,7 @@ class TestFindDeprecationWrappersWarningBudget:
         execute module-level ``__getattr__`` side effects. This fixture reproduces that pattern:
         a dynamic name touches the proxy during lookup. Static inspection must avoid consuming
         the proxy warning budget.
+
         """
         proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
         fake_mod = _SideEffectScanModule(proxy)
@@ -410,6 +413,7 @@ class TestDwiCompatInit:
         ``dataclasses.replace(info, empty_mapping=True)`` merges the caller's ``empty_mapping=True``
         with the current ``empty_args_mapping=False`` (auto-injected by replace()).  The shim must
         detect this conflict, discard the auto-injected value, and honour the old-name value.
+
         """
         base = DeprecationWrapperInfo(
             function="f",
