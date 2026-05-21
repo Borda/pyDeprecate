@@ -1002,7 +1002,7 @@ class TestStackingGuards:
     remaining combinations.
     """
 
-    def _make_source(self, **kwargs: object) -> Callable[..., int]:
+    def _make_source(self, **kwargs: Any) -> Callable[..., int]:  # noqa: ANN401
         """Return a minimal function decorated with @deprecated using the given kwargs."""
 
         def fn(x: int = 0) -> int:
