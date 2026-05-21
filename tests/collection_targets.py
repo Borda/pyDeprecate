@@ -178,8 +178,8 @@ class NewDataClass:
 class SomeTargetClass:
     """Simple target class for proxy args_mapping behaviour tests.
 
-    Accepts ``new_key`` as the canonical parameter name; used to verify that
-    ``deprecated_class`` fixtures correctly remap ``old_key`` to ``new_key``.
+    Accepts ``new_key`` as the canonical parameter name; used to verify that ``deprecated_class`` fixtures correctly
+    remap ``old_key`` to ``new_key``.
 
     """
 
@@ -191,8 +191,8 @@ class SomeTargetClass:
 class TargetWithInjected:
     """Target class accepting an ``injected`` kwarg for ``args_extra`` tests.
 
-    Used by proxy ``args_extra`` fixtures to verify that deprecated_class()
-    merges configured extra kwargs into forwarded calls.
+    Used by proxy ``args_extra`` fixtures to verify that deprecated_class() merges configured extra kwargs into
+    forwarded calls.
 
     """
 
@@ -220,9 +220,9 @@ def fn_with_default(new_arg: int = 99) -> int:
 def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
     """Source body for Fix 2 regression tests using TargetMode.ARGS_REMAP.
 
-    The body intentionally combines the remapped argument and the injected extra
-    so the test can assert that ``args_extra`` is merged into kwargs even when the
-    caller already uses the new argument name (no remap warning fires).
+    The body intentionally combines the remapped argument and the injected extra so the test can assert that
+    ``args_extra`` is merged into kwargs even when the caller already uses the new argument name (no remap warning
+    fires).
 
     """
     return new_arg + injected

@@ -342,11 +342,8 @@ def google_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
 def sphinx_args_multiline(lr: float = 0.01, train_config: object = None) -> str:
     """Train the model with a multiline Sphinx param description.
 
-    :param lr: Learning rate for training.
-        Must be a positive float.
-    :param train_config: Training configuration object.
-        Passed directly to the trainer.
-        Ignored when ``None``.
+    :param lr: Learning rate for training. Must be a positive float.
+    :param train_config: Training configuration object. Passed directly to the trainer. Ignored when ``None``.
     :returns: Training result.
 
     """

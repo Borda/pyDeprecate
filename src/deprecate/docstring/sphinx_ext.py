@@ -94,17 +94,14 @@ if _SPHINX_AVAILABLE:
             def import_object(self, raiseerror: bool = False) -> bool:
                 """Import the object and, when it is a proxy, swap it for the wrapped class.
 
-                The proxy's ``__doc__`` (which contains the injected deprecation notice)
-                is saved in ``self._proxy_doc`` before the swap so that :meth:`get_doc`
-                can return it verbatim.
+                The proxy's ``__doc__`` (which contains the injected deprecation notice) is saved in ``self._proxy_doc``
+                before the swap so that :meth:`get_doc` can return it verbatim.
 
                 ``doc_as_attr`` is reset to ``False`` after the swap because the base
-                :class:`~sphinx.ext.autodoc.ClassDocumenter` computes it using
-                ``self.object.__name__``.  On a :class:`~deprecate.proxy._DeprecatedProxy`
-                that attribute is forwarded to the *target* class (via
-                ``__getattr__``), which makes Sphinx believe the object is an alias
-                for that target and adds an ``alias of …`` paragraph.  After the swap
-                ``self.object`` is the real class whose ``__name__`` matches the
+                :class:`~sphinx.ext.autodoc.ClassDocumenter` computes it using ``self.object.__name__``.  On a
+                :class:`~deprecate.proxy._DeprecatedProxy` that attribute is forwarded to the *target* class (via
+                ``__getattr__``), which makes Sphinx believe the object is an alias for that target and adds an ``alias
+                of …`` paragraph.  After the swap ``self.object`` is the real class whose ``__name__`` matches the
                 documented path, so ``doc_as_attr`` should be ``False``.
 
                 """

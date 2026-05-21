@@ -123,9 +123,8 @@ class TestProxyWarnBehavior:
 class TestProxyTemplateMgs:
     """``template_mgs`` overrides the built-in warning-message templates on proxies.
 
-    Mirrors the parity that ``@deprecated`` already offers, so that switching from
-    ``@deprecated`` to ``deprecated_class``/``deprecated_instance`` does not cause
-    the loss of custom warning-message control.
+    Mirrors the parity that ``@deprecated`` already offers, so that switching from ``@deprecated`` to
+    ``deprecated_class``/``deprecated_instance`` does not cause the loss of custom warning-message control.
 
     """
 
@@ -327,7 +326,11 @@ class TestProxyReadOnly:
 
 
 class TestProxyGetActive:
-    """Active object selection: source vs. target."""
+    """Active object selection: source vs.
+
+    target.
+
+    """
 
     def test_returns_obj_when_no_target(self) -> None:
         """Without target, _get_active returns the source object."""
@@ -656,9 +659,8 @@ class TestArgsMapping:
     def test_remap_kwargs(self, kwargs: dict[str, object], expected_label: str, expected_total: int) -> None:
         """Deprecated dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs.
 
-        When an old kwarg name is passed (e.g. ``name`` mapped to ``label``), the proxy
-        emits the per-argument deprecation template (``old -> new``) — matching the
-        decorator's argument-deprecation form.
+        When an old kwarg name is passed (e.g. ``name`` mapped to ``label``), the proxy emits the per-argument
+        deprecation template (``old -> new``) — matching the decorator's argument-deprecation form.
 
         """
         with pytest.warns(
@@ -673,8 +675,8 @@ class TestArgsMapping:
     def test_drop_kwarg(self) -> None:
         """Args mapped to None should be dropped before forwarding, while mapped kwargs still reach target.
 
-        Old kwarg names (``name`` and the dropped ``legacy_flag``) emit per-argument
-        deprecation messages; ``legacy_flag`` is dropped before forwarding.
+        Old kwarg names (``name`` and the dropped ``legacy_flag``) emit per-argument deprecation messages;
+        ``legacy_flag`` is dropped before forwarding.
 
         """
         with pytest.warns(
@@ -693,8 +695,8 @@ class TestArgsMapping:
     def test_enum_remap_kwarg(self) -> None:
         """Enum wrappers should apply args_mapping so old constructor kwargs still resolve target members.
 
-        Passing the old kwarg name (``val``) triggers the per-argument warning template
-        (``val -> value``), matching the decorator's argument-deprecation form.
+        Passing the old kwarg name (``val``) triggers the per-argument warning template (``val -> value``), matching the
+        decorator's argument-deprecation form.
 
         """
         with pytest.warns(
@@ -811,9 +813,8 @@ class TestDeprecatedClassReadOnly:
 class TestEmptyVersionGuard:
     """Decoration-time UserWarning when both ``deprecated_in`` and ``remove_in`` are empty.
 
-    Both ``deprecated_class()`` and ``deprecated_instance()`` warn at construction
-    time when neither version string is provided, because the rendered notice
-    would otherwise contain empty ``v`` placeholders. ``stream=None`` suppresses
+    Both ``deprecated_class()`` and ``deprecated_instance()`` warn at construction time when neither version string is
+    provided, because the rendered notice would otherwise contain empty ``v`` placeholders. ``stream=None`` suppresses
     the guard so callers that opt out of warnings entirely remain silent.
 
     """

@@ -626,6 +626,7 @@ def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> flo
     Examples:
         User calls `my_func(coef=5)` but the new name is `new_coef`. The function
         body uses the new name; the decorator transparently remaps the old name (`target=True`).
+
     """
     return base**new_coef
 
@@ -644,6 +645,7 @@ def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float =
     Examples:
         Both `c1` -> `nc1` and `c2` -> `nc2` are remapped in a single decorator
         with a custom warning template.
+
     """
     return base ** (c1 + c2 + nc1 + nc2)
 
@@ -656,6 +658,7 @@ def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float =
     Examples:
         V0.3 renamed `c1` to `nc1`, then v0.4 renamed `nc1` to `nc2`. Stacked
         decorators handle users calling with any of the historical names.
+
     """
     return base ** (c1 + nc1 + nc2)
 
@@ -670,6 +673,7 @@ def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> f
     Examples:
         One migration step is conditionally disabled (e.g., feature flag)
         while another is active. Tests `skip_if=True` on outer, `skip_if=False` on inner.
+
     """
     return base ** (c1 - nc1)
 
@@ -684,6 +688,7 @@ def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> f
     Examples:
         Reversed order of above — tests that `skip_if` works correctly
         regardless of decorator stacking order.
+
     """
     return base ** (c1 - nc1)
 
@@ -1033,6 +1038,7 @@ class MappedColorEnum(Enum):
 
     Example:
         A user calling MappedColorEnum(val=1) receives TargetColorEnum.RED.
+
     """
 
     RED = 1
@@ -1052,6 +1058,7 @@ class MappedDataClass:
 
     Example:
         A user calling MappedDataClass(name="x", count=3) receives NewDataClass(label="x", total=3).
+
     """
 
     label: str
@@ -1071,6 +1078,7 @@ class MappedDropArgDataClass:
 
     Example:
         A user calling MappedDropArgDataClass(name="x", legacy_flag=True) receives NewDataClass(label="x").
+
     """
 
     label: str
@@ -1207,8 +1215,8 @@ ProxyArgsRemapForArgWarnMessage = deprecated_class(
 def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
     """Source has both old and new params; collision triggered when caller passes old=X.
 
-    Without the fix, the source default ``new=0`` would be merged before the
-    rename of ``old → new``, overwriting the renamed value.
+    Without the fix, the source default ``new=0`` would be merged before the rename of ``old → new``, overwriting the
+    renamed value.
 
     """
     return void(old, new)
@@ -1349,9 +1357,8 @@ _pep702_stacked = typing_extensions.deprecated("use `pep702_target`")(_pep702_in
 def pep702_stacked(x: int) -> int:
     """Tiny re-export thunk for the PEP 702 + pyDeprecate stacked wrapper.
 
-    Defined as a function (not a direct module-level binding to ``_pep702_stacked``) so
-    ``find_deprecation_wrappers`` does not treat the PEP 702 wrapper — whose
-    ``__deprecated__`` is a plain string — as a pyDeprecate audit target.
+    Defined as a function (not a direct module-level binding to ``_pep702_stacked``) so ``find_deprecation_wrappers``
+    does not treat the PEP 702 wrapper — whose ``__deprecated__`` is a plain string — as a pyDeprecate audit target.
     Forwards the call (and all warnings) to the stacked wrapper.
 
     """
@@ -1381,9 +1388,8 @@ _pep702_proxy_stacked = typing_extensions.deprecated("use `Pep702ProxyTarget`")(
 def pep702_proxy_stacked() -> _Pep702ProxyTarget:
     """Tiny re-export thunk for the PEP 702 + ``deprecated_class`` stacked proxy (B1b).
 
-    Returns a fresh instance produced by invoking the stacked wrapper.  Defined as
-    a function (not a module-level binding) so audit walkers skip the PEP 702
-    wrapper whose ``__deprecated__`` is a plain string.
+    Returns a fresh instance produced by invoking the stacked wrapper.  Defined as a function (not a module-level
+    binding) so audit walkers skip the PEP 702 wrapper whose ``__deprecated__`` is a plain string.
 
     """
     return _pep702_proxy_stacked()

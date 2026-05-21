@@ -267,10 +267,9 @@ class TestFindDeprecationWrappersWarningBudget:
     def test_find_deprecation_wrappers_does_not_consume_warning_budget(self) -> None:
         """Scanning must avoid dynamic attribute access paths that burn warn budget.
 
-        ``inspect.getmembers()`` triggers ``getattr()`` for names from ``__dir__``, which can
-        execute module-level ``__getattr__`` side effects. This fixture reproduces that pattern:
-        a dynamic name touches the proxy during lookup. Static inspection must avoid consuming
-        the proxy warning budget.
+        ``inspect.getmembers()`` triggers ``getattr()`` for names from ``__dir__``, which can execute module-level
+        ``__getattr__`` side effects. This fixture reproduces that pattern: a dynamic name touches the proxy during
+        lookup. Static inspection must avoid consuming the proxy warning budget.
 
         """
         proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
@@ -410,9 +409,9 @@ class TestDwiCompatInit:
     def test_replace_with_old_name_honoured_over_auto_injected_new(self) -> None:
         """dataclasses.replace() with old name honours caller intent over auto-injected new name.
 
-        ``dataclasses.replace(info, empty_mapping=True)`` merges the caller's ``empty_mapping=True``
-        with the current ``empty_args_mapping=False`` (auto-injected by replace()).  The shim must
-        detect this conflict, discard the auto-injected value, and honour the old-name value.
+        ``dataclasses.replace(info, empty_mapping=True)`` merges the caller's ``empty_mapping=True`` with the current
+        ``empty_args_mapping=False`` (auto-injected by replace()).  The shim must detect this conflict, discard the
+        auto-injected value, and honour the old-name value.
 
         """
         base = DeprecationWrapperInfo(

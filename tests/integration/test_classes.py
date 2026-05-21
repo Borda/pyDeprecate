@@ -154,8 +154,7 @@ class TestDeprecatedEnums:
         """Test that attribute access on a deprecated Enum proxy emits a FutureWarning.
 
         Unlike the old ``_DeprecatedEnumWrapper``, ``_DeprecatedProxy`` warns on every access (attribute, subscript,
-        call) —
-        consistent with deprecating the class as a whole.
+        call) — consistent with deprecating the class as a whole.
 
         """
         with pytest.warns(FutureWarning):

@@ -25,8 +25,7 @@ def new_add(x: int, y: int) -> int:
 def old_add_with_verbose(x: int, y: int, verbose: bool = False) -> int:
     """Add two integers, formerly with optional logging (legacy).
 
-    The ``verbose`` argument has been removed; the function itself
-    is also deprecated in favour of ``new_add``.
+    The ``verbose`` argument has been removed; the function itself is also deprecated in favour of ``new_add``.
 
     :param x: First operand.
     :param y: Second operand.

@@ -1,20 +1,17 @@
 """Regression tests for three bug fixes in `src/deprecate/deprecation.py`.
 
-Fix 1: Stale source default for the deprecated argument silently overrode the
-target callable's own default when the caller supplied neither name.
+Fix 1: Stale source default for the deprecated argument silently overrode the target callable's own default when the
+caller supplied neither name.
 
-Fix 2: ``args_extra`` was not injected for migrated callers using
-:class:`TargetMode.ARGS_REMAP` because the early-return short-circuit fired
-before the merge step.
+Fix 2: ``args_extra`` was not injected for migrated callers using :class:`TargetMode.ARGS_REMAP` because the early-
+return short-circuit fired before the merge step.
 
-Fix 3: The class branch of ``@deprecated`` collapsed legacy ``target=None`` and
-``target=False`` sentinels to ``None`` before delegating to
-:func:`deprecate.proxy.deprecated_class`, erasing both the NOTIFY-intent
-misconfig signal (3a) and the ``misconfigured=True`` audit flag (3b).
+Fix 3: The class branch of ``@deprecated`` collapsed legacy ``target=None`` and ``target=False`` sentinels to ``None``
+before delegating to :func:`deprecate.proxy.deprecated_class`, erasing both the NOTIFY-intent misconfig signal (3a) and
+the ``misconfigured=True`` audit flag (3b).
 
-Three-layer rule: the deprecated wrappers and target callables live in
-``tests/collection_deprecate.py``, ``tests/collection_misconfigured.py``, and
-``tests/collection_targets.py``. This module only contains assertions.
+Three-layer rule: the deprecated wrappers and target callables live in ``tests/collection_deprecate.py``,
+``tests/collection_misconfigured.py``, and ``tests/collection_targets.py``. This module only contains assertions.
 
 """
 

@@ -400,9 +400,9 @@ class TestCrossClassMethodGuard:
     def test_raises_for_cross_class_method_target(self) -> None:
         """Forwarding to a method on a different class raises TypeError at decoration time.
 
-        The misconfigured classes are defined inline (not in collection_deprecate.py)
-        because placing ``@deprecated`` with a cross-class target at module level would
-        raise TypeError at import time for every test that imports the collection module.
+        The misconfigured classes are defined inline (not in collection_deprecate.py) because placing ``@deprecated``
+        with a cross-class target at module level would raise TypeError at import time for every test that imports the
+        collection module.
 
         """
 
@@ -457,9 +457,9 @@ class TestCrossClassMethodGuard:
     def test_metaclass_generated_qualname_skips_guard(self) -> None:
         """A target with a metaclass-style rewritten ``__qualname__`` is detected and the guard returns silently.
 
-        The module-globals check verifies that the top-level class name in the target's qualname actually exists
-        in the target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname
-        produced by ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
+        The module-globals check verifies that the top-level class name in the target's qualname actually exists in the
+        target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname produced by
+        ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
 
         """
 
@@ -480,9 +480,9 @@ class TestCrossClassMethodGuard:
     def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
         """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
 
-        Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator
-        runs.  Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a
-        pre-applied decorator has overwritten ``fn.__qualname__`` on the source callable.
+        Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator runs.
+        Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a pre-applied
+        decorator has overwritten ``fn.__qualname__`` on the source callable.
 
         """
 
@@ -914,12 +914,10 @@ class TestEmptyVersionGuardSymmetry:
 class TestPEP702StackingRegression:
     """Stacking ``typing_extensions.deprecated`` outside ``@deprecated`` no longer crashes (B1a).
 
-    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's
-    ``__deprecated__`` attribute with the message string. Before the fix, ``wrapped_fn``
-    re-read that attribute at call time and crashed with
-    ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures
-    the ``DeprecationConfig`` instance in a closure variable so the call path survives
-    arbitrary outer decorators rewriting ``__deprecated__``.
+    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's ``__deprecated__`` attribute with the
+    message string. Before the fix, ``wrapped_fn`` re-read that attribute at call time and crashed with
+    ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures the ``DeprecationConfig``
+    instance in a closure variable so the call path survives arbitrary outer decorators rewriting ``__deprecated__``.
 
     """
 
@@ -938,9 +936,8 @@ class TestPEP702StackingRegression:
     def test_pep702_stacked_emits_pydeprecate_warning_on_first_call(self) -> None:
         """Inner ``@deprecated`` still emits its FutureWarning naming the target.
 
-        Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter
-        is zero — the module-level ``pep702_stacked`` fixture may already have warned
-        in earlier tests under ``num_warns=1``.
+        Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter is zero — the module-level
+        ``pep702_stacked`` fixture may already have warned in earlier tests under ``num_warns=1``.
 
         """
         from tests.collection_targets import pep702_target
@@ -990,9 +987,9 @@ class TestTemplateMgsValidation:
 class TestStackedCallableTargetGuard:
     """Stacking ``@deprecated(target=fn_a)`` over ``@deprecated(target=fn_b)`` warns at decoration time (B4).
 
-    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the
-    inner wrapper's signature does not match the outer target's remapped kwargs. The guard surfaces
-    this misconfiguration at decoration time so authors catch it without exercising the call path.
+    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the inner wrapper's
+    signature does not match the outer target's remapped kwargs. The guard surfaces this misconfiguration at decoration
+    time so authors catch it without exercising the call path.
 
     """
 

@@ -94,17 +94,17 @@ class _DeprecatedProxy:
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
 
-        ``__config`` stores private mutable runtime state in :class:`~deprecate._types._ProxyConfig`
-        (obj, stream, num_warns, read_only, args_extra, warned counter).
+        ``__config`` stores private mutable runtime state in :class:`~deprecate._types._ProxyConfig` (obj, stream,
+        num_warns, read_only, args_extra, warned counter).
 
         ``__deprecated__`` is the public metadata interface consumed by audit tools (``validate_deprecated_callable``,
-        ``find_deprecated_callables``, etc.) as a :class:`~deprecate._types.DeprecationConfig` instance aligned with
-        the ``@deprecated`` schema.
+        ``find_deprecated_callables``, etc.) as a :class:`~deprecate._types.DeprecationConfig` instance aligned with the
+        ``@deprecated`` schema.
 
-        ``_misconfigured_override`` is a private hook used by ``@deprecated`` when it delegates to
-        ``deprecated_class`` for class targets: it lets the caller pre-compute misconfig signals (raw
-        ``target=False`` plus NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy
-        rewrites them away, so the final frozen :class:`DeprecationConfig` records every signal in one place.
+        ``_misconfigured_override`` is a private hook used by ``@deprecated`` when it delegates to ``deprecated_class``
+        for class targets: it lets the caller pre-compute misconfig signals (raw ``target=False`` plus
+        NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy rewrites them away, so the final
+        frozen :class:`DeprecationConfig` records every signal in one place.
 
         """
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
@@ -315,8 +315,8 @@ class _DeprecatedProxy:
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         """Forward attribute lookup to the active object, emitting a deprecation warning.
 
-        In read-only mode, common mutating methods on built-in collections (for example, ``append`` or ``update``)
-        are wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
+        In read-only mode, common mutating methods on built-in collections (for example, ``append`` or ``update``) are
+        wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
 
         """
         self._warn()

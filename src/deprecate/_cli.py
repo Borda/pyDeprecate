@@ -61,9 +61,9 @@ def _is_package_dir(pth: Path) -> bool:
 def _managed_sys_path(path: str) -> Generator[None, None, None]:
     """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
 
-    For package directories (containing ``__init__.py``), inserts the parent directory so
-    the package name resolves as an importable module. For plain directories, inserts the
-    directory itself. Importable module name strings are passed through unchanged.
+    For package directories (containing ``__init__.py``), inserts the parent directory so the package name resolves as
+    an importable module. For plain directories, inserts the directory itself. Importable module name strings are passed
+    through unchanged.
 
     """
     abs_path: Path = Path(path).resolve()
@@ -154,8 +154,8 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
 def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo]:
     """Scan a directory or importable module/package name for deprecated wrappers.
 
-    File paths are not accepted because ``find_deprecation_wrappers()`` expects an
-    importable module or package name, not a filesystem path.
+    File paths are not accepted because ``find_deprecation_wrappers()`` expects an importable module or package name,
+    not a filesystem path.
 
     """
     pth: Path = Path(path)
@@ -579,6 +579,7 @@ def cmd_all(
 
     Returns:
         0 when all checks pass or ``skip_errors`` is True; 1 when any hard error is found.
+
     """
     if version is not None:
         version = str(version)

@@ -1,7 +1,7 @@
 """Shared type definitions for pyDeprecate.
 
-This module provides typed interfaces consumed by the decorator, proxy, and audit modules so that static analysers
-can catch schema mismatches at analysis time rather than silently returning ``None`` at runtime.
+This module provides typed interfaces consumed by the decorator, proxy, and audit modules so that static analysers can
+catch schema mismatches at analysis time rather than silently returning ``None`` at runtime.
 
 """
 
@@ -367,8 +367,8 @@ class _WrapperState:
 class _DeprecatedCallable(Protocol):
     """Structural type for a ``@deprecated``-decorated callable with mutable runtime state.
 
-    This protocol describes the shape of a function or method after the ``@deprecated`` decorator has been applied.
-    It includes both static metadata (``__deprecated__``) and mutable runtime state (``_state``).
+    This protocol describes the shape of a function or method after the ``@deprecated`` decorator has been applied. It
+    includes both static metadata (``__deprecated__``) and mutable runtime state (``_state``).
 
     Used to type-safely access ``_state`` on decorated callables without casting.
 

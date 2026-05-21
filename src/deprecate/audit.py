@@ -182,11 +182,13 @@ class DeprecationWrapperInfo:
 
     @property
     def empty_mapping(self) -> bool:
-        """Deprecated alias for ``empty_args_mapping``. Renamed in 0.8, removed in 1.0.
+        """Deprecated alias for ``empty_args_mapping``.
+
+        Renamed in 0.8, removed in 1.0.
 
         Note:
-            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
-            so accessing this property in a loop from the same call site emits at most one warning.
+                    Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
+                    so accessing this property in a loop from the same call site emits at most one warning.
 
         """
         warnings.warn(
@@ -198,11 +200,13 @@ class DeprecationWrapperInfo:
 
     @property
     def identity_mapping(self) -> list[str]:
-        """Deprecated alias for ``identity_args_mapping``. Renamed in 0.8, removed in 1.0.
+        """Deprecated alias for ``identity_args_mapping``.
+
+        Renamed in 0.8, removed in 1.0.
 
         Note:
-            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
-            so accessing this property in a loop from the same call site emits at most one warning.
+                    Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
+                    so accessing this property in a loop from the same call site emits at most one warning.
 
         """
         warnings.warn(

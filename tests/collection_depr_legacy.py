@@ -1,19 +1,15 @@
 """Collection of deprecated wrappers using legacy ``target=bool|None`` sentinels.
 
-This module mirrors a subset of :mod:`tests.collection_deprecate` fixtures but
-uses the **legacy** target sentinels (``target=None`` for warn-only and
-``target=True`` for self-deprecation/ARGS_REMAP) directly, instead of the
-modern :class:`deprecate.TargetMode` enum values.
+This module mirrors a subset of :mod:`tests.collection_deprecate` fixtures but uses the **legacy** target sentinels
+(``target=None`` for warn-only and ``target=True`` for self-deprecation/ARGS_REMAP) directly, instead of the modern
+:class:`deprecate.TargetMode` enum values.
 
-These fixtures intentionally trigger the ``FutureWarning`` emitted by
-``TargetMode._from_legacy()`` at decoration time.  Those warnings are suppressed
-during test discovery via the targeted ``filterwarnings`` entries in
-``pyproject.toml`` (scoped by message regex AND originating module
-``deprecate._types``).
+These fixtures intentionally trigger the ``FutureWarning`` emitted by ``TargetMode._from_legacy()`` at decoration time.
+Those warnings are suppressed during test discovery via the targeted ``filterwarnings`` entries in ``pyproject.toml``
+(scoped by message regex AND originating module ``deprecate._types``).
 
-The file scope makes the purpose self-evident, so fixture names here match
-their modern counterparts in :mod:`tests.collection_deprecate` without any
-``legacy_`` prefix.
+The file scope makes the purpose self-evident, so fixture names here match their modern counterparts in
+:mod:`tests.collection_deprecate` without any ``legacy_`` prefix.
 
 """
 
