@@ -287,7 +287,7 @@ with warnings.catch_warnings(record=True) as w:
 
 !!! danger "`target=True` (or `TargetMode.ARGS_REMAP`) without `args_mapping` is a misconfiguration"
 
-    As of v0.9, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings: a `FutureWarning` for the legacy sentinel, and a `UserWarning` because `ARGS_REMAP` requires `args_mapping` to have any effect. This will become a `TypeError` in v1.0. If your intent is to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
+    As of v0.8, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings: a `FutureWarning` for the legacy sentinel, and a `UserWarning` because `ARGS_REMAP` requires `args_mapping` to have any effect. This will become a `TypeError` in v1.0. If your intent is to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
 
 ## Chained deprecation levels
 

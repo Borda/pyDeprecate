@@ -7,6 +7,16 @@ description: Install pyDeprecate and write your first deprecation in minutes. Co
 
 You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.
 
+## Why pyDeprecate instead of `warnings.warn`?
+
+`warnings.warn` tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:
+
+- **Automatic call forwarding** — every call to the old function is transparently redirected to the replacement; no stale code runs.
+- **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}` to help callers migrate to the new signature.
+- **CI deadline enforcement** — `validate_deprecation_expiry()` (via `pip install pyDeprecate[audit]`) raises in CI when a removal date has passed, so deprecated code cannot quietly outlive its deadline.
+
+If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.
+
 ## Installation
 
 pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies.
@@ -83,21 +93,21 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 **All `@deprecated` parameters:**
 
-| Param              | Default               | Purpose                                                                       |
-| ------------------ | --------------------- | ----------------------------------------------------------------------------- |
-| `target`           | —                     | `Callable` to forward to · `True` to remap args in-place · `None` notice-only |
-| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                        |
-| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                           |
-| `stream`           | `deprecation_warning` | Output sink callable (set `None` to silence deprecation messages)             |
-| `num_warns`        | `1`                   | `1` once · `-1` always · `N` exactly N times                                  |
-| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                |
-| `template_mgs`     | `None`                | Custom deprecation message template (`%`-style placeholders)                  |
-| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                    |
-| `skip_if`          | `False`               | `bool` or `Callable → bool`; skip deprecation when true                       |
-| `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                           |
-| `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`     |
+| Param              | Default               | Purpose                                                                                                    |
+| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `target`           | `TargetMode.NOTIFY`   | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
+| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                                                     |
+| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                                                        |
+| `stream`           | `deprecation_warning` | Output sink callable (set `None` to silence deprecation messages)                                          |
+| `num_warns`        | `1`                   | `1` once · `-1` always · `N` exactly N times                                                               |
+| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
+| `template_mgs`     | `None`                | Custom deprecation message template (`%`-style placeholders)                                               |
+| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                                                 |
+| `skip_if`          | `False`               | `bool` or `Callable → bool`; skip deprecation when true                                                    |
+| `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                        |
+| `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                  |
 
-`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, and `stream`; it requires `obj` and adds `name` (display name) and `read_only`.
+`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 ______________________________________________________________________
 

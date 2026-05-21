@@ -371,12 +371,12 @@ A deprecated wrapper whose `target` is itself another deprecated function create
 Two chain types are reported:
 
 - `ChainType.TARGET` — the target is a deprecated callable that forwards to another function. Fix by pointing directly to the final (non-deprecated) implementation.
-- `ChainType.STACKED` — argument mappings chain through multiple hops and must be composed. This covers both the case where a callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming), and the case where multiple `@deprecated(True, args_mapping=...)` decorators are stacked on the same function without being merged.
+- `ChainType.STACKED` — argument mappings chain through multiple hops and must be composed. This covers both the case where a callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming), and the case where multiple `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators are stacked on the same function without being merged.
 
 The example below shows both bad patterns and the correct direct form:
 
 ```python
-from deprecate import deprecated, validate_deprecation_wrapper, void
+from deprecate import TargetMode, deprecated, validate_deprecation_wrapper, void
 
 
 def new_power(base: float, exponent: float = 2) -> float:
@@ -390,7 +390,7 @@ def power_v2(base: float, exponent: float = 2) -> float:
 
 
 # self-deprecation — renames old arg "exp" -> "exponent" within the same function
-@deprecated(True, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
 def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
     return base**exponent
 
@@ -402,7 +402,7 @@ def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
     return void(base, exponent)
 
 
-# BAD: targets legacy_power (target=True with arg renaming) — ChainType.STACKED
+# BAD: targets legacy_power (target=TargetMode.ARGS_REMAP with arg renaming) — ChainType.STACKED
 # Mappings chain: "power" -> "exp" -> "exponent" — must be composed.
 # SOLUTION: target=new_power, args_mapping={"power": "exponent"}
 @deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})

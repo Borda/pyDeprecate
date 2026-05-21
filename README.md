@@ -61,6 +61,8 @@ For most of these cases, you want to maintain some compatibility, so you cannot 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
 
 > pyDeprecate is downloaded over **700,000 times per month** from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — a widely adopted solution for API deprecation in production Python codebases.
+>
+> **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
 
 ## ✨ Features
 
@@ -108,30 +110,33 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 </details>
 
-> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+> **When to prefer `typing.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
 
 <br>
 
-| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
-| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |                ✅                |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |                ❌                |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |                ❌                |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |                †                 |
-| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
+| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :----------------------------: |
+| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |               ✅               |
+| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
+| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |               ❌               |
+| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |               ❌               |
+| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
+| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |               †                |
+| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
+| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
 
 ✍️ = possible but requires manual implementation
-† stdlib on Python 3.13+; also available as `typing_extensions.deprecated` backport for Python < 3.13
+</br>
+† `typing.deprecated` in the stdlib on Python 3.13+; also available as `typing_extensions.deprecated` for Python < 3.13
+
+_Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
@@ -226,7 +231,7 @@ Not sure which API to reach for? Start here.
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 
 > [!TIP]
-> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, and `template_mgs`.
+> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
 > `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
@@ -1164,6 +1169,12 @@ print(f"Self-references: {len(self_refs)}")
 
 You can also use the CLI to validate your deprecations directly from the command line.
 
+The CLI requires the `cli` extra (includes `fire` and `rich`). Install it with:
+
+```bash
+pip install 'pyDeprecate[audit,cli]'
+```
+
 The CLI has four subcommands.
 
 ```bash
@@ -1470,8 +1481,8 @@ def enforce_no_deprecation_chains():
 > - Returns `list[DeprecationWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
 > - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
 > - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
->   - Callable target is itself `@deprecated(True, args_mapping=...)` (self-renaming) — mappings compose across hops
->   - Stacked `@deprecated(True, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
+>   - Callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming) — mappings compose across hops
+>   - Stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
 > - Use `recursive=False` to scan only the top-level module
 
 ## 🧪 Testing Deprecated Code
@@ -1648,7 +1659,7 @@ class MyClass:
        pass
    ```
 
-3. **Use target=True for self-deprecation** (deprecate argument of same function):
+3. **Use `TargetMode.ARGS_REMAP` for self-deprecation** (deprecate argument of same function):
 
    ```python
    from deprecate import TargetMode, deprecated
