@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mkdocs.config.defaults import MkDocsConfig
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
-    """Inject package version into extra config so templates can reference it."""
+    """Inject package version and root site URL into extra config so templates can reference them."""
     try:
         about = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "deprecate", "__about__.py")
         with open(about) as f:
@@ -25,6 +25,11 @@ def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
         config.extra["package_version"] = match.group(1) if match else ""
     except Exception:
         config.extra["package_version"] = ""
+    # mike overrides site_url with a versioned path during builds; strip the trailing
+    # version/alias segment so templates can reference the stable root URL.
+    raw = str(getattr(config, "site_url", "") or "").rstrip("/")
+    root = re.sub(r"/(?:v?\d[\w.]*|stable|dev|latest)$", "", raw)
+    config.extra["root_site_url"] = root + "/"
     return config
 
 
@@ -85,26 +90,26 @@ _PYDEPRECATE_MARKDOWN_MIRRORS = (
 )
 
 
-def _pydeprecate_public_url(page):
+def _pydeprecate_public_url(page: Page) -> str:
     page_url = getattr(page, "url", "") or ""
     if page_url in {"", "index.html"}:
         return _PYDEPRECATE_STABLE_BASE
     return f"{_PYDEPRECATE_STABLE_BASE}{page_url}"
 
 
-def _pydeprecate_markdown_url(page):
+def _pydeprecate_markdown_url(page: Page) -> str:
     page_url = getattr(page, "url", "") or "index.html"
     if page_url == "":
         page_url = "index.html"
     return f"{_PYDEPRECATE_STABLE_BASE}{page_url}.md"
 
 
-def _pydeprecate_page_title(page):
+def _pydeprecate_page_title(page: Page) -> str:
     title = getattr(page, "title", None)
     return title or "pyDeprecate documentation"
 
 
-def _pydeprecate_page_description(page):
+def _pydeprecate_page_description(page: Page) -> str:
     meta = getattr(page, "meta", {}) or {}
     return meta.get(
         "description",
@@ -112,7 +117,7 @@ def _pydeprecate_page_description(page):
     )
 
 
-def _pydeprecate_json_ld(page):
+def _pydeprecate_json_ld(page: Page) -> list[dict[str, Any]]:
     src_path = getattr(getattr(page, "file", None), "src_path", "")
     url = _pydeprecate_public_url(page)
     title = _pydeprecate_page_title(page)
@@ -128,7 +133,7 @@ def _pydeprecate_json_ld(page):
         "about": "Python API deprecation and migration",
         "programmingLanguage": "Python",
     }
-    objects = [base]
+    objects: list[dict[str, Any]] = [base]
     if src_path == "getting-started.md":
         objects.append({
             "@context": "https://schema.org",
@@ -177,13 +182,13 @@ def _pydeprecate_json_ld(page):
     return objects
 
 
-def on_page_context(context, page, config, nav):
+def on_page_context(context: dict[str, object], page: Page, config: MkDocsConfig, nav: object) -> dict[str, object]:
     context["pydeprecate_canonical_url"] = _pydeprecate_public_url(page)
     page.canonical_url = context["pydeprecate_canonical_url"]
     return context
 
 
-def on_post_page(output, page, config):
+def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
     if "_pydeprecate_existing_on_post_page" in globals():
         output = _pydeprecate_existing_on_post_page(output, page, config)
     canonical = _pydeprecate_public_url(page)
@@ -214,13 +219,13 @@ def on_post_page(output, page, config):
     return output
 
 
-def _pydeprecate_mirror_target(src_path):
+def _pydeprecate_mirror_target(src_path: str) -> str:
     if src_path == "index.md":
         return "index.html.md"
     return src_path.removesuffix(".md") + ".html.md"
 
 
-def _pydeprecate_copy_markdown_mirrors(docs_dir, site_dir):
+def _pydeprecate_copy_markdown_mirrors(docs_dir: str, site_dir: str) -> None:
     docs = _PyDeprecatePath(docs_dir)
     site = _PyDeprecatePath(site_dir)
     for src_name in _PYDEPRECATE_MARKDOWN_MIRRORS:
@@ -232,7 +237,7 @@ def _pydeprecate_copy_markdown_mirrors(docs_dir, site_dir):
         _pydeprecate_shutil.copyfile(src, dest)
 
 
-def _pydeprecate_rewrite_sitemap(site_dir):
+def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
     sitemap = _PyDeprecatePath(site_dir) / "sitemap.xml"
     if not sitemap.exists():
         return
@@ -245,6 +250,6 @@ def _pydeprecate_rewrite_sitemap(site_dir):
     sitemap.write_text(text, encoding="utf-8")
 
 
-def on_post_build(config):
+def on_post_build(config: MkDocsConfig) -> None:
     _pydeprecate_copy_markdown_mirrors(config["docs_dir"], config["site_dir"])
     _pydeprecate_rewrite_sitemap(config["site_dir"])
