@@ -376,7 +376,7 @@ class TestEnumFormEquivalence(_ClassFormBase):
         assert isinstance(NewEnum.ALPHA, proxy)  # type: ignore[arg-type]
 
     def test_issubclass_check(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """Issubclass(NewEnum, proxy) is True via __subclasscheck__."""
+        """``issubclass(NewEnum, proxy)`` is True via __subclasscheck__."""
         assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:

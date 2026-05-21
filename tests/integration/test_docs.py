@@ -312,7 +312,7 @@ Returns:
         assert callable_target_with_args_mapping.__doc__ == expected
 
     def test_no_target_with_args_mapping(self) -> None:
-        """Target=None: inline note inserted AND general block appended (no :func: ref)."""
+        """``target=None``: inline note inserted AND general block appended (no :func: ref)."""
         expected = """Warning-only deprecation with a deprecated argument.
 
 Args:

@@ -155,7 +155,7 @@ self_ref_typed.__deprecated__ = replace(deprecated_info, target=self_referencing
 
 @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
 def target_false_deprecation(x: int = 1) -> int:
-    """Target=False is not valid — audit should flag as misconfigured_target."""
+    """``target=False`` is not valid — audit should flag as misconfigured_target."""
     return x
 
 

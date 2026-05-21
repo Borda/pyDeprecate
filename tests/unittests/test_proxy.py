@@ -914,7 +914,7 @@ class TestTypeProtocol:
     """Tests for __instancecheck__ and __subclasscheck__ on _DeprecatedProxy."""
 
     def test_isinstance_delegates_to_target_class(self) -> None:
-        """Isinstance(x, proxy) returns True when x is an instance of the target class."""
+        """``isinstance(x, proxy)`` returns True when x is an instance of the target class."""
 
         class NewConfig:
             pass
@@ -927,7 +927,7 @@ class TestTypeProtocol:
         assert isinstance(obj, OldConfig)
 
     def test_isinstance_returns_false_for_unrelated_type(self) -> None:
-        """Isinstance(x, proxy) returns False when x is not an instance of the target."""
+        """``isinstance(x, proxy)`` returns False when x is not an instance of the target."""
 
         class NewConfig:
             pass
@@ -939,7 +939,7 @@ class TestTypeProtocol:
         assert not isinstance(42, OldConfig)
 
     def test_isinstance_no_warning_emitted(self) -> None:
-        """Isinstance(x, proxy) is a structural check — must not consume the warning budget."""
+        """``isinstance(x, proxy)`` is a structural check — must not consume the warning budget."""
 
         class Target:
             pass
@@ -956,7 +956,7 @@ class TestTypeProtocol:
             proxy()  # warning budget remains untouched
 
     def test_issubclass_delegates_to_target_class(self) -> None:
-        """Issubclass(Sub, proxy) returns True when Sub is a subclass of the target."""
+        """``issubclass(Sub, proxy)`` returns True when Sub is a subclass of the target."""
 
         class Base:
             pass
@@ -989,7 +989,7 @@ class TestTypeProtocol:
         assert issubclass(VirtualSubclass, OldAbstractBase)
 
     def test_issubclass_no_warning_emitted(self) -> None:
-        """Issubclass(Sub, proxy) is structural and must not consume warning budget."""
+        """``issubclass(Sub, proxy)`` is structural and must not consume warning budget."""
 
         class Base:
             pass
@@ -1006,7 +1006,7 @@ class TestTypeProtocol:
             proxy()  # warning budget remains untouched
 
     def test_isinstance_returns_false_for_non_type_active(self) -> None:
-        """Isinstance(x, proxy) returns False when the active object is not a type."""
+        """``isinstance(x, proxy)`` returns False when the active object is not a type."""
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
         assert not isinstance(42, cast(Any, proxy))
 

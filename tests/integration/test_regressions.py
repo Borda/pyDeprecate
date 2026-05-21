@@ -137,7 +137,7 @@ class TestFix3bTargetFalseOnClass:
     """Fix 3b — invalid ``target=False`` must surface as ``misconfigured=True``."""
 
     def test_misconfigured_flag_set(self) -> None:
-        """Target=False on a class normalises to NOTIFY but keeps misconfigured=True."""
+        """``target=False`` on a class normalises to NOTIFY but keeps ``misconfigured=True``."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_false()
@@ -153,7 +153,7 @@ class TestFix3bTargetFalseOnClass:
         assert info.misconfigured_target is True
 
     def test_misconfigured_flag_set_with_args_mapping(self) -> None:
-        """Target=False combined with args_mapping still surfaces misconfigured=True."""
+        """``target=False`` combined with args_mapping still surfaces ``misconfigured=True``."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_false_with_args_mapping()

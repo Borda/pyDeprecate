@@ -175,7 +175,7 @@ class TestCmdCheck:
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_recursive_threads_flag(self, mock_find: MagicMock) -> None:
-        """Recursive=False passes recursive=False to find_deprecation_wrappers."""
+        """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         assert cmd_check(path="some_module", recursive=False) == 0
         mock_find.assert_called_once_with("some_module", recursive=False)
@@ -258,7 +258,7 @@ class TestCmdExpiry:
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_no_recursive_threads_flag(self, mock_expiry: MagicMock) -> None:
-        """Recursive=False passes recursive=False to validate_deprecation_expiry."""
+        """``recursive=False`` passes through to validate_deprecation_expiry."""
         mock_expiry.return_value = []
         cmd_expiry(path="some_module", version="1.0", recursive=False)
         mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False)
@@ -334,7 +334,7 @@ class TestCmdChains:
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_no_recursive_threads_flag(self, mock_chains: MagicMock) -> None:
-        """Recursive=False passes recursive=False to validate_deprecation_chains."""
+        """``recursive=False`` passes through to validate_deprecation_chains."""
         mock_chains.return_value = []
         cmd_chains(path="some_module", recursive=False)
         mock_chains.assert_called_once_with("some_module", recursive=False)
@@ -451,7 +451,7 @@ class TestCmdAll:
     @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_recursive_threads_flag(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
-        """Recursive=False passes recursive=False to find_deprecation_wrappers."""
+        """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         cmd_all(path="some_module", version="1.0", recursive=False)
         mock_find.assert_any_call("some_module", recursive=False)

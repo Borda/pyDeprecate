@@ -324,7 +324,7 @@ class TestLegacySentinels:
     """Backward-compat: legacy sentinels emit FutureWarning at decoration time."""
 
     def test_none_emits_future_warning(self) -> None:
-        """Target=None triggers FutureWarning at decoration time; use TargetMode.NOTIFY."""
+        """``target=None`` triggers FutureWarning at decoration time; use TargetMode.NOTIFY."""
         with pytest.warns(FutureWarning, match="TargetMode\\.NOTIFY"):
 
             @deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
@@ -340,7 +340,7 @@ class TestLegacySentinels:
                 return x
 
     def test_false_emits_user_warning(self) -> None:
-        """Target=False is not valid — should warn at decoration time."""
+        """``target=False`` is not valid — should warn at decoration time."""
         with pytest.warns(UserWarning, match=r"target=False.*is not a valid deprecation mode"):
 
             @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
@@ -348,7 +348,7 @@ class TestLegacySentinels:
                 return x
 
     def test_false_stores_notify_enum_in_deprecated_config(self) -> None:
-        """Target=False is normalised to TargetMode.NOTIFY in __deprecated__.target."""
+        """``target=False`` is normalised to TargetMode.NOTIFY in __deprecated__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
 
@@ -370,7 +370,7 @@ class TestLegacySentinels:
         assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.ARGS_REMAP
 
     def test_none_stores_notify_enum_in_deprecated_config(self) -> None:
-        """Target=None is normalised to TargetMode.NOTIFY in __deprecated__.target."""
+        """``target=None`` is normalised to TargetMode.NOTIFY in __deprecated__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
 
