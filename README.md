@@ -552,11 +552,14 @@ compute_power(2, scale=3)  # → 1 warning  (function deprecated only),         
 
 </details>
 
-| Outer (top)           | Inner (bottom) | Status                             |
-| --------------------- | -------------- | ---------------------------------- |
-| `ARGS_REMAP`          | `ARGS_REMAP`   | ✓ Supported                        |
-| `ARGS_REMAP`          | `NOTIFY`       | ✓ Supported                        |
-| `callable` / `NOTIFY` | anything else  | ✗ `UserWarning` at decoration time |
+| Outer (top)  | Inner (bottom) | Status                             |
+| ------------ | -------------- | ---------------------------------- |
+| `ARGS_REMAP` | `ARGS_REMAP`   | ✓ Supported                        |
+| `ARGS_REMAP` | `NOTIFY`       | ✓ Supported                        |
+| `callable`   | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time |
+| `callable`   | `NOTIFY`       | ✗ `UserWarning` at decoration time |
+| `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time |
+| `NOTIFY`     | `callable`     | ✗ `UserWarning` at decoration time |
 
 <br>
 
