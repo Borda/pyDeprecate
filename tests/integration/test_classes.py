@@ -292,7 +292,7 @@ class TestDeprecatedClassMethod:
 
     @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
     def test_self_rename_with_deprecated_arg_warns(self, service_cls: type) -> None:
-        """Target=True with args_mapping renames old_x->x within the same method."""
+        """``target=True`` with args_mapping renames old_x->x within the same method."""
         svc = service_cls()
         with pytest.warns(FutureWarning, match="self_renamed_method.*old_x.*x"):
             result = svc.self_renamed_method(old_x=5)

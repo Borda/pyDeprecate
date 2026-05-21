@@ -571,7 +571,7 @@ class TestDecoratorFactory:
         assert obj.method() == "ok"
 
     def test_true_with_args_mapping_resolves_to_args_remap(self) -> None:
-        """Target=True + non-empty args_mapping resolves to ARGS_REMAP with FutureWarning."""
+        """``target=True`` + non-empty args_mapping resolves to ARGS_REMAP with FutureWarning."""
         with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP") as caught:
 
             @deprecated_class(
