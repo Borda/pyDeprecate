@@ -97,6 +97,7 @@ setup(
         "Source Code": ABOUT.__source_code__,
         "Bug Tracker": f"{ABOUT.__source_code__}/issues",
         "Changelog": f"{ABOUT.__source_code__}/blob/main/CHANGELOG.md",
+        "Agent Guide": "https://borda.github.io/pyDeprecate/llms.txt",
     },
     entry_points={
         "console_scripts": [
