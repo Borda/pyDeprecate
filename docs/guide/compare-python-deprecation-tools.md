@@ -32,7 +32,7 @@ def internal_hook() -> None:
 
 Use `typing.deprecated` for Python 3.13+ static-checker-only visibility when runtime behavior does not need to change.
 
-```python
+```python phmdoctest:skip
 from typing import deprecated
 
 
