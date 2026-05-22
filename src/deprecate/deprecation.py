@@ -195,8 +195,9 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     - ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner): lifecycle pattern — rename args first, deprecate
       the whole function later.
 
-    All other combinations produce wrong results or ``TypeError`` at the first call; this guard
-    surfaces them at decoration time so authors catch the misconfiguration immediately.
+    Unsupported combinations (five cases) produce ``UserWarning`` at decoration time; all others
+    are silently accepted.  The two supported combinations are: ``ARGS_REMAP`` (outer) +
+    ``ARGS_REMAP`` (inner) and ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner).
     """
     inner_target = source.__deprecated__.target
     name = source.__name__
@@ -204,44 +205,53 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     if callable(outer_target) and callable(inner_target):
         warnings.warn(
             f"'{name}' has a callable target stacked over another callable-target @deprecated."
-            " Only ARGS_REMAP stacking is supported. This will raise TypeError at call time."
-            " Will be TypeError in v1.0.",
+            " Only ARGS_REMAP stacking is supported. This will raise `TypeError` at call time."
+            " Will be `TypeError` in `v1.0`.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=3,
         )
     elif callable(outer_target) and inner_target is TargetMode.ARGS_REMAP:
         warnings.warn(
             f"'{name}' has a callable target stacked over @deprecated(ARGS_REMAP)."
             " The arg-rename warning will not fire at call time; the inner layer is bypassed."
             " Collapse to: @deprecated(target=<callable>, args_mapping={...})."
-            " Will be TypeError in v1.0.",
+            " Will be `TypeError` in `v1.0`.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=3,
+        )
+    elif callable(outer_target) and inner_target is TargetMode.NOTIFY:
+        warnings.warn(
+            f"'{name}' has a callable target stacked over @deprecated(NOTIFY)."
+            " The function-deprecated warning fires but the callable target is bypassed."
+            " Collapse to a single @deprecated(target=<callable>) and remove the outer @deprecated(NOTIFY)."
+            " Will be `TypeError` in `v1.0`.",
+            UserWarning,
+            stacklevel=3,
         )
     elif outer_target is TargetMode.ARGS_REMAP and callable(inner_target):
         warnings.warn(
             f"'{name}' has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated."
             " Update the inner @deprecated(target=<callable>, args_mapping={...}) instead of stacking."
-            " Will be TypeError in v1.0.",
+            " Will be `TypeError` in `v1.0`.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=3,
         )
     elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.NOTIFY:
         warnings.warn(
             f"'{name}' has duplicate @deprecated(NOTIFY) layers."
             " Update the existing decorator's `deprecated_in`, `remove_in`, or `template_mgs` instead."
-            " Will be TypeError in v1.0.",
+            " Will be `TypeError` in `v1.0`.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=3,
         )
     elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.ARGS_REMAP:
         warnings.warn(
             f"'{name}' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP)."
             " Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)"
             " and @deprecated(NOTIFY, ...) below it."
-            " Will be TypeError in v1.0.",
+            " Will be `TypeError` in `v1.0`.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=3,
         )
 
 
@@ -803,7 +813,10 @@ def deprecated(
         _target = _normalize_target(source, target)
 
         if _has_deprecation_meta(source):
+            _source_is_stacked = True
             _warn_stacking_misconfiguration(source, _target)
+        else:
+            _source_is_stacked = False
 
         # Skip for legacy sentinels: _normalize_target already fired a FutureWarning;
         # re-running the guard here would report the wrong migration path.
@@ -856,7 +869,7 @@ def deprecated(
             if (
                 not (reason_callable or reason_argument)
                 and not (args_extra and _target is TargetMode.ARGS_REMAP)
-                and not _has_deprecation_meta(source)
+                and not _source_is_stacked
             ):
                 return source(**kwargs)
 
