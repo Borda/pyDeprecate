@@ -253,7 +253,7 @@ def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
         return
     text = sitemap.read_text(encoding="utf-8")
     text = _pydeprecate_re.sub(
-        r"https://borda\.github\.io/pyDeprecate/(?:v[^/]+|latest|dev)/",
+        r"https://borda\.github\.io/pyDeprecate/(?:v?[^/]+|latest|dev)/",
         _PYDEPRECATE_STABLE_BASE,
         text,
     )
