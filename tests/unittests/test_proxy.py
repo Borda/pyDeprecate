@@ -3,9 +3,11 @@
 import inspect
 import warnings
 from collections.abc import Callable
+from typing import Any, cast
 
 import pytest
 
+from deprecate._types import TargetMode
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
     DeprecatedColorDataClass,
@@ -13,9 +15,14 @@ from tests.collection_deprecate import (
     MappedColorEnum,
     MappedDataClass,
     MappedDropArgDataClass,
+    ProxyArgsRemapAuto,
+    ProxyArgsRemapForArgWarnMessage,
+    ProxyCallableWithArgsMapping,
+    ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
+    pep702_proxy_stacked,
 )
-from tests.collection_targets import NewDataClass, TargetColorEnum
+from tests.collection_targets import NewDataClass, TargetColorEnum, TargetWithInjected, _Pep702ProxyTarget
 
 
 class TestProxyInit:
@@ -113,6 +120,145 @@ class TestProxyWarnBehavior:
         assert caught[0].category is FutureWarning
 
 
+class TestProxyTemplateMgs:
+    """``template_mgs`` overrides the built-in warning-message templates on proxies.
+
+    Mirrors the parity that ``@deprecated`` already offers, so that switching from
+    ``@deprecated`` to ``deprecated_class``/``deprecated_instance`` does not cause
+    the loss of custom warning-message control.
+    """
+
+    def test_custom_template_used_in_warning_message_no_target(self) -> None:
+        """``template_mgs`` overrides the no-target template when no target is set."""
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="legacy_obj",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            template_mgs="CUSTOM %(source_name)s deprecated_in=%(deprecated_in)s",
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy._warn()
+        msg = str(caught[0].message)
+        assert msg == "CUSTOM legacy_obj deprecated_in=1.0"
+
+    def test_custom_template_used_in_warning_message_callable_target(self) -> None:
+        """``template_mgs`` overrides the callable-target template, exposing target placeholders."""
+
+        def replacement() -> None:
+            """Replacement target used to confirm ``target_path`` substitution."""
+
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="legacy_obj",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            target=replacement,
+            template_mgs="OVERRIDE %(source_name)s -> %(target_name)s",
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy._warn()
+        msg = str(caught[0].message)
+        assert "OVERRIDE" in msg
+        assert "legacy_obj" in msg
+        assert "replacement" in msg
+
+    def test_custom_template_used_in_per_argument_warning(self) -> None:
+        """``template_mgs`` overrides ``TEMPLATE_WARNING_ARGUMENTS`` for per-argument warnings."""
+        proxy = _DeprecatedProxy(
+            obj=lambda **_: None,
+            name="LegacyConfig",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            args_mapping={"old_key": "new_key"},
+            template_mgs="ARGS-OVERRIDE %(source_name)s :: %(argument_map)s",
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy._warn(arg_name="old_key")
+        msg = str(caught[0].message)
+        assert msg.startswith("ARGS-OVERRIDE LegacyConfig :: ")
+        assert "`old_key` -> `new_key`" in msg
+
+    def test_default_template_used_when_template_mgs_is_none(self) -> None:
+        """Without ``template_mgs`` the built-in default template is rendered verbatim."""
+        proxy = _DeprecatedProxy(obj={}, name="legacy_obj", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy._warn()
+        msg = str(caught[0].message)
+        # Default no-target template begins with the built-in prefix and includes both versions.
+        assert "The `legacy_obj` was deprecated since v1.0" in msg
+        assert "It will be removed in v2.0" in msg
+
+    def test_template_mgs_stored_on_deprecation_config(self) -> None:
+        """``template_mgs`` is recorded on ``DeprecationConfig`` for audit/introspection."""
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="legacy_obj",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            template_mgs="CUSTOM %(source_name)s",
+        )
+        dep = object.__getattribute__(proxy, "__deprecated__")
+        assert dep.template_mgs == "CUSTOM %(source_name)s"
+
+    def test_deprecated_class_custom_template_applied(self) -> None:
+        """``deprecated_class(template_mgs=...)`` propagates the override to ``_warn``."""
+
+        class NewCfg:
+            """Replacement class used as forwarding target."""
+
+        @deprecated_class(
+            target=NewCfg,
+            deprecated_in="1.0",
+            remove_in="2.0",
+            template_mgs="OVERRIDE %(source_name)s -> %(target_name)s",
+        )
+        class OldCfg:
+            """Source class wrapped by the proxy."""
+
+        with pytest.warns(FutureWarning) as caught:
+            OldCfg()
+        # Decorator-form proxy still warns for callable target — assert override is used.
+        msg = str(caught[0].message)
+        assert "OVERRIDE" in msg
+        assert "OldCfg" in msg
+        assert "NewCfg" in msg
+
+    def test_deprecated_instance_custom_template_applied(self) -> None:
+        """``deprecated_instance(template_mgs=...)`` propagates the override to ``_warn``."""
+        proxy = deprecated_instance(
+            {"k": 1},
+            name="legacy_cfg",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            template_mgs="OVERRIDE %(source_name)s",
+        )
+        with pytest.warns(FutureWarning) as caught:
+            _ = proxy["k"]
+        msg = str(caught[0].message)
+        assert msg == "OVERRIDE legacy_cfg"
+
+    def test_deprecated_class_default_template_when_template_mgs_omitted(self) -> None:
+        """Without ``template_mgs`` ``deprecated_class`` keeps the built-in template."""
+
+        class NewCfg2:
+            """Replacement class used as forwarding target."""
+
+        @deprecated_class(target=NewCfg2, deprecated_in="1.0", remove_in="2.0")
+        class OldCfg2:
+            """Source class wrapped by the proxy."""
+
+        with pytest.warns(FutureWarning) as caught:
+            OldCfg2()
+        msg = str(caught[0].message)
+        # Built-in callable-target template prefix.
+        assert "The `OldCfg2` was deprecated since v1.0 in favor of" in msg
+
+
 class TestProxyReadOnly:
     """Read-only mode enforcement."""
 
@@ -127,33 +273,22 @@ class TestProxyReadOnly:
         proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=False)
         proxy._check_read_only("Test operation")  # must not raise
 
-    def test_setitem_raises_when_read_only(self) -> None:
-        """__setitem__ raises AttributeError in read_only mode via _check_read_only."""
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            pytest.param(lambda p: p.__setitem__("k", 2), id="setitem"),
+            pytest.param(lambda p: p.__delitem__("k"), id="delitem"),
+            pytest.param(lambda p: setattr(p, "some_attr", "value"), id="setattr"),
+            pytest.param(lambda p: delattr(p, "some_attr"), id="delattr"),
+        ],
+    )
+    def test_mutation_raises_when_read_only(self, operation: Callable) -> None:
+        """All write operations raise AttributeError in read_only mode."""
         proxy = _DeprecatedProxy(
             obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None
         )
         with pytest.raises(AttributeError, match="read-only"):
-            proxy["k"] = 2
-
-    def test_delitem_raises_when_read_only(self) -> None:
-        """__delitem__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(
-            obj={"k": 1}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None
-        )
-        with pytest.raises(AttributeError, match="read-only"):
-            del proxy["k"]
-
-    def test_setattr_raises_when_read_only(self) -> None:
-        """__setattr__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
-        with pytest.raises(AttributeError, match="read-only"):
-            proxy.some_attr = "value"
-
-    def test_delattr_raises_when_read_only(self) -> None:
-        """__delattr__ raises AttributeError in read_only mode via _check_read_only."""
-        proxy = _DeprecatedProxy(obj={}, name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
-        with pytest.raises(AttributeError, match="read-only"):
-            del proxy.some_attr
+            operation(proxy)
 
     def test_setitem_forwards_to_source(self) -> None:
         """__setitem__ mutates the source object when not read-only, without emitting a warning."""
@@ -172,6 +307,22 @@ class TestProxyReadOnly:
         del proxy["k"]
         assert "k" not in inner
         assert "m" in inner
+
+    def test_custom_mutator_bypasses_read_only_guard(self) -> None:
+        """Custom method names not in the blocked set pass through read_only=True (known limitation)."""
+
+        class RegistryWithCustomMutator:
+            def __init__(self) -> None:
+                self.items: list[str] = []
+
+            def register(self, item: str) -> None:
+                self.items.append(item)
+
+        obj = RegistryWithCustomMutator()
+        proxy = deprecated_instance(obj, deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        # `register` is not in the blocked set — it must NOT raise
+        proxy.register("x")
+        assert obj.items == ["x"]
 
 
 class TestProxyGetActive:
@@ -374,6 +525,69 @@ class TestDecoratorFactory:
             warnings.simplefilter("ignore")
             assert DeprecatedColorEnum.RED is TargetColorEnum.RED
 
+    @pytest.mark.parametrize(
+        ("raw_target", "warning_category", "warning_message"),
+        [
+            (
+                True,
+                FutureWarning,
+                "`target=True` without `args_mapping` resolves to `TargetMode.NOTIFY`"
+                " (warns on every access). Will be `TypeError` in `v1.0`.",
+            ),
+            (
+                False,
+                UserWarning,
+                "`target=False` is not valid for `deprecated_class()`. Will be `TypeError` in `v1.0`.",
+            ),
+        ],
+    )
+    def test_boolean_target_is_normalized_and_class_access_still_works(
+        self,
+        raw_target: bool,
+        warning_category: type[Warning],
+        warning_message: str,
+    ) -> None:
+        """Legacy boolean targets are normalized before proxy metadata and access use them."""
+        with pytest.warns(warning_category) as caught:
+
+            @deprecated_class(
+                target=raw_target,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )
+            class OldClass:
+                def method(self) -> str:
+                    return "ok"
+
+        assert len(caught) == 1
+        assert str(caught[0].message) == warning_message
+
+        dep = object.__getattribute__(OldClass, "__deprecated__")
+        assert dep.target is TargetMode.NOTIFY
+
+        obj = OldClass()
+        assert obj.method() == "ok"
+
+    def test_true_with_args_mapping_resolves_to_args_remap(self) -> None:
+        """target=True + non-empty args_mapping resolves to ARGS_REMAP with FutureWarning."""
+        with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP") as caught:
+
+            @deprecated_class(
+                target=True,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                args_mapping={"old_attr": "new_attr"},
+                stream=None,
+            )
+            class OldClass:
+                def method(self) -> str:
+                    return "ok"
+
+        assert len(caught) == 1
+        dep = object.__getattribute__(OldClass, "__deprecated__")
+        assert dep.target is TargetMode.ARGS_REMAP
+
 
 class TestDecoratorEnum:
     """@deprecated_class applied to Enum classes."""
@@ -439,13 +653,15 @@ class TestArgsMapping:
         ],
     )
     def test_remap_kwargs(self, kwargs: dict[str, object], expected_label: str, expected_total: int) -> None:
-        """Deprecated dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs."""
+        """Deprecated dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs.
+
+        When an old kwarg name is passed (e.g. ``name`` mapped to ``label``), the proxy
+        emits the per-argument deprecation template (``old -> new``) — matching the
+        decorator's argument-deprecation form.
+        """
         with pytest.warns(
             FutureWarning,
-            match=(
-                r"The `MappedDataClass` was deprecated since v1\.0 in favor of "
-                r"`tests\.collection_targets\.NewDataClass`"
-            ),
+            match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`",
         ):
             result = MappedDataClass(**kwargs)  # type: ignore[arg-type]
         assert isinstance(result, NewDataClass)
@@ -453,13 +669,14 @@ class TestArgsMapping:
         assert result.total == expected_total
 
     def test_drop_kwarg(self) -> None:
-        """Args mapped to None should be dropped before forwarding, while mapped kwargs still reach target."""
+        """Args mapped to None should be dropped before forwarding, while mapped kwargs still reach target.
+
+        Old kwarg names (``name`` and the dropped ``legacy_flag``) emit per-argument
+        deprecation messages; ``legacy_flag`` is dropped before forwarding.
+        """
         with pytest.warns(
             FutureWarning,
-            match=(
-                r"The `MappedDropArgDataClass` was deprecated since v1\.0 in favor of "
-                r"`tests\.collection_targets\.NewDataClass`"
-            ),
+            match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`",
         ):
             result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
@@ -471,16 +688,76 @@ class TestArgsMapping:
         assert mapping == {"name": "label", "count": "total"}
 
     def test_enum_remap_kwarg(self) -> None:
-        """Enum wrappers should apply args_mapping so old constructor kwargs still resolve target members."""
+        """Enum wrappers should apply args_mapping so old constructor kwargs still resolve target members.
+
+        Passing the old kwarg name (``val``) triggers the per-argument warning template
+        (``val -> value``), matching the decorator's argument-deprecation form.
+        """
         with pytest.warns(
             FutureWarning,
-            match=(
-                r"The `MappedColorEnum` was deprecated since v1\.0 in favor of "
-                r"`tests\.collection_targets\.TargetColorEnum`"
-            ),
+            match=r"`MappedColorEnum` uses deprecated arguments: `val` -> `value`",
         ):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is TargetColorEnum.RED
+
+    def test_target_mode_args_remap_emits_per_argument_warning(self) -> None:
+        """TargetMode.ARGS_REMAP path emits old -> new arg names in the warning message."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ProxyArgsRemapForArgWarnMessage(old_key=5)
+        assert len(caught) >= 1
+        msg = str(caught[0].message)
+        assert "old_key" in msg
+        assert "new_key" in msg
+        assert "->" in msg
+
+
+class TestArgsExtra:
+    """args_extra injects additional kwargs into deprecated_class() and deprecated_instance() forwarded calls."""
+
+    def test_deprecated_class_accepts_args_extra_kwarg(self) -> None:
+        """deprecated_class accepts args_extra without raising TypeError."""
+        assert isinstance(ProxyClassWithArgsExtra, _DeprecatedProxy)
+
+    def test_args_extra_values_appear_in_forwarded_constructor_call(self) -> None:
+        """Kwargs from args_extra are merged into the forwarded constructor call."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            instance = ProxyClassWithArgsExtra(new_key=7)
+        assert instance.new_key == 7
+        assert instance.injected == "from-extra"
+
+    def test_args_extra_merged_after_args_mapping_rename(self) -> None:
+        """args_extra is applied after args_mapping renames kwargs."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            proxy = deprecated_class(
+                target=TargetWithInjected,
+                deprecated_in="1.2",
+                remove_in="2.0",
+                args_mapping={"old_key": "new_key"},
+                args_extra={"injected": "extra"},
+                num_warns=-1,
+            )(TargetWithInjected)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            instance = proxy(old_key=11)
+        assert instance.new_key == 11
+        assert instance.injected == "extra"
+
+    def test_deprecated_instance_accepts_args_extra_and_forwards(self) -> None:
+        """deprecated_instance also accepts args_extra and merges it into forwarded calls."""
+        proxy = deprecated_instance(
+            TargetWithInjected,
+            name="LegacyTarget",
+            deprecated_in="1.2",
+            remove_in="2.0",
+            args_extra={"injected": "via-instance"},
+            stream=None,
+        )
+        instance = proxy(new_key=3)
+        assert instance.new_key == 3
+        assert instance.injected == "via-instance"
 
 
 class TestContainerProtocolWithTarget:
@@ -523,6 +800,51 @@ class TestDeprecatedClassReadOnly:
     def test_read_only_not_in_signature(self) -> None:
         """deprecated_class does not expose read_only in its public API."""
         assert "read_only" not in inspect.signature(deprecated_class).parameters
+
+
+class TestEmptyVersionGuard:
+    """Decoration-time UserWarning when both ``deprecated_in`` and ``remove_in`` are empty.
+
+    Both ``deprecated_class()`` and ``deprecated_instance()`` warn at construction
+    time when neither version string is provided, because the rendered notice
+    would otherwise contain empty ``v`` placeholders. ``stream=None`` suppresses
+    the guard so callers that opt out of warnings entirely remain silent.
+    """
+
+    def test_deprecated_class_empty_versions_warns(self) -> None:
+        """@deprecated_class() with empty versions emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` set"):
+
+            @deprecated_class()
+            class OldEmptyVersions:
+                """Source class with no version metadata supplied."""
+
+                pass
+
+    def test_deprecated_class_empty_versions_stream_none_silent(self) -> None:
+        """@deprecated_class(stream=None) suppresses the empty-versions UserWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated_class(stream=None)
+            class OldEmptyVersionsSilent:
+                """Source class with stream=None — guard must stay silent."""
+
+                pass
+
+        assert not caught
+
+    def test_deprecated_instance_empty_versions_warns(self) -> None:
+        """deprecated_instance() with empty versions emits UserWarning at instantiation time."""
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` set"):
+            deprecated_instance({"k": 1})
+
+    def test_deprecated_instance_empty_versions_stream_none_silent(self) -> None:
+        """deprecated_instance(stream=None) suppresses the empty-versions UserWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            deprecated_instance({"k": 1}, stream=None)
+        assert not caught
 
 
 class TestDeprecatedInstance:
@@ -619,7 +941,7 @@ class TestTypeProtocol:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            isinstance(obj, proxy)  # type: ignore[arg-type]
+            isinstance(obj, cast(Any, proxy))
 
         assert not caught  # no warning from isinstance
         with pytest.warns(FutureWarning):
@@ -670,7 +992,7 @@ class TestTypeProtocol:
         proxy = _DeprecatedProxy(obj=Base, name="old_cls", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            issubclass(Sub, proxy)  # type: ignore[arg-type]
+            issubclass(Sub, cast(Any, proxy))
         assert not caught
         with pytest.warns(FutureWarning):
             proxy()  # warning budget remains untouched
@@ -678,4 +1000,116 @@ class TestTypeProtocol:
     def test_isinstance_returns_false_for_non_type_active(self) -> None:
         """isinstance(x, proxy) returns False when the active object is not a type."""
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
-        assert not isinstance(42, proxy)  # type: ignore[arg-type]
+        assert not isinstance(42, cast(Any, proxy))
+
+
+class TestProxyArgsMappingBehavior:
+    """Conditional warning behavior when args_mapping is provided on a proxy."""
+
+    def test_auto_args_remap_warns_on_old_arg(self) -> None:
+        """Proxy with args_mapping and no explicit target warns when old arg name is used."""
+        with pytest.warns(FutureWarning):
+            ProxyArgsRemapAuto(old_key=1)
+
+    def test_auto_args_remap_silent_on_new_arg(self) -> None:
+        """Proxy with args_mapping and no explicit target does NOT warn when new arg name is used."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ProxyArgsRemapAuto(new_key=1)
+        assert not caught
+
+    def test_callable_target_with_args_mapping_warns_on_old_arg(self) -> None:
+        """Proxy forwarding to callable target warns per old arg name when present in kwargs."""
+        with pytest.warns(FutureWarning):
+            ProxyCallableWithArgsMapping(old_key=1)
+
+    def test_callable_target_with_args_mapping_warns_on_new_arg(self) -> None:
+        """Proxy forwarding to callable target always warns (class deprecated) even with new arg name."""
+        from tests.collection_targets import SomeTargetClass
+
+        proxy = _DeprecatedProxy(
+            obj=SomeTargetClass,
+            name="SomeTargetClass",
+            deprecated_in="1.2",
+            remove_in="2.0",
+            num_warns=-1,
+            target=SomeTargetClass,
+            args_mapping={"old_key": "new_key"},
+        )
+        with pytest.warns(FutureWarning):
+            proxy(new_key=1)
+
+    def test_notify_with_args_mapping_emits_misconfig_warning(self) -> None:
+        """NOTIFY + args_mapping on proxy emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match="args_mapping"):
+
+            @deprecated_class(
+                deprecated_in="1.2",
+                remove_in="2.0",
+                target=TargetMode.NOTIFY,
+                args_mapping={"old_key": "new_key"},
+            )
+            class _ProxyNotifyWithArgsMapping:
+                pass
+
+    def test_args_remap_no_mapping_emits_misconfig_warning(self) -> None:
+        """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match="args_mapping"):
+
+            @deprecated_class(
+                deprecated_in="1.2",
+                remove_in="2.0",
+                target=TargetMode.ARGS_REMAP,
+            )
+            class _ProxyArgsRemapNoMapping:
+                pass
+
+    def test_num_warns_respected_per_arg(self) -> None:
+        """Per-argument warn budget: second call with same old arg does not warn."""
+        proxy = _DeprecatedProxy(
+            obj=dict,
+            name="budget_test",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            num_warns=1,
+            target=TargetMode.ARGS_REMAP,
+            args_mapping={"old_key": "new_key"},
+        )
+        with pytest.warns(FutureWarning):
+            proxy(old_key=1)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy(old_key=2)
+        assert not caught
+
+
+class TestPEP702ProxyStackingRegression:
+    """Stacking ``typing_extensions.deprecated`` outside ``deprecated_class`` does not break the proxy (B1b).
+
+    PEP 702's ``typing_extensions.deprecated`` assigns ``arg.__deprecated__ = msg`` on the
+    object it decorates.  For a ``_DeprecatedProxy`` instance, that assignment routes
+    through the proxy's forwarding ``__setattr__`` and lands on the wrapped class — it
+    does **not** clobber the proxy's own instance ``__dict__`` slot (which was set via
+    ``object.__setattr__`` at construction time and is read back via
+    ``object.__getattribute__`` in ``_dep`` and ``__call__``).  These tests guard against
+    a future refactor re-introducing a clobber path on the proxy.
+    """
+
+    def test_pep702_proxy_stacked_instantiation_does_not_crash(self) -> None:
+        """Stacked PEP 702 + ``deprecated_class`` proxy instantiates and dispatches methods."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            instance = pep702_proxy_stacked()
+            assert instance.value() == 42
+
+    def test_pep702_proxy_stacked_returns_target_instance(self) -> None:
+        """The stacked wrapper produces an instance of the wrapped target class."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            instance = pep702_proxy_stacked()
+        assert isinstance(instance, _Pep702ProxyTarget)
+
+    def test_pep702_proxy_stacked_emits_pep702_deprecation_warning(self) -> None:
+        """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning on call."""
+        with pytest.warns(DeprecationWarning, match="use `Pep702ProxyTarget`"):
+            pep702_proxy_stacked()

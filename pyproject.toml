@@ -33,6 +33,7 @@ lint.extend-select = [
 ]
 lint.per-file-ignores."tests/**" = [
   "S101", # flake8-bandit: Bandit — Use of assert detected (raising potential security/logic issues) (see: https://pypi.org/project/flake8-bandit)
+  "S603", # flake8-bandit: Bandit — subprocess call with fixed arguments in tests (see: https://pypi.org/project/flake8-bandit)
 ]
 lint.unfixable = [
   "F401", # F401: pyflakes — module imported but unused (cannot be auto-fixed by Ruff) (see: https://pypi.org/project/pyflakes)
@@ -63,12 +64,14 @@ ignore = [
   "*.yml",
   ".github",
   ".github/*",
+  "Makefile",
 ]
 
 [tool.mypy]
 files = [
-  "deprecate",
+  "src/deprecate",
 ]
+python_version = "3.9"
 disallow_untyped_defs = "True"
 ignore_missing_imports = "True"
 show_error_codes = "True"
@@ -76,9 +79,10 @@ warn_redundant_casts = "True"
 warn_unused_configs = "True"
 warn_unused_ignores = "True"
 allow_redefinition = "True"
-warn_no_return = "False"
+warn_no_return = "True"
 
 [tool.pytest]
+ini_options.testpaths = [ "src", "tests" ]
 ini_options.norecursedirs = [
   ".git",
   ".github",
@@ -94,6 +98,19 @@ ini_options.addopts = [
   "--disable-pytest-warnings",
 ]
 # filterwarnings = ["error::FutureWarning"]
+# Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`
+# and the construction-time misconfig warnings from `TargetMode.validate()` so that legacy
+# test fixtures can be imported at module load without polluting test output.  Patterns are
+# scoped by message regex AND originating module (`deprecate._types`) so that warnings of
+# the same class from any other source still surface.
+ini_options.filterwarnings = [
+  "ignore:target=None is deprecated since v0\\.8.*:FutureWarning:deprecate._types",
+  "ignore:target=True is deprecated since v0\\.8.*:FutureWarning:deprecate._types",
+  "ignore:'target=False' is not a valid deprecation mode.*:UserWarning:deprecate._types",
+  "ignore:.*requires `args_mapping` to specify which arguments are being renamed.*:UserWarning:deprecate._types",
+  "ignore:.*ignores `args_mapping`\\..*:UserWarning:deprecate._types",
+  "ignore:.*ignores `args_extra`\\..*:UserWarning:deprecate._types",
+]
 ini_options.xfail_strict = true
 ini_options.junit_duration_report = "call"
 

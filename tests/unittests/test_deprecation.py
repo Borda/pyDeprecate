@@ -5,14 +5,17 @@ import sys
 import warnings
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Union, cast
 from unittest.mock import MagicMock
 
 import pytest
+import typing_extensions
 
-from deprecate import deprecated, void
+from deprecate import TargetMode, deprecated, void
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
+    _normalize_target,
     _prepare_target_call,
     _raise_warn,
     _raise_warn_arguments,
@@ -27,7 +30,12 @@ from deprecate.docstring.inject import (
     normalize_docstring_style,
 )
 from deprecate.proxy import _DeprecatedProxy
-from tests.collection_deprecate import CrossGuardModuleLevel, CrossGuardOldClass, CrossGuardSameClass
+from tests.collection_deprecate import (
+    CrossGuardModuleLevel,
+    CrossGuardOldClass,
+    CrossGuardSameClass,
+    pep702_stacked,
+)
 from tests.collection_targets import KeywordCallTarget, call_signature_source
 
 
@@ -299,31 +307,39 @@ class TestRaiseWarnArguments:
 class TestDeprecatedClassGuard:
     """@deprecated emits UserWarning and delegates to @deprecated_class when applied to a class."""
 
-    def test_warns_for_plain_class(self) -> None:
+    _NOTIFY_PARAMS = [
+        pytest.param(TargetMode.NOTIFY, id="TargetMode.NOTIFY"),
+        pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
+    ]
+
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_warns_for_plain_class(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a plain class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             class _MyClass:
                 pass
 
         assert isinstance(_MyClass, _DeprecatedProxy)
 
-    def test_warns_for_enum_class(self) -> None:
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_warns_for_enum_class(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to an Enum class emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             class _MyEnum(Enum):
                 A = "a"
 
         assert isinstance(_MyEnum, _DeprecatedProxy)
 
-    def test_warns_for_dataclass(self) -> None:
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_warns_for_dataclass(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a dataclass emits UserWarning and returns a proxy."""
         with pytest.warns(UserWarning, match="deprecated_class"):
 
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             @dataclass
             class _MyData:
                 x: int
@@ -331,9 +347,10 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyData, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated is applied to a class."""
+        """stream=None suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", category=FutureWarning)
 
             @deprecated(target=None, deprecated_in="1.0", remove_in="2.0", stream=None)
             class _MyClass:
@@ -341,21 +358,34 @@ class TestDeprecatedClassGuard:
 
         assert isinstance(_MyClass, _DeprecatedProxy)
 
-    def test_does_not_raise_for_function(self) -> None:
+    def test_stream_none_suppresses_meta_warning_whole_class(self) -> None:
+        """stream=None suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", stream=None)
+            class _MyWholeClass:
+                pass
+
+        assert isinstance(_MyWholeClass, _DeprecatedProxy)
+
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_does_not_raise_for_function(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to a regular function does not raise."""
 
-        @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+        @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
         def my_func() -> None:
             pass
 
         with pytest.warns(FutureWarning):
             my_func()
 
-    def test_does_not_raise_for_init_method(self) -> None:
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_does_not_raise_for_init_method(self, target_val: Union[TargetMode, None]) -> None:
         """Applying @deprecated to __init__ (not the class itself) does not raise."""
 
         class MyClass:
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
             def __init__(self) -> None:
                 pass
 
@@ -365,15 +395,14 @@ class TestDeprecatedClassGuard:
 
 
 class TestCrossClassMethodGuard:
-    """@deprecated raises TypeError when target is a method on a different class."""
+    """@deprecated warns when target is a method on a different class."""
 
     def test_raises_for_cross_class_method_target(self) -> None:
         """Forwarding to a method on a different class raises TypeError at decoration time.
 
         The misconfigured classes are defined inline (not in collection_deprecate.py)
-        because placing ``@deprecated`` with an invalid cross-class target at module
-        level would raise ``TypeError`` at import time, breaking every test that
-        imports the collection module.
+        because placing ``@deprecated`` with a cross-class target at module level would
+        raise TypeError at import time for every test that imports the collection module.
         """
 
         class OtherClass:
@@ -424,32 +453,110 @@ class TestCrossClassMethodGuard:
         assert isinstance(old, CrossGuardOldClass)
         assert old.x == 3
 
+    def test_metaclass_generated_qualname_skips_guard(self) -> None:
+        """A target with a metaclass-style rewritten ``__qualname__`` is detected and the guard returns silently.
+
+        The module-globals check verifies that the top-level class name in the target's qualname actually exists
+        in the target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname
+        produced by ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
+        """
+
+        def replacement(instance: object, x: int) -> int:
+            void(instance)
+            return x
+
+        # Simulate a metaclass / type(...) assigning a qualname that looks like a method on FakeOwner,
+        # even though `replacement` is unrelated to any such class.  FakeOwner does not exist in this
+        # test module, so the module-globals check in the guard detects the unreliable qualname.
+        replacement.__qualname__ = "FakeOwner.replacement"
+
+        class RealOwner:  # decoration must not raise TypeError
+            @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
+            def old_method(self, x: int) -> int:
+                return void(x)
+
+    def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
+        """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
+
+        Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator
+        runs.  Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a
+        pre-applied decorator has overwritten ``fn.__qualname__`` on the source callable.
+        """
+
+        def rewrite_to_alien_class(fn: Callable[..., Any]) -> Callable[..., Any]:
+            """Test fixture: outer decorator that retags the wrapped function as living on ``AlienClass``."""
+            fn.__qualname__ = "AlienClass.method"
+            return fn
+
+        class MyClass:  # decoration must not raise TypeError
+            def new_method(self, x: int) -> int:
+                return x
+
+            @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
+            @rewrite_to_alien_class
+            def old_method(self, x: int) -> int:
+                return void(x)
+
+    def test_decorator_rewriting_qualname_raises_for_cross_class(self) -> None:
+        """A pre-applied decorator rewriting source qualname to a genuinely different class still raises TypeError.
+
+        Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken
+        from the class body's locals.  When the recovered class differs from the target's class, the guard
+        still fires correctly — this guards against an over-eager FP suppression.
+        """
+
+        def rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
+            """Test fixture: an outer decorator that retags the wrapped function as living on ``OtherOwner``."""
+            fn.__qualname__ = "OtherOwner.rewritten_method"
+            return fn
+
+        class TargetOwner:
+            def target_method(self, x: int) -> int:
+                return x
+
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+
+            class RealOwner:
+                @deprecated(target=TargetOwner.target_method, deprecated_in="1.0", remove_in="2.0")
+                @rewrite_qualname
+                def old_method(self, x: int) -> int:
+                    return void(x)
+
 
 class TestDocstringStyleValidation:
     """Validation for ``docstring_style`` values."""
 
-    def test_invalid_docstring_style_raises_value_error(self) -> None:
+    _NOTIFY_PARAMS = [
+        pytest.param(TargetMode.NOTIFY, id="TargetMode.NOTIFY"),
+        pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
+    ]
+
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_invalid_docstring_style_raises_value_error(self, target_val: Union[TargetMode, None]) -> None:
         """Unsupported ``docstring_style`` values should fail fast at decoration time."""
         with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
 
             @deprecated(
-                target=None,
+                target=target_val,
                 deprecated_in="1.0",
                 remove_in="2.0",
                 update_docstring=True,
-                docstring_style="unsupported-style",  # type: ignore[arg-type]
+                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
             )
             def some_func() -> None:
                 """A function."""
 
-    def test_invalid_docstring_style_raises_even_without_update_docstring(self) -> None:
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_invalid_docstring_style_raises_even_without_update_docstring(
+        self, target_val: Union[TargetMode, None]
+    ) -> None:
         """``docstring_style`` is validated eagerly regardless of ``update_docstring``."""
         with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
 
             @deprecated(
-                target=None,
+                target=target_val,
                 deprecated_in="1.0",
-                docstring_style="unsupported-style",  # type: ignore[arg-type]
+                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
             )
             def some_func() -> None:
                 """A function."""
@@ -483,10 +590,11 @@ class TestDocstringStyleValidation:
         monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
         assert normalize_docstring_style("auto") == "mkdocs"
 
-    def test_update_docstring_idempotent(self) -> None:
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_update_docstring_idempotent(self, target_val: Union[TargetMode, None]) -> None:
         """Calling ``_update_docstring_with_deprecation`` twice must not duplicate the notice."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True)
+        @deprecated(target=target_val, deprecated_in="1.0", update_docstring=True)
         def some_func() -> None:
             """A function."""
 
@@ -494,7 +602,8 @@ class TestDocstringStyleValidation:
         _update_docstring_with_deprecation(some_func)
         assert some_func.__doc__ == original_doc
 
-    def test_idempotency_guard_no_false_positive_on_version_prefix(self) -> None:
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_idempotency_guard_no_false_positive_on_version_prefix(self, target_val: Union[TargetMode, None]) -> None:
         """Guard must not suppress injection when the docstring mentions a longer version.
 
         ``deprecated_in="1"`` should inject ``.. deprecated:: 1`` even when the
@@ -503,7 +612,7 @@ class TestDocstringStyleValidation:
         false positive.
         """
 
-        @deprecated(target=None, deprecated_in="1", update_docstring=True, docstring_style="rst")
+        @deprecated(target=target_val, deprecated_in="1", update_docstring=True, docstring_style="rst")
         def some_func() -> None:
             """Summary. See also .. deprecated:: 1.0 handling."""
 
@@ -569,7 +678,7 @@ class TestDocstringStyleOutput:
     def test_notice_marker_for_explicit_style(self, style: str, expected_marker: str) -> None:
         """Each explicit style injects the expected notice format into the docstring."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
         def _fn() -> None:
             """A simple function."""
 
@@ -587,7 +696,7 @@ class TestDocstringStyleOutput:
     def test_notice_inserted_before_google_args_for_style(self, style: str, expected_marker: str) -> None:
         """Notice is placed before ``Args:`` regardless of style."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
         def _fn(x: int) -> None:
             """Summary.
 
@@ -611,8 +720,273 @@ class TestDocstringStyleOutput:
     def test_other_style_marker_absent(self, style: str, absent_marker: str) -> None:
         """The notice uses exactly one format — the other style's marker is absent."""
 
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type]
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
         def _fn() -> None:
             """A simple function."""
 
         assert absent_marker not in (_fn.__doc__ or "")
+
+
+class TestNormalizeTargetInvalidInputs:
+    """_normalize_target passes unrecognised non-class values through unchanged."""
+
+    @pytest.mark.parametrize("bad_target", [42, "not_callable", [], {}])
+    def test_invalid_type_returned_unchanged(self, bad_target: object) -> None:
+        """Non-callable, non-class, non-sentinel values pass through _normalize_target as-is."""
+
+        def dummy() -> None:
+            pass
+
+        result = _normalize_target(source=dummy, target=cast(Any, bad_target))
+        assert result is bad_target
+
+    @pytest.mark.parametrize("bad_target", [42, "not_callable", [], {}])
+    def test_invalid_target_source_body_runs(self, bad_target: object) -> None:
+        """Non-callable target is never invoked; source body executes normally at call time."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+
+            @deprecated(target=cast(Any, bad_target), deprecated_in="1.2", remove_in="2.0")
+            def fn(x: int) -> int:
+                return x + 1
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = fn(4)
+
+        assert result == 5
+
+
+class TestEmptyVersionGuardOnFunctions:
+    """@deprecated() on a function with no version strings emits UserWarning at decoration time.
+
+    Mirrors the proxy-side coverage in tests/unittests/test_proxy.py so the function form of
+    @deprecated is held to the same contract: a single UserWarning when both ``deprecated_in``
+    and ``remove_in`` are absent, suppressed when ``stream=None``.
+    """
+
+    def test_function_empty_versions_warns_once(self) -> None:
+        """@deprecated() on a function with no version strings emits exactly one UserWarning."""
+        with pytest.warns(UserWarning, match=r"no `deprecated_in` set") as caught:
+
+            @deprecated()
+            def _fn_no_versions() -> None:
+                """Source function with no version metadata supplied."""
+
+        user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
+        assert len(user_warnings) == 1
+
+    def test_function_empty_versions_stream_none_silent(self) -> None:
+        """@deprecated(stream=None) on a function with no version strings emits no UserWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated(stream=None)
+            def _fn_no_versions_silent() -> None:
+                """Source function with stream=None — guard must stay silent."""
+
+        assert not caught
+
+
+class TestEmptyVersionGuardOnClasses:
+    """@deprecated() on a class with no version strings emits exactly one empty-version guard warning.
+
+    When ``@deprecated`` is applied to a class, ``packing()`` delegates to ``deprecated_class()``.
+    The empty-version guard must fire at the proxy layer only — duplicating it inside
+    ``packing()`` would surface two UserWarnings for a single decoration. The inline class
+    fixtures here are mechanical one-offs per the AGENTS.md test-three-layer exception.
+    """
+
+    def test_class_empty_versions_warns_once(self) -> None:
+        """@deprecated() applied to a class with no version strings emits exactly one empty-version guard warning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated()
+            class _OldClassNoVersions:
+                """Source class with no version metadata supplied."""
+
+        user_warnings = [
+            w for w in caught if issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message)
+        ]
+        assert len(user_warnings) == 1
+
+    def test_class_empty_versions_stream_none_silent(self) -> None:
+        """@deprecated(stream=None) applied to a class with no version strings emits no UserWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated(stream=None)
+            class _OldClassNoVersionsSilent:
+                """Source class with stream=None — guard must stay silent."""
+
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert not user_warnings
+
+
+class TestEmptyVersionGuardSymmetry:
+    """Guard fires for all target shapes when deprecated_in and remove_in are absent (F1b)."""
+
+    def test_guard_fires_for_callable_target(self) -> None:
+        """@deprecated(target=<callable>) with no versions emits UserWarning at decoration time."""
+
+        def new_fn() -> None:
+            pass
+
+        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
+
+            @deprecated(target=new_fn)
+            def old_fn() -> None:
+                pass
+
+    def test_guard_fires_for_args_remap_target(self) -> None:
+        """@deprecated(target=ARGS_REMAP) with no versions emits UserWarning at decoration time."""
+        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
+
+            @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})
+            def old_fn(old: int = 0, new: int = 0) -> int:
+                return new
+
+    def test_guard_silent_when_stream_none(self) -> None:
+        """@deprecated(target=<callable>, stream=None) with no versions does not emit UserWarning."""
+
+        def new_fn() -> None:
+            pass
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated(target=new_fn, stream=None)
+            def old_fn() -> None:
+                pass
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    def test_guard_fires_when_remove_in_set_but_deprecated_in_absent(self) -> None:
+        """@deprecated(remove_in='2.0') with no deprecated_in still emits the empty-version UserWarning."""
+
+        def new_fn() -> None:
+            pass
+
+        with pytest.warns(UserWarning, match="no `deprecated_in` set") as caught:
+
+            @deprecated(target=new_fn, remove_in="2.0")
+            def old_fn() -> None:
+                pass
+
+        user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
+        assert len(user_warnings) == 1
+
+    def test_guard_silent_when_template_msg_provided(self) -> None:
+        """@deprecated with template_mgs and no deprecated_in does not emit the empty-version UserWarning."""
+
+        def new_fn() -> None:
+            pass
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated(target=new_fn, template_mgs="%(source_name)s is gone, use new_fn.")
+            def old_fn_notify() -> None:
+                pass
+
+            @deprecated(
+                target=TargetMode.ARGS_REMAP,
+                args_mapping={"a": "b"},
+                template_mgs="%(source_name)s arg 'a' renamed.",
+            )
+            def old_fn_remap(a: int = 0, b: int = 0) -> int:
+                return b
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+
+class TestPEP702StackingRegression:
+    """Stacking ``typing_extensions.deprecated`` outside ``@deprecated`` no longer crashes (B1a).
+
+    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's
+    ``__deprecated__`` attribute with the message string. Before the fix, ``wrapped_fn``
+    re-read that attribute at call time and crashed with
+    ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures
+    the ``DeprecationConfig`` instance in a closure variable so the call path survives
+    arbitrary outer decorators rewriting ``__deprecated__``.
+    """
+
+    def test_pep702_stacked_call_does_not_crash(self) -> None:
+        """Stacked PEP 702 + pyDeprecate wrapper forwards the call and returns the target's result."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = pep702_stacked(1)
+        assert result == 2
+
+    def test_pep702_stacked_emits_pep702_deprecation_warning(self) -> None:
+        """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning at call time."""
+        with pytest.warns(DeprecationWarning, match="use `pep702_target`"):
+            pep702_stacked(2)
+
+    def test_pep702_stacked_emits_pydeprecate_warning_on_first_call(self) -> None:
+        """Inner ``@deprecated`` still emits its FutureWarning naming the target.
+
+        Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter
+        is zero — the module-level ``pep702_stacked`` fixture may already have warned
+        in earlier tests under ``num_warns=1``.
+        """
+        from tests.collection_targets import pep702_target
+
+        inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
+        stacked = typing_extensions.deprecated("use `pep702_target`")(inner)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = stacked(3)
+
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert future_warnings, "expected at least one FutureWarning from pyDeprecate"
+        assert any("pep702_target" in str(w.message) for w in future_warnings)
+        assert result == 6
+
+
+class TestTemplateMgsValidation:
+    """A malformed ``template_mgs`` is detected at decoration time, not at first call (B6)."""
+
+    def test_unknown_placeholder_raises_at_decoration(self) -> None:
+        """An unknown ``%(...)s`` key raises ``ValueError`` when ``@deprecated`` is applied — before any call."""
+        from tests.collection_targets import base_sum_kwargs
+
+        with pytest.raises(ValueError, match="Invalid template_mgs"):
+            deprecated(
+                target=base_sum_kwargs,
+                deprecated_in="0.8",
+                remove_in="1.0",
+                template_mgs="bad %(unknown_key)s",
+            )(base_sum_kwargs)
+
+    def test_valid_template_accepted_at_decoration(self) -> None:
+        """A template using only documented placeholders is accepted at decoration time."""
+        from tests.collection_targets import base_sum_kwargs
+
+        # Must not raise — covers happy path of the probe.
+        wrapper = deprecated(
+            target=base_sum_kwargs,
+            deprecated_in="0.8",
+            remove_in="1.0",
+            template_mgs="`%(source_name)s` -> `%(target_name)s` since v%(deprecated_in)s",
+        )(base_sum_kwargs)
+        assert callable(wrapper)
+
+
+class TestStackedCallableTargetGuard:
+    """Stacking ``@deprecated(target=fn_a)`` over ``@deprecated(target=fn_b)`` warns at decoration time (B4).
+
+    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the
+    inner wrapper's signature does not match the outer target's remapped kwargs. The guard surfaces
+    this misconfiguration at decoration time so authors catch it without exercising the call path.
+    """
+
+    def test_stacked_callable_targets_warn_at_decoration(self) -> None:
+        """Decorating a callable-target wrapper with another callable target emits ``UserWarning``."""
+        from tests.collection_targets import stacked_inner_target, stacked_outer_target
+
+        inner = deprecated(target=stacked_inner_target, deprecated_in="0.8", remove_in="1.0")(stacked_outer_target)
+        with pytest.warns(UserWarning, match="callable target stacked"):
+            deprecated(target=stacked_outer_target, deprecated_in="0.8", remove_in="1.0")(inner)

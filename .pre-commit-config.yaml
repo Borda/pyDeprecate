@@ -27,6 +27,7 @@ repos:
     hooks:
       - id: prettier
         files: \.(html|yml|yaml|toml)
+        exclude: ^docs/overrides/.*\.html$
         # https://prettier.io/docs/en/options.html#print-width
         args: ["--print-width=120"]
 
@@ -48,9 +49,19 @@ repos:
     rev: 1.0.0
     hooks:
       - id: mdformat
+        name: mdformat (general)
+        exclude: ^docs/
         args: ["--number"]
         additional_dependencies:
           - mdformat-gfm
+          - mdformat-ruff
+          - mdformat_frontmatter
+      - id: mdformat
+        name: mdformat (docs)
+        files: ^docs/
+        args: ["--number"]
+        additional_dependencies:
+          - mdformat-mkdocs
           - mdformat-ruff
           - mdformat_frontmatter
 

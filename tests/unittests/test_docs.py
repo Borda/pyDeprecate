@@ -1,11 +1,12 @@
 """Unit tests for private helpers in deprecate.docstring.inject."""
 
 import importlib
+import importlib.util
 from typing import cast
 
 import pytest
 
-from deprecate._types import DeprecationConfig, _DeprecatedCallable
+from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
 from deprecate.docstring.inject import (
     _annotate_google_style_arg,
     _annotate_sphinx_style_arg,
@@ -223,7 +224,7 @@ class TestUpdateDocstringIdempotent:
         config = DeprecationConfig(
             deprecated_in="1.0",
             remove_in="2.0",
-            target=True,
+            target=TargetMode.ARGS_REMAP,
             args_mapping={"old": None},
         )
         cast(_DeprecatedCallable, my_fn).__deprecated__ = config
@@ -246,7 +247,7 @@ class TestUpdateDocstringIdempotent:
         config = DeprecationConfig(
             deprecated_in="1.0",
             remove_in="2.0",
-            target=True,
+            target=TargetMode.ARGS_REMAP,
             args_mapping={"old": None},
         )
         cast(_DeprecatedCallable, my_fn).__deprecated__ = config
@@ -259,9 +260,9 @@ class TestUpdateDocstringIdempotent:
 class TestDocstringSubpackageImports:
     """Smoke tests: docstring sub-modules are importable and expose expected symbols."""
 
+    @pytest.mark.skipif(importlib.util.find_spec("griffe") is None, reason="griffe not installed")
     def test_griffe_ext_importable(self) -> None:
         """deprecate.docstring.griffe_ext imports without error and exposes RuntimeDocstrings."""
-        pytest.importorskip("griffe", reason="griffe not installed")
         mod = importlib.import_module("deprecate.docstring.griffe_ext")
         assert hasattr(mod, "RuntimeDocstrings")
 

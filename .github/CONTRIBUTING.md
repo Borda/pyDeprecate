@@ -197,6 +197,9 @@ pre-commit run --all-files
 # Generate/extract README examples as tests (when updating README examples)
 phmdoctest README.md --outfile tests/integration/test_readme.py
 
+# Generate tests from README and all docs pages
+make docs-tests
+
 # Run the full test suite (including doctests if configured in pytest)
 pytest .
 ```
@@ -372,6 +375,14 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
+
+> [!NOTE]
+> **Some docs examples use collection modules as fixtures and report hardcoded counts.** `docs/guide/audit.md` embeds expected output from scanning `tests.collection_misconfigured` with hardcoded numbers (wrappers scanned, empty mappings, etc.). When you add or remove entries from any `collection_*.py` module:
+>
+> - Update the expected counts in the relevant `docs/guide/*.md` code block output.
+> - Regenerate the corresponding test file: `phmdoctest docs/guide/audit.md -s "phmdoctest:skip" --outfile tests/docs/test_guide_audit.py`
+>
+> Failing to do this causes `tests/docs/test_guide_audit.py` to fail in CI.
 
 **`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `audit.py`, `utils.py`).
 
@@ -560,6 +571,71 @@ def test_without_warning() -> None:
 ```
 
 </details>
+
+## 📝 Documentation Site
+
+The project ships two separate documentation surfaces:
+
+| Surface            | File                        | Purpose                                                             |
+| ------------------ | --------------------------- | ------------------------------------------------------------------- |
+| PyPI cover page    | `README.md`                 | Install instructions, full API reference — do **not** prune         |
+| Docs site home     | `docs/index.md`             | Curated overview — links to topic pages; **not** a README copy      |
+| Getting started    | `docs/getting-started.md`   | Install + quick-start                                               |
+| Use cases          | `docs/guide/use-cases.md`   | Patterns extracted from real usage                                  |
+| void() helper      | `docs/guide/void-helper.md` | void() stub helper reference                                        |
+| Audit tools        | `docs/guide/audit.md`       | validate\_\* and find_deprecation_wrappers()                        |
+| Troubleshooting    | `docs/troubleshooting.md`   | Q&A; also drives FAQPage JSON-LD                                    |
+| Theme override     | `docs/overrides/main.html`  | Jinja2 template — OG tags + JSON-LD per page; **prettier-excluded** |
+| AI discoverability | `docs/llms.txt`             | Spec-compliant link directory for AI crawlers                       |
+
+### Local Build
+
+```bash
+# Install docs dependencies (separate from test requirements)
+pip install -r docs/requirements.txt
+
+make docs-build   # one-shot build with strict mode (fails on warnings)
+make docs-serve   # live-reload preview at http://127.0.0.1:8000
+make docs-tests   # regenerate tests/integration/test_readme.py and tests/docs/test_*.py
+```
+
+> [!NOTE]
+> Every Python code block in a docs page is extracted by `phmdoctest` and executed as a test. After updating any `docs/**/*.md` code example, regenerate the corresponding `tests/docs/test_<name>.py` file using the commands above. The generated files are gitignored — CI regenerates them automatically before running pytest.
+
+> [!NOTE]
+> The `git-revision-date-localized` plugin requires a full git history. Run `git fetch --unshallow` (or use `fetch-depth: 0` in CI) if revision dates show as today for old files.
+
+### Consistency Rules
+
+When making changes, keep all three surfaces in sync:
+
+1. **New or renamed public API symbol** — update `README.md` (API reference) **and** the relevant `docs/guide/` page.
+2. **New use-case pattern** — add an entry to `docs/guide/use-cases.md`.
+3. **New troubleshooting item** — add a Q&A block to `docs/troubleshooting.md` **and** a matching `Question`/`Answer` pair to the `FAQPage` JSON-LD in `docs/overrides/main.html`.
+4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
+5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
+
+### Keeping AI-agent documentation in sync
+
+`docs/llms.txt` is a machine-readable contract. AI coding assistants and agent frameworks fetch it before generating any pyDeprecate code. An inaccuracy there propagates into every AI-generated snippet at scale.
+
+**What `docs/llms.txt` contains:** package facts, links to human-facing docs, and Agent Notes (critical mental model, anti-patterns with WRONG/CORRECT pairs, decision flowchart for choosing the right API).
+
+**The five-surface sync rule:** these surfaces must always agree: `deprecation.py` docstring ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt` ↔ inline code examples in `docs/guide/*.md`.
+
+| When you change...                                                          | Also update...                                                                                                   |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Public API behavior (parameter meaning, forwarding semantics, default mode) | `deprecation.py` docstring · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
+| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                     |
+| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                  |
+| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`           |
+
+> [!IMPORTANT]
+> `docs/llms.txt` is the highest-leverage surface for AI agents. Update it in the same commit as the code change — never as a follow-up.
+
+### Template Override
+
+`docs/overrides/main.html` is a Jinja2 template (MkDocs Material `custom_dir`). It is excluded from prettier (`^docs/overrides/.*\.html$` in `.pre-commit-config.yaml`) because prettier corrupts Jinja2 syntax. Do not put Markdown content files in `docs/overrides/` — that directory is excluded from MkDocs page output via `exclude_docs` in `mkdocs.yml`.
 
 ## 📄 License
 

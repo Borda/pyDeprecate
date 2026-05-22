@@ -28,7 +28,7 @@ import re
 import sys
 from typing import Literal, Optional, cast
 
-from deprecate._types import DeprecationConfig, _has_deprecation_meta
+from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
 
 #: Default templates for documentation with deprecated callable — RST/Sphinx style
 TEMPLATE_DOC_DEPRECATED_RST = [
@@ -509,7 +509,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
         >>> fn_with_args.__deprecated__ = DeprecationConfig(
         ...     deprecated_in='1.0',
         ...     remove_in='2.0',
-        ...     target=True,
+        ...     target=TargetMode.ARGS_REMAP,
         ...     args_mapping={'old_arg': None},
         ... )
         >>> _update_docstring_with_deprecation(fn_with_args)
@@ -540,8 +540,9 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
                 lines, found = _annotate_sphinx_style_arg(lines, arg_name, note)
             if not found:
                 all_args_found = False  # missing arg → general notice still needed
-        # target=True means only individual args are deprecated, not the function itself.
-        if all_args_found and dep_info.target is True:
+        # ARGS_REMAP (or legacy target=True) means only individual args are deprecated,
+        # not the function itself.
+        if all_args_found and dep_info.target is TargetMode.ARGS_REMAP:
             wrapped_fn.__doc__ = inspect.cleandoc("\n".join(lines))
             return
 

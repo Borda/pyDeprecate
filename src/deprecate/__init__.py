@@ -57,8 +57,8 @@ Complete Documentation:
     Topics covered:
     - Simple function forwarding
     - Advanced argument mapping
-    - Warning-only deprecation (target=None)
-    - Self-deprecation (target=True)
+    - Warning-only deprecation (TargetMode.NOTIFY)
+    - Self-deprecation (TargetMode.ARGS_REMAP)
     - Multiple deprecation levels
     - Conditional skip (skip_if parameter)
     - Class deprecation
@@ -69,6 +69,7 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
+from deprecate._types import TargetMode
 from deprecate.audit import (
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
     DeprecationWrapperInfo,
@@ -89,6 +90,7 @@ from deprecate.utils import (
 
 __all__ = [
     "DeprecationWrapperInfo",
+    "TargetMode",
     "assert_no_warnings",
     "deprecated",
     "deprecated_class",

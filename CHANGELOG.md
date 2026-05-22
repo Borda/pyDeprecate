@@ -1,6 +1,63 @@
 # Changelog
 
-## [Unreleased]
+## [Unreleased] — 2026-MM-DD
+
+### Added
+
+-
+
+### Changed
+
+-
+
+### Deprecated
+
+-
+
+### Fixed
+
+-
+
+______________________________________________________________________
+
+## [0.8.0] — 2026-05-21 — Default `TargetMode` enum & CLI audit tools
+
+### Added
+
+- **`TargetMode` enum exported from `deprecate`.** `TargetMode.NOTIFY` replaces `target=None` and `TargetMode.ARGS_REMAP` replaces `target=True`. Both are public API. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`args_extra` parameter for `deprecated_class()` and `deprecated_instance()`.** Injects fixed keyword arguments into forwarded calls after `args_mapping` has been applied, matching the same semantics as `@deprecated(args_extra=...)`. Ignored (with a construction-time `UserWarning`) when `target` is `TargetMode.NOTIFY`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`template_mgs` parameter for `deprecated_class()` and `deprecated_instance()`.** Overrides the built-in warning message template with a `%`-style format string, matching the same semantics as `@deprecated(template_mgs=...)`. Available placeholders: `%(source_name)s`, `%(deprecated_in)s`, `%(remove_in)s`, `%(target_name)s` (callable target only), `%(target_path)s` (callable target only), `%(argument_map)s` (`args_mapping` warnings only). ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`DeprecationConfig.misconfigured` field.** Boolean field on the shared metadata dataclass; `True` when an invalid raw target sentinel (`False`) was passed at decoration time. Audit tools surface this via `DeprecationWrapperInfo.misconfigured_target`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **Multi-page topic documentation site.** Replaced the monolithic README-copy home page with a curated 7-page MkDocs Material site: Home, Getting Started, User Guide (Use Cases / void() Helper / Audit Tools), Troubleshooting, and demo links. Switched theme to Material, added Open Graph tags, JSON-LD structured data (SoftwareApplication / FAQPage / TechArticle per page), spec-compliant `llms.txt`, and `git-revision-date-localized` plugin. README is unchanged (still the PyPI cover page). ([#146](https://github.com/Borda/pyDeprecate/pull/146))
+- **`pydeprecate` CLI command.** Run `pydeprecate <subcommand> path/to/your/package` to scan any package or module for misconfigured `@deprecated` wrappers — reports invalid argument mappings, identity mappings, and no-effect wrappers with rich-formatted output when `rich` is available. Also available as `python -m deprecate`. ([#76](https://github.com/Borda/pyDeprecate/pull/76))
+- **Four CLI subcommands: `check`, `expiry`, `chains`, `all`.** `check` validates wrapper configuration; `expiry` reports wrappers past their `remove_in` deadline (requires `pip install 'pyDeprecate[audit]'`); `chains` detects deprecated-to-deprecated forwarding chains; `all` runs all three in a single scan pass. Flags: `--norecursive`, `--skip_errors`. ([#149](https://github.com/Borda/pyDeprecate/pull/149))
+- **New `DeprecationWrapperInfo.empty_deprecated_in` field.** `True` when `deprecated_in` is absent on a wrapper; intended for CI pipeline introspection. `dataclasses.asdict()` output and `repr()` now include this field. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
+- **`template_mgs` validated at decoration time.** Malformed `%`-style format strings now raise `ValueError` immediately at decoration time — not silently at call time. Applies to `@deprecated` and the `deprecated_class()`/`deprecated_instance()` proxy factories. ([#169](https://github.com/Borda/pyDeprecate/pull/169))
+- **Stacked-callable-target guard.** Applying `@deprecated(target=fn_a)` on a callable whose target is itself a callable-target `@deprecated` wrapper now emits `UserWarning` at decoration time instead of crashing with `TypeError` at call time. ([#169](https://github.com/Borda/pyDeprecate/pull/169))
+
+### Deprecated
+
+- **`target=None` sentinel — use `TargetMode.NOTIFY`.** Passing `target=None` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.NOTIFY`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`target=True` sentinel — use `TargetMode.ARGS_REMAP`.** Passing `target=True` now emits a `FutureWarning` at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to `target=TargetMode.ARGS_REMAP`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`DeprecationWrapperInfo` attributes `empty_mapping` → `empty_args_mapping` and `identity_mapping` → `identity_args_mapping`.** Old names are kept as deprecated `@property` aliases that emit `DeprecationWarning` on access and will be removed in v1.0. ([#166](https://github.com/Borda/pyDeprecate/pull/166))
+
+### Changed
+
+- **Misconfigured `TargetMode` combinations now warn at construction time.** `TargetMode.ARGS_REMAP` without `args_mapping`, `TargetMode.NOTIFY` with `args_mapping`, and `TargetMode.NOTIFY` with `args_extra` all surface a `UserWarning` immediately. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`DeprecationConfig.target` always stores a normalised `TargetMode` or callable.** Legacy boolean sentinels (`True` / `False`) are now normalised at decoration time and are never stored verbatim in `DeprecationConfig.target`. Code that inspects `__deprecated__.target` must compare against `TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, a callable, or `None` — never against `True` or `False`. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`deprecated_class()` with `target=TargetMode.NOTIFY` now emits `UserWarning` at decoration time when `args_mapping` or `args_extra` is supplied.** These parameters are ignored in `NOTIFY` mode; passing them has always been a misconfiguration. The warning will become `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **Docs site URL layout is now versioned.** Content is published under `https://borda.github.io/pyDeprecate/stable/` (for the stable alias) and `https://borda.github.io/pyDeprecate/<tag>/` (for release tags). The root URL (`https://borda.github.io/pyDeprecate/`) redirects to `stable/`. External bookmarks to flat paths like `.../pyDeprecate/troubleshooting.html` will break on first deploy — update them to `.../pyDeprecate/stable/troubleshooting.html`. ([#148](https://github.com/Borda/pyDeprecate/pull/148))
+- **`target` parameter of `@deprecated` now defaults to `TargetMode.NOTIFY`.** Callers can omit `target` entirely for warn-only deprecation: `@deprecated(deprecated_in="1.0", remove_in="2.0")` is now the canonical form. Passing `target=TargetMode.NOTIFY` explicitly remains valid. This default is permanent and will not change in future releases. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
+- **Decoration-time `UserWarning` when `@deprecated` omits `deprecated_in`.** When `deprecated_in` is absent a `UserWarning` is emitted immediately at decoration time (not at call time) regardless of `target` shape (`TargetMode.NOTIFY`, callable, or `ARGS_REMAP`), even if `remove_in` is set. Applies to functions and methods (not classes). Suppressed when `stream=None` or when a custom `template_mgs` is provided. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
+- **CLI chains reporting split.** `check` subcommand reports deprecated-to-deprecated chains as warnings (exit 0); `chains` and `all` subcommands report chains as errors (exit 1). ([#149](https://github.com/Borda/pyDeprecate/pull/149))
+
+### Fixed
+
+- **PEP 702 compatibility crash fixed.** When `@deprecated` was stacked under a PEP 702 `@typing.deprecated` decorator, `wrapped_fn` attempted to look up `__deprecated__` on the outer wrapper and raised `AttributeError`. Fixed by capturing `dep_meta` as a closure variable at decoration time instead of re-reading it from the wrapper. ([#169](https://github.com/Borda/pyDeprecate/pull/169))
+- **Double `FutureWarning` emission on `deprecated_class()` in NOTIFY mode fixed.** Using `deprecated_class()` with `target=TargetMode.NOTIFY` triggered two `FutureWarning` emissions per construction call. ([#162](https://github.com/Borda/pyDeprecate/pull/162))
+- **Cross-class guard false positives resolved; `TypeError` semantics preserved.** Two previously documented "irresolvable" false-positive scenarios are now handled: (1) targets with metaclass/dynamic-class qualnames (e.g. `type("Name", bases, ns)` or manual `fn.__qualname__ = "FakeOwner.method"`) — guard now skips silently when the named class is absent from the target's module globals; (2) pre-applied decorators that rewrite the source's `__qualname__` — guard reads the true enclosing class from the Python class-body frame, which cannot be mutated by user decorators. The guard continues to raise `TypeError` at decoration time for genuine cross-class forwarding. ([#169](https://github.com/Borda/pyDeprecate/pull/169))
+- **`args_mapping` rename no longer clobbers source default when both old and new parameter names are present.** Previously, calling a deprecated wrapper with the old argument name while the source also accepted the new name could silently overwrite the new-name value. The remapping now correctly renames `old=X` to `new=X` without discarding a separately supplied `new` value. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
+- **`target=False` sentinel now emits `UserWarning` at decoration time.** `target=False` was never a valid configuration; previously the behavior was undefined. The sentinel now surfaces a `UserWarning` immediately and will raise `TypeError` in v1.0. ([#150](https://github.com/Borda/pyDeprecate/pull/150))
 
 ______________________________________________________________________
 

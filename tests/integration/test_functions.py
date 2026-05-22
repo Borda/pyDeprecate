@@ -22,6 +22,9 @@ import pytest
 
 from deprecate import assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
+from tests.collection_depr_legacy import decorated_pow_self as legacy_pow_self
+from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_warn_only
+from tests.collection_depr_legacy import depr_pow_self_double as legacy_pow_self_double
 from tests.collection_deprecate import (
     decorated_pow_self,
     decorated_pow_skip_if_func,
@@ -35,6 +38,7 @@ from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
+    depr_collision_old_new,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_pow_args,
@@ -66,6 +70,7 @@ class TestDeprecationWarnings:
         [
             pytest.param(decorated_sum_warn_only, "decorated_sum_warn_only", id="decorated-form"),
             pytest.param(wrapped_sum_warn_only, "original_sum_warn_only", id="wrapped-form"),
+            pytest.param(legacy_sum_warn_only, "decorated_sum_warn_only", id="legacy"),
         ],
     )
     def test_warn_only(self, func: Callable, name: str) -> None:
@@ -214,7 +219,14 @@ class TestArgumentMapping:
     @pytest.fixture(autouse=True)
     def _reset_deprecation_state(self) -> None:
         """Reset deprecation state for functions with chained or multiple deprecations."""
-        for func in (decorated_pow_self, depr_pow_self_double, depr_pow_self_twice, wrapped_pow_self):
+        for func in (
+            decorated_pow_self,
+            depr_pow_self_double,
+            depr_pow_self_twice,
+            wrapped_pow_self,
+            legacy_pow_self,
+            legacy_pow_self_double,
+        ):
             state = cast(_DeprecatedCallable, func)._state
             state.warned_calls = 0
             state.warned_args.clear()
@@ -224,6 +236,7 @@ class TestArgumentMapping:
         [
             pytest.param(decorated_pow_self, id="decorated-form"),
             pytest.param(wrapped_pow_self, id="wrapped-form"),
+            pytest.param(legacy_pow_self, id="legacy"),
         ],
     )
     def test_arguments_new_only(self, func: Callable) -> None:
@@ -236,6 +249,7 @@ class TestArgumentMapping:
         [
             pytest.param(decorated_pow_self, "decorated_pow_self", id="decorated-form"),
             pytest.param(wrapped_pow_self, "original_pow_self", id="wrapped-form"),
+            pytest.param(legacy_pow_self, "decorated_pow_self", id="legacy"),
         ],
     )
     def test_arguments_deprecated(self, func: Callable, name: str) -> None:
@@ -247,15 +261,26 @@ class TestArgumentMapping:
         ):
             assert func(2, 3) == 8
 
-    def test_arguments_double_deprecated_c1(self) -> None:
-        """Test double mapping, calling with first deprecated argument."""
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c1` -> `nc1`."):
-            assert depr_pow_self_double(2, c1=3) == 32
-
-    def test_arguments_double_deprecated_c2(self) -> None:
-        """Test double mapping, calling with second deprecated argument."""
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args: `c2` -> `nc2`."):
-            assert depr_pow_self_double(2, c2=2) == 8
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_pow_self_double, id="modern"),
+            pytest.param(legacy_pow_self_double, id="legacy"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("kwargs", "match_fragment", "expected"),
+        [
+            pytest.param({"c1": 3}, r"`c1` -> `nc1`", 32, id="c1-deprecated"),
+            pytest.param({"c2": 2}, r"`c2` -> `nc2`", 8, id="c2-deprecated"),
+        ],
+    )
+    def test_arguments_double_deprecated(
+        self, func: Callable, kwargs: dict, match_fragment: str, expected: int
+    ) -> None:
+        """Test double mapping, calling with each deprecated argument individually."""
+        with pytest.warns(FutureWarning, match=f"The `depr_pow_self_double` uses depr. args: {match_fragment}."):
+            assert func(2, **kwargs) == expected
 
     def test_arguments_double_mixed(self) -> None:
         """Testing that preferable use the new arguments when both are provided."""
@@ -292,6 +317,15 @@ class TestArgumentMapping:
         with assert_no_warnings():
             assert depr_pow_self_twice(2, c1=3) == 8
 
+    def test_args_mapping_with_source_having_both_old_and_new_params(self) -> None:
+        """When source has both old and new param names, caller's old=X reaches target as new=X."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = depr_collision_old_new(old=42)
+        assert result == 42
+
 
 @pytest.mark.parametrize(
     "func",
@@ -319,16 +353,17 @@ def test_skip_if_func(func: Callable) -> None:
         assert func(2, c1=2) == 2
 
 
-def test_skip_if_true_false() -> None:
-    """Test conditional wrapper skip with decorator order: @skip_if=True then @skip_if=False (outer skips)."""
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(depr_pow_skip_if_true_false, id="outer-skips"),
+        pytest.param(depr_pow_skip_if_false_true, id="inner-skips"),
+    ],
+)
+def test_skip_if_mixed(func: Callable) -> None:
+    """Test conditional wrapper skip with mixed skip_if=True/False decorator stacking."""
     with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
-        assert depr_pow_skip_if_true_false(2, c1=2) == 0.5
-
-
-def test_skip_if_false_true() -> None:
-    """Test conditional wrapper skip with decorator order: @skip_if=False then @skip_if=True (outer skips)."""
-    with pytest.warns(FutureWarning, match="Depr: v0.1 rm v0.2 for args: `c1` -> `nc1`."):
-        assert depr_pow_skip_if_false_true(2, c1=2) == 0.5
+        assert func(2, c1=2) == 0.5
 
 
 class TestErrorHandling:
@@ -367,22 +402,18 @@ class TestErrorHandling:
             depr_pow_skip_if_func_int(2, c1=2)
 
 
-def test_deprecated_func_accuracy_map() -> None:
-    """Test mapping to external accuracy_map function."""
+@pytest.mark.parametrize(
+    ("func", "expected"),
+    [
+        pytest.param(depr_accuracy_map, 0.5, id="accuracy-map"),
+        pytest.param(depr_accuracy_skip, 0.5, id="accuracy-skip"),
+        pytest.param(depr_accuracy_extra, 0.75, id="accuracy-extra"),
+    ],
+)
+def test_deprecated_func_accuracy(func: Callable, expected: float) -> None:
+    """Test deprecated accuracy wrappers with various arg mapping strategies."""
     with pytest.warns(FutureWarning):
-        assert depr_accuracy_map([1, 0, 1, 2]) == 0.5
-
-
-def test_deprecated_func_accuracy_skip() -> None:
-    """Test mapping to external accuracy_skip function."""
-    with pytest.warns(FutureWarning):
-        assert depr_accuracy_skip([1, 0, 1, 2]) == 0.5
-
-
-def test_deprecated_func_accuracy_extra() -> None:
-    """Test mapping to external accuracy_extra function."""
-    with pytest.warns(FutureWarning):
-        assert depr_accuracy_extra([1, 0, 1, 2]) == 0.75
+        assert func([1, 0, 1, 2]) == expected
 
 
 def test_deprecated_func_attribute_set_at_decoration_time() -> None:
