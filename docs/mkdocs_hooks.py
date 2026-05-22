@@ -217,11 +217,17 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
     # Replace any existing text/markdown alternate link with the page-specific mirror URL.
     # This may be set by MkDocs or a prior hook; we overwrite to ensure it points to the
     # correct versioned mirror, not the root llms.txt.
-    output = re.sub(
+    markdown_tag = f'<link rel="alternate" type="text/markdown" href="{markdown}">'
+    replaced = re.sub(
         r'<link rel="alternate" type="text/markdown" href="[^"]+">',
-        f'<link rel="alternate" type="text/markdown" href="{markdown}">',
+        markdown_tag,
         output,
     )
+    if replaced == output:
+        # Tag was absent — insert it so the mirror URL is always discoverable.
+        output = output.replace("</head>", f"{markdown_tag}\n</head>", 1)
+    else:
+        output = replaced
     # Inject the root llms.txt discovery link (type=text/plain) separately — distinct
     # from the per-page markdown mirror link above so both survive in <head>.
     llms_href = 'href="https://borda.github.io/pyDeprecate/llms.txt"'
