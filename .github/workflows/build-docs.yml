@@ -329,9 +329,11 @@ jobs:
           trap 'git worktree remove --force "$TMPWORKTREE" 2>/dev/null || true' EXIT
           cp docs/robots.txt "$TMPWORKTREE/robots.txt"
           cp docs/llms.txt "$TMPWORKTREE/llms.txt"
-          git -C "$TMPWORKTREE" add robots.txt llms.txt
+          cp docs/llms-full.txt "$TMPWORKTREE/llms-full.txt"
+          cp docs/root-sitemap.xml "$TMPWORKTREE/root-sitemap.xml"
+          git -C "$TMPWORKTREE" add robots.txt llms.txt llms-full.txt root-sitemap.xml
           git -C "$TMPWORKTREE" diff --cached --quiet \
-            || git -C "$TMPWORKTREE" commit -m "chore(deploy): sync root robots.txt and llms.txt for AI crawler discoverability"
+            || git -C "$TMPWORKTREE" commit -m "chore(deploy): sync root AI discoverability files (robots.txt, llms.txt, llms-full.txt, root-sitemap.xml)"
           trap - EXIT
           git worktree remove --force "$TMPWORKTREE"
 
