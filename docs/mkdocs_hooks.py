@@ -87,18 +87,22 @@ def _pydeprecate_stable_base() -> str:
 
     """
     if _pydeprecate_config is not None:
-        root = str((_pydeprecate_config.extra or {}).get("root_site_url", "") or "").rstrip("/")
-        if root:
-            return f"{root}/stable/"
+        root = _pydeprecate_config.extra.get("root_site_url")
+        if isinstance(root, str):
+            root = root.rstrip("/")
+            if root:
+                return f"{root}/stable/"
     return _PYDEPRECATE_STABLE_BASE
 
 
 def _pydeprecate_root_url() -> str:
     """Return the root site URL (no version suffix), derived from config when available."""
     if _pydeprecate_config is not None:
-        root = str((_pydeprecate_config.extra or {}).get("root_site_url", "") or "").rstrip("/")
-        if root:
-            return root
+        root = _pydeprecate_config.extra.get("root_site_url")
+        if isinstance(root, str):
+            root = root.rstrip("/")
+            if root:
+                return root
     return _PYDEPRECATE_PUBLIC_ROOT
 
 
@@ -232,7 +236,7 @@ def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
         return
     text = sitemap.read_text(encoding="utf-8")
     text = re.sub(
-        r"https://borda\.github\.io/pyDeprecate/(?:v?[^/]+|latest|dev)/",
+        rf"{re.escape(_PYDEPRECATE_PUBLIC_ROOT)}/(?:v?[^/]+|latest|dev)/",
         _pydeprecate_stable_base(),
         text,
     )
