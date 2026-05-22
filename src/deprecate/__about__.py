@@ -1,7 +1,8 @@
 """Package metadata and version information.
 
-This module contains all package metadata including version, author information,
-and links to documentation and source code.
+This module contains all package metadata including version, author information, and links to documentation and source
+code.
+
 """
 
 __version__ = "0.9.0.dev"

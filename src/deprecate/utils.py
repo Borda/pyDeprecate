@@ -15,6 +15,7 @@ This module provides two kinds of helpers:
       block — the inverse of ``pytest.warns()``.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
+
 """
 
 import inspect
@@ -69,8 +70,9 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
 def _get_signature_cached(func: Callable) -> inspect.Signature:
     """Cache inspect.signature lookups for repeated calls.
 
-    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime.
-    The size balances reuse for common callables without unbounded memory growth.
+    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime. The size balances reuse for common
+    callables without unbounded memory growth.
+
     """
     return inspect.signature(func)
 
@@ -79,6 +81,7 @@ def _get_signature(func: Callable) -> inspect.Signature:
     """Get function signature with caching when possible.
 
     Falls back to uncached lookup for unhashable callables.
+
     """
     try:
         return _get_signature_cached(func)
@@ -177,6 +180,7 @@ def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optiona
 
     This context manager is kept for backward compatibility so that existing imports like
     ``from deprecate.utils import no_warning_call`` continue to work until v1.0.
+
     """
     warnings.warn(
         "`deprecate.utils.no_warning_call` is deprecated in `0.6` and will be removed in `1.0`; "

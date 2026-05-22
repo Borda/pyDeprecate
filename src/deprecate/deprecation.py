@@ -2,7 +2,7 @@
 
 This module provides the main ``@deprecated`` decorator for marking functions and
 methods as deprecated while optionally forwarding calls to their replacements.
-Class-level deprecation is handled by :func:`deprecate.proxy.deprecated_class`.
+Class-level deprecation is handled by :func:`~deprecate.proxy.deprecated_class`.
 
 Key Components:
     - :func:`~deprecate.deprecation.deprecated`: Main decorator for deprecation with automatic call forwarding
@@ -10,6 +10,7 @@ Key Components:
     - Internal helpers for argument mapping and warning management
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
+
 """
 
 import inspect
@@ -79,6 +80,7 @@ def _validate_template_mgs(template_mgs: Optional[str]) -> None:
     Raises:
         ValueError: When ``template_mgs`` references an unknown ``%(...)s`` key, uses a malformed conversion
             specifier, or otherwise fails ``%``-formatting against the full placeholder set.
+
     """
     if not template_mgs:
         return
@@ -112,8 +114,9 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     False positive resolution — ``__qualname__`` is a display string, not an ownership API, so two scenarios used to
     yield spurious warnings.  Both are now handled:
 
-    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before ``@deprecated`` that sets
-      ``fn.__qualname__ = "OtherClass.method"``): resolved by reading ``__qualname__`` from the enclosing class
+    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before
+      :func:`~deprecate.deprecated` that sets ``fn.__qualname__ = "OtherClass.method"``): resolved by reading
+      ``__qualname__`` from the enclosing class
       body frame via :func:`sys._getframe`.  Python itself sets ``__qualname__`` in the class-body locals at
       class-definition time, so this value reflects the true enclosing class regardless of any decorator that
       mutated the source callable's ``__qualname__`` attribute.
@@ -203,6 +206,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     are silently accepted.  The three supported combinations are: ``ARGS_REMAP`` (outer) +
     ``ARGS_REMAP`` (inner), ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner), and ``NOTIFY`` (outer) +
     ``callable`` (inner).
+
     """
     inner_target = source.__deprecated__.target
     name = source.__name__
@@ -479,8 +483,8 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
 
     Note:
         Automatically extracts source_name and source_path from the source callable:
-        - For regular functions: uses __name__
-        - For __init__ methods: extracts class name from __qualname__
+        - For regular functions: uses ``__name__``
+        - For ``__init__`` methods: extracts class name from ``__qualname__``
 
     Example:
         >>> import warnings
@@ -500,7 +504,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
 
 
 def _source_display_name(source: Callable) -> str:
-    """Return display name: class name for __init__, function name otherwise."""
+    """Return display name: class name for ``__init__``, function name otherwise."""
     return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
 
 
@@ -685,7 +689,8 @@ def deprecated(
             - ``{}``: Empty mapping (no remapping)
             Works with both ``target=Callable`` and ``target=True``.
         args_extra: Additional arguments merged into kwargs before the call. Used when target is a Callable or
-            ``TargetMode.ARGS_REMAP`` (with ``args_mapping``). Ignored when target is ``TargetMode.NOTIFY``.
+            :attr:`~deprecate._types.TargetMode.ARGS_REMAP` (with ``args_mapping``). Ignored when target is
+            :attr:`~deprecate._types.TargetMode.NOTIFY`.
             Example: ``{'new_required_arg': 42}``
         skip_if: Conditionally skip deprecation warning and forwarding:
             - ``bool``: Static condition (True = skip deprecation)

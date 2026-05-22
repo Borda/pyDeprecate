@@ -93,19 +93,19 @@ class TestVoid:
     """Tests for void() — the decorator companion that silences IDE/mypy unused-argument warnings."""
 
     def test_returns_none_with_no_args(self) -> None:
-        """void() with no arguments returns None, satisfying its role as a no-op stub body."""
+        """``void()`` with no arguments returns None, satisfying its role as a no-op stub body."""
         assert void() is None
 
     def test_returns_none_with_positional_args(self) -> None:
-        """void() accepts any positional arguments and still returns None."""
+        """``void()`` accepts any positional arguments and still returns None."""
         assert void(1, "two", 3.0) is None
 
     def test_returns_none_with_keyword_args(self) -> None:
-        """void() accepts any keyword arguments and still returns None."""
+        """``void()`` accepts any keyword arguments and still returns None."""
         assert void(x=1, label="hello") is None
 
     def test_returns_none_with_mixed_args(self) -> None:
-        """void() accepts mixed positional and keyword arguments and still returns None."""
+        """``void()`` accepts mixed positional and keyword arguments and still returns None."""
         assert void(42, key="value", flag=True) is None
 
 

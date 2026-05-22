@@ -218,6 +218,7 @@ class TestUpdateDocstringIdempotent:
 
             Args:
                 old: Old argument.
+
             """
             return old
 
@@ -241,6 +242,7 @@ class TestUpdateDocstringIdempotent:
 
             :param old: Old argument.
             :returns: Result.
+
             """
             return old
 

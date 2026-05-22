@@ -175,7 +175,7 @@ class TestCmdCheck:
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_recursive_threads_flag(self, mock_find: MagicMock) -> None:
-        """recursive=False passes recursive=False to find_deprecation_wrappers."""
+        """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         assert cmd_check(path="some_module", recursive=False) == 0
         mock_find.assert_called_once_with("some_module", recursive=False)
@@ -258,7 +258,7 @@ class TestCmdExpiry:
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_no_recursive_threads_flag(self, mock_expiry: MagicMock) -> None:
-        """recursive=False passes recursive=False to validate_deprecation_expiry."""
+        """``recursive=False`` passes through to validate_deprecation_expiry."""
         mock_expiry.return_value = []
         cmd_expiry(path="some_module", version="1.0", recursive=False)
         mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False)
@@ -334,7 +334,7 @@ class TestCmdChains:
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_no_recursive_threads_flag(self, mock_chains: MagicMock) -> None:
-        """recursive=False passes recursive=False to validate_deprecation_chains."""
+        """``recursive=False`` passes through to validate_deprecation_chains."""
         mock_chains.return_value = []
         cmd_chains(path="some_module", recursive=False)
         mock_chains.assert_called_once_with("some_module", recursive=False)
@@ -451,7 +451,7 @@ class TestCmdAll:
     @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_recursive_threads_flag(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
-        """recursive=False passes recursive=False to find_deprecation_wrappers."""
+        """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         cmd_all(path="some_module", version="1.0", recursive=False)
         mock_find.assert_any_call("some_module", recursive=False)
@@ -622,18 +622,18 @@ class TestCliEntryPoint:
     """Tests for the cli() Fire-based entry point."""
 
     def test_no_subcommand_shows_help(self) -> None:
-        """cli() with no arguments prints help and returns (Fire does not exit for dict components)."""
+        """``cli()`` with no arguments prints help and returns (Fire does not exit for dict components)."""
         with patch("sys.argv", ["pydeprecate"]):
             cli()  # no SystemExit — Fire prints help and returns
 
     def test_help_exits_zero(self) -> None:
-        """cli() with --help exits 0."""
+        """``cli()`` with --help exits 0."""
         with patch("sys.argv", ["pydeprecate", "--help"]), pytest.raises(SystemExit) as exc_info:
             cli()
         assert exc_info.value.code == 0
 
     def test_check_subcommand_dispatches(self) -> None:
-        """cli() with check subcommand calls cmd_check and exits via _wrap(sys.exit)."""
+        """``cli()`` with check subcommand calls cmd_check and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
             patch("deprecate._cli.cmd_check", return_value=0) as mock_check,
@@ -644,7 +644,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_expiry_subcommand_dispatches(self) -> None:
-        """cli() with expiry subcommand calls cmd_expiry and exits via _wrap(sys.exit)."""
+        """``cli()`` with expiry subcommand calls cmd_expiry and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--version", "2.0"]),
             patch("deprecate._cli.cmd_expiry", return_value=0) as mock_expiry,
@@ -655,7 +655,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_chains_subcommand_dispatches(self) -> None:
-        """cli() with chains subcommand calls cmd_chains and exits via _wrap(sys.exit)."""
+        """``cli()`` with chains subcommand calls cmd_chains and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "chains", "some_module"]),
             patch("deprecate._cli.cmd_chains", return_value=0) as mock_chains,
@@ -666,7 +666,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_all_subcommand_dispatches(self) -> None:
-        """cli() with all subcommand calls cmd_all and exits via _wrap(sys.exit)."""
+        """``cli()`` with all subcommand calls cmd_all and exits via _wrap(sys.exit)."""
         with (
             patch("sys.argv", ["pydeprecate", "all", "some_module"]),
             patch("deprecate._cli.cmd_all", return_value=0) as mock_all,
@@ -677,7 +677,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_exit_code_propagated(self) -> None:
-        """cli() propagates the non-zero exit code from the subcommand."""
+        """``cli()`` propagates the non-zero exit code from the subcommand."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
             patch("deprecate._cli.cmd_check", return_value=1),

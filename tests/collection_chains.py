@@ -183,6 +183,7 @@ Deprecation Chain Schema:
         [deprecated ← chain]: target is itself deprecated (a callable with
                                @deprecated), detected by validate_deprecation_chains
         note      : target=True (self-deprecation for arg renaming) is NOT a chain
+
 """
 
 from deprecate import TargetMode, deprecated, void
@@ -198,6 +199,7 @@ def caller_sum_via_depr_sum(a: int, b: int = 5) -> int:
         Instead of pointing directly to ``base_sum_kwargs``, this wrapper
         routes through ``decorated_sum`` (also deprecated). The outer wrapper
         should skip the intermediate step and target ``base_sum_kwargs`` directly.
+
     """
     return void(a, b)
 
@@ -210,6 +212,7 @@ def caller_acc_via_depr_map(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
         Routes through ``depr_accuracy_map`` (deprecated) instead of pointing
         directly to ``accuracy_score``. Both the intermediate step and its
         argument renaming should be collapsed into a direct target reference.
+
     """
     return void(preds, truth)
 
@@ -230,6 +233,7 @@ def caller_acc_comp_depr_map(predictions: list, labels: tuple = (0, 1, 1, 2)) ->
 
         To fix: collapse both hops into a single wrapper targeting ``accuracy_score``
         directly with ``args_mapping={"predictions": "y_pred", "labels": "y_true"}``.
+
     """
     return void(predictions, labels)
 
@@ -243,6 +247,7 @@ def caller_stacked_args_map(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) 
         Both decorators use ``target=True`` (self-deprecation) but each renames a
         different argument. They should be merged into a single decorator:
         ``@deprecated(True, ..., args_mapping={"c1": "nc2", "nc1": "nc2"})``.
+
     """
     return void(base, c1, nc1, nc2)
 
@@ -296,6 +301,7 @@ def caller_pow_via_self_depr(base: float, exp: float = 2) -> float:
         Routes through ``decorated_pow_self`` (deprecated with ``target=True, args_mapping={"coef": "new_coef"}``).
         The two arg renames compose: ``exp -> coef -> new_coef``. The fix is to target the
         final implementation directly with the collapsed mapping ``{"exp": "new_coef"}``.
+
     """
     return void(base, exp)
 
@@ -307,5 +313,6 @@ def caller_sum_direct(a: int, b: int = 3) -> int:
     Examples:
         Points directly to ``base_sum_kwargs``, which is not deprecated.
         This is the correct pattern and should not trigger any chain warnings.
+
     """
     return void(a, b)
