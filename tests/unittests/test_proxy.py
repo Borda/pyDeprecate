@@ -326,9 +326,7 @@ class TestProxyReadOnly:
 
 
 class TestProxyGetActive:
-    """Active object selection: source vs.
-
-    target.
+    """Active object selection: source vs target.
 
     """
 
