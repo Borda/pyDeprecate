@@ -34,7 +34,9 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
+    make_depr_notify_callable_stacked,
     pep702_stacked,
 )
 from tests.collection_targets import KeywordCallTarget, call_signature_source
@@ -1069,6 +1071,21 @@ class TestStackingGuards:
             )
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
 
+    def test_non_stacked_args_remap_new_arg_silent(self) -> None:
+        """Regression: non-stacked ARGS_REMAP (_source_is_stacked=False) is silent when new arg used.
+
+        The early-return guard includes ``not _source_is_stacked``.  Verifies this condition still
+        allows a non-stacked ARGS_REMAP function to short-circuit with no warning when the caller
+        already uses the new argument name.
+        """
+        fn = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "x"}
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn(x=5)
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
 
 class TestStackedArgsRemapNotify:
     """Behaviour of the supported ARGS_REMAP-outer + NOTIFY-inner lifecycle stacking.
@@ -1124,4 +1141,56 @@ class TestStackedArgsRemapNotify:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             fn(2, factor=3)  # type: ignore[operator]
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_args_extra_flows_through_notify_layer(self) -> None:
+        """args_extra on the outer ARGS_REMAP layer reaches the target via the inner NOTIFY layer.
+
+        Verifies that ``args_extra`` set on the outer ``ARGS_REMAP`` decorator is injected before
+        the call is handed off to the inner ``NOTIFY`` wrapper, so the final function receives the
+        extra kwargs correctly.
+        """
+        fn = make_depr_args_remap_notify_with_extra()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(factor=3.0)
+        assert result == 8.0
+        assert len(record) == 2
+
+
+class TestStackedNotifyCallable:
+    """Call-time behaviour of the supported NOTIFY-outer + callable-target-inner stacking.
+
+    Pattern: ``@deprecated(TargetMode.NOTIFY, ...)`` on top, ``@deprecated(target=<fn>, ...)``
+    below.  The outer NOTIFY warns callers the function is going away; the inner callable-target
+    layer warns and forwards to the final function.  Both ``FutureWarning`` instances must fire
+    independently on every call until their counters are exhausted.
+    """
+
+    def _make_fresh(self) -> object:
+        """Return a fresh stacked fixture each time to avoid num_warns counter exhaustion."""
+        return make_depr_notify_callable_stacked()
+
+    def test_call_fires_two_warnings(self) -> None:
+        """Calling the stacked wrapper emits both the NOTIFY and callable-target FutureWarnings."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2.0, scale=3.0)  # type: ignore[operator]
+        assert result == 8.0
+        assert len(record) == 2
+
+    def test_result_correctly_forwarded_to_target(self) -> None:
+        """The callable-target inner layer correctly forwards the call to the final function."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning):
+            result = fn(3.0, scale=2.0)  # type: ignore[operator]
+        assert result == 9.0
+
+    def test_counter_exhausted_fires_no_warnings_on_repeat(self) -> None:
+        """Second call after counter exhaustion emits no FutureWarning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning):
+            fn(2.0, scale=3.0)  # type: ignore[operator]  # exhausts both layer counters
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn(2.0, scale=3.0)  # type: ignore[operator]
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
