@@ -20,9 +20,9 @@ All three are designed to be called from pytest or a CI script against an import
 Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, which carry both identification
 info and structured validation results for programmatic processing.
 
-.. note::
-   :func:`~deprecate.audit.validate_deprecation_expiry` requires the ``packaging`` library for PEP 440
-   version comparison. Install with: ``pip install pyDeprecate[audit]``
+!!! note
+    :func:`~deprecate.audit.validate_deprecation_expiry` requires the ``packaging`` library for PEP 440
+    version comparison. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -81,9 +81,9 @@ def _parse_version(version_string: str) -> "Version":
         >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")
         True
 
-    .. note::
-       Install the audit extra to use version comparison features:
-       ``pip install pyDeprecate[audit]``
+    !!! note
+        Install the audit extra to use version comparison features:
+        ``pip install pyDeprecate[audit]``
 
     """
     try:
@@ -187,7 +187,7 @@ class DeprecationWrapperInfo:
     def empty_mapping(self) -> bool:
         """Deprecated alias for :attr:`~deprecate.audit.DeprecationWrapperInfo.empty_args_mapping`.
 
-        .. deprecated:: 0.8
+        !!! warning "Deprecated in 0.8"
             Renamed to :attr:`~deprecate.audit.DeprecationWrapperInfo.empty_args_mapping`.
             Will be removed in v1.0.
 
@@ -207,7 +207,7 @@ class DeprecationWrapperInfo:
     def identity_mapping(self) -> list[str]:
         """Deprecated alias for :attr:`~deprecate.audit.DeprecationWrapperInfo.identity_args_mapping`.
 
-        .. deprecated:: 0.8
+        !!! warning "Deprecated in 0.8"
             Renamed to :attr:`~deprecate.audit.DeprecationWrapperInfo.identity_args_mapping`.
             Will be removed in v1.0.
 
@@ -613,13 +613,13 @@ def validate_deprecation_expiry(
         >>> print(len(expired))  # Some functions have remove_in="0.5"
         28
 
-    .. note::
-       - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
-       - Skips callables that cannot be imported or accessed
-       - Silently skips callables with invalid ``remove_in`` version formats
-       - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
-       - Intended for automated checks in CI/CD pipelines
-       - Can be integrated into test suites or pre-commit hooks
+    !!! note
+        - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
+        - Skips callables that cannot be imported or accessed
+        - Silently skips callables with invalid ``remove_in`` version formats
+        - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
+        - Intended for automated checks in CI/CD pipelines
+        - Can be integrated into test suites or pre-commit hooks
 
     """
     import importlib
