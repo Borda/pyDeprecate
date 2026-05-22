@@ -55,4 +55,5 @@ jobs:
             --exclude https://borda.github.io/pyDeprecate/sitemap.xml
             # TODO: remove the four excludes above once docs-discovery-assets workflow
             # has run on main and populated gh-pages with these root files.
+            --exclude https://borda/
           fail: true
