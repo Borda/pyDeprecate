@@ -316,7 +316,7 @@ jobs:
             "${SET_DEFAULT}"
 
       - name: 🤖 Deploy root-level AI discoverability files
-        if: env.SKIP != 'true'
+        if: env.SET_DEFAULT != ''
         run: |
           set -euo pipefail
           # robots.txt and llms.txt must live at the gh-pages root so AI crawlers find them
