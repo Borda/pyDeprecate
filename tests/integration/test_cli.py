@@ -25,14 +25,16 @@ def _make_pkg(tmp_path: Path, name: str = "mypkg") -> Path:
     pkg = tmp_path / name
     pkg.mkdir()
     (pkg / "__init__.py").write_text(
-        textwrap.dedent(r"""\ from deprecate import deprecated.
+        textwrap.dedent("""\
+            from deprecate import deprecated
 
-                        def new_fn(x: int) -> int:     return x
+            def new_fn(x: int) -> int:
+                return x
 
-                        @deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"}) def
-                        old_fn(old: int) -> int:     pass
-
-                        """)
+            @deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"})
+            def old_fn(old: int) -> int:
+                pass
+        """)
     )
     return pkg
 

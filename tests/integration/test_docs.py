@@ -289,11 +289,8 @@ Returns:
         """Note appended after all continuation lines of a multiline Sphinx param."""
         expected = """Train the model with a multiline Sphinx param description.
 
-:param lr: Learning rate for training.
-    Must be a positive float.
-:param train_config: Training configuration object.
-    Passed directly to the trainer.
-    Ignored when ``None``.
+:param lr: Learning rate for training. Must be a positive float.
+:param train_config: Training configuration object. Passed directly to the trainer. Ignored when ``None``.
     Deprecated since v1.8 — no longer used. Will be removed in v1.9.
 :returns: Training result."""
         assert sphinx_args_multiline.__doc__ == expected
