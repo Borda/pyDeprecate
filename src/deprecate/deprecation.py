@@ -194,10 +194,13 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     - ``ARGS_REMAP`` (outer) + ``ARGS_REMAP`` (inner): multi-step arg renames across versions.
     - ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner): lifecycle pattern — rename args first, deprecate
       the whole function later.
+    - ``NOTIFY`` (outer) + ``callable`` (inner): outer NOTIFY warns callers the function is going
+      away; inner callable handles forwarding.
 
-    Unsupported combinations (five cases) produce ``UserWarning`` at decoration time; all others
-    are silently accepted.  The two supported combinations are: ``ARGS_REMAP`` (outer) +
-    ``ARGS_REMAP`` (inner) and ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner).
+    Unsupported combinations (six cases) produce ``UserWarning`` at decoration time; all others
+    are silently accepted.  The three supported combinations are: ``ARGS_REMAP`` (outer) +
+    ``ARGS_REMAP`` (inner), ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner), and ``NOTIFY`` (outer) +
+    ``callable`` (inner).
     """
     inner_target = source.__deprecated__.target
     name = source.__name__
@@ -251,6 +254,12 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
             " Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)"
             " and @deprecated(NOTIFY, ...) below it."
             " Will be `TypeError` in `v1.0`.",
+            UserWarning,
+            stacklevel=3,
+        )
+    else:
+        warnings.warn(
+            f"'{name}' has an unsupported @deprecated stacking combination. Will be `TypeError` in `v1.0`.",
             UserWarning,
             stacklevel=3,
         )
