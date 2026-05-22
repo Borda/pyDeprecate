@@ -22,7 +22,6 @@ Core Components:
     - :func:`~deprecate.audit.validate_deprecation_wrapper`: Validate a single wrapper's configuration
     - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
     - :func:`~deprecate.audit.generate_deprecation_markdown`: Build a markdown deprecation matrix
-    - :func:`~deprecate.audit.generate_deprecation_timeline`: Build a Mermaid timeline from wrapper metadata
     - :func:`~deprecate.audit.validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
     - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated wrappers chaining to
       other deprecated wrappers
@@ -59,8 +58,8 @@ Complete Documentation:
     Topics covered:
     - Simple function forwarding
     - Advanced argument mapping
-    - Warning-only deprecation (target=None)
-    - Self-deprecation (target=True)
+    - Warning-only deprecation (``TargetMode.NOTIFY``)
+    - Self-deprecation (``TargetMode.ARGS_REMAP``)
     - Multiple deprecation levels
     - Conditional skip (skip_if parameter)
     - Class deprecation
@@ -71,13 +70,13 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
+from deprecate._types import TargetMode
 from deprecate.audit import (
-    DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecatedWrapperInfo
+    DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
     DeprecationWrapperInfo,
     find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
     find_deprecation_wrappers,
     generate_deprecation_markdown,
-    generate_deprecation_timeline,
     validate_deprecated_callable,  # noqa: F401 # deprecated since 0.6, use validate_deprecation_wrapper
     validate_deprecation_chains,
     validate_deprecation_expiry,
@@ -92,16 +91,16 @@ from deprecate.utils import (
 )
 
 __all__ = [
-    "deprecated",
     "DeprecationWrapperInfo",
+    "TargetMode",
+    "assert_no_warnings",
+    "deprecated",
     "deprecated_class",
     "deprecated_instance",
     "find_deprecation_wrappers",
     "generate_deprecation_markdown",
-    "generate_deprecation_timeline",
-    "validate_deprecation_wrapper",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
-    "assert_no_warnings",
+    "validate_deprecation_wrapper",
     "void",
 ]
