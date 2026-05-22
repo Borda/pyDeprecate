@@ -2,7 +2,7 @@
 
 This module provides the main ``@deprecated`` decorator for marking functions and
 methods as deprecated while optionally forwarding calls to their replacements.
-Class-level deprecation is handled by :func:`deprecate.proxy.deprecated_class`.
+Class-level deprecation is handled by :func:`~deprecate.proxy.deprecated_class`.
 
 Key Components:
     - :func:`~deprecate.deprecation.deprecated`: Main decorator for deprecation with automatic call forwarding
@@ -105,8 +105,9 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     False positive resolution — ``__qualname__`` is a display string, not an ownership API, so two scenarios used to
     yield spurious warnings.  Both are now handled:
 
-    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before ``@deprecated`` that sets
-      ``fn.__qualname__ = "OtherClass.method"``): resolved by reading ``__qualname__`` from the enclosing class
+    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before
+      :func:`~deprecate.deprecated` that sets ``fn.__qualname__ = "OtherClass.method"``): resolved by reading
+      ``__qualname__`` from the enclosing class
       body frame via :func:`sys._getframe`.  Python itself sets ``__qualname__`` in the class-body locals at
       class-definition time, so this value reflects the true enclosing class regardless of any decorator that
       mutated the source callable's ``__qualname__`` attribute.
@@ -384,8 +385,8 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
 
     Note:
         Automatically extracts source_name and source_path from the source callable:
-        - For regular functions: uses __name__
-        - For __init__ methods: extracts class name from __qualname__
+        - For regular functions: uses ``__name__``
+        - For ``__init__`` methods: extracts class name from ``__qualname__``
 
     Example:
         >>> import warnings
@@ -405,7 +406,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
 
 
 def _source_display_name(source: Callable) -> str:
-    """Return display name: class name for __init__, function name otherwise."""
+    """Return display name: class name for ``__init__``, function name otherwise."""
     return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
 
 

@@ -29,7 +29,7 @@ class TestProxyInit:
     """Internal state initialisation for _DeprecatedProxy instances."""
 
     def test_internal_state_stored_correctly(self) -> None:
-        """Constructor stores runtime config in __config and metadata in __deprecated__."""
+        """Constructor stores runtime config in ``__config`` and metadata in ``__deprecated__``."""
         obj = {"a": 1}
         proxy = _DeprecatedProxy(obj=obj, name="x", deprecated_in="1.0", remove_in="2.0", num_warns=3, stream=None)
         cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
@@ -291,7 +291,7 @@ class TestProxyReadOnly:
             operation(proxy)
 
     def test_setitem_forwards_to_source(self) -> None:
-        """__setitem__ mutates the source object when not read-only, without emitting a warning."""
+        """``__setitem__`` mutates the source object when not read-only, without emitting a warning."""
         inner = {"k": 1}
         proxy = _DeprecatedProxy(obj=inner, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
         with warnings.catch_warnings(record=True) as caught:
@@ -301,7 +301,7 @@ class TestProxyReadOnly:
         assert not caught
 
     def test_delitem_removes_from_source(self) -> None:
-        """__delitem__ removes the key from the source object when not read-only."""
+        """``__delitem__`` removes the key from the source object when not read-only."""
         inner = {"k": 1, "m": 2}
         proxy = _DeprecatedProxy(obj=inner, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
         del proxy["k"]
@@ -359,7 +359,7 @@ class TestProxyNoWarnMethods:
     """Methods that delegate without emitting a warning."""
 
     def test_repr_no_warn(self) -> None:
-        """__repr__ delegates to the source without warning."""
+        """``__repr__`` delegates to the source without warning."""
         inner = [1, 2, 3]
         proxy = _DeprecatedProxy(obj=inner, name="x", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
@@ -369,7 +369,7 @@ class TestProxyNoWarnMethods:
         assert not caught
 
     def test_str_no_warn(self) -> None:
-        """__str__ delegates without warning."""
+        """``__str__`` delegates without warning."""
         inner = {"a": 1}
         proxy = _DeprecatedProxy(obj=inner, name="x", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
@@ -378,7 +378,7 @@ class TestProxyNoWarnMethods:
         assert not caught
 
     def test_bool_no_warn(self) -> None:
-        """__bool__ delegates without warning."""
+        """``__bool__`` delegates without warning."""
         proxy_t = _DeprecatedProxy(obj=[1], name="x", deprecated_in="1.0", remove_in="2.0")
         proxy_f = _DeprecatedProxy(obj=[], name="x", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
@@ -388,7 +388,7 @@ class TestProxyNoWarnMethods:
         assert not caught
 
     def test_len_no_warn(self) -> None:
-        """__len__ delegates without warning."""
+        """``__len__`` delegates without warning."""
         proxy = _DeprecatedProxy(obj=[1, 2, 3], name="x", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")

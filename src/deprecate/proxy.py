@@ -97,14 +97,16 @@ class _DeprecatedProxy:
         ``__config`` stores private mutable runtime state in :class:`~deprecate._types._ProxyConfig` (obj, stream,
         num_warns, read_only, args_extra, warned counter).
 
-        ``__deprecated__`` is the public metadata interface consumed by audit tools (``validate_deprecated_callable``,
-        ``find_deprecated_callables``, etc.) as a :class:`~deprecate._types.DeprecationConfig` instance aligned with the
-        ``@deprecated`` schema.
+        ``__deprecated__`` is the public metadata interface consumed by audit tools
+        (:func:`~deprecate.audit.validate_deprecation_wrapper`,
+        :func:`~deprecate.audit.find_deprecation_wrappers`, etc.)
+        as a :class:`~deprecate._types.DeprecationConfig` instance aligned with the ``@deprecated`` schema.
 
-        ``_misconfigured_override`` is a private hook used by ``@deprecated`` when it delegates to ``deprecated_class``
-        for class targets: it lets the caller pre-compute misconfig signals (raw ``target=False`` plus
-        NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy rewrites them away, so the final
-        frozen :class:`DeprecationConfig` records every signal in one place.
+        ``_misconfigured_override`` is a private hook used by :func:`~deprecate.deprecated` when it delegates to
+        :func:`~deprecate.deprecated_class` for class targets: it lets the caller pre-compute misconfig signals
+        (raw ``target=False`` plus NOTIFY+args_mapping / NOTIFY+args_extra detected upstream) before the proxy
+        rewrites them away, so the final frozen :class:`~deprecate._types.DeprecationConfig` records every signal
+        in one place.
 
         """
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
@@ -505,7 +507,7 @@ class _DeprecatedProxy:
     def __subclasscheck__(self, subclass: type) -> bool:
         """Support ``issubclass(X, proxy)`` by delegating to the active class.
 
-        Same rationale as :meth:`__instancecheck__` — no warning emitted.
+        Same rationale as :meth:`~deprecate.proxy._DeprecatedProxy.__instancecheck__` — no warning emitted.
 
         Returns False when the active object is not a type.
 
