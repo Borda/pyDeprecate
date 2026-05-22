@@ -350,7 +350,7 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyData, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning(self) -> None:
-        """Stream=None suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
+        """``stream=None`` suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             warnings.filterwarnings("ignore", category=FutureWarning)
@@ -362,7 +362,7 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyClass, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning_whole_class(self) -> None:
-        """Stream=None suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
+        """``stream=None`` suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
 
