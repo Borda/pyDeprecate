@@ -8,13 +8,13 @@ Python has several ways to signal deprecation. The right choice depends on wheth
 
 ## Quick comparison
 
-| Tool                             | Best for                               | Runtime forwarding | Argument rename | Class/object alias | CI audit |
+| Tool | Best for | Runtime forwarding | Argument rename | Class/object alias | CI audit |
 | -------------------------------- | -------------------------------------- | -----------------: | --------------: | -----------------: | -------: |
-| `warnings.warn`                  | One-off internal warnings              |                 No |              No |                 No |       No |
-| `typing.deprecated`              | Python 3.13+ static-checker visibility |                 No |              No |                 No |       No |
-| `deprecation`                    | Simple decorator warnings              |                 No |              No |                 No |       No |
-| `Deprecated`                     | Simple decorator warnings              |                 No |              No |                 No |       No |
-| **pyDeprecate** *(this library)* | Public API migration compatibility     |                Yes |             Yes |                Yes |      Yes |
+| `warnings.warn` | One-off internal warnings | No | No | No | No |
+| `typing.deprecated` | Python 3.13+ static-checker visibility | No | No | No | No |
+| `deprecation` | Simple decorator warnings | No | No | No | No |
+| `Deprecated` | Simple decorator warnings | No | No | No | No |
+| **pyDeprecate** *(this library)* | Public API migration compatibility | Yes | Yes | Yes | Yes |
 
 ## Use `warnings.warn` when
 
@@ -63,6 +63,49 @@ def old_api(value: int) -> int:
     raise RuntimeError("Forwarded by pyDeprecate.")
 ```
 
+## Migrating from warnings.warn
+
+Replace manual forwarding boilerplate with a single decorator.
+
+**Before: manual warning and forwarding**
+
+```python
+import warnings
+
+
+def new_api(value: int) -> int:
+    return value + 1
+
+
+def old_api(value: int) -> int:
+    warnings.warn(
+        "old_api is deprecated; use new_api instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return new_api(value)
+```
+
+**After: pyDeprecate owns the migration contract**
+
+```python
+from deprecate import deprecated
+
+
+def new_api(value: int) -> int:
+    return value + 1
+
+
+@deprecated(
+    target=new_api,
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
+)
+def old_api(value: int) -> int:
+    raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
+```
+
 ## Decision guide
 
 - Need only an internal warning: use `warnings.warn`.
@@ -71,10 +114,10 @@ def old_api(value: int) -> int:
 - Need argument rename or dropped argument compatibility: use pyDeprecate with `TargetMode.ARGS_REMAP`.
 - Need class, constant, or object alias compatibility: use `deprecated_class` or `deprecated_instance`.
 - Need removal deadline checks in CI: use pyDeprecate audit tools.
+- One-off internal warning with no forwarding or CI audit: `warnings.warn` is sufficient.
 
 ## Related pages
 
-- [Replace warnings.warn](replace-warnings-warn.md)
-- [Deprecate Arguments](deprecate-arguments.md)
-- [Deprecate Classes and Object Aliases](class-object-deprecation.md)
-- [API Migration CI](api-migration-ci.md)
+- [Use Cases](use-cases.md)
+- [Audit Tools](audit.md)
+- [Troubleshooting](../troubleshooting.md)

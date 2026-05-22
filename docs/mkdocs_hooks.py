@@ -114,12 +114,9 @@ _PYDEPRECATE_MARKDOWN_MIRRORS = (
     "guide/cli.md",
     "guide/customization.md",
     "guide/migration.md",
-    "troubleshooting.md",
-    "guide/python-deprecation-decorator.md",
-    "guide/replace-warnings-warn.md",
-    "guide/deprecate-arguments.md",
-    "guide/api-migration-ci.md",
+    "guide/compare-python-deprecation-tools.md",
     "guide/agent-recipes.md",
+    "troubleshooting.md",
 )
 
 
