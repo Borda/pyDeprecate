@@ -1,7 +1,8 @@
 """MkDocs hooks for AI-agent discoverability.
 
-Injects a ``<link>`` element pointing to ``/llms.txt`` into every page's
-``<head>`` so that AI agents can discover the structured documentation index.
+Injects a ``<link>`` element pointing to ``/llms.txt`` into every page's ``<head>`` so that AI agents can discover the
+structured documentation index.
+
 """
 
 from __future__ import annotations
