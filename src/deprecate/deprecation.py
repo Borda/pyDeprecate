@@ -210,7 +210,8 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     if callable(outer_target) and callable(inner_target):
         warnings.warn(
             f"'{name}' has a callable target stacked over another callable-target @deprecated."
-            " Only ARGS_REMAP stacking is supported. This will raise `TypeError` at call time."
+            " Stacking a callable target over another callable target is not supported."
+            " This will raise `TypeError` at call time."
             f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
