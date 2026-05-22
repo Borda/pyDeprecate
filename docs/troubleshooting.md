@@ -598,6 +598,48 @@ If you are on v0.8+ and still seeing an unexpected `TypeError` from the cross-cl
 
 ______________________________________________________________________
 
+## UserWarning at decoration time: unsupported stacking combination
+
+**Q:** I got a `UserWarning` when applying multiple `@deprecated` decorators to the same function. What does it mean and how do I fix it?
+
+The message looks like one of:
+
+```text
+UserWarning: 'my_func' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP).
+Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)
+and @deprecated(NOTIFY, ...) below it. Will be `TypeError` in `v1.0`.
+```
+
+**A:** pyDeprecate validates stacking combinations at decoration time and emits `UserWarning` for every unsupported case. Common supported combinations include:
+
+- `ARGS_REMAP` (outer, on top) + `ARGS_REMAP` (inner): multi-step argument renames across versions.
+- `ARGS_REMAP` (outer, on top) + `NOTIFY` (inner): lifecycle pattern — rename args first, then deprecate the whole function.
+- `NOTIFY` (outer, on top) + `callable` (inner): deprecate a callable target directly without an inner `@deprecated` wrapper.
+
+See [Supported stacking combinations](guide/use-cases.md#supported-stacking-combinations) for the full table. The warning message identifies which combination fired and includes a corrective hint.
+
+**Most common case — wrong order (NOTIFY over ARGS_REMAP):**
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+# Wrong — NOTIFY outer emits UserWarning at decoration time
+@deprecated(deprecated_in="2.0", remove_in="3.0")  # outer NOTIFY
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+
+
+# Correct — ARGS_REMAP on top, NOTIFY below
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+@deprecated(deprecated_in="2.0", remove_in="3.0")  # inner NOTIFY
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+```
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

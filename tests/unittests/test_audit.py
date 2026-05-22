@@ -13,6 +13,7 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
+    ChainType,
     DeprecationWrapperInfo,
     _get_package_version,
     _parse_version,
@@ -166,6 +167,7 @@ class TestValidateDeprecationWrapperWithProxy:
     """Unit tests for validate_deprecation_wrapper with inline _DeprecatedProxy objects.
 
     Uses _DeprecatedProxy directly (not collection fixtures) for true isolation.
+
     """
 
     def test_proxy_without_target_no_effect_false(self) -> None:
@@ -241,6 +243,7 @@ class TestValidateDeprecationWrapperWithProxy:
         """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
 
         Without this, getattr routes through __getattr__ and leaks the target's __name__.
+
         """
         from tests.collection_targets import TargetColorEnum
 
@@ -258,6 +261,20 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.deprecated_info.args_mapping is None
         assert result.empty_args_mapping is True
 
+    def test_callable_targeting_notify_wrapper_is_target_chain(self) -> None:
+        """A callable target pointing to a NOTIFY wrapper is a forwarding TARGET chain."""
+
+        @deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        def notify_layer(value: int) -> int:
+            return value
+
+        @deprecated(target=notify_layer, deprecated_in="1.0", remove_in="2.0")
+        def caller(value: int) -> int:
+            return value
+
+        result = validate_deprecation_wrapper(caller)
+        assert result.chain_type is ChainType.TARGET
+
 
 class TestFindDeprecationWrappersWarningBudget:
     """Scanning must not consume proxy warning budgets."""
@@ -265,10 +282,10 @@ class TestFindDeprecationWrappersWarningBudget:
     def test_find_deprecation_wrappers_does_not_consume_warning_budget(self) -> None:
         """Scanning must avoid dynamic attribute access paths that burn warn budget.
 
-        ``inspect.getmembers()`` triggers ``getattr()`` for names from ``__dir__``, which can
-        execute module-level ``__getattr__`` side effects. This fixture reproduces that pattern:
-        a dynamic name touches the proxy during lookup. Static inspection must avoid consuming
-        the proxy warning budget.
+        ``inspect.getmembers()`` triggers ``getattr()`` for names from ``__dir__``, which can execute module-level
+        ``__getattr__`` side effects. This fixture reproduces that pattern: a dynamic name touches the proxy during
+        lookup. Static inspection must avoid consuming the proxy warning budget.
+
         """
         proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
         fake_mod = _SideEffectScanModule(proxy)
@@ -407,9 +424,10 @@ class TestDwiCompatInit:
     def test_replace_with_old_name_honoured_over_auto_injected_new(self) -> None:
         """dataclasses.replace() with old name honours caller intent over auto-injected new name.
 
-        ``dataclasses.replace(info, empty_mapping=True)`` merges the caller's ``empty_mapping=True``
-        with the current ``empty_args_mapping=False`` (auto-injected by replace()).  The shim must
-        detect this conflict, discard the auto-injected value, and honour the old-name value.
+        ``dataclasses.replace(info, empty_mapping=True)`` merges the caller's ``empty_mapping=True`` with the current
+        ``empty_args_mapping=False`` (auto-injected by replace()).  The shim must detect this conflict, discard the
+        auto-injected value, and honour the old-name value.
+
         """
         base = DeprecationWrapperInfo(
             function="f",

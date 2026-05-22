@@ -34,6 +34,9 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    make_depr_args_remap_notify_with_extra,
+    make_depr_compute_power_stacked,
+    make_depr_notify_callable_stacked,
     pep702_stacked,
 )
 from tests.collection_targets import KeywordCallTarget, call_signature_source
@@ -347,7 +350,7 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyData, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
+        """``stream=None`` suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             warnings.filterwarnings("ignore", category=FutureWarning)
@@ -359,7 +362,7 @@ class TestDeprecatedClassGuard:
         assert isinstance(_MyClass, _DeprecatedProxy)
 
     def test_stream_none_suppresses_meta_warning_whole_class(self) -> None:
-        """stream=None suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
+        """``stream=None`` suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
 
@@ -400,9 +403,10 @@ class TestCrossClassMethodGuard:
     def test_raises_for_cross_class_method_target(self) -> None:
         """Forwarding to a method on a different class raises TypeError at decoration time.
 
-        The misconfigured classes are defined inline (not in collection_deprecate.py)
-        because placing ``@deprecated`` with a cross-class target at module level would
-        raise TypeError at import time for every test that imports the collection module.
+        The misconfigured classes are defined inline (not in collection_deprecate.py) because placing ``@deprecated``
+        with a cross-class target at module level would raise TypeError at import time for every test that imports the
+        collection module.
+
         """
 
         class OtherClass:
@@ -456,9 +460,10 @@ class TestCrossClassMethodGuard:
     def test_metaclass_generated_qualname_skips_guard(self) -> None:
         """A target with a metaclass-style rewritten ``__qualname__`` is detected and the guard returns silently.
 
-        The module-globals check verifies that the top-level class name in the target's qualname actually exists
-        in the target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname
-        produced by ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
+        The module-globals check verifies that the top-level class name in the target's qualname actually exists in the
+        target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname produced by
+        ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
+
         """
 
         def replacement(instance: object, x: int) -> int:
@@ -478,9 +483,10 @@ class TestCrossClassMethodGuard:
     def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
         """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
 
-        Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator
-        runs.  Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a
-        pre-applied decorator has overwritten ``fn.__qualname__`` on the source callable.
+        Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator runs.
+        Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a pre-applied
+        decorator has overwritten ``fn.__qualname__`` on the source callable.
+
         """
 
         def rewrite_to_alien_class(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -500,9 +506,10 @@ class TestCrossClassMethodGuard:
     def test_decorator_rewriting_qualname_raises_for_cross_class(self) -> None:
         """A pre-applied decorator rewriting source qualname to a genuinely different class still raises TypeError.
 
-        Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken
-        from the class body's locals.  When the recovered class differs from the target's class, the guard
-        still fires correctly — this guards against an over-eager FP suppression.
+        Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken from the
+        class body's locals.  When the recovered class differs from the target's class, the guard still fires correctly
+        — this guards against an over-eager FP suppression.
+
         """
 
         def rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -610,11 +617,16 @@ class TestDocstringStyleValidation:
         existing docstring contains ``.. deprecated:: 1.0`` in prose — the "1"
         string is a substring of "1.0" so a naive ``in`` check would cause a
         false positive.
+
         """
 
         @deprecated(target=target_val, deprecated_in="1", update_docstring=True, docstring_style="rst")
         def some_func() -> None:
-            """Summary. See also .. deprecated:: 1.0 handling."""
+            """Summary.
+
+            See also .. deprecated:: 1.0 handling.
+
+            """
 
         assert some_func.__doc__ is not None
         lines = [line.strip() for line in some_func.__doc__.splitlines()]
@@ -702,6 +714,7 @@ class TestDocstringStyleOutput:
 
             Args:
                 x: A value.
+
             """
 
         assert _fn.__doc__ is not None
@@ -904,12 +917,11 @@ class TestEmptyVersionGuardSymmetry:
 class TestPEP702StackingRegression:
     """Stacking ``typing_extensions.deprecated`` outside ``@deprecated`` no longer crashes (B1a).
 
-    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's
-    ``__deprecated__`` attribute with the message string. Before the fix, ``wrapped_fn``
-    re-read that attribute at call time and crashed with
-    ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures
-    the ``DeprecationConfig`` instance in a closure variable so the call path survives
-    arbitrary outer decorators rewriting ``__deprecated__``.
+    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's ``__deprecated__`` attribute with the
+    message string. Before the fix, ``wrapped_fn`` re-read that attribute at call time and crashed with
+    ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures the ``DeprecationConfig``
+    instance in a closure variable so the call path survives arbitrary outer decorators rewriting ``__deprecated__``.
+
     """
 
     def test_pep702_stacked_call_does_not_crash(self) -> None:
@@ -927,9 +939,9 @@ class TestPEP702StackingRegression:
     def test_pep702_stacked_emits_pydeprecate_warning_on_first_call(self) -> None:
         """Inner ``@deprecated`` still emits its FutureWarning naming the target.
 
-        Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter
-        is zero — the module-level ``pep702_stacked`` fixture may already have warned
-        in earlier tests under ``num_warns=1``.
+        Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter is zero — the module-level
+        ``pep702_stacked`` fixture may already have warned in earlier tests under ``num_warns=1``.
+
         """
         from tests.collection_targets import pep702_target
 
@@ -978,9 +990,10 @@ class TestTemplateMgsValidation:
 class TestStackedCallableTargetGuard:
     """Stacking ``@deprecated(target=fn_a)`` over ``@deprecated(target=fn_b)`` warns at decoration time (B4).
 
-    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the
-    inner wrapper's signature does not match the outer target's remapped kwargs. The guard surfaces
-    this misconfiguration at decoration time so authors catch it without exercising the call path.
+    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the inner wrapper's
+    signature does not match the outer target's remapped kwargs. The guard surfaces this misconfiguration at decoration
+    time so authors catch it without exercising the call path.
+
     """
 
     def test_stacked_callable_targets_warn_at_decoration(self) -> None:
@@ -990,3 +1003,204 @@ class TestStackedCallableTargetGuard:
         inner = deprecated(target=stacked_inner_target, deprecated_in="0.8", remove_in="1.0")(stacked_outer_target)
         with pytest.warns(UserWarning, match="callable target stacked"):
             deprecated(target=stacked_outer_target, deprecated_in="0.8", remove_in="1.0")(inner)
+
+
+class TestStackingGuards:
+    """Decoration-time ``UserWarning`` for every unsupported stacking combination.
+
+    Each guard surfaces a misconfiguration before the first call rather than producing
+    silently wrong results or raising ``TypeError`` at runtime. The callable+callable
+    case is covered by ``TestStackedCallableTargetGuard``; this class covers the other
+    unsupported stacking combinations exercised below.
+    """
+
+    def _make_source(self, **kwargs: Any) -> Callable[..., int]:  # noqa: ANN401
+        """Return a minimal function decorated with @deprecated using the given kwargs."""
+
+        def fn(x: int = 0) -> int:
+            return x
+
+        return deprecated(**kwargs)(fn)
+
+    def test_callable_over_args_remap_warns(self) -> None:
+        """Callable-target outer stacked over ARGS_REMAP inner emits ``UserWarning``."""
+        from tests.collection_targets import stacked_outer_target
+
+        inner = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
+        )
+        with pytest.warns(UserWarning, match="callable target stacked over.*ARGS_REMAP") as record:
+            deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_args_remap_over_callable_warns(self) -> None:
+        """ARGS_REMAP outer stacked over callable-target inner emits ``UserWarning``."""
+        from tests.collection_targets import stacked_outer_target
+
+        inner = self._make_source(target=stacked_outer_target, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(UserWarning, match="ARGS_REMAP.*stacked over a callable") as record:
+            deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"x": "y"})(
+                inner
+            )
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_notify_over_notify_warns(self) -> None:
+        """Duplicate NOTIFY layers emit ``UserWarning`` at decoration time."""
+        inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(UserWarning, match="duplicate.*NOTIFY") as record:
+            deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_notify_over_args_remap_warns_with_order_hint(self) -> None:
+        """NOTIFY outer + ARGS_REMAP inner (wrong order) emits ``UserWarning`` with order hint."""
+        inner = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
+        )
+        with pytest.warns(UserWarning, match="Reverse the decorator order") as record:
+            deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_callable_over_notify_warns(self) -> None:
+        """Callable-target outer stacked over NOTIFY inner emits ``UserWarning``."""
+        from tests.collection_targets import stacked_outer_target
+
+        inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(UserWarning, match="callable target stacked over.*NOTIFY") as record:
+            deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_args_remap_over_args_remap_does_not_warn(self) -> None:
+        """Supported ARGS_REMAP+ARGS_REMAP stacking must not emit any UserWarning."""
+        inner = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"y": "z"})(
+                inner
+            )
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    def test_non_stacked_args_remap_new_arg_silent(self) -> None:
+        """Regression: non-stacked ARGS_REMAP (_source_is_stacked=False) is silent when new arg used.
+
+        The early-return guard includes ``not _source_is_stacked``.  Verifies this condition still
+        allows a non-stacked ARGS_REMAP function to short-circuit with no warning when the caller
+        already uses the new argument name.
+        """
+        fn = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "x"}
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn(x=5)
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+
+class TestStackedArgsRemapNotify:
+    """Behaviour of the supported ARGS_REMAP-outer + NOTIFY-inner lifecycle stacking.
+
+    Pattern: ``@deprecated(ARGS_REMAP, ...)`` on top, ``@deprecated(NOTIFY, ...)`` below.
+    This matches the lifecycle where arguments are renamed in an earlier release and the
+    whole function is deprecated in a later one.  Both warning layers must fire
+    independently; the inner NOTIFY must run even when no deprecated argument is present.
+    """
+
+    def _make_fresh(self) -> Callable[..., float]:
+        """Return a fresh stacked fixture each time to avoid num_warns counter exhaustion."""
+        return make_depr_compute_power_stacked()
+
+    def test_old_arg_fires_two_warnings(self) -> None:
+        """Calling with the old arg name raises both the arg-rename and the function-deprecated warning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2, factor=3)
+        assert result == 8.0
+        assert len(record) == 2
+
+    def test_new_arg_fires_only_notify(self) -> None:
+        """Calling with the new arg name raises only the function-deprecated (NOTIFY) warning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2, scale=3)
+        assert result == 8.0
+        assert len(record) == 1
+
+    def test_no_deprecated_args_fires_only_notify(self) -> None:
+        """Calling with no arguments at all still fires the NOTIFY warning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2)
+        assert result == 2.0
+        assert len(record) == 1
+
+    def test_positional_call_fires_two_warnings(self) -> None:
+        """Positional call mapping to the old arg position fires both warnings."""
+        fn = self._make_fresh()
+        # positional: base=2, factor=3 (old positional slot)
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2, 3)
+        assert result == 8.0
+        assert len(record) == 2
+
+    def test_counter_exhausted_fires_no_warnings_on_repeat(self) -> None:
+        """Second call after counter exhaustion emits no FutureWarning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning):
+            fn(2, factor=3)  # exhausts both layer counters
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn(2, factor=3)
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_args_extra_flows_through_notify_layer(self) -> None:
+        """args_extra on the outer ARGS_REMAP layer reaches the target via the inner NOTIFY layer.
+
+        Verifies that ``args_extra`` set on the outer ``ARGS_REMAP`` decorator is injected before
+        the call is handed off to the inner ``NOTIFY`` wrapper, so the final function receives the
+        extra kwargs correctly.
+        """
+        fn = make_depr_args_remap_notify_with_extra()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(factor=3.0)
+        assert result == 8.0
+        assert len(record) == 2
+
+
+class TestStackedNotifyCallable:
+    """Call-time behaviour of the supported NOTIFY-outer + callable-target-inner stacking.
+
+    Pattern: ``@deprecated(TargetMode.NOTIFY, ...)`` on top, ``@deprecated(target=<fn>, ...)``
+    below.  The outer NOTIFY warns callers the function is going away; the inner callable-target
+    layer warns and forwards to the final function.  Both ``FutureWarning`` instances must fire
+    independently on every call until their counters are exhausted.
+    """
+
+    def _make_fresh(self) -> Callable[..., float]:
+        """Return a fresh stacked fixture each time to avoid num_warns counter exhaustion."""
+        return make_depr_notify_callable_stacked()
+
+    def test_call_fires_two_warnings(self) -> None:
+        """Calling the stacked wrapper emits both the NOTIFY and callable-target FutureWarnings."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning) as record:
+            result = fn(2.0, scale=3.0)
+        assert result == 8.0
+        assert len(record) == 2
+
+    def test_result_correctly_forwarded_to_target(self) -> None:
+        """The callable-target inner layer correctly forwards the call to the final function."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning):
+            result = fn(3.0, scale=2.0)
+        assert result == 9.0
+
+    def test_counter_exhausted_fires_no_warnings_on_repeat(self) -> None:
+        """Second call after counter exhaustion emits no FutureWarning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning):
+            fn(2.0, scale=3.0)  # exhausts both layer counters
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn(2.0, scale=3.0)
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]

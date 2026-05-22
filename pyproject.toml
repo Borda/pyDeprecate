@@ -54,8 +54,8 @@ quiet-level = 3
 # ignore-words-list = ""
 [tool.docformatter]
 recursive = true
-# this need to be shorter as some docstings are r"""...
-wrap-summaries = 119
+# Match the repository's 120-character line length for docstrings, including raw triple-quoted ones.
+wrap-summaries = 120
 wrap-descriptions = 120
 blank = true
 

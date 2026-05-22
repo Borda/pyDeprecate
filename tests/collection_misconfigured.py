@@ -17,6 +17,7 @@ Used by `validate_deprecated_wrapper()` and `find_deprecation_wrappers()` to ver
 that the validation tooling correctly detects these misconfigurations.
 
 Copyright (C) 2020-2026 Jiri Borovec <...>.
+
 """
 
 from dataclasses import replace
@@ -41,6 +42,7 @@ def invalid_args_deprecation(real_arg: int = 1) -> int:
     Examples:
         Developer typos an arg name — `nonexistent_arg` is not a parameter
         of this function, so the mapping has no effect.
+
     """
     return real_arg
 
@@ -51,6 +53,7 @@ def empty_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
 
     Examples:
         Developer passes an empty `dict` — the decorator does nothing useful.
+
     """
     return arg1 + arg2
 
@@ -61,6 +64,7 @@ def none_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
 
     Examples:
         Developer passes `None` instead of a `dict` — equivalent to no mapping.
+
     """
     return arg1 + arg2
 
@@ -76,6 +80,7 @@ def identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
 
     Examples:
         Developer maps `arg1` -> `arg1` — no actual rename happens.
+
     """
     return arg1 + arg2
 
@@ -91,6 +96,7 @@ def all_identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
 
     Examples:
         Every arg is mapped to itself — the entire mapping is a no-op.
+
     """
     return arg1 + arg2
 
@@ -107,6 +113,7 @@ def partial_identity_mapping_deprecation(arg1: int = 1, arg2: int = 0, new_arg2:
     Examples:
         `arg1` -> `arg1` is a no-op, but `arg2` -> `new_arg2` is valid.
         The deprecation still has some effect despite the identity mapping.
+
     """
     return arg1 + new_arg2
 
@@ -127,6 +134,7 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
     Examples:
         The `__deprecated__` target is manually set to the wrapper itself after
         decoration, creating a circular reference that makes the deprecation meaningless.
+
     """
     return void(old_arg, new_arg)
 
@@ -147,7 +155,7 @@ self_ref_typed.__deprecated__ = replace(deprecated_info, target=self_referencing
 
 @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
 def target_false_deprecation(x: int = 1) -> int:
-    """target=False is not valid — audit should flag as misconfigured_target."""
+    """``target=False`` is not valid — audit should flag as misconfigured_target."""
     return x
 
 
@@ -161,6 +169,7 @@ def whole_with_mapping_deprecation(x: int = 1) -> int:
     """NOTIFY + args_mapping — mapping ignored; emits UserWarning at decoration time.
 
     TypeError planned in v1.0; audit flags misconfigured_target.
+
     """
     return x
 
@@ -181,6 +190,7 @@ def whole_with_args_extra_deprecation(x: int = 1) -> int:
     """NOTIFY + args_extra — extra ignored; emits UserWarning at decoration time.
 
     TypeError planned in v1.0; audit flags misconfigured_target.
+
     """
     return x
 
@@ -224,6 +234,7 @@ def make_class_target_none_with_args_mapping() -> type:
     emit the NOTIFY+args_mapping misconfig UserWarning, and strip ``args_mapping``
     before delegating to :func:`~deprecate.proxy.deprecated_class` so the proxy
     does not auto-promote ``None+args_mapping`` to :class:`TargetMode.ARGS_REMAP`.
+
     """
 
     @deprecated(
@@ -249,6 +260,7 @@ def make_class_target_false() -> type:
     proxy's ``misconfigured = target is False`` check ran, so the flag never
     fired. The fix tracks the raw sentinel separately and forces
     ``misconfigured=True`` on the resulting proxy's :class:`DeprecationConfig`.
+
     """
 
     @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
@@ -267,6 +279,7 @@ def no_version_deprecation(x: int = 1) -> int:
 
     Examples:
         Developer omits the ``deprecated_in`` version; audit tooling detects the gap.
+
     """
     return x
 
@@ -276,6 +289,7 @@ def make_class_target_false_with_args_mapping() -> type:
 
     Fix 3b: combining the invalid ``target=False`` sentinel with ``args_mapping``
     must still surface ``misconfigured=True`` to audit.
+
     """
 
     @deprecated(

@@ -2,7 +2,7 @@
 
 This module provides the main ``@deprecated`` decorator for marking functions and
 methods as deprecated while optionally forwarding calls to their replacements.
-Class-level deprecation is handled by :func:`deprecate.proxy.deprecated_class`.
+Class-level deprecation is handled by :func:`~deprecate.proxy.deprecated_class`.
 
 Key Components:
     - :func:`~deprecate.deprecation.deprecated`: Main decorator for deprecation with automatic call forwarding
@@ -10,6 +10,7 @@ Key Components:
     - Internal helpers for argument mapping and warning management
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
+
 """
 
 import inspect
@@ -20,9 +21,18 @@ from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
 
-from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable, _has_deprecation_meta, _WrapperState
+from deprecate._types import (
+    DeprecationConfig,
+    TargetMode,
+    _DeprecatedCallable,
+    _has_deprecation_meta,
+    _HasDeprecationMeta,
+    _WrapperState,
+)
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
+
+_V1_BREAK_VERSION = "v1.0"
 
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -70,6 +80,7 @@ def _validate_template_mgs(template_mgs: Optional[str]) -> None:
     Raises:
         ValueError: When ``template_mgs`` references an unknown ``%(...)s`` key, uses a malformed conversion
             specifier, or otherwise fails ``%``-formatting against the full placeholder set.
+
     """
     if not template_mgs:
         return
@@ -103,8 +114,9 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     False positive resolution — ``__qualname__`` is a display string, not an ownership API, so two scenarios used to
     yield spurious warnings.  Both are now handled:
 
-    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before ``@deprecated`` that sets
-      ``fn.__qualname__ = "OtherClass.method"``): resolved by reading ``__qualname__`` from the enclosing class
+    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before
+      :func:`~deprecate.deprecated` that sets ``fn.__qualname__ = "OtherClass.method"``): resolved by reading
+      ``__qualname__`` from the enclosing class
       body frame via :func:`sys._getframe`.  Python itself sets ``__qualname__`` in the class-body locals at
       class-definition time, so this value reflects the true enclosing class regardless of any decorator that
       mutated the source callable's ``__qualname__`` attribute.
@@ -176,6 +188,95 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
         f"The target must be a method on the same class ('{src_class_name}') "
         f"or a full class (use target={tgt_class_name} for class migration).",
     )
+
+
+def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: Union[TargetMode, Callable]) -> None:
+    """Emit ``UserWarning`` at decoration time for unsupported stacking combinations.
+
+    Only called when ``source`` already carries ``__deprecated__`` metadata (i.e. is itself a
+    ``@deprecated`` wrapper).  Supported combinations are silently accepted:
+
+    - ``ARGS_REMAP`` (outer) + ``ARGS_REMAP`` (inner): multi-step arg renames across versions.
+    - ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner): lifecycle pattern — rename args first, deprecate
+      the whole function later.
+    - ``NOTIFY`` (outer) + ``callable`` (inner): outer NOTIFY warns callers the function is going
+      away; inner callable handles forwarding.
+
+    Unsupported combinations (six cases) produce ``UserWarning`` at decoration time; all others
+    are silently accepted.  The three supported combinations are: ``ARGS_REMAP`` (outer) +
+    ``ARGS_REMAP`` (inner), ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner), and ``NOTIFY`` (outer) +
+    ``callable`` (inner).
+
+    """
+    inner_target = source.__deprecated__.target
+    name = source.__name__
+
+    if callable(outer_target) and callable(inner_target):
+        warnings.warn(
+            f"'{name}' has a callable target stacked over another callable-target @deprecated."
+            " Stacking a callable target over another callable target is not supported."
+            " This will raise `TypeError` at call time."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            UserWarning,
+            stacklevel=3,
+        )
+    elif callable(outer_target) and inner_target is TargetMode.ARGS_REMAP:
+        warnings.warn(
+            f"'{name}' has a callable target stacked over @deprecated(ARGS_REMAP)."
+            " The arg-rename warning will not fire at call time; the inner layer is bypassed."
+            " Collapse to: @deprecated(target=<callable>, args_mapping={...})."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            UserWarning,
+            stacklevel=3,
+        )
+    elif callable(outer_target) and inner_target is TargetMode.NOTIFY:
+        warnings.warn(
+            f"'{name}' has a callable target stacked over @deprecated(NOTIFY)."
+            " The inner function-deprecated warning will not fire at call time; the inner layer is bypassed"
+            " while the callable target is still invoked."
+            " Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY)."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            UserWarning,
+            stacklevel=3,
+        )
+    elif outer_target is TargetMode.ARGS_REMAP and callable(inner_target):
+        warnings.warn(
+            f"'{name}' has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated."
+            " Update the inner @deprecated(target=<callable>, args_mapping={...}) instead of stacking."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            UserWarning,
+            stacklevel=3,
+        )
+    elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.NOTIFY:
+        warnings.warn(
+            f"'{name}' has duplicate @deprecated(NOTIFY) layers."
+            " Update the existing decorator's `deprecated_in`, `remove_in`, or `template_mgs` instead."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            UserWarning,
+            stacklevel=3,
+        )
+    elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.ARGS_REMAP:
+        warnings.warn(
+            f"'{name}' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP)."
+            " Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)"
+            " and @deprecated(NOTIFY, ...) below it."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            UserWarning,
+            stacklevel=3,
+        )
+    elif (
+        (outer_target is TargetMode.ARGS_REMAP and inner_target is TargetMode.ARGS_REMAP)
+        or (outer_target is TargetMode.ARGS_REMAP and inner_target is TargetMode.NOTIFY)
+        or (outer_target is TargetMode.NOTIFY and callable(inner_target))
+    ):
+        pass  # supported combinations — silently accepted
+    else:
+        warnings.warn(
+            f"'{name}' has an unsupported @deprecated stacking combination."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            UserWarning,
+            stacklevel=3,
+        )
 
 
 def _normalize_target(
@@ -382,8 +483,8 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
 
     Note:
         Automatically extracts source_name and source_path from the source callable:
-        - For regular functions: uses __name__
-        - For __init__ methods: extracts class name from __qualname__
+        - For regular functions: uses ``__name__``
+        - For ``__init__`` methods: extracts class name from ``__qualname__``
 
     Example:
         >>> import warnings
@@ -403,7 +504,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
 
 
 def _source_display_name(source: Callable) -> str:
-    """Return display name: class name for __init__, function name otherwise."""
+    """Return display name: class name for ``__init__``, function name otherwise."""
     return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
 
 
@@ -588,7 +689,8 @@ def deprecated(
             - ``{}``: Empty mapping (no remapping)
             Works with both ``target=Callable`` and ``target=True``.
         args_extra: Additional arguments merged into kwargs before the call. Used when target is a Callable or
-            ``TargetMode.ARGS_REMAP`` (with ``args_mapping``). Ignored when target is ``TargetMode.NOTIFY``.
+            :attr:`~deprecate._types.TargetMode.ARGS_REMAP` (with ``args_mapping``). Ignored when target is
+            :attr:`~deprecate._types.TargetMode.NOTIFY`.
             Example: ``{'new_required_arg': 42}``
         skip_if: Conditionally skip deprecation warning and forwarding:
             - ``bool``: Static condition (True = skip deprecation)
@@ -735,18 +837,11 @@ def deprecated(
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
 
-        # Stacked callable-target guard: detect ``@deprecated(target=fn_a)`` applied over an
-        # already-wrapped callable that itself has a callable target. Only ARGS_REMAP stacking
-        # is supported; callable-over-callable stacking silently raises ``TypeError`` at the
-        # first call because the inner wrapper's signature does not match the outer target's
-        # remapped kwargs. Surface this at decoration time instead.
-        if callable(_target) and _has_deprecation_meta(source) and callable(source.__deprecated__.target):
-            warnings.warn(
-                f"'{source.__name__}' has a callable target stacked over another callable-target @deprecated."
-                " Only ARGS_REMAP stacking is supported. This will raise TypeError at call time.",
-                UserWarning,
-                stacklevel=3,
-            )
+        if _has_deprecation_meta(source):
+            _source_is_stacked = True
+            _warn_stacking_misconfiguration(source, _target)
+        else:
+            _source_is_stacked = False
 
         # Skip for legacy sentinels: _normalize_target already fired a FutureWarning;
         # re-running the guard here would report the wrong migration path.
@@ -779,7 +874,7 @@ def deprecated(
             if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
                 warnings.warn(
                     f"'{source.__name__}' has an invalid deprecation configuration;"
-                    " verify your `@deprecated(target=...)` arguments. Will be TypeError in v1.0.",
+                    f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_V1_BREAK_VERSION}.",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -794,7 +889,13 @@ def deprecated(
                 reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
             # Migrated callers (using the new arg name) produce empty reason_argument;
             # without the args_extra guard they short-circuit before extras are injected.
-            if not (reason_callable or reason_argument) and not (args_extra and _target is TargetMode.ARGS_REMAP):
+            # When source is a stacked @deprecated wrapper (e.g. ARGS_REMAP outer + NOTIFY inner),
+            # do not short-circuit even with no reason — the inner layer may still need to run.
+            if (
+                not (reason_callable or reason_argument)
+                and not (args_extra and _target is TargetMode.ARGS_REMAP)
+                and not _source_is_stacked
+            ):
                 return source(**kwargs)
 
             if reason_argument:

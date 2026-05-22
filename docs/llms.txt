@@ -111,6 +111,59 @@ OLD_TIMEOUT = deprecated_instance(
 )
 ```
 
+**Wrong stacking order** — `@deprecated(NOTIFY)` on top of `@deprecated(ARGS_REMAP)`:
+```python
+# WRONG — emits UserWarning at decoration time; ARGS_REMAP must be outer (on top), NOTIFY inner
+@deprecated(deprecated_in="2.0", remove_in="3.0")           # outer NOTIFY
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+
+# CORRECT — ARGS_REMAP on top, NOTIFY below; pyDeprecate warns at decoration if order is wrong
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+@deprecated(deprecated_in="2.0", remove_in="3.0")           # inner NOTIFY
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+```
+
+**N-level stacking:** any sequence of supported adjacent pairs stacks transitively (e.g., ARGS_REMAP + ARGS_REMAP + NOTIFY — three decorators). The guard inspects one hop at a time; each adjacent pair must itself be supported.
+
+
+### Decision Flowchart
+
+```
+Choose your tool first:
+
+  ├─ Python 3.13+ only, static-checker warnings, no call-forwarding or remapping?
+  │    → use `warnings.deprecated` (PEP 702 stdlib) — zero dependencies
+  │      backport: `typing_extensions.deprecated` for Python < 3.13
+  └─ Need call-forwarding, argument remapping, class/instance proxy, or CI audit?
+       → use pyDeprecate (see below)
+
+What is being deprecated?
+
+  ├─ A module-level object instance (dict, list, config object)?
+  │    → use deprecated_instance(obj, deprecated_in=..., remove_in=...)
+  │
+  ├─ A class, Enum, or dataclass?
+  │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
+  │      (classes are callables, but @deprecated is for functions/methods only)
+  │
+  └─ A function or method?
+       → use @deprecated; then choose target= based on the replacement:
+         ├─ Has a replacement function/method?
+         │    → target=<callable>; leave body empty (pass / void())
+         │      └─ Argument names differ between old and new?
+         │           → also add args_mapping={"old_name": "new_name"}
+         ├─ Only renaming an argument within the same function?
+         │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
+         ├─ No replacement, warn-only?
+              → omit target (defaults to TargetMode.NOTIFY); keep working body
+         └─ Already deprecated (args renamed earlier) and now the whole function is going away?
+              → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
+                (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
+```
+
 ### Enforce removal deadlines in CI
 
 ```python

@@ -42,7 +42,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Docstring injection** — `update_docstring=True` appends a Sphinx `.. deprecated::` or MkDocs admonition notice automatically, keeping rendered API docs accurate.
 - **Sphinx Plugin** — ships `deprecate.docstring.sphinx_ext` so `_DeprecatedProxy` objects render with their injected deprecation notice in Sphinx autodoc.
 - **MkDocs Plugin** — ships `deprecate.docstring.griffe_ext` for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
-- **Decorator stacking** — stack multiple `@deprecated` decorators on one function for multi-level argument migration; each layer tracks its own version range and warning count independently.
+- **Decorator stacking** — stack `@deprecated` decorators for multi-version migrations: rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time, not at call time.
 - **Custom streams** — route warnings to `logging`, standard `warnings`, or any callable via the `stream` parameter; `stream=None` silences output while forwarding still occurs.
 - **Custom message templates** — `template_mgs` overrides the default message with `%`-style placeholders (`source_name`, `target_path`, `deprecated_in`, `remove_in`, `argument_map`).
 - **Conditional skip** — `skip_if=callable` suppresses the deprecation notice when a runtime condition is met (e.g. caller has migrated to a newer dependency).

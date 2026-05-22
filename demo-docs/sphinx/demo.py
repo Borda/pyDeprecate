@@ -9,6 +9,7 @@ def new_add(x: int, y: int) -> int:
     :param x: First operand.
     :param y: Second operand.
     :returns: The sum of *x* and *y*.
+
     """
     return x + y
 
@@ -24,13 +25,13 @@ def new_add(x: int, y: int) -> int:
 def old_add_with_verbose(x: int, y: int, verbose: bool = False) -> int:
     """Add two integers, formerly with optional logging (legacy).
 
-    The ``verbose`` argument has been removed; the function itself
-    is also deprecated in favour of ``new_add``.
+    The ``verbose`` argument has been removed; the function itself is also deprecated in favour of ``new_add``.
 
     :param x: First operand.
     :param y: Second operand.
     :param verbose: Deprecated — logging is no longer supported.
     :returns: The sum of *x* and *y*.
+
     """
     return x + y
 
@@ -42,6 +43,7 @@ class NewCalculator:
         """Initialize with decimal precision.
 
         :param precision: Number of decimal places to round to.
+
         """
         self.precision = precision
 
@@ -51,6 +53,7 @@ class NewCalculator:
         :param x: First operand.
         :param y: Second operand.
         :returns: Rounded sum.
+
         """
         return round(x + y, self.precision)
 
@@ -68,6 +71,7 @@ class OldCalculator:
         """Initialize OldCalculator.
 
         :param precision: Number of decimal places to round to.
+
         """
         self.precision = precision
 
@@ -77,5 +81,6 @@ class OldCalculator:
         :param x: First operand.
         :param y: Second operand.
         :returns: Rounded sum.
+
         """
         return round(x + y, self.precision)

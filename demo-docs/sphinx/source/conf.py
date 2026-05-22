@@ -1,4 +1,5 @@
 """Configuration file for demo pages."""
+
 #
 # Configuration file for the Sphinx documentation builder.
 #
