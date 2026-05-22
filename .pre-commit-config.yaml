@@ -107,6 +107,6 @@ repos:
         # mkdocstrings imports the package itself, so pip install -e . is also required.
         # pre-commit.ci skips system hooks; docs are validated by the build-docs workflow instead.
         language: system
-        entry: python3 -m mkdocs build --strict
+        entry: python -m mkdocs build --strict
         files: ^(docs/|mkdocs\.yml|src/)
         pass_filenames: false
