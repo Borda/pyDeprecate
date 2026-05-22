@@ -6,10 +6,14 @@ Injects a ``<link>`` element pointing to ``/llms.txt`` into every page's
 
 from __future__ import annotations
 
+import json as _pydeprecate_json
 import logging
 import os
 import re
-from typing import Any, TYPE_CHECKING
+import re as _pydeprecate_re
+import shutil as _pydeprecate_shutil
+from pathlib import Path as _PyDeprecatePath
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mkdocs.config.defaults import MkDocsConfig
@@ -65,10 +69,6 @@ def _pydeprecate_existing_on_post_page(output: str, page: Page, config: MkDocsCo
 # PYDEPRECATE_GEO_SEO_HOOKS
 # Search and agent discovery helpers. Kept in hooks so generated metadata stays
 # aligned with mike aliases and rendered page URLs.
-import json as _pydeprecate_json
-import re as _pydeprecate_re
-import shutil as _pydeprecate_shutil
-from pathlib import Path as _PyDeprecatePath
 
 _PYDEPRECATE_PUBLIC_ROOT = "https://borda.github.io/pyDeprecate"
 _PYDEPRECATE_STABLE_BASE = f"{_PYDEPRECATE_PUBLIC_ROOT}/stable/"
@@ -185,7 +185,10 @@ def _pydeprecate_json_ld(page: Page) -> list[dict[str, Any]]:
     return objects
 
 
-def on_page_context(context: dict[str, object], page: Page, config: MkDocsConfig, nav: object) -> dict[str, object]:
+def on_page_context(
+    context: dict[str, object], page: Page, config: MkDocsConfig, nav: object
+) -> dict[str, object]:
+    """Inject canonical URLs into the page context."""
     canonical = _pydeprecate_public_url(page)
     context["pydeprecate_canonical_url"] = canonical
     page.canonical_url = canonical
@@ -193,7 +196,11 @@ def on_page_context(context: dict[str, object], page: Page, config: MkDocsConfig
 
 
 def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
-    """Inject canonical URLs, page-specific markdown mirror link, llms.txt discovery link, and JSON-LD into every page."""
+    """Inject metadata into every rendered page.
+
+    Injects canonical URLs, page-specific markdown mirror links, llms.txt discovery
+    link, and JSON-LD structured data into the page <head>.
+    """
     canonical = _pydeprecate_public_url(page)
     markdown = _pydeprecate_markdown_url(page)
     output = _pydeprecate_re.sub(
@@ -225,8 +232,7 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
         )
     graph = _pydeprecate_json_ld(page)
     script = '<script type="application/ld+json">' + _pydeprecate_json.dumps(graph, ensure_ascii=False) + "</script>"
-    output = output.replace("</head>", f"{script}\n</head>", 1)
-    return output
+    return output.replace("</head>", f"{script}\n</head>", 1)
 
 
 def _pydeprecate_mirror_target(src_path: str) -> str:
@@ -261,5 +267,6 @@ def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
 
 
 def on_post_build(config: MkDocsConfig) -> None:
+    """Copy markdown mirrors and rewrite sitemap after build completes."""
     _pydeprecate_copy_markdown_mirrors(config["docs_dir"], config["site_dir"])
     _pydeprecate_rewrite_sitemap(config["site_dir"])
