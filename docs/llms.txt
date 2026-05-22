@@ -136,7 +136,7 @@ dataclasses.replace(info, empty_args_mapping=True)
 
 **Wrong stacking order** — `@deprecated(NOTIFY)` on top of `@deprecated(ARGS_REMAP)`:
 ```python
-# WRONG — NOTIFY outer silently skips the ARGS_REMAP inner for callers not using the old arg name
+# WRONG — emits UserWarning at decoration time; ARGS_REMAP must be outer (on top), NOTIFY inner
 @deprecated(deprecated_in="2.0", remove_in="3.0")           # outer NOTIFY
 @deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
 def my_func(old: int = 0, new: int = 0) -> int:
@@ -178,7 +178,7 @@ What is being deprecated?
          │           → also add args_mapping={"old_name": "new_name"}
          ├─ Only renaming an argument within the same function?
          │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
-         └─ No replacement, warn-only?
+         ├─ No replacement, warn-only?
               → omit target (defaults to TargetMode.NOTIFY); keep working body
          └─ Already deprecated (args renamed earlier) and now the whole function is going away?
               → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
