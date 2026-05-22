@@ -206,6 +206,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     are silently accepted.  The three supported combinations are: ``ARGS_REMAP`` (outer) +
     ``ARGS_REMAP`` (inner), ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner), and ``NOTIFY`` (outer) +
     ``callable`` (inner).
+
     """
     inner_target = source.__deprecated__.target
     name = source.__name__
