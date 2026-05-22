@@ -622,15 +622,17 @@ See [Supported stacking combinations](guide/use-cases.md#supported-stacking-comb
 ```python
 from deprecate import TargetMode, deprecated
 
+
 # Wrong — NOTIFY outer emits UserWarning at decoration time
-@deprecated(deprecated_in="2.0", remove_in="3.0")           # outer NOTIFY
+@deprecated(deprecated_in="2.0", remove_in="3.0")  # outer NOTIFY
 @deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
 def my_func(old: int = 0, new: int = 0) -> int:
     return new
 
+
 # Correct — ARGS_REMAP on top, NOTIFY below
 @deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
-@deprecated(deprecated_in="2.0", remove_in="3.0")           # inner NOTIFY
+@deprecated(deprecated_in="2.0", remove_in="3.0")  # inner NOTIFY
 def my_func(old: int = 0, new: int = 0) -> int:
     return new
 ```
