@@ -8,9 +8,7 @@ Deprecation warnings are useful only if removal deadlines are enforced. pyDeprec
 
 ## Python audit checks
 
-<!--phmdoctest-skip-->
-
-```python
+```python phmdoctest:skip
 from deprecate import (
     find_deprecation_wrappers,
     validate_deprecation_chains,
