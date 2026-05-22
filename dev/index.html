@@ -987,7 +987,7 @@
 <li><strong>Docstring injection</strong> — <code>update_docstring=True</code> appends a Sphinx <code>.. deprecated::</code> or MkDocs admonition notice automatically, keeping rendered API docs accurate.</li>
 <li><strong>Sphinx Plugin</strong> — ships <code>deprecate.docstring.sphinx_ext</code> so <code>_DeprecatedProxy</code> objects render with their injected deprecation notice in Sphinx autodoc.</li>
 <li><strong>MkDocs Plugin</strong> — ships <code>deprecate.docstring.griffe_ext</code> for mkdocstrings so runtime-injected <code>!!! warning</code> admonitions are visible in MkDocs-generated API docs.</li>
-<li><strong>Decorator stacking</strong> — stack multiple <code>@deprecated</code> decorators on one function for multi-level argument migration; each layer tracks its own version range and warning count independently.</li>
+<li><strong>Decorator stacking</strong> — stack <code>@deprecated</code> decorators for multi-version migrations: rename arguments across releases (<code>ARGS_REMAP + ARGS_REMAP</code>), then deprecate the whole function when a complete replacement arrives (<code>ARGS_REMAP + NOTIFY</code>). Unsupported combinations warn at decoration time, not at call time.</li>
 <li><strong>Custom streams</strong> — route warnings to <code>logging</code>, standard <code>warnings</code>, or any callable via the <code>stream</code> parameter; <code>stream=None</code> silences output while forwarding still occurs.</li>
 <li><strong>Custom message templates</strong> — <code>template_mgs</code> overrides the default message with <code>%</code>-style placeholders (<code>source_name</code>, <code>target_path</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>argument_map</code>).</li>
 <li><strong>Conditional skip</strong> — <code>skip_if=callable</code> suppresses the deprecation notice when a runtime condition is met (e.g. caller has migrated to a newer dependency).</li>
@@ -1182,7 +1182,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 21, 2026 05:00:20 UTC">2026-05-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 22, 2026 15:12:13 UTC">2026-05-22</span>
   </span>
 
     
