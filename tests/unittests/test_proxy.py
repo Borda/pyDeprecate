@@ -22,7 +22,7 @@ from tests.collection_deprecate import (
     WarnOnlyColorEnum,
     pep702_proxy_stacked,
 )
-from tests.collection_targets import NewDataClass, TargetColorEnum, TargetWithInjected, _Pep702ProxyTarget
+from tests.collection_targets import NewDataClass, TargetColorEnum, TargetWithInjected, _Pep702ProxyTarget, replacement
 
 
 class TestProxyInit:
@@ -145,10 +145,6 @@ class TestProxyTemplateMgs:
 
     def test_custom_template_used_in_warning_message_callable_target(self) -> None:
         """``template_mgs`` overrides the callable-target template, exposing target placeholders."""
-
-        def replacement() -> None:
-            """Replacement target used to confirm ``target_path`` substitution."""
-
         proxy = _DeprecatedProxy(
             obj={},
             name="legacy_obj",

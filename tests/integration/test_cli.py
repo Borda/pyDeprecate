@@ -4,13 +4,24 @@ import importlib.util
 import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
+_MYPKG_INIT = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"})
+def old_fn(old: int) -> int:
+    pass
+"""
 
 
 def _cli_env(**extra: str) -> dict[str, str]:
@@ -24,16 +35,7 @@ def _make_pkg(tmp_path: Path, name: str = "mypkg") -> Path:
     """Create a minimal importable package with one deprecated wrapper."""
     pkg = tmp_path / name
     pkg.mkdir()
-    (pkg / "__init__.py").write_text(
-        textwrap.dedent(r"""\ from deprecate import deprecated.
-
-                        def new_fn(x: int) -> int:     return x
-
-                        @deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"}) def
-                        old_fn(old: int) -> int:     pass
-
-                        """)
-    )
+    (pkg / "__init__.py").write_text(_MYPKG_INIT)
     return pkg
 
 

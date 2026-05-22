@@ -304,3 +304,10 @@ class TimerDecorator:
         self.calls += 1
         print(f"'{self.func.__name__}' executed in {execution_time:.4f}s")
         return result
+
+
+# Defined here (not inline in test_proxy.py) to avoid a docformatter/ruff blank-line conflict:
+# docformatter removes the blank line after a one-liner docstring in a nested function,
+# while ruff requires it — the two tools loop forever on pre-commit.
+def replacement() -> None:
+    """Replacement target used to confirm ``target_path`` substitution."""
