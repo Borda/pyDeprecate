@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 # Module-level cache for the MkDocs config, populated in on_config so URL helpers
 # can derive the public root from config.extra.root_site_url instead of a hard-coded constant.
-_pydeprecate_config: object = None
+_pydeprecate_config: MkDocsConfig | None = None
 
 
 def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
