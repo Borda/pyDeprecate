@@ -997,9 +997,9 @@ class TestStackingGuards:
     """Decoration-time ``UserWarning`` for every unsupported stacking combination.
 
     Each guard surfaces a misconfiguration before the first call rather than producing
-    silently wrong results or raising ``TypeError`` at runtime.  The callable+callable
-    case is covered by ``TestStackedCallableTargetGuard``; this class covers the four
-    remaining combinations.
+    silently wrong results or raising ``TypeError`` at runtime. The callable+callable
+    case is covered by ``TestStackedCallableTargetGuard``; this class covers the other
+    unsupported stacking combinations exercised below.
     """
 
     def _make_source(self, **kwargs: Any) -> Callable[..., int]:  # noqa: ANN401

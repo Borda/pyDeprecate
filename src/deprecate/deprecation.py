@@ -222,8 +222,9 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     elif callable(outer_target) and inner_target is TargetMode.NOTIFY:
         warnings.warn(
             f"'{name}' has a callable target stacked over @deprecated(NOTIFY)."
-            " The function-deprecated warning fires but the callable target is bypassed."
-            " Collapse to a single @deprecated(target=<callable>) and remove the outer @deprecated(NOTIFY)."
+            " The inner function-deprecated warning will not fire at call time; the inner layer is bypassed"
+            " while the callable target is still invoked."
+            " Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY)."
             " Will be `TypeError` in `v1.0`.",
             UserWarning,
             stacklevel=3,
