@@ -47,6 +47,11 @@ repos:
         language_version: python3.10
         additional_dependencies: [tomli]
         args: ["--in-place"]
+        # tests/ excluded: docformatter misattributes the blank line after a nested def/class
+        # with a one-liner docstring as being inside the function body (D202 scope bug),
+        # causing a deadlock with ruff-format which requires that blank line (E301).
+        # Tracked: https://github.com/PyCQA/docformatter/issues/354
+        exclude: ^tests/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.20.0
