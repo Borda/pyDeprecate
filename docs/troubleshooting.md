@@ -610,10 +610,11 @@ Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)
 and @deprecated(NOTIFY, ...) below it. Will be `TypeError` in `v1.0`.
 ```
 
-**A:** pyDeprecate validates stacking combinations at decoration time and emits `UserWarning` for every unsupported case. Only two combinations work correctly:
+**A:** pyDeprecate validates stacking combinations at decoration time and emits `UserWarning` for every unsupported case. Common supported combinations include:
 
 - `ARGS_REMAP` (outer, on top) + `ARGS_REMAP` (inner): multi-step argument renames across versions.
 - `ARGS_REMAP` (outer, on top) + `NOTIFY` (inner): lifecycle pattern — rename args first, then deprecate the whole function.
+- `NOTIFY` (outer, on top) + `callable` (inner): deprecate a callable target directly without an inner `@deprecated` wrapper.
 
 See [Supported stacking combinations](guide/use-cases.md#supported-stacking-combinations) for the full table. The warning message identifies which combination fired and includes a corrective hint.
 
