@@ -7,13 +7,12 @@ structured documentation index.
 
 from __future__ import annotations
 
-import json as _pydeprecate_json
 import logging
 import os
 import re
 import shutil as _pydeprecate_shutil
 from pathlib import Path as _PyDeprecatePath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mkdocs.config.defaults import MkDocsConfig
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
 
 # Module-level cache for the MkDocs config, populated in on_config so URL helpers
 # can derive the public root from config.extra.root_site_url instead of a hard-coded constant.
-_pydeprecate_config: Any = None
+_pydeprecate_config: object = None
 
 
 def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
@@ -152,71 +151,6 @@ def _pydeprecate_page_description(page: Page) -> str:
     )
 
 
-def _pydeprecate_json_ld(page: Page) -> list[dict[str, Any]]:
-    src_path = getattr(getattr(page, "file", None), "src_path", "")
-    url = _pydeprecate_public_url(page)
-    title = _pydeprecate_page_title(page)
-    description = _pydeprecate_page_description(page)
-    base = {
-        "@context": "https://schema.org",
-        "@type": "TechArticle",
-        "headline": title,
-        "description": description,
-        "url": url,
-        "mainEntityOfPage": {"@type": "WebPage", "@id": url},
-        "author": {"@type": "Person", "name": "Jiri Borovec"},
-        "about": "Python API deprecation and migration",
-        "programmingLanguage": "Python",
-    }
-    objects: list[dict[str, Any]] = [base]
-    if src_path == "getting-started.md":
-        objects.append({
-            "@context": "https://schema.org",
-            "@type": "HowTo",
-            "name": "Add a Python deprecation decorator with pyDeprecate",
-            "description": description,
-            "url": url,
-            "step": [
-                {"@type": "HowToStep", "name": "Install pyDeprecate"},
-                {"@type": "HowToStep", "name": "Import from deprecate"},
-                {"@type": "HowToStep", "name": "Wrap the old API with deprecated"},
-            ],
-        })
-    if src_path == "guide/use-cases.md":
-        objects.append({
-            "@context": "https://schema.org",
-            "@type": "ItemList",
-            "name": "pyDeprecate migration use cases",
-            "url": url,
-            "itemListElement": [
-                {"@type": "ListItem", "position": 1, "name": "Function rename"},
-                {"@type": "ListItem", "position": 2, "name": "Argument rename"},
-                {"@type": "ListItem", "position": 3, "name": "Class rename"},
-                {"@type": "ListItem", "position": 4, "name": "CI audit"},
-            ],
-        })
-    if src_path in {"guide/audit.md", "guide/cli.md", "guide/api-migration-ci.md"}:
-        objects.append({
-            "@context": "https://schema.org",
-            "@type": "SoftwareSourceCode",
-            "name": title,
-            "description": description,
-            "url": url,
-            "programmingLanguage": "Python",
-            "runtimePlatform": "Python",
-        })
-    if src_path == "changelog.md":
-        objects.append({
-            "@context": "https://schema.org",
-            "@type": "Article",
-            "headline": title,
-            "description": description,
-            "url": url,
-            "mainEntityOfPage": {"@type": "WebPage", "@id": url},
-        })
-    return objects
-
-
 def on_page_context(
     context: dict[str, object], page: Page, config: MkDocsConfig, nav: object
 ) -> dict[str, object]:
@@ -230,8 +164,8 @@ def on_page_context(
 def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
     """Inject metadata into every rendered page.
 
-    Injects canonical URLs, page-specific markdown mirror links, llms.txt discovery link, and JSON-LD structured data
-    into the page <head>.
+    Injects canonical URLs, page-specific markdown mirror links, and llms.txt discovery link
+    into the page <head>. JSON-LD structured data is handled entirely by the Jinja2 template.
 
     """
     canonical = _pydeprecate_public_url(page)
@@ -270,13 +204,6 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
             f'<link rel="alternate" type="text/plain" title="llms.txt" href="{llms_url}">\n</head>',
             1,
         )
-    # Only inject JSON-LD when the template hasn't already added structured data,
-    # to avoid duplicate <script type="application/ld+json"> blocks on the same page.
-    if '<script type="application/ld+json">' not in output:
-        graph = _pydeprecate_json_ld(page)
-        ld_json = _pydeprecate_json.dumps(graph, ensure_ascii=False)
-        script = f'<script type="application/ld+json">{ld_json}</script>'
-        output = output.replace("</head>", f"{script}\n</head>", 1)
     return output
 
 
