@@ -19,11 +19,11 @@ class NewClient:
         return "ok"
 
 
+# FutureWarning: "The `OldClient` was deprecated since v1.2 in favor of `NewClient`. It will be removed in v2.0."
 @deprecated_class(
     target=NewClient,
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use NewClient instead.",
 )
 class OldClient:
     pass
@@ -38,11 +38,11 @@ from deprecate import deprecated_instance
 
 
 DEFAULT_TIMEOUT_SECONDS = 30
+# FutureWarning on access: "The `TIMEOUT` was deprecated since v1.2. It will be removed in v2.0."
 TIMEOUT = deprecated_instance(
     DEFAULT_TIMEOUT_SECONDS,
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use DEFAULT_TIMEOUT_SECONDS instead.",
 )
 ```
 

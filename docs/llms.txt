@@ -37,7 +37,7 @@ def new_api(value: int) -> int:
     target=new_api,
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use new_api instead.",
+    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
 )
 def old_api(value: int) -> int:
     raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
@@ -54,7 +54,7 @@ from deprecate import TargetMode, deprecated
     args_mapping={"old_name": "new_name"},
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use new_name instead of old_name.",
+    # FutureWarning: "The `configure` uses deprecated arguments: `old_name` -> `new_name`. They were deprecated since v1.2 and will be removed in v2.0."
 )
 def configure(*, new_name: str) -> str:
     return new_name
@@ -70,7 +70,7 @@ from deprecate import TargetMode, deprecated
     target=TargetMode.NOTIFY,
     deprecated_in="1.2",
     remove_in="2.0",
-    message="This function has no replacement.",
+    # FutureWarning: "The `legacy_hook` was deprecated since v1.2. It will be removed in v2.0."
 )
 def legacy_hook() -> None:
     pass
@@ -90,7 +90,7 @@ class NewClient:
     target=NewClient,
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use NewClient instead.",
+    # FutureWarning: "The `OldClient` was deprecated since v1.2 in favor of `NewClient`. It will be removed in v2.0."
 )
 class OldClient:
     pass
@@ -103,11 +103,11 @@ from deprecate import deprecated_instance
 
 
 NEW_TIMEOUT = 30
+# FutureWarning on access: "The `OLD_TIMEOUT` was deprecated since v1.2. It will be removed in v2.0."
 OLD_TIMEOUT = deprecated_instance(
     NEW_TIMEOUT,
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use NEW_TIMEOUT instead.",
 )
 ```
 

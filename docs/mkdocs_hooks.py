@@ -99,7 +99,11 @@ def _pydeprecate_public_url(page: Page) -> str:
 
 def _pydeprecate_markdown_url(page: Page) -> str:
     page_url = getattr(page, "url", "") or "index.html"
-    if page_url == "":
+    # Directory-style URLs (use_directory_urls=True) end with '/'; strip so the
+    # resulting path matches the .html.md mirror target produced by _pydeprecate_mirror_target.
+    if page_url.endswith("/"):
+        page_url = page_url.rstrip("/") + ".html"
+    if not page_url:
         page_url = "index.html"
     return f"{_PYDEPRECATE_STABLE_BASE}{page_url}.md"
 
@@ -129,7 +133,7 @@ def _pydeprecate_json_ld(page: Page) -> list[dict[str, Any]]:
         "description": description,
         "url": url,
         "mainEntityOfPage": {"@type": "WebPage", "@id": url},
-        "author": {"@type": "Person", "name": "Jan Kybic"},
+        "author": {"@type": "Person", "name": "Jiri Borovec"},
         "about": "Python API deprecation and migration",
         "programmingLanguage": "Python",
     }
@@ -190,8 +194,7 @@ def on_page_context(context: dict[str, object], page: Page, config: MkDocsConfig
 
 
 def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
-    if "_pydeprecate_existing_on_post_page" in globals():
-        output = _pydeprecate_existing_on_post_page(output, page, config)
+    """Inject canonical URLs, page-specific markdown mirror link, llms.txt discovery link, and JSON-LD into every page."""
     canonical = _pydeprecate_public_url(page)
     markdown = _pydeprecate_markdown_url(page)
     output = _pydeprecate_re.sub(
@@ -204,19 +207,26 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
         f'<meta property="og:url" content="{canonical}">',
         output,
     )
+    # Replace any existing text/markdown alternate link with the page-specific mirror URL.
+    # This may be set by MkDocs or a prior hook; we overwrite to ensure it points to the
+    # correct versioned mirror, not the root llms.txt.
     output = _pydeprecate_re.sub(
         r'<link rel="alternate" type="text/markdown" href="[^"]+">',
         f'<link rel="alternate" type="text/markdown" href="{markdown}">',
         output,
     )
-    if 'href="https://borda.github.io/pyDeprecate/llms.txt"' not in output:
+    # Inject the root llms.txt discovery link (type=text/plain) separately — distinct
+    # from the per-page markdown mirror link above so both survive in <head>.
+    llms_href = 'href="https://borda.github.io/pyDeprecate/llms.txt"'
+    if llms_href not in output:
         output = output.replace(
             "</head>",
             '<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">\n</head>',
+            1,
         )
     graph = _pydeprecate_json_ld(page)
-    script = '<script type="application/ld+json">' + _pydeprecate_json.dumps(graph, ensure_ascii=False) + '</script>'
-    output = output.replace("</head>", f"{script}\n</head>")
+    script = '<script type="application/ld+json">' + _pydeprecate_json.dumps(graph, ensure_ascii=False) + "</script>"
+    output = output.replace("</head>", f"{script}\n</head>", 1)
     return output
 
 

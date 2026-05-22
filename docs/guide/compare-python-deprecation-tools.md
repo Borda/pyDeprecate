@@ -12,9 +12,9 @@ Python has several ways to signal deprecation. The right choice depends on wheth
 | ------------------- | -------------------------------------- | -----------------: | --------------: | -----------------: | -------: |
 | `warnings.warn`     | One-off internal warnings              |                 No |              No |                 No |       No |
 | `typing.deprecated` | Python 3.13+ static-checker visibility |                 No |              No |                 No |       No |
-| `deprecation`       | Simple decorator warnings              |            Limited |              No |                 No |  Limited |
-| `Deprecated`        | Simple decorator warnings              |            Limited |              No |                 No |       No |
-| pyDeprecate         | Public API migration compatibility     |                Yes |             Yes |                Yes |      Yes |
+| `deprecation`       | Simple decorator warnings              |                 No |              No |                 No |       No |
+| `Deprecated`        | Simple decorator warnings              |                 No |              No |                 No |       No |
+| **pyDeprecate** *(this library)* | Public API migration compatibility |                Yes |             Yes |                Yes |      Yes |
 
 ## Use `warnings.warn` when
 
@@ -57,7 +57,7 @@ def new_api(value: int) -> int:
     target=new_api,
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use new_api instead.",
+    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
 )
 def old_api(value: int) -> int:
     raise RuntimeError("Forwarded by pyDeprecate.")

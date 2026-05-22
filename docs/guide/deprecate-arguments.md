@@ -17,7 +17,7 @@ from deprecate import TargetMode, deprecated
     args_mapping={"old_name": "new_name"},
     deprecated_in="1.2",
     remove_in="2.0",
-    message="Use new_name instead of old_name.",
+    # FutureWarning: "The `configure` uses deprecated arguments: `old_name` -> `new_name`. They were deprecated since v1.2 and will be removed in v2.0."
 )
 def configure(*, new_name: str) -> str:
     return new_name
@@ -36,7 +36,7 @@ from deprecate import TargetMode, deprecated
     args_mapping={"debug": None},
     deprecated_in="1.2",
     remove_in="2.0",
-    message="debug is deprecated and will be ignored.",
+    # FutureWarning: "The `run` uses deprecated arguments: `debug` -> `None`. They were deprecated since v1.2 and will be removed in v2.0."
 )
 def run(value: int) -> int:
     return value

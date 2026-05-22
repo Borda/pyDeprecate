@@ -326,11 +326,13 @@ jobs:
           # the directory and cause "already exists" failure.
           TMPWORKTREE="/tmp/pyDeprecate-gh-pages-$$"
           git worktree add "$TMPWORKTREE" "${GH_PAGES_BRANCH}"
+          trap 'git worktree remove --force "$TMPWORKTREE" 2>/dev/null || true' EXIT
           cp docs/robots.txt "$TMPWORKTREE/robots.txt"
           cp docs/llms.txt "$TMPWORKTREE/llms.txt"
           git -C "$TMPWORKTREE" add robots.txt llms.txt
           git -C "$TMPWORKTREE" diff --cached --quiet \
             || git -C "$TMPWORKTREE" commit -m "chore(deploy): sync root robots.txt and llms.txt for AI crawler discoverability"
+          trap - EXIT
           git worktree remove --force "$TMPWORKTREE"
 
       - name: 📦 Export built site
