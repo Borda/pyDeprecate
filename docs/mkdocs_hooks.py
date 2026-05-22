@@ -82,8 +82,9 @@ _PYDEPRECATE_STABLE_BASE = f"{_PYDEPRECATE_PUBLIC_ROOT}/stable/"
 def _pydeprecate_stable_base() -> str:
     """Return the stable base URL, derived from ``config.extra.root_site_url`` when available.
 
-    Falls back to the hard-coded ``_PYDEPRECATE_STABLE_BASE`` constant so local previews
-    and forks that configure a different ``site_url`` still produce correct canonical URLs.
+    Falls back to the hard-coded ``_PYDEPRECATE_STABLE_BASE`` constant so local previews and forks that configure a
+    different ``site_url`` still produce correct canonical URLs.
+
     """
     if _pydeprecate_config is not None:
         root = str((_pydeprecate_config.extra or {}).get("root_site_url", "") or "").rstrip("/")
@@ -164,8 +165,8 @@ def on_page_context(
 def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
     """Inject metadata into every rendered page.
 
-    Injects canonical URLs, page-specific markdown mirror links, and llms.txt discovery link
-    into the page <head>. JSON-LD structured data is handled entirely by the Jinja2 template.
+    Injects canonical URLs, page-specific markdown mirror links, and llms.txt discovery link into the page <head>. JSON-
+    LD structured data is handled entirely by the Jinja2 template.
 
     """
     canonical = _pydeprecate_public_url(page)
