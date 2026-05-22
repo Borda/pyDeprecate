@@ -206,6 +206,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
     are silently accepted.  The three supported combinations are: ``ARGS_REMAP`` (outer) +
     ``ARGS_REMAP`` (inner), ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner), and ``NOTIFY`` (outer) +
     ``callable`` (inner).
+
     """
     inner_target = source.__deprecated__.target
     name = source.__name__
@@ -688,7 +689,8 @@ def deprecated(
             - ``{}``: Empty mapping (no remapping)
             Works with both ``target=Callable`` and ``target=True``.
         args_extra: Additional arguments merged into kwargs before the call. Used when target is a Callable or
-            ``TargetMode.ARGS_REMAP`` (with ``args_mapping``). Ignored when target is ``TargetMode.NOTIFY``.
+            :attr:`~deprecate._types.TargetMode.ARGS_REMAP` (with ``args_mapping``). Ignored when target is
+            :attr:`~deprecate._types.TargetMode.NOTIFY`.
             Example: ``{'new_required_arg': 42}``
         skip_if: Conditionally skip deprecation warning and forwarding:
             - ``bool``: Static condition (True = skip deprecation)

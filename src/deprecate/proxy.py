@@ -595,7 +595,7 @@ def deprecated_class(
         True
 
         When only argument names changed, omit *target* and supply ``args_mapping``. The proxy auto-resolves to
-        ``TargetMode.ARGS_REMAP`` and warns **only when the old argument name is passed**:
+        :attr:`~deprecate._types.TargetMode.ARGS_REMAP` and warns **only when the old argument name is passed**:
 
         >>> class Config:
         ...     def __init__(self, timeout: int = 0) -> None:

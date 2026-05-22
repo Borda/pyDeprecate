@@ -144,8 +144,8 @@ class DeprecationWrapperInfo:
             See :class:`~deprecate.audit.ChainType` for values
             (:attr:`~deprecate.audit.ChainType.TARGET` or :attr:`~deprecate.audit.ChainType.STACKED`).
         misconfigured_target: True when the wrapper has an invalid target configuration:
-            ``target=False``, ``TargetMode.NOTIFY`` with ``args_mapping``, or ``TargetMode.ARGS_REMAP`` with empty
-            ``args_mapping``.
+            ``target=False``, :attr:`~deprecate._types.TargetMode.NOTIFY` with ``args_mapping``, or
+            :attr:`~deprecate._types.TargetMode.ARGS_REMAP` with empty ``args_mapping``.
         empty_deprecated_in: True when ``deprecated_in`` is empty. Missing ``remove_in`` alone is a valid use case
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
             is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
