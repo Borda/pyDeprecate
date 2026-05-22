@@ -69,7 +69,6 @@ import json as _pydeprecate_json
 import re as _pydeprecate_re
 import shutil as _pydeprecate_shutil
 from pathlib import Path as _PyDeprecatePath
-from xml.etree import ElementTree as _PyDeprecateElementTree
 
 _PYDEPRECATE_PUBLIC_ROOT = "https://borda.github.io/pyDeprecate"
 _PYDEPRECATE_STABLE_BASE = f"{_PYDEPRECATE_PUBLIC_ROOT}/stable/"
