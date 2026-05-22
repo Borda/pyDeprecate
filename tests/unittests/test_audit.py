@@ -13,6 +13,7 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
+    ChainType,
     DeprecationWrapperInfo,
     _get_package_version,
     _parse_version,
@@ -257,6 +258,20 @@ class TestValidateDeprecationWrapperWithProxy:
         result = validate_deprecation_wrapper(proxy)
         assert result.deprecated_info.args_mapping is None
         assert result.empty_args_mapping is True
+
+    def test_callable_targeting_notify_wrapper_is_target_chain(self) -> None:
+        """A callable target pointing to a NOTIFY wrapper is a forwarding TARGET chain."""
+
+        @deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        def notify_layer(value: int) -> int:
+            return value
+
+        @deprecated(target=notify_layer, deprecated_in="1.0", remove_in="2.0")
+        def caller(value: int) -> int:
+            return value
+
+        result = validate_deprecation_wrapper(caller)
+        assert result.chain_type is ChainType.TARGET
 
 
 class TestFindDeprecationWrappersWarningBudget:

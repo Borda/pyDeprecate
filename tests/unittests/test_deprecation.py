@@ -1096,7 +1096,7 @@ class TestStackedArgsRemapNotify:
     independently; the inner NOTIFY must run even when no deprecated argument is present.
     """
 
-    def _make_fresh(self) -> object:
+    def _make_fresh(self) -> Callable[..., float]:
         """Return a fresh stacked fixture each time to avoid num_warns counter exhaustion."""
         return make_depr_compute_power_stacked()
 
@@ -1104,7 +1104,7 @@ class TestStackedArgsRemapNotify:
         """Calling with the old arg name raises both the arg-rename and the function-deprecated warning."""
         fn = self._make_fresh()
         with pytest.warns(FutureWarning) as record:
-            result = fn(2, factor=3)  # type: ignore[operator]
+            result = fn(2, factor=3)
         assert result == 8.0
         assert len(record) == 2
 
@@ -1112,7 +1112,7 @@ class TestStackedArgsRemapNotify:
         """Calling with the new arg name raises only the function-deprecated (NOTIFY) warning."""
         fn = self._make_fresh()
         with pytest.warns(FutureWarning) as record:
-            result = fn(2, scale=3)  # type: ignore[operator]
+            result = fn(2, scale=3)
         assert result == 8.0
         assert len(record) == 1
 
@@ -1120,7 +1120,7 @@ class TestStackedArgsRemapNotify:
         """Calling with no arguments at all still fires the NOTIFY warning."""
         fn = self._make_fresh()
         with pytest.warns(FutureWarning) as record:
-            result = fn(2)  # type: ignore[operator]
+            result = fn(2)
         assert result == 2.0
         assert len(record) == 1
 
@@ -1129,7 +1129,7 @@ class TestStackedArgsRemapNotify:
         fn = self._make_fresh()
         # positional: base=2, factor=3 (old positional slot)
         with pytest.warns(FutureWarning) as record:
-            result = fn(2, 3)  # type: ignore[operator]
+            result = fn(2, 3)
         assert result == 8.0
         assert len(record) == 2
 
@@ -1137,10 +1137,10 @@ class TestStackedArgsRemapNotify:
         """Second call after counter exhaustion emits no FutureWarning."""
         fn = self._make_fresh()
         with pytest.warns(FutureWarning):
-            fn(2, factor=3)  # type: ignore[operator]  # exhausts both layer counters
+            fn(2, factor=3)  # exhausts both layer counters
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            fn(2, factor=3)  # type: ignore[operator]
+            fn(2, factor=3)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
     def test_args_extra_flows_through_notify_layer(self) -> None:
@@ -1166,7 +1166,7 @@ class TestStackedNotifyCallable:
     independently on every call until their counters are exhausted.
     """
 
-    def _make_fresh(self) -> object:
+    def _make_fresh(self) -> Callable[..., float]:
         """Return a fresh stacked fixture each time to avoid num_warns counter exhaustion."""
         return make_depr_notify_callable_stacked()
 
@@ -1174,7 +1174,7 @@ class TestStackedNotifyCallable:
         """Calling the stacked wrapper emits both the NOTIFY and callable-target FutureWarnings."""
         fn = self._make_fresh()
         with pytest.warns(FutureWarning) as record:
-            result = fn(2.0, scale=3.0)  # type: ignore[operator]
+            result = fn(2.0, scale=3.0)
         assert result == 8.0
         assert len(record) == 2
 
@@ -1182,15 +1182,15 @@ class TestStackedNotifyCallable:
         """The callable-target inner layer correctly forwards the call to the final function."""
         fn = self._make_fresh()
         with pytest.warns(FutureWarning):
-            result = fn(3.0, scale=2.0)  # type: ignore[operator]
+            result = fn(3.0, scale=2.0)
         assert result == 9.0
 
     def test_counter_exhausted_fires_no_warnings_on_repeat(self) -> None:
         """Second call after counter exhaustion emits no FutureWarning."""
         fn = self._make_fresh()
         with pytest.warns(FutureWarning):
-            fn(2.0, scale=3.0)  # type: ignore[operator]  # exhausts both layer counters
+            fn(2.0, scale=3.0)  # exhausts both layer counters
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            fn(2.0, scale=3.0)  # type: ignore[operator]
+            fn(2.0, scale=3.0)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
