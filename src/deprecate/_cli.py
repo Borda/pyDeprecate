@@ -184,10 +184,12 @@ class _Reporter:
     _RichTable: Any = None
 
     try:
-        from rich import box as _rich_box
+        from rich import box as _rich_box_import
         from rich.console import Console as _RichConsole
-        from rich.table import Table as _RichTable
+        from rich.table import Table as _RichTable_import
 
+        _rich_box = _rich_box_import
+        _RichTable = _RichTable_import
         _out = _RichConsole()
         _err = _RichConsole(stderr=True)
     except ImportError:  # pragma: no cover

@@ -37,10 +37,8 @@ import sys
 try:
     import griffe
 except ImportError:
-    griffe = None  # type: ignore[assignment]
-
-
-if griffe is not None:
+    pass
+else:
 
     class RuntimeDocstrings(griffe.Extension):
         """Update Griffe docstrings to reflect decorator-modified ``__doc__``."""
