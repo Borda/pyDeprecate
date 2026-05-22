@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: docs-discovery-assets
+  group: gh-pages
   cancel-in-progress: false
 
 jobs:
