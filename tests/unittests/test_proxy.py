@@ -326,9 +326,7 @@ class TestProxyReadOnly:
 
 
 class TestProxyGetActive:
-    """Active object selection: source vs target.
-
-    """
+    """Active object selection: source vs target."""
 
     def test_returns_obj_when_no_target(self) -> None:
         """Without target, _get_active returns the source object."""
