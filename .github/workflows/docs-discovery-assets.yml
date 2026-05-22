@@ -1,5 +1,11 @@
 name: Docs discovery assets
 
+# This workflow MUST only publish from the main branch.
+# robots.txt, llms.txt, and sitemap.xml live at the gh-pages root and are read directly
+# by AI crawlers (GPTBot, ClaudeBot, OAI-SearchBot) and search engines. Publishing a
+# dev-branch or PR version would overwrite the authoritative root files with unreviewed
+# content and could mislead AI agents about pyDeprecate's public API contract.
+
 on:
   workflow_dispatch:
   push:
@@ -72,21 +78,35 @@ jobs:
           fi
 
   monitor-published-assets:
-    name: Monitor published discovery URLs
+    name: Monitor ${{ matrix.path }}
     runs-on: ubuntu-latest
     needs: publish-root-assets
+    env:
+      BASE_URL: https://borda.github.io/pyDeprecate
+    strategy:
+      fail-fast: false
+      matrix:
+        path:
+          - "/"
+          - "/stable/"
+          - "/robots.txt"
+          - "/llms.txt"
+          - "/llms-full.txt"
+          - "/sitemap.xml"
+          - "/stable/sitemap.xml"
     steps:
-      - name: Check root SEO and GEO URLs
+      - name: Check URL is reachable
         run: |
           set -euo pipefail
-          for url in             https://borda.github.io/pyDeprecate/             https://borda.github.io/pyDeprecate/stable/             https://borda.github.io/pyDeprecate/robots.txt             https://borda.github.io/pyDeprecate/llms.txt             https://borda.github.io/pyDeprecate/llms-full.txt             https://borda.github.io/pyDeprecate/sitemap.xml             https://borda.github.io/pyDeprecate/stable/sitemap.xml; do
-            status=""
-            for attempt in 1 2 3 4 5; do
-              status="$(curl -L -s -o /dev/null -w '%{http_code}' "$url")"
-              if [ "$status" = "200" ]; then
-                break
-              fi
-              sleep 20
-            done
-            test "$status" = "200" || { echo "FAIL $url -> $status"; exit 1; }
+          url="${BASE_URL}${{ matrix.path }}"
+          for attempt in 1 2 3 4 5; do
+            status="$(curl -L -s -o /dev/null -w '%{http_code}' "$url")"
+            if [ "$status" = "200" ]; then
+              echo "OK $url -> $status"
+              exit 0
+            fi
+            echo "Attempt $attempt: $url -> $status"
+            sleep 20
           done
+          echo "FAIL $url -> $status"
+          exit 1
