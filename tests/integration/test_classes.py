@@ -410,7 +410,7 @@ class TestDataclassFormEquivalence(_ClassFormBase):
             proxy(label="x")
 
     def test_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """Proxy(label='x') returns a NewDataClass instance with correct fields."""
+        """proxy(label='x') returns a NewDataClass instance with correct fields."""
         with pytest.warns(FutureWarning):
             instance = proxy(label="x")
         assert isinstance(instance, NewDataClass)

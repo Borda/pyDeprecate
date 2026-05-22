@@ -255,11 +255,7 @@ Returns:
         assert google_arguments_header.__doc__ == expected
 
     def test_sphinx_arg_not_in_docstring(self) -> None:
-        """Sphinx-style: absent param falls back to a general ``..
-
-        deprecated::`` block appended at end.
-
-        """
+        """Sphinx-style: absent param falls back to a general ``.. deprecated::`` block appended at end."""
         expected = """Train the model.
 
 :param lr: Learning rate for training.
@@ -329,11 +325,7 @@ Returns:
         assert no_target_with_args_mapping.__doc__ == expected
 
     def test_mkdocs_no_target_with_args_mapping(self) -> None:
-        """MkDocs style: inline arg note inserted AND general block uses ``!!!
-
-        warning``.
-
-        """
+        """MkDocs style: inline arg note inserted AND general block uses ``!!! warning``."""
         expected = """Warning-only deprecation with a deprecated argument (MkDocs style).
 
 Args:
