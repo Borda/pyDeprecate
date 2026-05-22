@@ -377,6 +377,28 @@ compute_power(2)  # → 1 warning  (function deprecated only),          returns 
 | `NOTIFY`     | `NOTIFY`       | ✗ `UserWarning` at decoration time | Update the existing decorator's versions instead of adding a second one             |
 | `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below                             |
 
+### N-level stacking
+
+Any sequence of supported adjacent pairs stacks transitively. The guard inspects only one hop at a time — as long as each adjacent pair is a supported combination, the full stack is accepted silently.
+
+**Example — three-level lifecycle migration:**
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="0.3", remove_in="0.6", args_mapping={"c1": "nc1"})
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="0.4", remove_in="0.7", args_mapping={"nc1": "nc2"})
+@deprecated(TargetMode.NOTIFY, deprecated_in="0.7", remove_in="1.0")
+def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
+    return base**nc2
+```
+
+Each adjacent pair is `ARGS_REMAP + ARGS_REMAP` (supported) and `ARGS_REMAP + NOTIFY` (supported), so no decoration-time warning fires. The three layers execute in turn at call time.
+
+!!! note "Unsupported pair breaks the whole chain"
+    A single unsupported adjacent pair anywhere in the stack emits `UserWarning` at decoration time for that pair. Chains with `NOTIFY + ARGS_REMAP` adjacent remain unsupported — the wrong-order warning still fires.
+
 Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in CI to catch accidental deprecated-to-deprecated chains automatically.
 
 ## Conditional skip
