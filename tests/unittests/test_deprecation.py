@@ -1017,32 +1017,57 @@ class TestStackingGuards:
         inner = self._make_source(
             target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
         )
-        with pytest.warns(UserWarning, match="callable target stacked over.*ARGS_REMAP"):
+        with pytest.warns(UserWarning, match="callable target stacked over.*ARGS_REMAP") as record:
             deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
 
     def test_args_remap_over_callable_warns(self) -> None:
         """ARGS_REMAP outer stacked over callable-target inner emits ``UserWarning``."""
         from tests.collection_targets import stacked_outer_target
 
         inner = self._make_source(target=stacked_outer_target, deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(UserWarning, match="ARGS_REMAP.*stacked over a callable"):
+        with pytest.warns(UserWarning, match="ARGS_REMAP.*stacked over a callable") as record:
             deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"x": "y"})(
                 inner
             )
+        assert record[0].filename.endswith("test_deprecation.py")
 
     def test_notify_over_notify_warns(self) -> None:
         """Duplicate NOTIFY layers emit ``UserWarning`` at decoration time."""
         inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(UserWarning, match="duplicate.*NOTIFY"):
+        with pytest.warns(UserWarning, match="duplicate.*NOTIFY") as record:
             deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
 
     def test_notify_over_args_remap_warns_with_order_hint(self) -> None:
         """NOTIFY outer + ARGS_REMAP inner (wrong order) emits ``UserWarning`` with order hint."""
         inner = self._make_source(
             target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
         )
-        with pytest.warns(UserWarning, match="Reverse the decorator order"):
+        with pytest.warns(UserWarning, match="Reverse the decorator order") as record:
             deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_callable_over_notify_warns(self) -> None:
+        """Callable-target outer stacked over NOTIFY inner emits ``UserWarning``."""
+        from tests.collection_targets import stacked_outer_target
+
+        inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(UserWarning, match="callable target stacked over.*NOTIFY") as record:
+            deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_args_remap_over_args_remap_does_not_warn(self) -> None:
+        """Supported ARGS_REMAP+ARGS_REMAP stacking must not emit any UserWarning."""
+        inner = self._make_source(
+            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"y": "z"})(
+                inner
+            )
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
 
 
 class TestStackedArgsRemapNotify:
@@ -1090,3 +1115,13 @@ class TestStackedArgsRemapNotify:
             result = fn(2, 3)  # type: ignore[operator]
         assert result == 8.0
         assert len(record) == 2
+
+    def test_counter_exhausted_fires_no_warnings_on_repeat(self) -> None:
+        """Second call after counter exhaustion emits no FutureWarning."""
+        fn = self._make_fresh()
+        with pytest.warns(FutureWarning):
+            fn(2, factor=3)  # type: ignore[operator]  # exhausts both layer counters
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn(2, factor=3)  # type: ignore[operator]
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
