@@ -19,9 +19,15 @@ if TYPE_CHECKING:
     from mkdocs.config.defaults import MkDocsConfig
     from mkdocs.structure.pages import Page
 
+# Module-level cache for the MkDocs config, populated in on_config so URL helpers
+# can derive the public root from config.extra.root_site_url instead of a hard-coded constant.
+_pydeprecate_config: Any = None
+
 
 def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
     """Inject package version and root site URL into extra config so templates can reference them."""
+    global _pydeprecate_config
+    _pydeprecate_config = config
     try:
         about = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "deprecate", "__about__.py")
         with open(about) as f:
@@ -72,6 +78,30 @@ def _pydeprecate_existing_on_post_page(output: str, page: Page, config: MkDocsCo
 
 _PYDEPRECATE_PUBLIC_ROOT = "https://borda.github.io/pyDeprecate"
 _PYDEPRECATE_STABLE_BASE = f"{_PYDEPRECATE_PUBLIC_ROOT}/stable/"
+
+
+def _pydeprecate_stable_base() -> str:
+    """Return the stable base URL, derived from ``config.extra.root_site_url`` when available.
+
+    Falls back to the hard-coded ``_PYDEPRECATE_STABLE_BASE`` constant so local previews
+    and forks that configure a different ``site_url`` still produce correct canonical URLs.
+    """
+    if _pydeprecate_config is not None:
+        root = str((_pydeprecate_config.extra or {}).get("root_site_url", "") or "").rstrip("/")
+        if root:
+            return f"{root}/stable/"
+    return _PYDEPRECATE_STABLE_BASE
+
+
+def _pydeprecate_root_url() -> str:
+    """Return the root site URL (no version suffix), derived from config when available."""
+    if _pydeprecate_config is not None:
+        root = str((_pydeprecate_config.extra or {}).get("root_site_url", "") or "").rstrip("/")
+        if root:
+            return root
+    return _PYDEPRECATE_PUBLIC_ROOT
+
+
 _PYDEPRECATE_MARKDOWN_MIRRORS = (
     "index.md",
     "getting-started.md",
@@ -90,13 +120,15 @@ _PYDEPRECATE_MARKDOWN_MIRRORS = (
 
 
 def _pydeprecate_public_url(page: Page) -> str:
+    base = _pydeprecate_stable_base()
     page_url = getattr(page, "url", "") or ""
     if page_url in {"", "index.html"}:
-        return _PYDEPRECATE_STABLE_BASE
-    return f"{_PYDEPRECATE_STABLE_BASE}{page_url}"
+        return base
+    return f"{base}{page_url}"
 
 
 def _pydeprecate_markdown_url(page: Page) -> str:
+    base = _pydeprecate_stable_base()
     page_url = getattr(page, "url", "") or "index.html"
     # Directory-style URLs (use_directory_urls=True) end with '/'; strip so the
     # resulting path matches the .html.md mirror target produced by _pydeprecate_mirror_target.
@@ -104,7 +136,7 @@ def _pydeprecate_markdown_url(page: Page) -> str:
         page_url = page_url.rstrip("/") + ".html"
     if not page_url:
         page_url = "index.html"
-    return f"{_PYDEPRECATE_STABLE_BASE}{page_url}.md"
+    return f"{base}{page_url}.md"
 
 
 def _pydeprecate_page_title(page: Page) -> str:
@@ -230,16 +262,22 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
         output = replaced
     # Inject the root llms.txt discovery link (type=text/plain) separately — distinct
     # from the per-page markdown mirror link above so both survive in <head>.
-    llms_href = 'href="https://borda.github.io/pyDeprecate/llms.txt"'
+    llms_url = f"{_pydeprecate_root_url()}/llms.txt"
+    llms_href = f'href="{llms_url}"'
     if llms_href not in output:
         output = output.replace(
             "</head>",
-            '<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">\n</head>',
+            f'<link rel="alternate" type="text/plain" title="llms.txt" href="{llms_url}">\n</head>',
             1,
         )
-    graph = _pydeprecate_json_ld(page)
-    script = '<script type="application/ld+json">' + _pydeprecate_json.dumps(graph, ensure_ascii=False) + "</script>"
-    return output.replace("</head>", f"{script}\n</head>", 1)
+    # Only inject JSON-LD when the template hasn't already added structured data,
+    # to avoid duplicate <script type="application/ld+json"> blocks on the same page.
+    if '<script type="application/ld+json">' not in output:
+        graph = _pydeprecate_json_ld(page)
+        ld_json = _pydeprecate_json.dumps(graph, ensure_ascii=False)
+        script = f'<script type="application/ld+json">{ld_json}</script>'
+        output = output.replace("</head>", f"{script}\n</head>", 1)
+    return output
 
 
 def _pydeprecate_mirror_target(src_path: str) -> str:
@@ -267,7 +305,7 @@ def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
     text = sitemap.read_text(encoding="utf-8")
     text = re.sub(
         r"https://borda\.github\.io/pyDeprecate/(?:v?[^/]+|latest|dev)/",
-        _PYDEPRECATE_STABLE_BASE,
+        _pydeprecate_stable_base(),
         text,
     )
     sitemap.write_text(text, encoding="utf-8")
