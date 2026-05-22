@@ -148,6 +148,6 @@ pydeprecate all src/
 - Getting Started: https://borda.github.io/pyDeprecate/stable/getting-started.html
 - Use Cases: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
 - Agent Recipes: https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html
-- API Migration CI: https://borda.github.io/pyDeprecate/stable/guide/api-migration-ci.html
-- Class and Object Deprecation: https://borda.github.io/pyDeprecate/stable/guide/class-object-deprecation.html
+- API Migration CI: https://borda.github.io/pyDeprecate/stable/guide/audit.html
+- Class and Object Deprecation: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
 - Compare Python Deprecation Tools: https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html

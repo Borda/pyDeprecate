@@ -184,9 +184,9 @@ class _Reporter:
     _RichTable: Any = None
 
     try:
-        from rich import box as _rich_box  # type: ignore[no-redef]
+        from rich import box as _rich_box
         from rich.console import Console as _RichConsole
-        from rich.table import Table as _RichTable  # type: ignore[no-redef]
+        from rich.table import Table as _RichTable
 
         _out = _RichConsole()
         _err = _RichConsole(stderr=True)

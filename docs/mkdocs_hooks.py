@@ -106,20 +106,6 @@ def _pydeprecate_root_url() -> str:
     return _PYDEPRECATE_PUBLIC_ROOT
 
 
-_PYDEPRECATE_MARKDOWN_MIRRORS = (
-    "index.md",
-    "getting-started.md",
-    "guide/use-cases.md",
-    "guide/audit.md",
-    "guide/cli.md",
-    "guide/customization.md",
-    "guide/migration.md",
-    "guide/compare-python-deprecation-tools.md",
-    "guide/agent-recipes.md",
-    "troubleshooting.md",
-)
-
-
 def _pydeprecate_public_url(page: Page) -> str:
     base = _pydeprecate_stable_base()
     page_url = getattr(page, "url", "") or ""
@@ -218,10 +204,10 @@ def _pydeprecate_mirror_target(src_path: str) -> str:
 def _pydeprecate_copy_markdown_mirrors(docs_dir: str, site_dir: str) -> None:
     docs = _PyDeprecatePath(docs_dir)
     site = _PyDeprecatePath(site_dir)
-    for src_name in _PYDEPRECATE_MARKDOWN_MIRRORS:
-        src = docs / src_name
-        if not src.exists():
+    for src in docs.rglob("*.md"):
+        if "overrides" in src.relative_to(docs).parts:
             continue
+        src_name = src.relative_to(docs).as_posix()
         dest = site / _pydeprecate_mirror_target(src_name)
         dest.parent.mkdir(parents=True, exist_ok=True)
         _pydeprecate_shutil.copyfile(src, dest)
