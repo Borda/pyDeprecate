@@ -295,7 +295,7 @@ Stack multiple `@deprecated` decorators on a single function to handle migration
 
 !!! warning "Not all stacking combinations are supported"
 
-    Only two combinations work correctly. Everything else emits `UserWarning` at **decoration time** (not at call time) so you catch the misconfiguration immediately. See the [supported combinations table](#supported-stacking-combinations) below.
+    Only three combinations work correctly. Everything else emits `UserWarning` at **decoration time** (not at call time) so you catch the misconfiguration immediately. See the [supported combinations table](#supported-stacking-combinations) below.
 
 ### Pattern 1 — multi-step argument renames (ARGS_REMAP + ARGS_REMAP)
 
@@ -369,10 +369,11 @@ compute_power(2)  # → 1 warning  (function deprecated only),          returns 
 | ------------ | -------------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
 | `ARGS_REMAP` | `ARGS_REMAP`   | ✓ Supported                        | Multi-step argument renames across versions                                         |
 | `ARGS_REMAP` | `NOTIFY`       | ✓ Supported                        | Lifecycle: rename args first, then deprecate the whole function                     |
+| `NOTIFY`     | `callable`     | ✓ Supported                        | Outer NOTIFY warns callers the function is going away; inner callable handles forwarding. Prefer `@deprecated(target=<callable>)` directly — same effect, simpler. |
+| `callable`   | `callable`     | ✗ `UserWarning` at decoration time | Use a single `@deprecated(target=<callable>)` instead                               |
 | `callable`   | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Collapse to `@deprecated(target=fn, args_mapping={...})`                            |
 | `callable`   | `NOTIFY`       | ✗ `UserWarning` at decoration time | Collapse to a single `@deprecated(target=<callable>)`                               |
 | `ARGS_REMAP` | `callable`     | ✗ `UserWarning` at decoration time | Update the inner decorator to include both `target=` and `args_mapping=`            |
-| `NOTIFY`     | `callable`     | ✓ Supported                        | Outer NOTIFY fires, then inner callable target executes; both layers work correctly |
 | `NOTIFY`     | `NOTIFY`       | ✗ `UserWarning` at decoration time | Update the existing decorator's versions instead of adding a second one             |
 | `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below                             |
 

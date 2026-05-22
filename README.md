@@ -552,16 +552,17 @@ compute_power(2, scale=3)  # → 1 warning  (function deprecated only),         
 
 </details>
 
-| Outer (top)  | Inner (bottom) | Status                             |
-| ------------ | -------------- | ---------------------------------- |
-| `ARGS_REMAP` | `ARGS_REMAP`   | ✓ Supported                        |
-| `ARGS_REMAP` | `NOTIFY`       | ✓ Supported                        |
-| `callable`   | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time |
-| `callable`   | `NOTIFY`       | ✗ `UserWarning` at decoration time |
-| `ARGS_REMAP` | `callable`     | ✗ `UserWarning` at decoration time |
-| `NOTIFY`     | `callable`     | ✓ Supported                        |
-| `NOTIFY`     | `NOTIFY`       | ✗ `UserWarning` at decoration time |
-| `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time |
+| Outer (top)  | Inner (bottom) | Status                             | Notes                                                             |
+| ------------ | -------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `ARGS_REMAP` | `ARGS_REMAP`   | ✓ Supported                        | Multi-step argument renames across versions                       |
+| `ARGS_REMAP` | `NOTIFY`       | ✓ Supported                        | Lifecycle: rename args first, then deprecate the whole function   |
+| `NOTIFY`     | `callable`     | ✓ Supported                        | Outer NOTIFY warns callers; inner callable handles forwarding     |
+| `callable`   | `callable`     | ✗ `UserWarning` at decoration time | Use a single `@deprecated(target=<callable>)` instead             |
+| `callable`   | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Collapse to `@deprecated(target=fn, args_mapping={...})`          |
+| `callable`   | `NOTIFY`       | ✗ `UserWarning` at decoration time | Collapse to a single `@deprecated(target=<callable>)`             |
+| `ARGS_REMAP` | `callable`     | ✗ `UserWarning` at decoration time | Update the inner decorator to include `target=` and `args_mapping=` |
+| `NOTIFY`     | `NOTIFY`       | ✗ `UserWarning` at decoration time | Update the existing decorator's versions instead of adding a second one |
+| `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below           |
 
 <br>
 
