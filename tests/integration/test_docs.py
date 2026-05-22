@@ -42,7 +42,7 @@ class TestDeprecationDocstrings:
         assert old_function.__doc__ == expected
 
     def test_deprecated_class_docstring(self) -> None:
-        """Deprecated __init__ gets a deprecated block appended."""
+        """Deprecated ``__init__`` gets a deprecated block appended."""
         expected = """Initialize the old class.
 
 .. deprecated:: 0.2
