@@ -11,7 +11,6 @@ import json as _pydeprecate_json
 import logging
 import os
 import re
-import re as _pydeprecate_re
 import shutil as _pydeprecate_shutil
 from pathlib import Path as _PyDeprecatePath
 from typing import TYPE_CHECKING, Any
@@ -199,17 +198,18 @@ def on_page_context(
 def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
     """Inject metadata into every rendered page.
 
-    Injects canonical URLs, page-specific markdown mirror links, llms.txt discovery
-    link, and JSON-LD structured data into the page <head>.
+    Injects canonical URLs, page-specific markdown mirror links, llms.txt discovery link, and JSON-LD structured data
+    into the page <head>.
+
     """
     canonical = _pydeprecate_public_url(page)
     markdown = _pydeprecate_markdown_url(page)
-    output = _pydeprecate_re.sub(
+    output = re.sub(
         r'<link rel="canonical" href="[^"]+">',
         f'<link rel="canonical" href="{canonical}">',
         output,
     )
-    output = _pydeprecate_re.sub(
+    output = re.sub(
         r'<meta property="og:url" content="[^"]+">',
         f'<meta property="og:url" content="{canonical}">',
         output,
@@ -217,7 +217,7 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
     # Replace any existing text/markdown alternate link with the page-specific mirror URL.
     # This may be set by MkDocs or a prior hook; we overwrite to ensure it points to the
     # correct versioned mirror, not the root llms.txt.
-    output = _pydeprecate_re.sub(
+    output = re.sub(
         r'<link rel="alternate" type="text/markdown" href="[^"]+">',
         f'<link rel="alternate" type="text/markdown" href="{markdown}">',
         output,
@@ -259,7 +259,7 @@ def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
     if not sitemap.exists():
         return
     text = sitemap.read_text(encoding="utf-8")
-    text = _pydeprecate_re.sub(
+    text = re.sub(
         r"https://borda\.github\.io/pyDeprecate/(?:v?[^/]+|latest|dev)/",
         _PYDEPRECATE_STABLE_BASE,
         text,
