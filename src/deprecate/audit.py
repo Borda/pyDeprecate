@@ -378,9 +378,10 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     self_reference = target is func if target is not None else False
     # chain_type distinguishes two chain problems:
     # - ChainType.TARGET: target is a deprecated callable that itself forwards to another function
-    #   (i.e. target.__deprecated__.target is not True). Fix: point directly to the final target.
-    # - ChainType.STACKED: arg mappings chain/compose and need collapsing. Two sub-cases:
-    #   (a) target is a deprecated callable whose own target=True (self-deprecation with renaming).
+    #   (i.e. target.__deprecated__.target is not a supported stacking mode). Fix: point directly
+    #   to the final target.
+    # - ChainType.STACKED: supported decorator stacking. Two sub-cases:
+    #   (a) target is a deprecated callable whose own target=ARGS_REMAP (self-deprecation with renaming).
     #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
     _is_args_remap = target is TargetMode.ARGS_REMAP
     _is_notify = target is TargetMode.NOTIFY
@@ -388,8 +389,9 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     chain_type: Optional[ChainType] = None
     if callable(target) and _has_deprecation_meta(target):
         wrp_depr_tgt = target.__deprecated__.target
+        # STACKED: inner is ARGS_REMAP (mappings compose)
+        # TARGET: inner is NOTIFY or another callable (actual forwarding chain — should point to final target directly)
         is_stacked = wrp_depr_tgt is TargetMode.ARGS_REMAP
-        # target is self-deprecation (mappings compose) or forwarding
         chain_type = ChainType.STACKED if is_stacked else ChainType.TARGET
     elif _is_args_remap:
         wrapped = getattr(func, "__wrapped__", None)

@@ -304,3 +304,8 @@ class TimerDecorator:
         self.calls += 1
         print(f"'{self.func.__name__}' executed in {execution_time:.4f}s")
         return result
+
+
+def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
+    """Compute base raised to scale; factor is the legacy parameter name for scale."""
+    return base**scale

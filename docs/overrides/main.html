@@ -208,6 +208,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why did I get UserWarning about an unsupported stacking combination?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "pyDeprecate validates @deprecated stacking combinations at decoration time and emits UserWarning for unsupported cases. Three combinations are supported: ARGS_REMAP (outer) + ARGS_REMAP (inner) for multi-step argument renames, ARGS_REMAP (outer) + NOTIFY (inner) for the lifecycle pattern of renaming args first then deprecating the whole function, and NOTIFY (outer) + callable target (inner) when the inner decorator forwards to a concrete replacement callable. The most common mistake is putting NOTIFY on top of ARGS_REMAP — reverse the order: ARGS_REMAP must be outermost (on top) and NOTIFY must be innermost (below). The warning message includes a corrective hint."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why did I get TypeError at decoration time about a cross-class method target?",
           "acceptedAnswer": {
             "@type": "Answer",

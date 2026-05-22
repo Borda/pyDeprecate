@@ -64,6 +64,7 @@ from tests.collection_targets import (
     base_pow_args,
     base_sum_kwargs,
     both_old_new_target,
+    compute_power,
     cross_guard_standalone_increment,
     double_value,
     fn_remap_with_extra_body,
@@ -661,6 +662,88 @@ def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float =
 
     """
     return base ** (c1 + nc1 + nc2)
+
+
+def make_depr_compute_power_stacked() -> Callable:
+    """Return a fresh ARGS_REMAP-outer + NOTIFY-inner stacked fixture.
+
+    Each call produces a new wrapper pair with an independent ``_WrapperState``,
+    preventing ``num_warns`` counter exhaustion across tests.
+
+    Examples:
+        Calling with the old arg name raises two warnings.
+
+        >>> import warnings
+        >>> fn = make_depr_compute_power_stacked()
+        >>> with warnings.catch_warnings(record=True) as w:
+        ...     warnings.simplefilter("always")
+        ...     result = fn(2.0, factor=3.0)
+        >>> result
+        8.0
+        >>> len(w)
+        2
+    """
+    inner = deprecated(TargetMode.NOTIFY, "2.0", "3.0")(compute_power)
+    return deprecated(TargetMode.ARGS_REMAP, "1.0", "2.0", args_mapping={"factor": "scale"})(inner)
+
+
+def make_depr_notify_callable_stacked() -> Callable:
+    """Return a fresh NOTIFY-outer + callable-target-inner stacked fixture.
+
+    Each call produces a new wrapper pair with an independent ``_WrapperState``,
+    preventing ``num_warns`` counter exhaustion across tests.
+
+    The outer ``@deprecated(TargetMode.NOTIFY, ...)`` warns that the whole function is going
+    away; the inner ``@deprecated(target=compute_power, ...)`` warns and forwards to
+    ``compute_power``.  Both ``FutureWarning`` instances fire on every call until counters
+    are exhausted.
+
+    Examples:
+        Calling the stacked wrapper emits two FutureWarnings and returns the computed value.
+
+        >>> import warnings
+        >>> fn = make_depr_notify_callable_stacked()
+        >>> with warnings.catch_warnings(record=True) as w:
+        ...     warnings.simplefilter("always")
+        ...     result = fn(2.0, scale=3.0)
+        >>> result
+        8.0
+        >>> len(w)
+        2
+    """
+    inner = deprecated(target=compute_power, deprecated_in="1.0", remove_in="2.0")(compute_power)
+    return deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+
+
+def make_depr_args_remap_notify_with_extra() -> Callable:
+    """Return a fresh ARGS_REMAP-outer + NOTIFY-inner fixture with ``args_extra`` injection.
+
+    The outer ``ARGS_REMAP`` layer maps ``factor`` → ``scale`` and injects ``base=2.0`` via
+    ``args_extra``.  The inner ``NOTIFY`` layer emits its own ``FutureWarning`` and runs the
+    ``compute_power`` body.  Together they verify that ``args_extra`` set on the outer ARGS_REMAP
+    layer flows correctly through the inner NOTIFY layer to the final function call.
+
+    Examples:
+        Calling with the deprecated arg name fires two warnings and returns the injected-base result.
+
+        >>> import warnings
+        >>> fn = make_depr_args_remap_notify_with_extra()
+        >>> with warnings.catch_warnings(record=True) as w:
+        ...     warnings.simplefilter("always")
+        ...     result = fn(factor=3.0)
+        >>> result
+        8.0
+        >>> len(w)
+        2
+    """
+    inner = deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(compute_power)
+    return deprecated(
+        TargetMode.ARGS_REMAP,
+        deprecated_in="1.0",
+        remove_in="2.0",
+        args_mapping={"factor": "scale"},
+        args_extra={"base": 2.0},
+    )(inner)
 
 
 @deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
