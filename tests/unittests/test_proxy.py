@@ -50,7 +50,7 @@ class TestProxyWarnBehavior:
     """Warning count and message logic."""
 
     def test_num_warns_zero_never_warns(self) -> None:
-        """num_warns=0 means never warn."""
+        """``num_warns=0`` means never warn."""
         proxy = _DeprecatedProxy(obj={"k": 1}, name="x", deprecated_in="1.0", remove_in="2.0", num_warns=0)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -309,7 +309,7 @@ class TestProxyReadOnly:
         assert "m" in inner
 
     def test_custom_mutator_bypasses_read_only_guard(self) -> None:
-        """Custom method names not in the blocked set pass through read_only=True (known limitation)."""
+        """Custom method names not in the blocked set pass through ``read_only=True`` (known limitation)."""
 
         class RegistryWithCustomMutator:
             def __init__(self) -> None:
@@ -613,7 +613,7 @@ class TestDecoratorEnum:
         assert result is TargetColorEnum.RED
 
     def test_no_target_warns_and_reads_source(self) -> None:
-        """With target=None, deprecated Enum should warn and return members from the original source Enum."""
+        """With ``target=None``, deprecated Enum should warn and return members from the original source Enum."""
         with pytest.warns(FutureWarning, match=r"The `WarnOnlyColorEnum` was deprecated since v1\.0"):
             val = WarnOnlyColorEnum.A
         assert val.value == "a"
@@ -816,7 +816,7 @@ class TestEmptyVersionGuard:
     """
 
     def test_deprecated_class_empty_versions_warns(self) -> None:
-        """@deprecated_class() with empty versions emits UserWarning at decoration time."""
+        """``@deprecated_class()`` with empty versions emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match=r"no `deprecated_in` set"):
 
             @deprecated_class()
@@ -826,25 +826,25 @@ class TestEmptyVersionGuard:
                 pass
 
     def test_deprecated_class_empty_versions_stream_none_silent(self) -> None:
-        """@deprecated_class(stream=None) suppresses the empty-versions UserWarning."""
+        """``@deprecated_class(stream=None)`` suppresses the empty-versions UserWarning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
             @deprecated_class(stream=None)
             class OldEmptyVersionsSilent:
-                """Source class with stream=None — guard must stay silent."""
+                """Source class with ``stream=None`` — guard must stay silent."""
 
                 pass
 
         assert not caught
 
     def test_deprecated_instance_empty_versions_warns(self) -> None:
-        """deprecated_instance() with empty versions emits UserWarning at instantiation time."""
+        """``deprecated_instance()`` with empty versions emits UserWarning at instantiation time."""
         with pytest.warns(UserWarning, match=r"no `deprecated_in` set"):
             deprecated_instance({"k": 1})
 
     def test_deprecated_instance_empty_versions_stream_none_silent(self) -> None:
-        """deprecated_instance(stream=None) suppresses the empty-versions UserWarning."""
+        """``deprecated_instance(stream=None)`` suppresses the empty-versions UserWarning."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             deprecated_instance({"k": 1}, stream=None)
@@ -885,7 +885,7 @@ class TestDeprecatedInstance:
         assert dep.remove_in == "3.5"
 
     def test_warns_once_by_default(self) -> None:
-        """Default num_warns=1 means only the first access emits a warning.
+        """Default ``num_warns=1`` means only the first access emits a warning.
 
         This is specific to deprecated_instance() — unlike _DeprecatedProxy which requires an explicit num_warns,
         deprecated_instance() defaults to num_warns=1.
