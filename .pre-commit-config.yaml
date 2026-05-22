@@ -98,15 +98,3 @@ repos:
     rev: v0.25
     hooks:
       - id: validate-pyproject
-
-  - repo: local
-    hooks:
-      - id: mkdocs-build
-        name: mkdocs build
-        # language: system uses the active Python env where docs/requirements.txt is installed.
-        # mkdocstrings imports the package itself, so pip install -e . is also required.
-        # pre-commit.ci skips system hooks; docs are validated by the build-docs workflow instead.
-        language: system
-        entry: python -m mkdocs build --strict
-        files: ^(docs/|mkdocs\.yml|src/)
-        pass_filenames: false
