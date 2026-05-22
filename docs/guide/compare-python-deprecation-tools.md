@@ -30,10 +30,10 @@ def internal_hook() -> None:
 
 ## Use `typing.deprecated` when
 
-Use `typing.deprecated` for Python 3.13+ static-checker-only visibility when runtime behavior does not need to change.
+Use `typing.deprecated`/`typing_extensions.deprecated` for static-checker-only visibility when runtime behavior does not need to change.
 
-```python phmdoctest:skip
-from typing import deprecated
+```python
+from typing_extensions import deprecated
 
 
 @deprecated("Use new_api instead.")
