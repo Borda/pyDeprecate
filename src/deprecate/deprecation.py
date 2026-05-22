@@ -31,6 +31,8 @@ from deprecate._types import (
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
+_V1_BREAK_VERSION = "v1.0"
+
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
@@ -209,7 +211,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
         warnings.warn(
             f"'{name}' has a callable target stacked over another callable-target @deprecated."
             " Only ARGS_REMAP stacking is supported. This will raise `TypeError` at call time."
-            " Will be `TypeError` in `v1.0`.",
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
         )
@@ -218,7 +220,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
             f"'{name}' has a callable target stacked over @deprecated(ARGS_REMAP)."
             " The arg-rename warning will not fire at call time; the inner layer is bypassed."
             " Collapse to: @deprecated(target=<callable>, args_mapping={...})."
-            " Will be `TypeError` in `v1.0`.",
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
         )
@@ -228,7 +230,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
             " The inner function-deprecated warning will not fire at call time; the inner layer is bypassed"
             " while the callable target is still invoked."
             " Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY)."
-            " Will be `TypeError` in `v1.0`.",
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
         )
@@ -236,7 +238,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
         warnings.warn(
             f"'{name}' has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated."
             " Update the inner @deprecated(target=<callable>, args_mapping={...}) instead of stacking."
-            " Will be `TypeError` in `v1.0`.",
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
         )
@@ -244,7 +246,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
         warnings.warn(
             f"'{name}' has duplicate @deprecated(NOTIFY) layers."
             " Update the existing decorator's `deprecated_in`, `remove_in`, or `template_mgs` instead."
-            " Will be `TypeError` in `v1.0`.",
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
         )
@@ -253,13 +255,20 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
             f"'{name}' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP)."
             " Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)"
             " and @deprecated(NOTIFY, ...) below it."
-            " Will be `TypeError` in `v1.0`.",
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
         )
+    elif (
+        (outer_target is TargetMode.ARGS_REMAP and inner_target is TargetMode.ARGS_REMAP)
+        or (outer_target is TargetMode.ARGS_REMAP and inner_target is TargetMode.NOTIFY)
+        or (outer_target is TargetMode.NOTIFY and callable(inner_target))
+    ):
+        pass  # supported combinations — silently accepted
     else:
         warnings.warn(
-            f"'{name}' has an unsupported @deprecated stacking combination. Will be `TypeError` in `v1.0`.",
+            f"'{name}' has an unsupported @deprecated stacking combination."
+            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=3,
         )
@@ -859,7 +868,7 @@ def deprecated(
             if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
                 warnings.warn(
                     f"'{source.__name__}' has an invalid deprecation configuration;"
-                    " verify your `@deprecated(target=...)` arguments. Will be TypeError in v1.0.",
+                    f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_V1_BREAK_VERSION}.",
                     UserWarning,
                     stacklevel=2,
                 )
