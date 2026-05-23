@@ -31,9 +31,9 @@ plugins:
       handlers:
         python:
           paths: ["src"]
-          extensions:
-            - deprecate.docstring.griffe_ext:RuntimeDocstrings
           options:
+            extensions:
+              - deprecate.docstring.griffe_ext:RuntimeDocstrings
             docstring_style: google
             show_source: false
             show_root_heading: true
