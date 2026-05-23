@@ -173,7 +173,7 @@ def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
         return
     text = sitemap.read_text(encoding="utf-8")
     text = re.sub(
-        rf"{re.escape(_PYDEPRECATE_PUBLIC_ROOT)}/(?:v?[^/]+|latest|dev)/",
+        rf"{re.escape(_pydeprecate_root_url())}/(?:v?[^/]+|latest|dev)/",
         _pydeprecate_stable_base(),
         text,
     )
