@@ -76,7 +76,15 @@ setup(
     long_description_content_type="text/markdown",
     include_package_data=True,
     zip_safe=False,
-    keywords=["python", "development", "deprecation"],
+    keywords=[
+        "deprecation",
+        "decorator",
+        "API migration",
+        "call forwarding",
+        "argument renaming",
+        "backwards compatibility",
+        "CI audit",
+    ],
     python_requires=">=3.9",
     setup_requires=[],
     install_requires=[],
@@ -87,7 +95,9 @@ setup(
     project_urls={
         "Documentation": ABOUT.__homepage__,
         "Source Code": ABOUT.__source_code__,
-        "Home page": ABOUT.__homepage__,
+        "Bug Tracker": f"{ABOUT.__source_code__}/issues",
+        "Changelog": f"{ABOUT.__source_code__}/blob/main/CHANGELOG.md",
+        "Agent Guide": "https://borda.github.io/pyDeprecate/llms.txt",
     },
     entry_points={
         "console_scripts": [
@@ -115,5 +125,7 @@ setup(
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: 3.14",
         "Topic :: Software Development :: Libraries",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Software Development :: Quality Assurance",
     ],
 )

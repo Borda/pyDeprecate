@@ -132,6 +132,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **After any API change**: update `README.md` AND the relevant `docs/guide/` page
 - **New troubleshooting item**: add to `docs/troubleshooting.md` AND the FAQPage JSON-LD in `docs/overrides/main.html`
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
+- **`docs/robots.txt`** — AI crawler access policy; add a `User-agent: <bot> / Allow: /` block when a new mainstream AI crawler is released. The comment referencing the `docs/llms.txt` URL must stay current.
 - See [Documentation Site](.github/CONTRIBUTING.md#documentation-site) for the full consistency rules
 
 ## 🚫 Critical Constraints
@@ -158,16 +159,19 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` **and** the FAQPage JSON-LD in `docs/overrides/main.html`
 
+- **Update inline comments when changing behavior** — after any logic change, scan changed files for comments describing that behavior; update stale ones (stale comments mislead more than none)
+
 - **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times. Apply this sync table on every relevant change:
 
-  | Change made                              | Also update                                                                                                      |
-  | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-  | Public API behavior change               | `deprecation.py` docstring · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
-  | New deprecation pattern                  | `docs/llms.txt` Decision Flowchart · `docs/guide/use-cases.md`                                                   |
-  | New anti-pattern discovered              | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md`                                                      |
-  | `TargetMode` enum value added or removed | `docs/llms.txt` Critical Mental Model · Decision Flowchart · `docs/guide/use-cases.md`                           |
+  | Change made                              | Also update                                                                                                                                                                                                       |
+  | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Public API behavior change               | affected module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
+  | New deprecation pattern                  | `docs/llms.txt` Decision Flowchart · `docs/guide/use-cases.md`                                                                                                                                                    |
+  | New anti-pattern discovered              | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md`                                                                                                                                                       |
+  | `TargetMode` enum value added or removed | `docs/llms.txt` Critical Mental Model · Decision Flowchart · `docs/guide/use-cases.md`                                                                                                                            |
+  | New mainstream AI crawler released       | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                      |
 
-  `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale.
+  `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale. `docs/robots.txt` is the access gateway — an unlisted bot gets the wildcard `Allow: /` but explicit entries signal intent to AI platforms.
 
 - Ensure pre-commit hooks are installed (they run automatically on commit)
 

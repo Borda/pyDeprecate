@@ -130,7 +130,8 @@ Complete this checklist before opening a pull request to ensure quality and smoo
 - [ ] Followed existing code style (pre-commit hooks enforce this automatically)
 - [ ] Added tests for new functionality (happy path, failure path, edge cases)
 - [ ] Ran tests locally and they pass (`pytest .`)
-- [ ] Updated documentation if needed
+- [ ] Updated documentation if needed (README, docs/guide pages, docstrings, inline comments)
+- [ ] Updated `docs/llms.txt` if public API behavior, patterns, or anti-patterns changed
 - [ ] Self-reviewed my code
 - [ ] Linked to related issue(s)
 
@@ -291,6 +292,7 @@ git push origin fix/123-your-bug-description
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
 - Add comments only where the logic is not self-evident — explain **why**, not __what__
+- When changing existing behavior, scan changed files for stale inline comments — update or remove them (stale comments mislead more than none)
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
@@ -588,6 +590,7 @@ The project ships two separate documentation surfaces:
 | Troubleshooting    | `docs/troubleshooting.md`   | Q&A; also drives FAQPage JSON-LD                                    |
 | Theme override     | `docs/overrides/main.html`  | Jinja2 template — OG tags + JSON-LD per page; **prettier-excluded** |
 | AI discoverability | `docs/llms.txt`             | Spec-compliant link directory for AI crawlers                       |
+| AI crawler policy  | `docs/robots.txt`           | Crawler allow/block rules; comment links to `docs/llms.txt`         |
 
 ### Local Build
 
@@ -608,13 +611,14 @@ make docs-tests   # regenerate tests/integration/test_readme.py and tests/docs/t
 
 ### Consistency Rules
 
-When making changes, keep all three surfaces in sync:
+When making changes, keep all surfaces in sync:
 
 1. **New or renamed public API symbol** — update `README.md` (API reference) **and** the relevant `docs/guide/` page.
 2. **New use-case pattern** — add an entry to `docs/guide/use-cases.md`.
 3. **New troubleshooting item** — add a Q&A block to `docs/troubleshooting.md` **and** a matching `Question`/`Answer` pair to the `FAQPage` JSON-LD in `docs/overrides/main.html`.
 4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
 5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
+6. **AI crawler policy** — when a new mainstream AI crawler is released, add a `User-agent: <bot> / Allow: /` pair to `docs/robots.txt`. The comment line referencing `docs/llms.txt` must stay current if the llms.txt URL changes.
 
 ### Keeping AI-agent documentation in sync
 
@@ -622,14 +626,15 @@ When making changes, keep all three surfaces in sync:
 
 **What `docs/llms.txt` contains:** package facts, links to human-facing docs, and Agent Notes (critical mental model, anti-patterns with WRONG/CORRECT pairs, decision flowchart for choosing the right API).
 
-**The five-surface sync rule:** these surfaces must always agree: `deprecation.py` docstring ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt` ↔ inline code examples in `docs/guide/*.md`.
+**The comprehensive sync rule:** these five surfaces must always agree: public-API module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) ↔ inline comments in changed `src/` files ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt`. Additionally update `docs/robots.txt` when AI crawler policy changes.
 
-| When you change...                                                          | Also update...                                                                                                   |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Public API behavior (parameter meaning, forwarding semantics, default mode) | `deprecation.py` docstring · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
-| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                     |
-| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                  |
-| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`           |
+| When you change...                                                          | Also update...                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public API behavior (parameter meaning, forwarding semantics, default mode) | affected module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
+| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                                                                                                                      |
+| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                                                                                                                   |
+| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`                                                                                                            |
+| A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                      |
 
 > [!IMPORTANT]
 > `docs/llms.txt` is the highest-leverage surface for AI agents. Update it in the same commit as the code change — never as a follow-up.
