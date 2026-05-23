@@ -18,8 +18,9 @@ Usage in ``mkdocs.yml``::
       - mkdocstrings:
           handlers:
             python:
-              extensions:
-                - deprecate.docstring.griffe_ext:RuntimeDocstrings
+              options:
+                extensions:
+                  - deprecate.docstring.griffe_ext:RuntimeDocstrings
 
 Requirements:
     ``griffe`` is a dependency of ``mkdocstrings[python]`` and will always be
@@ -37,10 +38,8 @@ import sys
 try:
     import griffe
 except ImportError:
-    griffe = None
-
-
-if griffe is not None:
+    pass
+else:
 
     class RuntimeDocstrings(griffe.Extension):
         """Update Griffe docstrings to reflect decorator-modified ``__doc__``."""
@@ -57,7 +56,8 @@ if griffe is not None:
                 return
 
             for name, obj in mod.members.items():
-                self._update_obj(obj, runtime_mod, name)
+                if isinstance(obj, griffe.Object):
+                    self._update_obj(obj, runtime_mod, name)
 
         @staticmethod
         def _import_module(mod: griffe.Module) -> object:
@@ -118,7 +118,8 @@ if griffe is not None:
             elif isinstance(obj, griffe.Class):
                 self._replace_docstring(obj, runtime_obj)
                 for member_name, member in obj.members.items():
-                    self._update_obj(member, runtime_obj, member_name)
+                    if isinstance(member, griffe.Object):
+                        self._update_obj(member, runtime_obj, member_name)
 
         @staticmethod
         def _replace_docstring(griffe_obj: griffe.Object, runtime_obj: object) -> None:

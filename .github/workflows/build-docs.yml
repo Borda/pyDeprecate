@@ -92,7 +92,11 @@ jobs:
           fi
 
       - name: 📦 Install portal dependencies
-        run: pip install -r docs/requirements.txt
+        run: |
+          pip install -r docs/requirements.txt
+          # deprecate must be importable for the RuntimeDocstrings griffe extension;
+          # mkdocstrings paths: ["src"] only covers Griffe's AST scan, not sys.path
+          pip install .
 
       - name: 📄 Generate docs/index.md from README if missing
         # Historical tags (e.g. v0.7.0) expected docs/index.md to be generated at build time.
@@ -216,6 +220,8 @@ jobs:
           pip install -r docs/requirements.txt
           # Ensure mike is available even when not listed in historical tags' requirements.txt
           pip install "mike>=2.1,<3"
+          # deprecate must be importable for the RuntimeDocstrings griffe extension
+          pip install .
 
       - name: 🔑 Configure git identity for mike
         run: |
@@ -314,6 +320,28 @@ jobs:
             --branch "${GH_PAGES_BRANCH}" \
             --template docs/overrides/mike_redirect.html \
             "${SET_DEFAULT}"
+
+      - name: 🤖 Deploy root-level AI discoverability files
+        if: env.SET_DEFAULT != ''
+        run: |
+          set -euo pipefail
+          # robots.txt and llms.txt must live at the gh-pages root so AI crawlers find them
+          # at the canonical paths /robots.txt and /llms.txt. Mike deploys versioned content
+          # only to subdirectories, so we inject these files directly into the branch root.
+          # Use a non-existent path — git worktree add creates it; mktemp -d would pre-create
+          # the directory and cause "already exists" failure.
+          TMPWORKTREE="/tmp/pyDeprecate-gh-pages-$$"
+          git worktree add "$TMPWORKTREE" "${GH_PAGES_BRANCH}"
+          trap 'git worktree remove --force "$TMPWORKTREE" 2>/dev/null || true' EXIT
+          cp docs/robots.txt "$TMPWORKTREE/robots.txt"
+          cp docs/llms.txt "$TMPWORKTREE/llms.txt"
+          cp docs/llms-full.txt "$TMPWORKTREE/llms-full.txt"
+          cp docs/root-sitemap.xml "$TMPWORKTREE/sitemap.xml"
+          git -C "$TMPWORKTREE" add robots.txt llms.txt llms-full.txt sitemap.xml
+          git -C "$TMPWORKTREE" diff --cached --quiet \
+            || git -C "$TMPWORKTREE" commit -m "chore(deploy): sync root AI discoverability files (robots.txt, llms.txt, llms-full.txt, sitemap.xml)"
+          trap - EXIT
+          git worktree remove --force "$TMPWORKTREE"
 
       - name: 📦 Export built site
         if: env.SKIP != 'true'

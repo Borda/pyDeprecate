@@ -107,3 +107,20 @@ _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDep
 - [Audit Tools](guide/audit.md) — enforce removal deadlines and catch deprecation chains in CI.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
 - [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.
+
+## Compatibility and fit
+
+Recent PyPI download statistics show broad production use; see pepy.tech for current numbers.
+
+| Topic                        | Status                                                                                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Python versions              | Project metadata currently supports Python 3.9+; Borda-maintained development policy targets Python 3.10+ because Python 3.9 reached end of life in October 2025. |
+| Runtime dependencies         | None.                                                                                                                                                             |
+| Optional audit extra         | `packaging`.                                                                                                                                                      |
+| Optional CLI extra           | `fire`, `rich`.                                                                                                                                                   |
+| Docs engines                 | Sphinx and MkDocs compatible.                                                                                                                                     |
+| Type checker static warnings | Prefer `typing.deprecated` for Python 3.13+ static-checker-only cases.                                                                                            |
+
+### When not to use pyDeprecate
+
+Use `warnings.warn` for one-off internal warnings that do not need compatibility behavior. Use `typing.deprecated` for static-checker-only visibility on Python 3.13+. Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.

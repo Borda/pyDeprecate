@@ -88,7 +88,8 @@
   ],
   "jobTitle": "Open Source Software Engineer",
   "knowsAbout": ["Python", "Software Deprecation", "API Design", "Open Source Software", "Machine Learning"],
-  "description": "Creator of pyDeprecate; core maintainer of PyTorch Lightning and TorchMetrics; PhD in Medical Imaging."
+  "description": "Creator of pyDeprecate; core maintainer of PyTorch Lightning and TorchMetrics; PhD in Medical Imaging.",
+  "worksFor": { "@type": "Organization", "name": "Lightning AI", "url": "https://lightning.ai" }
 }
 </script>
 <script type="application/ld+json">
@@ -102,10 +103,24 @@
     "@type": "SearchAction",
     "target": {
       "@type": "EntryPoint",
-      "urlTemplate": "{{ config.site_url }}?q={search_term_string}"
+      "urlTemplate": "{{ config.extra.root_site_url }}?q={search_term_string}"
     },
     "query-input": "required name=search_term_string"
   }
+}
+</script>
+{% elif page.file.src_path == "changelog.md" %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "pyDeprecate Changelog",
+  "description": "Release history for pyDeprecate — version-by-version list of new features, breaking changes, and bug fixes.",
+  "url": {{ page.canonical_url | tojson }},
+  "mainEntityOfPage": { "@type": "WebPage", "@id": {{ page.canonical_url | tojson }} },
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] }{% if page.meta.git_revision_date_localized %},
+  "dateModified": {{ page.meta.git_revision_date_localized | striptags | trim | tojson }}{% endif %}
 }
 </script>
 {% elif page.file.src_path == "troubleshooting.md" %}
@@ -238,7 +253,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": {{ page.canonical_url | tojson }} },
   "image": "{{ config.site_url.rstrip('/') }}/assets/images/demo-docs-mkdocs.png",
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
-  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] }{% if page.meta.git_creation_date_localized %},
   "datePublished": {{ page.meta.git_creation_date_localized | striptags | trim | tojson }}{% endif %}{% if page.meta.git_revision_date_localized %},
   "dateModified": {{ page.meta.git_revision_date_localized | striptags | trim | tojson }}{% endif %}
@@ -260,47 +275,6 @@
 </script>
 {% endif %}
 
-<!-- HowTo schema: Getting Started installation and usage steps -->
-{% if page.file.src_path == "getting-started.md" %}
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  "name": "How to add deprecation to a Python function",
-  "description": "Use pyDeprecate to deprecate a Python function with automatic call forwarding and CI enforcement of removal deadlines.",
-  "step": [
-    {
-      "@type": "HowToStep",
-      "position": 1,
-      "name": "Install pyDeprecate",
-      "text": "Run pip install pyDeprecate in your Python 3.9+ environment. No runtime dependencies are added.",
-      "url": "{{ config.site_url }}getting-started.html#installation"
-    },
-    {
-      "@type": "HowToStep",
-      "position": 2,
-      "name": "Import the decorator",
-      "text": "Add from deprecate import deprecated at the top of your Python file.",
-      "url": "{{ config.site_url }}getting-started.html#quick-start"
-    },
-    {
-      "@type": "HowToStep",
-      "position": 3,
-      "name": "Apply @deprecated to the old function",
-      "text": "Decorate the old function with @deprecated(target=new_function, deprecated_in='1.0', remove_in='2.0'). Calls to the old name emit a FutureWarning and automatically forward to the new function.",
-      "url": "{{ config.site_url }}getting-started.html#quick-start"
-    },
-    {
-      "@type": "HowToStep",
-      "position": 4,
-      "name": "Enforce the removal deadline in CI",
-      "text": "Install the audit extra with pip install pyDeprecate[audit] and call validate_deprecation_expiry() in your CI pipeline to catch deprecated code past its deadline.",
-      "url": "{{ config.site_url }}getting-started.html#installation"
-    }
-  ]
-}
-</script>
-{% endif %}
 
 {% endif %}
 {% endblock %}

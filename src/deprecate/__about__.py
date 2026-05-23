@@ -6,10 +6,10 @@ code.
 """
 
 __version__ = "0.9.0.dev"
-__docs__ = "Deprecation tooling"
+__docs__ = "Python deprecation decorator: call forwarding, argument mapping, class proxying, CI audit. Zero deps."
 __author__ = "Jiri Borovec"
 __author_email__ = "j.borovec+github[at]gmail.com"
-__homepage__ = "https://borda.github.io/pyDeprecate"
+__homepage__ = "https://borda.github.io/pyDeprecate/stable/"
 __source_code__ = "https://github.com/Borda/pyDeprecate"
 __license__ = "Apache-2.0"
 __copyright__ = f"Copyright (C) 2020-2026 {__author__}."

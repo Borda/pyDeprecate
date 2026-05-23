@@ -143,6 +143,9 @@ dmypy.json
 # Ruff - python all-in-one
 .ruff_cache/
 
+# link check
+.lycheecache
+
 # Jetbrain's IDEs and editors
 .idea/
 

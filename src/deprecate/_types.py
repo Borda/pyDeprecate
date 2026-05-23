@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
 
-    Members:
+    Attributes:
         NOTIFY: Notify-only deprecation -- warn on every call; original body executes unchanged. Replaces
             ``target=None``. Passing ``args_mapping`` or ``args_extra`` with this mode emits a :class:`UserWarning`
             today; :class:`TypeError` is planned in ``v1.0``.
