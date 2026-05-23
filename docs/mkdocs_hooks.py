@@ -96,19 +96,6 @@ def _pydeprecate_markdown_url(page: Page) -> str:
     return f"{base}{page_url}.md"
 
 
-def _pydeprecate_page_title(page: Page) -> str:
-    title = getattr(page, "title", None)
-    return title or "pyDeprecate documentation"
-
-
-def _pydeprecate_page_description(page: Page) -> str:
-    meta = getattr(page, "meta", {}) or {}
-    return meta.get(
-        "description",
-        "Python deprecation decorator library for API migration, forwarding, argument renaming, and CI audit checks.",
-    )
-
-
 def on_page_context(
     context: dict[str, object], page: Page, config: MkDocsConfig, nav: object
 ) -> dict[str, object]:
