@@ -18,8 +18,9 @@ Usage in ``mkdocs.yml``::
       - mkdocstrings:
           handlers:
             python:
-              extensions:
-                - deprecate.docstring.griffe_ext:RuntimeDocstrings
+              options:
+                extensions:
+                  - deprecate.docstring.griffe_ext:RuntimeDocstrings
 
 Requirements:
     ``griffe`` is a dependency of ``mkdocstrings[python]`` and will always be
