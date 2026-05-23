@@ -6,32 +6,32 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.">
+        <meta name="description" content="Coding-agent guide for pyDeprecate imports, migration recipes, anti-patterns, and links to llms.txt and llms-full.txt.">
       
       
       
-        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/getting-started.html">
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html">
       
       
-        <link rel="prev" href="index.html">
+        <link rel="prev" href="compare-python-deprecation-tools.html">
       
       
-        <link rel="next" href="guide/use-cases.html">
+        <link rel="next" href="void-helper.html">
       
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Getting Started - pyDeprecate — Python Deprecation Library</title>
+        <title>Agent Recipes - pyDeprecate — Python Deprecation Library</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
       
 
@@ -50,11 +50,11 @@
       
     
     
-      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="stylesheets/extra.css">
+      <link rel="stylesheet" href="../stylesheets/extra.css">
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -65,9 +65,9 @@
 
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Getting Started — pyDeprecate" />
-<meta property="og:description" content="Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table." />
-<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/getting-started.html" />
+<meta property="og:title" content="Agent Recipes — pyDeprecate" />
+<meta property="og:description" content="Coding-agent guide for pyDeprecate imports, migration recipes, anti-patterns, and links to llms.txt and llms-full.txt." />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta property="og:image:alt" content="pyDeprecate documentation" />
@@ -75,8 +75,8 @@
 <meta property="og:image:height" content="640" />
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="Getting Started — pyDeprecate" />
-<meta name="twitter:description" content="Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table." />
+<meta name="twitter:title" content="Agent Recipes — pyDeprecate" />
+<meta name="twitter:description" content="Coding-agent guide for pyDeprecate imports, migration recipes, anti-patterns, and links to llms.txt and llms-full.txt." />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
@@ -86,16 +86,16 @@
 {
   "@context": "https://schema.org",
   "@type": "TechArticle",
-  "headline": "Getting Started",
-  "description": "Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.",
-  "url": "https://borda.github.io/pyDeprecate/stable/getting-started.html",
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/getting-started.html" },
+  "headline": "Agent Recipes",
+  "description": "Coding-agent guide for pyDeprecate imports, migration recipes, anti-patterns, and links to llms.txt and llms-full.txt.",
+  "url": "https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
-  "datePublished": "2026-04-21",
-  "dateModified": "2026-05-21"
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23"
 }
 </script>
 
@@ -108,7 +108,7 @@
   "@type": "BreadcrumbList",
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
-    {"@type": "ListItem", "position": 2, "name": "Getting Started", "item": "https://borda.github.io/pyDeprecate/stable/getting-started.html"}
+    {"@type": "ListItem", "position": 2, "name": "Agent Recipes", "item": "https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html"}
   ]
 }
 </script>
@@ -117,8 +117,7 @@
 
 
 
-  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/getting-started.html.md">
-<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
+  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html.md">
 </head>
   
   
@@ -131,7 +130,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#getting-started" class="md-skip">
+        <a href="#coding-agent-recipes" class="md-skip">
           Skip to content
         </a>
       
@@ -151,7 +150,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-header__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+    <a href="../index.html" title="pyDeprecate — Python Deprecation Library" class="md-header__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -171,7 +170,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Getting Started
+              Agent Recipes
             
           </span>
         </div>
@@ -261,7 +260,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-nav__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+    <a href="../index.html" title="pyDeprecate — Python Deprecation Library" class="md-nav__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -291,7 +290,7 @@
   
   
     <li class="md-nav__item">
-      <a href="index.html" class="md-nav__link">
+      <a href="../index.html" class="md-nav__link">
         
   
   
@@ -315,37 +314,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Getting Started
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="getting-started.html" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../getting-started.html" class="md-nav__link">
         
   
   
@@ -361,70 +333,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#why-pydeprecate-instead-of-warningswarn" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why pyDeprecate instead of warnings.warn?
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Installation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick Start
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#api-at-a-glance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        API at a Glance
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -433,18 +341,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -465,7 +375,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -483,7 +393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/use-cases.html" class="md-nav__link">
+      <a href="use-cases.html" class="md-nav__link">
         
   
   
@@ -511,7 +421,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+      <a href="compare-python-deprecation-tools.html" class="md-nav__link">
         
   
   
@@ -536,10 +446,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="guide/agent-recipes.html" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Recipes
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="agent-recipes.html" class="md-nav__link md-nav__link--active">
         
   
   
@@ -555,6 +492,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#rules-for-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules for agents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function-rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Function rename
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#argument-rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Argument rename
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anti-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anti-patterns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-context-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent context files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -567,7 +579,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/void-helper.html" class="md-nav__link">
+      <a href="void-helper.html" class="md-nav__link">
         
   
   
@@ -595,7 +607,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/audit.html" class="md-nav__link">
+      <a href="audit.html" class="md-nav__link">
         
   
   
@@ -623,7 +635,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/cli.html" class="md-nav__link">
+      <a href="cli.html" class="md-nav__link">
         
   
   
@@ -651,7 +663,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/customization.html" class="md-nav__link">
+      <a href="customization.html" class="md-nav__link">
         
   
   
@@ -679,7 +691,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/migration.html" class="md-nav__link">
+      <a href="migration.html" class="md-nav__link">
         
   
   
@@ -714,7 +726,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api-reference.html" class="md-nav__link">
+      <a href="../api-reference.html" class="md-nav__link">
         
   
   
@@ -741,7 +753,7 @@
   
   
     <li class="md-nav__item">
-      <a href="troubleshooting.html" class="md-nav__link">
+      <a href="../troubleshooting.html" class="md-nav__link">
         
   
   
@@ -768,7 +780,7 @@
   
   
     <li class="md-nav__item">
-      <a href="changelog.html" class="md-nav__link">
+      <a href="../changelog.html" class="md-nav__link">
         
   
   
@@ -842,7 +854,7 @@
   
   
     <li class="md-nav__item">
-      <a href="demo-sphinx/index.html" class="md-nav__link">
+      <a href="../demo-sphinx/index.html" class="md-nav__link">
         
   
   
@@ -870,7 +882,7 @@
   
   
     <li class="md-nav__item">
-      <a href="demo-mkdocs/index.html" class="md-nav__link">
+      <a href="../demo-mkdocs/index.html" class="md-nav__link">
         
   
   
@@ -925,10 +937,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#why-pydeprecate-instead-of-warningswarn" class="md-nav__link">
+  <a href="#rules-for-agents" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why pyDeprecate instead of warnings.warn?
+        Rules for agents
       
     </span>
   </a>
@@ -936,10 +948,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
+  <a href="#function-rename" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Installation
+        Function rename
       
     </span>
   </a>
@@ -947,10 +959,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#argument-rename" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick Start
+        Argument rename
       
     </span>
   </a>
@@ -958,10 +970,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#api-at-a-glance" class="md-nav__link">
+  <a href="#anti-patterns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        API at a Glance
+        Anti-patterns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-context-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent context files
       
     </span>
   </a>
@@ -985,162 +1008,55 @@
 
 
 
-<h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">🔗</a></h1>
-<p>You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.</p>
-<h2 id="why-pydeprecate-instead-of-warningswarn">Why pyDeprecate instead of <code>warnings.warn</code>?<a class="headerlink" href="#why-pydeprecate-instead-of-warningswarn" title="Permanent link">🔗</a></h2>
-<p><code>warnings.warn</code> tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:</p>
+<h1 id="coding-agent-recipes">Coding Agent Recipes<a class="headerlink" href="#coding-agent-recipes" title="Permanent link">🔗</a></h1>
+<p>This page is for coding assistants that need to add a correct deprecation cycle to Python code.</p>
+<h2 id="rules-for-agents">Rules for agents<a class="headerlink" href="#rules-for-agents" title="Permanent link">🔗</a></h2>
 <ul>
-<li><strong>Automatic call forwarding</strong> — every call to the old function is transparently redirected to the replacement; no stale code runs.</li>
-<li><strong>Argument mapping</strong> — rename or drop arguments across the API boundary with <code>args_mapping={"old": "new"}</code> to help callers migrate to the new signature.</li>
-<li><strong>CI deadline enforcement</strong> — <code>validate_deprecation_expiry()</code> (via <code>pip install pyDeprecate[audit]</code>) raises in CI when a removal date has passed, so deprecated code cannot quietly outlive its deadline.</li>
+<li>Install package: <code>pyDeprecate</code>.</li>
+<li>Import package: <code>deprecate</code>.</li>
+<li>Prefer <code>@deprecated(target=new_callable)</code> for callable renames.</li>
+<li>Prefer <code>TargetMode.ARGS_REMAP</code> for argument renames or removals.</li>
+<li>Prefer <code>deprecated_class</code> for class renames.</li>
+<li>Prefer <code>deprecated_instance</code> for object aliases.</li>
+<li>Always include <code>deprecated_in</code>, <code>remove_in</code>, and a migration message when available.</li>
 </ul>
-<p>If you only need a one-line notice with no forwarding and no deadline tracking, <code>warnings.warn</code> is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.</p>
-<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">🔗</a></h2>
-<p>pyDeprecate requires <strong>Python 3.9 or later</strong> and has zero runtime dependencies.</p>
-<p>Install from PyPI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>pyDeprecate
+<h2 id="function-rename">Function rename<a class="headerlink" href="#function-rename" title="Permanent link">🔗</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_api</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">return</span> <span class="n">value</span> <span class="o">+</span> <span class="mi">1</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_api</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_api</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Forwarded by pyDeprecate.&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>To install directly from source (for pre-release or development versions):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>https://github.com/Borda/pyDeprecate/archive/main.zip
+<h2 id="argument-rename">Argument rename<a class="headerlink" href="#argument-rename" title="Permanent link">🔗</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;old&quot;</span><span class="p">:</span> <span class="s2">&quot;new&quot;</span><span class="p">},</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">api</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="k">return</span> <span class="n">new</span>
 </code></pre></div>
-<p>The <code>audit</code> extra adds <code>packaging</code> for version comparison, needed only by <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry</code></a>. Install it when you want to enforce removal deadlines in CI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[audit]&#39;</span>
-</code></pre></div>
-<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">🔗</a></h2>
-<p>Here is the most common scenario: you renamed a function and need the old name to keep working during the transition. The decorator handles call forwarding automatically, so the deprecated wrapper needs no implementation.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># NEW/FUTURE API — renamed to be more explicit about what it computes</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">compute_sum</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># DEPRECATED API — `addition` was the original name before the rename</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">compute_sum</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">addition</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="k">pass</span>  <span class="c1"># body is not needed — calls are forwarded to compute_sum</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="c1"># Using the original name still works but emits a deprecation notice</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">addition</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-</code></pre></div>
-<details>
-  <summary>Output: <code>print(addition(1, 2))</code></summary>
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>3
-</code></pre></div>
-
-</details>
-
-<p>All calls to <code>addition()</code> are automatically forwarded to <code>compute_sum()</code> with a <code>FutureWarning</code>. The old function's body is never executed.</p>
-<div class="admonition tip">
-<p class="admonition-title">Customizing deprecation messages</p>
-<p>To customize the message template or redirect deprecation output to a logger, see <a href="guide/customization.html">Customization</a>.</p>
-</div>
-<h2 id="api-at-a-glance">API at a Glance<a class="headerlink" href="#api-at-a-glance" title="Permanent link">🔗</a></h2>
-<p>Not sure which API to reach for? This table maps common scenarios to the right tool. For worked examples of each, see <a href="guide/use-cases.html">Use Cases</a>.</p>
-<p><strong>Pick the right decorator:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Scenario</th>
-<th>API to use</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Renaming a function or method</td>
-<td><code>@deprecated(target=new_func)</code></td>
-</tr>
-<tr>
-<td>Renaming an argument within the same function</td>
-<td><code>@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})</code></td>
-</tr>
-<tr>
-<td>Notice only — original body still runs</td>
-<td><code>@deprecated(target=TargetMode.NOTIFY)</code></td>
-</tr>
-<tr>
-<td>Deprecating a class, Enum, or dataclass name</td>
-<td><code>@deprecated_class(target=NewClass)</code></td>
-</tr>
-<tr>
-<td>Deprecating a module-level constant or object</td>
-<td><code>deprecated_instance(obj, ...)</code></td>
-</tr>
-</tbody>
-</table>
-<p><strong>All <code>@deprecated</code> parameters:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Param</th>
-<th>Default</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>target</code></td>
-<td><code>TargetMode.NOTIFY</code></td>
-<td><code>Callable</code> to forward to · <code>TargetMode.ARGS_REMAP</code> to remap args · <code>TargetMode.NOTIFY</code> (default) warn-only</td>
-</tr>
-<tr>
-<td><code>deprecated_in</code></td>
-<td><code>""</code></td>
-<td>Version when deprecated (e.g. <code>"1.0"</code>)</td>
-</tr>
-<tr>
-<td><code>remove_in</code></td>
-<td><code>""</code></td>
-<td>Version when removed (e.g. <code>"2.0"</code>)</td>
-</tr>
-<tr>
-<td><code>stream</code></td>
-<td><code>deprecation_warning</code></td>
-<td>Output sink callable (set <code>None</code> to silence deprecation messages)</td>
-</tr>
-<tr>
-<td><code>num_warns</code></td>
-<td><code>1</code></td>
-<td><code>1</code> once · <code>-1</code> always · <code>N</code> exactly N times</td>
-</tr>
-<tr>
-<td><code>args_mapping</code></td>
-<td><code>None</code></td>
-<td><code>{"old": "new"}</code> rename · <code>{"old": None}</code> drop</td>
-</tr>
-<tr>
-<td><code>template_mgs</code></td>
-<td><code>None</code></td>
-<td>Custom deprecation message template (<code>%</code>-style placeholders)</td>
-</tr>
-<tr>
-<td><code>args_extra</code></td>
-<td><code>None</code></td>
-<td>Fixed kwargs injected into the target call</td>
-</tr>
-<tr>
-<td><code>skip_if</code></td>
-<td><code>False</code></td>
-<td><code>bool</code> or <code>Callable → bool</code>; skip deprecation when true</td>
-</tr>
-<tr>
-<td><code>update_docstring</code></td>
-<td><code>False</code></td>
-<td>Append Sphinx <code>.. deprecated::</code> notice to docstring</td>
-</tr>
-<tr>
-<td><code>docstring_style</code></td>
-<td><code>"auto"</code></td>
-<td>Style of the injected notice: <code>"auto"</code>, <code>"rst"</code>, <code>"mkdocs"</code>, <code>"markdown"</code></td>
-</tr>
-</tbody>
-</table>
-<p><code>@deprecated_class()</code> shares <code>target</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_mapping</code>, <code>args_extra</code>, <code>template_mgs</code>, <code>update_docstring</code>, and <code>docstring_style</code>. <code>deprecated_instance()</code> shares <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_extra</code>, and <code>template_mgs</code>; it requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
-<hr />
-<p>Next: <a href="guide/use-cases.html">Use Cases</a> — thirteen real-world deprecation patterns with full code examples. See also: <a href="guide/customization.html">Customization</a> · <a href="guide/audit.html">Audit Tools</a> · <a href="troubleshooting.html">Troubleshooting</a></p>
+<h2 id="anti-patterns">Anti-patterns<a class="headerlink" href="#anti-patterns" title="Permanent link">🔗</a></h2>
+<ul>
+<li>Do not write <code>import pydeprecate</code> in Python code.</li>
+<li>Do not use <code>target=True</code> for argument remapping.</li>
+<li>Do not use <code>target=None</code> for warning-only behavior.</li>
+<li>Do not call the replacement function manually inside the deprecated function body when pyDeprecate is already forwarding.</li>
+</ul>
+<h2 id="agent-context-files">Agent context files<a class="headerlink" href="#agent-context-files" title="Permanent link">🔗</a></h2>
+<ul>
+<li><a href="https://borda.github.io/pyDeprecate/llms.txt">llms.txt</a></li>
+<li><a href="https://borda.github.io/pyDeprecate/llms-full.txt">llms-full.txt</a></li>
+</ul>
 
 
 
@@ -1163,7 +1079,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 21, 2026 05:00:20 UTC">2026-05-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 23, 2026 09:31:16 UTC">2026-05-23</span>
   </span>
 
     
@@ -1173,7 +1089,7 @@
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 21, 2026 10:55:44 UTC">2026-04-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 23, 2026 09:31:16 UTC">2026-05-23</span>
   </span>
 
     
@@ -1226,10 +1142,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

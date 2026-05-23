@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://borda.github.io/pyDeprecate/dev/guide/migration.html">
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/guide/migration.html">
       
       
         <link rel="prev" href="customization.html">
       
       
-        <link rel="next" href="../troubleshooting.html">
+        <link rel="next" href="../api-reference.html">
       
       
         
@@ -50,6 +50,8 @@
       
     
     
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../stylesheets/extra.css">
     
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
@@ -65,7 +67,7 @@
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Migration Guide — pyDeprecate" />
 <meta property="og:description" content="Align your pyDeprecate usage with the current idiomatic API — each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer." />
-<meta property="og:url" content="https://borda.github.io/pyDeprecate/dev/guide/migration.html" />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/migration.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta property="og:image:alt" content="pyDeprecate documentation" />
@@ -86,11 +88,11 @@
   "@type": "TechArticle",
   "headline": "Migration Guide",
   "description": "Align your pyDeprecate usage with the current idiomatic API \u2014 each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer.",
-  "url": "https://borda.github.io/pyDeprecate/dev/guide/migration.html",
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/dev/guide/migration.html" },
+  "url": "https://borda.github.io/pyDeprecate/stable/guide/migration.html",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/migration.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
-  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
+  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-19",
   "dateModified": "2026-05-19"
@@ -106,18 +108,17 @@
   "@type": "BreadcrumbList",
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
-    {"@type": "ListItem", "position": 2, "name": "Migration Guide", "item": "https://borda.github.io/pyDeprecate/dev/guide/migration.html"}
+    {"@type": "ListItem", "position": 2, "name": "Migration Guide", "item": "https://borda.github.io/pyDeprecate/stable/guide/migration.html"}
   ]
 }
 </script>
 
 
-<!-- HowTo schema: Getting Started installation and usage steps -->
 
 
 
-
-    <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/dev/llms.txt">
+  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/guide/migration.html.md">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
 </head>
   
   
@@ -421,6 +422,62 @@
   
   
     <li class="md-nav__item">
+      <a href="compare-python-deprecation-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compare Python Deprecation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="agent-recipes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="void-helper.html" class="md-nav__link">
         
   
@@ -698,6 +755,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../api-reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../troubleshooting.html" class="md-nav__link">
         
   
@@ -760,10 +844,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   
@@ -781,8 +865,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
   

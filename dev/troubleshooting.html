@@ -10,10 +10,10 @@
       
       
       
-        <link rel="canonical" href="https://borda.github.io/pyDeprecate/dev/troubleshooting.html">
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/troubleshooting.html">
       
       
-        <link rel="prev" href="guide/migration.html">
+        <link rel="prev" href="api-reference.html">
       
       
         <link rel="next" href="changelog.html">
@@ -50,6 +50,8 @@
       
     
     
+      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="stylesheets/extra.css">
     
     <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
@@ -65,7 +67,7 @@
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Troubleshooting — pyDeprecate" />
 <meta property="og:description" content="Fix common pyDeprecate errors: missing deprecation notices, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger." />
-<meta property="og:url" content="https://borda.github.io/pyDeprecate/dev/troubleshooting.html" />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/troubleshooting.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta property="og:image:alt" content="pyDeprecate documentation" />
@@ -86,10 +88,10 @@
   "@graph": [
     {
       "@type": "WebPage",
-      "@id": "https://borda.github.io/pyDeprecate/dev/troubleshooting.html",
+      "@id": "https://borda.github.io/pyDeprecate/stable/troubleshooting.html",
       "name": "Troubleshooting — pyDeprecate",
       "description": "Fix common pyDeprecate errors: class decoration warnings, TypeError mapping failures, skip_if return type errors, missing deprecation notices, cross-module path issues, proxy dunder limitations, and logging integration.",
-      "url": "https://borda.github.io/pyDeprecate/dev/troubleshooting.html",
+      "url": "https://borda.github.io/pyDeprecate/stable/troubleshooting.html",
       "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
       "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
       "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h2", ".md-content h3", ".md-content > p"] }
@@ -208,18 +210,17 @@
   "@type": "BreadcrumbList",
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
-    {"@type": "ListItem", "position": 2, "name": "Troubleshooting", "item": "https://borda.github.io/pyDeprecate/dev/troubleshooting.html"}
+    {"@type": "ListItem", "position": 2, "name": "Troubleshooting", "item": "https://borda.github.io/pyDeprecate/stable/troubleshooting.html"}
   ]
 }
 </script>
 
 
-<!-- HowTo schema: Getting Started installation and usage steps -->
 
 
 
-
-    <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/dev/llms.txt">
+  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/troubleshooting.html.md">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
 </head>
   
   
@@ -521,6 +522,62 @@
   
   
     <li class="md-nav__item">
+      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compare Python Deprecation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/agent-recipes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="guide/void-helper.html" class="md-nav__link">
         
   
@@ -657,6 +714,33 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="api-reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -942,10 +1026,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   
@@ -963,8 +1047,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
   

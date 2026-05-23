@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://borda.github.io/pyDeprecate/dev/index.html">
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/">
       
       
       
@@ -48,6 +48,8 @@
       
     
     
+      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="stylesheets/extra.css">
     
     <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
@@ -63,7 +65,7 @@
 <meta property="og:type" content="website" />
 <meta property="og:title" content="pyDeprecate — Python Deprecation Decorator Library" />
 <meta property="og:description" content="pyDeprecate — zero-dependency Python library for deprecating functions and classes with call forwarding, argument mapping, and CI/CD audit tools. Python 3.9+." />
-<meta property="og:url" content="https://borda.github.io/pyDeprecate/dev/index.html" />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta property="og:image:alt" content="pyDeprecate documentation" />
@@ -119,14 +121,14 @@
   ],
   "keywords": "Python, deprecation, decorator, API migration, backwards compatibility, code quality, CI/CD",
   "isAccessibleForFree": true,
-  "releaseNotes": "https://borda.github.io/pyDeprecate/dev/changelog.html",
+  "releaseNotes": "https://borda.github.io/pyDeprecate/stable/",
   "subjectOf": {
     "@type": "Article",
     "headline": "Mastering API Deprecation in Python — the pain points and how pyDeprecate can help",
     "url": "https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62",
     "publisher": { "@type": "Organization", "name": "CodeX", "url": "https://medium.com/codex" }
   },
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/dev/index.html" }
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/" }
 }
 </script>
 <script type="application/ld+json">
@@ -143,7 +145,8 @@
   ],
   "jobTitle": "Open Source Software Engineer",
   "knowsAbout": ["Python", "Software Deprecation", "API Design", "Open Source Software", "Machine Learning"],
-  "description": "Creator of pyDeprecate; core maintainer of PyTorch Lightning and TorchMetrics; PhD in Medical Imaging."
+  "description": "Creator of pyDeprecate; core maintainer of PyTorch Lightning and TorchMetrics; PhD in Medical Imaging.",
+  "worksFor": { "@type": "Organization", "name": "Lightning AI", "url": "https://lightning.ai" }
 }
 </script>
 <script type="application/ld+json">
@@ -157,7 +160,7 @@
     "@type": "SearchAction",
     "target": {
       "@type": "EntryPoint",
-      "urlTemplate": "https://borda.github.io/pyDeprecate/dev?q={search_term_string}"
+      "urlTemplate": "https://borda.github.io/pyDeprecate/?q={search_term_string}"
     },
     "query-input": "required name=search_term_string"
   }
@@ -168,12 +171,11 @@
 <!-- BreadcrumbList: non-homepage, non-demo content pages -->
 
 
-<!-- HowTo schema: Getting Started installation and usage steps -->
 
 
 
-
-    <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/dev/llms.txt">
+  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/index.html.md">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
 </head>
   
   
@@ -449,6 +451,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#compatibility-and-fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility and fit
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compatibility and fit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-not-to-use-pydeprecate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When not to use pyDeprecate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -546,6 +576,62 @@
     
   
     Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compare Python Deprecation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/agent-recipes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Recipes
   
 
     
@@ -713,6 +799,33 @@
   
   
     <li class="md-nav__item">
+      <a href="api-reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="troubleshooting.html" class="md-nav__link">
         
   
@@ -775,10 +888,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   
@@ -796,8 +909,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -937,6 +1050,34 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compatibility-and-fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility and fit
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compatibility and fit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-not-to-use-pydeprecate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When not to use pyDeprecate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1160,6 +1301,44 @@
 <li><a href="troubleshooting.html">Troubleshooting</a> — common errors and how to fix them.</li>
 <li><a href="demo-sphinx/index.html">Sphinx demo</a> · <a href="demo-mkdocs/index.html">MkDocs demo</a> — live rendered output.</li>
 </ul>
+<h2 id="compatibility-and-fit">Compatibility and fit<a class="headerlink" href="#compatibility-and-fit" title="Permanent link">🔗</a></h2>
+<p>Recent PyPI download statistics show broad production use; see pepy.tech for current numbers.</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python versions</td>
+<td>Project metadata currently supports Python 3.9+; Borda-maintained development policy targets Python 3.10+ because Python 3.9 reached end of life in October 2025.</td>
+</tr>
+<tr>
+<td>Runtime dependencies</td>
+<td>None.</td>
+</tr>
+<tr>
+<td>Optional audit extra</td>
+<td><code>packaging</code>.</td>
+</tr>
+<tr>
+<td>Optional CLI extra</td>
+<td><code>fire</code>, <code>rich</code>.</td>
+</tr>
+<tr>
+<td>Docs engines</td>
+<td>Sphinx and MkDocs compatible.</td>
+</tr>
+<tr>
+<td>Type checker static warnings</td>
+<td>Prefer <code>typing.deprecated</code> for Python 3.13+ static-checker-only cases.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="when-not-to-use-pydeprecate">When not to use pyDeprecate<a class="headerlink" href="#when-not-to-use-pydeprecate" title="Permanent link">🔗</a></h3>
+<p>Use <code>warnings.warn</code> for one-off internal warnings that do not need compatibility behavior. Use <code>typing.deprecated</code> for static-checker-only visibility on Python 3.13+. Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.</p>
 
 
 
@@ -1182,7 +1361,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 22, 2026 15:12:13 UTC">2026-05-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 23, 2026 09:31:16 UTC">2026-05-23</span>
   </span>
 
     
