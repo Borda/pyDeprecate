@@ -21,7 +21,7 @@ Core Components:
 **Audit** (:mod:`deprecate.audit`):
     - :func:`~deprecate.audit.validate_deprecation_wrapper`: Validate a single wrapper's configuration
     - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
-    - :func:`~deprecate.audit.generate_deprecation_markdown`: Build a markdown deprecation matrix
+    - :func:`~deprecate.audit.generate_deprecation_markdown`: Build markdown deprecation tables
     - :func:`~deprecate.audit.validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
     - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated wrappers chaining to
       other deprecated wrappers

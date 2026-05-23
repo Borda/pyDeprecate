@@ -41,7 +41,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import warnings
 from contextlib import suppress
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, is_dataclass, replace
 from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
@@ -153,6 +153,8 @@ class DeprecationWrapperInfo:
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
             is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
             that lack the introductory version metadata without crashing callers.
+        api_type: Inferred deprecated API type for report generation
+            (e.g., ``callable``, ``args``, ``class``, ``dataclass attributes``, ``class method``).
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -181,6 +183,7 @@ class DeprecationWrapperInfo:
     all_identity: bool = False
     chain_type: Optional[ChainType] = None
     empty_deprecated_in: bool = field(init=False, default=False)
+    api_type: str = ""
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
@@ -742,12 +745,27 @@ def find_deprecation_wrappers(
             if member_name.startswith("_") and member_name != "__init__":
                 continue
 
-            if callable(member_obj) and hasattr(member_obj, "__deprecated__"):
-                info = validate_deprecation_wrapper(member_obj)
+            descriptor_kind: Optional[str] = None
+            wrapped_member = member_obj
+            if isinstance(member_obj, classmethod):
+                descriptor_kind = "classmethod"
+                wrapped_member = member_obj.__func__
+            elif isinstance(member_obj, staticmethod):
+                descriptor_kind = "staticmethod"
+                wrapped_member = member_obj.__func__
+
+            if callable(wrapped_member) and hasattr(wrapped_member, "__deprecated__"):
+                info = validate_deprecation_wrapper(wrapped_member)
                 info = replace(
                     info,
                     module=mod.__name__ if hasattr(mod, "__name__") else str(mod),
                     function=f"{prefix}{member_name}",
+                    api_type=_classify_wrapper_api_type(
+                        wrapped_member,
+                        info,
+                        member_name=member_name,
+                        descriptor_kind=descriptor_kind,
+                    ),
                 )
                 results.append(info)
 
@@ -756,6 +774,7 @@ def find_deprecation_wrappers(
 
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions."""
+        seen_classes: set[type] = set()
         try:
             # Static inspection avoids dynamic getattr/descriptor evaluation while scanning.
             members = _getmembers_static_compat(mod)
@@ -772,13 +791,18 @@ def find_deprecation_wrappers(
                 # Validate the wrapper - extracts config from __deprecated__
                 info = validate_deprecation_wrapper(obj)
                 # Update with module-level info
-                info = replace(info, module=mod.__name__ if hasattr(mod, "__name__") else str(mod), function=name)
+                info = replace(
+                    info,
+                    module=mod.__name__ if hasattr(mod, "__name__") else str(mod),
+                    function=name,
+                    api_type=_classify_wrapper_api_type(obj, info),
+                )
 
                 results.append(info)
                 continue
 
             if include_members and inspect.isclass(obj) and obj.__module__ == mod.__name__:
-                _scan_class(mod, obj, prefix=f"{name}.")
+                _scan_class(mod, obj, prefix=f"{name}.", seen_classes=seen_classes)
 
     # Scan the main module
     _scan_module(module)
@@ -854,6 +878,51 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
     return str(target)
 
 
+def _classify_wrapper_api_type(
+    wrapped_obj: Any,  # noqa: ANN401
+    info: DeprecationWrapperInfo,
+    *,
+    member_name: Optional[str] = None,
+    descriptor_kind: Optional[str] = None,
+) -> str:
+    """Classify wrapper kind for markdown report rows."""
+    has_mapping = bool(info.deprecated_info.args_mapping)
+
+    if member_name is not None:
+        if member_name == "__init__":
+            return "class constructor args" if has_mapping else "class constructor"
+        if descriptor_kind == "classmethod":
+            return "classmethod args" if has_mapping else "classmethod"
+        if descriptor_kind == "staticmethod":
+            return "staticmethod args" if has_mapping else "staticmethod"
+        return "class method args" if has_mapping else "class method"
+
+    if isinstance(wrapped_obj, _DeprecatedProxy):
+        source_obj = wrapped_obj._cfg.obj
+        if inspect.isclass(source_obj):
+            if is_dataclass(source_obj):
+                return "dataclass attributes" if has_mapping else "dataclass"
+            return "class"
+        return "data"
+
+    if inspect.isclass(wrapped_obj):
+        if is_dataclass(wrapped_obj):
+            return "dataclass attributes" if has_mapping else "dataclass"
+        return "class"
+
+    if has_mapping:
+        return "args"
+
+    return "callable"
+
+
+def _format_report_api_type(info: DeprecationWrapperInfo) -> str:
+    """Return api_type with backward-compatible fallback."""
+    if info.api_type:
+        return info.api_type
+    return "args" if info.deprecated_info.args_mapping else "callable"
+
+
 def _format_report_version(version: Optional[str], *, missing: str = "—") -> str:
     """Format version values with a stable ``v`` prefix for report output."""
     if not version:
@@ -901,8 +970,8 @@ def generate_deprecation_markdown(
             evaluation in compact style.
         recursive: If True (default), include submodules in the scan.
         style: Table format, either:
-            - ``"compact"``: ``Original API | New API | Deprecated (ver) | Remove (ver)``
-            - ``"matrix"``: ``Original API | New API | <all versions...>``, with markers
+            - ``"compact"``: ``Original API | API Type | New API | Deprecated (ver) | Remove (ver)``
+            - ``"matrix"``: ``Original API | API Type | New API | <all versions...>``, with markers
               ``D`` (deprecated) and ``R`` (remove) in version columns.
     """
     if style not in {"compact", "matrix"}:
@@ -913,21 +982,22 @@ def generate_deprecation_markdown(
 
     if style == "compact":
         rows = [
-            "| Original API | New API | Deprecated (ver) | Remove (ver) | Current Status |",
-            "| :--- | :--- | :---: | :---: | :--- |",
+            "| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |",
+            "| :--- | :--- | :--- | :---: | :---: | :--- |",
         ]
 
         for info in wrappers:
             rows.append(
                 "| "
                 f"`{_format_report_symbol(info)}` | "
+                f"{_format_report_api_type(info)} | "
                 f"`{_format_report_target(info.deprecated_info.target)}` | "
                 f"{_format_report_version(info.deprecated_info.deprecated_in)} | "
                 f"{_format_report_version(info.deprecated_info.remove_in)} | "
                 f"{_get_report_status(info, parsed_version)} |"
             )
     else:
-        version_map: dict[str, Optional["Version"]] = {}
+        version_map: dict[str, Optional[Version]] = {}
         for info in wrappers:
             for version in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in):
                 if version and version not in version_map:
@@ -941,8 +1011,8 @@ def generate_deprecation_markdown(
             ),
         )
         version_headers = [_format_report_version(version) for version in sorted_versions]
-        header_row = "| Original API | New API | " + " | ".join(version_headers) + " |"
-        divider_row = "| :--- | :--- | " + " | ".join(":---:" for _ in version_headers) + " |"
+        header_row = "| Original API | API Type | New API | " + " | ".join(version_headers) + " |"
+        divider_row = "| :--- | :--- | :--- | " + " | ".join(":---:" for _ in version_headers) + " |"
         rows = [header_row, divider_row]
 
         for info in wrappers:
@@ -957,6 +1027,7 @@ def generate_deprecation_markdown(
             rows.append(
                 "| "
                 f"`{_format_report_symbol(info)}` | "
+                f"{_format_report_api_type(info)} | "
                 f"`{_format_report_target(info.deprecated_info.target)}` | "
                 + " | ".join(markers)
                 + " |"
