@@ -923,6 +923,14 @@ def _format_report_api_type(info: DeprecationWrapperInfo) -> str:
     return "args" if info.deprecated_info.args_mapping else "callable"
 
 
+def _report_row_sort_key(info: DeprecationWrapperInfo) -> tuple[str, str, str, bool, str]:
+    """Sort report rows by module and symbol family, keeping args-variants adjacent."""
+    function = info.function or ""
+    top_level = function.split(".", maxsplit=1)[0] if function else ""
+    api_type = _format_report_api_type(info)
+    return (info.module or "", top_level, function, api_type.endswith(" args"), api_type)
+
+
 def _format_report_version(version: Optional[str], *, missing: str = "—") -> str:
     """Format version values with a stable ``v`` prefix for report output."""
     if not version:
@@ -978,7 +986,10 @@ def generate_deprecation_markdown(
         raise ValueError(f"Invalid style '{style}'. Expected one of: compact, matrix.")
 
     resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
-    wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=True)
+    wrappers = sorted(
+        find_deprecation_wrappers(module, recursive=recursive, include_members=True),
+        key=_report_row_sort_key,
+    )
 
     if style == "compact":
         rows = [

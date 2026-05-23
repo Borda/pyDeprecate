@@ -490,6 +490,12 @@ class TestValidateDeprecationChains:
 class TestGenerateDeprecationMarkdown:
     """Tests for markdown deprecation report generation."""
 
+    @staticmethod
+    def _extract_markdown_symbols(report: str) -> list[str]:
+        """Extract symbol column values from markdown report data rows."""
+        rows = [ln for ln in report.splitlines() if ln.startswith("| `")]
+        return [ln.split("|", maxsplit=3)[1].strip().strip("`") for ln in rows]
+
     @_requires_packaging
     def test_markdown_includes_top_level_and_class_members(self) -> None:
         """Markdown report includes functions, methods, and deprecated constructors."""
@@ -509,6 +515,18 @@ class TestGenerateDeprecationMarkdown:
         assert "| `tests.collection_deprecate.DeprecatedColorEnum` | class |" in report
         assert "| `tests.collection_deprecate.MappedDataClass` | dataclass attributes |" in report
         assert "| `tests.collection_deprecate.ServiceCls.old_warn_method` | class method |" in report
+
+    def test_markdown_groups_class_members_together(self) -> None:
+        """Rows are ordered by module/symbol family so class members stay contiguous."""
+        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
+        symbols = self._extract_markdown_symbols(report)
+        service_cls = [
+            i for i, symbol in enumerate(symbols) if symbol.startswith("tests.collection_deprecate.ServiceCls.")
+        ]
+        assert service_cls
+        assert service_cls == list(range(min(service_cls), max(service_cls) + 1))
+        service_rows = [symbols[i] for i in service_cls]
+        assert service_rows == sorted(service_rows)
 
     def test_markdown_handles_missing_or_unknown_version_status(self) -> None:
         """Missing remove_in and non-package modules degrade to informational statuses."""

@@ -1211,6 +1211,7 @@ It supports two styles via `style=`:
 - `matrix`: `Original API | API Type | New API | <all versions ...>` with lifecycle markers:
   - `D` = deprecated in this version
   - `R` = remove in this version
+- rows are ordered by module and symbol family (class/function), so related `args` variants stay grouped together
 
 ```text
 | Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |
