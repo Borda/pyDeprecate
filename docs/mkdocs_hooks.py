@@ -134,11 +134,8 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
         markdown_tag,
         output,
     )
-    if replaced == output:
-        # Tag was absent — insert it so the mirror URL is always discoverable.
-        output = output.replace("</head>", f"{markdown_tag}\n</head>", 1)
-    else:
-        output = replaced
+    # Tag was absent — insert it so the mirror URL is always discoverable.
+    output = output.replace("</head>", f"{markdown_tag}\n</head>", 1) if replaced == output else replaced
     # Inject the root llms.txt discovery link (type=text/plain) separately — distinct
     # from the per-page markdown mirror link above so both survive in <head>.
     llms_url = f"{_pydeprecate_root_url()}/llms.txt"
