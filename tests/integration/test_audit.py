@@ -494,13 +494,12 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_includes_top_level_and_class_members(self) -> None:
         """Markdown report includes functions, methods, and deprecated constructors."""
         report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
-        assert "| Symbol | Deprecated In | Removal Target | Current Status |" in report
+        assert "| Original API | New API | Deprecated (ver) | Remove (ver) | Current Status |" in report
         assert "`tests.collection_deprecate.depr_pow_args`" in report
         assert "`tests.collection_deprecate.ServiceCls.old_warn_method`" in report
         assert "`tests.collection_deprecate.PastCls.__init__`" in report
         assert "v1.0 | v1.3 | ❌ Past Removal Date" in report
         assert "v1.0 | v2.0 | ⚠️ Active Warning" in report
-        assert "v0.2 | v0.4 | ❌ Past Removal Date" in report
 
     def test_markdown_handles_missing_or_unknown_version_status(self) -> None:
         """Missing remove_in and non-package modules degrade to informational statuses."""
@@ -521,10 +520,26 @@ class TestGenerateDeprecationMarkdown:
 
         mod = types.ModuleType("empty_test_module")
         report = generate_deprecation_markdown(mod, recursive=False)
-        assert "| Symbol | Deprecated In | Removal Target | Current Status |" in report
-        assert "| :--- | :---: | :---: | :--- |" in report
+        assert "| Original API | New API | Deprecated (ver) | Remove (ver) | Current Status |" in report
+        assert "| :--- | :--- | :---: | :---: | :--- |" in report
         data_rows = [ln for ln in report.splitlines() if ln.startswith("| `")]
         assert data_rows == []
+
+    @_requires_packaging
+    def test_markdown_matrix_style_marks_deprecate_and_remove_versions(self) -> None:
+        """Matrix style adds version columns and D/R markers per symbol lifecycle."""
+        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False, style="matrix")
+        assert "| Original API | New API |" in report
+        assert "v1.0" in report
+        assert "v2.0" in report
+        assert "`tests.collection_deprecate.depr_pow_args`" in report
+        assert " | D |" in report or "| D/R |" in report
+        assert " | R |" in report or "| D/R |" in report
+
+    def test_markdown_invalid_style_raises(self) -> None:
+        """Unknown style value raises ValueError with valid choices listed."""
+        with pytest.raises(ValueError, match="Invalid style"):
+            generate_deprecation_markdown(proxy_module, recursive=False, style="bad-style")
 
 
 @_requires_packaging

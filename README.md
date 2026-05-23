@@ -1201,15 +1201,29 @@ print(f"Self-references: {len(self_refs)}")
 ### Generating Deprecation Tables
 
 If you want docs-friendly summaries, `generate_deprecation_markdown()` renders
-the discovered wrapper metadata as a Markdown table. The report includes
+the discovered wrapper metadata as Markdown tables. The report includes
 deprecated class members such as methods and constructors, so wrapper metadata
 remains the single source of truth.
 
+It supports two styles via `style=`:
+
+- `compact` (default): `Original API | New API | Deprecated (ver) | Remove (ver) | Current Status`
+- `matrix`: `Original API | New API | <all versions ...>` with lifecycle markers:
+  - `D` = deprecated in this version
+  - `R` = remove in this version
+
 ```text
-| Symbol | Deprecated In | Removal Target | Current Status |
-| :--- | :---: | :---: | :--- |
-| `my_pkg.api.old_method` | v1.2.0 | v2.0.0 | ⚠️ Active Warning |
-| `my_pkg.legacy.LegacyClass.__init__` | v1.0.0 | v1.8.0 | ❌ Past Removal Date |
+| Original API | New API | Deprecated (ver) | Remove (ver) | Current Status |
+| :--- | :--- | :---: | :---: | :--- |
+| `my_pkg.api.old_method` | `my_pkg.api.new_method` | v1.2.0 | v2.0.0 | ⚠️ Active Warning |
+| `my_pkg.legacy.LegacyClass.__init__` | `my_pkg.legacy.NewClass.__init__` | v1.0.0 | v1.8.0 | ❌ Past Removal Date |
+```
+
+```text
+| Original API | New API | v1.0.0 | v1.2.0 | v1.8.0 | v2.0.0 |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| `my_pkg.legacy.LegacyClass.__init__` | `my_pkg.legacy.NewClass.__init__` | D |   | R |   |
+| `my_pkg.api.old_method` | `my_pkg.api.new_method` |   | D |   | R |
 ```
 
 <br>

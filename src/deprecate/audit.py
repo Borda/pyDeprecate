@@ -845,6 +845,19 @@ def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
     return f"{info.module}.{info.function}" if info.module else info.function
 
 
+def _format_report_target(target: Any) -> str:  # noqa: ANN401
+    """Format replacement target name for report rows."""
+    if target is None:
+        return "—"
+    if isinstance(target, TargetMode):
+        return target.value
+    if callable(target):
+        target_module = getattr(target, "__module__", "")
+        target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))
+        return f"{target_module}.{target_name}" if target_module else target_name
+    return str(target)
+
+
 def _format_report_version(version: Optional[str], *, missing: str = "—") -> str:
     """Format version values with a stable ``v`` prefix for report output."""
     if not version:
@@ -879,26 +892,79 @@ def generate_deprecation_markdown(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
+    style: str = "compact",
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
     The report is derived from ``__deprecated__`` metadata and includes both
     top-level wrappers and deprecated class members (methods/constructors).
-    """
-    resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
-    rows = [
-        "| Symbol | Deprecated In | Removal Target | Current Status |",
-        "| :--- | :---: | :---: | :--- |",
-    ]
 
-    for info in find_deprecation_wrappers(module, recursive=recursive, include_members=True):
-        rows.append(
-            "| "
-            f"`{_format_report_symbol(info)}` | "
-            f"{_format_report_version(info.deprecated_info.deprecated_in)} | "
-            f"{_format_report_version(info.deprecated_info.remove_in)} | "
-            f"{_get_report_status(info, parsed_version)} |"
+    Args:
+        module: Imported module/package object or string module path to scan.
+        current_version: Optional current package version for lifecycle status
+            evaluation in compact style.
+        recursive: If True (default), include submodules in the scan.
+        style: Table format, either:
+            - ``"compact"``: ``Original API | New API | Deprecated (ver) | Remove (ver)``
+            - ``"matrix"``: ``Original API | New API | <all versions...>``, with markers
+              ``D`` (deprecated) and ``R`` (remove) in version columns.
+    """
+    if style not in {"compact", "matrix"}:
+        raise ValueError(f"Invalid style '{style}'. Expected one of: compact, matrix.")
+
+    resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
+    wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=True)
+
+    if style == "compact":
+        rows = [
+            "| Original API | New API | Deprecated (ver) | Remove (ver) | Current Status |",
+            "| :--- | :--- | :---: | :---: | :--- |",
+        ]
+
+        for info in wrappers:
+            rows.append(
+                "| "
+                f"`{_format_report_symbol(info)}` | "
+                f"`{_format_report_target(info.deprecated_info.target)}` | "
+                f"{_format_report_version(info.deprecated_info.deprecated_in)} | "
+                f"{_format_report_version(info.deprecated_info.remove_in)} | "
+                f"{_get_report_status(info, parsed_version)} |"
+            )
+    else:
+        version_map: dict[str, Optional["Version"]] = {}
+        for info in wrappers:
+            for version in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in):
+                if version and version not in version_map:
+                    version_map[version] = _safe_parse_report_version(version)
+
+        sorted_versions = sorted(
+            version_map,
+            key=lambda version: (
+                version_map[version] is None,
+                version_map[version] if version_map[version] is not None else version,
+            ),
         )
+        version_headers = [_format_report_version(version) for version in sorted_versions]
+        header_row = "| Original API | New API | " + " | ".join(version_headers) + " |"
+        divider_row = "| :--- | :--- | " + " | ".join(":---:" for _ in version_headers) + " |"
+        rows = [header_row, divider_row]
+
+        for info in wrappers:
+            markers: list[str] = []
+            for version in sorted_versions:
+                marker = ""
+                if version == info.deprecated_info.deprecated_in:
+                    marker = "D"
+                if version == info.deprecated_info.remove_in:
+                    marker = "R" if not marker else "D/R"
+                markers.append(marker or " ")
+            rows.append(
+                "| "
+                f"`{_format_report_symbol(info)}` | "
+                f"`{_format_report_target(info.deprecated_info.target)}` | "
+                + " | ".join(markers)
+                + " |"
+            )
 
     if resolved_version is not None:
         rows.insert(0, f"<!-- Current version: {resolved_version} -->")
