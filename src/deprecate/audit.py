@@ -751,11 +751,7 @@ def find_deprecation_wrappers(
                 )
                 results.append(info)
 
-            if (
-                inspect.isclass(member_obj)
-                and member_obj.__module__ == mod.__name__
-                and member_obj not in seen_classes
-            ):
+            if inspect.isclass(member_obj) and member_obj.__module__ == mod.__name__ and member_obj not in seen_classes:
                 _scan_class(mod, member_obj, prefix=f"{prefix}{member_name}.", seen_classes=seen_classes)
 
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
@@ -882,8 +878,9 @@ def generate_deprecation_markdown(
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
-    The report is derived from ``__deprecated__`` metadata and includes both
-    top-level wrappers and deprecated class members (methods/constructors).
+    The report is derived from ``__deprecated__`` metadata and includes both top-level wrappers and deprecated class
+    members (methods/constructors).
+
     """
     resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
     rows = [
