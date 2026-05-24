@@ -757,7 +757,8 @@ def deprecated(
 
     def packing(source: Callable) -> Callable:
         # Order-agnostic @classmethod/@staticmethod: unwrap → deprecate inner function → rewrap.
-        # Both @classmethod @deprecated and @deprecated @classmethod produce classmethod(deprecated_wrapper).
+        # Both @classmethod orders produce classmethod(deprecated_wrapper);
+        # both @staticmethod orders produce staticmethod(deprecated_wrapper).
         if isinstance(source, (classmethod, staticmethod)):
             wrapped_inner = packing(source.__func__)
             return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)
