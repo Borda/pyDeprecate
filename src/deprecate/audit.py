@@ -716,7 +716,7 @@ def find_deprecation_wrappers(
 
     def _scan_callable(obj: Any, module_name: str, qualified_name: str) -> None:  # noqa: ANN401
         """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
-        if callable(obj) and hasattr(obj, "__deprecated__"):
+        if _has_deprecation_meta(obj):
             info = validate_deprecation_wrapper(obj)
             info = replace(info, module=module_name, function=qualified_name)
             results.append(info)
@@ -756,11 +756,8 @@ def find_deprecation_wrappers(
             if name.startswith("_"):
                 continue
 
-            # Check if it's a function or method with __deprecated__ attribute
-            if callable(obj) and hasattr(obj, "__deprecated__"):
-                # Validate the wrapper - extracts config from __deprecated__
+            if _has_deprecation_meta(obj):
                 info = validate_deprecation_wrapper(obj)
-                # Update with module-level info
                 info = replace(info, module=mod_name, function=name)
                 results.append(info)
             elif inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
