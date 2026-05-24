@@ -202,7 +202,7 @@ pydeprecate all src/
 
 ## Agent Notes
 
-- `@deprecated` works with `@classmethod` and `@staticmethod` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)` and fire `FutureWarning` at call time.
+- `@deprecated` works with `@classmethod` and `@staticmethod` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time.
 
 ## Anti-Patterns
 
