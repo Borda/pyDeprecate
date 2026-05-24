@@ -16,7 +16,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
-from functools import partial, wraps
+from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
@@ -762,6 +762,17 @@ def deprecated(
         if isinstance(source, (classmethod, staticmethod)):
             wrapped_inner = packing(source.__func__)
             return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)
+        # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
+        if isinstance(source, property):
+            return property(
+                packing(source.fget) if source.fget is not None else None,
+                source.fset,
+                source.fdel,
+                source.__doc__,
+            )
+        # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
+        if isinstance(source, cached_property):
+            return cached_property(packing(source.func))
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)

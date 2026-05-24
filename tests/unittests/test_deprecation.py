@@ -5,6 +5,7 @@ import sys
 import warnings
 from dataclasses import dataclass
 from enum import Enum
+from functools import cached_property
 from typing import Any, Callable, Union, cast
 from unittest.mock import MagicMock
 
@@ -1301,5 +1302,107 @@ class TestDescriptorOrderAgnostic:
                 def old_method(x: int) -> int:
                     """Old staticmethod."""
                     return x
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+
+class TestPropertyOrderAgnostic:
+    """@deprecated on property/cached_property works in both decorator orders (N6).
+
+    Correct order: ``@property @deprecated`` (``@deprecated`` closer to ``def``).
+    Wrong order: ``@deprecated @property`` (``@deprecated`` outermost).
+    N6 transparent unwrap+rewrap makes both orders produce ``property(deprecated_fget)`` — functionally identical.
+    The deprecation warning fires at attribute access time in both cases; no UserWarning at decoration time.
+    """
+
+    def test_correct_order_property_fires_on_access(self) -> None:
+        """Correct @property @deprecated order: FutureWarning fires on attribute access, descriptor preserved."""
+
+        class _Cls:
+            @property
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            def value(self) -> int:
+                """Old property."""
+                return 42
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            result = obj.value
+        assert result == 42
+        assert isinstance(_Cls.__dict__["value"], property)
+
+    def test_wrong_order_property_fires_on_access(self) -> None:
+        """Wrong @deprecated @property order: FutureWarning fires on attribute access, descriptor preserved."""
+
+        class _Cls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @property
+            def value(self) -> int:
+                """Old property."""
+                return 42
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            result = obj.value
+        assert result == 42
+        assert isinstance(_Cls.__dict__["value"], property)
+
+    def test_wrong_order_property_no_decoration_time_warning(self) -> None:
+        """Wrong @deprecated @property order: no UserWarning at decoration time (N6 transparent unwrap)."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+                @property
+                def value(self) -> int:
+                    """Old property."""
+                    return 42
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    def test_correct_order_cached_property_fires_on_access(self) -> None:
+        """Correct @cached_property @deprecated order: FutureWarning fires on first access."""
+
+        class _Cls:
+            @cached_property
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            def value(self) -> int:
+                """Old cached_property."""
+                return 42
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            result = obj.value
+        assert result == 42
+        assert isinstance(_Cls.__dict__["value"], cached_property)
+
+    def test_wrong_order_cached_property_fires_on_access(self) -> None:
+        """Wrong @deprecated @cached_property order: FutureWarning fires on first access, descriptor preserved."""
+
+        class _Cls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @cached_property
+            def value(self) -> int:
+                """Old cached_property."""
+                return 42
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            result = obj.value
+        assert result == 42
+        assert isinstance(_Cls.__dict__["value"], cached_property)
+
+    def test_wrong_order_cached_property_no_decoration_time_warning(self) -> None:
+        """Wrong @deprecated @cached_property order: no UserWarning at decoration time."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+                @cached_property
+                def value(self) -> int:
+                    """Old cached_property."""
+                    return 42
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
