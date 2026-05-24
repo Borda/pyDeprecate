@@ -381,7 +381,7 @@ class TestDwiCompatInit:
     def test_old_empty_mapping_kwarg_is_translated(self) -> None:
         """DeprecationWrapperInfo(empty_mapping=True) emits DeprecationWarning and sets empty_args_mapping."""
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
-            info = DeprecationWrapperInfo(
+            info = DeprecationWrapperInfo(  # type: ignore[call-arg]
                 function="f",
                 deprecated_info=DeprecationConfig(),
                 empty_mapping=True,
@@ -391,7 +391,7 @@ class TestDwiCompatInit:
     def test_old_identity_mapping_kwarg_is_translated(self) -> None:
         """DeprecationWrapperInfo(identity_mapping=[...]) emits DeprecationWarning and sets identity_args_mapping."""
         with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
-            info = DeprecationWrapperInfo(
+            info = DeprecationWrapperInfo(  # type: ignore[call-arg]
                 function="f",
                 deprecated_info=DeprecationConfig(),
                 identity_mapping=["a"],
@@ -401,7 +401,7 @@ class TestDwiCompatInit:
     def test_both_old_kwargs_each_emit_deprecation_warning(self) -> None:
         """Passing both old kwargs emits one DeprecationWarning per renamed field."""
         with pytest.warns(DeprecationWarning, match="renamed") as caught:
-            DeprecationWrapperInfo(
+            DeprecationWrapperInfo(  # type: ignore[call-arg]
                 function="f",
                 deprecated_info=DeprecationConfig(),
                 empty_mapping=True,
@@ -414,7 +414,7 @@ class TestDwiCompatInit:
     def test_conflict_old_name_wins_when_both_supplied(self) -> None:
         """When both old and new names are supplied (as in replace()), old-name value is honoured."""
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
-            info = DeprecationWrapperInfo(
+            info = DeprecationWrapperInfo(  # type: ignore[call-arg]
                 function="f",
                 deprecated_info=DeprecationConfig(),
                 empty_mapping=True,
@@ -437,7 +437,7 @@ class TestDwiCompatInit:
         )
 
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
-            result = dataclasses.replace(base, empty_mapping=True)
+            result = dataclasses.replace(base, empty_mapping=True)  # type: ignore[call-arg]
 
         assert result.empty_args_mapping is True
 
