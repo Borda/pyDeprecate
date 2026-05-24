@@ -291,7 +291,7 @@ git push origin fix/123-your-bug-description
 - Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
-- Add comments only where the logic is not self-evident — one short line explaining **why** and how it affects the bigger picture; never explain **what** the code does (the code does that)
+- Write Python code that is readable on its own — good names and structure are the primary documentation. Add an inline comment only when it carries context the code cannot: **why** a non-obvious choice was made, a hidden constraint, a subtle invariant, or a workaround for a specific external behaviour. One short line; never explain what the code does
 - When changing existing behavior, scan changed files for stale inline comments — update or remove them (stale comments mislead more than none)
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
