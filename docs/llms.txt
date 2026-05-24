@@ -220,7 +220,7 @@ pydeprecate all src/
 
 ## Known Limitations
 
-- `_WrapperState.called` is incremented twice per generator call due to the factory pattern (the outer wrapper and the inner generator factory each increment the counter). Warning deduplication still works correctly — warnings fire at most `num_warns` times — but the call count stored in `_WrapperState` reflects two increments per external call, not one.
+- `_WrapperState.called` is incremented once per deprecated wrapper invocation in the current implementation. Warning deduplication still works correctly — warnings fire at most `num_warns` times — and the stored call count reflects wrapper invocations rather than a generator-specific double increment.
 - `_WrapperState` has no thread or async locks. Concurrent calls to the same deprecated wrapper can race on the `called` counter (pre-existing limitation, identical to regular function wrappers).
 - `async def` coroutines and `async def ... yield` async generators are not supported in v0.9.0.
 
