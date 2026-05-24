@@ -756,11 +756,7 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
-        # N3 guard: ``@deprecated`` applied OUTSIDE ``@classmethod`` / ``@staticmethod`` —
-        # ``source`` is a descriptor object, not the underlying function. Wrapping it would
-        # break the descriptor protocol (no ``__get__`` on the wrapper) and silently break
-        # class-method dispatch. Warn and return the descriptor unchanged so the import
-        # still succeeds; the user must move ``@deprecated`` inside (closer to ``def``).
+        # Wrong-order @deprecated @classmethod — source is a descriptor; wrapping breaks __get__ dispatch.
         if isinstance(source, (classmethod, staticmethod)):
             warnings.warn(
                 f"@deprecated applied outside @classmethod/@staticmethod for '{source.__func__.__name__}'."
@@ -769,11 +765,7 @@ def deprecated(
                 stacklevel=3,
             )
             return source
-        # ``functools.partial`` masks the wrapped callable: on Python 3.9–3.11
-        # ``inspect.iscoroutinefunction(partial(async_fn))`` returns ``False`` because the
-        # ``CO_COROUTINE`` flag lives on ``partial.func``, not ``partial`` itself. Unwrap
-        # ONLY for predicate checks (isgeneratorfunction / iscoroutinefunction); the
-        # wrapper still calls ``source`` (the partial) so partial-applied args persist.
+        # Python 3.9–3.11: iscoroutinefunction(partial(fn)) returns False — flag lives on partial.func, not partial.
         _source_for_predicates = source.func if isinstance(source, partial) else source
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
@@ -874,11 +866,7 @@ def deprecated(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
 
-        # N1-step1: ``_dispatch`` holds the verbatim sync dispatch body. ``wrapped_fn`` is now
-        # a thin facade that forwards to ``_dispatch`` (or wraps it for generator callables —
-        # N2 factory pattern below). Extracted so PR2 can add async/async-gen variants without
-        # duplicating the dispatch logic. Closure scope identical to old ``wrapped_fn`` body —
-        # ``_dispatch`` references ``wrapped_fn`` via late-binding for the ``_state`` attribute.
+        # Extracted so async/async-gen variants (PR2) share the same body; wrapped_fn is now a per-kind facade.
         def _dispatch(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
@@ -979,15 +967,8 @@ def deprecated(
             target_func = _prepare_target_call(source, _target, kwargs)
             return target_func(**kwargs)
 
-        # N2: generator wrapper — factory pattern. Generator functions return a generator
-        # OBJECT on call (body does not execute until iterated), so warning, arg validation,
-        # and ``state.called`` increment must fire eagerly at call time, not on first
-        # ``next()``. The factory ``wrapped_fn`` calls ``_dispatch`` eagerly (its generator
-        # result is discarded — safe because the body has not executed yet) and returns a
-        # fresh delegating generator that re-invokes ``_dispatch`` and ``yield from`` it.
-        # Note: ``state.called`` is incremented twice per user call (once eagerly, once on
-        # iteration). ``state.warned_calls`` reaches ``num_warns`` after the eager dispatch,
-        # so the second dispatch suppresses re-warning. Documented in docs/troubleshooting.md.
+        # Factory pattern for generators: call _dispatch eagerly for side-effects, return _gen_inner for iteration.
+        # Calling a generator function creates a generator object without running its body — safe to discard.
         if inspect.isgeneratorfunction(_source_for_predicates):
 
             def _gen_inner(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
@@ -995,9 +976,7 @@ def deprecated(
 
             @wraps(source)
             def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-                # Eager side-effects: warning, arg validation, ``state.called`` increment.
-                # The returned generator object is discarded; its body never runs because
-                # generators do not execute until iterated.
+                # Eager side-effects (warning, state); generator object discarded — body only runs on iteration.
                 _dispatch(*args, **kwargs)
                 return _gen_inner(*args, **kwargs)
         else:
