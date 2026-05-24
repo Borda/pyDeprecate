@@ -883,6 +883,87 @@ Quick reference for choosing the right testing tool:
 
 Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
 
+## Class methods and static methods
+
+`@deprecated` works with both `@classmethod` and `@staticmethod` in either decorator order — place `@deprecated` above or below the descriptor decorator and the deprecation warning fires correctly at call time either way.
+
+```python
+from deprecate import deprecated
+
+
+class ApiClient:
+    # @deprecated inside @classmethod — conventional order, @deprecated closer to def
+    @classmethod
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def from_url(cls, url: str) -> "ApiClient":
+        return cls()
+
+    # @deprecated outside @classmethod — also works; both produce the same descriptor
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @classmethod
+    def from_config(cls, config: dict) -> "ApiClient":
+        return cls()
+
+    # Same flexibility with @staticmethod
+    @staticmethod
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def version() -> str:
+        return "1.0"
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @staticmethod
+    def build_id() -> str:
+        return "legacy"
+```
+
+Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod(deprecated_wrapper)` respectively. The deprecation `FutureWarning` fires at call time regardless of which order the decorators were applied.
+
+!!! tip "Prefer `@classmethod @deprecated` (deprecated closer to `def`)"
+
+    The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.
+
+## Properties and cached properties
+
+`@deprecated` works with `@property` and `@cached_property` in either decorator order — the deprecation warning fires correctly at access time regardless of which order the decorators were applied.
+
+```python
+from functools import cached_property
+
+from deprecate import deprecated
+
+
+class Config:
+    # @deprecated inside @property — conventional order
+    @property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def timeout(self) -> int:
+        return 30
+
+    # @deprecated outside @property — also works
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @property
+    def retries(self) -> int:
+        return 3
+
+    # @deprecated inside @cached_property — conventional order
+    @cached_property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def base_url(self) -> str:
+        return "https://example.com"
+
+    # @deprecated outside @cached_property — also works
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @cached_property
+    def legacy_url(self) -> str:
+        return "https://old.example.com"
+```
+
+The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning.
+
+!!! tip "Prefer `@property @deprecated` (deprecated closer to `def`)"
+
+    The inner-first order is the conventional Python style. Follow this pattern for consistency if your team has no existing convention.
+
 ## Deprecating generator functions
 
 Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you **call** the generator function, not when you first iterate the result.

@@ -40,7 +40,7 @@ import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from functools import wraps
+from functools import cached_property, wraps
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 if TYPE_CHECKING:
@@ -714,27 +714,54 @@ def find_deprecation_wrappers(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
+    def _scan_callable(obj: Any, module_name: str, qualified_name: str) -> None:  # noqa: ANN401
+        """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
+        if _has_deprecation_meta(obj):
+            info = validate_deprecation_wrapper(obj)
+            info = replace(info, module=module_name, function=qualified_name)
+            results.append(info)
+
+    def _scan_class(cls: Any, module_name: str, cls_name: str) -> None:  # noqa: ANN401
+        """Scan class members, peeking through descriptors."""
+        try:
+            members = _getmembers_static_compat(cls)
+        except (AttributeError, TypeError):
+            return
+        for attr_name, obj in members:
+            if attr_name.startswith("_"):
+                continue
+            qualified = f"{cls_name}.{attr_name}"
+            # Peek through descriptors to find the underlying function.
+            if isinstance(obj, (classmethod, staticmethod)):
+                _scan_callable(obj.__func__, module_name, qualified)
+            elif isinstance(obj, property):
+                if obj.fget is not None:
+                    _scan_callable(obj.fget, module_name, qualified)
+            elif isinstance(obj, cached_property):
+                _scan_callable(obj.func, module_name, qualified)
+            else:
+                _scan_callable(obj, module_name, qualified)
+
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
-        """Scan a single module for deprecated functions."""
+        """Scan a single module for deprecated functions and class members."""
         try:
             # Static inspection avoids dynamic getattr/descriptor evaluation while scanning.
             members = _getmembers_static_compat(mod)
         except (AttributeError, TypeError, ImportError):
             return
 
+        mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
         for name, obj in members:
             # Skip private/magic attributes and imports from other modules
             if name.startswith("_"):
                 continue
 
-            # Check if it's a function or method with __deprecated__ attribute
-            if callable(obj) and hasattr(obj, "__deprecated__"):
-                # Validate the wrapper - extracts config from __deprecated__
+            if _has_deprecation_meta(obj):
                 info = validate_deprecation_wrapper(obj)
-                # Update with module-level info
-                info = replace(info, module=mod.__name__ if hasattr(mod, "__name__") else str(mod), function=name)
-
+                info = replace(info, module=mod_name, function=name)
                 results.append(info)
+            elif inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
+                _scan_class(obj, mod_name, name)
 
     # Scan the main module
     _scan_module(module)

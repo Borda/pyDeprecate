@@ -6,6 +6,7 @@ import importlib.metadata
 import importlib.util
 import types
 import warnings
+from functools import cached_property
 from typing import Union
 
 import pytest
@@ -417,7 +418,7 @@ class TestDwiCompatInit:
                 function="f",
                 deprecated_info=DeprecationConfig(),
                 empty_mapping=True,
-                empty_args_mapping=False,  # auto-injected by replace(); caller's old-name wins
+                empty_args_mapping=False,
             )
         assert info.empty_args_mapping is True
 
@@ -439,3 +440,196 @@ class TestDwiCompatInit:
             result = dataclasses.replace(base, empty_mapping=True)  # type: ignore[call-arg]
 
         assert result.empty_args_mapping is True
+
+
+class TestFindDeprecationWrappersClassScan:
+    """find_deprecation_wrappers discovers @deprecated on class members, peeking through descriptors."""
+
+    def test_finds_deprecated_regular_method(self) -> None:
+        """Deprecated regular method on a class is discovered by find_deprecation_wrappers."""
+        mod = types.ModuleType("test_mod_method")
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def _new(self: object) -> int:
+            return 1
+
+        class OldCls:
+            old_method = _new
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_method" in n for n in names)
+
+    def test_finds_deprecated_classmethod(self) -> None:
+        """Deprecated classmethod (correct @classmethod @deprecated order) is discovered."""
+        mod = types.ModuleType("test_mod_cm")
+
+        class OldCls:
+            @classmethod
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            def old_cm(cls: type) -> int:
+                """Old classmethod."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_cm" in n for n in names)
+
+    def test_finds_deprecated_staticmethod(self) -> None:
+        """Deprecated staticmethod (correct @staticmethod @deprecated order) is discovered."""
+        mod = types.ModuleType("test_mod_sm")
+
+        class OldCls:
+            @staticmethod
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            def old_sm() -> int:
+                """Old staticmethod."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_sm" in n for n in names)
+
+    def test_finds_deprecated_property(self) -> None:
+        """Deprecated property (correct @property @deprecated order) is discovered."""
+        mod = types.ModuleType("test_mod_prop")
+
+        class OldCls:
+            @property
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            def old_prop(self: object) -> int:
+                """Old property."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_prop" in n for n in names)
+
+    def test_finds_deprecated_cached_property(self) -> None:
+        """Deprecated cached_property (correct @cached_property @deprecated order) is discovered."""
+        mod = types.ModuleType("test_mod_cp")
+
+        class OldCls:
+            @cached_property
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            def old_cp(self: object) -> int:
+                """Old cached_property."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_cp" in n for n in names)
+
+    def test_finds_outer_deprecated_classmethod(self) -> None:
+        """Outer @deprecated @classmethod order: wrapper is discovered by audit scan (N5)."""
+        mod = types.ModuleType("test_mod_outer_cm")
+
+        class OldCls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[arg-type]
+            @classmethod
+            def old_cm(cls: type) -> int:
+                """Old classmethod."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_cm" in n for n in names)
+
+    def test_finds_outer_deprecated_staticmethod(self) -> None:
+        """Outer @deprecated @staticmethod order: wrapper is discovered by audit scan (N5)."""
+        mod = types.ModuleType("test_mod_outer_sm")
+
+        class OldCls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[arg-type]
+            @staticmethod
+            def old_sm() -> int:
+                """Old staticmethod."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_sm" in n for n in names)
+
+    def test_finds_outer_deprecated_property(self) -> None:
+        """Outer @deprecated @property order: wrapper is discovered by audit scan (N6)."""
+        mod = types.ModuleType("test_mod_outer_prop")
+
+        class OldCls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @property
+            def old_prop(self: object) -> int:
+                """Old property."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_prop" in n for n in names)
+
+    def test_finds_outer_deprecated_cached_property(self) -> None:
+        """Outer @deprecated @cached_property order: wrapper is discovered by audit scan (N6)."""
+        mod = types.ModuleType("test_mod_outer_cp")
+
+        class OldCls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @cached_property
+            def old_cp(self: object) -> int:
+                """Old cached_property."""
+                return 1
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("old_cp" in n for n in names)
