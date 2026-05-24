@@ -1211,7 +1211,7 @@ class TestDescriptorOrderAgnostic:
 
     Correct order: ``@classmethod @deprecated`` (``@deprecated`` closer to ``def``).
     Wrong order: ``@deprecated @classmethod`` (``@deprecated`` outermost).
-    N5 transparent unwrap+rewrap makes both orders produce ``classmethod(deprecated_wrapper)`` — functionally identical.
+    N5 transparent unwrap+rewrap preserves the descriptor type: both @classmethod orders produce classmethod(deprecated_wrapper), both @staticmethod orders produce staticmethod(deprecated_wrapper).
     The deprecation warning fires at call time in both cases; no UserWarning fires at decoration time.
     """
 
