@@ -139,10 +139,10 @@ for r in results[:5]:
 ```
 Found 0 deprecated wrappers with zero impact!
 tests.collection_deprecate.ChainedProxyColorEnum: no_effect=False
+tests.collection_deprecate.CrossGuardModuleLevel.old_method: no_effect=False
+tests.collection_deprecate.CrossGuardSameClass.old_method: no_effect=False
 tests.collection_deprecate.DecoratedDataClass: no_effect=False
 tests.collection_deprecate.DecoratedEnum: no_effect=False
-tests.collection_deprecate.DeprecatedColorDataClass: no_effect=False
-tests.collection_deprecate.DeprecatedColorEnum: no_effect=False
 ```
 
 </details>
