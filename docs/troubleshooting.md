@@ -688,9 +688,11 @@ ______________________________________________________________________
 **A:** The decorator order matters. When you write:
 
 ```python
-# phmdoctest:skip
+from deprecate import deprecated
+
 # WRONG — @deprecated sees the classmethod descriptor, not the function
-@deprecated(target=Bar.new_method, deprecated_in="1.0", remove_in="2.0")
+# UserWarning fires at decoration time; old_method is NOT deprecated
+@deprecated(deprecated_in="1.0", remove_in="2.0")
 @classmethod
 def old_method(cls, x): ...
 ```
@@ -700,15 +702,19 @@ def old_method(cls, x): ...
 The correct order is `@classmethod` outermost, `@deprecated` applied closer to `def`:
 
 ```python
-# phmdoctest:skip
 from deprecate import deprecated
+
+
+def new_impl(cls, x):
+    return x * 2
 
 
 class Foo:
     # CORRECT — @deprecated applied to the raw function, @classmethod wraps the result
     @classmethod
-    @deprecated(target=Bar.new_method, deprecated_in="1.0", remove_in="2.0")
-    def old_method(cls, x): ...
+    @deprecated(target=new_impl, deprecated_in="1.0", remove_in="2.0")
+    def old_method(cls, x):
+        pass
 ```
 
 The same rule applies to `@staticmethod`.

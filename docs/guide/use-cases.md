@@ -916,7 +916,6 @@ All three TargetModes work with generator functions:
 **`TargetMode.NOTIFY` — warn and keep the generator body:**
 
 ```python
-# phmdoctest:skip
 from deprecate import deprecated
 
 
@@ -932,7 +931,6 @@ Warning fires at call time. The generator body runs normally during iteration.
 **`TargetMode.ARGS_REMAP` — rename an argument within the same generator:**
 
 ```python
-# phmdoctest:skip
 from deprecate import TargetMode, deprecated
 
 
@@ -951,7 +949,6 @@ def repeat_value(value: int, n: int = 0, count: int = 0):
 **`target=<callable>` — forward to a replacement generator:**
 
 ```python
-# phmdoctest:skip
 from deprecate import deprecated, void
 
 
