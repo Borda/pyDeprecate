@@ -1053,7 +1053,7 @@ def old_range(start: int, stop: int):
 
 !!! note "Warning deduplication and the generator factory pattern"
 
-    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. This means `_WrapperState.called` is incremented twice per external call — once for the outer wrapper, once for the inner generator factory. Warning deduplication still works correctly: warnings fire at most `num_warns` times as configured. Only the raw call counter is slightly inflated.
+    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. In the current implementation, `_WrapperState.called` is incremented once per external call via the wrapper's normal dispatch path. Warning deduplication still works correctly: warnings fire at most `num_warns` times as configured.
 
 ## See also
 
