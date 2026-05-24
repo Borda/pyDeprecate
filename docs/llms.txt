@@ -216,7 +216,7 @@ pydeprecate all src/
 - Do not call the target inside a deprecated function body when `target=<callable>`.
 - Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
 - Do not apply `@deprecated` to `async def` coroutines or `async def ... yield` async generators — not supported in v0.9.0; doing so creates a sync wrapper that silently breaks awaiting callers. Generator functions using plain `def ... yield` ARE supported.
-- Do not apply `@deprecated @classmethod` or `@deprecated @staticmethod` in that order (descriptor outermost, `@deprecated` outermost is wrong) — the guard emits `UserWarning` at decoration time and returns the descriptor unchanged (method is not deprecated). Correct order: `@classmethod` (or `@staticmethod`) on the outside, `@deprecated` closer to `def`.
+- `@deprecated` works with `@classmethod` and `@staticmethod` in either order. pyDeprecate unwraps the underlying function (`.__func__`), applies the deprecation wrapper, and re-wraps the descriptor, so the method remains deprecated regardless of decorator order.
 
 ## Known Limitations
 
