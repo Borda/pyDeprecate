@@ -247,10 +247,10 @@
         },
         {
           "@type": "Question",
-          "name": "Why do I get UserWarning when using @deprecated @classmethod in that order?",
+          "name": "Does @deprecated work when applied outside @classmethod (wrong decorator order)?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Current pyDeprecate behavior supports both decorator orders for @classmethod and @staticmethod. When @deprecated wraps one of these descriptors, it unwraps the underlying function and re-wraps the descriptor, so the method is still deprecated correctly rather than being returned unchanged. If you still see a warning, check that you are using a version with this behavior and verify the warning is not coming from unrelated code."
+            "text": "Yes. pyDeprecate silently rescues the misordered stack: it detects the classmethod descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in classmethod. No UserWarning is emitted at decoration time, and a FutureWarning fires normally when the method is called. The preferred order is still @classmethod outermost with @deprecated closer to def, as it is explicit and avoids the silent rescue."
           }
         }
       ]

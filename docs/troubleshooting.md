@@ -682,24 +682,24 @@ ______________________________________________________________________
 
 ## Warning fires or UserWarning appears when using `@deprecated @classmethod`
 
-**Q:** I applied `@deprecated` on top of `@classmethod` (decorator order: `@deprecated` outermost, `@classmethod` innermost) and I see a `UserWarning` at decoration time saying the combination is unsupported. The method does not seem to be deprecated. What is happening?
+**Q:** I applied `@deprecated` on top of `@classmethod` (decorator order: `@deprecated` outermost, `@classmethod` innermost). Does this work?
 
-**A:** The decorator order matters. When you write:
+**A:** Yes — pyDeprecate silently rescues the misordered stack at decoration time. When you write:
 
 ```python
 from deprecate import deprecated
 
 
-# WRONG — @deprecated sees the classmethod descriptor, not the function
-# UserWarning fires at decoration time; old_method is NOT deprecated
-@deprecated(deprecated_in="1.0", remove_in="2.0")
-@classmethod
-def old_method(cls, x): ...
+class Foo:
+    # Works — @deprecated outside @classmethod is transparently rescued
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @classmethod
+    def old_method(cls, x): ...
 ```
 
-`@deprecated` is applied first (outermost), which means it receives the `classmethod` descriptor object — not the underlying function. pyDeprecate detects this and emits `UserWarning` at decoration time. The descriptor is returned unchanged, so the method still works normally but is **not** deprecated.
+`@deprecated` detects that it received a `classmethod` descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in `classmethod`. The outcome is a fully working deprecated classmethod: no `UserWarning` at decoration time, and a `FutureWarning` fires when the method is called.
 
-The correct order is `@classmethod` outermost, `@deprecated` applied closer to `def`:
+The preferred order is still `@classmethod` outermost with `@deprecated` applied closer to `def` — it is explicit and avoids the silent rescue:
 
 ```python
 from deprecate import deprecated
@@ -710,7 +710,7 @@ def new_impl(cls, x):
 
 
 class Foo:
-    # CORRECT — @deprecated applied to the raw function, @classmethod wraps the result
+    # Preferred — @deprecated applied to the raw function, @classmethod wraps the result
     @classmethod
     @deprecated(target=new_impl, deprecated_in="1.0", remove_in="2.0")
     def old_method(cls, x):
