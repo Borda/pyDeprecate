@@ -755,16 +755,19 @@ def deprecated(
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
-    def packing(source: Callable, _stacklevel: int = 2) -> Callable:
+    def packing(
+        source: Union[Callable, classmethod, staticmethod, property, cached_property],
+        _stacklevel: int = 2,
+    ) -> Callable:
         # Order-agnostic @classmethod/@staticmethod: unwrap → deprecate inner function → rewrap.
         # Both @classmethod orders produce classmethod(deprecated_wrapper);
         # both @staticmethod orders produce staticmethod(deprecated_wrapper).
         if isinstance(source, (classmethod, staticmethod)):
             wrapped_inner = packing(source.__func__, _stacklevel + 1)
-            return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)
+            return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
         # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
         if isinstance(source, property):
-            return property(
+            return property(  # type: ignore[return-value]
                 packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
                 source.fset,
                 source.fdel,
@@ -772,7 +775,7 @@ def deprecated(
             )
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
         if isinstance(source, cached_property):
-            return cached_property(packing(source.func, _stacklevel + 1))
+            return cached_property(packing(source.func, _stacklevel + 1))  # type: ignore[return-value]
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
