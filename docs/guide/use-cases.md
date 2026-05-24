@@ -18,8 +18,10 @@ The two most common reasons to deprecate something are renaming a function and r
     ```python
     from deprecate import deprecated, void
 
+
     def new_func(x: int) -> int:
         return x * 2
+
 
     # WRONG — new_func(x) is never reached; the decorator forwards before the body runs
     @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
