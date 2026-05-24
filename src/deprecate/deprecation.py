@@ -984,23 +984,9 @@ def deprecated(
             target_func = _prepare_target_call(source, _target, kwargs)
             return target_func(**kwargs)
 
-        # Factory pattern for generators: call _dispatch eagerly for side-effects, return _gen_inner for iteration.
-        # Calling a generator function creates a generator object without running its body — safe to discard.
-        if inspect.isgeneratorfunction(_source_for_predicates):
-
-            def _gen_inner(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-                yield from _dispatch(*args, **kwargs)
-
-            @wraps(source)
-            def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-                # Eager side-effects (warning, state); generator object discarded — body only runs on iteration.
-                _dispatch(*args, **kwargs)
-                return _gen_inner(*args, **kwargs)
-        else:
-
-            @wraps(source)
-            def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-                return _dispatch(*args, **kwargs)
+        @wraps(source)
+        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            return _dispatch(*args, **kwargs)
 
         # Enum-normalised target stored so audit does not re-derive from raw sentinel.
         # Class targets kept verbatim: the class→__init__ remap is call-time only;

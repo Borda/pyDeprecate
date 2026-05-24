@@ -9,8 +9,9 @@ Covers three concerns:
   fresh delegating generator.
 - Stacklevel — the warning must point to the user's call site, not to ``deprecation.py``.
 
-Also covers the N3 wrong-order guard: ``@deprecated`` applied OUTSIDE ``@classmethod`` is detected at decoration time
-and emits a :class:`UserWarning` rather than silently breaking the descriptor protocol.
+Also covers the N5 order-agnostic classmethod rescue: ``@deprecated`` applied OUTSIDE ``@classmethod`` is silently
+rescued at decoration time via transparent unwrap + rewrap, producing a working deprecated classmethod descriptor
+without emitting a warning.
 
 """
 
@@ -69,13 +70,8 @@ def test_generator_warning_fires_eagerly(wrapper: object, call_kwargs: dict) -> 
 def test_generator_warning_fires_once_per_call(wrapper: object, call_kwargs: dict) -> None:
     """Iteration of the wrapped generator does not re-emit the deprecation warning.
 
-    The N2 factory pattern double-dispatches (eager at call time + lazy on iteration), so the implementation must ensure
-    only the first dispatch's warning surfaces.  Subsequent iteration of the same generator instance must not emit a new
-    warning even under ``num_warns=-1`` (which would otherwise warn on every call) — because the second dispatch is an
-    *internal* call, not a user call.
-
-    Note: under ``num_warns=-1`` the second internal dispatch suppresses re-warn because ``state.warned_calls`` already
-    incremented during the first eager dispatch; the iteration phase does not double-warn.
+    The warning fires once inside ``_dispatch`` at call time.  Iterating the returned generator object runs the source
+    body only — it does not re-enter ``wrapped_fn`` or ``_dispatch``, so no second warning is possible.
 
     """
     with warnings.catch_warnings(record=True) as warned:
@@ -89,19 +85,27 @@ def test_generator_warning_fires_once_per_call(wrapper: object, call_kwargs: dic
     assert not new_warnings, f"Iteration emitted unexpected new warnings: {[str(w.message) for w in new_warnings]}"
 
 
-def test_n3_wrong_order_classmethod_warns() -> None:
-    """``@deprecated`` applied OUTSIDE ``@classmethod`` emits ``UserWarning`` and returns the descriptor unchanged."""
+def test_n5_wrong_order_classmethod_silently_rescued() -> None:
+    """``@deprecated`` applied OUTSIDE ``@classmethod`` is silently rescued by N5: no warning emitted.
+
+    The descriptor is transparently unwrapped and re-wrapped as ``classmethod(deprecated_wrapper)``.  The result
+    is a working deprecated classmethod — deprecation warning fires on call, not at decoration time.
+    """
     with warnings.catch_warnings(record=True) as warned:
         warnings.simplefilter("always")
 
         class _Foo:
             @deprecated(deprecated_in="1.0", remove_in="2.0")
             @classmethod
-            def old_method(cls) -> None:  # pragma: no cover - body unreachable; descriptor returned as-is
-                ...
+            def old_method(cls) -> None: ...
 
-    user_warnings = [w for w in warned if issubclass(w.category, UserWarning)]
-    assert user_warnings, "Expected a UserWarning for wrong-order classmethod"
-    assert "outside @classmethod" in str(user_warnings[0].message)
-    # Descriptor must be returned unchanged so the class attribute is still a classmethod.
+    decoration_warnings = [w for w in warned if issubclass(w.category, UserWarning)]
+    msgs = [str(w.message) for w in decoration_warnings]
+    assert not decoration_warnings, f"N5 must not emit UserWarning at decoration time, got: {msgs}"
+    # The descriptor must still be a classmethod after rescue.
     assert isinstance(_Foo.__dict__["old_method"], classmethod)
+    # Deprecation warning fires at call time, not decoration time.
+    with warnings.catch_warnings(record=True) as call_warned:
+        warnings.simplefilter("always")
+        _Foo.old_method()
+    assert any(issubclass(w.category, FutureWarning) for w in call_warned), "Deprecation warning must fire on call"
