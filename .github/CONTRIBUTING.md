@@ -283,7 +283,7 @@ git push origin fix/123-your-bug-description
 ### Style & Formatting
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
-- Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior
+- Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior — omit only when an example literally cannot run (e.g., requires an external service or produces non-deterministic output); showing the call without output (`>>> result = fn(x)` with no output line) is fine and still counts as a runnable doctest; `# doctest: +SKIP` and `# phmdoctest:skip` are highly discouraged — each instance degrades testability; if you must use one, explain why in a comment on the same line
 - In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax (e.g., `` :func:`~deprecate.deprecation.deprecated` `` rather than just `` :func:`deprecated` ``); standard library symbols (e.g., `FutureWarning`) do not need a module prefix
 - Use **MkDocs admonition syntax** for docstring notices in `src/deprecate/` by default — `!!! note`, `!!! warning "Deprecated in X.Y"`, etc. Do not use RST directives (`.. note::`, `.. deprecated::`) in package source docstrings unless the module specifically exists to integrate with Sphinx/RST docstrings (for example, `src/deprecate/docstring/sphinx_ext.py` and `src/deprecate/docstring/griffe_ext.py`). For demos, `demo-docs/sphinx/` follows RST conventions and `demo-docs/mkdocs/` follows MkDocs conventions — each demo matches its own renderer.
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
@@ -291,7 +291,7 @@ git push origin fix/123-your-bug-description
 - Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
-- Add comments only where the logic is not self-evident — explain **why**, not __what__
+- Write Python code that is readable on its own — good names and structure are the primary documentation. Add an inline comment only when it carries context the code cannot: **why** a non-obvious choice was made, a hidden constraint, a subtle invariant, or a workaround for a specific external behaviour. One short line; never explain what the code does
 - When changing existing behavior, scan changed files for stale inline comments — update or remove them (stale comments mislead more than none)
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 

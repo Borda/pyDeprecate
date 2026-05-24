@@ -156,7 +156,6 @@ print(old_internal(5))
 Pass `logging.warning` (or any logging level method) to route deprecation messages through Python's logging system. This plugs straight into your existing log aggregation, filtering, and formatting.
 
 ```python
-# phmdoctest:skip
 import logging
 from deprecate import deprecated
 

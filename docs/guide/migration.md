@@ -97,7 +97,7 @@ Some `TargetMode` + argument combinations are contradictory; pyDeprecate emits a
 Two fields on `DeprecationWrapperInfo` were renamed in v0.8 to be consistent with the rest of the API. The old names still work but emit a `DeprecationWarning` on access — swapping them out is a one-line change:
 
 ```python
-# phmdoctest:skip
+# phmdoctest:skip — info object requires audit context; snippet shows attribute names only
 # Legacy names — emit DeprecationWarning on access
 info.empty_mapping
 info.identity_mapping

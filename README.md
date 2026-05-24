@@ -60,8 +60,6 @@ For most of these cases, you want to maintain some compatibility, so you cannot 
 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
 
-> pyDeprecate is downloaded over **700,000 times per month** from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — a widely adopted solution for API deprecation in production Python codebases.
->
 > **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
 
 ## ✨ Features
