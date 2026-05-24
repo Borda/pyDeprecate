@@ -888,23 +888,23 @@ from deprecate import deprecated
 class ApiClient:
     # @deprecated inside @classmethod — conventional order, @deprecated closer to def
     @classmethod
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
     def from_url(cls, url: str) -> "ApiClient":
         return cls()
 
     # @deprecated outside @classmethod — also works; both produce the same descriptor
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
     @classmethod
     def from_config(cls, config: dict) -> "ApiClient":
         return cls()
 
     # Same flexibility with @staticmethod
     @staticmethod
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
     def version() -> str:
         return "1.0"
 
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
     @staticmethod
     def build_id() -> str:
         return "legacy"
