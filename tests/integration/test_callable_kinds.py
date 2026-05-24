@@ -96,7 +96,8 @@ def test_wrong_order_classmethod_silently_rescued() -> None:
         class _Foo:
             @deprecated(deprecated_in="1.0", remove_in="2.0")
             @classmethod
-            def old_method(cls) -> None: ...
+            def old_method(cls) -> None:
+                pass
 
     decoration_warnings = [w for w in warned if issubclass(w.category, UserWarning)]
     msgs = [str(w.message) for w in decoration_warnings]
