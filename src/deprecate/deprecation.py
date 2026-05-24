@@ -761,7 +761,7 @@ def deprecated(
             kind = "classmethod" if isinstance(source, classmethod) else "staticmethod"
             warnings.warn(
                 f"@deprecated applied outside @{kind} for `{source.__func__.__name__}`."
-                " Apply @deprecated inside (closer to `def`). See docs/guide/use-cases.md#classmethod.",
+                " Apply @deprecated inside (closer to `def`). See docs/guide/use-cases.md.",
                 UserWarning,
                 stacklevel=2,
             )
