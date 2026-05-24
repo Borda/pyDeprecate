@@ -16,7 +16,11 @@ The two most common reasons to deprecate something are renaming a function and r
     Do **not** call the target from inside the body:
 
     ```python
-    # phmdoctest:skip
+    from deprecate import deprecated, void
+
+    def new_func(x: int) -> int:
+        return x * 2
+
     # WRONG — new_func(x) is never reached; the decorator forwards before the body runs
     @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
     def old_func(x: int) -> int:
@@ -103,7 +107,6 @@ calculate = deprecated(
 Use `args_mapping` when the new function accepts the same arguments under different names. The decorator translates old parameter names to new ones at call time, so callers can keep passing the old names during the deprecation window without any manual mapping code.
 
 ```python
-# phmdoctest:skip
 import logging
 from sklearn.metrics import accuracy_score
 from deprecate import deprecated, void

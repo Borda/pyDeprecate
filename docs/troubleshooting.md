@@ -22,7 +22,7 @@ from deprecate import deprecated
 Not:
 
 ```python
-# phmdoctest:skip
+# phmdoctest:skip — intentional wrong import; would raise ModuleNotFoundError
 from pydeprecate import deprecated  # wrong — no such module
 ```
 
@@ -80,7 +80,7 @@ class MyClass:
 Symptoms of the old behaviour:
 
 ```python
-# phmdoctest:skip
+# phmdoctest:skip — shows pre-v0.6 behaviour; current code uses a proxy and no longer produces these errors
 # --- Old broken pattern (pre-v0.6) ---
 from deprecate import deprecated
 
@@ -420,7 +420,6 @@ print(get_old_threshold())
 **A:** Pass any logging method as the `stream` parameter. The `stream` callable receives the formatted deprecation message as a single string argument — logging methods like `logging.warning` have exactly this signature. For the full range of `stream` options (silencing, custom callables, `print`), see [Deprecation Output Sink](guide/customization.md#deprecation-output-sink-stream).
 
 ```python
-# phmdoctest:skip
 import logging
 from deprecate import deprecated
 
