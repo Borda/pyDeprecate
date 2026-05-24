@@ -236,6 +236,22 @@
             "@type": "Answer",
             "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my deprecated generator fire the warning before I iterate it?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This is intentional. pyDeprecate uses an eager factory pattern for generator wrappers: the deprecation warning fires when you call the generator function, not on the first next() call. This is consistent with how deprecated regular functions behave and ensures the warning appears at the actual call site regardless of where iteration happens."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get UserWarning when using @deprecated @classmethod in that order?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The decorator order matters. @deprecated applied outermost (on top of @classmethod) means it receives the classmethod descriptor, not the underlying function. pyDeprecate detects this and emits UserWarning at decoration time; the descriptor is returned unchanged so the method works but is NOT deprecated. Fix: put @classmethod outermost and @deprecated closer to def — the correct order is @classmethod above @deprecated. The same rule applies to @staticmethod."
+          }
         }
       ]
     }

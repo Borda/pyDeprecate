@@ -756,6 +756,25 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
+        # N3 guard: ``@deprecated`` applied OUTSIDE ``@classmethod`` / ``@staticmethod`` —
+        # ``source`` is a descriptor object, not the underlying function. Wrapping it would
+        # break the descriptor protocol (no ``__get__`` on the wrapper) and silently break
+        # class-method dispatch. Warn and return the descriptor unchanged so the import
+        # still succeeds; the user must move ``@deprecated`` inside (closer to ``def``).
+        if isinstance(source, (classmethod, staticmethod)):
+            warnings.warn(
+                f"@deprecated applied outside @classmethod/@staticmethod for '{source.__func__.__name__}'."
+                " Apply @deprecated inside (closer to def). See docs/guide/use-cases.md#classmethod.",
+                UserWarning,
+                stacklevel=3,
+            )
+            return source
+        # ``functools.partial`` masks the wrapped callable: on Python 3.9–3.11
+        # ``inspect.iscoroutinefunction(partial(async_fn))`` returns ``False`` because the
+        # ``CO_COROUTINE`` flag lives on ``partial.func``, not ``partial`` itself. Unwrap
+        # ONLY for predicate checks (isgeneratorfunction / iscoroutinefunction); the
+        # wrapper still calls ``source`` (the partial) so partial-applied args persist.
+        _source_for_predicates = source.func if isinstance(source, partial) else source
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
@@ -855,8 +874,12 @@ def deprecated(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
 
-        @wraps(source)
-        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        # N1-step1: ``_dispatch`` holds the verbatim sync dispatch body. ``wrapped_fn`` is now
+        # a thin facade that forwards to ``_dispatch`` (or wraps it for generator callables —
+        # N2 factory pattern below). Extracted so PR2 can add async/async-gen variants without
+        # duplicating the dispatch logic. Closure scope identical to old ``wrapped_fn`` body —
+        # ``_dispatch`` references ``wrapped_fn`` via late-binding for the ``_state`` attribute.
+        def _dispatch(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
                 raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
@@ -955,6 +978,33 @@ def deprecated(
                 return source(**kwargs)
             target_func = _prepare_target_call(source, _target, kwargs)
             return target_func(**kwargs)
+
+        # N2: generator wrapper — factory pattern. Generator functions return a generator
+        # OBJECT on call (body does not execute until iterated), so warning, arg validation,
+        # and ``state.called`` increment must fire eagerly at call time, not on first
+        # ``next()``. The factory ``wrapped_fn`` calls ``_dispatch`` eagerly (its generator
+        # result is discarded — safe because the body has not executed yet) and returns a
+        # fresh delegating generator that re-invokes ``_dispatch`` and ``yield from`` it.
+        # Note: ``state.called`` is incremented twice per user call (once eagerly, once on
+        # iteration). ``state.warned_calls`` reaches ``num_warns`` after the eager dispatch,
+        # so the second dispatch suppresses re-warning. Documented in docs/troubleshooting.md.
+        if inspect.isgeneratorfunction(_source_for_predicates):
+
+            def _gen_inner(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+                yield from _dispatch(*args, **kwargs)
+
+            @wraps(source)
+            def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+                # Eager side-effects: warning, arg validation, ``state.called`` increment.
+                # The returned generator object is discarded; its body never runs because
+                # generators do not execute until iterated.
+                _dispatch(*args, **kwargs)
+                return _gen_inner(*args, **kwargs)
+        else:
+
+            @wraps(source)
+            def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+                return _dispatch(*args, **kwargs)
 
         # Enum-normalised target stored so audit does not re-derive from raw sentinel.
         # Class targets kept verbatim: the class→__init__ remap is call-time only;

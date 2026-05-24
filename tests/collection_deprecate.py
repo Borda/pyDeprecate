@@ -39,6 +39,7 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -69,6 +70,7 @@ from tests.collection_targets import (
     double_value,
     fn_remap_with_extra_body,
     fn_with_default,
+    gen_target,
     identity_value,
     increment_value,
     pep702_target,
@@ -1476,3 +1478,48 @@ def pep702_proxy_stacked() -> _Pep702ProxyTarget:
 
     """
     return _pep702_proxy_stacked()
+
+
+# ========== N2 — generator callable kind fixtures ==========
+# Three wrappers exercise the ``@deprecated`` generator factory path (``inspect.isgeneratorfunction``
+# branch in ``packing()``).  Each pairs a generator source/target combination with a different
+# ``TargetMode`` so the integration tests can confirm warning timing (eager at call time, not on
+# first ``next()``) and full round-trip yield equivalence.
+
+
+def _gen_source_remap(old_x: int = 0, x: int = 0) -> Iterator[int]:
+    """Self-deprecation source for ``gen_args_remap``: accepts the legacy arg ``old_x`` (mapped to ``x``).
+
+    Source body executes under :attr:`~deprecate.TargetMode.ARGS_REMAP` so the generator must be defined here, not
+    inlined into a lambda (lambdas cannot be generators).  ``old_x`` is the legacy parameter name preserved for the
+    ARGS_REMAP mapping; only ``x`` is read in the body.
+
+    """
+    for i in range(1, 4):
+        yield x * i
+
+
+def _gen_source_callable(x: int = 0) -> Iterator[int]:
+    """Placeholder generator source for ``gen_callable``: body never executes under callable-target mode.
+
+    Declared as a generator function (``yield`` in body) so :func:`inspect.isgeneratorfunction` returns ``True`` and the
+    N2 factory wrapper engages.  The body is unreachable because ``target=gen_target`` forwards every call.
+
+    """
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield x
+
+
+#: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
+#: Uses default ``num_warns=1`` so the internal second dispatch (factory pattern) does not re-warn.
+#: Tests must reset wrapper state between parametrize cases — see ``_reset_gen_state`` fixture.
+gen_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(gen_target)
+#: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
+gen_args_remap = deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_x": "x"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(_gen_source_remap)
+#: Callable-target mode — call forwarded to ``gen_target``; source body never executes.
+gen_callable = deprecated(target=gen_target, deprecated_in="1.0", remove_in="2.0")(_gen_source_callable)

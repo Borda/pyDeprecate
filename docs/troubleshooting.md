@@ -640,6 +640,81 @@ def my_func(old: int = 0, new: int = 0) -> int:
 
 ______________________________________________________________________
 
+## My deprecated generator fires the warning before I iterate it
+
+**Q:** My generator function is decorated with `@deprecated`. The deprecation warning fires as soon as I call the function — before I even call `next()` or iterate over it. Is this a bug?
+
+**A:** No — this is the intended behavior. pyDeprecate uses an eager factory pattern for generator wrappers: the warning fires at call time, consistent with how deprecated regular functions behave.
+
+When you call a deprecated generator function, you get the deprecation notice immediately at the call site — the same place you would see it for a deprecated regular function. You can then pass the generator around, iterate it later, or hand it to another function, and the warning is already recorded.
+
+```python
+from deprecate import deprecated, void
+
+
+def generate_ids(start: int, count: int):
+    for i in range(count):
+        yield start + i
+
+
+@deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
+def iter_ids(start: int, count: int):
+    return void(start, count)
+
+
+# Warning fires here — at call time
+gen = iter_ids(10, 3)
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+
+# Iteration is normal — warning already fired above
+print(list(gen))  # [10, 11, 12]
+```
+
+<details>
+  <summary>Output: <code>print(list(gen))</code></summary>
+
+```
+[10, 11, 12]
+```
+
+</details>
+
+______________________________________________________________________
+
+## Warning fires or UserWarning appears when using `@deprecated @classmethod`
+
+**Q:** I applied `@deprecated` on top of `@classmethod` (decorator order: `@deprecated` outermost, `@classmethod` innermost) and I see a `UserWarning` at decoration time saying the combination is unsupported. The method does not seem to be deprecated. What is happening?
+
+**A:** The decorator order matters. When you write:
+
+```python
+# phmdoctest:skip
+# WRONG — @deprecated sees the classmethod descriptor, not the function
+@deprecated(target=Bar.new_method, deprecated_in="1.0", remove_in="2.0")
+@classmethod
+def old_method(cls, x): ...
+```
+
+`@deprecated` is applied first (outermost), which means it receives the `classmethod` descriptor object — not the underlying function. pyDeprecate detects this and emits `UserWarning` at decoration time. The descriptor is returned unchanged, so the method still works normally but is **not** deprecated.
+
+The correct order is `@classmethod` outermost, `@deprecated` applied closer to `def`:
+
+```python
+# phmdoctest:skip
+from deprecate import deprecated
+
+
+class Foo:
+    # CORRECT — @deprecated applied to the raw function, @classmethod wraps the result
+    @classmethod
+    @deprecated(target=Bar.new_method, deprecated_in="1.0", remove_in="2.0")
+    def old_method(cls, x): ...
+```
+
+The same rule applies to `@staticmethod`.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

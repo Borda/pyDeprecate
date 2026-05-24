@@ -68,7 +68,7 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🔄 Arguments are automatically mapped to the target function
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
-- 🛠️ Supports deprecating callables: functions, methods, and class constructors
+- 🛠️ Supports deprecating callables: functions, methods, class constructors, and **generator functions** (`def gen(): yield`) — warning fires eagerly at call time, before iteration begins
 - 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class` for types; `deprecated_instance` for objects, with optional read-only enforcement — blocks standard collection mutators: `append`, `pop`, `update`, `clear`, etc.; custom mutator names bypass this guard)
 - 📝 Optionally, docstrings can be updated automatically in RST/Sphinx or MkDocs/Markdown format (auto-detected); ships bundled Griffe and Sphinx doc-engine extensions
 - 🔍 Preserves original function signature, annotations and metadata for introspection

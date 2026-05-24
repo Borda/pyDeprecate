@@ -1,6 +1,6 @@
 ---
 id: use-cases
-description: Thirteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
+description: Fourteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
 ---
 
 # Use Cases
@@ -877,6 +877,101 @@ Quick reference for choosing the right testing tool:
 | `warnings.catch_warnings()` + `simplefilter("ignore")` | Suppress without assertion    | Never fails (use in fixtures) |
 
 Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
+
+## Deprecating generator functions
+
+Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you **call** the generator function, not when you first iterate the result.
+
+This is the right behavior. It keeps generator deprecations consistent with regular function deprecations. If the warning fired on the first `next()` call instead, you could easily miss it: someone might call the generator, pass it around, and iterate it elsewhere — the warning would appear far from the actual deprecated call site.
+
+```python
+from deprecate import deprecated, void
+
+
+# NEW/FUTURE API — new name, same semantics
+def generate_ids(start: int, count: int):
+    """Yield `count` sequential IDs starting from `start`."""
+    for i in range(count):
+        yield start + i
+
+
+# DEPRECATED API — `iter_ids` was the old name before the rename
+@deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
+def iter_ids(start: int, count: int):
+    """Deprecated — use generate_ids() instead."""
+    return void(start, count)
+
+
+# The warning fires here — at call time, before any iteration
+gen = iter_ids(10, 3)
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+#                It will be removed in v1.0.
+
+# Iteration proceeds normally — you already got the warning
+print(list(gen))  # [10, 11, 12]
+```
+
+All three TargetModes work with generator functions:
+
+**`TargetMode.NOTIFY` — warn and keep the generator body:**
+
+```python
+# phmdoctest:skip
+from deprecate import deprecated
+
+
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+def old_pipeline(items):
+    """This generator is going away; no replacement yet."""
+    for item in items:
+        yield item.strip()
+```
+
+Warning fires at call time. The generator body runs normally during iteration.
+
+**`TargetMode.ARGS_REMAP` — rename an argument within the same generator:**
+
+```python
+# phmdoctest:skip
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"n": "count"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+def repeat_value(value: int, n: int = 0, count: int = 0):
+    """Deprecated argument `n` renamed to `count`."""
+    for _ in range(count):
+        yield value
+```
+
+**`target=<callable>` — forward to a replacement generator:**
+
+```python
+# phmdoctest:skip
+from deprecate import deprecated, void
+
+
+def new_range(start: int, stop: int):
+    yield from range(start, stop)
+
+
+@deprecated(target=new_range, deprecated_in="0.9", remove_in="1.0")
+def old_range(start: int, stop: int):
+    return void(start, stop)
+```
+
+!!! warning "Async generators are not yet supported"
+
+    `async def` coroutines and `async def ... yield` async generators are not supported in v0.9.0. Applying `@deprecated` to an `async def` function creates a sync wrapper that will break any caller that tries to `await` the result. Support for async is planned for a future release.
+
+!!! note "Warning deduplication and the generator factory pattern"
+
+    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. This means `_WrapperState.called` is incremented twice per external call — once for the outer wrapper, once for the inner generator factory. Warning deduplication still works correctly: warnings fire at most `num_warns` times as configured. Only the raw call counter is slightly inflated.
+
 
 ## See also
 

@@ -149,7 +149,7 @@ What is being deprecated?
   │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
   │      (classes are callables, but @deprecated is for functions/methods only)
   │
-  └─ A function or method?
+  └─ A function or method (including generator functions — `def gen(): yield`)?
        → use @deprecated; then choose target= based on the replacement:
          ├─ Has a replacement function/method?
          │    → target=<callable>; leave body empty (pass / void())
@@ -162,6 +162,8 @@ What is being deprecated?
          └─ Already deprecated (args renamed earlier) and now the whole function is going away?
               → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
                 (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
+         Note: for generator functions the warning fires eagerly at call time (before first next()),
+               not on first iteration — consistent with regular function behavior.
 ```
 
 ### Enforce removal deadlines in CI
@@ -207,6 +209,14 @@ pydeprecate all src/
 - Do not use `target=True`; use `TargetMode.ARGS_REMAP`.
 - Do not call the target inside a deprecated function body when `target=<callable>`.
 - Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
+- Do not apply `@deprecated` to `async def` coroutines or `async def ... yield` async generators — not supported in v0.9.0; doing so creates a sync wrapper that silently breaks awaiting callers. Generator functions using plain `def ... yield` ARE supported.
+- Do not apply `@deprecated @classmethod` or `@deprecated @staticmethod` in that order (descriptor outermost, `@deprecated` outermost is wrong) — the guard emits `UserWarning` at decoration time and returns the descriptor unchanged (method is not deprecated). Correct order: `@classmethod` (or `@staticmethod`) on the outside, `@deprecated` closer to `def`.
+
+## Known Limitations
+
+- `_WrapperState.called` is incremented twice per generator call due to the factory pattern (the outer wrapper and the inner generator factory each increment the counter). Warning deduplication still works correctly — warnings fire at most `num_warns` times — but the call count stored in `_WrapperState` reflects two increments per external call, not one.
+- `_WrapperState` has no thread or async locks. Concurrent calls to the same deprecated wrapper can race on the `called` counter (pre-existing limitation, identical to regular function wrappers).
+- `async def` coroutines and `async def ... yield` async generators are not supported in v0.9.0.
 
 ## Full Context
 
