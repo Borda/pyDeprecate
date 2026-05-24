@@ -502,7 +502,16 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, stackleve
     source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
-    stream(template_mgs % msg_args, stacklevel=stacklevel)
+    try:
+        params = inspect.signature(stream).parameters
+        _supports_stacklevel = "stacklevel" in params or any(p.kind == Parameter.VAR_KEYWORD for p in params.values())
+    except (ValueError, TypeError):
+        # Builtins (e.g. print) may have no introspectable signature.
+        _supports_stacklevel = False
+    if _supports_stacklevel:
+        stream(template_mgs % msg_args, stacklevel=stacklevel)
+    else:
+        stream(template_mgs % msg_args)
 
 
 def _source_display_name(source: Callable) -> str:
