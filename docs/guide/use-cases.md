@@ -916,6 +916,48 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
     The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.
 
+## Properties and cached properties
+
+`@deprecated` works with `@property` and `@cached_property` in either decorator order — the deprecation warning fires correctly at access time regardless of which order the decorators were applied.
+
+```python
+from functools import cached_property
+
+from deprecate import deprecated
+
+
+class Config:
+    # @deprecated inside @property — conventional order
+    @property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def timeout(self) -> int:
+        return 30
+
+    # @deprecated outside @property — also works
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @property
+    def retries(self) -> int:
+        return 3
+
+    # @deprecated inside @cached_property — conventional order
+    @cached_property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def base_url(self) -> str:
+        return "https://example.com"
+
+    # @deprecated outside @cached_property — also works
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @cached_property
+    def legacy_url(self) -> str:
+        return "https://old.example.com"
+```
+
+The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning.
+
+!!! tip "Prefer `@property @deprecated` (deprecated closer to `def`)"
+
+    The inner-first order is the conventional Python style. Follow this pattern for consistency if your team has no existing convention.
+
 ## See also
 
 - [Customization](customization.md) — redirect deprecation output to a logger or use a custom message template
