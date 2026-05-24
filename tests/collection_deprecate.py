@@ -1511,8 +1511,8 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
 
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
-#: Uses default ``num_warns=1`` so the internal second dispatch (factory pattern) does not re-warn.
-#: Tests must reset wrapper state between parametrize cases — see ``_reset_gen_state`` fixture.
+#: Uses default ``num_warns=1``; warning fires once per call in ``_dispatch``.
+#: Tests reset ``warned_calls`` between parametrize cases — see ``_reset_gen_state`` fixture.
 gen_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(gen_target)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 gen_args_remap = deprecated(
