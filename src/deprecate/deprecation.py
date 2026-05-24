@@ -767,11 +767,15 @@ def deprecated(
             return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
         # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
         if isinstance(source, property):
+            # Preserve explicit doc only when it differs from fget's doc (author override)
+            # or when fget is absent (setter/deleter-only property with doc= supplied).
+            # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
+            explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
             return property(  # type: ignore[return-value]
                 packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
                 source.fset,
                 source.fdel,
-                source.__doc__,
+                explicit_doc,
             )
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
         if isinstance(source, cached_property):
