@@ -20,7 +20,7 @@ from typing import cast
 import pytest
 
 from deprecate import deprecated
-from deprecate._types import _DeprecatedCallable, _WrapperState
+from deprecate._types import _DeprecatedCallable
 from tests.collection_deprecate import gen_args_remap, gen_callable, gen_notify, gen_notify_unlimited
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a
@@ -34,15 +34,18 @@ _WRAPPER_CASES = [
 
 @pytest.fixture(autouse=True)
 def _reset_gen_state() -> None:
-    """Reset per-wrapper mutable state before each test.
+    """Reset the warning count on each module-level generator wrapper before each test.
 
-    Generator wrappers are module-level singletons whose ``_state`` (``warned_calls`` etc.) persists across the
-    parametrize iterations.  Default ``num_warns=1`` suppresses the second call's warning, so without reset the second
-    parametrize case would see no warning.
+    Generator wrappers are module-level singletons whose warning counters persist across parametrize iterations.
+    Default ``num_warns=1`` suppresses the second call's warning, so without reset the second parametrize case
+    would see no warning.  Only ``warned_calls`` and ``warned_args`` are cleared — ``called`` and
+    ``warned_misconfigured`` are left intact.
 
     """
     for wrapper in (gen_notify, gen_args_remap, gen_callable, gen_notify_unlimited):
-        cast(_DeprecatedCallable, wrapper)._state = _WrapperState()
+        state = cast(_DeprecatedCallable, wrapper)._state
+        state.warned_calls = 0
+        state.warned_args.clear()
 
 
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _WRAPPER_CASES)
