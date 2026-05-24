@@ -200,6 +200,10 @@ pydeprecate all src/
 5. Do you only need a warning? Use `TargetMode.NOTIFY` or omit `target`.
 6. Do you need removal governance? Add audit checks in CI.
 
+## Agent Notes
+
+- `@deprecated` works with `@classmethod` and `@staticmethod` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)` and fire `FutureWarning` at call time.
+
 ## Anti-Patterns
 
 - Do not import `pydeprecate`; import `deprecate`.

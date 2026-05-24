@@ -877,6 +877,45 @@ Quick reference for choosing the right testing tool:
 
 Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
 
+## Class methods and static methods
+
+`@deprecated` works with both `@classmethod` and `@staticmethod` in either decorator order — place `@deprecated` above or below the descriptor decorator and the deprecation warning fires correctly at call time either way.
+
+```python
+from deprecate import deprecated
+
+
+class ApiClient:
+    # @deprecated inside @classmethod — conventional order, @deprecated closer to def
+    @classmethod
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    def from_url(cls, url: str) -> "ApiClient":
+        return cls()
+
+    # @deprecated outside @classmethod — also works; both produce the same descriptor
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @classmethod
+    def from_config(cls, config: dict) -> "ApiClient":
+        return cls()
+
+    # Same flexibility with @staticmethod
+    @staticmethod
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    def version() -> str:
+        return "1.0"
+
+    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @staticmethod
+    def build_id() -> str:
+        return "legacy"
+```
+
+Both orders produce `classmethod(deprecated_wrapper)` internally. The deprecation `FutureWarning` fires at call time regardless of which order the decorators were applied.
+
+!!! tip "Prefer `@classmethod @deprecated` (deprecated closer to `def`)"
+
+    The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.
+
 ## See also
 
 - [Customization](customization.md) — redirect deprecation output to a logger or use a custom message template
