@@ -755,24 +755,24 @@ def deprecated(
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
-    def packing(source: Callable) -> Callable:
+    def packing(source: Callable, _stacklevel: int = 2) -> Callable:
         # Order-agnostic @classmethod/@staticmethod: unwrap → deprecate inner function → rewrap.
         # Both @classmethod orders produce classmethod(deprecated_wrapper);
         # both @staticmethod orders produce staticmethod(deprecated_wrapper).
         if isinstance(source, (classmethod, staticmethod)):
-            wrapped_inner = packing(source.__func__)
+            wrapped_inner = packing(source.__func__, _stacklevel + 1)
             return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)
         # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
         if isinstance(source, property):
             return property(
-                packing(source.fget) if source.fget is not None else None,
+                packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
                 source.fset,
                 source.fdel,
                 source.__doc__,
             )
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
         if isinstance(source, cached_property):
-            return cached_property(packing(source.func))
+            return cached_property(packing(source.func, _stacklevel + 1))
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
@@ -784,7 +784,7 @@ def deprecated(
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=_stacklevel,
             )
         if inspect.isclass(source):
             import importlib
@@ -802,7 +802,7 @@ def deprecated(
                     " use `@deprecated_class(target=...)` instead."
                 )
             if stream is not None:
-                warnings.warn(message, UserWarning, stacklevel=2)
+                warnings.warn(message, UserWarning, stacklevel=_stacklevel)
 
             # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
             # ``misconfigured`` from its own ``target is False`` check — by that point
@@ -815,7 +815,7 @@ def deprecated(
             elif target is None or isinstance(target, bool):
                 # None/True/False on a class is a class-misconfiguration, not a callable
                 # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
-                forward_target = TargetMode._from_legacy(target, stacklevel=3)
+                forward_target = TargetMode._from_legacy(target, stacklevel=_stacklevel + 1)
             else:
                 forward_target = TargetMode.NOTIFY
 
@@ -831,7 +831,11 @@ def deprecated(
             forward_args_extra = args_extra
             if forward_target is TargetMode.NOTIFY:
                 TargetMode._validate(
-                    forward_target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
+                    forward_target,
+                    source.__name__,
+                    args_mapping=args_mapping,
+                    args_extra=args_extra,
+                    stacklevel=_stacklevel + 1,
                 )
                 forward_args_mapping = None
                 forward_args_extra = None
@@ -865,7 +869,7 @@ def deprecated(
         _function_misconfigured = False
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             _function_misconfigured = TargetMode._validate(
-                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
+                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=_stacklevel + 1
             )
 
         source_has_var_positional = any(
