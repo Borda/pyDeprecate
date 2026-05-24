@@ -1,17 +1,16 @@
-"""Integration tests for generator callable kind support (N2 — generator factory wrapper).
+"""Integration tests for generator callable kind support.
 
 Covers three concerns:
 
 - Round-trip yield equivalence under all three :class:`~deprecate.TargetMode` variants (NOTIFY, ARGS_REMAP, callable).
 - Eager warning timing — the deprecation warning must fire at call time (when the wrapped generator is *created*), not
   on the first :func:`next` call.  Generator bodies do not execute until iterated, so a naïve forwarder would defer the
-  warning until iteration.  The N2 factory pattern circumvents this by calling ``_dispatch`` eagerly and returning a
-  fresh delegating generator.
+  warning until iteration.  ``_dispatch`` fires the warning synchronously before returning the generator object.
 - Stacklevel — the warning must point to the user's call site, not to ``deprecation.py``.
 
-Also covers the N5 order-agnostic classmethod rescue: ``@deprecated`` applied OUTSIDE ``@classmethod`` is silently
-rescued at decoration time via transparent unwrap + rewrap, producing a working deprecated classmethod descriptor
-without emitting a warning.
+Also covers order-agnostic classmethod rescue: ``@deprecated`` applied OUTSIDE ``@classmethod`` is silently rescued
+at decoration time via transparent unwrap + rewrap, producing a working deprecated classmethod descriptor without
+emitting a warning.
 
 """
 
@@ -85,8 +84,8 @@ def test_generator_warning_fires_once_per_call(wrapper: object, call_kwargs: dic
     assert not new_warnings, f"Iteration emitted unexpected new warnings: {[str(w.message) for w in new_warnings]}"
 
 
-def test_n5_wrong_order_classmethod_silently_rescued() -> None:
-    """``@deprecated`` applied OUTSIDE ``@classmethod`` is silently rescued by N5: no warning emitted.
+def test_wrong_order_classmethod_silently_rescued() -> None:
+    """``@deprecated`` applied OUTSIDE ``@classmethod`` is silently rescued: no warning emitted.
 
     The descriptor is transparently unwrapped and re-wrapped as ``classmethod(deprecated_wrapper)``.  The result
     is a working deprecated classmethod — deprecation warning fires on call, not at decoration time.
@@ -101,7 +100,7 @@ def test_n5_wrong_order_classmethod_silently_rescued() -> None:
 
     decoration_warnings = [w for w in warned if issubclass(w.category, UserWarning)]
     msgs = [str(w.message) for w in decoration_warnings]
-    assert not decoration_warnings, f"N5 must not emit UserWarning at decoration time, got: {msgs}"
+    assert not decoration_warnings, f"classmethod rescue must not warn at decoration time, got: {msgs}"
     # The descriptor must still be a classmethod after rescue.
     assert isinstance(_Foo.__dict__["old_method"], classmethod)
     # Deprecation warning fires at call time, not decoration time.

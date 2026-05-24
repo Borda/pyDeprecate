@@ -315,7 +315,7 @@ def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
 def gen_target(x: int) -> Iterator[int]:
     """Generator that yields multiples of x (1×, 2×, 3×).
 
-    Used by the N2 (generator wrapper) integration tests for the ``@deprecated`` decorator.
+    Used by the generator wrapper integration tests for the ``@deprecated`` decorator.
 
     """
     for i in range(1, 4):

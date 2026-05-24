@@ -1208,11 +1208,11 @@ class TestStackedNotifyCallable:
 
 
 class TestDescriptorOrderAgnostic:
-    """@deprecated on classmethod/staticmethod works in both decorator orders (N5).
+    """@deprecated on classmethod/staticmethod works in both decorator orders.
 
     Inner-deprecated order: ``@classmethod @deprecated`` (``@deprecated`` closer to ``def``).
     Outer-deprecated order: ``@deprecated @classmethod`` (``@deprecated`` outermost).
-    N5 transparent unwrap+rewrap preserves the descriptor type: both @classmethod orders produce
+    Transparent unwrap+rewrap preserves the descriptor type: both @classmethod orders produce
     classmethod(deprecated_wrapper), both @staticmethod orders produce staticmethod(deprecated_wrapper).
     The deprecation warning fires at call time in both cases; no UserWarning fires at decoration time.
     """
@@ -1248,7 +1248,7 @@ class TestDescriptorOrderAgnostic:
         assert isinstance(_Cls.__dict__["old_method"], classmethod)
 
     def test_outer_deprecated_classmethod_no_decoration_time_warning(self) -> None:
-        """Outer @deprecated @classmethod order: no UserWarning at decoration time (N5 transparent unwrap)."""
+        """Outer @deprecated @classmethod order: no UserWarning at decoration time (transparent unwrap)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -1292,7 +1292,7 @@ class TestDescriptorOrderAgnostic:
         assert isinstance(_Cls.__dict__["old_method"], staticmethod)
 
     def test_outer_deprecated_staticmethod_no_decoration_time_warning(self) -> None:
-        """Outer @deprecated @staticmethod order: no UserWarning at decoration time (N5 transparent unwrap)."""
+        """Outer @deprecated @staticmethod order: no UserWarning at decoration time (transparent unwrap)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -1307,11 +1307,11 @@ class TestDescriptorOrderAgnostic:
 
 
 class TestPropertyOrderAgnostic:
-    """@deprecated on property/cached_property works in both decorator orders (N6).
+    """@deprecated on property/cached_property works in both decorator orders.
 
     Inner-deprecated order: ``@property @deprecated`` (``@deprecated`` closer to ``def``).
     Outer-deprecated order: ``@deprecated @property`` (``@deprecated`` outermost).
-    N6 transparent unwrap+rewrap makes both orders produce ``property(deprecated_fget)`` — functionally identical.
+    Transparent unwrap+rewrap makes both orders produce ``property(deprecated_fget)`` — functionally identical.
     The deprecation warning fires at attribute access time in both cases; no UserWarning at decoration time.
     """
 
@@ -1348,7 +1348,7 @@ class TestPropertyOrderAgnostic:
         assert isinstance(_Cls.__dict__["value"], property)
 
     def test_outer_deprecated_property_no_decoration_time_warning(self) -> None:
-        """Outer @deprecated @property order: no UserWarning at decoration time (N6 transparent unwrap)."""
+        """Outer @deprecated @property order: no UserWarning at decoration time (transparent unwrap)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 

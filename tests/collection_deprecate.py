@@ -1480,8 +1480,8 @@ def pep702_proxy_stacked() -> _Pep702ProxyTarget:
     return _pep702_proxy_stacked()
 
 
-# ========== N2 — generator callable kind fixtures ==========
-# Three wrappers exercise the ``@deprecated`` generator factory path (``inspect.isgeneratorfunction``
+# ========== generator callable kind fixtures ==========
+# Three wrappers exercise the ``@deprecated`` generator path (``inspect.isgeneratorfunction``
 # branch in ``packing()``).  Each pairs a generator source/target combination with a different
 # ``TargetMode`` so the integration tests can confirm warning timing (eager at call time, not on
 # first ``next()``) and full round-trip yield equivalence.
@@ -1503,7 +1503,7 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
     """Placeholder generator source for ``gen_callable``: body never executes under callable-target mode.
 
     Declared as a generator function (``yield`` in body) so :func:`inspect.isgeneratorfunction` returns ``True`` and the
-    N2 factory wrapper engages.  The body is unreachable because ``target=gen_target`` forwards every call.
+    generator wrapper engages.  The body is unreachable because ``target=gen_target`` forwards every call.
 
     """
     if False:  # pragma: no cover - unreachable; declares this as a generator

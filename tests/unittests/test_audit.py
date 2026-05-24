@@ -551,7 +551,7 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_cp" in n for n in names)
 
     def test_finds_outer_deprecated_classmethod(self) -> None:
-        """Outer @deprecated @classmethod order: wrapper is discovered by audit scan (N5)."""
+        """Outer @deprecated @classmethod order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_cm")
 
         class OldCls:
@@ -572,7 +572,7 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_cm" in n for n in names)
 
     def test_finds_outer_deprecated_staticmethod(self) -> None:
-        """Outer @deprecated @staticmethod order: wrapper is discovered by audit scan (N5)."""
+        """Outer @deprecated @staticmethod order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_sm")
 
         class OldCls:
@@ -593,7 +593,7 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_sm" in n for n in names)
 
     def test_finds_outer_deprecated_property(self) -> None:
-        """Outer @deprecated @property order: wrapper is discovered by audit scan (N6)."""
+        """Outer @deprecated @property order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_prop")
 
         class OldCls:
@@ -614,7 +614,7 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_prop" in n for n in names)
 
     def test_finds_outer_deprecated_cached_property(self) -> None:
-        """Outer @deprecated @cached_property order: wrapper is discovered by audit scan (N6)."""
+        """Outer @deprecated @cached_property order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_cp")
 
         class OldCls:
