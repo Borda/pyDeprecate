@@ -469,7 +469,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
     return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
-def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras: str) -> None:
+def _raise_warn(stream: Callable, source: Callable, template_mgs: str, stacklevel: int = 5, **extras: str) -> None:
     """Issue a deprecation warning using the specified stream and message template.
 
     This is the core warning issuer that formats and emits deprecation warnings.  It extracts source function metadata
@@ -479,6 +479,8 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
         source: The deprecated function/method being wrapped.
         template_mgs: Python format string with placeholders for message variables.
+        stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 5 accounts for
+            the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → _dispatch → wrapped_fn → caller`` chain.
         **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
 
     Note:
@@ -500,7 +502,7 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
     source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
-    stream(template_mgs % msg_args)
+    stream(template_mgs % msg_args, stacklevel=stacklevel)
 
 
 def _source_display_name(source: Callable) -> str:
@@ -515,6 +517,7 @@ def _raise_warn_callable(
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
+    stacklevel: int = 5,
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
 
@@ -533,6 +536,7 @@ def _raise_warn_callable(
         remove_in: Version when the source will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
             callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
+        stacklevel: Passed through to :func:`_raise_warn`; default 5 points to the user's call site.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -568,6 +572,7 @@ def _raise_warn_callable(
         stream=stream,
         source=source,
         template_mgs=template_mgs or template_warn,
+        stacklevel=stacklevel,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
@@ -582,6 +587,7 @@ def _raise_warn_arguments(
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
+    stacklevel: int = 5,
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
 
@@ -596,6 +602,7 @@ def _raise_warn_arguments(
         deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses default template.
+        stacklevel: Passed through to :func:`_raise_warn`; default 5 points to the user's call site.
 
     Template Variables Available:
         - source_name: Function name (e.g., "my_func")
@@ -623,6 +630,7 @@ def _raise_warn_arguments(
         stream,
         source,
         template_mgs or TEMPLATE_WARNING_ARGUMENTS,
+        stacklevel=stacklevel,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         argument_map=args_map,
@@ -935,10 +943,12 @@ def deprecated(
                 if reason_callable:
                     # Use original `target` (not remapped _target) so the warning
                     # names the class (e.g. "NewCls") rather than "__init__".
-                    _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs)
+                    _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs, stacklevel=5)
                     state.warned_calls += 1
                 elif reason_argument:
-                    _raise_warn_arguments(stream, source, reason_argument, deprecated_in, remove_in, template_mgs)
+                    _raise_warn_arguments(
+                        stream, source, reason_argument, deprecated_in, remove_in, template_mgs, stacklevel=5
+                    )
                     for arg in reason_argument:
                         state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
 

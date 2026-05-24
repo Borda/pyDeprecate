@@ -1523,3 +1523,7 @@ gen_args_remap = deprecated(
 )(_gen_source_remap)
 #: Callable-target mode — call forwarded to ``gen_target``; source body never executes.
 gen_callable = deprecated(target=gen_target, deprecated_in="1.0", remove_in="2.0")(_gen_source_callable)
+#: NOTIFY mode with ``num_warns=-1`` (warn on every call); used to test unlimited-warning behaviour.
+gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)(
+    gen_target
+)

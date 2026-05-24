@@ -21,7 +21,7 @@ import pytest
 
 from deprecate import deprecated
 from deprecate._types import _DeprecatedCallable, _WrapperState
-from tests.collection_deprecate import gen_args_remap, gen_callable, gen_notify
+from tests.collection_deprecate import gen_args_remap, gen_callable, gen_notify, gen_notify_unlimited
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a
 # non-default argument name because its source carries the legacy ``old_x`` parameter.
@@ -41,7 +41,7 @@ def _reset_gen_state() -> None:
     parametrize case would see no warning.
 
     """
-    for wrapper in (gen_notify, gen_args_remap, gen_callable):
+    for wrapper in (gen_notify, gen_args_remap, gen_callable, gen_notify_unlimited):
         cast(_DeprecatedCallable, wrapper)._state = _WrapperState()
 
 
@@ -82,6 +82,33 @@ def test_generator_warning_fires_once_per_call(wrapper: object, call_kwargs: dic
     new_warnings = [w for w in warned[warn_count_at_call:] if w.category in (FutureWarning, DeprecationWarning)]
     assert warn_count_at_call >= 1, "Warning should fire eagerly at call time"
     assert not new_warnings, f"Iteration emitted unexpected new warnings: {[str(w.message) for w in new_warnings]}"
+
+
+def test_generator_num_warns_unlimited_warns_every_call() -> None:
+    """num_warns=-1 wrapper emits exactly one warning per call; iteration emits none.
+
+    Verifies that each external call to a generator wrapper with ``num_warns=-1`` produces exactly
+    one deprecation warning at call time, and that exhausting the generator does not re-emit.
+
+    """
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        _ = list(gen_notify_unlimited(x=1))
+        first_call_warn_count = len([w for w in warned if w.category in (FutureWarning, DeprecationWarning)])
+        _ = list(gen_notify_unlimited(x=2))
+    dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+    assert first_call_warn_count == 1, f"Expected 1 warning after first call, got {first_call_warn_count}"
+    assert len(dep_warns) == 2, f"Expected 2 warnings total (one per call), got {len(dep_warns)}"
+
+
+def test_generator_warning_stacklevel() -> None:
+    """Generator wrapper warning filename points to the caller's file, not to ``deprecation.py``."""
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        gen_notify(x=1)
+    assert warned
+    w = warned[0]
+    assert w.filename.endswith("test_callable_kinds.py"), f"Expected caller file, got {w.filename}"
 
 
 def test_wrong_order_classmethod_silently_rescued() -> None:
