@@ -766,8 +766,6 @@ def deprecated(
                 stacklevel=2,
             )
             return source
-        # Python 3.9–3.11: iscoroutinefunction(partial(async_fn)) returns False — flag lives on partial.func.
-        _source_for_predicates = source.func if isinstance(source, partial) else source
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
