@@ -1352,7 +1352,7 @@ class TestPropertyOrderAgnostic:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
-            class _Cls:
+            class _UnusedCls:
                 @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
                 @property
                 def value(self) -> int:
@@ -1398,7 +1398,7 @@ class TestPropertyOrderAgnostic:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
-            class _Cls:
+            class _UnusedCls:
                 @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
                 @cached_property
                 def value(self) -> int:
