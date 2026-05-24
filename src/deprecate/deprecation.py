@@ -16,7 +16,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
-from functools import partial, wraps
+from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
@@ -755,17 +755,31 @@ def deprecated(
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
-    def packing(source: Callable) -> Callable:
-        # Wrong-order @classmethod/@staticmethod — source is a descriptor; wrapping it breaks __get__ dispatch.
+    def packing(
+        source: Union[Callable, classmethod, staticmethod, property, cached_property],
+        _stacklevel: int = 2,
+    ) -> Callable:
+        # Order-agnostic @classmethod/@staticmethod: unwrap → deprecate inner function → rewrap.
+        # Both @classmethod orders produce classmethod(deprecated_wrapper);
+        # both @staticmethod orders produce staticmethod(deprecated_wrapper).
         if isinstance(source, (classmethod, staticmethod)):
-            kind = "classmethod" if isinstance(source, classmethod) else "staticmethod"
-            warnings.warn(
-                f"@deprecated applied outside @{kind} for `{source.__func__.__name__}`."
-                " Apply @deprecated inside (closer to `def`). See docs/guide/use-cases.md.",
-                UserWarning,
-                stacklevel=2,
+            wrapped_inner = packing(source.__func__, _stacklevel + 1)
+            return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
+        # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
+        if isinstance(source, property):
+            # Preserve explicit doc only when it differs from fget's doc (author override)
+            # or when fget is absent (setter/deleter-only property with doc= supplied).
+            # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
+            explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
+            return property(  # type: ignore[return-value]
+                packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
+                source.fset,
+                source.fdel,
+                explicit_doc,
             )
-            return source
+        # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
+        if isinstance(source, cached_property):
+            return cached_property(packing(source.func, _stacklevel + 1))  # type: ignore[return-value]
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
@@ -777,7 +791,7 @@ def deprecated(
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=_stacklevel,
             )
         if inspect.isclass(source):
             import importlib
@@ -795,7 +809,7 @@ def deprecated(
                     " use `@deprecated_class(target=...)` instead."
                 )
             if stream is not None:
-                warnings.warn(message, UserWarning, stacklevel=2)
+                warnings.warn(message, UserWarning, stacklevel=_stacklevel)
 
             # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
             # ``misconfigured`` from its own ``target is False`` check — by that point
@@ -808,7 +822,7 @@ def deprecated(
             elif target is None or isinstance(target, bool):
                 # None/True/False on a class is a class-misconfiguration, not a callable
                 # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
-                forward_target = TargetMode._from_legacy(target, stacklevel=3)
+                forward_target = TargetMode._from_legacy(target, stacklevel=_stacklevel + 1)
             else:
                 forward_target = TargetMode.NOTIFY
 
@@ -824,7 +838,11 @@ def deprecated(
             forward_args_extra = args_extra
             if forward_target is TargetMode.NOTIFY:
                 TargetMode._validate(
-                    forward_target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
+                    forward_target,
+                    source.__name__,
+                    args_mapping=args_mapping,
+                    args_extra=args_extra,
+                    stacklevel=_stacklevel + 1,
                 )
                 forward_args_mapping = None
                 forward_args_extra = None
@@ -858,7 +876,7 @@ def deprecated(
         _function_misconfigured = False
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             _function_misconfigured = TargetMode._validate(
-                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
+                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=_stacklevel + 1
             )
 
         source_has_var_positional = any(
