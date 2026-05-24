@@ -689,6 +689,7 @@ ______________________________________________________________________
 ```python
 from deprecate import deprecated
 
+
 # WRONG — @deprecated sees the classmethod descriptor, not the function
 # UserWarning fires at decoration time; old_method is NOT deprecated
 @deprecated(deprecated_in="1.0", remove_in="2.0")
