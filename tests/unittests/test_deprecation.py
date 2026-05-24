@@ -1211,7 +1211,7 @@ class TestDescriptorOrderAgnostic:
     """@deprecated on classmethod/staticmethod works in both decorator orders (N5).
 
     Correct order: ``@classmethod @deprecated`` (``@deprecated`` closer to ``def``).
-    Wrong order: ``@deprecated @classmethod`` (``@deprecated`` outermost).
+    Outer-deprecated order: ``@deprecated @classmethod`` (``@deprecated`` outermost).
     N5 transparent unwrap+rewrap preserves the descriptor type: both @classmethod orders produce
     classmethod(deprecated_wrapper), both @staticmethod orders produce staticmethod(deprecated_wrapper).
     The deprecation warning fires at call time in both cases; no UserWarning fires at decoration time.
@@ -1232,8 +1232,8 @@ class TestDescriptorOrderAgnostic:
         assert result == 5
         assert isinstance(_Cls.__dict__["old_method"], classmethod)
 
-    def test_wrong_order_classmethod_fires_on_call(self) -> None:
-        """Wrong @deprecated @classmethod order: deprecation FutureWarning still fires on call, descriptor preserved."""
+    def test_outer_deprecated_classmethod_fires_on_call(self) -> None:
+        """Outer @deprecated @classmethod order: deprecation FutureWarning still fires on call, descriptor preserved."""
 
         class _Cls:
             @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -1247,8 +1247,8 @@ class TestDescriptorOrderAgnostic:
         assert result == 5
         assert isinstance(_Cls.__dict__["old_method"], classmethod)
 
-    def test_wrong_order_classmethod_no_decoration_time_warning(self) -> None:
-        """Wrong @deprecated @classmethod order: no UserWarning at decoration time (N5 transparent unwrap)."""
+    def test_outer_deprecated_classmethod_no_decoration_time_warning(self) -> None:
+        """Outer @deprecated @classmethod order: no UserWarning at decoration time (N5 transparent unwrap)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -1276,8 +1276,8 @@ class TestDescriptorOrderAgnostic:
         assert result == 5
         assert isinstance(_Cls.__dict__["old_method"], staticmethod)
 
-    def test_wrong_order_staticmethod_fires_on_call(self) -> None:
-        """Wrong @deprecated @staticmethod order: deprecation FutureWarning fires on call, descriptor preserved."""
+    def test_outer_deprecated_staticmethod_fires_on_call(self) -> None:
+        """Outer @deprecated @staticmethod order: deprecation FutureWarning fires on call, descriptor preserved."""
 
         class _Cls:
             @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -1291,8 +1291,8 @@ class TestDescriptorOrderAgnostic:
         assert result == 5
         assert isinstance(_Cls.__dict__["old_method"], staticmethod)
 
-    def test_wrong_order_staticmethod_no_decoration_time_warning(self) -> None:
-        """Wrong @deprecated @staticmethod order: no UserWarning at decoration time (N5 transparent unwrap)."""
+    def test_outer_deprecated_staticmethod_no_decoration_time_warning(self) -> None:
+        """Outer @deprecated @staticmethod order: no UserWarning at decoration time (N5 transparent unwrap)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -1310,7 +1310,7 @@ class TestPropertyOrderAgnostic:
     """@deprecated on property/cached_property works in both decorator orders (N6).
 
     Correct order: ``@property @deprecated`` (``@deprecated`` closer to ``def``).
-    Wrong order: ``@deprecated @property`` (``@deprecated`` outermost).
+    Outer-deprecated order: ``@deprecated @property`` (``@deprecated`` outermost).
     N6 transparent unwrap+rewrap makes both orders produce ``property(deprecated_fget)`` — functionally identical.
     The deprecation warning fires at attribute access time in both cases; no UserWarning at decoration time.
     """
@@ -1331,8 +1331,8 @@ class TestPropertyOrderAgnostic:
         assert result == 42
         assert isinstance(_Cls.__dict__["value"], property)
 
-    def test_wrong_order_property_fires_on_access(self) -> None:
-        """Wrong @deprecated @property order: FutureWarning fires on attribute access, descriptor preserved."""
+    def test_outer_deprecated_property_fires_on_access(self) -> None:
+        """Outer @deprecated @property order: FutureWarning fires on attribute access, descriptor preserved."""
 
         class _Cls:
             @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
@@ -1347,8 +1347,8 @@ class TestPropertyOrderAgnostic:
         assert result == 42
         assert isinstance(_Cls.__dict__["value"], property)
 
-    def test_wrong_order_property_no_decoration_time_warning(self) -> None:
-        """Wrong @deprecated @property order: no UserWarning at decoration time (N6 transparent unwrap)."""
+    def test_outer_deprecated_property_no_decoration_time_warning(self) -> None:
+        """Outer @deprecated @property order: no UserWarning at decoration time (N6 transparent unwrap)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -1377,8 +1377,8 @@ class TestPropertyOrderAgnostic:
         assert result == 42
         assert isinstance(_Cls.__dict__["value"], cached_property)
 
-    def test_wrong_order_cached_property_fires_on_access(self) -> None:
-        """Wrong @deprecated @cached_property order: FutureWarning fires on first access, descriptor preserved."""
+    def test_outer_deprecated_cached_property_fires_on_access(self) -> None:
+        """Outer @deprecated @cached_property order: FutureWarning fires on first access, descriptor preserved."""
 
         class _Cls:
             @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
@@ -1393,8 +1393,8 @@ class TestPropertyOrderAgnostic:
         assert result == 42
         assert isinstance(_Cls.__dict__["value"], cached_property)
 
-    def test_wrong_order_cached_property_no_decoration_time_warning(self) -> None:
-        """Wrong @deprecated @cached_property order: no UserWarning at decoration time."""
+    def test_outer_deprecated_cached_property_no_decoration_time_warning(self) -> None:
+        """Outer @deprecated @cached_property order: no UserWarning at decoration time."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
