@@ -15,11 +15,12 @@ and emits a :class:`UserWarning` rather than silently breaking the descriptor pr
 """
 
 import warnings
+from typing import cast
 
 import pytest
 
 from deprecate import deprecated
-from deprecate._types import _WrapperState
+from deprecate._types import _DeprecatedCallable, _WrapperState
 from tests.collection_deprecate import gen_args_remap, gen_callable, gen_notify
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a
@@ -41,7 +42,7 @@ def _reset_gen_state() -> None:
 
     """
     for wrapper in (gen_notify, gen_args_remap, gen_callable):
-        wrapper._state = _WrapperState()
+        cast(_DeprecatedCallable, wrapper)._state = _WrapperState()
 
 
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _WRAPPER_CASES)
