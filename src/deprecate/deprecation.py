@@ -756,6 +756,18 @@ def deprecated(
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(source: Callable) -> Callable:
+        # Wrong-order @classmethod/@staticmethod — source is a descriptor; wrapping it breaks __get__ dispatch.
+        if isinstance(source, (classmethod, staticmethod)):
+            kind = "classmethod" if isinstance(source, classmethod) else "staticmethod"
+            warnings.warn(
+                f"@deprecated applied outside @{kind} for `{source.__func__.__name__}`."
+                " Apply @deprecated inside (closer to `def`). See docs/guide/use-cases.md#classmethod.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return source
+        # Python 3.9–3.11: iscoroutinefunction(partial(async_fn)) returns False — flag lives on partial.func.
+        _source_for_predicates = source.func if isinstance(source, partial) else source
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)

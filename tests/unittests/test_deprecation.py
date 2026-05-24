@@ -1204,3 +1204,40 @@ class TestStackedNotifyCallable:
             warnings.simplefilter("always")
             fn(2.0, scale=3.0)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+
+class TestDescriptorOrderGuard:
+    """@deprecated applied outside @classmethod or @staticmethod emits UserWarning and returns descriptor unchanged.
+
+    Correct order has @deprecated closer to ``def`` (inside @classmethod/@staticmethod).
+    Wrong order passes a descriptor object to packing() instead of a plain function — the guard
+    surfaces this at decoration time and returns the descriptor unchanged so the class still works.
+    """
+
+    def test_wrong_order_classmethod_warns(self) -> None:
+        """Wrong-order @deprecated @classmethod emits UserWarning pointing at the decoration site."""
+        with pytest.warns(UserWarning, match=r"@deprecated applied outside @classmethod") as record:
+
+            class _Cls:
+                @deprecated(deprecated_in="1.0", remove_in="2.0")
+                @classmethod
+                def old_method(cls, x: int) -> int:
+                    """Old classmethod."""
+                    return x
+
+        assert record[0].filename.endswith("test_deprecation.py")
+        assert isinstance(_Cls.__dict__["old_method"], classmethod)
+
+    def test_wrong_order_staticmethod_warns(self) -> None:
+        """Wrong-order @deprecated @staticmethod emits UserWarning pointing at the decoration site."""
+        with pytest.warns(UserWarning, match=r"@deprecated applied outside @staticmethod") as record:
+
+            class _Cls:
+                @deprecated(deprecated_in="1.0", remove_in="2.0")
+                @staticmethod
+                def old_method(x: int) -> int:
+                    """Old staticmethod."""
+                    return x
+
+        assert record[0].filename.endswith("test_deprecation.py")
+        assert isinstance(_Cls.__dict__["old_method"], staticmethod)
