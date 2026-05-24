@@ -910,7 +910,7 @@ class ApiClient:
         return "legacy"
 ```
 
-Both orders produce `classmethod(deprecated_wrapper)` internally. The deprecation `FutureWarning` fires at call time regardless of which order the decorators were applied.
+Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod(deprecated_wrapper)` respectively. The deprecation `FutureWarning` fires at call time regardless of which order the decorators were applied.
 
 !!! tip "Prefer `@classmethod @deprecated` (deprecated closer to `def`)"
 
