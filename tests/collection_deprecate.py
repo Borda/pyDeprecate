@@ -1533,8 +1533,9 @@ gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0",
 # ========== async callable kind fixtures (N1-step2) ==========
 # Three wrappers exercise the ``@deprecated`` async path (``inspect.iscoroutinefunction`` branch in ``packing()``).
 # Each pairs an ``async def`` source with one of the three ``TargetMode`` variants so the integration tests can
-# confirm: (a) round-trip awaited result, (b) eager warning timing — fired at call time, before ``await``, and
-# (c) stacklevel pointing back to the user's call site rather than to ``deprecation.py``.
+# confirm: (a) round-trip awaited result, (b) warning timing for async wrappers — fired when the returned coroutine
+# is awaited, before the wrapped async body/result completes — and (c) stacklevel pointing back to the user's call
+# site rather than to ``deprecation.py``.
 
 
 async def _async_source_notify(x: int) -> int:
