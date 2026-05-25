@@ -7,20 +7,20 @@
 #     - push → main                                    → build + deploy to dev/
 #     - push → version-like tag (v1.2, 1.2.3, …)       → build + deploy to <tag>/ (and stable/ if highest)
 #     - pull_request → main                            → build only (no deploy)
-#     - workflow_dispatch (tag, alias, overwrite_root_files inputs)
+#     - workflow_dispatch (tag, alias, refresh_root_files inputs)
 #                                                      → build + deploy to <tag>/ (no set-default change)
 #
 #   workflow_dispatch inputs:
 #     - tag                   (required) git tag to backfill; must already exist on the remote
 #     - alias                 (optional) mike alias to attach (e.g. stable); auto-enables root-metadata deploy
-#     - overwrite_root_files (optional, default false) overwrite gh-pages root files
+#     - refresh_root_files    (optional, default false) overwrite gh-pages root files
 #                             (llms.txt, llms-full.txt, robots.txt, sitemap.xml) with versions from
 #                             this tag's docs/. Defaults false — safe for historical backfills where
 #                             files may be stale or absent. Auto-enabled when alias is 'stable'.
 #
 #   Root-level AI discoverability files (llms.txt, robots.txt, sitemap.xml, llms-full.txt):
 #     - deploy on every push trigger (main → dev/, tag → <tag>/)
-#     - skipped on workflow_dispatch unless overwrite_root_files=true or alias=stable
+#     - skipped on workflow_dispatch unless refresh_root_files=true or alias=stable
 #     - missing source files at historical refs emit ::warning:: and are skipped gracefully
 #
 #   Jobs:
@@ -65,7 +65,7 @@ on:
         required: false
         type: string
         default: ""
-      overwrite_root_files:
+      refresh_root_files:
         description: >
           Overwrite the gh-pages root files (llms.txt, llms-full.txt, robots.txt, sitemap.xml)
           with the versions from this tag's docs/. Enable only when this tag's metadata is the
@@ -349,7 +349,7 @@ jobs:
         if: >-
           env.SKIP != 'true' &&
           (github.event_name != 'workflow_dispatch' ||
-           inputs.overwrite_root_files ||
+           inputs.refresh_root_files ||
            inputs.alias == 'stable')
         run: |
           set -euo pipefail
