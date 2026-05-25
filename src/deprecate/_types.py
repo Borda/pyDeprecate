@@ -396,19 +396,19 @@ class _CallPlan:
 
     Captures the outcome of all decision-making shared between the sync and async wrappers in :func:`deprecated`: state
     mutation, kwargs assembly, warning emission, target resolution.  The wrapper consumes this struct to decide whether
-    to invoke ``source`` (with original or resolved kwargs, depending on var-positional shape) or a forwarded target
-    callable.
+    to invoke ``source`` or a forwarded target callable, and with which kwargs shape.
 
     Attributes:
-        short_circuit: ``True`` when the wrapper must call ``source(**original_kwargs)`` (no warning, no remap, no
+        short_circuit: ``True`` when the wrapper must call ``source(**resolved_kwargs)`` (no warning, no remap, no
             target lookup) — this is the "migrated caller using the new arg name" fast path before any warning logic
-            runs.  When ``True``, :attr:`resolved_kwargs` equals the kwargs after :func:`_update_kwargs_with_args` but
-            before defaults / remap / extras are applied.
+            runs.  When ``True``, :attr:`resolved_kwargs` equals the kwargs after
+            :func:`_update_kwargs_with_args`, before defaults / remap / extras are applied.
         original_kwargs: A shallow copy of the wrapper's incoming ``kwargs`` (before positional args were converted to
             keyword form).  Used by the var-positional branch when no argument-rename reason fired, so that the source
             sees its original positional/keyword shape.
-        resolved_kwargs: Final kwargs after defaults injection, ``args_mapping`` remap, and ``args_extra`` merge.  This
-            is what the target (or source, in the non-callable-target branch) should be invoked with.
+        resolved_kwargs: Final kwargs after defaults injection, ``args_mapping`` remap, and ``args_extra`` merge when
+            the normal planning path runs.  On the :attr:`short_circuit` path, this instead holds the kwargs produced
+            immediately after :func:`_update_kwargs_with_args`, and that is what the wrapper passes to ``source``.
         reason_argument: Subset of ``args_mapping`` whose old-arg names appeared in the caller's kwargs.  Non-empty
             value means the argument-rename warning fired (or was suppressed by ``num_warns`` quota).  Empty when the
             warning reason was callable-deprecation or when no rename was triggered.
