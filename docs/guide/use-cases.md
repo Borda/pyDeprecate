@@ -1051,6 +1051,80 @@ def old_range(start: int, stop: int):
 
     Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. In the current implementation, `_WrapperState.called` is incremented once per external call via the wrapper's normal dispatch path. Warning deduplication still works correctly: warnings fire at most `num_warns` times as configured.
 
+## Async
+
+`@deprecated` works on `async def` functions natively. The wrapper produced is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and callers can `await` it as expected.
+
+All three TargetModes work with async functions. The deprecation warning fires at call time (when the coroutine is created), consistent with regular function behaviour.
+
+**`TargetMode.NOTIFY` — warn and keep the async body:**
+
+```python
+import asyncio
+from deprecate import deprecated
+
+
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+async def fetch_data(url: str) -> bytes:
+    """Deprecated — no replacement yet; remove call sites."""
+    return b""
+
+
+asyncio.run(fetch_data("https://example.com"))
+```
+
+**`TargetMode.ARGS_REMAP` — rename an argument within the same async function:**
+
+```python
+import asyncio
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"endpoint": "url"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+async def fetch_data(endpoint: str = "", url: str = "") -> bytes:
+    """Deprecated argument `endpoint` renamed to `url`."""
+    return url.encode()
+
+
+asyncio.run(fetch_data(endpoint="https://example.com"))
+```
+
+**`target=<callable>` — forward to a replacement async function:**
+
+```python
+import asyncio
+from deprecate import deprecated, void
+
+
+async def download(url: str) -> bytes:
+    """New async API."""
+    return url.encode()
+
+
+@deprecated(target=download, deprecated_in="0.9", remove_in="1.0")
+async def fetch(url: str) -> bytes:
+    """Deprecated — use download() instead."""
+    return void(url)
+
+
+asyncio.run(fetch("https://example.com"))
+```
+
+!!! warning "Concurrent coroutines and warning counts"
+
+    `_WrapperState` fields (`called`, `warned_calls`, `warned_args`) are plain dataclass fields — there is no asyncio lock protecting them. If multiple coroutines share one deprecated wrapper and run concurrently, they can race on the warning counter: the same wrapper may emit more or fewer warnings than `num_warns` specifies, depending on scheduling.
+
+    This is an accepted limitation for v0.9. If exact warning counts matter (for example in tests), either run deprecated coroutines sequentially or set `num_warns=-1` to bypass the gate entirely.
+
+!!! note "Async generators are not yet supported"
+
+    Applying `@deprecated` to an `async def` function that contains `yield` (an async generator function) emits `UserWarning` at **decoration time**. The wrapper produced is sync, so `inspect.isasyncgenfunction(wrapper)` returns `False`. Full async generator support is tracked as a future enhancement.
+
 ## See also
 
 - [Customization](customization.md) — redirect deprecation output to a logger or use a custom message template

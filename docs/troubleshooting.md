@@ -721,6 +721,44 @@ The same rule applies to `@staticmethod`.
 
 ______________________________________________________________________
 
+______________________________________________________________________
+
+## Concurrent async calls and warning counts
+
+**Q:** I have multiple coroutines all calling the same deprecated `async def` wrapper concurrently. The deprecation notice only appeared once, but I expected it to fire `num_warns` times. What happened?
+
+**A:** `_WrapperState` fields — `called`, `warned_calls`, and `warned_args` — are plain Python dataclass fields with no asyncio lock. When multiple coroutines share a single deprecated wrapper and run concurrently in the same event loop, they race on the warning counter. One coroutine may read the counter, another may increment it, and the first may then emit or skip based on the stale value. The result is that fewer warnings than `num_warns` specifies may be emitted.
+
+This is an accepted limitation for v0.9 — adding an asyncio lock would change the public behaviour of synchronous wrappers and is deferred to a future release.
+
+**Workaround:** Set `num_warns=-1` to bypass the count gate entirely. With `num_warns=-1` the warning fires unconditionally on every call, so no race can suppress it.
+
+```python
+import asyncio
+from deprecate import deprecated
+
+
+async def new_fetch(url: str) -> bytes:
+    return url.encode()
+
+
+# num_warns=-1 emits the deprecation notice on every call regardless of concurrency
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0", num_warns=-1)
+async def old_fetch(url: str) -> bytes:
+    pass
+
+
+async def main():
+    urls = ["https://a.example.com", "https://b.example.com", "https://c.example.com"]
+    # All three tasks fire the deprecation notice — no race suppression possible
+    await asyncio.gather(*[old_fetch(u) for u in urls])
+
+
+asyncio.run(main())
+```
+
+If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

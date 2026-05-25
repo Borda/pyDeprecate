@@ -1,5 +1,6 @@
 pytest >=8.4.2
 pytest-cov >=7.1.0
+pytest-asyncio >=0.21  # N1-step2: async def @deprecated wrapper tests
 scikit-learn >=1.6.1
 phmdoctest >=1.4.0
 dataclasses  # needed for phmdoctest

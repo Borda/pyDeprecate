@@ -149,7 +149,7 @@ What is being deprecated?
   │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
   │      (classes are callables, but @deprecated is for functions/methods only)
   │
-  └─ A function or method (including generator functions — `def gen(): yield`)?
+  └─ A function or method (including generator functions — `def gen(): yield` — and async functions — `async def fn()`)?
        → use @deprecated; then choose target= based on the replacement:
          ├─ Has a replacement function/method?
          │    → target=<callable>; leave body empty (pass / void())
@@ -164,6 +164,9 @@ What is being deprecated?
                 (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
          Note: for generator functions the warning fires eagerly at call time (before first next()),
                not on first iteration — consistent with regular function behavior.
+         Note: for async def functions, the wrapper is async def; inspect.iscoroutinefunction(wrapper)
+               returns True. async generator functions (async def + yield) are not yet supported —
+               decoration emits UserWarning at decoration time and produces a sync wrapper.
 ```
 
 ### Enforce removal deadlines in CI
@@ -207,6 +210,8 @@ pydeprecate all src/
 - `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time.
 - `@property` with `@deprecated` in either order: warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`).
 - `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.
+- `@deprecated` on `async def` functions: the wrapper is `async def`; `inspect.iscoroutinefunction(wrapper)` returns `True`. All three TargetModes work. Warning fires at await time (call time), consistent with sync behaviour.
+- `@deprecated` on async generator functions (`async def` + `yield`): emits `UserWarning` at decoration time; the wrapper produced is sync; `inspect.isasyncgenfunction(wrapper)` returns `False`. Not yet fully supported — see Known Limitations.
 
 ## Anti-Patterns
 
@@ -216,11 +221,14 @@ pydeprecate all src/
 - Do not call the target inside a deprecated function body when `target=<callable>`.
 - Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
 - `@deprecated` works with `@classmethod` and `@staticmethod` in either order. pyDeprecate unwraps the underlying function (`.__func__`), applies the deprecation wrapper, and re-wraps the descriptor, so the method remains deprecated regardless of decorator order.
+- Do not apply `@deprecated` to async generator functions — the wrapper degrades to sync and emits `UserWarning` at decoration time. Wait for full async generator support in a future release.
 
 ## Known Limitations
 
 - `_WrapperState.called` is incremented once per deprecated wrapper invocation in the current implementation. Warning deduplication still works correctly — warnings fire at most `num_warns` times — and the stored call count reflects wrapper invocations rather than a generator-specific double increment.
 - `_WrapperState` has no thread or async locks. Concurrent calls to the same deprecated wrapper can race on the `called` counter (pre-existing limitation, identical to regular function wrappers).
+- **Async generator functions not yet supported**: `@deprecated` on `async def` functions containing `yield` emits `UserWarning` at decoration time and produces a sync wrapper. `inspect.isasyncgenfunction(wrapper)` returns `False`. Full support is planned for a future release.
+- **`_WrapperState` concurrency under async**: for `async def` wrappers, `_WrapperState` fields (`called`, `warned_calls`, `warned_args`) are plain dataclass fields with no asyncio lock. Concurrent coroutines sharing one deprecated wrapper can race on warning counts — the wrapper may emit fewer warnings than `num_warns` specifies. Set `num_warns=-1` to bypass the count gate if exact emission counts matter in tests.
 
 ## Full Context
 
