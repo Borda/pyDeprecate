@@ -1,0 +1,250 @@
+# pyDeprecate
+
+pyDeprecate is a Python deprecation decorator library for API migration. It provides warning emission, automatic call forwarding, argument remapping, class deprecation, object aliasing, and audit helpers for removal deadlines.
+
+## Package Identity
+
+- Package name: `pyDeprecate`
+- Import name: `deprecate`
+- Install: `pip install pyDeprecate`
+- Import: `from deprecate import deprecated`
+- CLI: `pydeprecate`
+- Runtime dependencies: none
+- Optional audit extra: `pip install pyDeprecate[audit]`
+- Optional CLI extra: `pip install pyDeprecate[cli]`
+
+## Critical Mental Model
+
+- If `target=<callable>` is provided, pyDeprecate forwards the call to the target. The deprecated function body is not the migration path.
+- If you only need a warning and no forwarding, omit `target` or use `TargetMode.NOTIFY`.
+- For argument rename migrations, use `TargetMode.ARGS_REMAP` and `args_mapping={"old": "new"}`.
+- For classes, use `deprecated_class`; for constants or object aliases, use `deprecated_instance`.
+- Always provide `deprecated_in`, `remove_in`, and a migration message when possible.
+
+## Copy-paste Recipes
+
+### Rename a function
+
+```python
+from deprecate import deprecated
+
+
+def new_api(value: int) -> int:
+    return value + 1
+
+
+@deprecated(
+    target=new_api,
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
+)
+def old_api(value: int) -> int:
+    raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
+```
+
+### Rename an argument
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_name": "new_name"},
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `configure` uses deprecated arguments: `old_name` -> `new_name`. They were deprecated since v1.2 and will be removed in v2.0."
+)
+def configure(*, new_name: str) -> str:
+    return new_name
+```
+
+### Warn only
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.NOTIFY,
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `legacy_hook` was deprecated since v1.2. It will be removed in v2.0."
+)
+def legacy_hook() -> None:
+    pass
+```
+
+### Deprecate a class
+
+```python
+from deprecate import deprecated_class
+
+
+class NewClient:
+    pass
+
+
+@deprecated_class(
+    target=NewClient,
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `OldClient` was deprecated since v1.2 in favor of `NewClient`. It will be removed in v2.0."
+)
+class OldClient:
+    pass
+```
+
+### Deprecate a constant or object
+
+```python
+from deprecate import deprecated_instance
+
+
+NEW_TIMEOUT = 30
+# FutureWarning on access: "The `OLD_TIMEOUT` was deprecated since v1.2. It will be removed in v2.0."
+OLD_TIMEOUT = deprecated_instance(
+    NEW_TIMEOUT,
+    deprecated_in="1.2",
+    remove_in="2.0",
+)
+```
+
+**Wrong stacking order** — `@deprecated(NOTIFY)` on top of `@deprecated(ARGS_REMAP)`:
+```python
+# WRONG — emits UserWarning at decoration time; ARGS_REMAP must be outer (on top), NOTIFY inner
+@deprecated(deprecated_in="2.0", remove_in="3.0")           # outer NOTIFY
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+
+# CORRECT — ARGS_REMAP on top, NOTIFY below; pyDeprecate warns at decoration if order is wrong
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+@deprecated(deprecated_in="2.0", remove_in="3.0")           # inner NOTIFY
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+```
+
+**N-level stacking:** any sequence of supported adjacent pairs stacks transitively (e.g., ARGS_REMAP + ARGS_REMAP + NOTIFY — three decorators). The guard inspects one hop at a time; each adjacent pair must itself be supported.
+
+
+### Decision Flowchart
+
+```
+Choose your tool first:
+
+  ├─ Python 3.13+ only, static-checker warnings, no call-forwarding or remapping?
+  │    → use `warnings.deprecated` (PEP 702 stdlib) — zero dependencies
+  │      backport: `typing_extensions.deprecated` for Python < 3.13
+  └─ Need call-forwarding, argument remapping, class/instance proxy, or CI audit?
+       → use pyDeprecate (see below)
+
+What is being deprecated?
+
+  ├─ A module-level object instance (dict, list, config object)?
+  │    → use deprecated_instance(obj, deprecated_in=..., remove_in=...)
+  │
+  ├─ A class, Enum, or dataclass?
+  │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
+  │      (classes are callables, but @deprecated is for functions/methods only)
+  │
+  └─ A function or method (including generator functions — `def gen(): yield`)?
+       → use @deprecated; then choose target= based on the replacement:
+         ├─ Has a replacement function/method?
+         │    → target=<callable>; leave body empty (pass / void())
+         │      └─ Argument names differ between old and new?
+         │           → also add args_mapping={"old_name": "new_name"}
+         ├─ Only renaming an argument within the same function?
+         │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
+         ├─ No replacement, warn-only?
+              → omit target (defaults to TargetMode.NOTIFY); keep working body
+         └─ Already deprecated (args renamed earlier) and now the whole function is going away?
+              → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
+                (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
+         Note: for generator functions the warning fires eagerly at call time (before first next()),
+               not on first iteration — consistent with regular function behavior.
+```
+
+### Enforce removal deadlines in CI
+
+```python
+from deprecate import validate_deprecation_expiry
+
+
+validate_deprecation_expiry("src", current_version="2.0")
+```
+
+CLI equivalent:
+
+```bash
+pydeprecate all src/
+```
+
+## Decision Table
+
+| Task | Use |
+|---|---|
+| Rename function | `@deprecated(target=new_func)` |
+| Rename argument | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={...})` |
+| Drop deprecated argument | `args_mapping={"old": None}` |
+| No replacement | `@deprecated(target=TargetMode.NOTIFY)` or omit `target` |
+| Class rename | `@deprecated_class(target=NewClass)` |
+| Constant/object alias | `deprecated_instance(obj, ...)` |
+| CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
+
+## Decision Flowchart
+
+1. Are you renaming a callable? Use `@deprecated(target=new_callable)`.
+2. Are you renaming or dropping arguments? Use `TargetMode.ARGS_REMAP`.
+3. Are you renaming a class? Use `deprecated_class(target=NewClass)`.
+4. Are you keeping an object alias? Use `deprecated_instance(obj, ...)`.
+5. Do you only need a warning? Use `TargetMode.NOTIFY` or omit `target`.
+6. Do you need removal governance? Add audit checks in CI.
+
+## Agent Notes
+
+- `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time.
+- `@property` with `@deprecated` in either order: warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`).
+- `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.
+
+## Anti-Patterns
+
+- Do not import `pydeprecate`; import `deprecate`.
+- Do not use `target=None`; use `TargetMode.NOTIFY` or omit `target`.
+- Do not use `target=True`; use `TargetMode.ARGS_REMAP`.
+- Do not call the target inside a deprecated function body when `target=<callable>`.
+- Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
+- `@deprecated` works with `@classmethod` and `@staticmethod` in either order. pyDeprecate unwraps the underlying function (`.__func__`), applies the deprecation wrapper, and re-wraps the descriptor, so the method remains deprecated regardless of decorator order.
+
+## Known Limitations
+
+- `_WrapperState.called` is incremented once per deprecated wrapper invocation in the current implementation. Warning deduplication still works correctly — warnings fire at most `num_warns` times — and the stored call count reflects wrapper invocations rather than a generator-specific double increment.
+- `_WrapperState` has no thread or async locks. Concurrent calls to the same deprecated wrapper can race on the `called` counter (pre-existing limitation, identical to regular function wrappers).
+
+## Full Context
+
+- [Full agent context](https://borda.github.io/pyDeprecate/llms-full.txt): compact full-context guide for coding agents.
+
+## Important Docs
+
+- [Getting Started](https://borda.github.io/pyDeprecate/stable/getting-started.html)
+- [Use Cases](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
+- [Python deprecation decorator](https://borda.github.io/pyDeprecate/stable/getting-started.html)
+- [Replace warnings.warn](https://borda.github.io/pyDeprecate/stable/guide/migration.html)
+- [Deprecate arguments](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
+- [API migration CI](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
+- [Agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html)
+- [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
+- [Compare Python deprecation tools](https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html)
+- [Audit tools](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
+- [CLI](https://borda.github.io/pyDeprecate/stable/guide/cli.html)
+- [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html)
+
+## Markdown Mirrors
+
+- [Getting Started Markdown](https://borda.github.io/pyDeprecate/stable/getting-started.html.md)
+- [Use Cases Markdown](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html.md)
+- [Audit Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit.html.md)
+- [CLI Markdown](https://borda.github.io/pyDeprecate/stable/guide/cli.html.md)
+- [Migration Markdown](https://borda.github.io/pyDeprecate/stable/guide/migration.html.md)
