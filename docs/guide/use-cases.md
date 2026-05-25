@@ -918,6 +918,8 @@ class ApiClient:
 
 Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod(deprecated_wrapper)` respectively. The deprecation `FutureWarning` fires at call time regardless of which order the decorators were applied.
 
+When `@deprecated` is applied **outside** `@classmethod` (outer-first order), pyDeprecate silently rescues the misordered stack at decoration time: it unwraps the descriptor, applies the deprecation wrapper to the underlying function, and re-wraps the result. No `UserWarning` is emitted and the runtime outcome is identical to the preferred order. See [Troubleshooting](../troubleshooting.md#warning-fires-or-userwarning-appears-when-using-deprecated-classmethod) for the full explanation.
+
 !!! tip "Prefer `@classmethod @deprecated` (deprecated closer to `def`)"
 
     The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.
@@ -1012,7 +1014,7 @@ def old_pipeline(items):
         yield item.strip()
 ```
 
-Warning fires at call time. The generator body runs normally during iteration.
+Warning fires at call time (when the generator object is created), before any iteration. Unlike regular functions where the body runs immediately after the warning, the generator body executes lazily as the caller iterates.
 
 **`TargetMode.ARGS_REMAP` — rename an argument within the same generator:**
 

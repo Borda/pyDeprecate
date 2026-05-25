@@ -680,6 +680,22 @@ print(list(gen))  # [10, 11, 12]
 
 ______________________________________________________________________
 
+## I applied `@deprecated` to an `async def` function and `await` broke
+
+**Q:** I decorated an async function with `@deprecated` and now callers get a `TypeError` when they try to `await` it, or the function returns immediately without running. What happened?
+
+**A:** `@deprecated` does not support `async def` coroutines or `async def ... yield` async generators in v0.9.0. When you apply it to an `async def` function, the decorator wraps it in a synchronous `wrapped_fn`. Callers who `await wrapped_fn(...)` are actually awaiting the *return value* of the wrapper (a coroutine object treated as a plain value), not running the underlying async function — this silently breaks the `await` contract.
+
+
+
+If you need to emit a deprecation warning from an async function before the body runs, issue it manually inside the function body:
+
+
+
+Async generator support (`async def ... yield`) is also not supported for the same reason and is deferred to a future release.
+
+______________________________________________________________________
+
 ## Warning fires or UserWarning appears when using `@deprecated @classmethod`
 
 **Q:** I applied `@deprecated` on top of `@classmethod` (decorator order: `@deprecated` outermost, `@classmethod` innermost). Does this work?
