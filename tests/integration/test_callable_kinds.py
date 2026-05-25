@@ -41,6 +41,11 @@ def _reset_gen_state() -> None:
     would see no warning.  Only ``warned_calls`` and ``warned_args`` are cleared — ``called`` and
     ``warned_misconfigured`` are left intact.
 
+    Isolation note: this fixture is only safe because no other test module imports and calls these same wrappers
+    directly.  If another file calls ``gen_notify`` / ``gen_args_remap`` / ``gen_callable`` without going through
+    this fixture, state will leak across test files.  Long-term fix: use a factory function returning a fresh
+    wrapper per test instead of resetting shared singletons.
+
     """
     for wrapper in (gen_notify, gen_args_remap, gen_callable, gen_notify_unlimited):
         state = cast(_DeprecatedCallable, wrapper)._state
@@ -104,11 +109,12 @@ def test_generator_num_warns_unlimited_warns_every_call() -> None:
     assert len(dep_warns) == 2, f"Expected 2 warnings total (one per call), got {len(dep_warns)}"
 
 
-def test_generator_warning_stacklevel() -> None:
+@pytest.mark.parametrize(("wrapper", "call_kwargs"), _WRAPPER_CASES)
+def test_generator_warning_stacklevel(wrapper: object, call_kwargs: dict) -> None:
     """Generator wrapper warning filename points to the caller's file, not to ``deprecation.py``."""
     with warnings.catch_warnings(record=True) as warned:
         warnings.simplefilter("always")
-        gen_notify(x=1)
+        wrapper(**call_kwargs)  # type: ignore[operator]
     assert warned
     w = warned[0]
     assert w.filename.endswith("test_callable_kinds.py"), f"Expected caller file, got {w.filename}"

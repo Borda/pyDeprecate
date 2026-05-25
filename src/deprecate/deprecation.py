@@ -33,6 +33,8 @@ from deprecate.docstring.inject import _update_docstring_with_deprecation, norma
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 _V1_BREAK_VERSION = "v1.0"
+# caller → wrapped_fn → _dispatch → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
+_DEFAULT_STACKLEVEL_TO_CALLER: int = 5
 
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -469,7 +471,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
     return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
-def _raise_warn(stream: Callable, source: Callable, template_mgs: str, stacklevel: int = 5, **extras: str) -> None:
+def _raise_warn(stream: Callable, source: Callable, template_mgs: str, stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER, **extras: str) -> None:
     """Issue a deprecation warning using the specified stream and message template.
 
     This is the core warning issuer that formats and emits deprecation warnings.  It extracts source function metadata
@@ -502,16 +504,12 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, stackleve
     source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
+    msg = template_mgs % msg_args
     try:
-        params = inspect.signature(stream).parameters
-        _supports_stacklevel = "stacklevel" in params or any(p.kind == Parameter.VAR_KEYWORD for p in params.values())
-    except (ValueError, TypeError):
-        # Builtins (e.g. print) may have no introspectable signature.
-        _supports_stacklevel = False
-    if _supports_stacklevel:
-        stream(template_mgs % msg_args, stacklevel=stacklevel)
-    else:
-        stream(template_mgs % msg_args)
+        stream(msg, stacklevel=stacklevel)
+    except TypeError:
+        # stream does not accept stacklevel (e.g. print, logging.warning, custom callables).
+        stream(msg)
 
 
 def _source_display_name(source: Callable) -> str:
@@ -526,7 +524,7 @@ def _raise_warn_callable(
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
-    stacklevel: int = 5,
+    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
 
@@ -596,7 +594,7 @@ def _raise_warn_arguments(
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
-    stacklevel: int = 5,
+    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
 
@@ -663,6 +661,11 @@ def deprecated(
 
     This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement
     implementation.  It supports argument mapping, custom warning messages, and flexible warning control.
+
+    For **generator functions** (``def gen(): yield``), the deprecation warning fires at call time — when the
+    generator object is created — not at first iteration. The generator body executes lazily as normal when iterated.
+    Async generators (``async def ... yield``) are not supported in v0.9.0; applying this decorator to an
+    ``async def`` function creates a sync wrapper that silently breaks awaiting callers.
 
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
@@ -900,7 +903,31 @@ def deprecated(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
 
-        # Extracted so async/async-gen variants (PR2) share the same body; wrapped_fn is now a per-kind facade.
+        # Enum-normalised target stored so audit does not re-derive from raw sentinel.
+        # Class targets kept verbatim: the class→__init__ remap is call-time only;
+        # audit and docstring consumers expect the user-facing class, not __init__.
+        if target is None or isinstance(target, bool):
+            stored_target: Any = TargetMode._from_legacy(target, stacklevel=None)
+        elif isinstance(target, TargetMode):
+            stored_target = target
+        else:
+            stored_target = target
+        misconfigured = target is False or _function_misconfigured
+        dep_meta = DeprecationConfig(
+            deprecated_in=deprecated_in,
+            remove_in=remove_in,
+            name=source.__name__,
+            target=stored_target,
+            args_mapping=args_mapping,
+            args_extra=args_extra,
+            misconfigured=misconfigured,
+            docstring_style=normalized_docstring_style,
+        )
+        # Bound here so _dispatch reads a fully-populated name at call time; moving this
+        # assignment before _dispatch eliminates the prior late-binding ordering hazard.
+        _dep_cfg = dep_meta
+
+        # Extracted so PR2 can introduce a parallel _async_dispatch (not shared body — async def cannot reuse sync dispatch); wrapped_fn is now a per-kind facade.
         def _dispatch(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
@@ -952,11 +979,11 @@ def deprecated(
                 if reason_callable:
                     # Use original `target` (not remapped _target) so the warning
                     # names the class (e.g. "NewCls") rather than "__init__".
-                    _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs, stacklevel=5)
+                    _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER)
                     state.warned_calls += 1
                 elif reason_argument:
                     _raise_warn_arguments(
-                        stream, source, reason_argument, deprecated_in, remove_in, template_mgs, stacklevel=5
+                        stream, source, reason_argument, deprecated_in, remove_in, template_mgs, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER
                     )
                     for arg in reason_argument:
                         state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
@@ -1007,32 +1034,6 @@ def deprecated(
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             return _dispatch(*args, **kwargs)
 
-        # Enum-normalised target stored so audit does not re-derive from raw sentinel.
-        # Class targets kept verbatim: the class→__init__ remap is call-time only;
-        # audit and docstring consumers expect the user-facing class, not __init__.
-        if target is None or isinstance(target, bool):
-            stored_target: Any = TargetMode._from_legacy(target, stacklevel=None)
-        elif isinstance(target, TargetMode):
-            stored_target = target
-        else:
-            stored_target = target
-        misconfigured = target is False or _function_misconfigured
-        dep_meta = DeprecationConfig(
-            deprecated_in=deprecated_in,
-            remove_in=remove_in,
-            name=source.__name__,
-            target=stored_target,
-            args_mapping=args_mapping,
-            args_extra=args_extra,
-            misconfigured=misconfigured,
-            docstring_style=normalized_docstring_style,
-        )
-        # Bind ``DeprecationConfig`` into the wrapper closure so call-time reads
-        # survive PEP 702 ``typing_extensions.deprecated`` stacked outside this
-        # decorator overwriting ``wrapped_fn.__deprecated__`` with a string.
-        # ``wrapped_fn`` already captured this name from the enclosing scope via
-        # the late-binding closure rule; the assignment here is what populates it.
-        _dep_cfg = dep_meta
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta
         wrapped_fn_typed._state = _WrapperState()
