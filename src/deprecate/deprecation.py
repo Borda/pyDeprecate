@@ -471,7 +471,13 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
     return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
-def _raise_warn(stream: Callable, source: Callable, template_mgs: str, stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER, **extras: str) -> None:
+def _raise_warn(
+    stream: Callable,
+    source: Callable,
+    template_mgs: str,
+    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
+    **extras: str,
+) -> None:
     """Issue a deprecation warning using the specified stream and message template.
 
     This is the core warning issuer that formats and emits deprecation warnings.  It extracts source function metadata
@@ -927,7 +933,8 @@ def deprecated(
         # assignment before _dispatch eliminates the prior late-binding ordering hazard.
         _dep_cfg = dep_meta
 
-        # Extracted so PR2 can introduce a parallel _async_dispatch (not shared body — async def cannot reuse sync dispatch); wrapped_fn is now a per-kind facade.
+        # Extracted so PR2 can introduce a parallel _async_dispatch (not shared body —
+        # async def cannot reuse sync dispatch); wrapped_fn is now a per-kind facade.
         def _dispatch(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
@@ -948,7 +955,7 @@ def deprecated(
                     f"'{source.__name__}' has an invalid deprecation configuration;"
                     f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_V1_BREAK_VERSION}.",
                     UserWarning,
-                    stacklevel=2,
+                    stacklevel=3,  # caller → wrapped_fn → _dispatch → warn
                 )
                 state.warned_misconfigured = True
             # *args sources need the unremapped tuple; remapping happens on kwargs only.
@@ -979,11 +986,25 @@ def deprecated(
                 if reason_callable:
                     # Use original `target` (not remapped _target) so the warning
                     # names the class (e.g. "NewCls") rather than "__init__".
-                    _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER)
+                    _raise_warn_callable(
+                        stream,
+                        source,
+                        target,
+                        deprecated_in,
+                        remove_in,
+                        template_mgs,
+                        stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER,
+                    )
                     state.warned_calls += 1
                 elif reason_argument:
                     _raise_warn_arguments(
-                        stream, source, reason_argument, deprecated_in, remove_in, template_mgs, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER
+                        stream,
+                        source,
+                        reason_argument,
+                        deprecated_in,
+                        remove_in,
+                        template_mgs,
+                        stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER,
                     )
                     for arg in reason_argument:
                         state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
