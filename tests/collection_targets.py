@@ -7,6 +7,7 @@ This module provides base functions that are used as targets for deprecated func
 import functools
 import time
 import warnings
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
@@ -309,3 +310,13 @@ class TimerDecorator:
 def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
     """Compute base raised to scale; factor is the legacy parameter name for scale."""
     return base**scale
+
+
+def gen_target(x: int) -> Iterator[int]:
+    """Generator that yields multiples of x (1×, 2×, 3×).
+
+    Used by the generator wrapper integration tests for the ``@deprecated`` decorator.
+
+    """
+    for i in range(1, 4):
+        yield x * i

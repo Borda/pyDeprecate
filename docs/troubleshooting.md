@@ -639,6 +639,88 @@ def my_func(old: int = 0, new: int = 0) -> int:
 
 ______________________________________________________________________
 
+## My deprecated generator fires the warning before I iterate it
+
+**Q:** My generator function is decorated with `@deprecated`. The deprecation warning fires as soon as I call the function — before I even call `next()` or iterate over it. Is this a bug?
+
+**A:** No — this is the intended behavior. pyDeprecate uses an eager factory pattern for generator wrappers: the warning fires at call time, consistent with how deprecated regular functions behave.
+
+When you call a deprecated generator function, you get the deprecation notice immediately at the call site — the same place you would see it for a deprecated regular function. You can then pass the generator around, iterate it later, or hand it to another function, and the warning is already recorded.
+
+```python
+from deprecate import deprecated, void
+
+
+def generate_ids(start: int, count: int):
+    for i in range(count):
+        yield start + i
+
+
+@deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
+def iter_ids(start: int, count: int):
+    return void(start, count)
+
+
+# Warning fires here — at call time
+gen = iter_ids(10, 3)
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+
+# Iteration is normal — warning already fired above
+print(list(gen))  # [10, 11, 12]
+```
+
+<details>
+  <summary>Output: <code>print(list(gen))</code></summary>
+
+```
+[10, 11, 12]
+```
+
+</details>
+
+______________________________________________________________________
+
+## Warning fires or UserWarning appears when using `@deprecated @classmethod`
+
+**Q:** I applied `@deprecated` on top of `@classmethod` (decorator order: `@deprecated` outermost, `@classmethod` innermost). Does this work?
+
+**A:** Yes — pyDeprecate silently rescues the misordered stack at decoration time. When you write:
+
+```python
+from deprecate import deprecated
+
+
+class Foo:
+    # Works — @deprecated outside @classmethod is transparently rescued
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @classmethod
+    def old_method(cls, x): ...
+```
+
+`@deprecated` detects that it received a `classmethod` descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in `classmethod`. The outcome is a fully working deprecated classmethod: no `UserWarning` at decoration time, and a `FutureWarning` fires when the method is called.
+
+The preferred order is still `@classmethod` outermost with `@deprecated` applied closer to `def` — it is explicit and avoids the silent rescue:
+
+```python
+from deprecate import deprecated
+
+
+def new_impl(cls, x):
+    return x * 2
+
+
+class Foo:
+    # Preferred — @deprecated applied to the raw function, @classmethod wraps the result
+    @classmethod
+    @deprecated(target=new_impl, deprecated_in="1.0", remove_in="2.0")
+    def old_method(cls, x):
+        pass
+```
+
+The same rule applies to `@staticmethod`.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"
