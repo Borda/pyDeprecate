@@ -33,8 +33,8 @@ from deprecate.docstring.inject import _update_docstring_with_deprecation, norma
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 _V1_BREAK_VERSION = "v1.0"
-# caller → wrapped_fn → _dispatch → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
-_DEFAULT_STACKLEVEL_TO_CALLER: int = 5
+# caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
+_DEFAULT_STACKLEVEL_TO_CALLER: int = 4
 
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -487,8 +487,8 @@ def _raise_warn(
         stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
         source: The deprecated function/method being wrapped.
         template_mgs: Python format string with placeholders for message variables.
-        stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 5 accounts for
-            the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → _dispatch → wrapped_fn → caller`` chain.
+        stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 4 accounts for
+            the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → wrapped_fn → caller`` chain.
         **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
 
     Note:
@@ -549,7 +549,7 @@ def _raise_warn_callable(
         remove_in: Version when the source will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
             callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
-        stacklevel: Passed through to :func:`_raise_warn`; default 5 points to the user's call site.
+        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -615,7 +615,7 @@ def _raise_warn_arguments(
         deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses default template.
-        stacklevel: Passed through to :func:`_raise_warn`; default 5 points to the user's call site.
+        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
 
     Template Variables Available:
         - source_name: Function name (e.g., "my_func")
@@ -929,13 +929,10 @@ def deprecated(
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
         )
-        # Bound here so _dispatch reads a fully-populated name at call time; moving this
-        # assignment before _dispatch eliminates the prior late-binding ordering hazard.
         _dep_cfg = dep_meta
 
-        # Extracted so PR2 can introduce a parallel _async_dispatch (not shared body —
-        # async def cannot reuse sync dispatch); wrapped_fn is now a per-kind facade.
-        def _dispatch(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        @wraps(source)
+        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
             if not isinstance(shall_skip, bool):
                 raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
@@ -955,7 +952,7 @@ def deprecated(
                     f"'{source.__name__}' has an invalid deprecation configuration;"
                     f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_V1_BREAK_VERSION}.",
                     UserWarning,
-                    stacklevel=3,  # caller → wrapped_fn → _dispatch → warn
+                    stacklevel=2,  # caller → wrapped_fn → warn
                 )
                 state.warned_misconfigured = True
             # *args sources need the unremapped tuple; remapping happens on kwargs only.
@@ -1051,9 +1048,6 @@ def deprecated(
             target_func = _prepare_target_call(source, _target, kwargs)
             return target_func(**kwargs)
 
-        @wraps(source)
-        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            return _dispatch(*args, **kwargs)
 
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta
