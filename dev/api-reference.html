@@ -1736,6 +1736,8 @@
         <p>Decorate a function/method with warning message and forward calls to target.</p>
 <p>This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement
 implementation.  It supports argument mapping, custom warning messages, and flexible warning control.</p>
+<p>For <strong>generator functions</strong> (<code>def gen(): yield</code>), the deprecation warning fires at call time — when the
+generator object is created — not at first iteration. The generator body executes lazily as normal when iterated.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>

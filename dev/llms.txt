@@ -149,7 +149,7 @@ What is being deprecated?
   │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
   │      (classes are callables, but @deprecated is for functions/methods only)
   │
-  └─ A function or method?
+  └─ A function or method (including generator functions — `def gen(): yield`)?
        → use @deprecated; then choose target= based on the replacement:
          ├─ Has a replacement function/method?
          │    → target=<callable>; leave body empty (pass / void())
@@ -162,6 +162,8 @@ What is being deprecated?
          └─ Already deprecated (args renamed earlier) and now the whole function is going away?
               → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
                 (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
+         Note: for generator functions the warning fires eagerly at call time (before first next()),
+               not on first iteration — consistent with regular function behavior.
 ```
 
 ### Enforce removal deadlines in CI
@@ -213,6 +215,12 @@ pydeprecate all src/
 - Do not use `target=True`; use `TargetMode.ARGS_REMAP`.
 - Do not call the target inside a deprecated function body when `target=<callable>`.
 - Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
+- `@deprecated` works with `@classmethod` and `@staticmethod` in either order. pyDeprecate unwraps the underlying function (`.__func__`), applies the deprecation wrapper, and re-wraps the descriptor, so the method remains deprecated regardless of decorator order.
+
+## Known Limitations
+
+- `_WrapperState.called` is incremented once per deprecated wrapper invocation in the current implementation. Warning deduplication still works correctly — warnings fire at most `num_warns` times — and the stored call count reflects wrapper invocations rather than a generator-specific double increment.
+- `_WrapperState` has no thread or async locks. Concurrent calls to the same deprecated wrapper can race on the `called` counter (pre-existing limitation, identical to regular function wrappers).
 
 ## Full Context
 

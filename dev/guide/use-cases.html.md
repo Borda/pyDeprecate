@@ -1,6 +1,6 @@
 ---
 id: use-cases
-description: Thirteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
+description: Fourteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
 ---
 
 # Use Cases
@@ -16,7 +16,13 @@ The two most common reasons to deprecate something are renaming a function and r
     Do **not** call the target from inside the body:
 
     ```python
-    # phmdoctest:skip
+    from deprecate import deprecated, void
+
+
+    def new_func(x: int) -> int:
+        return x * 2
+
+
     # WRONG — new_func(x) is never reached; the decorator forwards before the body runs
     @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
     def old_func(x: int) -> int:
@@ -957,6 +963,93 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
 !!! tip "Prefer `@property @deprecated` (deprecated closer to `def`)"
 
     The inner-first order is the conventional Python style. Follow this pattern for consistency if your team has no existing convention.
+
+## Deprecating generator functions
+
+Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you **call** the generator function, not when you first iterate the result.
+
+This is the right behavior. It keeps generator deprecations consistent with regular function deprecations. If the warning fired on the first `next()` call instead, you could easily miss it: someone might call the generator, pass it around, and iterate it elsewhere — the warning would appear far from the actual deprecated call site.
+
+```python
+from deprecate import deprecated, void
+
+
+# NEW/FUTURE API — new name, same semantics
+def generate_ids(start: int, count: int):
+    """Yield `count` sequential IDs starting from `start`."""
+    for i in range(count):
+        yield start + i
+
+
+# DEPRECATED API — `iter_ids` was the old name before the rename
+@deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
+def iter_ids(start: int, count: int):
+    """Deprecated — use generate_ids() instead."""
+    return void(start, count)
+
+
+# The warning fires here — at call time, before any iteration
+gen = iter_ids(10, 3)
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+#                It will be removed in v1.0.
+
+# Iteration proceeds normally — you already got the warning
+print(list(gen))  # [10, 11, 12]
+```
+
+All three TargetModes work with generator functions:
+
+**`TargetMode.NOTIFY` — warn and keep the generator body:**
+
+```python
+from deprecate import deprecated
+
+
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+def old_pipeline(items):
+    """This generator is going away; no replacement yet."""
+    for item in items:
+        yield item.strip()
+```
+
+Warning fires at call time (when the generator object is created), before any iteration. Unlike regular functions where the body runs immediately after the warning, the generator body executes lazily as the caller iterates.
+
+**`TargetMode.ARGS_REMAP` — rename an argument within the same generator:**
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"n": "count"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+def repeat_value(value: int, n: int = 0, count: int = 0):
+    """Deprecated argument `n` renamed to `count`."""
+    for _ in range(count):
+        yield value
+```
+
+**`target=<callable>` — forward to a replacement generator:**
+
+```python
+from deprecate import deprecated, void
+
+
+def new_range(start: int, stop: int):
+    yield from range(start, stop)
+
+
+@deprecated(target=new_range, deprecated_in="0.9", remove_in="1.0")
+def old_range(start: int, stop: int):
+    return void(start, stop)
+```
+
+!!! note "Warning deduplication and the generator factory pattern"
+
+    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. In the current implementation, `_WrapperState.called` is incremented once per external call via the wrapper's normal dispatch path. Warning deduplication still works correctly: warnings fire at most `num_warns` times as configured.
 
 ## See also
 
