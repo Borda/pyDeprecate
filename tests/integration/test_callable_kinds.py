@@ -4,9 +4,9 @@ Covers four concerns:
 
 - Round-trip equivalence under all three :class:`~deprecate.TargetMode` variants (NOTIFY, ARGS_REMAP, callable) for
   both sync generators (``yield``) and ``async def`` coroutines (N1-step2).
-- Eager warning timing — for generators the warning fires when the generator object is created (before first
-  :func:`next` call); for coroutines it fires when the coroutine is *created* (before ``await``).  Both kinds run
-  the warning synchronously inside ``wrapped_fn`` before returning the generator/coroutine.
+- Warning timing — for generators the warning fires when the generator object is created (before first
+  :func:`next` call); for coroutines it fires when the coroutine is awaited, not when the coroutine object is
+  created.
 - Stacklevel — the warning must point to the user's call site, not to ``deprecation.py``.
 Also covers order-agnostic classmethod rescue: ``@deprecated`` applied OUTSIDE ``@classmethod`` is silently rescued
 at decoration time via transparent unwrap + rewrap, producing a working deprecated classmethod descriptor without
