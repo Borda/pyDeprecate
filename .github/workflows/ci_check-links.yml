@@ -49,5 +49,5 @@ jobs:
             --exclude file://.*demo-sphinx.*
             --exclude file://.*demo-mkdocs.*
             --exclude '^https[:]//borda[/]$'
-            --exclude '[hH]ttps://github\.com/\$'
+            --exclude '[hH]ttps://github\.com/\$\{\{[^}]+\}\}(\.git)?$'
           fail: true
