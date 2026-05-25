@@ -749,7 +749,9 @@ def _build_call_plan(
         nb_warned = state.warned_calls
 
     # +1 stacklevel: extraction added one frame (caller → wrapper_fn → _build_call_plan → _raise_warn_*)
-    # over the previous in-wrapper call chain.
+    # over the previous in-wrapper call chain.  Async path has the same frame depth:
+    # caller → coroutine `async_wrapped_fn` body → _build_call_plan → _raise_warn_* — the asyncio runner
+    # frames sit *below* the caller and are skipped by warnings.warn's stacklevel walk.
     _stacklevel_to_caller = _DEFAULT_STACKLEVEL_TO_CALLER + 1
     if stream and (num_warns < 0 or nb_warned < num_warns):
         if reason_callable:

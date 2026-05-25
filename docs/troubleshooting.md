@@ -759,6 +759,72 @@ asyncio.run(main())
 
 If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
 
+## I wrapped a `functools.partial` of an `async def` and the wrapper is not async
+
+**Q:** I applied `@deprecated` to a `functools.partial` of an `async def` function, but the resulting wrapper is synchronous — `inspect.iscoroutinefunction(wrapper)` returns `False` and `await wrapper(...)` raises a `TypeError`. What is happening?
+
+**A:** On Python 3.9–3.11, `inspect.iscoroutinefunction(functools.partial(async_fn))` returns `False` — the `partial` object does not propagate the coroutine flag of its wrapped callable. pyDeprecate's async branch in `packing()` checks `inspect.iscoroutinefunction(source)` to decide whether to produce an `async def` wrapper, so wrapping a `partial` of an `async def` falls through to the sync wrapper path and yields a regular function instead of a coroutine function.
+
+**Workaround:** Apply `@deprecated` to the `async def` directly, then use `functools.partial` on the already-deprecated async wrapper if you need preset arguments.
+
+```python
+import asyncio
+import functools
+from deprecate import deprecated
+
+
+async def new_fetch(url: str, timeout: int = 30) -> bytes:
+    return url.encode()
+
+
+# Correct: apply @deprecated to the async def directly
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0")
+async def old_fetch(url: str, timeout: int = 30) -> bytes:
+    pass
+
+
+# Then use partial on the already-deprecated async wrapper if needed
+fetch_with_timeout = functools.partial(old_fetch, timeout=10)
+asyncio.run(old_fetch("https://example.com"))
+```
+
+This limitation is resolved in Python 3.12+ where `inspect.iscoroutinefunction` correctly handles `functools.partial` objects whose underlying callable is an `async def`.
+
+______________________________________________________________________
+
+## A non-async decorator applied over my `@deprecated` async wrapper no longer looks like a coroutine
+
+**Q:** I have `@my_decorator @deprecated(...) async def fn(...)`. After decoration, `inspect.iscoroutinefunction(fn)` returns `False` and asyncio frameworks (FastAPI route handlers, `asyncio.create_task`) reject it. Why?
+
+**A:** When you wrap a `@deprecated async def` with a sync decorator — one that returns a sync `wrapper(*args, **kwargs)` via `functools.wraps` — the result is a sync callable. `inspect.iscoroutinefunction` inspects the outermost callable's `CO_COROUTINE` flag, not the wrapped function, so the coroutine nature is lost the moment a sync wrapper is placed on top.
+
+**Solution:** Make any outer decorator that may be applied over an async wrapper coroutine-aware. Inspect the wrapped callable and emit either an `async def` or a sync wrapper accordingly.
+
+```python
+import functools
+import inspect
+
+
+def my_decorator(fn):
+    if inspect.iscoroutinefunction(fn):
+
+        @functools.wraps(fn)
+        async def async_wrapper(*args, **kwargs):
+            return await fn(*args, **kwargs)
+
+        return async_wrapper
+
+    @functools.wraps(fn)
+    def sync_wrapper(*args, **kwargs):
+        return fn(*args, **kwargs)
+
+    return sync_wrapper
+```
+
+With this pattern, stacking `@my_decorator` above `@deprecated` on an `async def` produces an `async def` wrapper whose `inspect.iscoroutinefunction(...)` returns `True`.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

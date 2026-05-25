@@ -320,3 +320,15 @@ def gen_target(x: int) -> Iterator[int]:
     """
     for i in range(1, 4):
         yield x * i
+
+
+async def async_target(x: int) -> int:
+    """Replacement async function used by ``async_callable`` deprecation wrapper tests.
+
+    Examples:
+        >>> import asyncio
+        >>> asyncio.run(async_target(x=3))
+        6
+
+    """
+    return x * 2

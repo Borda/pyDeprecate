@@ -1055,7 +1055,7 @@ def old_range(start: int, stop: int):
 
 `@deprecated` works on `async def` functions natively. The wrapper produced is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and callers can `await` it as expected.
 
-All three TargetModes work with async functions. The deprecation warning fires at call time (when the coroutine is created), consistent with regular function behaviour.
+All three TargetModes work with async functions. The deprecation warning fires when the coroutine is awaited — not when it is created by calling the wrapper — because the warning logic runs inside the `async def` body. This differs from sync and generator wrappers where the warning fires eagerly at call time.
 
 **`TargetMode.NOTIFY` — warn and keep the async body:**
 
@@ -1121,9 +1121,9 @@ asyncio.run(fetch("https://example.com"))
 
     This is an accepted limitation for v0.9. If exact warning counts matter (for example in tests), either run deprecated coroutines sequentially or set `num_warns=-1` to bypass the gate entirely.
 
-!!! note "Async generators are not yet supported"
+!!! warning "Async generator functions are not supported"
 
-    Applying `@deprecated` to an `async def` function that contains `yield` (an async generator function) emits `UserWarning` at **decoration time**. The wrapper produced is sync, so `inspect.isasyncgenfunction(wrapper)` returns `False`. Full async generator support is tracked as a future enhancement.
+    Do not apply `@deprecated` to `async def` functions that contain `yield` (async generator functions). pyDeprecate does not detect async generators at decoration time — the wrapper is created as a regular sync function (`inspect.iscoroutinefunction` returns `False` for async generators), so the regular sync wrapper path is used and calling the result will not behave as expected. Full async generator support is planned for a future release.
 
 ## See also
 

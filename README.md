@@ -44,6 +44,7 @@ ______________________________________________________________________
   - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
   - [Automatic docstring updates](#automatic-docstring-updates)
   - [Injecting new required arguments](#injecting-new-required-arguments)
+  - [Async functions](#-async-functions)
 - [🔇 Understanding the void() Helper](#understanding-the-void-helper)
 - [🔍 Audit](#audit)
   - [Validating Wrapper Configuration](#validating-wrapper-configuration)
@@ -68,7 +69,7 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🔄 Arguments are automatically mapped to the target function
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
-- 🛠️ Supports deprecating callables: functions, methods, class constructors, and **generator functions** (`def gen(): yield`) — warning fires eagerly at call time, before iteration begins
+- 🛠️ Supports deprecating callables: functions, methods, class constructors, **generator functions** (`def gen(): yield` — warning fires eagerly at call time, before iteration begins), and **`async def` coroutine functions** (wrapper is `async def`, `inspect.iscoroutinefunction(wrapper)` returns `True`; warning fires when the coroutine is awaited)
 - 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class` for types; `deprecated_instance` for objects, with optional read-only enforcement — blocks standard collection mutators: `append`, `pop`, `update`, `clear`, etc.; custom mutator names bypass this guard)
 - 📝 Optionally, docstrings can be updated automatically in RST/Sphinx or MkDocs/Markdown format (auto-detected); ships bundled Griffe and Sphinx doc-engine extensions
 - 🔍 Preserves original function signature, annotations and metadata for introspection
@@ -1020,6 +1021,57 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 > [!NOTE]
 > `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is ignored and a construction-time `UserWarning` is emitted by validation.
+
+### 🌀 Async functions
+
+`@deprecated` works natively on `async def` functions. The resulting wrapper is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and asyncio frameworks (FastAPI, `asyncio.run`, `asyncio.gather`) recognise it. All three `TargetMode` variants work; the deprecation warning fires when the coroutine is awaited, not when the wrapper is called.
+
+```python
+import asyncio
+from deprecate import TargetMode, deprecated, void
+
+
+# NEW/FUTURE API
+async def download(url: str) -> bytes:
+    return url.encode()
+
+
+# 1) target=<callable> — forward to a replacement async function
+@deprecated(target=download, deprecated_in="0.9", remove_in="1.0")
+async def fetch(url: str) -> bytes:
+    """Deprecated — use download() instead."""
+    return void(url)
+
+
+# 2) TargetMode.NOTIFY — warn callers; the async body still runs
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+async def legacy_ping() -> str:
+    """Deprecated — going away; remove call sites."""
+    return "pong"
+
+
+# 3) TargetMode.ARGS_REMAP — rename an argument within the same async function
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"endpoint": "url"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+async def fetch_data(endpoint: str = "", url: str = "") -> bytes:
+    """Deprecated argument `endpoint` renamed to `url`."""
+    return url.encode()
+
+
+asyncio.run(fetch("https://example.com"))
+asyncio.run(legacy_ping())
+asyncio.run(fetch_data(endpoint="https://example.com"))
+```
+
+> [!WARNING]
+> Do not apply `@deprecated` to **async generator functions** (`async def` + `yield`). These are not detected at decoration time and the wrapper will not behave correctly. Full async generator support is planned for a future release.
+
+> [!NOTE]
+> `_WrapperState` fields are plain dataclass fields with no asyncio lock — concurrent coroutines sharing one deprecated wrapper can race on warning counts. Set `num_warns=-1` to bypass the count gate in tests that assert exact emission counts.
 
 ## 🔇 Understanding the `void()` Helper
 

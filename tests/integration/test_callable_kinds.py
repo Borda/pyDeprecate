@@ -196,21 +196,24 @@ async def test_async_round_trip(wrapper: object, call_kwargs: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_warning_fires_eagerly() -> None:
-    """Warning fires when the coroutine is created (before ``await``), not when it is awaited.
+async def test_async_warning_fires_on_await_not_on_call() -> None:
+    """Warning fires when coroutine is awaited, not when the wrapper is called.
 
-    The wrapper is itself an ``async def`` — calling it returns an un-awaited coroutine.  pyDeprecate's wrapper
-    body emits the warning synchronously on the first statement of the coroutine, so the warning is observable
-    immediately after ``await`` resumes but never deferred behind any I/O the wrapped coroutine may perform.
+    The async wrapper body runs lazily — calling the wrapper creates an unawaited coroutine
+    with no side effects. The deprecation warning fires on the first ``await``.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
+    with warnings.catch_warnings(record=True) as warned_before:
         warnings.simplefilter("always")
         coro = async_notify(x=1)
-        # Warnings are collected the moment the coroutine body starts running — no later than the first await point.
+    pre_await_warnings = [w for w in warned_before if w.category in (FutureWarning, DeprecationWarning)]
+    assert not pre_await_warnings, "Warning must not fire at call time — only fires on await"
+
+    with warnings.catch_warnings(record=True) as warned_after:
+        warnings.simplefilter("always")
         result = await coro
-    deprecation_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
-    assert deprecation_warnings, "Async wrapper must emit a deprecation warning"
+    post_await_warnings = [w for w in warned_after if w.category in (FutureWarning, DeprecationWarning)]
+    assert post_await_warnings, "Warning must fire when coroutine is awaited"
     assert result == 2
 
 
