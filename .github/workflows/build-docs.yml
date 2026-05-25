@@ -7,7 +7,21 @@
 #     - push → main                                    → build + deploy to dev/
 #     - push → version-like tag (v1.2, 1.2.3, …)       → build + deploy to <tag>/ (and stable/ if highest)
 #     - pull_request → main                            → build only (no deploy)
-#     - workflow_dispatch (tag input)                  → build + deploy to <tag>/ (no set-default change)
+#     - workflow_dispatch (tag, alias, overwrite_root_files inputs)
+#                                                      → build + deploy to <tag>/ (no set-default change)
+#
+#   workflow_dispatch inputs:
+#     - tag                   (required) git tag to backfill; must already exist on the remote
+#     - alias                 (optional) mike alias to attach (e.g. stable); auto-enables root-metadata deploy
+#     - overwrite_root_files (optional, default false) overwrite gh-pages root files
+#                             (llms.txt, llms-full.txt, robots.txt, sitemap.xml) with versions from
+#                             this tag's docs/. Defaults false — safe for historical backfills where
+#                             files may be stale or absent. Auto-enabled when alias is 'stable'.
+#
+#   Root-level AI discoverability files (llms.txt, robots.txt, sitemap.xml, llms-full.txt):
+#     - deploy on every push trigger (main → dev/, tag → <tag>/)
+#     - skipped on workflow_dispatch unless overwrite_root_files=true or alias=stable
+#     - missing source files at historical refs emit ::warning:: and are skipped gracefully
 #
 #   Jobs:
 #     build-landing-docs ──┐
@@ -18,6 +32,7 @@
 #                          ├─ inject sphinx + mkdocs artifacts into docs/
 #                          ├─ mike deploy <version_path> [aliases…] --update-aliases
 #                          ├─ mike set-default <latest|stable>  [skipped on workflow_dispatch]
+#                          ├─ deploy root AI discoverability files  [push always; dispatch opt-in]
 #                          ├─ git push gh-pages [push + workflow_dispatch events] — this IS the deploy
 #                          │  (GitHub Pages serves directly from the gh-pages branch)
 #                          └─ upload built site as workflow artifact (manual inspection)
@@ -50,6 +65,15 @@ on:
         required: false
         type: string
         default: ""
+      overwrite_root_files:
+        description: >
+          Overwrite the gh-pages root files (llms.txt, llms-full.txt, robots.txt, sitemap.xml)
+          with the versions from this tag's docs/. Enable only when this tag's metadata is the
+          canonical content you want AI crawlers to see. Auto-enabled when alias is 'stable'.
+          Defaults to false — safe for historical backfills where these files may be stale or absent.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -322,7 +346,11 @@ jobs:
             "${SET_DEFAULT}"
 
       - name: 🤖 Deploy root-level AI discoverability files
-        if: env.SET_DEFAULT != ''
+        if: >-
+          env.SKIP != 'true' &&
+          (github.event_name != 'workflow_dispatch' ||
+           inputs.overwrite_root_files ||
+           inputs.alias == 'stable')
         run: |
           set -euo pipefail
           # robots.txt and llms.txt must live at the gh-pages root so AI crawlers find them
@@ -333,11 +361,20 @@ jobs:
           TMPWORKTREE="/tmp/pyDeprecate-gh-pages-$$"
           git worktree add "$TMPWORKTREE" "${GH_PAGES_BRANCH}"
           trap 'git worktree remove --force "$TMPWORKTREE" 2>/dev/null || true' EXIT
-          cp docs/robots.txt "$TMPWORKTREE/robots.txt"
-          cp docs/llms.txt "$TMPWORKTREE/llms.txt"
-          cp docs/llms-full.txt "$TMPWORKTREE/llms-full.txt"
-          cp docs/root-sitemap.xml "$TMPWORKTREE/sitemap.xml"
-          git -C "$TMPWORKTREE" add robots.txt llms.txt llms-full.txt sitemap.xml
+          for src_dest in \
+            "docs/robots.txt:robots.txt" \
+            "docs/llms.txt:llms.txt" \
+            "docs/llms-full.txt:llms-full.txt" \
+            "docs/root-sitemap.xml:sitemap.xml"; do
+            src="${src_dest%%:*}"
+            dst="${src_dest##*:}"
+            if [ -f "$src" ]; then
+              cp "$src" "$TMPWORKTREE/$dst"
+            else
+              echo "::warning::$src absent at this ref — skipping $dst in root-metadata deploy"
+            fi
+          done
+          git -C "$TMPWORKTREE" add robots.txt llms.txt llms-full.txt sitemap.xml 2>/dev/null || true
           git -C "$TMPWORKTREE" diff --cached --quiet \
             || git -C "$TMPWORKTREE" commit -m "chore(deploy): sync root AI discoverability files (robots.txt, llms.txt, llms-full.txt, sitemap.xml)"
           trap - EXIT
