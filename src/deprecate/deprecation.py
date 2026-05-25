@@ -670,8 +670,6 @@ def deprecated(
 
     For **generator functions** (``def gen(): yield``), the deprecation warning fires at call time — when the
     generator object is created — not at first iteration. The generator body executes lazily as normal when iterated.
-    Async generators (``async def ... yield``) are not supported in v0.9.0; applying this decorator to an
-    ``async def`` function creates a sync wrapper that silently breaks awaiting callers.
 
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source

@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Generator function support for `@deprecated`.** Decorating a generator function now emits the deprecation warning eagerly at call time — before the first `next()` — consistent with regular function behavior. The generator body executes lazily as normal when iterated. All three `TargetMode` variants (`NOTIFY`, `ARGS_REMAP`, callable target) work transparently; no `isgeneratorfunction` check is required. Async generators (`async def ... yield`) are not supported in v0.9.0. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
+- **Generator function support for `@deprecated`.** Decorating a generator function now emits the deprecation warning eagerly at call time — before the first `next()` — consistent with regular function behavior. The generator body executes lazily as normal when iterated. All three `TargetMode` variants (`NOTIFY`, `ARGS_REMAP`, callable target) work transparently; no `isgeneratorfunction` check is required. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
 - **Order-agnostic `classmethod`/`staticmethod` guard.** Applying `@deprecated` outside `@classmethod` (wrong decorator order) is now silently rescued at decoration time: the descriptor is unwrapped, the inner function is deprecated, and the result is re-wrapped as `classmethod(deprecated_wrapper)`. No `UserWarning` is emitted; a `FutureWarning` fires normally at call time. The preferred order (`@classmethod` outermost, `@deprecated` closer to `def`) is unchanged. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
 
 ### Changed

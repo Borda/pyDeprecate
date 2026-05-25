@@ -918,8 +918,6 @@ class ApiClient:
 
 Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod(deprecated_wrapper)` respectively. The deprecation `FutureWarning` fires at call time regardless of which order the decorators were applied.
 
-When `@deprecated` is applied **outside** `@classmethod` (outer-first order), pyDeprecate silently rescues the misordered stack at decoration time: it unwraps the descriptor, applies the deprecation wrapper to the underlying function, and re-wraps the result. No `UserWarning` is emitted and the runtime outcome is identical to the preferred order. See [Troubleshooting](../troubleshooting.md#warning-fires-or-userwarning-appears-when-using-deprecated-classmethod) for the full explanation.
-
 !!! tip "Prefer `@classmethod @deprecated` (deprecated closer to `def`)"
 
     The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.
@@ -1049,9 +1047,6 @@ def old_range(start: int, stop: int):
     return void(start, stop)
 ```
 
-!!! warning "Async generators are not yet supported"
-
-    `async def` coroutines and `async def ... yield` async generators are not supported in v0.9.0. Applying `@deprecated` to an `async def` function creates a sync wrapper that will break any caller that tries to `await` the result. Support for async is planned for a future release.
 
 !!! note "Warning deduplication and the generator factory pattern"
 
