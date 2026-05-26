@@ -92,7 +92,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-05-25"
+  "dateModified": "2026-05-26"
 }
 </script>
 
@@ -1891,6 +1891,7 @@
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong>Generator function support for <code>@deprecated</code>.</strong> Decorating a generator function now emits the deprecation warning eagerly at call time — before the first <code>next()</code> — consistent with regular function behavior. The generator body executes lazily as normal when iterated. All three <code>TargetMode</code> variants (<code>NOTIFY</code>, <code>ARGS_REMAP</code>, callable target) work transparently; no <code>isgeneratorfunction</code> check is required. (<a href="https://github.com/Borda/pyDeprecate/pull/176">#176</a>)</li>
+<li><strong><code>async def</code> coroutine wrapper support for <code>@deprecated</code>.</strong> Decorating an <code>async def</code> function now produces an <code>async def</code> wrapper — <code>inspect.iscoroutinefunction(wrapper)</code> returns <code>True</code>. All three <code>TargetMode</code> variants (<code>NOTIFY</code>, <code>ARGS_REMAP</code>, callable target) work with async sources and async targets. The deprecation warning fires when the coroutine is awaited, not when the wrapper is called. <code>pytest-asyncio</code> is required in the test suite to run the async integration tests.</li>
 <li><strong>Order-agnostic <code>classmethod</code>/<code>staticmethod</code> guard.</strong> Applying <code>@deprecated</code> outside <code>@classmethod</code> (wrong decorator order) is now silently rescued at decoration time: the descriptor is unwrapped, the inner function is deprecated, and the result is re-wrapped as <code>classmethod(deprecated_wrapper)</code>. No <code>UserWarning</code> is emitted; a <code>FutureWarning</code> fires normally at call time. The preferred order (<code>@classmethod</code> outermost, <code>@deprecated</code> closer to <code>def</code>) is unchanged. (<a href="https://github.com/Borda/pyDeprecate/pull/176">#176</a>)</li>
 </ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
@@ -2095,7 +2096,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 25, 2026 12:39:59 UTC">2026-05-25</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 26, 2026 09:12:38 UTC">2026-05-26</span>
   </span>
 
     

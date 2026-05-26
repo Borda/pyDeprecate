@@ -210,6 +210,14 @@
             "@type": "Answer",
             "text": "Yes. pyDeprecate silently rescues the misordered stack: it detects the classmethod descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in classmethod. No UserWarning is emitted at decoration time, and a FutureWarning fires normally when the method is called. The preferred order is still @classmethod outermost with @deprecated closer to def, as it is explicit and avoids the silent rescue."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do concurrent async calls to a deprecated wrapper emit fewer warnings than expected?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "_WrapperState fields (called, warned_calls, warned_args) are plain Python dataclass fields with no asyncio lock. Concurrent coroutines sharing one deprecated wrapper race on the warning counter, causing fewer warnings than num_warns specifies to be emitted. Workaround: set num_warns=-1 to bypass the count gate entirely — the warning then fires unconditionally on every call regardless of scheduling."
+          }
         }
       ]
     }
@@ -1004,6 +1012,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#concurrent-async-calls-and-warning-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concurrent async calls and warning counts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        I wrapped a functools.partial of an async def and the wrapper is not async
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-non-async-decorator-applied-over-my-deprecated-async-wrapper-no-longer-looks-like-a-coroutine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A non-async decorator applied over my @deprecated async wrapper no longer looks like a coroutine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#still-stuck" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1355,6 +1396,39 @@
     <span class="md-ellipsis">
       
         Warning fires or UserWarning appears when using @deprecated @classmethod
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#concurrent-async-calls-and-warning-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concurrent async calls and warning counts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        I wrapped a functools.partial of an async def and the wrapper is not async
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-non-async-decorator-applied-over-my-deprecated-async-wrapper-no-longer-looks-like-a-coroutine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A non-async decorator applied over my @deprecated async wrapper no longer looks like a coroutine
       
     </span>
   </a>
@@ -1975,6 +2049,84 @@
 </code></pre></div>
 <p>The same rule applies to <code>@staticmethod</code>.</p>
 <hr />
+<h2 id="concurrent-async-calls-and-warning-counts">Concurrent async calls and warning counts<a class="headerlink" href="#concurrent-async-calls-and-warning-counts" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I have multiple coroutines all calling the same deprecated <code>async def</code> wrapper concurrently. The deprecation notice only appeared once, but I expected it to fire <code>num_warns</code> times. What happened?</p>
+<p><strong>A:</strong> <code>_WrapperState</code> fields — <code>called</code>, <code>warned_calls</code>, and <code>warned_args</code> — are plain Python dataclass fields with no asyncio lock. When multiple coroutines share a single deprecated wrapper and run concurrently in the same event loop, they race on the warning counter. One coroutine may read the counter, another may increment it, and the first may then emit or skip based on the stale value. The result is that fewer warnings than <code>num_warns</code> specifies may be emitted.</p>
+<p>This is an accepted limitation for v0.9 — adding an asyncio lock would change the public behaviour of synchronous wrappers and is deferred to a future release.</p>
+<p><strong>Workaround:</strong> Set <code>num_warns=-1</code> to bypass the count gate entirely. With <code>num_warns=-1</code> the warning fires unconditionally on every call, so no race can suppress it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">new_fetch</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>    <span class="k">return</span> <span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="c1"># num_warns=-1 emits the deprecation notice on every call regardless of concurrency</span>
+<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fetch</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">old_fetch</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>    <span class="k">pass</span>
+<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a>
+<a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a>
+<a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<a id="__codelineno-33-16" name="__codelineno-33-16" href="#__codelineno-33-16"></a>    <span class="n">urls</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;https://a.example.com&quot;</span><span class="p">,</span> <span class="s2">&quot;https://b.example.com&quot;</span><span class="p">,</span> <span class="s2">&quot;https://c.example.com&quot;</span><span class="p">]</span>
+<a id="__codelineno-33-17" name="__codelineno-33-17" href="#__codelineno-33-17"></a>    <span class="c1"># All three tasks fire the deprecation notice — no race suppression possible</span>
+<a id="__codelineno-33-18" name="__codelineno-33-18" href="#__codelineno-33-18"></a>    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">old_fetch</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">urls</span><span class="p">])</span>
+<a id="__codelineno-33-19" name="__codelineno-33-19" href="#__codelineno-33-19"></a>
+<a id="__codelineno-33-20" name="__codelineno-33-20" href="#__codelineno-33-20"></a>
+<a id="__codelineno-33-21" name="__codelineno-33-21" href="#__codelineno-33-21"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+<p>If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with <code>asyncio.gather</code>.</p>
+<h2 id="i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async">I wrapped a <code>functools.partial</code> of an <code>async def</code> and the wrapper is not async<a class="headerlink" href="#i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I applied <code>@deprecated</code> to a <code>functools.partial</code> of an <code>async def</code> function, but the resulting wrapper is synchronous — <code>inspect.iscoroutinefunction(wrapper)</code> returns <code>False</code> and <code>await wrapper(...)</code> raises a <code>TypeError</code>. What is happening?</p>
+<p><strong>A:</strong> On Python 3.9–3.11, <code>inspect.iscoroutinefunction(functools.partial(async_fn))</code> returns <code>False</code> — the <code>partial</code> object does not propagate the coroutine flag of its wrapped callable. pyDeprecate's async branch in <code>packing()</code> checks <code>inspect.iscoroutinefunction(source)</code> to decide whether to produce an <code>async def</code> wrapper, so wrapping a <code>partial</code> of an <code>async def</code> falls through to the sync wrapper path and yields a regular function instead of a coroutine function.</p>
+<p><strong>Workaround:</strong> Apply <code>@deprecated</code> to the <code>async def</code> directly, then use <code>functools.partial</code> on the already-deprecated async wrapper if you need preset arguments.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">new_fetch</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>    <span class="k">return</span> <span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a><span class="c1"># Correct: apply @deprecated to the async def directly</span>
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fetch</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">old_fetch</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>    <span class="k">pass</span>
+<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a>
+<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a>
+<a id="__codelineno-34-16" name="__codelineno-34-16" href="#__codelineno-34-16"></a><span class="c1"># Then use partial on the already-deprecated async wrapper if needed</span>
+<a id="__codelineno-34-17" name="__codelineno-34-17" href="#__codelineno-34-17"></a><span class="n">fetch_with_timeout</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">old_fetch</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<a id="__codelineno-34-18" name="__codelineno-34-18" href="#__codelineno-34-18"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">old_fetch</span><span class="p">(</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">))</span>
+</code></pre></div>
+<p>This limitation is resolved in Python 3.12+ where <code>inspect.iscoroutinefunction</code> correctly handles <code>functools.partial</code> objects whose underlying callable is an <code>async def</code>.</p>
+<hr />
+<h2 id="a-non-async-decorator-applied-over-my-deprecated-async-wrapper-no-longer-looks-like-a-coroutine">A non-async decorator applied over my <code>@deprecated</code> async wrapper no longer looks like a coroutine<a class="headerlink" href="#a-non-async-decorator-applied-over-my-deprecated-async-wrapper-no-longer-looks-like-a-coroutine" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I have <code>@my_decorator @deprecated(...) async def fn(...)</code>. After decoration, <code>inspect.iscoroutinefunction(fn)</code> returns <code>False</code> and asyncio frameworks (FastAPI route handlers, <code>asyncio.create_task</code>) reject it. Why?</p>
+<p><strong>A:</strong> When you wrap a <code>@deprecated async def</code> with a sync decorator — one that returns a sync <code>wrapper(*args, **kwargs)</code> via <code>functools.wraps</code> — the result is a sync callable. <code>inspect.iscoroutinefunction</code> inspects the outermost callable's <code>CO_COROUTINE</code> flag, not the wrapped function, so the coroutine nature is lost the moment a sync wrapper is placed on top.</p>
+<p><strong>Solution:</strong> Make any outer decorator that may be applied over an async wrapper coroutine-aware. Inspect the wrapped callable and emit either an <code>async def</code> or a sync wrapper accordingly.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_decorator</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>    <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">iscoroutinefunction</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>        <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">async_wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>            <span class="k">return</span> <span class="k">await</span> <span class="n">fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a>
+<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a>        <span class="k">return</span> <span class="n">async_wrapper</span>
+<a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a>
+<a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a>    <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+<a id="__codelineno-35-15" name="__codelineno-35-15" href="#__codelineno-35-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">sync_wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<a id="__codelineno-35-16" name="__codelineno-35-16" href="#__codelineno-35-16"></a>        <span class="k">return</span> <span class="n">fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<a id="__codelineno-35-17" name="__codelineno-35-17" href="#__codelineno-35-17"></a>
+<a id="__codelineno-35-18" name="__codelineno-35-18" href="#__codelineno-35-18"></a>    <span class="k">return</span> <span class="n">sync_wrapper</span>
+</code></pre></div>
+<p>With this pattern, stacking <code>@my_decorator</code> above <code>@deprecated</code> on an <code>async def</code> produces an <code>async def</code> wrapper whose <code>inspect.iscoroutinefunction(...)</code> returns <code>True</code>.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
@@ -2002,7 +2154,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 25, 2026 12:39:59 UTC">2026-05-25</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 26, 2026 09:12:38 UTC">2026-05-26</span>
   </span>
 
     
