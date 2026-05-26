@@ -705,8 +705,14 @@ async def old_stream(n: int):
 # Warning fires here — at sync call time, before any iteration
 agen = old_stream(3)  # FutureWarning: The `old_stream` was deprecated since v0.9 ...
 
+
+async def consume(gen):
+    async for _ in gen:
+        pass
+
+
 # Iteration proceeds normally
-asyncio.run(asyncio.gather(*[agen.__anext__() for _ in range(3)]))
+asyncio.run(consume(agen))
 ```
 
 **Note:** Because the wrapper is a sync function, `inspect.isasyncgenfunction(old_stream)` returns `False`. Frameworks that check this flag may misclassify the wrapper — wrap it in a thin `async def` passthrough if introspection matters.
