@@ -3,7 +3,7 @@
 Covers four concerns:
 
 - Round-trip equivalence under all three :class:`~deprecate.TargetMode` variants (NOTIFY, ARGS_REMAP, callable) for
-  both sync generators (``yield``) and ``async def`` coroutines (N1-step2).
+  both sync generators (``yield``) and ``async def`` coroutines.
 - Warning timing — for generators the warning fires when the generator object is created (before first
   :func:`next` call); for coroutines it fires when the coroutine is awaited, not when the coroutine object is
   created.
@@ -156,7 +156,7 @@ def test_wrong_order_classmethod_silently_rescued() -> None:
     assert any(issubclass(w.category, FutureWarning) for w in call_warned), "Deprecation warning must fire on call"
 
 
-# ========== Async ``def`` wrapper integration tests (N1-step2) ==========
+# ========== Async ``def`` wrapper integration tests ==========
 # Async wrappers under test:
 #   - ``async_notify``      — TargetMode.NOTIFY; source body runs unchanged.
 #   - ``async_args_remap``  — TargetMode.ARGS_REMAP; legacy arg ``old_x`` is mapped to ``x`` before body executes.

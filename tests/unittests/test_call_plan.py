@@ -55,14 +55,14 @@ def test_callable_target_round_trip_returns_target_func() -> None:
         wrapper_fn=wrapper,
         source=double_value,
         target=double_value,
-        _target=double_value,
+        normalized_target=double_value,
         args=(),
         kwargs={"x": 3},
         dep_cfg=cfg,
         stream=None,  # suppress real warning emission
         num_warns=1,
         source_has_var_positional=False,
-        _source_is_stacked=False,
+        source_is_stacked=False,
     )
 
     assert plan.short_circuit is False
@@ -98,14 +98,14 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
         wrapper_fn=wrapper,
         source=identity_value,
         target=TargetMode.ARGS_REMAP,
-        _target=TargetMode.ARGS_REMAP,
+        normalized_target=TargetMode.ARGS_REMAP,
         args=(),
         kwargs={"x": 7},  # caller already migrated — uses new name
         dep_cfg=cfg,
         stream=None,
         num_warns=1,
         source_has_var_positional=False,
-        _source_is_stacked=False,
+        source_is_stacked=False,
     )
 
     assert plan.short_circuit is True
@@ -127,14 +127,14 @@ def test_notify_mode_returns_none_target_func() -> None:
         wrapper_fn=wrapper,
         source=identity_value,
         target=TargetMode.NOTIFY,
-        _target=TargetMode.NOTIFY,
+        normalized_target=TargetMode.NOTIFY,
         args=(),
         kwargs={"x": 5},
         dep_cfg=cfg,
         stream=None,
         num_warns=1,
         source_has_var_positional=False,
-        _source_is_stacked=False,
+        source_is_stacked=False,
     )
 
     assert plan.short_circuit is False

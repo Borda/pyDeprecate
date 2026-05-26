@@ -1530,7 +1530,7 @@ gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0",
 )
 
 
-# ========== async callable kind fixtures (N1-step2) ==========
+# ========== async callable kind fixtures ==========
 # Three wrappers exercise the ``@deprecated`` async path (``inspect.iscoroutinefunction`` branch in ``packing()``).
 # Each pairs an ``async def`` source with one of the three ``TargetMode`` variants so the integration tests can
 # confirm: (a) round-trip awaited result, (b) warning timing for async wrappers — fired when the returned coroutine
