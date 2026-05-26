@@ -1155,6 +1155,8 @@ def deprecated(
                 )
 
                 if plan.short_circuit:
+                    if source_has_var_positional:
+                        return await source(*args, **plan.original_kwargs)
                     return await source(**plan.resolved_kwargs)
 
                 if plan.target_func is None:
@@ -1213,6 +1215,8 @@ def deprecated(
             )
 
             if plan.short_circuit:
+                if source_has_var_positional:
+                    return source(*args, **plan.original_kwargs)
                 return source(**plan.resolved_kwargs)
 
             if plan.target_func is None:
