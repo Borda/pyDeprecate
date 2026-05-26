@@ -753,23 +753,23 @@ def _build_call_plan(
             # Use original `target` (not remapped normalized_target) so the warning
             # names the class (e.g. "NewCls") rather than "__init__".
             _raise_warn_callable(
-                stream,
-                source,
-                target,
-                dep_cfg.deprecated_in,
-                dep_cfg.remove_in,
-                dep_cfg.template_mgs,
+                stream=stream,
+                source=source,
+                target=target,
+                deprecated_in=dep_cfg.deprecated_in,
+                remove_in=dep_cfg.remove_in,
+                template_mgs=dep_cfg.template_mgs,
                 stacklevel=_stacklevel_to_caller,
             )
             state.warned_calls += 1
         elif reason_argument:
             _raise_warn_arguments(
-                stream,
-                source,
-                reason_argument,
-                dep_cfg.deprecated_in,
-                dep_cfg.remove_in,
-                dep_cfg.template_mgs,
+                stream=stream,
+                source=source,
+                arguments=reason_argument,
+                deprecated_in=dep_cfg.deprecated_in,
+                remove_in=dep_cfg.remove_in,
+                template_mgs=dep_cfg.template_mgs,
                 stacklevel=_stacklevel_to_caller,
             )
             for arg in reason_argument:
