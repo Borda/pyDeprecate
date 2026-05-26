@@ -721,8 +721,6 @@ The same rule applies to `@staticmethod`.
 
 ______________________________________________________________________
 
-______________________________________________________________________
-
 ## Concurrent async calls and warning counts
 
 **Q:** I have multiple coroutines all calling the same deprecated `async def` wrapper concurrently. The deprecation notice only appeared once, but I expected it to fire `num_warns` times. What happened?
