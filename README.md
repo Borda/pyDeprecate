@@ -1067,8 +1067,8 @@ asyncio.run(legacy_ping())
 asyncio.run(fetch_data(endpoint="https://example.com"))
 ```
 
-> [!WARNING]
-> Do not apply `@deprecated` to **async generator functions** (`async def` + `yield`). These are detected at decoration time and currently trigger a `UserWarning`, but they are still unsupported because the produced wrapper is synchronous and is not an async generator function. Full async generator support is planned for a future release.
+> [!NOTE]
+> `@deprecated` supports **async generator functions** (`async def` + `yield`). The wrapper is a sync callable — it fires the deprecation warning eagerly at call time and returns the async generator object. Callers iterate as normal with `async for item in wrapper(...):`. Because the wrapper is sync, `inspect.isasyncgenfunction(wrapper)` returns `False`; frameworks that branch on this introspection may need a thin async generator passthrough.
 
 > [!NOTE]
 > `_WrapperState` fields are plain dataclass fields with no asyncio lock — concurrent coroutines sharing one deprecated wrapper can race on warning counts. Set `num_warns=-1` to bypass the count gate in tests that assert exact emission counts.

@@ -7,7 +7,7 @@ This module provides base functions that are used as targets for deprecated func
 import functools
 import time
 import warnings
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
@@ -332,3 +332,23 @@ async def async_target(x: int) -> int:
 
     """
     return x * 2
+
+
+async def async_gen_target(x: int) -> AsyncIterator[int]:
+    """Async generator that yields multiples of x (1×, 2×, 3×).
+
+    Used by the async generator wrapper integration tests for the ``@deprecated`` decorator.  Mirrors
+    :func:`gen_target` (sync generator) and :func:`async_target` (async coroutine) so all three callable kinds
+    share the same input → output contract (``x=1`` → ``[1, 2, 3]``).
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _collect() -> list[int]:
+        ...     return [item async for item in async_gen_target(x=2)]
+        >>> asyncio.run(_collect())
+        [2, 4, 6]
+
+    """
+    for i in range(1, 4):
+        yield x * i

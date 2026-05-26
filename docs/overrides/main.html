@@ -247,6 +247,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why does my deprecated async generator fire the warning before I iterate it?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This is intentional. pyDeprecate wraps async generator sources with a sync callable that fires the deprecation warning eagerly at call time and returns the async generator object. Iteration with async for proceeds normally after that. Because the wrapper is sync, inspect.isasyncgenfunction(wrapper) returns False; if a framework checks this flag, wrap it in a thin async def passthrough before applying @deprecated."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Does @deprecated work when applied outside @classmethod (wrong decorator order)?",
           "acceptedAnswer": {
             "@type": "Answer",

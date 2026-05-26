@@ -680,6 +680,39 @@ print(list(gen))  # [10, 11, 12]
 
 ______________________________________________________________________
 
+## My deprecated async generator fires the warning before I iterate it
+
+**Q:** My async generator function is decorated with `@deprecated`. The deprecation warning fires as soon as I call the function — before my `async for` loop starts. Is this a bug?
+
+**A:** No — this is the intended behavior. pyDeprecate wraps async generator sources with a sync callable. Calling the wrapper immediately fires the deprecation warning and returns the underlying async generator object; no `await` or `__anext__` call is needed for the warning to appear.
+
+```python
+import asyncio
+from deprecate import deprecated
+
+
+async def stream(n: int):
+    for i in range(n):
+        yield i
+
+
+@deprecated(target=stream, deprecated_in="0.9", remove_in="1.0")
+async def old_stream(n: int):
+    if False:  # pragma: no cover
+        yield 0
+
+
+# Warning fires here — at sync call time, before any iteration
+agen = old_stream(3)  # FutureWarning: The `old_stream` was deprecated since v0.9 ...
+
+# Iteration proceeds normally
+asyncio.run(asyncio.gather(*[agen.__anext__() for _ in range(3)]))
+```
+
+**Note:** Because the wrapper is a sync function, `inspect.isasyncgenfunction(old_stream)` returns `False`. Frameworks that check this flag may misclassify the wrapper — wrap it in a thin `async def` passthrough if introspection matters.
+
+______________________________________________________________________
+
 ## Warning fires or UserWarning appears when using `@deprecated @classmethod`
 
 **Q:** I applied `@deprecated` on top of `@classmethod` (decorator order: `@deprecated` outermost, `@classmethod` innermost). Does this work?
