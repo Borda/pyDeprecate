@@ -1123,7 +1123,7 @@ asyncio.run(fetch("https://example.com"))
 
 !!! warning "Async generator functions are not supported"
 
-    Do not apply `@deprecated` to `async def` functions that contain `yield` (async generator functions). pyDeprecate does not detect async generators at decoration time — the wrapper is created as a regular sync function (`inspect.iscoroutinefunction` returns `False` for async generators), so the regular sync wrapper path is used and calling the result will not behave as expected. Full async generator support is planned for a future release.
+    Do not apply `@deprecated` to `async def` functions that contain `yield` (async generator functions). pyDeprecate **does** detect async generators at decoration time and raises a `UserWarning`, but full async-generator wrapper support is still not provided. The generated wrapper remains a regular sync function rather than an async generator wrapper, so `inspect.isasyncgenfunction(...)` on the decorated function will be `False` and calling the result will not behave as expected. Full async generator support is planned for a future release.
 
 ## See also
 
