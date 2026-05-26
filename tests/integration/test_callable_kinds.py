@@ -337,7 +337,7 @@ async def test_async_gen_warning_stacklevel(wrapper: object, call_kwargs: dict) 
     with warnings.catch_warnings(record=True) as warned:
         warnings.simplefilter("always")
         agen = wrapper(**call_kwargs)  # type: ignore[operator]
-        # Drain so the agen does not emit a "coroutine was never awaited" warning on GC.
+        # Drain so the async generator is fully consumed and does not trigger async-generator cleanup warnings on GC.
         _ = [item async for item in agen]
     deprecation_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
     assert deprecation_warnings, "Async generator wrapper must emit a deprecation warning"
