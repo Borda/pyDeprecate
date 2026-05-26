@@ -1211,6 +1211,11 @@ def deprecated(
                     call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
                     return source(*args, **call_kwargs)
                 return source(**plan.resolved_kwargs)
+            if inspect.iscoroutinefunction(plan.target_func):
+                raise TypeError(
+                    f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
+                    f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
+                )
             return plan.target_func(**plan.resolved_kwargs)
 
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
