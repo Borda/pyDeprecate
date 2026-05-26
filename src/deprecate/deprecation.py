@@ -845,8 +845,9 @@ def deprecated(
     This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement
     implementation.  It supports argument mapping, custom warning messages, and flexible warning control.
 
-    For **generator functions** (``def gen(): yield``), the deprecation warning fires at call time — when the
-    generator object is created — not at first iteration. The generator body executes lazily as normal when iterated.
+    For **generator functions** (``def gen(): yield``) and **async generator functions** (``async def gen(): yield``),
+    the deprecation warning fires at call time — when the (async) generator object is created — not at first
+    iteration.  The generator body executes lazily as normal when iterated (``next()`` / ``async for``).
 
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
@@ -1168,14 +1169,10 @@ def deprecated(
 
             return async_wrapped_fn
 
-        if inspect.isasyncgenfunction(source):
-            warnings.warn(
-                f"`@deprecated` on async generator `{source.__name__}` is not yet supported. "
-                "The wrapper will be a sync function and `await wrapper(...)` will fail. "
-                "Remove `@deprecated` from async generators until full support lands.",
-                UserWarning,
-                stacklevel=_stacklevel,
-            )
+        # Async generator sources (``async def`` + ``yield``) fall through to the sync ``wrapped_fn`` below:
+        # ``source(**kwargs)`` returns the async generator object without executing any body code — same as
+        # sync generators.  Warning fires at sync call time; callers iterate with ``async for``.  The
+        # ``iscoroutinefunction`` guard below does not fire for async gen targets (they are not coroutines).
 
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401

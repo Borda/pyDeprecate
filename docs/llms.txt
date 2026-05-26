@@ -149,7 +149,8 @@ What is being deprecated?
   │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
   │      (classes are callables, but @deprecated is for functions/methods only)
   │
-  └─ A function or method (including generator functions — `def gen(): yield` — and async functions — `async def fn()`)?
+  └─ A function or method (including generator functions — `def gen(): yield` — async functions —
+     `async def fn()` — and async generator functions — `async def gen(): yield`)?
        → use @deprecated; then choose target= based on the replacement:
          ├─ Has a replacement function/method?
          │    → target=<callable>; leave body empty (pass / void())
@@ -162,11 +163,13 @@ What is being deprecated?
          └─ Already deprecated (args renamed earlier) and now the whole function is going away?
               → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
                 (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
-         Note: for generator functions the warning fires eagerly at call time (before first next()),
-               not on first iteration — consistent with regular function behavior.
+         Note: for generator functions and async generator functions the warning fires eagerly at sync
+               call time (before first next() / async for), not on first iteration — consistent with
+               regular function behavior.
          Note: for async def functions, the wrapper is async def; inspect.iscoroutinefunction(wrapper)
-               returns True. Warning fires on await, not on call. async generator functions
-               (async def + yield) are not supported — do not apply @deprecated to them.
+               returns True. Warning fires on await, not on call. For async generator functions
+               (async def + yield) the wrapper is sync (returns the async generator object); the warning
+               fires at call time and callers iterate with `async for`.
 ```
 
 ### Enforce removal deadlines in CI
@@ -211,7 +214,7 @@ pydeprecate all src/
 - `@property` with `@deprecated` in either order: warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`).
 - `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.
 - `@deprecated` on `async def` functions: the wrapper is `async def`; `inspect.iscoroutinefunction(wrapper)` returns `True`. All three TargetModes work. Warning fires when the coroutine is awaited, not when the wrapper is called — `coro = wrapper(x=1)` produces no warning; `await coro` fires it.
-- `@deprecated` on async generator functions (`async def` + `yield`): detected at decoration time via `inspect.isasyncgenfunction(source)`, and pyDeprecate warns at decoration time rather than pretending they are regular coroutine functions. Async generators remain unsupported — see Known Limitations.
+- `@deprecated` on async generator functions (`async def` + `yield`): the wrapper is **sync** (`inspect.iscoroutinefunction(wrapper)` is `False`); calling the wrapper fires the deprecation warning eagerly and returns the async generator object. Callers iterate with `async for item in wrapper(...):`. All three TargetModes work — NOTIFY runs the source body, ARGS_REMAP remaps args before iterating the source body, and `target=<async_gen_callable>` forwards to a replacement async generator. The warning fires at sync call time, before the first `__anext__`.
 
 ## Anti-Patterns
 
@@ -221,13 +224,13 @@ pydeprecate all src/
 - Do not call the target inside a deprecated function body when `target=<callable>`.
 - Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
 - `@deprecated` works with `@classmethod` and `@staticmethod` in either order. pyDeprecate unwraps the underlying function (`.__func__`), applies the deprecation wrapper, and re-wraps the descriptor, so the method remains deprecated regardless of decorator order.
-- Do not apply `@deprecated` to async generator functions (`async def` + `yield`) — pyDeprecate detects them at decoration time and emits a `UserWarning`, but full async generator support is not implemented and the wrapper will not behave correctly. Full async generator support is planned for a future release.
+- `@deprecated` on async generator functions (`async def` + `yield`) is supported: the wrapper is a sync callable that fires the warning eagerly and returns the async generator object; iterate the result with `async for`. The wrapper is **not** a coroutine function and **not** an async generator function — frameworks introspecting the wrapper with `inspect.isasyncgenfunction(wrapper)` will see `False`. If a framework rejects the sync wrapper, hand-write a thin async generator (`async def my_wrapper(*a, **kw): async for item in wrapped(*a, **kw): yield item`) before applying `@deprecated`.
 
 ## Known Limitations
 
 - `_WrapperState.called` is incremented once per deprecated wrapper invocation in the current implementation. Warning deduplication still works correctly — warnings fire at most `num_warns` times — and the stored call count reflects wrapper invocations rather than a generator-specific double increment.
 - `_WrapperState` has no thread or async locks. Concurrent calls to the same deprecated wrapper can race on the `called` counter (pre-existing limitation, identical to regular function wrappers).
-- **Async generator functions not yet supported**: `@deprecated` on `async def` functions containing `yield` (async generator functions) is detected at decoration time and triggers a `UserWarning`, but full support is not implemented. Do not use. Full support is planned for a future release.
+- **Async generator wrapper is sync, not async**: `@deprecated` on `async def` + `yield` produces a sync wrapper that fires the warning eagerly and returns the async generator object. `inspect.iscoroutinefunction(wrapper)` and `inspect.isasyncgenfunction(wrapper)` both return `False`. Frameworks that branch on these introspections (e.g. some FastAPI middleware) will misclassify the wrapper — hand-write a thin async generator passthrough before applying `@deprecated` if introspection matters.
 - **`_WrapperState` concurrency under async**: for `async def` wrappers, `_WrapperState` fields (`called`, `warned_calls`, `warned_args`) are plain dataclass fields with no asyncio lock. Concurrent coroutines sharing one deprecated wrapper can race on warning counts — the wrapper may emit fewer warnings than `num_warns` specifies. Set `num_warns=-1` to bypass the count gate if exact emission counts matter in tests.
 - **`functools.partial` of `async def` loses coroutine flag on Python 3.9–3.11**: `inspect.iscoroutinefunction(functools.partial(async_fn))` returns `False` on Python ≤3.11 — `partial` does not propagate the coroutine flag. Apply `@deprecated` to the `async def` directly; use `partial` on the already-deprecated wrapper if needed. Resolved in Python 3.12+.
 - **Sync wrapper over `async def` loses coroutine flag**: a sync decorator applied over a `@deprecated async def` wrapper produces a sync callable — `inspect.iscoroutinefunction` returns `False`. Outer decorators must use an `async def` wrapper when wrapping async functions; otherwise frameworks (FastAPI route handlers, asyncio task creation) will reject the result.

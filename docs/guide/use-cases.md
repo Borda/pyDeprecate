@@ -1121,9 +1121,93 @@ asyncio.run(fetch("https://example.com"))
 
     This is an accepted limitation for v0.9. If exact warning counts matter (for example in tests), either run deprecated coroutines sequentially or set `num_warns=-1` to bypass the gate entirely.
 
-!!! warning "Async generator functions are not supported"
+## Async generators
 
-    Do not apply `@deprecated` to `async def` functions that contain `yield` (async generator functions). pyDeprecate **does** detect async generators at decoration time and raises a `UserWarning`, but full async-generator wrapper support is still not provided. The generated wrapper remains a regular sync function rather than an async generator wrapper, so `inspect.isasyncgenfunction(...)` on the decorated function will be `False` and calling the result will not behave as expected. Full async generator support is planned for a future release.
+`@deprecated` works on async generator functions (`async def` + `yield`) too. The wrapper is a **sync** callable that fires the deprecation warning eagerly at call time and returns the underlying async generator object; callers iterate the result with `async for`. All three TargetModes — `NOTIFY`, `ARGS_REMAP`, and `target=<callable>` — work the same way they do for sync generators.
+
+**`TargetMode.NOTIFY` — warn and keep the async generator body:**
+
+```python
+import asyncio
+from collections.abc import AsyncIterator
+
+from deprecate import deprecated
+
+
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+async def stream_lines(start: int = 0) -> AsyncIterator[int]:
+    """Deprecated — no replacement yet; remove call sites."""
+    for i in range(start, start + 3):
+        yield i
+
+
+async def main() -> list[int]:
+    return [item async for item in stream_lines(start=1)]
+
+
+asyncio.run(main())
+```
+
+**`TargetMode.ARGS_REMAP` — rename an argument within the same async generator:**
+
+```python
+import asyncio
+from collections.abc import AsyncIterator
+
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"begin": "start"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+async def stream_lines(begin: int = 0, start: int = 0) -> AsyncIterator[int]:
+    """Deprecated argument `begin` renamed to `start`."""
+    for i in range(start, start + 3):
+        yield i
+
+
+async def main() -> list[int]:
+    return [item async for item in stream_lines(begin=1)]
+
+
+asyncio.run(main())
+```
+
+**`target=<callable>` — forward to a replacement async generator:**
+
+```python
+import asyncio
+from collections.abc import AsyncIterator
+
+from deprecate import deprecated
+
+
+async def stream(start: int) -> AsyncIterator[int]:
+    """New async generator API."""
+    for i in range(start, start + 3):
+        yield i
+
+
+@deprecated(target=stream, deprecated_in="0.9", remove_in="1.0")
+async def stream_legacy(start: int) -> AsyncIterator[int]:
+    """Deprecated — use stream() instead."""
+    if False:  # pragma: no cover — body unreachable; target forwards every call
+        yield 0
+
+
+async def main() -> list[int]:
+    return [item async for item in stream_legacy(start=1)]
+
+
+asyncio.run(main())
+```
+
+!!! note "The wrapper itself is sync, not an async generator"
+
+    Calling `wrapper(...)` returns the async generator object directly — no `await` is required at call time, and the deprecation warning fires once at that point. Because the wrapper is implemented as a regular function (it never enters an `async def` body), `inspect.iscoroutinefunction(wrapper)` and `inspect.isasyncgenfunction(wrapper)` both return `False`. Frameworks that branch on those introspections (rare in practice — `async for` does not consult them) may need a hand-written passthrough async generator placed between `@deprecated` and the framework.
 
 ## See also
 

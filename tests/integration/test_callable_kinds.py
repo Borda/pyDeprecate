@@ -25,6 +25,9 @@ from deprecate._types import _DeprecatedCallable
 from tests.collection_deprecate import (
     async_args_remap,
     async_callable,
+    async_gen_args_remap,
+    async_gen_callable,
+    async_gen_notify,
     async_notify,
     gen_args_remap,
     gen_callable,
@@ -240,3 +243,103 @@ def test_async_callable_wrapper_is_coroutine_function() -> None:
     assert inspect.iscoroutinefunction(async_notify), "async_notify wrapper must be a coroutine function"
     assert inspect.iscoroutinefunction(async_args_remap), "async_args_remap wrapper must be a coroutine function"
     assert inspect.iscoroutinefunction(async_callable), "async_callable wrapper must be a coroutine function"
+
+
+# ========== Async generator wrapper integration tests ==========
+# Async generator wrappers under test:
+#   - ``async_gen_notify``      — TargetMode.NOTIFY; source body (an async generator) runs unchanged.
+#   - ``async_gen_args_remap``  — TargetMode.ARGS_REMAP; legacy arg ``old_x`` mapped to ``x`` before body iterates.
+#   - ``async_gen_callable``    — callable target (``async_gen_target``); source body never executes.
+# Each call expects ``x=1`` (or ``old_x=1`` for args_remap) and produces an async iterator yielding [1, 2, 3].
+# The N4 path removes the previous ``inspect.isasyncgenfunction`` guard so async generator sources fall through
+# to the sync ``wrapped_fn``: the wrapper is sync, fires the warning eagerly at call time, and returns the async
+# generator object unchanged for the caller to drive with ``async for``.
+
+_ASYNC_GEN_WRAPPER_CASES = [
+    pytest.param(async_gen_notify, {"x": 1}, id="notify"),
+    pytest.param(async_gen_args_remap, {"old_x": 1}, id="args_remap"),
+    pytest.param(async_gen_callable, {"x": 1}, id="callable"),
+]
+
+
+@pytest.fixture(autouse=True)
+def _reset_async_gen_state() -> None:
+    """Reset the warning counter on each module-level async generator wrapper before each test.
+
+    Mirrors ``_reset_gen_state`` and ``_reset_async_state``: ``num_warns=1`` (default) would otherwise suppress
+    the second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``called`` and
+    ``warned_misconfigured`` are left intact.
+
+    """
+    for wrapper in (async_gen_notify, async_gen_args_remap, async_gen_callable):
+        state = cast(_DeprecatedCallable, wrapper)._state
+        state.warned_calls = 0
+        state.warned_args.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_GEN_WRAPPER_CASES)
+async def test_async_gen_round_trip(wrapper: object, call_kwargs: dict) -> None:
+    """Wrapped async generator yields the same values as ``async_gen_target`` (1×, 2×, 3×)."""
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        agen = wrapper(**call_kwargs)  # type: ignore[operator]
+        collected = [item async for item in agen]
+    assert collected == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_GEN_WRAPPER_CASES)
+async def test_async_gen_warning_fires_eagerly(wrapper: object, call_kwargs: dict) -> None:
+    """Warning fires at sync call time, before the first ``async for`` iteration.
+
+    Async generator wrappers in N4 are sync (``wrapped_fn``) — calling the wrapper invokes ``_dispatch`` which
+    fires the warning, then returns the async generator object unchanged.  Driving ``__anext__`` does not
+    re-enter the wrapper, so the warning must be observable before any iteration starts.
+
+    """
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        agen = wrapper(**call_kwargs)  # type: ignore[operator]
+        pre_iter_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+        assert pre_iter_warnings, "Warning must fire eagerly at sync call time, before first async for iteration"
+        first = await agen.__anext__()
+    assert first == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_GEN_WRAPPER_CASES)
+async def test_async_gen_warning_fires_once_per_call(wrapper: object, call_kwargs: dict) -> None:
+    """Iterating the wrapped async generator does not re-emit the deprecation warning.
+
+    Mirrors ``test_generator_warning_fires_once_per_call`` for sync generators: the warning fires once inside
+    ``_dispatch`` at call time, and iterating the returned async generator object runs only the source body —
+    it does not re-enter ``wrapped_fn`` or ``_dispatch``, so no further deprecation warning is possible.
+
+    """
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        agen = wrapper(**call_kwargs)  # type: ignore[operator]
+        warn_count_at_call = len([w for w in warned if w.category in (FutureWarning, DeprecationWarning)])
+        # Drain the async generator — must not emit any new deprecation warning.
+        _ = [item async for item in agen]
+    new_dep_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+    assert warn_count_at_call >= 1, "Warning should fire eagerly at call time"
+    assert len(new_dep_warnings) == warn_count_at_call, (
+        f"Iteration emitted new deprecation warnings: {[str(w.message) for w in new_dep_warnings]}"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_GEN_WRAPPER_CASES)
+async def test_async_gen_warning_stacklevel(wrapper: object, call_kwargs: dict) -> None:
+    """Async generator wrapper warning filename points to the caller's file, not to ``deprecation.py``."""
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        agen = wrapper(**call_kwargs)  # type: ignore[operator]
+        # Drain so the async generator is fully consumed and does not trigger async-generator cleanup warnings on GC.
+        _ = [item async for item in agen]
+    deprecation_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+    assert deprecation_warnings, "Async generator wrapper must emit a deprecation warning"
+    w = deprecation_warnings[0]
+    assert w.filename.endswith("test_callable_kinds.py"), f"Expected caller file, got {w.filename}"
