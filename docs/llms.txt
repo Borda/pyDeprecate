@@ -231,6 +231,7 @@ pydeprecate all src/
 - **`_WrapperState` concurrency under async**: for `async def` wrappers, `_WrapperState` fields (`called`, `warned_calls`, `warned_args`) are plain dataclass fields with no asyncio lock. Concurrent coroutines sharing one deprecated wrapper can race on warning counts — the wrapper may emit fewer warnings than `num_warns` specifies. Set `num_warns=-1` to bypass the count gate if exact emission counts matter in tests.
 - **`functools.partial` of `async def` loses coroutine flag on Python 3.9–3.11**: `inspect.iscoroutinefunction(functools.partial(async_fn))` returns `False` on Python ≤3.11 — `partial` does not propagate the coroutine flag. Apply `@deprecated` to the `async def` directly; use `partial` on the already-deprecated wrapper if needed. Resolved in Python 3.12+.
 - **Sync wrapper over `async def` loses coroutine flag**: a sync decorator applied over a `@deprecated async def` wrapper produces a sync callable — `inspect.iscoroutinefunction` returns `False`. Outer decorators must use an `async def` wrapper when wrapping async functions; otherwise frameworks (FastAPI route handlers, asyncio task creation) will reject the result.
+- **Callable objects with `async def __call__` not detected**: `inspect.iscoroutinefunction(callable_obj)` returns `False` for callable objects whose `__call__` is `async def` — `@deprecated` installs the sync wrapper and `await wrapper(...)` will fail. Workaround: wrap in a plain `async def my_wrapper(*a, **kw): return await callable_obj(*a, **kw)` before applying `@deprecated`.
 
 ## Full Context
 

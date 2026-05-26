@@ -1118,6 +1118,15 @@ def deprecated(
         # ``args_extra``, ``stream``, ``num_warns``, ``skip_if``, etc.) are captured exactly as in the sync
         # path; the early return below means the sync ``wrapped_fn`` definition runs only for non-async
         # sources.
+        #
+        # Known false-negatives of ``inspect.iscoroutinefunction`` — these sources silently receive the sync
+        # wrapper, meaning ``await wrapper(...)`` will fail or return a bare coroutine:
+        #   • async function wrapped by a decorator that does NOT propagate ``__wrapped__`` / use
+        #     ``functools.wraps`` (``inspect.iscoroutinefunction`` walks ``__wrapped__``, not ``__call__``).
+        #   • callable objects whose ``__call__`` is ``async def`` — use ``async def`` thin wrapper instead.
+        #   • ``functools.partial(async_fn)`` on Python ≤ 3.11 (``partial`` does not copy ``__wrapped__``).
+        # Workaround for all three: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
+        # await callable(*a, **kw)`` before applying ``@deprecated``.
         if inspect.iscoroutinefunction(source):
 
             @wraps(source)
