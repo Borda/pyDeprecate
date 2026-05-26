@@ -189,7 +189,17 @@ def addition(a: int, b: int = 5) -> int:
 result = addition(1, 2)  # Returns 3
 # Warning: The `addition` was deprecated since v1.0 in favor of `__main__.compute_sum`.
 #          It will be removed in v2.0.
+print(result)
 ```
+
+<details>
+  <summary>Output: <code>result</code></summary>
+
+```text
+3
+```
+
+</details>
 
 That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
@@ -299,7 +309,7 @@ print(calculate(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(calculate(1, 2))</code></summary>
+  <summary>Output: <code>calculate(1, 2)</code></summary>
 
 ```
 3
@@ -335,7 +345,17 @@ calculate = deprecated(
     deprecated_in="0.5",
     remove_in="1.0",
 )(addition)
+print(calculate(1, 2))
 ```
+
+<details>
+  <summary>Output: <code>calculate(1, 2)</code></summary>
+
+```text
+3
+```
+
+</details>
 
 This is an equivalent to the `@deprecated(...)` decorator form but applied to an already-existing callable — useful when the deprecated function lives in a dependency you don't control.
 
@@ -409,7 +429,7 @@ print(my_sum(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(my_sum(1, 2))</code></summary>
+  <summary>Output: <code>my_sum(1, 2)</code></summary>
 
 ```
 3
@@ -450,7 +470,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
+  <summary>Output: <code>any_pow(2, 3)</code></summary>
 
 ```
 8
@@ -481,8 +501,17 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 # Passing the removed argument triggers a warning and the argument is silently discarded:
 #   The `my_func` uses deprecated arguments: `legacy_param` -> `None`.
 #   They were deprecated since v1.8 and will be removed in v1.9.
-my_func(value=42, legacy_param="old")
+print(my_func(value=42, legacy_param="old"))
 ```
+
+<details>
+  <summary>Output: <code>my_func(value=42, legacy_param="old")</code></summary>
+
+```text
+84
+```
+
+</details>
 
 > [!WARNING]
 > `TargetMode.ARGS_REMAP` without `args_mapping` is a misconfiguration; using it emits a construction-time `UserWarning`. This will become a `TypeError` in v1.0. If you only want to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
@@ -545,8 +574,18 @@ def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
     return base**scale
 
 
-compute_power(2, factor=3)  # → 2 warnings (arg rename + function deprecated), returns 8.0
-compute_power(2, scale=3)  # → 1 warning  (function deprecated only),          returns 8.0
+print(compute_power(2, factor=3))  # → 2 warnings (arg rename + function deprecated)
+print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>compute_power(2, factor=3); compute_power(2, scale=3)</code></summary>
+
+```text
+8
+8
 ```
 
 </details>
@@ -608,7 +647,7 @@ print(skip_pow(2, 3))
 <br>
 
 <details>
-  <summary>Output: <code>skip_pow</code> before and after version change</summary>
+<summary>Output: <code>skip_pow(2, 3); skip_pow(2, 3)</code></summary>
 
 ```
 0.25
@@ -718,7 +757,7 @@ print(inst.my_d)  # returns: "efg"
 <br>
 
 <details>
-  <summary>Output: <code>Client</code> instance attributes</summary>
+  <summary>Output: <code>inst.my_c; inst.my_d</code></summary>
 
 ```
 7
@@ -764,7 +803,7 @@ print(DEFAULTS["lr"])  # 0.001
 ```
 
 <details>
-  <summary>Output: <code>print(DEFAULTS["lr"])</code></summary>
+  <summary>Output: <code>DEFAULTS["lr"]</code></summary>
 
 ```
 0.001
@@ -850,7 +889,7 @@ print((p_new.x, p_new.y))
 <br>
 
 <details>
-  <summary>Output: <code>Color</code> forwarding and <code>PointV1</code> precision migration</summary>
+  <summary>Output: <code>Color.RED is ThemeColor.RED; Color(1) is ThemeColor.RED; (p_new.x, p_new.y)</code></summary>
 
 ```
 True
@@ -1064,8 +1103,17 @@ async def fetch_data(endpoint: str = "", url: str = "") -> bytes:
 
 asyncio.run(fetch("https://example.com"))
 asyncio.run(legacy_ping())
-asyncio.run(fetch_data(endpoint="https://example.com"))
+print(asyncio.run(fetch_data(endpoint="https://example.com")))
 ```
+
+<details>
+  <summary>Output: <code>asyncio.run(fetch_data(endpoint="https://example.com"))</code></summary>
+
+```text
+b'https://example.com'
+```
+
+</details>
 
 > [!NOTE]
 > `@deprecated` supports **async generator functions** (`async def` + `yield`). The wrapper is a sync callable — it fires the deprecation warning eagerly at call time and returns the async generator object. Callers iterate as normal with `async for item in wrapper(...):`. Because the wrapper is sync, `inspect.isasyncgenfunction(wrapper)` returns `False`; frameworks that branch on this introspection may need a thin async generator passthrough.
@@ -1098,7 +1146,19 @@ def old_add(a: int, b: int) -> int:
 def old_add_v2(a: int, b: int) -> int:
     """Just a docstring works too."""
     pass  # This also works
+
+
+print(old_add_v2(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>old_add_v2(2, 3)</code></summary>
+
+```text
+5
+```
+
+</details>
 
 > [!TIP]
 > `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
@@ -1646,6 +1706,18 @@ def old_func_always_warn(x: int) -> int:
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
 def old_func_warn_n_times(x: int) -> int:
     pass
+
+
+print(old_func_warn_n_times(1))
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>old_func_warn_n_times(1)</code></summary>
+
+```text
+2
 ```
 
 </details>
@@ -1690,6 +1762,18 @@ class MyClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
+
+
+print(MyClass(42).x)
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>MyClass(42).x</code></summary>
+
+```text
+42
 ```
 
 </details>
@@ -1792,6 +1876,18 @@ def old_func1():
 @deprecated(target=new_func, skip_if=lambda: False)
 def old_func2():
     pass
+
+
+print(old_func2())
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>old_func2()</code></summary>
+
+```text
+Hi!
 ```
 
 </details>
@@ -1830,6 +1926,18 @@ def old_func_always_warn():
 @deprecated(target=new_func, num_warns=5)  # Show 5 times
 def old_func_warn_n_times():
     pass
+
+
+assert callable(old_func_warn_n_times)
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>assert callable(old_func_warn_n_times)</code></summary>
+
+```text
+No output
 ```
 
 </details>

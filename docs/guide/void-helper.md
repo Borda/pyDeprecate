@@ -44,7 +44,19 @@ def old_add(a: int, b: int) -> int:
 def old_add_v2(a: int, b: int) -> int:
     """Just a docstring works too."""
     pass  # This also works
+
+
+print(old_add_v2(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>old_add_v2(2, 3)</code></summary>
+
+```text
+5
+```
+
+</details>
 
 ## Alternatives to void(...)
 
@@ -65,7 +77,19 @@ def new_compute(x: int, y: int) -> int:
 @deprecated(target=new_compute, deprecated_in="1.0", remove_in="2.0")
 def old_compute(x: int, y: int) -> int:
     pass
+
+
+print(old_compute(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>old_compute(2, 3)</code></summary>
+
+```text
+5
+```
+
+</details>
 
 ### Option 2: Docstring-only body
 
@@ -82,7 +106,19 @@ def new_compute(x: int, y: int) -> int:
 @deprecated(target=new_compute, deprecated_in="1.0", remove_in="2.0")
 def old_compute(x: int, y: int) -> int:
     """Previously computed x + y. Use new_compute() directly."""
+
+
+print(old_compute(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>old_compute(2, 3)</code></summary>
+
+```text
+5
+```
+
+</details>
 
 ### Option 3: `void(...)` call
 
@@ -99,7 +135,19 @@ def new_compute(x: int, y: int) -> int:
 @deprecated(target=new_compute, deprecated_in="1.0", remove_in="2.0")
 def old_compute(x: int, y: int) -> int:
     return void(x, y)
+
+
+print(old_compute(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>old_compute(2, 3)</code></summary>
+
+```text
+None
+```
+
+</details>
 
 ### Comparison summary
 
@@ -134,7 +182,7 @@ print(proc.scale(800, 600))
 ```
 
 <details>
-  <summary>Output: <code>print(proc.scale(800, 600)</code></summary>
+  <summary>Output: <code>proc.scale(800, 600)</code></summary>
 
 ```
 Resized to 800x600 (bilinear)
@@ -177,7 +225,19 @@ def old_func_a(x: int) -> int:
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
 def old_func_b(x: int) -> int:
     return cast(int, void(x))
+
+
+print(old_func_b(2))
 ```
+
+<details>
+  <summary>Output: <code>old_func_b(2)</code></summary>
+
+```text
+None
+```
+
+</details>
 
 In practice, neither workaround is usually needed — modern versions of mypy handle decorated functions correctly and do not flag unreachable return statements.
 
@@ -214,7 +274,7 @@ print(result)
 ```
 
 <details>
-  <summary>Output: <code>print(result)</code></summary>
+  <summary>Output: <code>result</code></summary>
 
 ```
 84

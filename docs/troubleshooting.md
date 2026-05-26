@@ -17,7 +17,18 @@ Use:
 
 ```python
 from deprecate import deprecated
+
+print(deprecated.__name__)
 ```
+
+<details>
+  <summary>Output: <code>deprecated.__name__</code></summary>
+
+```text
+deprecated
+```
+
+</details>
 
 Not:
 
@@ -65,7 +76,19 @@ class MyClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
+
+
+print(MyClass(5).x)
 ```
+
+<details>
+  <summary>Output: <code>MyClass(5).x</code></summary>
+
+```text
+5
+```
+
+</details>
 
 ## Upgrading from `@deprecated` on a class to `@deprecated_class`
 
@@ -123,7 +146,7 @@ print(obj.add(1, 2))  # 3 — forwarded to NewCalculator
 ```
 
 <details>
-  <summary>Output: <code>print(obj.add(1, 2)</code></summary>
+  <summary>Output: <code>obj.add(1, 2)</code></summary>
 
 ```
 True
@@ -153,7 +176,7 @@ print(OldColor["RED"] is Color.RED)  # True
 ```
 
 <details>
-  <summary>Output: <code>print(OldColor["RED"] is Color.RED)</code></summary>
+  <summary>Output: <code>OldColor["RED"] is Color.RED</code></summary>
 
 ```
 True
@@ -180,7 +203,7 @@ print(isinstance(svc, MyService))  # True
 ```
 
 <details>
-  <summary>Output: <code>print(isinstance(svc, MyService)</code></summary>
+  <summary>Output: <code>isinstance(svc, MyService)</code></summary>
 
 ```
 True
@@ -215,6 +238,9 @@ from deprecate import deprecated
 @deprecated(target=new_func, args_mapping={"old_arg": None})
 def old_func(old_arg: int, new_arg: int) -> int:
     pass
+
+
+assert isinstance(old_func(old_arg=1, new_arg=2), int)
 ```
 
 **Option 2 — Rename the argument** (the target uses a different parameter name):
@@ -233,6 +259,9 @@ from deprecate import deprecated
 @deprecated(target=new_func, args_mapping={"old_name": "new_name"})
 def old_func(old_name: int) -> int:
     pass
+
+
+assert isinstance(old_func(old_name=3), int)
 ```
 
 **Option 3 — Use `TargetMode.ARGS_REMAP`** (deprecating an argument of the same function, not forwarding to a different one):
@@ -245,6 +274,9 @@ from deprecate import TargetMode, deprecated
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
+
+
+assert isinstance(my_func(old_arg=1, new_arg=2), int)
 ```
 
 ## TypeError: skip_if function must return bool
@@ -280,6 +312,10 @@ def old_func1():
 @deprecated(target=new_func, skip_if=lambda: False)
 def old_func2():
     pass
+
+
+assert old_func1() == "Hi!"
+assert old_func2() == "Hi!"
 ```
 
 ## Deprecation notice not appearing
@@ -311,6 +347,9 @@ def old_func_always_warn():
 @deprecated(target=new_func, num_warns=5)  # Show 5 times
 def old_func_warn_n_times():
     pass
+
+
+assert callable(old_func_always_warn) and callable(old_func_warn_n_times)
 ```
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
@@ -372,7 +411,7 @@ print(OLD_THRESHOLD["value"])
 ```
 
 <details>
-  <summary>Output: <code>print(OLD_THRESHOLD["value"])</code></summary>
+  <summary>Output: <code>OLD_THRESHOLD["value"]</code></summary>
 
 ```
 0.5
@@ -380,10 +419,9 @@ print(OLD_THRESHOLD["value"])
 
 </details>
 
-1. **Update call sites directly** — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy:
+1. **Update call sites directly** — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy. This does not emit deprecation warnings; use it when a mechanical migration is enough.
 
 ```python
-# Just rename and grep-replace call sites:
 NEW_THRESHOLD = 0.5  # new name
 # OLD_THRESHOLD = 0.5  # remove after migration
 ```
@@ -405,7 +443,7 @@ print(get_old_threshold())
 ```
 
 <details>
-  <summary>Output: <code>print(get_old_threshold()</code></summary>
+  <summary>Output: <code>get_old_threshold()</code></summary>
 
 ```
 0.5
@@ -447,8 +485,17 @@ def old_endpoint(url: str) -> str:
 # Instead of a FutureWarning, emits a log line:
 #   2026-04-20 12:00:00 [WARNING] The `old_endpoint` was deprecated since v2.0
 #   in favor of `your_module.new_endpoint`. It will be removed in v3.0.
-old_endpoint("/api/users")
+print(old_endpoint("/api/users"))
 ```
+
+<details>
+  <summary>Output: <code>old_endpoint("/api/users")</code></summary>
+
+```text
+GET /api/users
+```
+
+</details>
 
 **Choosing the log level:**
 
@@ -491,9 +538,19 @@ LegacyConfig = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-LegacyConfig(timeout=30)  # new name — no warning (caller already migrated)
-LegacyConfig(time_limit=30)  # old name — FutureWarning emitted + remapped
+print(LegacyConfig(timeout=30).timeout)  # new name — no warning (caller already migrated)
+print(LegacyConfig(time_limit=30).timeout)  # old name — FutureWarning emitted + remapped
 ```
+
+<details>
+  <summary>Output: <code>LegacyConfig(...).timeout</code></summary>
+
+```text
+30
+30
+```
+
+</details>
 
 To emit a deprecation notice for every instantiation regardless of which argument name is used, configure `target=TargetMode.NOTIFY` explicitly. Combining `TargetMode.NOTIFY` with `args_mapping` is a misconfiguration — `args_mapping` is not applied under `NOTIFY` and supplying it emits a construction-time `UserWarning` today that becomes a `TypeError` in v1.0.
 
@@ -516,7 +573,19 @@ from deprecate import TargetMode, deprecated
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
 def my_func(old_name: int = 0, new_name: int = 0) -> int:
     return new_name * 2
+
+
+assert isinstance(my_func(old_name=3), int)
 ```
+
+<details>
+  <summary>Output: <code>assert isinstance(my_func(old_name=3), int)</code></summary>
+
+```text
+No output
+```
+
+</details>
 
 - **Warn callers with no forwarding or remapping** — use `TargetMode.NOTIFY` instead:
 
@@ -528,7 +597,19 @@ from deprecate import TargetMode, deprecated
 def my_func(x: int) -> int:
     """Going away — remove all call sites."""
     return x * 2
+
+
+print(my_func(3))
 ```
+
+<details>
+  <summary>Output: <code>assert my_func(3) == 6</code></summary>
+
+```text
+6
+```
+
+</details>
 
 !!! danger "This misconfiguration will become a TypeError in v1.0"
 
@@ -550,7 +631,19 @@ Custom method names — for example `register()`, `reload()`, or `set_value()` �
 class ReadOnlyRegistry(dict):
     def register(self, item):
         raise AttributeError("'LEGACY_REGISTRY' is deprecated and read-only. Migrate away from this object.")
+
+
+print(issubclass(ReadOnlyRegistry, dict))
 ```
+
+<details>
+  <summary>Output: <code>issubclass(ReadOnlyRegistry, dict)</code></summary>
+
+```text
+True
+```
+
+</details>
 
 Then wrap an instance of `ReadOnlyRegistry` instead of a plain `dict`. This keeps `read_only=True` in place for standard collection mutators while adding explicit guards for your custom methods.
 
@@ -582,7 +675,19 @@ class MyService:
     @deprecated(target=execute, deprecated_in="1.0", remove_in="2.0")
     def run(self, x: int) -> int:
         pass
+
+
+print(MyService().run(3))
 ```
+
+<details>
+  <summary>Output: <code>MyService().run(3)</code></summary>
+
+```text
+6
+```
+
+</details>
 
 If you are intentionally delegating to another class, convert the target to a standalone function or use `@deprecated_class` to deprecate the whole class instead.
 
@@ -635,7 +740,19 @@ def my_func(old: int = 0, new: int = 0) -> int:
 @deprecated(deprecated_in="2.0", remove_in="3.0")  # inner NOTIFY
 def my_func(old: int = 0, new: int = 0) -> int:
     return new
+
+
+print(my_func())
 ```
+
+<details>
+  <summary>Output: <code>my_func()</code></summary>
+
+```text
+0
+```
+
+</details>
 
 ______________________________________________________________________
 
@@ -670,7 +787,7 @@ print(list(gen))  # [10, 11, 12]
 ```
 
 <details>
-  <summary>Output: <code>print(list(gen))</code></summary>
+  <summary>Output: <code>list(gen)</code></summary>
 
 ```
 [10, 11, 12]
@@ -734,7 +851,19 @@ class Foo:
     @deprecated(deprecated_in="1.0", remove_in="2.0")
     @classmethod
     def old_method(cls, x): ...
+
+
+print(Foo.old_method(1))
 ```
+
+<details>
+  <summary>Output: <code>Foo.old_method(1)</code></summary>
+
+```text
+Ellipsis
+```
+
+</details>
 
 `@deprecated` detects that it received a `classmethod` descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in `classmethod`. The outcome is a fully working deprecated classmethod: no `UserWarning` at decoration time, and a `FutureWarning` fires when the method is called.
 
@@ -754,7 +883,19 @@ class Foo:
     @deprecated(target=new_impl, deprecated_in="1.0", remove_in="2.0")
     def old_method(cls, x):
         pass
+
+
+print(Foo.old_method(1))
 ```
+
+<details>
+  <summary>Output: <code>Foo.old_method(1)</code></summary>
+
+```text
+2
+```
+
+</details>
 
 The same rule applies to `@staticmethod`.
 
@@ -791,7 +932,7 @@ async def main():
     await asyncio.gather(*[old_fetch(u) for u in urls])
 
 
-asyncio.run(main())
+assert asyncio.run(main()) is None
 ```
 
 If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
@@ -822,8 +963,18 @@ async def old_fetch(url: str, timeout: int = 30) -> bytes:
 
 # Then use partial on the already-deprecated async wrapper if needed
 fetch_with_timeout = functools.partial(old_fetch, timeout=10)
-asyncio.run(old_fetch("https://example.com"))
+url = asyncio.run(old_fetch("https://example.com"))
+print(url.decode())
 ```
+
+<details>
+  <summary>Output: <code>asyncio.run(old_fetch("https://example.com")).decode()</code></summary>
+
+```text
+https://example.com
+```
+
+</details>
 
 This limitation is resolved in Python 3.12+ where `inspect.iscoroutinefunction` correctly handles `functools.partial` objects whose underlying callable is an `async def`.
 
@@ -856,7 +1007,19 @@ def my_decorator(fn):
         return fn(*args, **kwargs)
 
     return sync_wrapper
+
+
+print(my_decorator(lambda x: x + 1)(41))
 ```
+
+<details>
+  <summary>Output: <code>my_decorator(lambda x: x + 1)(41)</code></summary>
+
+```text
+42
+```
+
+</details>
 
 With this pattern, stacking `@my_decorator` above `@deprecated` on an `async def` produces an `async def` wrapper whose `inspect.iscoroutinefunction(...)` returns `True`.
 

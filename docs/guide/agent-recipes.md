@@ -45,7 +45,19 @@ from deprecate import TargetMode, deprecated
 )
 def api(*, new: str) -> str:
     return new
+
+
+print(api(old="demo"))
 ```
+
+<details>
+  <summary>Output: <code>api(old="demo")</code></summary>
+
+```text
+demo
+```
+
+</details>
 
 ## Anti-patterns
 

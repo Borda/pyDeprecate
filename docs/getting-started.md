@@ -63,7 +63,7 @@ print(addition(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(addition(1, 2))</code></summary>
+  <summary>Output: <code>addition(1, 2)</code></summary>
 
 ```
 3
