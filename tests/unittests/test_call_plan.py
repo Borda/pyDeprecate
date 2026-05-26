@@ -21,6 +21,7 @@ from typing import Any, Callable
 from deprecate import TargetMode
 from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
 from deprecate.deprecation import _build_call_plan
+from tests.collection_targets import double_value, identity_value
 
 
 def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -> _DeprecatedCallable:
@@ -41,14 +42,6 @@ def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -
     return _stub  # type: ignore[return-value]
 
 
-def _double(x: int) -> int:
-    return x * 2
-
-
-def _identity(x: int = 0) -> int:
-    return x
-
-
 # ---------------------------------------------------------------------------
 # Callable-target dispatch — happy path
 # ---------------------------------------------------------------------------
@@ -56,13 +49,13 @@ def _identity(x: int = 0) -> int:
 
 def test_callable_target_round_trip_returns_target_func() -> None:
     """Callable target with matching kwargs returns ``short_circuit=False`` and the resolved ``target_func``."""
-    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=_double)
-    wrapper = _make_wrapper_stub(_double, cfg)
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=double_value)
+    wrapper = _make_wrapper_stub(double_value, cfg)
     plan = _build_call_plan(
         wrapper_fn=wrapper,
-        source=_double,
-        target=_double,
-        _target=_double,
+        source=double_value,
+        target=double_value,
+        _target=double_value,
         args=(),
         kwargs={"x": 3},
         dep_cfg=cfg,
@@ -73,7 +66,7 @@ def test_callable_target_round_trip_returns_target_func() -> None:
     )
 
     assert plan.short_circuit is False
-    assert plan.target_func is _double
+    assert plan.target_func is double_value
     assert plan.resolved_kwargs == {"x": 3}
     assert plan.reason_argument == {}
     # State must be bumped exactly once per call.
@@ -100,10 +93,10 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
         target=TargetMode.ARGS_REMAP,
         args_mapping={"old_x": "x"},
     )
-    wrapper = _make_wrapper_stub(_identity, cfg)
+    wrapper = _make_wrapper_stub(identity_value, cfg)
     plan = _build_call_plan(
         wrapper_fn=wrapper,
-        source=_identity,
+        source=identity_value,
         target=TargetMode.ARGS_REMAP,
         _target=TargetMode.ARGS_REMAP,
         args=(),
@@ -129,10 +122,10 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
 def test_notify_mode_returns_none_target_func() -> None:
     """:attr:`TargetMode.NOTIFY` never resolves a target; the wrapper must execute the source body."""
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.NOTIFY)
-    wrapper = _make_wrapper_stub(_identity, cfg)
+    wrapper = _make_wrapper_stub(identity_value, cfg)
     plan = _build_call_plan(
         wrapper_fn=wrapper,
-        source=_identity,
+        source=identity_value,
         target=TargetMode.NOTIFY,
         _target=TargetMode.NOTIFY,
         args=(),
