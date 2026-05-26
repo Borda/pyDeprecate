@@ -399,10 +399,12 @@ class _CallPlan:
     to invoke ``source`` or a forwarded target callable, and with which kwargs shape.
 
     Attributes:
-        short_circuit: ``True`` when the wrapper must call ``source(**resolved_kwargs)`` (no warning, no remap, no
-            target lookup) — this is the "migrated caller using the new arg name" fast path before any warning logic
-            runs.  When ``True``, :attr:`resolved_kwargs` equals the kwargs after
-            :func:`_update_kwargs_with_args`, before defaults / remap / extras are applied.
+        short_circuit: ``True`` when the wrapper must call ``source`` directly (no warning, no remap, no target
+            lookup) — this is the "migrated caller using the new arg name" fast path before any warning logic runs.
+            The wrapper calls ``source(**resolved_kwargs)`` for sources without ``*args``, or
+            ``source(*args, **original_kwargs)`` when the source declares a var-positional parameter so that
+            extra positional arguments are forwarded correctly.  When ``True``, :attr:`resolved_kwargs` equals the
+            kwargs after :func:`_update_kwargs_with_args`, before defaults / remap / extras are applied.
         original_kwargs: A shallow copy of the wrapper's incoming ``kwargs`` (before positional args were converted to
             keyword form).  Used by the var-positional branch when no argument-rename reason fired, so that the source
             sees its original positional/keyword shape.
