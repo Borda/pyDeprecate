@@ -144,7 +144,7 @@ print(old_compute(2, 3))
   <summary>Output: <code>old_compute(2, 3)</code></summary>
 
 ```text
-None
+5
 ```
 
 </details>
@@ -234,7 +234,7 @@ print(old_func_b(2))
   <summary>Output: <code>old_func_b(2)</code></summary>
 
 ```text
-None
+4
 ```
 
 </details>

@@ -603,7 +603,7 @@ print(my_func(3))
 ```
 
 <details>
-  <summary>Output: <code>assert my_func(3) == 6</code></summary>
+  <summary>Output: <code>print(my_func(3))</code></summary>
 
 ```text
 6
