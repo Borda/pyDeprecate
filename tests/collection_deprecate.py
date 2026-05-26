@@ -62,6 +62,7 @@ from tests.collection_targets import (
     TimerDecorator,
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
+    async_target,
     base_pow_args,
     base_sum_kwargs,
     both_old_new_target,
@@ -1527,3 +1528,54 @@ gen_callable = deprecated(target=gen_target, deprecated_in="1.0", remove_in="2.0
 gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)(
     gen_target
 )
+
+
+# ========== async callable kind fixtures ==========
+# Three wrappers exercise the ``@deprecated`` async path (``inspect.iscoroutinefunction`` branch in ``packing()``).
+# Each pairs an ``async def`` source with one of the three ``TargetMode`` variants so the integration tests can
+# confirm: (a) round-trip awaited result, (b) warning timing for async wrappers — fired when the returned coroutine
+# is awaited, before the wrapped async body/result completes — and (c) stacklevel pointing back to the user's call
+# site rather than to ``deprecation.py``.
+
+
+async def _async_source_notify(x: int) -> int:
+    """NOTIFY-mode async source: body runs unchanged after warning fires.
+
+    Doubles its input so the integration test can assert end-to-end equivalence without referencing the target.
+
+    """
+    return x * 2
+
+
+async def _async_source_remap(old_x: int = 0, x: int = 0) -> int:
+    """Self-deprecation async source for ``async_args_remap``: accepts legacy arg ``old_x`` (mapped to ``x``).
+
+    Body executes under :attr:`~deprecate.TargetMode.ARGS_REMAP` so it must be a real ``async def``; only the
+    remapped ``x`` is read in the body.
+
+    """
+    return x * 2
+
+
+async def _async_source_callable(x: int = 0) -> int:
+    """Placeholder async source for ``async_callable``: body never executes under callable-target mode.
+
+    Declared as ``async def`` so :func:`inspect.iscoroutinefunction` returns ``True`` and the async wrapper engages.
+    The body is unreachable because ``target=async_target`` forwards every call.
+
+    """
+    return x  # pragma: no cover - unreachable; target forwards every call
+
+
+#: NOTIFY mode — source body runs unchanged (warning-only). Uses default ``num_warns=1``;
+#: warning fires once per call. Tests reset ``warned_calls`` between parametrize cases.
+async_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_source_notify)
+#: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
+async_args_remap = deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_x": "x"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(_async_source_remap)
+#: Callable-target mode — call forwarded to ``async_target``; source body never executes.
+async_callable = deprecated(target=async_target, deprecated_in="1.0", remove_in="2.0")(_async_source_callable)

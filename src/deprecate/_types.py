@@ -388,3 +388,40 @@ class _DeprecatedCallable(Protocol):
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the deprecated callable."""
         raise NotImplementedError
+
+
+@dataclass
+class _CallPlan:
+    """Resolved dispatch plan returned by :func:`deprecate.deprecation._build_call_plan`.
+
+    Captures the outcome of all decision-making shared between the sync and async wrappers in :func:`deprecated`: state
+    mutation, kwargs assembly, warning emission, target resolution.  The wrapper consumes this struct to decide whether
+    to invoke ``source`` or a forwarded target callable, and with which kwargs shape.
+
+    Attributes:
+        short_circuit: ``True`` when the wrapper must call ``source`` directly (no warning, no remap, no target
+            lookup) — this is the "migrated caller using the new arg name" fast path before any warning logic runs.
+            The wrapper calls ``source(**resolved_kwargs)`` for sources without ``*args``, or
+            ``source(*args, **original_kwargs)`` when the source declares a var-positional parameter so that
+            extra positional arguments are forwarded correctly.  When ``True``, :attr:`resolved_kwargs` equals the
+            kwargs after :func:`_update_kwargs_with_args`, before defaults / remap / extras are applied.
+        original_kwargs: A shallow copy of the wrapper's incoming ``kwargs`` (before positional args were converted to
+            keyword form).  Used by the var-positional branch when no argument-rename reason fired, so that the source
+            sees its original positional/keyword shape.
+        resolved_kwargs: Final kwargs after defaults injection, ``args_mapping`` remap, and ``args_extra`` merge when
+            the normal planning path runs.  On the :attr:`short_circuit` path, this instead holds the kwargs produced
+            immediately after :func:`_update_kwargs_with_args`, and that is what the wrapper passes to ``source``.
+        reason_argument: Subset of ``args_mapping`` whose old-arg names appeared in the caller's kwargs.  Non-empty
+            value means the argument-rename warning fired (or was suppressed by ``num_warns`` quota).  Empty when the
+            warning reason was callable-deprecation or when no rename was triggered.
+        target_func: Resolved target callable when forwarding is required, or ``None`` when the source body should be
+            invoked instead.  ``None`` for :attr:`TargetMode.NOTIFY` and :attr:`TargetMode.ARGS_REMAP`; a validated
+            callable when the user passed a forwarding target.
+
+    """
+
+    short_circuit: bool
+    original_kwargs: dict[str, Any]
+    resolved_kwargs: dict[str, Any]
+    reason_argument: dict[str, Optional[str]] = field(default_factory=dict)
+    target_func: Optional[Callable[..., Any]] = None

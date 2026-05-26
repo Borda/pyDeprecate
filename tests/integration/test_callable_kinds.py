@@ -1,19 +1,20 @@
-"""Integration tests for generator callable kind support.
+"""Integration tests for generator and async callable kind support.
 
-Covers three concerns:
+Covers four concerns:
 
-- Round-trip yield equivalence under all three :class:`~deprecate.TargetMode` variants (NOTIFY, ARGS_REMAP, callable).
-- Eager warning timing — the deprecation warning must fire at call time (when the wrapped generator is *created*), not
-  on the first :func:`next` call.  Generator bodies do not execute until iterated, so a naïve forwarder would defer the
-  warning until iteration.  ``_dispatch`` fires the warning synchronously before returning the generator object.
+- Round-trip equivalence under all three :class:`~deprecate.TargetMode` variants (NOTIFY, ARGS_REMAP, callable) for
+  both sync generators (``yield``) and ``async def`` coroutines.
+- Warning timing — for generators the warning fires when the generator object is created (before first
+  :func:`next` call); for coroutines it fires when the coroutine is awaited, not when the coroutine object is
+  created.
 - Stacklevel — the warning must point to the user's call site, not to ``deprecation.py``.
-
 Also covers order-agnostic classmethod rescue: ``@deprecated`` applied OUTSIDE ``@classmethod`` is silently rescued
 at decoration time via transparent unwrap + rewrap, producing a working deprecated classmethod descriptor without
 emitting a warning.
 
 """
 
+import inspect
 import warnings
 from typing import cast
 
@@ -21,7 +22,15 @@ import pytest
 
 from deprecate import deprecated
 from deprecate._types import _DeprecatedCallable
-from tests.collection_deprecate import gen_args_remap, gen_callable, gen_notify, gen_notify_unlimited
+from tests.collection_deprecate import (
+    async_args_remap,
+    async_callable,
+    async_notify,
+    gen_args_remap,
+    gen_callable,
+    gen_notify,
+    gen_notify_unlimited,
+)
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a
 # non-default argument name because its source carries the legacy ``old_x`` parameter.
@@ -145,3 +154,89 @@ def test_wrong_order_classmethod_silently_rescued() -> None:
         warnings.simplefilter("always")
         _Foo.old_method()
     assert any(issubclass(w.category, FutureWarning) for w in call_warned), "Deprecation warning must fire on call"
+
+
+# ========== Async ``def`` wrapper integration tests ==========
+# Async wrappers under test:
+#   - ``async_notify``      — TargetMode.NOTIFY; source body runs unchanged.
+#   - ``async_args_remap``  — TargetMode.ARGS_REMAP; legacy arg ``old_x`` is mapped to ``x`` before body executes.
+#   - ``async_callable``    — callable target (``async_target``); source body never executes.
+# Each call expects ``x=1`` (or ``old_x=1`` for args_remap) and produces ``2``.
+
+_ASYNC_WRAPPER_CASES = [
+    pytest.param(async_notify, {"x": 1}, id="notify"),
+    pytest.param(async_args_remap, {"old_x": 1}, id="args_remap"),
+    pytest.param(async_callable, {"x": 1}, id="callable"),
+]
+
+
+@pytest.fixture(autouse=True)
+def _reset_async_state() -> None:
+    """Reset the warning counter on each module-level async wrapper before each test.
+
+    Mirrors ``_reset_gen_state`` for the async fixtures: ``num_warns=1`` (default) would otherwise suppress the
+    second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``called`` and
+    ``warned_misconfigured`` are left intact.
+
+    """
+    for wrapper in (async_notify, async_args_remap, async_callable):
+        state = cast(_DeprecatedCallable, wrapper)._state
+        state.warned_calls = 0
+        state.warned_args.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_WRAPPER_CASES)
+async def test_async_round_trip(wrapper: object, call_kwargs: dict) -> None:
+    """Wrapped async fn returns the same value as the underlying ``async_target`` (``x * 2``)."""
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        result = await wrapper(**call_kwargs)  # type: ignore[operator]
+    assert result == 2
+
+
+@pytest.mark.asyncio
+async def test_async_warning_fires_on_await_not_on_call() -> None:
+    """Warning fires when coroutine is awaited, not when the wrapper is called.
+
+    The async wrapper body runs lazily — calling the wrapper creates an unawaited coroutine
+    with no side effects. The deprecation warning fires on the first ``await``.
+
+    """
+    with warnings.catch_warnings(record=True) as warned_before:
+        warnings.simplefilter("always")
+        coro = async_notify(x=1)
+    pre_await_warnings = [w for w in warned_before if w.category in (FutureWarning, DeprecationWarning)]
+    assert not pre_await_warnings, "Warning must not fire at call time — only fires on await"
+
+    with warnings.catch_warnings(record=True) as warned_after:
+        warnings.simplefilter("always")
+        result = await coro
+    post_await_warnings = [w for w in warned_after if w.category in (FutureWarning, DeprecationWarning)]
+    assert post_await_warnings, "Warning must fire when coroutine is awaited"
+    assert result == 2
+
+
+@pytest.mark.asyncio
+async def test_async_warning_stacklevel() -> None:
+    """Async wrapper warning filename points to the caller's file, not to ``deprecation.py``."""
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        await async_notify(x=1)
+    deprecation_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+    assert deprecation_warnings, "Async wrapper must emit a deprecation warning"
+    w = deprecation_warnings[0]
+    assert w.filename.endswith("test_callable_kinds.py"), f"Expected caller file, got {w.filename}"
+
+
+def test_async_callable_wrapper_is_coroutine_function() -> None:
+    """The async-source wrapper itself must remain a coroutine function after decoration.
+
+    ``functools.wraps`` preserves ``__wrapped__``, but ``inspect.iscoroutinefunction`` checks the wrapper's own
+    ``CO_COROUTINE`` flag.  The dedicated async branch in ``packing()`` defines the wrapper with ``async def`` so
+    callers and frameworks (e.g. ``asyncio.run``, FastAPI dependency injection) recognise it.
+
+    """
+    assert inspect.iscoroutinefunction(async_notify), "async_notify wrapper must be a coroutine function"
+    assert inspect.iscoroutinefunction(async_args_remap), "async_args_remap wrapper must be a coroutine function"
+    assert inspect.iscoroutinefunction(async_callable), "async_callable wrapper must be a coroutine function"
