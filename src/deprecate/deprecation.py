@@ -1168,6 +1168,15 @@ def deprecated(
 
             return async_wrapped_fn
 
+        if inspect.isasyncgenfunction(source):
+            warnings.warn(
+                f"`@deprecated` on async generator `{source.__name__}` is not yet supported. "
+                "The wrapper will be a sync function and `await wrapper(...)` will fail. "
+                "Remove `@deprecated` from async generators until full support lands.",
+                UserWarning,
+                stacklevel=_stacklevel,
+            )
+
         @wraps(source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
