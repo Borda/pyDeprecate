@@ -225,8 +225,8 @@ Choose the fix that matches your situation:
 
 ```python
 # define a target that ignores the extra arg
-def new_func(required_arg: int, **kwargs) -> int:
-    return required_arg * 2
+def new_func(new_arg: int) -> int:
+    return new_arg * 2
 
 
 # ---------------------------
