@@ -95,7 +95,7 @@ if result.no_effect:
 ```
 
 <details>
-  <summary>Output: <code>print("Warning: This wrapper configuration has zero impact!")</code></summary>
+  <summary>Output: <code>"Warning: This wrapper configuration has zero impact!"</code></summary>
 
 ```
 DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False)
@@ -134,7 +134,7 @@ for r in results[:5]:
 ```
 
 <details>
-  <summary>Output: <code>print(f"Found {len(ineffective)</code></summary>
+  <summary>Output: <code>f"Found {len(ineffective)} deprecated wrappers with zero impact!"</code></summary>
 
 ```
 Found 0 deprecated wrappers with zero impact!
@@ -180,7 +180,7 @@ print(f"No effect: {len(no_effect)}")
 ```
 
 <details>
-  <summary>Output: <code>print(f"No effect: {len(no_effect)}")</code></summary>
+  <summary>Output: <code>f"No effect: {len(no_effect)}"</code></summary>
 
 ```
 === Misconfiguration Report ===
@@ -217,7 +217,7 @@ print(f"Self-references: {len(self_refs)}")
 ```
 
 <details>
-  <summary>Output: <code>print(f"Self-references: {len(self_refs)</code></summary>
+  <summary>Output: <code>f"Self-references: {len(self_refs)}"</code></summary>
 
 ```
 === Deprecation Validation Report ===
@@ -304,7 +304,7 @@ print(f"Found {len(expired)} expired")
 ```
 
 <details>
-  <summary>Output: <code>print(f"Found {len(expired)</code></summary>
+  <summary>Output: <code>f"Found {len(expired)} expired"</code></summary>
 
 ```
 Found 14 expired
@@ -422,7 +422,7 @@ for func in (caller_target_chain, caller_stacked_chain, caller_direct):
 ```
 
 <details>
-  <summary>Output: <code>print(f"{func.__name__}: {info.chain_type}")</code></summary>
+  <summary>Output: <code>f"{func.__name__}: {info.chain_type}"</code></summary>
 
 ```
 caller_target_chain: ChainType.TARGET
@@ -576,7 +576,19 @@ def old_func_always_warn(x: int) -> int:
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
 def old_func_warn_n_times(x: int) -> int:
     pass
+
+
+print(old_func_warn_n_times(1))
 ```
+
+<details>
+  <summary>Output: <code>old_func_warn_n_times(1)</code></summary>
+
+```
+2
+```
+
+</details>
 
 ### Suppressing warnings in test fixtures
 
@@ -614,7 +626,7 @@ print(clean_session)
 ```
 
 <details>
-  <summary>Output: <code>print(clean_session)</code></summary>
+  <summary>Output: <code>new_create_session("prod.example.com")</code></summary>
 
 ```
 {'host': 'localhost', 'timeout': 5}

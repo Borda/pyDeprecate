@@ -2,54 +2,54 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/index.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/api-reference.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/changelog.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/getting-started.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/troubleshooting.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/audit.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/cli.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/customization.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/migration.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/use-cases.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
     <url>
          <loc>https://borda.github.io/pyDeprecate/stable/guide/void-helper.html</loc>
-         <lastmod>2026-05-26</lastmod>
+         <lastmod>2026-05-27</lastmod>
     </url>
 </urlset>
