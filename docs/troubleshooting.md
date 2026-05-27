@@ -860,7 +860,7 @@ print(Foo.old_method(1))
   <summary>Output: <code>Foo.old_method(1)</code></summary>
 
 ```text
-Ellipsis
+None
 ```
 
 </details>
