@@ -579,7 +579,6 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_recursive_includes_submodules(self) -> None:
         """recursive=True discovers wrappers across submodules, not just the top-level."""
-        import tests
         from tests import collection_deprecate as top_pkg
 
         symbols_recursive = {

@@ -1325,14 +1325,14 @@ It supports two styles via `style=`:
 
 The **Current Status** column uses these labels:
 
-| Status | Meaning |
-| --- | --- |
-| ⚠️ Active Warning | Between `deprecated_in` and `remove_in` — still in the deprecation window |
-| ❌ Past Removal Date | Current version ≥ `remove_in` — zombie code that should be deleted |
-| ℹ️ No Removal Target | No `remove_in` set — no scheduled removal |
-| 🕒 Scheduled Deprecation | Current version is before `deprecated_in` — not yet active |
-| ⚪ Status Unknown | `packaging` not installed or `current_version` not resolvable |
-| ⚪ Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version |
+| Status                    | Meaning                                                                   |
+| ------------------------- | ------------------------------------------------------------------------- |
+| ⚠️ Active Warning         | Between `deprecated_in` and `remove_in` — still in the deprecation window |
+| ❌ Past Removal Date      | Current version ≥ `remove_in` — zombie code that should be deleted        |
+| ℹ️ No Removal Target      | No `remove_in` set — no scheduled removal                                 |
+| 🕒 Scheduled Deprecation  | Current version is before `deprecated_in` — not yet active                |
+| ⚪ Status Unknown         | `packaging` not installed or `current_version` not resolvable             |
+| ⚪ Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version                         |
 
 ```python
 from tests import collection_deprecate as my_package
