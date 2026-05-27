@@ -268,6 +268,14 @@
             "@type": "Answer",
             "text": "_WrapperState fields (called, warned_calls, warned_args) are plain Python dataclass fields with no asyncio lock. Concurrent coroutines sharing one deprecated wrapper race on the warning counter, causing fewer warnings than num_warns specifies to be emitted. Workaround: set num_warns=-1 to bypass the count gate entirely — the warning then fires unconditionally on every call regardless of scheduling."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my deprecated async def warning not appear in CI or test output?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. coro = old_fn(x=1) produces no warning; await coro fires it. Common silent-loss scenarios: asyncio.create_task schedules the coroutine so the warning fires in the event loop after your catch_warnings block exits; third-party schedulers (Celery, arq, anyio) run the coroutine in a different context; pytest.warns() wrapping only the call captures nothing. Fix 1 (recommended): use stream=logging.warning — logging bypasses Python warning filters and always appears in CI logs. Fix 2 (tests): wrap the await, not just the call, inside pytest.warns(FutureWarning)."
+          }
         }
       ]
     }
