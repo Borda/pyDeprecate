@@ -1213,11 +1213,35 @@ It supports two styles via `style=`:
   - `R` = remove in this version
 - rows are ordered by module and symbol family (class/function), so related `args` variants stay grouped together
 
+The **Current Status** column uses these labels:
+
+| Status | Meaning |
+| --- | --- |
+| ⚠️ Active Warning | Between `deprecated_in` and `remove_in` — still in the deprecation window |
+| ❌ Past Removal Date | Current version ≥ `remove_in` — zombie code that should be deleted |
+| ℹ️ No Removal Target | No `remove_in` set — no scheduled removal |
+| 🕒 Scheduled Deprecation | Current version is before `deprecated_in` — not yet active |
+| ⚪ Status Unknown | `packaging` not installed or `current_version` not resolvable |
+| ⚪ Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version |
+
+```python
+from tests import collection_deprecate as my_package
+from deprecate import generate_deprecation_markdown
+
+# Compact style (default)
+report = generate_deprecation_markdown(my_package, current_version="1.5", recursive=False)
+```
+
 ```text
 | Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
 | `my_pkg.api.old_method` | callable | `my_pkg.api.new_method` | v1.2.0 | v2.0.0 | ⚠️ Active Warning |
 | `my_pkg.legacy.LegacyClass.__init__` | class constructor | `my_pkg.legacy.NewClass.__init__` | v1.0.0 | v1.8.0 | ❌ Past Removal Date |
+```
+
+```python
+# Matrix style
+matrix = generate_deprecation_markdown(my_package, current_version="1.5", recursive=False, style="matrix")
 ```
 
 ```text

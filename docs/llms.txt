@@ -190,6 +190,7 @@ pydeprecate all src/
 | Class rename | `@deprecated_class(target=NewClass)` |
 | Constant/object alias | `deprecated_instance(obj, ...)` |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
+| Docs table | `generate_deprecation_markdown(pkg, style="compact")` or `style="matrix"` |
 
 ## Decision Flowchart
 

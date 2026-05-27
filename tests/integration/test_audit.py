@@ -507,6 +507,7 @@ class TestGenerateDeprecationMarkdown:
         assert "v1.0 | v1.3 | ❌ Past Removal Date" in report
         assert "v1.0 | v2.0 | ⚠️ Active Warning" in report
 
+    @_requires_packaging
     def test_markdown_reports_api_types(self) -> None:
         """Markdown report differentiates callable/args/class/dataclass-attrs/method APIs."""
         report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
@@ -567,6 +568,24 @@ class TestGenerateDeprecationMarkdown:
         """Unknown style value raises ValueError with valid choices listed."""
         with pytest.raises(ValueError, match="Invalid style"):
             generate_deprecation_markdown(proxy_module, recursive=False, style="bad-style")
+
+    def test_markdown_recursive_includes_submodules(self) -> None:
+        """recursive=True discovers wrappers across submodules, not just the top-level."""
+        import tests
+        from tests import collection_deprecate as top_pkg
+
+        symbols_recursive = {
+            line.split("|", maxsplit=3)[1].strip().strip("`")
+            for line in generate_deprecation_markdown(tests, recursive=True).splitlines()
+            if line.startswith("| `")
+        }
+        symbols_top = {
+            line.split("|", maxsplit=3)[1].strip().strip("`")
+            for line in generate_deprecation_markdown(top_pkg, recursive=False).splitlines()
+            if line.startswith("| `")
+        }
+        assert symbols_top.issubset(symbols_recursive)
+        assert len(symbols_recursive) >= len(symbols_top)
 
 
 @_requires_packaging

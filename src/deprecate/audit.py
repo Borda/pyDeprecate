@@ -44,7 +44,7 @@ from contextlib import suppress
 from dataclasses import dataclass, field, is_dataclass, replace
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 if TYPE_CHECKING:
     from packaging.version import Version
@@ -183,7 +183,7 @@ class DeprecationWrapperInfo:
     all_identity: bool = False
     chain_type: Optional[ChainType] = None
     empty_deprecated_in: bool = field(init=False, default=False)
-    api_type: str = ""
+    api_type: str = field(repr=False, default="")
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
@@ -583,6 +583,7 @@ def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
+    include_members: bool = False,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.
 
@@ -602,6 +603,7 @@ def validate_deprecation_expiry(
             If None, attempts to auto-detect the version using the package name from the module path (e.g.,
             ``"mypackage"`` extracts ``mypackage`` as package name).
         recursive: If True (default), recursively scan submodules. If False, only scan the top-level module.
+        include_members: If True, also scan deprecated class members (methods, constructors).
 
     Returns:
         List of error messages for callables that have expired (past their removal deadline).
@@ -654,7 +656,9 @@ def validate_deprecation_expiry(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    return _check_expiry_for_callables(find_deprecation_wrappers(module, recursive=recursive), current_version)
+    return _check_expiry_for_callables(
+        find_deprecation_wrappers(module, recursive=recursive, include_members=include_members), current_version
+    )
 
 
 def find_deprecation_wrappers(
@@ -786,11 +790,8 @@ def find_deprecation_wrappers(
             if name.startswith("_"):
                 continue
 
-            # Check if it's a function or method with __deprecated__ attribute
-            if callable(obj) and hasattr(obj, "__deprecated__"):
-                # Validate the wrapper - extracts config from __deprecated__
+            if _has_deprecation_meta(obj):
                 info = validate_deprecation_wrapper(obj)
-                # Update with module-level info
                 info = replace(
                     info,
                     module=mod.__name__ if hasattr(mod, "__name__") else str(mod),
@@ -867,7 +868,7 @@ def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
 
 def _format_report_target(target: Any) -> str:  # noqa: ANN401
     """Format replacement target name for report rows."""
-    if target is None:
+    if target is None or target is TargetMode.NOTIFY:
         return "—"
     if isinstance(target, TargetMode):
         return target.value
@@ -965,7 +966,7 @@ def generate_deprecation_markdown(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
-    style: str = "compact",
+    style: Literal["compact", "matrix"] = "compact",
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
@@ -975,12 +976,31 @@ def generate_deprecation_markdown(
     Args:
         module: Imported module/package object or string module path to scan.
         current_version: Optional current package version for lifecycle status
-            evaluation in compact style.
+            evaluation in compact style. If ``None``, auto-detection is attempted
+            via the package name; status falls back to ``"⚪ Status Unknown"`` when
+            ``packaging`` is not installed.
         recursive: If True (default), include submodules in the scan.
-        style: Table format, either:
-            - ``"compact"``: ``Original API | API Type | New API | Deprecated (ver) | Remove (ver)``
+        style: Table format — ``"compact"`` or ``"matrix"``.
+            - ``"compact"``: ``Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status``
             - ``"matrix"``: ``Original API | API Type | New API | <all versions...>``, with markers
               ``D`` (deprecated) and ``R`` (remove) in version columns.
+
+    Returns:
+        Markdown string containing a formatted table. The first two lines are
+        always the header row and alignment row; subsequent lines are data rows,
+        one per deprecated wrapper discovered.
+
+    Raises:
+        ValueError: If ``style`` is not ``"compact"`` or ``"matrix"``, or if
+            ``current_version`` is supplied but is not a valid PEP 440 version
+            string and ``packaging`` is installed.
+
+    Example:
+        >>> from tests import collection_deprecate as pkg
+        >>> report = generate_deprecation_markdown(pkg, recursive=False)
+        >>> report.splitlines()[0]
+        '| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |'
+
     """
     if style not in {"compact", "matrix"}:
         raise ValueError(f"Invalid style '{style}'. Expected one of: compact, matrix.")
@@ -1039,9 +1059,7 @@ def generate_deprecation_markdown(
                 "| "
                 f"`{_format_report_symbol(info)}` | "
                 f"{_format_report_api_type(info)} | "
-                f"`{_format_report_target(info.deprecated_info.target)}` | "
-                + " | ".join(markers)
-                + " |"
+                f"`{_format_report_target(info.deprecated_info.target)}` | " + " | ".join(markers) + " |"
             )
 
     if resolved_version is not None:
