@@ -153,8 +153,10 @@ class DeprecationWrapperInfo:
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
             is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
             that lack the introductory version metadata without crashing callers.
-        api_type: Inferred deprecated API type for report generation
-            (e.g., ``callable``, ``args``, ``class``, ``dataclass attributes``, ``class method``).
+        api_type: Inferred deprecated API type for report generation.
+            Possible values: ``callable``, ``args``, ``class``, ``dataclass``, ``dataclass attributes``,
+            ``data``, ``class constructor``, ``class constructor args``, ``class method``, ``class method args``,
+            ``classmethod``, ``classmethod args``, ``staticmethod``, ``staticmethod args``.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -889,7 +891,7 @@ def _classify_wrapper_api_type(
         return "class method args" if has_mapping else "class method"
 
     if isinstance(wrapped_obj, _DeprecatedProxy):
-        source_obj = wrapped_obj._cfg.obj
+        source_obj = wrapped_obj.wrapped
         if inspect.isclass(source_obj):
             if is_dataclass(source_obj):
                 return "dataclass attributes" if has_mapping else "dataclass"
@@ -957,6 +959,7 @@ def generate_deprecation_markdown(
     current_version: Optional[str] = None,
     recursive: bool = True,
     style: Literal["compact", "matrix"] = "compact",
+    include_members: bool = True,
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
@@ -974,6 +977,7 @@ def generate_deprecation_markdown(
             - ``"compact"``: ``Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status``
             - ``"matrix"``: ``Original API | API Type | New API | <all versions...>``, with markers
               ``D`` (deprecated) and ``R`` (remove) in version columns.
+        include_members: If True (default), include deprecated class members (methods, constructors).
 
     Returns:
         Markdown string containing a formatted table. The first two lines are
@@ -997,7 +1001,7 @@ def generate_deprecation_markdown(
 
     resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
     wrappers = sorted(
-        find_deprecation_wrappers(module, recursive=recursive, include_members=True),
+        find_deprecation_wrappers(module, recursive=recursive, include_members=include_members),
         key=_report_row_sort_key,
     )
 
