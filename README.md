@@ -647,7 +647,7 @@ print(skip_pow(2, 3))
 <br>
 
 <details>
-<summary>Output: <code>skip_pow(2, 3); skip_pow(2, 3)</code></summary>
+  <summary>Output: <code>skip_pow(2, 3); skip_pow(2, 3)</code></summary>
 
 ```
 0.25
