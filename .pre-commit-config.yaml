@@ -99,11 +99,11 @@ repos:
     hooks:
       - id: validate-pyproject
 
-- repo: local
-  hooks:
-    - id: changelog-sync
-      name: changelog sync (docs/changelog.md must match CHANGELOG.md)
-      entry: diff -q CHANGELOG.md docs/changelog.md
-      language: system
-      files: ^(CHANGELOG\.md|docs/changelog\.md)$
-      pass_filenames: false
+  - repo: local
+    hooks:
+      - id: changelog-sync
+        name: changelog sync (docs/changelog.md must match CHANGELOG.md)
+        entry: diff -q CHANGELOG.md docs/changelog.md
+        language: system
+        files: ^(CHANGELOG\.md|docs/changelog\.md)$
+        pass_filenames: false
