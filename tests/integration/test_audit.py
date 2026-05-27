@@ -575,7 +575,7 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_invalid_style_raises(self) -> None:
         """Unknown style value raises ValueError with valid choices listed."""
         with pytest.raises(ValueError, match="Invalid style"):
-            generate_deprecation_markdown(proxy_module, recursive=False, style="bad-style")
+            generate_deprecation_markdown(proxy_module, recursive=False, style="bad-style")  # type: ignore[arg-type]
 
     def test_markdown_recursive_includes_submodules(self) -> None:
         """recursive=True discovers wrappers across submodules, not just the top-level."""
