@@ -1350,6 +1350,9 @@ report = generate_deprecation_markdown(my_package, current_version="1.5", recurs
 ```
 
 ```python
+from tests import collection_deprecate as my_package
+from deprecate import generate_deprecation_markdown
+
 # Matrix style
 matrix = generate_deprecation_markdown(my_package, current_version="1.5", recursive=False, style="matrix")
 ```
