@@ -38,13 +38,14 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 # :class:`~deprecate._types.DeprecationConfig` — both always populate the ``name`` field,
 # so ``validate_deprecation_wrapper`` can read it correctly for proxy objects too.
 
+import enum
 import inspect
 import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, is_dataclass, replace
 from enum import Enum
 from functools import cached_property, wraps
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 if TYPE_CHECKING:
     from packaging.version import Version
@@ -52,6 +53,13 @@ if TYPE_CHECKING:
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
+
+
+class ReportStyle(str, enum.Enum):
+    """Markdown table layout produced by :func:`~deprecate.audit.generate_deprecation_markdown`."""
+
+    COMPACT = "compact"
+    MATRIX = "matrix"
 
 
 def _parse_version(version_string: str) -> "Version":
@@ -958,7 +966,7 @@ def generate_deprecation_markdown(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
-    style: Literal["compact", "matrix"] = "compact",
+    style: Union[ReportStyle, str] = ReportStyle.COMPACT,
     include_members: bool = True,
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
@@ -996,8 +1004,10 @@ def generate_deprecation_markdown(
         '| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |'
 
     """
-    if style not in {"compact", "matrix"}:
-        raise ValueError(f"Invalid style '{style}'. Expected one of: compact, matrix.")
+    try:
+        style = ReportStyle(style)
+    except ValueError:
+        raise ValueError(f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in ReportStyle)}.")
 
     resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
     wrappers = sorted(
@@ -1005,7 +1015,7 @@ def generate_deprecation_markdown(
         key=_report_row_sort_key,
     )
 
-    if style == "compact":
+    if style == ReportStyle.COMPACT:
         rows = [
             "| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |",
             "| :--- | :--- | :--- | :---: | :---: | :--- |",

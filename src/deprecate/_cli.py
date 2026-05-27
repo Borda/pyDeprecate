@@ -10,6 +10,7 @@ Subcommands:
     expiry  — Check for deprecated wrappers that have passed their scheduled ``remove_in`` deadline.
     chains  — Detect deprecated wrappers whose ``target`` is itself a deprecated callable.
     all     — Run all three checks in a single scan pass.
+    report  — Render a markdown deprecation table to stdout (and optionally save it to a file).
 
 """
 
@@ -23,8 +24,10 @@ from typing import Any, Optional
 
 from deprecate.audit import (
     DeprecationWrapperInfo,
+    ReportStyle,
     _check_expiry_for_callables,
     find_deprecation_wrappers,
+    generate_deprecation_markdown,
     validate_deprecation_chains,
     validate_deprecation_expiry,
 )
@@ -607,6 +610,66 @@ def cmd_all(
     return 0 if not has_errors or skip_errors else 1
 
 
+def cmd_report(
+    path: str = ".",
+    version: Optional[str] = None,
+    recursive: bool = True,
+    style: str = "compact",
+    include_members: bool = True,
+    output: Optional[str] = None,
+) -> int:
+    """Generate a markdown deprecation table and print it to stdout.
+
+    Scans the target package for deprecated wrappers and renders their metadata
+    as a Markdown table. When ``--output`` is given, the table is also written to
+    that file and the saved path is printed to stderr.
+
+    Args:
+        path: Path to the module, package directory, or importable module name to scan.
+        version: Current package version for lifecycle status (e.g. ``"2.0.0"``).
+            Auto-detected from installed package metadata if not provided.
+        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        style: Table format — ``compact`` (default) or ``matrix``.
+        include_members: Include deprecated class members such as methods and constructors (default True).
+        output: Optional file path to write the markdown report. The table is always
+            printed to stdout regardless of this flag.
+
+    Returns:
+        Always 0 — report generation is not a pass/fail gate.
+
+    """
+    if version is not None:
+        version = str(version)
+    try:
+        report_style = ReportStyle(style)
+    except ValueError:
+        _print(
+            f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in ReportStyle)}.",
+            stderr=True,
+        )
+        return 1
+
+    module_name = _resolve_module_name(path)
+    with _managed_sys_path(path):
+        markdown = generate_deprecation_markdown(
+            module_name,
+            current_version=version,
+            recursive=recursive,
+            style=report_style,
+            include_members=include_members,
+        )
+
+    _print(markdown)
+
+    if output is not None:
+        out_path = Path(output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(markdown, encoding="utf-8")
+        _print(f"→ Saved to: {out_path}", stderr=True)
+
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
@@ -641,7 +704,7 @@ def cli() -> None:
     except ImportError:
         sys.exit("The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'")
 
-    subcommands = {"check", "expiry", "chains", "all"}
+    subcommands = {"check", "expiry", "chains", "all", "report"}
     argv = sys.argv[1:]
     if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
         argv = ["check", *argv]
@@ -652,6 +715,7 @@ def cli() -> None:
             "expiry": _wrap(cmd_expiry),
             "chains": _wrap(cmd_chains),
             "all": _wrap(cmd_all),
+            "report": _wrap(cmd_report),
         },
         command=argv,
     )

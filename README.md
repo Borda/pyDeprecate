@@ -1377,7 +1377,7 @@ The CLI requires the `cli` extra (includes `fire` and `rich`). Install it with:
 pip install 'pyDeprecate[audit,cli]'
 ```
 
-The CLI has four subcommands.
+The CLI has five subcommands.
 
 ```bash
 # check — wrapper config + deprecated-to-deprecated chains (default)
@@ -1394,10 +1394,16 @@ pydeprecate chains path/to/your/package
 
 # all — single scan running check + expiry + chains together
 pydeprecate all path/to/your/package --version 2.0.0
+
+# report — print a markdown deprecation table to stdout (or save to a file)
+pydeprecate report path/to/your/package
+pydeprecate report path/to/your/package --style matrix
+pydeprecate report path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
 **Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
-`expiry` and `all` also accept `--version VERSION` to set the current version explicitly.
+`expiry`, `all`, and `report` also accept `--version VERSION` to set the current version explicitly.
+`report` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
 
 **Example: catching a deprecated-to-deprecated chain**
 

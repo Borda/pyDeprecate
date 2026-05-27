@@ -75,6 +75,7 @@ from deprecate.audit import (
     ChainType,
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
     DeprecationWrapperInfo,
+    ReportStyle,
     find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
     find_deprecation_wrappers,
     generate_deprecation_markdown,
@@ -94,6 +95,7 @@ from deprecate.utils import (
 __all__ = [
     "ChainType",
     "DeprecationWrapperInfo",
+    "ReportStyle",
     "TargetMode",
     "assert_no_warnings",
     "deprecated",
