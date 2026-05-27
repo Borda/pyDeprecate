@@ -1317,7 +1317,7 @@ remains the single source of truth.
 
 It supports two styles via `style=`:
 
-- `compact` (default): `Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status`
+- `compact` (default): `Original API | API Type | New API | Deprecated | Remove | Current Status`
 - `matrix`: `Original API | API Type | New API | <all versions ...>` with lifecycle markers:
   - `D` = deprecated in this version
   - `R` = remove in this version
@@ -1343,7 +1343,7 @@ report = generate_deprecation_markdown(my_package, current_version="1.5", recurs
 ```
 
 ```text
-| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |
+| Original API | API Type | New API | Deprecated | Remove | Current Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
 | `my_pkg.api.old_method` | callable | `my_pkg.api.new_method` | v1.2.0 | v2.0.0 | ⚠️ Active Warning |
 | `my_pkg.legacy.LegacyClass.__init__` | class constructor | `my_pkg.legacy.NewClass.__init__` | v1.0.0 | v1.8.0 | ❌ Past Removal Date |

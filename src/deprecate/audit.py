@@ -982,7 +982,7 @@ def generate_deprecation_markdown(
             ``packaging`` is not installed.
         recursive: If True (default), include submodules in the scan.
         style: Table format — ``"compact"`` or ``"matrix"``.
-            - ``"compact"``: ``Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status``
+            - ``"compact"``: ``Original API | API Type | New API | Deprecated | Remove | Current Status``
             - ``"matrix"``: ``Original API | API Type | New API | <all versions...>``, with markers
               ``D`` (deprecated) and ``R`` (remove) in version columns.
         include_members: If True (default), include deprecated class members (methods, constructors).
@@ -1001,7 +1001,7 @@ def generate_deprecation_markdown(
         >>> from tests import collection_deprecate as pkg
         >>> report = generate_deprecation_markdown(pkg, recursive=False)
         >>> report.splitlines()[0]
-        '| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |'
+        '| Original API | API Type | New API | Deprecated | Remove | Current Status |'
 
     """
     try:
@@ -1017,7 +1017,7 @@ def generate_deprecation_markdown(
 
     if style == ReportStyle.COMPACT:
         rows = [
-            "| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |",
+            "| Original API | API Type | New API | Deprecated | Remove | Current Status |",
             "| :--- | :--- | :--- | :---: | :---: | :--- |",
         ]
 

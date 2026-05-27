@@ -17,6 +17,7 @@ Subcommands:
 import functools
 import importlib.util
 import sys
+import warnings
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -650,7 +651,9 @@ def cmd_report(
         return 1
 
     module_name = _resolve_module_name(path)
-    with _managed_sys_path(path):
+    with _managed_sys_path(path), warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        wrappers = find_deprecation_wrappers(module_name, recursive=recursive, include_members=include_members)
         markdown = generate_deprecation_markdown(
             module_name,
             current_version=version,
@@ -658,6 +661,9 @@ def cmd_report(
             style=report_style,
             include_members=include_members,
         )
+
+    if _Reporter.issues(wrappers, error_on_chains=False):
+        _print("")
 
     if _Reporter._HAS_RICH:
         from rich.markdown import Markdown

@@ -508,7 +508,7 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_includes_top_level_and_class_members(self) -> None:
         """Markdown report includes functions, methods, and deprecated constructors."""
         report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
-        assert "| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |" in report
+        assert "| Original API | API Type | New API | Deprecated | Remove | Current Status |" in report
         assert "`tests.collection_deprecate.depr_pow_args`" in report
         assert "`tests.collection_deprecate.ServiceCls.old_warn_method`" in report
         assert "`tests.collection_deprecate.PastCls.__init__`" in report
@@ -556,7 +556,7 @@ class TestGenerateDeprecationMarkdown:
 
         mod = types.ModuleType("empty_test_module")
         report = generate_deprecation_markdown(mod, recursive=False)
-        assert "| Original API | API Type | New API | Deprecated (ver) | Remove (ver) | Current Status |" in report
+        assert "| Original API | API Type | New API | Deprecated | Remove | Current Status |" in report
         assert "| :--- | :--- | :--- | :---: | :---: | :--- |" in report
         data_rows = [ln for ln in report.splitlines() if ln.startswith("| `")]
         assert data_rows == []
