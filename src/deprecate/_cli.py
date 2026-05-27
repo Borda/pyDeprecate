@@ -76,7 +76,9 @@ def _managed_sys_path(path: str) -> Generator[None, None, None]:
         import_root = str(abs_path.parent) if _is_package_dir(abs_path) else str(abs_path)
         sys.path.insert(0, import_root)
     try:
-        yield
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            yield
     finally:
         sys.path[:] = original
 
@@ -651,8 +653,7 @@ def cmd_report(
         return 1
 
     module_name = _resolve_module_name(path)
-    with _managed_sys_path(path), warnings.catch_warnings():
-        warnings.simplefilter("ignore")
+    with _managed_sys_path(path):
         wrappers = find_deprecation_wrappers(module_name, recursive=recursive, include_members=include_members)
         markdown = generate_deprecation_markdown(
             module_name,
