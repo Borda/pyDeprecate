@@ -659,7 +659,12 @@ def cmd_report(
             include_members=include_members,
         )
 
-    _print(markdown)
+    if _Reporter._HAS_RICH:
+        from rich.markdown import Markdown
+
+        _Reporter._console().print(Markdown(markdown))
+    else:
+        _print(markdown)
 
     if output is not None:
         out_path = Path(output)
