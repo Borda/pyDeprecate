@@ -33,6 +33,7 @@ from tests.collection_deprecate import (
     gen_callable,
     gen_notify,
     gen_notify_unlimited,
+    make_async_stacked_notify,
 )
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a
@@ -89,8 +90,8 @@ def test_generator_warning_fires_eagerly(wrapper: object, call_kwargs: dict) -> 
 def test_generator_warning_fires_once_per_call(wrapper: object, call_kwargs: dict) -> None:
     """Iteration of the wrapped generator does not re-emit the deprecation warning.
 
-    The warning fires once inside ``_dispatch`` at call time.  Iterating the returned generator object runs the source
-    body only — it does not re-enter ``wrapped_fn`` or ``_dispatch``, so no second warning is possible.
+    The warning fires once inside ``_build_call_plan`` at call time.  Iterating the returned generator object runs the
+    source body only — it does not re-enter ``wrapped_fn`` or ``_build_call_plan``, so no second warning is possible.
 
     """
     with warnings.catch_warnings(record=True) as warned:
@@ -199,6 +200,18 @@ async def test_async_round_trip(wrapper: object, call_kwargs: dict) -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_stacked_both_warnings_fire() -> None:
+    """Two stacked ``@deprecated`` wrappers on ``async def`` each emit a warning when awaited."""
+    fn = make_async_stacked_notify()
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        result = await fn(x=1)
+    dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+    assert len(dep_warns) == 2, f"Expected 2 warnings (one per stack layer), got {len(dep_warns)}"
+    assert result == 2
+
+
+@pytest.mark.asyncio
 async def test_async_warning_fires_on_await_not_on_call() -> None:
     """Warning fires when coroutine is awaited, not when the wrapper is called.
 
@@ -293,7 +306,7 @@ async def test_async_gen_round_trip(wrapper: object, call_kwargs: dict) -> None:
 async def test_async_gen_warning_fires_eagerly(wrapper: object, call_kwargs: dict) -> None:
     """Warning fires at sync call time, before the first ``async for`` iteration.
 
-    Async generator wrappers in N4 are sync (``wrapped_fn``) — calling the wrapper invokes ``_dispatch`` which
+    Async generator wrappers in N4 are sync (``wrapped_fn``) — calling the wrapper invokes ``_build_call_plan`` which
     fires the warning, then returns the async generator object unchanged.  Driving ``__anext__`` does not
     re-enter the wrapper, so the warning must be observable before any iteration starts.
 
@@ -313,8 +326,8 @@ async def test_async_gen_warning_fires_once_per_call(wrapper: object, call_kwarg
     """Iterating the wrapped async generator does not re-emit the deprecation warning.
 
     Mirrors ``test_generator_warning_fires_once_per_call`` for sync generators: the warning fires once inside
-    ``_dispatch`` at call time, and iterating the returned async generator object runs only the source body —
-    it does not re-enter ``wrapped_fn`` or ``_dispatch``, so no further deprecation warning is possible.
+    ``_build_call_plan`` at call time, and iterating the returned async generator object runs only the source body —
+    it does not re-enter ``wrapped_fn`` or ``_build_call_plan``, so no further deprecation warning is possible.
 
     """
     with warnings.catch_warnings(record=True) as warned:

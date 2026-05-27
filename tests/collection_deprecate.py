@@ -750,6 +750,30 @@ def make_depr_args_remap_notify_with_extra() -> Callable:
     )(inner)
 
 
+def make_async_stacked_notify() -> Callable:
+    """Return a fresh NOTIFY-outer + NOTIFY-inner stacked async wrapper.
+
+    Each call produces a new wrapper pair with an independent ``_WrapperState``,
+    preventing ``num_warns`` counter exhaustion across tests.  The inner wrapper
+    is itself a ``@deprecated`` wrapper (``_source_is_stacked=True`` on the outer),
+    exercising the stacked-source code path in the async branch of ``packing()``.
+
+    Examples:
+        Calling this factory and awaiting the result emits two FutureWarnings.
+
+        >>> import asyncio, warnings
+        >>> fn = make_async_stacked_notify()
+        >>> with warnings.catch_warnings(record=True) as w:
+        ...     warnings.simplefilter("always")
+        ...     _ = asyncio.run(fn(x=1))
+        >>> len(w)
+        2
+
+    """
+    inner = deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_source_notify)
+    return deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+
+
 @deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
 @deprecated(
     TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False
@@ -1513,7 +1537,7 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
 
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
-#: Uses default ``num_warns=1``; warning fires once per call in ``_dispatch``.
+#: Uses default ``num_warns=1``; warning fires once per call via ``_build_call_plan``.
 #: Tests reset ``warned_calls`` between parametrize cases — see ``_reset_gen_state`` fixture.
 gen_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(gen_target)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
