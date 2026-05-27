@@ -48,12 +48,6 @@ jobs:
             --exclude http://127.0.0.1
             --exclude file://.*demo-sphinx.*
             --exclude file://.*demo-mkdocs.*
-            --exclude https://borda.github.io/pyDeprecate/stable.*
-            --exclude https://borda.github.io/pyDeprecate/llms.txt
-            --exclude https://borda.github.io/pyDeprecate/llms-full.txt
-            --exclude https://borda.github.io/pyDeprecate/robots.txt
-            --exclude https://borda.github.io/pyDeprecate/sitemap.xml
-            # TODO: remove the four excludes above once docs-discovery-assets workflow
-            # has run on main and populated gh-pages with these root files.
             --exclude '^https[:]//borda[/]$'
+            --exclude '^[hH]ttps://github\.com/\$(\.git)?$'
           fail: true

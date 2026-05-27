@@ -1,6 +1,6 @@
 ---
 id: use-cases
-description: Thirteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
+description: Fourteen real-world deprecation patterns for Python functions, methods, classes, Enums, dataclasses, and constants — each with a worked example and full code.
 ---
 
 # Use Cases
@@ -16,7 +16,13 @@ The two most common reasons to deprecate something are renaming a function and r
     Do **not** call the target from inside the body:
 
     ```python
-    # phmdoctest:skip
+    from deprecate import deprecated, void
+
+
+    def new_func(x: int) -> int:
+        return x * 2
+
+
     # WRONG — new_func(x) is never reached; the decorator forwards before the body runs
     @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
     def old_func(x: int) -> int:
@@ -65,7 +71,7 @@ print(calculate(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(calculate(1, 2)</code></summary>
+  <summary>Output: <code>calculate(1, 2)</code></summary>
 
 ```
 3
@@ -96,14 +102,23 @@ calculate = deprecated(
     deprecated_in="0.5",
     remove_in="1.0",
 )(addition)
+print(calculate(1, 2))
 ```
+
+<details>
+  <summary>Output: <code>calculate(1, 2)</code></summary>
+
+```
+3
+```
+
+</details>
 
 ## Argument renaming and mapping
 
 Use `args_mapping` when the new function accepts the same arguments under different names. The decorator translates old parameter names to new ones at call time, so callers can keep passing the old names during the deprecation window without any manual mapping code.
 
 ```python
-# phmdoctest:skip
 import logging
 from sklearn.metrics import accuracy_score
 from deprecate import deprecated, void
@@ -158,7 +173,7 @@ print(my_sum(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(my_sum(1, 2)</code></summary>
+  <summary>Output: <code>my_sum(1, 2)</code></summary>
 
 ```
 3
@@ -194,7 +209,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>print(any_pow(2, 3)</code></summary>
+  <summary>Output: <code>any_pow(2, 3)</code></summary>
 
 ```
 8
@@ -223,8 +238,17 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 # Passing the removed argument triggers a warning and the argument is silently discarded:
 #   The `my_func` uses deprecated arguments: `legacy_param` -> `None`.
 #   They were deprecated since v1.8 and will be removed in v1.9.
-my_func(value=42, legacy_param="old")
+print(my_func(value=42, legacy_param="old"))
 ```
+
+<details>
+  <summary>Output: <code>my_func(value=42, legacy_param="old")</code></summary>
+
+```
+84
+```
+
+</details>
 
 ## `TargetMode.NOTIFY` vs `TargetMode.ARGS_REMAP` vs `target=<callable>` — key differences
 
@@ -330,7 +354,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
+  <summary>Output: <code>any_pow(2, 3)</code></summary>
 
 ```
 8
@@ -354,10 +378,19 @@ def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
     return base**scale
 
 
-compute_power(2, factor=3)  # → 2 warnings (arg rename + function deprecated), returns 8.0
-compute_power(2, scale=3)  # → 1 warning  (function deprecated only),          returns 8.0
-compute_power(2)  # → 1 warning  (function deprecated only),          returns 2.0
+print(compute_power(2, factor=3))  # → 2 warnings (arg rename + function deprecated)
+print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
 ```
+
+<details>
+  <summary>Output: <code>compute_power(2, factor=3); compute_power(2, scale=3)</code></summary>
+
+```
+8
+8
+```
+
+</details>
 
 !!! danger "Wrong order raises `UserWarning` at decoration time"
 
@@ -392,7 +425,19 @@ from deprecate import TargetMode, deprecated
 @deprecated(TargetMode.NOTIFY, deprecated_in="0.7", remove_in="1.0")
 def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
     return base**nc2
+
+
+print(any_pow(2))
 ```
+
+<details>
+  <summary>Output: <code>any_pow(2)</code></summary>
+
+```
+4
+```
+
+</details>
 
 Each adjacent pair is `ARGS_REMAP + ARGS_REMAP` (supported) and `ARGS_REMAP + NOTIFY` (supported), so no decoration-time warning fires. The three layers execute in turn at call time.
 
@@ -432,7 +477,7 @@ print(skip_pow(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>print(skip_pow(2, 3)</code></summary>
+  <summary>Output: <code>skip_pow(2, 3)</code></summary>
 
 ```
 0.25
@@ -472,7 +517,7 @@ print(svc.run(5))
 ```
 
 <details>
-  <summary>Output: <code>print(svc.run(5)</code></summary>
+  <summary>Output: <code>svc.run(5)</code></summary>
 
 ```
 10
@@ -526,7 +571,7 @@ print(inst.my_d)  # returns: "efg"
 ```
 
 <details>
-  <summary>Output: <code>print(inst.my_d)</code></summary>
+  <summary>Output: <code>inst.my_d</code></summary>
 
 ```
 7
@@ -565,7 +610,7 @@ print(DEFAULTS["lr"])  # 0.001
 ```
 
 <details>
-  <summary>Output: <code>print(DEFAULTS["lr"])</code></summary>
+  <summary>Output: <code>DEFAULTS["lr"]</code></summary>
 
 ```
 0.001
@@ -637,7 +682,7 @@ print((p_new.x, p_new.y))
 ```
 
 <details>
-  <summary>Output: <code>print((p_new.x, p_new.y)</code></summary>
+  <summary>Output: <code>(p_new.x, p_new.y)</code></summary>
 
 ```
 True
@@ -701,7 +746,7 @@ print(process.__doc__)
 ```
 
 <details>
-  <summary>Output: <code>print(process.__doc__)</code></summary>
+  <summary>Output: <code>process.__doc__</code></summary>
 
 ```
 Transforms the input value.
@@ -751,7 +796,7 @@ print(process.__doc__)
 ```
 
 <details>
-  <summary>Output: <code>print(process.__doc__)</code></summary>
+  <summary>Output: <code>process.__doc__</code></summary>
 
 ```
 Transforms the input value.
@@ -808,7 +853,7 @@ print(notify("alice@example.com", "Hello"))
 ```
 
 <details>
-  <summary>Output: <code>print(notify("alice@example.com", "Hello")</code></summary>
+  <summary>Output: <code>notify("alice@example.com", "Hello")</code></summary>
 
 ```
 Sent to 'alice@example.com': 'Hello' [normal]
@@ -859,7 +904,7 @@ print(result)
 ```
 
 <details>
-  <summary>Output: <code>print(result)</code></summary>
+  <summary>Output: <code>new_create_client("example.com")</code></summary>
 
 ```
 {'host': 'localhost', 'port': 8080}
@@ -877,6 +922,419 @@ Quick reference for choosing the right testing tool:
 | `warnings.catch_warnings()` + `simplefilter("ignore")` | Suppress without assertion    | Never fails (use in fixtures) |
 
 Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
+
+## Class methods and static methods
+
+`@deprecated` works with both `@classmethod` and `@staticmethod` in either decorator order — place `@deprecated` above or below the descriptor decorator and the deprecation warning fires correctly at call time either way.
+
+```python
+from deprecate import deprecated
+
+
+class ApiClient:
+    # @deprecated inside @classmethod — conventional order, @deprecated closer to def
+    @classmethod
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def from_url(cls, url: str) -> "ApiClient":
+        return cls()
+
+    # @deprecated outside @classmethod — also works; both produce the same descriptor
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @classmethod
+    def from_config(cls, config: dict) -> "ApiClient":
+        return cls()
+
+    # Same flexibility with @staticmethod
+    @staticmethod
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def version() -> str:
+        return "1.0"
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @staticmethod
+    def build_id() -> str:
+        return "legacy"
+
+
+print(ApiClient.build_id())
+```
+
+<details>
+  <summary>Output: <code>ApiClient.build_id()</code></summary>
+
+```
+legacy
+```
+
+</details>
+
+Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod(deprecated_wrapper)` respectively. The deprecation `FutureWarning` fires at call time regardless of which order the decorators were applied.
+
+!!! tip "Prefer `@classmethod @deprecated` (deprecated closer to `def`)"
+
+    The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.
+
+## Properties and cached properties
+
+`@deprecated` works with `@property` and `@cached_property` in either decorator order — the deprecation warning fires correctly at access time regardless of which order the decorators were applied.
+
+```python
+from functools import cached_property
+
+from deprecate import deprecated
+
+
+class Config:
+    # @deprecated inside @property — conventional order
+    @property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def timeout(self) -> int:
+        return 30
+
+    # @deprecated outside @property — also works
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @property
+    def retries(self) -> int:
+        return 3
+
+    # @deprecated inside @cached_property — conventional order
+    @cached_property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def base_url(self) -> str:
+        return "https://example.com"
+
+    # @deprecated outside @cached_property — also works
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @cached_property
+    def legacy_url(self) -> str:
+        return "https://old.example.com"
+
+
+print(Config().legacy_url)
+```
+
+<details>
+  <summary>Output: <code>Config().legacy_url</code></summary>
+
+```
+https://old.example.com
+```
+
+</details>
+
+The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning.
+
+!!! tip "Prefer `@property @deprecated` (deprecated closer to `def`)"
+
+    The inner-first order is the conventional Python style. Follow this pattern for consistency if your team has no existing convention.
+
+## Deprecating generator functions
+
+Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you **call** the generator function, not when you first iterate the result.
+
+This is the right behavior. It keeps generator deprecations consistent with regular function deprecations. If the warning fired on the first `next()` call instead, you could easily miss it: someone might call the generator, pass it around, and iterate it elsewhere — the warning would appear far from the actual deprecated call site.
+
+```python
+from deprecate import deprecated, void
+
+
+# NEW/FUTURE API — new name, same semantics
+def generate_ids(start: int, count: int):
+    """Yield `count` sequential IDs starting from `start`."""
+    for i in range(count):
+        yield start + i
+
+
+# DEPRECATED API — `iter_ids` was the old name before the rename
+@deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
+def iter_ids(start: int, count: int):
+    """Deprecated — use generate_ids() instead."""
+    return void(start, count)
+
+
+# The warning fires here — at call time, before any iteration
+gen = iter_ids(10, 3)
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+#                It will be removed in v1.0.
+
+# Iteration proceeds normally — you already got the warning
+print(list(gen))  # [10, 11, 12]
+```
+
+All three TargetModes work with generator functions:
+
+**`TargetMode.NOTIFY` — warn and keep the generator body:**
+
+```python
+from deprecate import deprecated
+
+
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+def old_pipeline(items):
+    """This generator is going away; no replacement yet."""
+    for item in items:
+        yield item.strip()
+
+
+print(list(old_pipeline(["a ", "b "])))
+```
+
+<details>
+  <summary>Output: <code>list(old_pipeline(["a ", "b "]))</code></summary>
+
+```
+['a', 'b']
+```
+
+</details>
+
+Warning fires at call time (when the generator object is created), before any iteration. Unlike regular functions where the body runs immediately after the warning, the generator body executes lazily as the caller iterates.
+
+**`TargetMode.ARGS_REMAP` — rename an argument within the same generator:**
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"n": "count"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+def repeat_value(value: int, n: int = 0, count: int = 0):
+    """Deprecated argument `n` renamed to `count`."""
+    for _ in range(count):
+        yield value
+
+
+print(list(repeat_value(value=1, count=2)))
+```
+
+<details>
+  <summary>Output: <code>list(repeat_value(value=1, count=2))</code></summary>
+
+```
+[1, 1]
+```
+
+</details>
+
+**`target=<callable>` — forward to a replacement generator:**
+
+```python
+from deprecate import deprecated, void
+
+
+def new_range(start: int, stop: int):
+    yield from range(start, stop)
+
+
+@deprecated(target=new_range, deprecated_in="0.9", remove_in="1.0")
+def old_range(start: int, stop: int):
+    return void(start, stop)
+
+
+print(list(old_range(1, 4)))
+```
+
+<details>
+  <summary>Output: <code>list(old_range(1, 4))</code></summary>
+
+```
+[1, 2, 3]
+```
+
+</details>
+
+!!! note "Warning deduplication and the generator factory pattern"
+
+    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. In the current implementation, `_WrapperState.called` is incremented once per external call via the wrapper's normal dispatch path. Warning deduplication still works correctly: warnings fire at most `num_warns` times as configured.
+
+## Async
+
+`@deprecated` works on `async def` functions natively. The wrapper produced is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and callers can `await` it as expected.
+
+All three TargetModes work with async functions. The deprecation warning fires when the coroutine is awaited — not when it is created by calling the wrapper — because the warning logic runs inside the `async def` body. This differs from sync and generator wrappers where the warning fires eagerly at call time.
+
+**`TargetMode.NOTIFY` — warn and keep the async body:**
+
+```python
+import asyncio
+from deprecate import deprecated
+
+
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+async def fetch_data(url: str) -> bytes:
+    """Deprecated — no replacement yet; remove call sites."""
+    return b""
+
+
+print(asyncio.run(fetch_data("https://example.com")))
+```
+
+<details>
+  <summary>Output: <code>asyncio.run(fetch_data("https://example.com"))</code></summary>
+
+```
+b''
+```
+
+</details>
+
+**`TargetMode.ARGS_REMAP` — rename an argument within the same async function:**
+
+```python
+import asyncio
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"endpoint": "url"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+async def fetch_data(endpoint: str = "", url: str = "") -> bytes:
+    """Deprecated argument `endpoint` renamed to `url`."""
+    return url.encode()
+
+
+print(asyncio.run(fetch_data(endpoint="https://example.com")))
+```
+
+<details>
+  <summary>Output: <code>asyncio.run(fetch_data(endpoint="https://example.com"))</code></summary>
+
+```
+b'https://example.com'
+```
+
+</details>
+
+**`target=<callable>` — forward to a replacement async function:**
+
+```python
+import asyncio
+from deprecate import deprecated, void
+
+
+async def download(url: str) -> bytes:
+    """New async API."""
+    return url.encode()
+
+
+@deprecated(target=download, deprecated_in="0.9", remove_in="1.0")
+async def fetch(url: str) -> bytes:
+    """Deprecated — use download() instead."""
+    return void(url)
+
+
+print(asyncio.run(fetch("https://example.com")))
+```
+
+<details>
+  <summary>Output: <code>asyncio.run(fetch("https://example.com"))</code></summary>
+
+```
+b'https://example.com'
+```
+
+</details>
+
+!!! warning "Concurrent coroutines and warning counts"
+
+    `_WrapperState` fields (`called`, `warned_calls`, `warned_args`) are plain dataclass fields — there is no asyncio lock protecting them. If multiple coroutines share one deprecated wrapper and run concurrently, they can race on the warning counter: the same wrapper may emit more or fewer warnings than `num_warns` specifies, depending on scheduling.
+
+    This is an accepted limitation for v0.9. If exact warning counts matter (for example in tests), either run deprecated coroutines sequentially or set `num_warns=-1` to bypass the gate entirely.
+
+## Async generators
+
+`@deprecated` works on async generator functions (`async def` + `yield`) too. The wrapper is a **sync** callable that fires the deprecation warning eagerly at call time and returns the underlying async generator object; callers iterate the result with `async for`. All three TargetModes — `NOTIFY`, `ARGS_REMAP`, and `target=<callable>` — work the same way they do for sync generators.
+
+**`TargetMode.NOTIFY` — warn and keep the async generator body:**
+
+```python
+import asyncio
+from collections.abc import AsyncIterator
+
+from deprecate import deprecated
+
+
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+async def stream_lines(start: int = 0) -> AsyncIterator[int]:
+    """Deprecated — no replacement yet; remove call sites."""
+    for i in range(start, start + 3):
+        yield i
+
+
+async def main() -> list[int]:
+    return [item async for item in stream_lines(start=1)]
+
+
+asyncio.run(main())
+```
+
+**`TargetMode.ARGS_REMAP` — rename an argument within the same async generator:**
+
+```python
+import asyncio
+from collections.abc import AsyncIterator
+
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"begin": "start"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+async def stream_lines(begin: int = 0, start: int = 0) -> AsyncIterator[int]:
+    """Deprecated argument `begin` renamed to `start`."""
+    for i in range(start, start + 3):
+        yield i
+
+
+async def main() -> list[int]:
+    return [item async for item in stream_lines(begin=1)]
+
+
+asyncio.run(main())
+```
+
+**`target=<callable>` — forward to a replacement async generator:**
+
+```python
+import asyncio
+from collections.abc import AsyncIterator
+
+from deprecate import deprecated
+
+
+async def stream(start: int) -> AsyncIterator[int]:
+    """New async generator API."""
+    for i in range(start, start + 3):
+        yield i
+
+
+@deprecated(target=stream, deprecated_in="0.9", remove_in="1.0")
+async def stream_legacy(start: int) -> AsyncIterator[int]:
+    """Deprecated — use stream() instead."""
+    if False:  # pragma: no cover — body unreachable; target forwards every call
+        yield 0
+
+
+async def main() -> list[int]:
+    return [item async for item in stream_legacy(start=1)]
+
+
+asyncio.run(main())
+```
+
+!!! note "The wrapper itself is sync, not an async generator"
+
+    Calling `wrapper(...)` returns the async generator object directly — no `await` is required at call time, and the deprecation warning fires once at that point. Because the wrapper is implemented as a regular function (it never enters an `async def` body), `inspect.iscoroutinefunction(wrapper)` and `inspect.isasyncgenfunction(wrapper)` both return `False`. Frameworks that branch on those introspections (rare in practice — `async for` does not consult them) may need a hand-written passthrough async generator placed between `@deprecated` and the framework.
 
 ## See also
 

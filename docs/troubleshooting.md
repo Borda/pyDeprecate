@@ -17,12 +17,23 @@ Use:
 
 ```python
 from deprecate import deprecated
+
+print(deprecated.__name__)
 ```
+
+<details>
+  <summary>Output: <code>deprecated.__name__</code></summary>
+
+```
+deprecated
+```
+
+</details>
 
 Not:
 
 ```python
-# phmdoctest:skip
+# phmdoctest:skip — intentional wrong import; would raise ModuleNotFoundError
 from pydeprecate import deprecated  # wrong — no such module
 ```
 
@@ -65,7 +76,19 @@ class MyClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
+
+
+print(MyClass(5).x)
 ```
+
+<details>
+  <summary>Output: <code>MyClass(5).x</code></summary>
+
+```
+5
+```
+
+</details>
 
 ## Upgrading from `@deprecated` on a class to `@deprecated_class`
 
@@ -80,7 +103,7 @@ class MyClass:
 Symptoms of the old behaviour:
 
 ```python
-# phmdoctest:skip
+# phmdoctest:skip — shows pre-v0.6 behaviour; current code uses a proxy and no longer produces these errors
 # --- Old broken pattern (pre-v0.6) ---
 from deprecate import deprecated
 
@@ -123,7 +146,7 @@ print(obj.add(1, 2))  # 3 — forwarded to NewCalculator
 ```
 
 <details>
-  <summary>Output: <code>print(obj.add(1, 2)</code></summary>
+  <summary>Output: <code>obj.add(1, 2)</code></summary>
 
 ```
 True
@@ -153,7 +176,7 @@ print(OldColor["RED"] is Color.RED)  # True
 ```
 
 <details>
-  <summary>Output: <code>print(OldColor["RED"] is Color.RED)</code></summary>
+  <summary>Output: <code>OldColor["RED"] is Color.RED</code></summary>
 
 ```
 True
@@ -180,7 +203,7 @@ print(isinstance(svc, MyService))  # True
 ```
 
 <details>
-  <summary>Output: <code>print(isinstance(svc, MyService)</code></summary>
+  <summary>Output: <code>isinstance(svc, MyService)</code></summary>
 
 ```
 True
@@ -202,8 +225,8 @@ Choose the fix that matches your situation:
 
 ```python
 # define a target that ignores the extra arg
-def new_func(required_arg: int, **kwargs) -> int:
-    return required_arg * 2
+def new_func(new_arg: int) -> int:
+    return new_arg * 2
 
 
 # ---------------------------
@@ -215,6 +238,9 @@ from deprecate import deprecated
 @deprecated(target=new_func, args_mapping={"old_arg": None})
 def old_func(old_arg: int, new_arg: int) -> int:
     pass
+
+
+assert isinstance(old_func(old_arg=1, new_arg=2), int)
 ```
 
 **Option 2 — Rename the argument** (the target uses a different parameter name):
@@ -233,6 +259,9 @@ from deprecate import deprecated
 @deprecated(target=new_func, args_mapping={"old_name": "new_name"})
 def old_func(old_name: int) -> int:
     pass
+
+
+assert isinstance(old_func(old_name=3), int)
 ```
 
 **Option 3 — Use `TargetMode.ARGS_REMAP`** (deprecating an argument of the same function, not forwarding to a different one):
@@ -245,6 +274,9 @@ from deprecate import TargetMode, deprecated
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
+
+
+assert isinstance(my_func(old_arg=1, new_arg=2), int)
 ```
 
 ## TypeError: skip_if function must return bool
@@ -280,6 +312,10 @@ def old_func1():
 @deprecated(target=new_func, skip_if=lambda: False)
 def old_func2():
     pass
+
+
+assert old_func1() == "Hi!"
+assert old_func2() == "Hi!"
 ```
 
 ## Deprecation notice not appearing
@@ -311,6 +347,9 @@ def old_func_always_warn():
 @deprecated(target=new_func, num_warns=5)  # Show 5 times
 def old_func_warn_n_times():
     pass
+
+
+assert callable(old_func_always_warn) and callable(old_func_warn_n_times)
 ```
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
@@ -372,7 +411,7 @@ print(OLD_THRESHOLD["value"])
 ```
 
 <details>
-  <summary>Output: <code>print(OLD_THRESHOLD["value"])</code></summary>
+  <summary>Output: <code>OLD_THRESHOLD["value"]</code></summary>
 
 ```
 0.5
@@ -380,10 +419,9 @@ print(OLD_THRESHOLD["value"])
 
 </details>
 
-1. **Update call sites directly** — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy:
+1. **Update call sites directly** — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy. This does not emit deprecation warnings; use it when a mechanical migration is enough.
 
 ```python
-# Just rename and grep-replace call sites:
 NEW_THRESHOLD = 0.5  # new name
 # OLD_THRESHOLD = 0.5  # remove after migration
 ```
@@ -405,7 +443,7 @@ print(get_old_threshold())
 ```
 
 <details>
-  <summary>Output: <code>print(get_old_threshold()</code></summary>
+  <summary>Output: <code>get_old_threshold()</code></summary>
 
 ```
 0.5
@@ -420,7 +458,6 @@ print(get_old_threshold())
 **A:** Pass any logging method as the `stream` parameter. The `stream` callable receives the formatted deprecation message as a single string argument — logging methods like `logging.warning` have exactly this signature. For the full range of `stream` options (silencing, custom callables, `print`), see [Deprecation Output Sink](guide/customization.md#deprecation-output-sink-stream).
 
 ```python
-# phmdoctest:skip
 import logging
 from deprecate import deprecated
 
@@ -448,8 +485,17 @@ def old_endpoint(url: str) -> str:
 # Instead of a FutureWarning, emits a log line:
 #   2026-04-20 12:00:00 [WARNING] The `old_endpoint` was deprecated since v2.0
 #   in favor of `your_module.new_endpoint`. It will be removed in v3.0.
-old_endpoint("/api/users")
+print(old_endpoint("/api/users"))
 ```
+
+<details>
+  <summary>Output: <code>old_endpoint("/api/users")</code></summary>
+
+```
+GET /api/users
+```
+
+</details>
 
 **Choosing the log level:**
 
@@ -492,9 +538,19 @@ LegacyConfig = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-LegacyConfig(timeout=30)  # new name — no warning (caller already migrated)
-LegacyConfig(time_limit=30)  # old name — FutureWarning emitted + remapped
+print(LegacyConfig(timeout=30).timeout)  # new name — no warning (caller already migrated)
+print(LegacyConfig(time_limit=30).timeout)  # old name — FutureWarning emitted + remapped
 ```
+
+<details>
+  <summary>Output: <code>LegacyConfig(...).timeout</code></summary>
+
+```
+30
+30
+```
+
+</details>
 
 To emit a deprecation notice for every instantiation regardless of which argument name is used, configure `target=TargetMode.NOTIFY` explicitly. Combining `TargetMode.NOTIFY` with `args_mapping` is a misconfiguration — `args_mapping` is not applied under `NOTIFY` and supplying it emits a construction-time `UserWarning` today that becomes a `TypeError` in v1.0.
 
@@ -517,6 +573,9 @@ from deprecate import TargetMode, deprecated
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
 def my_func(old_name: int = 0, new_name: int = 0) -> int:
     return new_name * 2
+
+
+assert isinstance(my_func(old_name=3), int)
 ```
 
 - **Warn callers with no forwarding or remapping** — use `TargetMode.NOTIFY` instead:
@@ -529,7 +588,19 @@ from deprecate import TargetMode, deprecated
 def my_func(x: int) -> int:
     """Going away — remove all call sites."""
     return x * 2
+
+
+print(my_func(3))
 ```
+
+<details>
+  <summary>Output: <code>print(my_func(3))</code></summary>
+
+```
+6
+```
+
+</details>
 
 !!! danger "This misconfiguration will become a TypeError in v1.0"
 
@@ -551,7 +622,19 @@ Custom method names — for example `register()`, `reload()`, or `set_value()` �
 class ReadOnlyRegistry(dict):
     def register(self, item):
         raise AttributeError("'LEGACY_REGISTRY' is deprecated and read-only. Migrate away from this object.")
+
+
+print(issubclass(ReadOnlyRegistry, dict))
 ```
+
+<details>
+  <summary>Output: <code>issubclass(ReadOnlyRegistry, dict)</code></summary>
+
+```
+True
+```
+
+</details>
 
 Then wrap an instance of `ReadOnlyRegistry` instead of a plain `dict`. This keeps `read_only=True` in place for standard collection mutators while adding explicit guards for your custom methods.
 
@@ -583,7 +666,19 @@ class MyService:
     @deprecated(target=execute, deprecated_in="1.0", remove_in="2.0")
     def run(self, x: int) -> int:
         pass
+
+
+print(MyService().run(3))
 ```
+
+<details>
+  <summary>Output: <code>MyService().run(3)</code></summary>
+
+```
+6
+```
+
+</details>
 
 If you are intentionally delegating to another class, convert the target to a standalone function or use `@deprecated_class` to deprecate the whole class instead.
 
@@ -636,7 +731,288 @@ def my_func(old: int = 0, new: int = 0) -> int:
 @deprecated(deprecated_in="2.0", remove_in="3.0")  # inner NOTIFY
 def my_func(old: int = 0, new: int = 0) -> int:
     return new
+
+
+print(my_func())
 ```
+
+<details>
+  <summary>Output: <code>my_func()</code></summary>
+
+```
+0
+```
+
+</details>
+
+______________________________________________________________________
+
+## My deprecated generator fires the warning before I iterate it
+
+**Q:** My generator function is decorated with `@deprecated`. The deprecation warning fires as soon as I call the function — before I even call `next()` or iterate over it. Is this a bug?
+
+**A:** No — this is the intended behavior. pyDeprecate uses an eager factory pattern for generator wrappers: the warning fires at call time, consistent with how deprecated regular functions behave.
+
+When you call a deprecated generator function, you get the deprecation notice immediately at the call site — the same place you would see it for a deprecated regular function. You can then pass the generator around, iterate it later, or hand it to another function, and the warning is already recorded.
+
+```python
+from deprecate import deprecated, void
+
+
+def generate_ids(start: int, count: int):
+    for i in range(count):
+        yield start + i
+
+
+@deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
+def iter_ids(start: int, count: int):
+    return void(start, count)
+
+
+# Warning fires here — at call time
+gen = iter_ids(10, 3)
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+
+# Iteration is normal — warning already fired above
+print(list(gen))  # [10, 11, 12]
+```
+
+<details>
+  <summary>Output: <code>list(gen)</code></summary>
+
+```
+[10, 11, 12]
+```
+
+</details>
+
+______________________________________________________________________
+
+## My deprecated async generator fires the warning before I iterate it
+
+**Q:** My async generator function is decorated with `@deprecated`. The deprecation warning fires as soon as I call the function — before my `async for` loop starts. Is this a bug?
+
+**A:** No — this is the intended behavior. pyDeprecate wraps async generator sources with a sync callable. Calling the wrapper immediately fires the deprecation warning and returns the underlying async generator object; no `await` or `__anext__` call is needed for the warning to appear.
+
+```python
+import asyncio
+from deprecate import deprecated
+
+
+async def stream(n: int):
+    for i in range(n):
+        yield i
+
+
+@deprecated(target=stream, deprecated_in="0.9", remove_in="1.0")
+async def old_stream(n: int):
+    if False:  # pragma: no cover
+        yield 0
+
+
+# Warning fires here — at sync call time, before any iteration
+agen = old_stream(3)  # FutureWarning: The `old_stream` was deprecated since v0.9 ...
+
+
+async def consume(gen):
+    async for _ in gen:
+        pass
+
+
+# Iteration proceeds normally
+asyncio.run(consume(agen))
+```
+
+**Note:** Because the wrapper is a sync function, `inspect.isasyncgenfunction(old_stream)` returns `False`. Frameworks that check this flag may misclassify the wrapper — wrap it in a thin `async def` passthrough if introspection matters.
+
+______________________________________________________________________
+
+## Warning fires or UserWarning appears when using `@deprecated @classmethod`
+
+**Q:** I applied `@deprecated` on top of `@classmethod` (decorator order: `@deprecated` outermost, `@classmethod` innermost). Does this work?
+
+**A:** Yes — pyDeprecate silently rescues the misordered stack at decoration time. When you write:
+
+```python
+from deprecate import deprecated
+
+
+class Foo:
+    # Works — @deprecated outside @classmethod is transparently rescued
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @classmethod
+    def old_method(cls, x): ...
+
+
+print(Foo.old_method(1))
+```
+
+<details>
+  <summary>Output: <code>Foo.old_method(1)</code></summary>
+
+```
+None
+```
+
+</details>
+
+`@deprecated` detects that it received a `classmethod` descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in `classmethod`. The outcome is a fully working deprecated classmethod: no `UserWarning` at decoration time, and a `FutureWarning` fires when the method is called.
+
+The preferred order is still `@classmethod` outermost with `@deprecated` applied closer to `def` — it is explicit and avoids the silent rescue:
+
+```python
+from deprecate import deprecated
+
+
+def new_impl(cls, x):
+    return x * 2
+
+
+class Foo:
+    # Preferred — @deprecated applied to the raw function, @classmethod wraps the result
+    @classmethod
+    @deprecated(target=new_impl, deprecated_in="1.0", remove_in="2.0")
+    def old_method(cls, x):
+        pass
+
+
+print(Foo.old_method(1))
+```
+
+<details>
+  <summary>Output: <code>Foo.old_method(1)</code></summary>
+
+```
+2
+```
+
+</details>
+
+The same rule applies to `@staticmethod`.
+
+______________________________________________________________________
+
+## Concurrent async calls and warning counts
+
+**Q:** I have multiple coroutines all calling the same deprecated `async def` wrapper concurrently. The deprecation notice only appeared once, but I expected it to fire `num_warns` times. What happened?
+
+**A:** `_WrapperState` fields — `called`, `warned_calls`, and `warned_args` — are plain Python dataclass fields with no asyncio lock. When multiple coroutines share a single deprecated wrapper and run concurrently in the same event loop, they race on the warning counter. One coroutine may read the counter, another may increment it, and the first may then emit or skip based on the stale value. The result is that fewer warnings than `num_warns` specifies may be emitted.
+
+This is an accepted limitation for v0.9 — adding an asyncio lock would change the public behaviour of synchronous wrappers and is deferred to a future release.
+
+**Workaround:** Set `num_warns=-1` to bypass the count gate entirely. With `num_warns=-1` the warning fires unconditionally on every call, so no race can suppress it.
+
+```python
+import asyncio
+from deprecate import deprecated
+
+
+async def new_fetch(url: str) -> bytes:
+    return url.encode()
+
+
+# num_warns=-1 emits the deprecation notice on every call regardless of concurrency
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0", num_warns=-1)
+async def old_fetch(url: str) -> bytes:
+    pass
+
+
+async def main():
+    urls = ["https://a.example.com", "https://b.example.com", "https://c.example.com"]
+    # All three tasks fire the deprecation notice — no race suppression possible
+    await asyncio.gather(*[old_fetch(u) for u in urls])
+
+
+assert asyncio.run(main()) is None
+```
+
+If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
+
+## I wrapped a `functools.partial` of an `async def` and the wrapper is not async
+
+**Q:** I applied `@deprecated` to a `functools.partial` of an `async def` function, but the resulting wrapper is synchronous — `inspect.iscoroutinefunction(wrapper)` returns `False` and `await wrapper(...)` raises a `TypeError`. What is happening?
+
+**A:** On Python 3.9–3.11, `inspect.iscoroutinefunction(functools.partial(async_fn))` returns `False` — the `partial` object does not propagate the coroutine flag of its wrapped callable. pyDeprecate's async branch in `packing()` checks `inspect.iscoroutinefunction(source)` to decide whether to produce an `async def` wrapper, so wrapping a `partial` of an `async def` falls through to the sync wrapper path and yields a regular function instead of a coroutine function.
+
+**Workaround:** Apply `@deprecated` to the `async def` directly, then use `functools.partial` on the already-deprecated async wrapper if you need preset arguments.
+
+```python
+import asyncio
+import functools
+from deprecate import deprecated
+
+
+async def new_fetch(url: str, timeout: int = 30) -> bytes:
+    return url.encode()
+
+
+# Correct: apply @deprecated to the async def directly
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0")
+async def old_fetch(url: str, timeout: int = 30) -> bytes:
+    pass
+
+
+# Then use partial on the already-deprecated async wrapper if needed
+fetch_with_timeout = functools.partial(old_fetch, timeout=10)
+url = asyncio.run(old_fetch("https://example.com"))
+print(url.decode())
+```
+
+<details>
+  <summary>Output: <code>asyncio.run(old_fetch("https://example.com")).decode()</code></summary>
+
+```
+https://example.com
+```
+
+</details>
+
+This limitation is resolved in Python 3.12+ where `inspect.iscoroutinefunction` correctly handles `functools.partial` objects whose underlying callable is an `async def`.
+
+______________________________________________________________________
+
+## A non-async decorator applied over my `@deprecated` async wrapper no longer looks like a coroutine
+
+**Q:** I have `@my_decorator @deprecated(...) async def fn(...)`. After decoration, `inspect.iscoroutinefunction(fn)` returns `False` and asyncio frameworks (FastAPI route handlers, `asyncio.create_task`) reject it. Why?
+
+**A:** When you wrap a `@deprecated async def` with a sync decorator — one that returns a sync `wrapper(*args, **kwargs)` via `functools.wraps` — the result is a sync callable. `inspect.iscoroutinefunction` inspects the outermost callable's `CO_COROUTINE` flag, not the wrapped function, so the coroutine nature is lost the moment a sync wrapper is placed on top.
+
+**Solution:** Make any outer decorator that may be applied over an async wrapper coroutine-aware. Inspect the wrapped callable and emit either an `async def` or a sync wrapper accordingly.
+
+```python
+import functools
+import inspect
+
+
+def my_decorator(fn):
+    if inspect.iscoroutinefunction(fn):
+
+        @functools.wraps(fn)
+        async def async_wrapper(*args, **kwargs):
+            return await fn(*args, **kwargs)
+
+        return async_wrapper
+
+    @functools.wraps(fn)
+    def sync_wrapper(*args, **kwargs):
+        return fn(*args, **kwargs)
+
+    return sync_wrapper
+
+
+print(my_decorator(lambda x: x + 1)(41))
+```
+
+<details>
+  <summary>Output: <code>my_decorator(lambda x: x + 1)(41)</code></summary>
+
+```
+42
+```
+
+</details>
+
+With this pattern, stacking `@my_decorator` above `@deprecated` on an `async def` produces an `async def` wrapper whose `inspect.iscoroutinefunction(...)` returns `True`.
 
 ______________________________________________________________________
 

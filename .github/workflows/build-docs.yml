@@ -7,7 +7,21 @@
 #     - push → main                                    → build + deploy to dev/
 #     - push → version-like tag (v1.2, 1.2.3, …)       → build + deploy to <tag>/ (and stable/ if highest)
 #     - pull_request → main                            → build only (no deploy)
-#     - workflow_dispatch (tag input)                  → build + deploy to <tag>/ (no set-default change)
+#     - workflow_dispatch (tag, refresh_root_files inputs)
+#                                                      → build + deploy to <tag>/ (no set-default change)
+#
+#   workflow_dispatch inputs:
+#     - tag                   (optional, default main) git tag or branch; 'main' maps to 'dev' docs version
+#                             alias auto-derived: latest release tag → stable alias; main/branch → none
+#     - refresh_root_files    (optional, default false) overwrite gh-pages root files
+#                             (llms.txt, llms-full.txt, robots.txt, sitemap.xml) with versions from
+#                             this tag's docs/. Defaults false — safe for historical backfills where
+#                             files may be stale or absent. Auto-enabled when tag resolves to stable.
+#
+#   Root-level AI discoverability files (llms.txt, robots.txt, sitemap.xml, llms-full.txt):
+#     - deploy on every push trigger (main → dev/, tag → <tag>/)
+#     - skipped on workflow_dispatch unless refresh_root_files=true or tag resolves to stable alias
+#     - missing source files at historical refs emit ::warning:: and are skipped gracefully
 #
 #   Jobs:
 #     build-landing-docs ──┐
@@ -18,6 +32,7 @@
 #                          ├─ inject sphinx + mkdocs artifacts into docs/
 #                          ├─ mike deploy <version_path> [aliases…] --update-aliases
 #                          ├─ mike set-default <latest|stable>  [skipped on workflow_dispatch]
+#                          ├─ deploy root AI discoverability files  [push always; dispatch opt-in]
 #                          ├─ git push gh-pages [push + workflow_dispatch events] — this IS the deploy
 #                          │  (GitHub Pages serves directly from the gh-pages branch)
 #                          └─ upload built site as workflow artifact (manual inspection)
@@ -42,14 +57,19 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Git tag to backfill (e.g. v0.7.0). Must already exist on the remote."
-        required: true
-        type: string
-      alias:
-        description: "Optional mike alias to attach (e.g. stable). Leave empty for none."
+        description: "Git tag or branch to deploy (e.g. v0.7.0 or main). Must already exist on the remote. 'main' maps to the 'dev' docs version."
         required: false
         type: string
-        default: ""
+        default: "main"
+      refresh_root_files:
+        description: >
+          Overwrite the gh-pages root files (llms.txt, llms-full.txt, robots.txt, sitemap.xml)
+          with the versions from this tag's docs/. Enable only when this tag's metadata is the
+          canonical content you want AI crawlers to see. Auto-enabled when tag is the latest release.
+          Defaults to false — safe for historical backfills where these files may be stale or absent.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -66,8 +86,24 @@ defaults:
     shell: bash
 
 jobs:
+  validate-dispatch-inputs:
+    name: Validate dispatch inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔎 Verify tag is a valid git ref
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if ! git ls-remote --exit-code "https://github.com/${{ github.repository }}.git" \
+              "refs/tags/${INPUT_TAG}" "refs/heads/${INPUT_TAG}" >/dev/null 2>&1; then
+            echo "::error::Input tag='${INPUT_TAG}' is not a valid git tag or branch. Mike version names (dev, stable) are not git refs — use a real tag like v0.8.0 or branch name like main."
+            exit 1
+          fi
+
   build-landing-docs:
     name: Portal (landing-docs)
+    needs: [validate-dispatch-inputs]
     runs-on: ubuntu-latest
 
     steps:
@@ -85,9 +121,11 @@ jobs:
 
       - name: 🔎 Verify mkdocs.yml exists at this ref
         if: github.event_name == 'workflow_dispatch'
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           if [ ! -f mkdocs.yml ]; then
-            echo "::error::Tag '${{ inputs.tag }}' has no mkdocs.yml — cannot build docs. Earliest supported tag: v0.7.0."
+            echo "::error::Tag '${INPUT_TAG}' has no mkdocs.yml — cannot build docs. Earliest supported tag: v0.7.0."
             exit 1
           fi
 
@@ -126,6 +164,7 @@ jobs:
 
   build-demo-sphinx:
     name: Demo Sphinx (RST)
+    needs: [validate-dispatch-inputs]
     runs-on: ubuntu-latest
 
     steps:
@@ -160,6 +199,7 @@ jobs:
 
   build-demo-mkdocs:
     name: Demo MkDocs (Markdown)
+    needs: [validate-dispatch-inputs]
     runs-on: ubuntu-latest
 
     steps:
@@ -259,6 +299,8 @@ jobs:
           path: docs/demo-mkdocs
 
       - name: 🏷️ Resolve version path
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
 
@@ -268,9 +310,18 @@ jobs:
           STABLE_TAG=""
 
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            # Backfill: use the user-supplied tag; never change set-default.
-            VERSION_PATH="${{ inputs.tag }}"
-            ALIASES="${{ inputs.alias }}"
+            # Map branch names to canonical mike versions (main → dev).
+            VERSION_PATH="${INPUT_TAG}"
+            case "${VERSION_PATH}" in
+              main) VERSION_PATH="dev" ;;
+            esac
+            # Auto-derive alias: if dispatching the latest release tag, assign stable.
+            if [[ "${VERSION_PATH}" != "dev" ]]; then
+              STABLE_TAG="$(git tag --list | { grep -E "${RELEASE_TAG_PATTERN}" || true; } | sort -V | tail -1)"
+              if [ -n "${STABLE_TAG}" ] && [ "${VERSION_PATH}" = "${STABLE_TAG}" ]; then
+                ALIASES="stable"
+              fi
+            fi
           elif [ "${GITHUB_REF_TYPE}" = "branch" ]; then
             # Unreleased main branch — never set as default; users want stable docs by default.
             VERSION_PATH="dev"
@@ -296,16 +347,31 @@ jobs:
             echo "SET_DEFAULT=${SET_DEFAULT}"
           } >> "$GITHUB_ENV"
 
+      - name: 🗑️ Delete conflicting mike versions
+        if: env.SKIP != 'true' && env.ALIASES != ''
+        # mike refuses to reassign an existing version name as an alias, even with --update-aliases.
+        # Check each alias against the current gh-pages version list and delete any that conflict.
+        # mike delete is fail-fast under set -e; failure is intentional — re-run is idempotent
+        # because the grep guard above skips delete when the version is already gone.
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "${GH_PAGES_BRANCH}" >/dev/null 2>&1; then
+            EXISTING_VERSIONS=$(mike list --branch "${GH_PAGES_BRANCH}" --json | jq -r '.[].version')
+            read -ra aliases <<< "${ALIASES}"
+            for _alias in "${aliases[@]}"; do
+              if echo "${EXISTING_VERSIONS}" | grep -qx "${_alias}"; then
+                echo "→ Alias '${_alias}' is currently a standalone version — deleting before reassigning"
+                mike delete --branch "${GH_PAGES_BRANCH}" "${_alias}"
+              fi
+            done
+          fi
+
       - name: 🚀 Mike deploy
         if: env.SKIP != 'true'
         run: |
           set -euo pipefail
-
-          # Re-expand space-separated aliases string into a bash array.
           # `${aliases[@]+"${aliases[@]}"}` is the empty-array-safe expansion under `set -u`.
           read -ra aliases <<< "${ALIASES}"
-
-          # Run mike without --push; single git push below lands deploy + set-default atomically.
           mike deploy \
             --update-aliases \
             --branch "${GH_PAGES_BRANCH}" \
@@ -322,7 +388,9 @@ jobs:
             "${SET_DEFAULT}"
 
       - name: 🤖 Deploy root-level AI discoverability files
-        if: env.SET_DEFAULT != ''
+        if: >-
+          env.SKIP != 'true' &&
+          (github.event_name != 'workflow_dispatch' || inputs.refresh_root_files || env.ALIASES == 'stable')
         run: |
           set -euo pipefail
           # robots.txt and llms.txt must live at the gh-pages root so AI crawlers find them
@@ -333,11 +401,20 @@ jobs:
           TMPWORKTREE="/tmp/pyDeprecate-gh-pages-$$"
           git worktree add "$TMPWORKTREE" "${GH_PAGES_BRANCH}"
           trap 'git worktree remove --force "$TMPWORKTREE" 2>/dev/null || true' EXIT
-          cp docs/robots.txt "$TMPWORKTREE/robots.txt"
-          cp docs/llms.txt "$TMPWORKTREE/llms.txt"
-          cp docs/llms-full.txt "$TMPWORKTREE/llms-full.txt"
-          cp docs/root-sitemap.xml "$TMPWORKTREE/sitemap.xml"
-          git -C "$TMPWORKTREE" add robots.txt llms.txt llms-full.txt sitemap.xml
+          for src_dest in \
+            "docs/robots.txt:robots.txt" \
+            "docs/llms.txt:llms.txt" \
+            "docs/llms-full.txt:llms-full.txt" \
+            "docs/root-sitemap.xml:sitemap.xml"; do
+            src="${src_dest%%:*}"
+            dst="${src_dest##*:}"
+            if [ -f "$src" ]; then
+              cp "$src" "$TMPWORKTREE/$dst"
+            else
+              echo "::warning::$src absent at this ref — skipping $dst in root-metadata deploy"
+            fi
+          done
+          git -C "$TMPWORKTREE" add robots.txt llms.txt llms-full.txt sitemap.xml 2>/dev/null || true
           git -C "$TMPWORKTREE" diff --cached --quiet \
             || git -C "$TMPWORKTREE" commit -m "chore(deploy): sync root AI discoverability files (robots.txt, llms.txt, llms-full.txt, sitemap.xml)"
           trap - EXIT

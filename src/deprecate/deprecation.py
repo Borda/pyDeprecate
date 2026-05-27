@@ -16,7 +16,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
-from functools import partial, wraps
+from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
 from warnings import warn
@@ -24,6 +24,7 @@ from warnings import warn
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
+    _CallPlan,
     _DeprecatedCallable,
     _has_deprecation_meta,
     _HasDeprecationMeta,
@@ -33,6 +34,8 @@ from deprecate.docstring.inject import _update_docstring_with_deprecation, norma
 from deprecate.utils import _get_signature, get_func_arguments_types_defaults
 
 _V1_BREAK_VERSION = "v1.0"
+# caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
+_DEFAULT_STACKLEVEL_TO_CALLER: int = 4
 
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -469,7 +472,13 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
     return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
-def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras: str) -> None:
+def _raise_warn(
+    stream: Callable,
+    source: Callable,
+    template_mgs: str,
+    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
+    **extras: str,
+) -> None:
     """Issue a deprecation warning using the specified stream and message template.
 
     This is the core warning issuer that formats and emits deprecation warnings.  It extracts source function metadata
@@ -479,6 +488,8 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
         stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
         source: The deprecated function/method being wrapped.
         template_mgs: Python format string with placeholders for message variables.
+        stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 4 accounts for
+            the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → wrapped_fn → caller`` chain.
         **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
 
     Note:
@@ -500,7 +511,12 @@ def _raise_warn(stream: Callable, source: Callable, template_mgs: str, **extras:
     source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
-    stream(template_mgs % msg_args)
+    msg = template_mgs % msg_args
+    try:
+        stream(msg, stacklevel=stacklevel)
+    except TypeError:
+        # stream does not accept stacklevel (e.g. print, logging.warning, custom callables).
+        stream(msg)
 
 
 def _source_display_name(source: Callable) -> str:
@@ -515,6 +531,7 @@ def _raise_warn_callable(
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
+    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
 
@@ -533,6 +550,7 @@ def _raise_warn_callable(
         remove_in: Version when the source will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
             callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
+        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -568,6 +586,7 @@ def _raise_warn_callable(
         stream=stream,
         source=source,
         template_mgs=template_mgs or template_warn,
+        stacklevel=stacklevel,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
@@ -582,6 +601,7 @@ def _raise_warn_arguments(
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
+    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
 
@@ -596,6 +616,7 @@ def _raise_warn_arguments(
         deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
         template_mgs: Custom message template. If None, uses default template.
+        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
 
     Template Variables Available:
         - source_name: Function name (e.g., "my_func")
@@ -623,9 +644,186 @@ def _raise_warn_arguments(
         stream,
         source,
         template_mgs or TEMPLATE_WARNING_ARGUMENTS,
+        stacklevel=stacklevel,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         argument_map=args_map,
+    )
+
+
+def _build_call_plan(
+    wrapper_fn: Callable[..., Any],
+    source: Callable[..., Any],
+    target: Union[bool, None, Callable[..., Any], TargetMode],
+    normalized_target: Union[Callable[..., Any], TargetMode],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    dep_cfg: DeprecationConfig,
+    stream: Optional[Callable[..., None]],
+    num_warns: int,
+    source_has_var_positional: bool,
+    source_is_stacked: bool,
+) -> _CallPlan:
+    """Compute the dispatch plan shared by the sync and async wrappers inside :func:`deprecated`.
+
+    Extracted verbatim from the body of ``wrapped_fn`` / ``async_wrapped_fn`` so that the wrappers differ only by
+    ``await`` on the final source/target call.  All closure variables that the wrapper needs are passed explicitly so
+    this helper has no dependency on the enclosing ``packing`` scope and can be unit-tested in isolation.
+
+    Side effects (carried over from the original inline logic):
+
+    - Mutates ``wrapper_fn._state`` — bumps ``called``, optionally bumps ``warned_calls`` / ``warned_args``, and sets
+      ``warned_misconfigured`` on the first misconfiguration warning.
+    - Emits the one-time misconfiguration ``UserWarning`` via :func:`warnings.warn` when ``dep_cfg.misconfigured`` is
+      set, ``stream`` is non-``None``, and the state has not yet seen it.
+    - Emits the deprecation warning through ``stream`` when the per-call quota allows it — callable-reason via
+      :func:`_raise_warn_callable`, argument-rename-reason via :func:`_raise_warn_arguments`.
+
+    Args:
+        wrapper_fn: The wrapping function itself, used to read mutable ``_state`` via the
+            :class:`_DeprecatedCallable` protocol.  Passing the wrapper instead of a bare state lets the wrapper
+            preserve its existing ``cast(_DeprecatedCallable, ...)._state`` access pattern.
+        source: The decorated callable.
+        target: The raw ``target`` argument given to ``@deprecated`` — preserved for warning emission so callable
+            targets that are classes are named by their user-facing name rather than ``__init__``.
+        normalized_target: The normalised target (a :class:`TargetMode` member or callable) returned by
+            :func:`_normalize_target`.
+        args: The positional arguments the caller passed to the wrapper.
+        kwargs: The keyword arguments the caller passed to the wrapper.
+        dep_cfg: The frozen :class:`DeprecationConfig` for this wrapper.  ``args_mapping``, ``args_extra``,
+            ``deprecated_in``, ``remove_in``, and ``template_mgs`` are all read from this object.
+        stream: Warning stream (typically :func:`warnings.warn` partial), or ``None`` to suppress.
+        num_warns: Maximum number of times to emit the warning per wrapper / per renamed argument.
+        source_has_var_positional: ``True`` when ``source`` declares ``*args`` — affects fast-path dispatch in the
+            wrapper but is also needed inside this helper for the short-circuit branch.
+        source_is_stacked: ``True`` when ``source`` is itself a ``@deprecated`` wrapper.
+
+    Returns:
+        A :class:`_CallPlan` describing the resolved dispatch outcome.
+
+    """
+    state = cast(_DeprecatedCallable, wrapper_fn)._state
+    state.called += 1
+    if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
+        warnings.warn(
+            f"'{source.__name__}' has an invalid deprecation configuration;"
+            f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_V1_BREAK_VERSION}.",
+            UserWarning,
+            stacklevel=3,  # caller → wrapper_fn → _build_call_plan → warn
+        )
+        state.warned_misconfigured = True
+
+    # *args sources need the unremapped tuple; remapping happens on kwargs only.
+    original_kwargs = dict(kwargs)
+    kwargs = _update_kwargs_with_args(source, args, kwargs)
+
+    reason_callable = normalized_target is TargetMode.NOTIFY or callable(normalized_target)
+    reason_argument: dict[str, Optional[str]] = {}
+    if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
+        reason_argument = {a: b for a, b in dep_cfg.args_mapping.items() if a in kwargs}
+    # Migrated callers (using the new arg name) produce empty reason_argument;
+    # without the args_extra guard they short-circuit before extras are injected.
+    # When source is a stacked @deprecated wrapper (e.g. ARGS_REMAP outer + NOTIFY inner),
+    # do not short-circuit even with no reason — the inner layer may still need to run.
+    if (
+        not (reason_callable or reason_argument)
+        and not (dep_cfg.args_extra and normalized_target is TargetMode.ARGS_REMAP)
+        and not source_is_stacked
+    ):
+        return _CallPlan(
+            short_circuit=True,
+            original_kwargs=original_kwargs,
+            resolved_kwargs=kwargs,
+            reason_argument={},
+            target_func=None,
+        )
+
+    if reason_argument:
+        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
+    else:
+        nb_warned = state.warned_calls
+
+    # +1 stacklevel: extraction added one frame (caller → wrapper_fn → _build_call_plan → _raise_warn_*)
+    # over the previous in-wrapper call chain.  Async path has the same frame depth:
+    # caller → coroutine `async_wrapped_fn` body → _build_call_plan → _raise_warn_* — the asyncio runner
+    # frames sit *below* the caller and are skipped by warnings.warn's stacklevel walk.
+    _stacklevel_to_caller = _DEFAULT_STACKLEVEL_TO_CALLER + 1
+    if stream and (num_warns < 0 or nb_warned < num_warns):
+        if reason_callable:
+            # Use original `target` (not remapped normalized_target) so the warning
+            # names the class (e.g. "NewCls") rather than "__init__".
+            _raise_warn_callable(
+                stream=stream,
+                source=source,
+                target=target,
+                deprecated_in=dep_cfg.deprecated_in,
+                remove_in=dep_cfg.remove_in,
+                template_mgs=dep_cfg.template_mgs,
+                stacklevel=_stacklevel_to_caller,
+            )
+            state.warned_calls += 1
+        elif reason_argument:
+            _raise_warn_arguments(
+                stream=stream,
+                source=source,
+                arguments=reason_argument,
+                deprecated_in=dep_cfg.deprecated_in,
+                remove_in=dep_cfg.remove_in,
+                template_mgs=dep_cfg.template_mgs,
+                stacklevel=_stacklevel_to_caller,
+            )
+            for arg in reason_argument:
+                state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+
+    if reason_callable:
+        # Source defaults for renamed args survive _update_kwargs_with_defaults and
+        # would be forwarded under the new name, silently overriding the target's own
+        # default. Drop only when the caller never supplied the old or new name.
+        if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
+            _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
+            caller_keys = set(kwargs)
+            rename_targets = {v for v in _am.values() if v}
+            rename_sources = set(_am)
+            # For ARGS_REMAP, source IS the target; Python applies its own default
+            # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
+            if callable(normalized_target):
+                target_defaults = {
+                    arg[0]
+                    for arg in get_func_arguments_types_defaults(normalized_target)
+                    if arg[2] is not inspect.Parameter.empty
+                }
+            else:
+                target_defaults = rename_targets
+            full_defaults = _update_kwargs_with_defaults(source, kwargs)
+
+            def is_default_dropped(k: str) -> bool:
+                remapped = k in rename_sources and _am.get(k) in target_defaults
+                return k not in rename_targets and not remapped
+
+            kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_default_dropped(k)}
+        else:
+            kwargs = _update_kwargs_with_defaults(source, kwargs)
+    if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
+        args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
+        kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
+
+    if dep_cfg.args_extra and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
+        kwargs.update(dep_cfg.args_extra)
+
+    # ``source_has_var_positional`` is accepted for symmetry with the wrapper closure: the helper itself does
+    # not branch on it (the wrapper consumes it after reading the plan to decide whether to forward positional
+    # args or kwargs to the source).  Keeping it in the signature lets future callers pass a single,
+    # uniform argument set even if the helper later needs to switch on var-positional shape.
+    target_func: Optional[Callable[..., Any]] = None
+    if callable(normalized_target):
+        target_func = _prepare_target_call(source, normalized_target, kwargs)
+
+    return _CallPlan(
+        short_circuit=False,
+        original_kwargs=original_kwargs,
+        resolved_kwargs=kwargs,
+        reason_argument=reason_argument,
+        target_func=target_func,
     )
 
 
@@ -646,6 +844,10 @@ def deprecated(
 
     This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement
     implementation.  It supports argument mapping, custom warning messages, and flexible warning control.
+
+    For **generator functions** (``def gen(): yield``) and **async generator functions** (``async def gen(): yield``),
+    the deprecation warning fires at call time — when the (async) generator object is created — not at first
+    iteration.  The generator body executes lazily as normal when iterated (``next()`` / ``async for``).
 
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
@@ -755,7 +957,31 @@ def deprecated(
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
-    def packing(source: Callable) -> Callable:
+    def packing(
+        source: Union[Callable, classmethod, staticmethod, property, cached_property],
+        _stacklevel: int = 2,
+    ) -> Callable:
+        # Order-agnostic @classmethod/@staticmethod: unwrap → deprecate inner function → rewrap.
+        # Both @classmethod orders produce classmethod(deprecated_wrapper);
+        # both @staticmethod orders produce staticmethod(deprecated_wrapper).
+        if isinstance(source, (classmethod, staticmethod)):
+            wrapped_inner = packing(source.__func__, _stacklevel + 1)
+            return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
+        # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
+        if isinstance(source, property):
+            # Preserve explicit doc only when it differs from fget's doc (author override)
+            # or when fget is absent (setter/deleter-only property with doc= supplied).
+            # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
+            explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
+            return property(  # type: ignore[return-value]
+                packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
+                source.fset,
+                source.fdel,
+                explicit_doc,
+            )
+        # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
+        if isinstance(source, cached_property):
+            return cached_property(packing(source.func, _stacklevel + 1))  # type: ignore[return-value]
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
@@ -767,7 +993,7 @@ def deprecated(
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=_stacklevel,
             )
         if inspect.isclass(source):
             import importlib
@@ -785,7 +1011,7 @@ def deprecated(
                     " use `@deprecated_class(target=...)` instead."
                 )
             if stream is not None:
-                warnings.warn(message, UserWarning, stacklevel=2)
+                warnings.warn(message, UserWarning, stacklevel=_stacklevel)
 
             # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
             # ``misconfigured`` from its own ``target is False`` check — by that point
@@ -798,7 +1024,7 @@ def deprecated(
             elif target is None or isinstance(target, bool):
                 # None/True/False on a class is a class-misconfiguration, not a callable
                 # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
-                forward_target = TargetMode._from_legacy(target, stacklevel=3)
+                forward_target = TargetMode._from_legacy(target, stacklevel=_stacklevel + 1)
             else:
                 forward_target = TargetMode.NOTIFY
 
@@ -814,7 +1040,11 @@ def deprecated(
             forward_args_extra = args_extra
             if forward_target is TargetMode.NOTIFY:
                 TargetMode._validate(
-                    forward_target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
+                    forward_target,
+                    source.__name__,
+                    args_mapping=args_mapping,
+                    args_extra=args_extra,
+                    stacklevel=_stacklevel + 1,
                 )
                 forward_args_mapping = None
                 forward_args_extra = None
@@ -848,113 +1078,12 @@ def deprecated(
         _function_misconfigured = False
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             _function_misconfigured = TargetMode._validate(
-                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=3
+                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=_stacklevel + 1
             )
 
         source_has_var_positional = any(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
-
-        @wraps(source)
-        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
-            if not isinstance(shall_skip, bool):
-                raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
-            if shall_skip:
-                return source(*args, **kwargs)
-
-            state = cast(_DeprecatedCallable, wrapped_fn)._state
-            state.called += 1
-            # Read DeprecationConfig from the closure rather than re-reading
-            # ``wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
-            # decorator stacked outside this one overwrites that attribute with a plain
-            # string, which then crashes on ``.misconfigured`` access. ``_state`` must
-            # still be read via attribute because it is mutable and updated between calls.
-            dep_cfg = _dep_cfg
-            if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
-                warnings.warn(
-                    f"'{source.__name__}' has an invalid deprecation configuration;"
-                    f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_V1_BREAK_VERSION}.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                state.warned_misconfigured = True
-            # *args sources need the unremapped tuple; remapping happens on kwargs only.
-            original_kwargs = dict(kwargs)
-            kwargs = _update_kwargs_with_args(source, args, kwargs)
-
-            reason_callable = _target is TargetMode.NOTIFY or callable(_target)
-            reason_argument = {}
-            if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
-                reason_argument = {a: b for a, b in args_mapping.items() if a in kwargs}
-            # Migrated callers (using the new arg name) produce empty reason_argument;
-            # without the args_extra guard they short-circuit before extras are injected.
-            # When source is a stacked @deprecated wrapper (e.g. ARGS_REMAP outer + NOTIFY inner),
-            # do not short-circuit even with no reason — the inner layer may still need to run.
-            if (
-                not (reason_callable or reason_argument)
-                and not (args_extra and _target is TargetMode.ARGS_REMAP)
-                and not _source_is_stacked
-            ):
-                return source(**kwargs)
-
-            if reason_argument:
-                nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-            else:
-                nb_warned = state.warned_calls
-
-            if stream and (num_warns < 0 or nb_warned < num_warns):
-                if reason_callable:
-                    # Use original `target` (not remapped _target) so the warning
-                    # names the class (e.g. "NewCls") rather than "__init__".
-                    _raise_warn_callable(stream, source, target, deprecated_in, remove_in, template_mgs)
-                    state.warned_calls += 1
-                elif reason_argument:
-                    _raise_warn_arguments(stream, source, reason_argument, deprecated_in, remove_in, template_mgs)
-                    for arg in reason_argument:
-                        state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
-
-            if reason_callable:
-                # Source defaults for renamed args survive _update_kwargs_with_defaults and
-                # would be forwarded under the new name, silently overriding the target's own
-                # default. Drop only when the caller never supplied the old or new name.
-                if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
-                    caller_keys = set(kwargs)
-                    rename_targets = {v for v in args_mapping.values() if v}
-                    rename_sources = set(args_mapping)
-                    # For ARGS_REMAP, source IS the target; Python applies its own default
-                    # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
-                    if callable(_target):
-                        target_defaults = {
-                            arg[0]
-                            for arg in get_func_arguments_types_defaults(_target)
-                            if arg[2] is not inspect.Parameter.empty
-                        }
-                    else:
-                        target_defaults = rename_targets
-                    full_defaults = _update_kwargs_with_defaults(source, kwargs)
-
-                    def is_default_dropped(k: str) -> bool:
-                        remapped = k in rename_sources and args_mapping.get(k) in target_defaults
-                        return k not in rename_targets and not remapped
-
-                    kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_default_dropped(k)}
-                else:
-                    kwargs = _update_kwargs_with_defaults(source, kwargs)
-            if args_mapping and (_target is TargetMode.ARGS_REMAP or callable(_target)):
-                args_skip = [arg for arg in args_mapping if not args_mapping[arg]]
-                kwargs = {(args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
-
-            if args_extra and (_target is TargetMode.ARGS_REMAP or callable(_target)):
-                kwargs.update(args_extra)
-
-            if not callable(_target):
-                if source_has_var_positional:
-                    call_kwargs = original_kwargs if not reason_argument else kwargs
-                    return source(*args, **call_kwargs)
-                return source(**kwargs)
-            target_func = _prepare_target_call(source, _target, kwargs)
-            return target_func(**kwargs)
 
         # Enum-normalised target stored so audit does not re-derive from raw sentinel.
         # Class targets kept verbatim: the class→__init__ remap is call-time only;
@@ -975,13 +1104,119 @@ def deprecated(
             args_extra=args_extra,
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
+            template_mgs=template_mgs,
         )
-        # Bind ``DeprecationConfig`` into the wrapper closure so call-time reads
-        # survive PEP 702 ``typing_extensions.deprecated`` stacked outside this
-        # decorator overwriting ``wrapped_fn.__deprecated__`` with a string.
-        # ``wrapped_fn`` already captured this name from the enclosing scope via
-        # the late-binding closure rule; the assignment here is what populates it.
         _dep_cfg = dep_meta
+
+        #
+        # Known false-negatives of ``inspect.iscoroutinefunction`` — these sources silently receive the sync
+        # wrapper, meaning ``await wrapper(...)`` will fail or return a bare coroutine:
+        #   • async function wrapped by a decorator that does NOT propagate ``__wrapped__`` / use
+        #     ``functools.wraps`` (``inspect.iscoroutinefunction`` walks ``__wrapped__``, not ``__call__``).
+        #   • callable objects whose ``__call__`` is ``async def`` — use ``async def`` thin wrapper instead.
+        #   • ``functools.partial(async_fn)`` on Python ≤ 3.11 (``partial`` does not copy ``__wrapped__``).
+        # Workaround for all three: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
+        # await callable(*a, **kw)`` before applying ``@deprecated``.
+        if inspect.iscoroutinefunction(source):
+
+            @wraps(source)
+            async def async_wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+                shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
+                if not isinstance(shall_skip, bool):
+                    raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
+                if shall_skip:
+                    return await source(*args, **kwargs)
+
+                # Read DeprecationConfig from the closure rather than re-reading
+                # ``async_wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
+                # decorator stacked outside this one overwrites that attribute with a plain string.
+                plan = _build_call_plan(
+                    wrapper_fn=async_wrapped_fn,
+                    source=source,
+                    target=target,
+                    normalized_target=_target,
+                    args=args,
+                    kwargs=kwargs,
+                    dep_cfg=_dep_cfg,
+                    stream=stream,
+                    num_warns=num_warns,
+                    source_has_var_positional=source_has_var_positional,
+                    source_is_stacked=_source_is_stacked,
+                )
+
+                if plan.short_circuit:
+                    if source_has_var_positional:
+                        return await source(*args, **plan.original_kwargs)
+                    return await source(**plan.resolved_kwargs)
+
+                if plan.target_func is None:
+                    if source_has_var_positional:
+                        call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
+                        return await source(*args, **call_kwargs)
+                    return await source(**plan.resolved_kwargs)
+                # Sync target under async source: invoke directly so callers can migrate from a sync to async
+                # API in one step without forcing every legacy target to be redeclared ``async def``.
+                if inspect.iscoroutinefunction(plan.target_func):
+                    return await plan.target_func(**plan.resolved_kwargs)
+                return plan.target_func(**plan.resolved_kwargs)
+
+            async_wrapped_fn_typed = cast(_DeprecatedCallable, async_wrapped_fn)
+            async_wrapped_fn_typed.__deprecated__ = dep_meta
+            async_wrapped_fn_typed._state = _WrapperState()
+
+            if update_docstring:
+                _update_docstring_with_deprecation(async_wrapped_fn)
+
+            return async_wrapped_fn
+
+        # Async generator sources (``async def`` + ``yield``) fall through to the sync ``wrapped_fn`` below:
+        # ``source(**kwargs)`` returns the async generator object without executing any body code — same as
+        # sync generators.  Warning fires at sync call time; callers iterate with ``async for``.  The
+        # ``iscoroutinefunction`` guard below does not fire for async gen targets (they are not coroutines).
+
+        @wraps(source)
+        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
+            if not isinstance(shall_skip, bool):
+                raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
+            if shall_skip:
+                return source(*args, **kwargs)
+
+            # Read DeprecationConfig from the closure rather than re-reading
+            # ``wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
+            # decorator stacked outside this one overwrites that attribute with a plain
+            # string, which then crashes on ``.misconfigured`` access.
+            plan = _build_call_plan(
+                wrapper_fn=wrapped_fn,
+                source=source,
+                target=target,
+                normalized_target=_target,
+                args=args,
+                kwargs=kwargs,
+                dep_cfg=_dep_cfg,
+                stream=stream,
+                num_warns=num_warns,
+                source_has_var_positional=source_has_var_positional,
+                source_is_stacked=_source_is_stacked,
+            )
+
+            if plan.short_circuit:
+                if source_has_var_positional:
+                    return source(*args, **plan.original_kwargs)
+                return source(**plan.resolved_kwargs)
+
+            if plan.target_func is None:
+                if source_has_var_positional:
+                    call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
+                    return source(*args, **call_kwargs)
+                return source(**plan.resolved_kwargs)
+            if inspect.iscoroutinefunction(plan.target_func):
+                raise TypeError(
+                    f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
+                    f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
+                )
+            return plan.target_func(**plan.resolved_kwargs)
+
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta
         wrapped_fn_typed._state = _WrapperState()

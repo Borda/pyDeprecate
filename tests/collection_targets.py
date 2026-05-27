@@ -7,6 +7,7 @@ This module provides base functions that are used as targets for deprecated func
 import functools
 import time
 import warnings
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
@@ -309,3 +310,45 @@ class TimerDecorator:
 def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
     """Compute base raised to scale; factor is the legacy parameter name for scale."""
     return base**scale
+
+
+def gen_target(x: int) -> Iterator[int]:
+    """Generator that yields multiples of x (1×, 2×, 3×).
+
+    Used by the generator wrapper integration tests for the ``@deprecated`` decorator.
+
+    """
+    for i in range(1, 4):
+        yield x * i
+
+
+async def async_target(x: int) -> int:
+    """Replacement async function used by ``async_callable`` deprecation wrapper tests.
+
+    Examples:
+        >>> import asyncio
+        >>> asyncio.run(async_target(x=3))
+        6
+
+    """
+    return x * 2
+
+
+async def async_gen_target(x: int) -> AsyncIterator[int]:
+    """Async generator that yields multiples of x (1×, 2×, 3×).
+
+    Used by the async generator wrapper integration tests for the ``@deprecated`` decorator.  Mirrors
+    :func:`gen_target` (sync generator) and :func:`async_target` (async coroutine) so all three callable kinds
+    share the same input → output contract (``x=1`` → ``[1, 2, 3]``).
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _collect() -> list[int]:
+        ...     return [item async for item in async_gen_target(x=2)]
+        >>> asyncio.run(_collect())
+        [2, 4, 6]
+
+    """
+    for i in range(1, 4):
+        yield x * i

@@ -80,6 +80,7 @@ warn_unused_configs = "True"
 warn_unused_ignores = "True"
 allow_redefinition = "True"
 warn_no_return = "True"
+overrides = [ { module = [ "tests.*" ], warn_unused_ignores = false } ]
 
 [tool.pytest]
 ini_options.testpaths = [ "src", "tests" ]

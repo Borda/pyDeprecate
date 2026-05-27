@@ -39,6 +39,7 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 
 """
 
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -61,6 +62,8 @@ from tests.collection_targets import (
     TimerDecorator,
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
+    async_gen_target,
+    async_target,
     base_pow_args,
     base_sum_kwargs,
     both_old_new_target,
@@ -69,6 +72,7 @@ from tests.collection_targets import (
     double_value,
     fn_remap_with_extra_body,
     fn_with_default,
+    gen_target,
     identity_value,
     increment_value,
     pep702_target,
@@ -744,6 +748,30 @@ def make_depr_args_remap_notify_with_extra() -> Callable:
         args_mapping={"factor": "scale"},
         args_extra={"base": 2.0},
     )(inner)
+
+
+def make_async_stacked_notify() -> Callable:
+    """Return a fresh NOTIFY-outer + NOTIFY-inner stacked async wrapper.
+
+    Each call produces a new wrapper pair with an independent ``_WrapperState``,
+    preventing ``num_warns`` counter exhaustion across tests.  The inner wrapper
+    is itself a ``@deprecated`` wrapper (``_source_is_stacked=True`` on the outer),
+    exercising the stacked-source code path in the async branch of ``packing()``.
+
+    Examples:
+        Calling this factory and awaiting the result emits two FutureWarnings.
+
+        >>> import asyncio, warnings
+        >>> fn = make_async_stacked_notify()
+        >>> with warnings.catch_warnings(record=True) as w:
+        ...     warnings.simplefilter("always")
+        ...     _ = asyncio.run(fn(x=1))
+        >>> len(w)
+        2
+
+    """
+    inner = deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_source_notify)
+    return deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
 
 
 @deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
@@ -1476,3 +1504,161 @@ def pep702_proxy_stacked() -> _Pep702ProxyTarget:
 
     """
     return _pep702_proxy_stacked()
+
+
+# ========== generator callable kind fixtures ==========
+# Three wrappers exercise the ``@deprecated`` generator path (``inspect.isgeneratorfunction``
+# branch in ``packing()``).  Each pairs a generator source/target combination with a different
+# ``TargetMode`` so the integration tests can confirm warning timing (eager at call time, not on
+# first ``next()``) and full round-trip yield equivalence.
+
+
+def _gen_source_remap(old_x: int = 0, x: int = 0) -> Iterator[int]:
+    """Self-deprecation source for ``gen_args_remap``: accepts the legacy arg ``old_x`` (mapped to ``x``).
+
+    Source body executes under :attr:`~deprecate.TargetMode.ARGS_REMAP` so the generator must be defined here, not
+    inlined into a lambda (lambdas cannot be generators).  ``old_x`` is the legacy parameter name preserved for the
+    ARGS_REMAP mapping; only ``x`` is read in the body.
+
+    """
+    for i in range(1, 4):
+        yield x * i
+
+
+def _gen_source_callable(x: int = 0) -> Iterator[int]:
+    """Placeholder generator source for ``gen_callable``: body never executes under callable-target mode.
+
+    Declared as a generator function (``yield`` in body) so :func:`inspect.isgeneratorfunction` returns ``True`` and the
+    generator wrapper engages.  The body is unreachable because ``target=gen_target`` forwards every call.
+
+    """
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield x
+
+
+#: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
+#: Uses default ``num_warns=1``; warning fires once per call via ``_build_call_plan``.
+#: Tests reset ``warned_calls`` between parametrize cases — see ``_reset_gen_state`` fixture.
+gen_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(gen_target)
+#: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
+gen_args_remap = deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_x": "x"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(_gen_source_remap)
+#: Callable-target mode — call forwarded to ``gen_target``; source body never executes.
+gen_callable = deprecated(target=gen_target, deprecated_in="1.0", remove_in="2.0")(_gen_source_callable)
+#: NOTIFY mode with ``num_warns=-1`` (warn on every call); used to test unlimited-warning behaviour.
+gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)(
+    gen_target
+)
+
+
+# ========== async callable kind fixtures ==========
+# Three wrappers exercise the ``@deprecated`` async path (``inspect.iscoroutinefunction`` branch in ``packing()``).
+# Each pairs an ``async def`` source with one of the three ``TargetMode`` variants so the integration tests can
+# confirm: (a) round-trip awaited result, (b) warning timing for async wrappers — fired when the returned coroutine
+# is awaited, before the wrapped async body/result completes — and (c) stacklevel pointing back to the user's call
+# site rather than to ``deprecation.py``.
+
+
+async def _async_source_notify(x: int) -> int:
+    """NOTIFY-mode async source: body runs unchanged after warning fires.
+
+    Doubles its input so the integration test can assert end-to-end equivalence without referencing the target.
+
+    """
+    return x * 2
+
+
+async def _async_source_remap(old_x: int = 0, x: int = 0) -> int:
+    """Self-deprecation async source for ``async_args_remap``: accepts legacy arg ``old_x`` (mapped to ``x``).
+
+    Body executes under :attr:`~deprecate.TargetMode.ARGS_REMAP` so it must be a real ``async def``; only the
+    remapped ``x`` is read in the body.
+
+    """
+    return x * 2
+
+
+async def _async_source_callable(x: int = 0) -> int:
+    """Placeholder async source for ``async_callable``: body never executes under callable-target mode.
+
+    Declared as ``async def`` so :func:`inspect.iscoroutinefunction` returns ``True`` and the async wrapper engages.
+    The body is unreachable because ``target=async_target`` forwards every call.
+
+    """
+    return x  # pragma: no cover - unreachable; target forwards every call
+
+
+#: NOTIFY mode — source body runs unchanged (warning-only). Uses default ``num_warns=1``;
+#: warning fires once per call. Tests reset ``warned_calls`` between parametrize cases.
+async_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_source_notify)
+#: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
+async_args_remap = deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_x": "x"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(_async_source_remap)
+#: Callable-target mode — call forwarded to ``async_target``; source body never executes.
+async_callable = deprecated(target=async_target, deprecated_in="1.0", remove_in="2.0")(_async_source_callable)
+
+
+# ========== async generator callable kind fixtures ==========
+# Three wrappers exercise the ``@deprecated`` async generator path (async generator sources fall through
+# to the sync ``wrapped_fn`` in ``packing()``).  Each pairs an async generator source with one of the
+# three ``TargetMode`` variants so the integration tests can confirm: (a) round-trip async iteration
+# yields ``[1, 2, 3]``, (b) warning fires at sync call time before first ``async for``, and
+# (c) stacklevel points to the user's call site.
+
+
+async def _async_gen_source_notify(x: int) -> AsyncIterator[int]:
+    """NOTIFY-mode async generator source: body runs unchanged after warning fires.
+
+    Yields the same multiples as :func:`async_gen_target` so the integration test can assert end-to-end
+    equivalence without referencing the target directly.
+
+    """
+    for i in range(1, 4):
+        yield x * i
+
+
+async def _async_gen_source_remap(old_x: int = 0, x: int = 0) -> AsyncIterator[int]:
+    """Self-deprecation async generator source for ``async_gen_args_remap``.
+
+    Accepts the legacy arg ``old_x`` (mapped to ``x`` before the body runs).  Body executes under
+    :attr:`~deprecate.TargetMode.ARGS_REMAP` so it must be a real ``async def`` + ``yield`` — only the
+    remapped ``x`` is read inside the loop.
+
+    """
+    for i in range(1, 4):
+        yield x * i
+
+
+async def _async_gen_source_callable(x: int = 0) -> AsyncIterator[int]:
+    """Placeholder async generator source for ``async_gen_callable``: body never executes.
+
+    Declared as ``async def`` containing ``yield`` so :func:`inspect.isasyncgenfunction` returns ``True``.
+    The body is unreachable because ``target=async_gen_target`` forwards every call.
+
+    """
+    if False:  # pragma: no cover - unreachable; target forwards every call
+        yield x
+
+
+#: NOTIFY mode — source body runs unchanged (warning-only).  Uses default ``num_warns=1``; warning fires once
+#: per call.  Tests reset ``warned_calls`` between parametrize cases — see ``_reset_async_gen_state`` fixture.
+async_gen_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_gen_source_notify)
+#: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
+async_gen_args_remap = deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_x": "x"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(_async_gen_source_remap)
+#: Callable-target mode — call forwarded to ``async_gen_target``; source body never executes.
+async_gen_callable = deprecated(target=async_gen_target, deprecated_in="1.0", remove_in="2.0")(
+    _async_gen_source_callable
+)

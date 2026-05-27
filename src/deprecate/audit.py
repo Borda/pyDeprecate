@@ -43,7 +43,7 @@ import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, is_dataclass, replace
 from enum import Enum
-from functools import wraps
+from functools import cached_property, wraps
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 if TYPE_CHECKING:
@@ -664,7 +664,7 @@ def validate_deprecation_expiry(
 def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
-    include_members: bool = False,
+    include_members: bool = True,
 ) -> list[DeprecationWrapperInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
 
@@ -726,65 +726,58 @@ def find_deprecation_wrappers(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    def _scan_class(
-        mod: Any,  # noqa: ANN401
-        cls: type,
+    def _scan_callable(
+        obj: Any,  # noqa: ANN401
+        module_name: str,
+        qualified_name: str,
         *,
-        prefix: str,
-        seen_classes: Optional[set[type]] = None,
+        member_name: Optional[str] = None,
+        descriptor_kind: Optional[str] = None,
     ) -> None:
-        """Scan deprecated members in a class without triggering dynamic attribute lookups."""
-        if seen_classes is None:
-            seen_classes = set()
-        if cls in seen_classes:
-            return
-        seen_classes.add(cls)
+        """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
+        if _has_deprecation_meta(obj):
+            info = validate_deprecation_wrapper(obj)
+            info = replace(
+                info,
+                module=module_name,
+                function=qualified_name,
+                api_type=_classify_wrapper_api_type(
+                    obj, info, member_name=member_name, descriptor_kind=descriptor_kind
+                ),
+            )
+            results.append(info)
 
+    def _scan_class(cls: Any, module_name: str, cls_name: str) -> None:  # noqa: ANN401
+        """Scan class members, peeking through descriptors."""
         try:
             members = _getmembers_static_compat(cls)
-        except (AttributeError, TypeError, ImportError):
+        except (AttributeError, TypeError):
             return
-
-        for member_name, member_obj in members:
-            if member_name.startswith("_") and member_name != "__init__":
+        for attr_name, obj in members:
+            if attr_name.startswith("_") and attr_name != "__init__":
                 continue
-
-            descriptor_kind: Optional[str] = None
-            wrapped_member = member_obj
-            if isinstance(member_obj, classmethod):
-                descriptor_kind = "classmethod"
-                wrapped_member = member_obj.__func__
-            elif isinstance(member_obj, staticmethod):
-                descriptor_kind = "staticmethod"
-                wrapped_member = member_obj.__func__
-
-            if callable(wrapped_member) and hasattr(wrapped_member, "__deprecated__"):
-                info = validate_deprecation_wrapper(wrapped_member)
-                info = replace(
-                    info,
-                    module=mod.__name__ if hasattr(mod, "__name__") else str(mod),
-                    function=f"{prefix}{member_name}",
-                    api_type=_classify_wrapper_api_type(
-                        wrapped_member,
-                        info,
-                        member_name=member_name,
-                        descriptor_kind=descriptor_kind,
-                    ),
-                )
-                results.append(info)
-
-            if inspect.isclass(member_obj) and member_obj.__module__ == mod.__name__ and member_obj not in seen_classes:
-                _scan_class(mod, member_obj, prefix=f"{prefix}{member_name}.", seen_classes=seen_classes)
+            qualified = f"{cls_name}.{attr_name}"
+            # Peek through descriptors to find the underlying function.
+            if isinstance(obj, (classmethod, staticmethod)):
+                kind = "classmethod" if isinstance(obj, classmethod) else "staticmethod"
+                _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
+            elif isinstance(obj, property):
+                if obj.fget is not None:
+                    _scan_callable(obj.fget, module_name, qualified, member_name=attr_name)
+            elif isinstance(obj, cached_property):
+                _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
+            else:
+                _scan_callable(obj, module_name, qualified, member_name=attr_name)
 
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
-        """Scan a single module for deprecated functions."""
-        seen_classes: set[type] = set()
+        """Scan a single module for deprecated functions and class members."""
         try:
             # Static inspection avoids dynamic getattr/descriptor evaluation while scanning.
             members = _getmembers_static_compat(mod)
         except (AttributeError, TypeError, ImportError):
             return
 
+        mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
         for name, obj in members:
             # Skip private/magic attributes and imports from other modules
             if name.startswith("_"):
@@ -794,16 +787,13 @@ def find_deprecation_wrappers(
                 info = validate_deprecation_wrapper(obj)
                 info = replace(
                     info,
-                    module=mod.__name__ if hasattr(mod, "__name__") else str(mod),
+                    module=mod_name,
                     function=name,
                     api_type=_classify_wrapper_api_type(obj, info),
                 )
-
                 results.append(info)
-                continue
-
-            if include_members and inspect.isclass(obj) and obj.__module__ == mod.__name__:
-                _scan_class(mod, obj, prefix=f"{name}.", seen_classes=seen_classes)
+            elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
+                _scan_class(obj, mod_name, name)
 
     # Scan the main module
     _scan_module(module)

@@ -61,7 +61,19 @@ def new_api(value: int) -> int:
 )
 def old_api(value: int) -> int:
     raise RuntimeError("Forwarded by pyDeprecate.")
+
+
+print(old_api(1))
 ```
+
+<details>
+  <summary>Output: <code>old_api(1)</code></summary>
+
+```
+2
+```
+
+</details>
 
 ## Migrating from warnings.warn
 
@@ -84,7 +96,19 @@ def old_api(value: int) -> int:
         stacklevel=2,
     )
     return new_api(value)
+
+
+print(old_api(1))
 ```
+
+<details>
+  <summary>Output: <code>old_api(1)</code></summary>
+
+```
+2
+```
+
+</details>
 
 **After: pyDeprecate owns the migration contract**
 
@@ -104,7 +128,19 @@ def new_api(value: int) -> int:
 )
 def old_api(value: int) -> int:
     raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
+
+
+print(old_api(1))
 ```
+
+<details>
+  <summary>Output: <code>old_api(1)</code></summary>
+
+```
+2
+```
+
+</details>
 
 ## Decision guide
 

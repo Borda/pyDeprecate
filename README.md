@@ -44,6 +44,7 @@ ______________________________________________________________________
   - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
   - [Automatic docstring updates](#automatic-docstring-updates)
   - [Injecting new required arguments](#injecting-new-required-arguments)
+  - [Async functions](#-async-functions)
 - [🔇 Understanding the void() Helper](#understanding-the-void-helper)
 - [🔍 Audit](#audit)
   - [Validating Wrapper Configuration](#validating-wrapper-configuration)
@@ -61,8 +62,6 @@ For most of these cases, you want to maintain some compatibility, so you cannot 
 
 Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
 
-> pyDeprecate is downloaded over **700,000 times per month** from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — a widely adopted solution for API deprecation in production Python codebases.
->
 > **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
 
 ## ✨ Features
@@ -71,8 +70,8 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🔄 Arguments are automatically mapped to the target function
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
-- 🛠️ Supports deprecating callables: functions, methods, and class constructors
-- 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class` for types; `deprecated_instance` for objects, with optional read-only enforcement)
+- 🛠️ Supports deprecating callables: functions, methods, class constructors, **generator functions** (`def gen(): yield` — warning fires eagerly at call time, before iteration begins), and **`async def` coroutine functions** (wrapper is `async def`, `inspect.iscoroutinefunction(wrapper)` returns `True`; warning fires when the coroutine is awaited)
+- 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class` for types; `deprecated_instance` for objects, with optional read-only enforcement — blocks standard collection mutators: `append`, `pop`, `update`, `clear`, etc.; custom mutator names bypass this guard)
 - 📝 Optionally, docstrings can be updated automatically in RST/Sphinx or MkDocs/Markdown format (auto-detected); ships bundled Griffe and Sphinx doc-engine extensions
 - 🔍 Preserves original function signature, annotations and metadata for introspection
 - ⚙️ Configurable warning message template and output stream (logging, warnings, custom callable)
@@ -191,7 +190,17 @@ def addition(a: int, b: int = 5) -> int:
 result = addition(1, 2)  # Returns 3
 # Warning: The `addition` was deprecated since v1.0 in favor of `__main__.compute_sum`.
 #          It will be removed in v2.0.
+print(result)
 ```
+
+<details>
+  <summary>Output: <code>addition(1, 2)</code></summary>
+
+```
+3
+```
+
+</details>
 
 That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
@@ -301,7 +310,7 @@ print(calculate(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(calculate(1, 2))</code></summary>
+  <summary>Output: <code>calculate(1, 2)</code></summary>
 
 ```
 3
@@ -337,7 +346,17 @@ calculate = deprecated(
     deprecated_in="0.5",
     remove_in="1.0",
 )(addition)
+print(calculate(1, 2))
 ```
+
+<details>
+  <summary>Output: <code>calculate(1, 2)</code></summary>
+
+```
+3
+```
+
+</details>
 
 This is an equivalent to the `@deprecated(...)` decorator form but applied to an already-existing callable — useful when the deprecated function lives in a dependency you don't control.
 
@@ -411,7 +430,7 @@ print(my_sum(1, 2))
 ```
 
 <details>
-  <summary>Output: <code>print(my_sum(1, 2))</code></summary>
+  <summary>Output: <code>my_sum(1, 2)</code></summary>
 
 ```
 3
@@ -452,7 +471,7 @@ print(any_pow(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>print(any_pow(2, 3))</code></summary>
+  <summary>Output: <code>any_pow(2, 3)</code></summary>
 
 ```
 8
@@ -483,8 +502,17 @@ def my_func(value: int, legacy_param: Optional[str] = None) -> int:
 # Passing the removed argument triggers a warning and the argument is silently discarded:
 #   The `my_func` uses deprecated arguments: `legacy_param` -> `None`.
 #   They were deprecated since v1.8 and will be removed in v1.9.
-my_func(value=42, legacy_param="old")
+print(my_func(value=42, legacy_param="old"))
 ```
+
+<details>
+  <summary>Output: <code>my_func(value=42, legacy_param="old")</code></summary>
+
+```
+84
+```
+
+</details>
 
 > [!WARNING]
 > `TargetMode.ARGS_REMAP` without `args_mapping` is a misconfiguration; using it emits a construction-time `UserWarning`. This will become a `TypeError` in v1.0. If you only want to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
@@ -547,8 +575,18 @@ def compute_power(base: float, factor: float = 1, scale: float = 1) -> float:
     return base**scale
 
 
-compute_power(2, factor=3)  # → 2 warnings (arg rename + function deprecated), returns 8.0
-compute_power(2, scale=3)  # → 1 warning  (function deprecated only),          returns 8.0
+print(compute_power(2, factor=3))  # → 2 warnings (arg rename + function deprecated)
+print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>compute_power(2, factor=3); compute_power(2, scale=3)</code></summary>
+
+```
+8
+8
 ```
 
 </details>
@@ -610,7 +648,7 @@ print(skip_pow(2, 3))
 <br>
 
 <details>
-  <summary>Output: <code>skip_pow</code> before and after version change</summary>
+  <summary>Output: <code>skip_pow(2, 3); skip_pow(2, 3)</code></summary>
 
 ```
 0.25
@@ -720,7 +758,7 @@ print(inst.my_d)  # returns: "efg"
 <br>
 
 <details>
-  <summary>Output: <code>Client</code> instance attributes</summary>
+  <summary>Output: <code>inst.my_c; inst.my_d</code></summary>
 
 ```
 7
@@ -766,7 +804,7 @@ print(DEFAULTS["lr"])  # 0.001
 ```
 
 <details>
-  <summary>Output: <code>print(DEFAULTS["lr"])</code></summary>
+  <summary>Output: <code>DEFAULTS["lr"]</code></summary>
 
 ```
 0.001
@@ -852,7 +890,7 @@ print((p_new.x, p_new.y))
 <br>
 
 <details>
-  <summary>Output: <code>Color</code> forwarding and <code>PointV1</code> precision migration</summary>
+  <summary>Output: <code>Color.RED is ThemeColor.RED; Color(1) is ThemeColor.RED; (p_new.x, p_new.y)</code></summary>
 
 ```
 True
@@ -1024,6 +1062,66 @@ Sent to 'alice@example.com': 'Hello' [normal]
 > [!NOTE]
 > `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is ignored and a construction-time `UserWarning` is emitted by validation.
 
+### 🌀 Async functions
+
+`@deprecated` works natively on `async def` functions. The resulting wrapper is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and asyncio frameworks (FastAPI, `asyncio.run`, `asyncio.gather`) recognise it. All three `TargetMode` variants work; the deprecation warning fires when the coroutine is awaited, not when the wrapper is called.
+
+```python
+import asyncio
+from deprecate import TargetMode, deprecated, void
+
+
+# NEW/FUTURE API
+async def download(url: str) -> bytes:
+    return url.encode()
+
+
+# 1) target=<callable> — forward to a replacement async function
+@deprecated(target=download, deprecated_in="0.9", remove_in="1.0")
+async def fetch(url: str) -> bytes:
+    """Deprecated — use download() instead."""
+    return void(url)
+
+
+# 2) TargetMode.NOTIFY — warn callers; the async body still runs
+@deprecated(deprecated_in="0.9", remove_in="1.0")
+async def legacy_ping() -> str:
+    """Deprecated — going away; remove call sites."""
+    return "pong"
+
+
+# 3) TargetMode.ARGS_REMAP — rename an argument within the same async function
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"endpoint": "url"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+async def fetch_data(endpoint: str = "", url: str = "") -> bytes:
+    """Deprecated argument `endpoint` renamed to `url`."""
+    return url.encode()
+
+
+asyncio.run(fetch("https://example.com"))
+asyncio.run(legacy_ping())
+print(asyncio.run(fetch_data(endpoint="https://example.com")))
+```
+
+<details>
+  <summary>Output: <code>asyncio.run(fetch_data(endpoint="https://example.com"))</code></summary>
+
+```
+b'https://example.com'
+```
+
+</details>
+
+> [!NOTE]
+> `@deprecated` supports **async generator functions** (`async def` + `yield`). The wrapper is a sync callable — it fires the deprecation warning eagerly at call time and returns the async generator object. Callers iterate as normal with `async for item in wrapper(...):`. Because the wrapper is sync, `inspect.isasyncgenfunction(wrapper)` returns `False`; frameworks that branch on this introspection may need a thin async generator passthrough.
+
+> [!NOTE]
+> `_WrapperState` fields are plain dataclass fields with no asyncio lock — concurrent coroutines sharing one deprecated wrapper can race on warning counts. Set `num_warns=-1` to bypass the count gate in tests that assert exact emission counts.
+
 ## 🔇 Understanding the `void()` Helper
 
 When using `@deprecated` with a `target` function, the deprecated function's body is never executed—all calls are automatically forwarded. However, your IDE might complain about "unused parameters". The `void()` helper function silences these warnings:
@@ -1049,7 +1147,19 @@ def old_add(a: int, b: int) -> int:
 def old_add_v2(a: int, b: int) -> int:
     """Just a docstring works too."""
     pass  # This also works
+
+
+print(old_add_v2(2, 3))
 ```
+
+<details>
+  <summary>Output: <code>old_add_v2(2, 3)</code></summary>
+
+```
+5
+```
+
+</details>
 
 > [!TIP]
 > `void()` is purely for IDE convenience and has no runtime effect. It simply returns `None` after accepting any arguments.
@@ -1652,6 +1762,18 @@ def old_func_always_warn(x: int) -> int:
 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
 def old_func_warn_n_times(x: int) -> int:
     pass
+
+
+print(old_func_warn_n_times(1))
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>old_func_warn_n_times(1)</code></summary>
+
+```
+2
 ```
 
 </details>
@@ -1696,6 +1818,18 @@ class MyClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
         self.x = x  # body still executes; warning fires on every new MyClass(...)
+
+
+print(MyClass(42).x)
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>MyClass(42).x</code></summary>
+
+```
+42
 ```
 
 </details>
@@ -1798,6 +1932,18 @@ def old_func1():
 @deprecated(target=new_func, skip_if=lambda: False)
 def old_func2():
     pass
+
+
+print(old_func2())
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>old_func2()</code></summary>
+
+```
+Hi!
 ```
 
 </details>
@@ -1836,6 +1982,9 @@ def old_func_always_warn():
 @deprecated(target=new_func, num_warns=5)  # Show 5 times
 def old_func_warn_n_times():
     pass
+
+
+assert callable(old_func_warn_n_times)
 ```
 
 </details>

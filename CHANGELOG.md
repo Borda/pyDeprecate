@@ -4,7 +4,10 @@
 
 ### Added
 
--
+- **Generator function support for `@deprecated`.** Decorating a generator function now emits the deprecation warning eagerly at call time — before the first `next()` — consistent with regular function behavior. The generator body executes lazily as normal when iterated. All three `TargetMode` variants (`NOTIFY`, `ARGS_REMAP`, callable target) work transparently; no `isgeneratorfunction` check is required. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
+- **`async def` coroutine wrapper support for `@deprecated`.** Decorating an `async def` function now produces an `async def` wrapper — `inspect.iscoroutinefunction(wrapper)` returns `True`. All three `TargetMode` variants (`NOTIFY`, `ARGS_REMAP`, callable target) work with async sources and async targets. The deprecation warning fires when the coroutine is awaited, not when the wrapper is called. `pytest-asyncio` is required in the test suite to run the async integration tests.
+- **Async generator function support for `@deprecated`.** Decorating an `async def` + `yield` function no longer emits a `UserWarning` at decoration time. The wrapper is a sync callable that fires the deprecation warning eagerly at call time and returns the async generator object; callers iterate with `async for`. All three `TargetMode` variants work. Because the wrapper is sync, `inspect.isasyncgenfunction(wrapper)` returns `False` — frameworks that branch on that flag may need a thin async generator passthrough.
+- **Order-agnostic `classmethod`/`staticmethod` guard.** Applying `@deprecated` outside `@classmethod` (wrong decorator order) is now silently rescued at decoration time: the descriptor is unwrapped, the inner function is deprecated, and the result is re-wrapped as `classmethod(deprecated_wrapper)`. No `UserWarning` is emitted; a `FutureWarning` fires normally at call time. The preferred order (`@classmethod` outermost, `@deprecated` closer to `def`) is unchanged. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
 
 ### Changed
 
@@ -16,7 +19,7 @@
 
 ### Fixed
 
--
+- **`stacklevel` attribution on Python 3.12+.** `inspect.signature(warnings.warn)` raises `ValueError` on Python 3.12+ because the C builtin lacks an introspectable signature. This caused every `@deprecated` warning to point to `deprecation.py` instead of the caller's file. Fixed by replacing the `inspect.signature` probe with a try/except at call site: `stream(msg, stacklevel=N)` is tried first; if `TypeError` is raised (stream does not accept `stacklevel`), retried as `stream(msg)`. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
 
 ______________________________________________________________________
 

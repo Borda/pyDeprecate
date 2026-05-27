@@ -30,7 +30,19 @@ from deprecate import deprecated
 @deprecated(deprecated_in="1.0", remove_in="2.0")
 def my_func(x: int) -> int:
     return x * 2
+
+
+print(my_func(2))
 ```
+
+<details>
+  <summary>Output: <code>my_func(2)</code></summary>
+
+```
+4
+```
+
+</details>
 
 `TargetMode.NOTIFY` emits a deprecation notice on every call and then executes the function body as normal.
 
@@ -55,7 +67,19 @@ from deprecate import TargetMode, deprecated
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
+
+
+print(my_func(old_arg=1, new_arg=2))
 ```
+
+<details>
+  <summary>Output: <code>my_func(old_arg=1, new_arg=2)</code></summary>
+
+```
+4
+```
+
+</details>
 
 ### `target=False` → `TargetMode.NOTIFY` or a callable target
 
@@ -78,7 +102,19 @@ from deprecate import TargetMode, deprecated
 @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 def my_func(x: int) -> int:
     return x * 2
+
+
+print(my_func(3))
 ```
+
+<details>
+  <summary>Output: <code>my_func(3)</code></summary>
+
+```
+6
+```
+
+</details>
 
 The same applies inside `deprecated_class()` and the proxy path — `target=False` is not a valid mode in any context.
 
@@ -97,7 +133,7 @@ Some `TargetMode` + argument combinations are contradictory; pyDeprecate emits a
 Two fields on `DeprecationWrapperInfo` were renamed in v0.8 to be consistent with the rest of the API. The old names still work but emit a `DeprecationWarning` on access — swapping them out is a one-line change:
 
 ```python
-# phmdoctest:skip
+# phmdoctest:skip — info object requires audit context; snippet shows attribute names only
 # Legacy names — emit DeprecationWarning on access
 info.empty_mapping
 info.identity_mapping
