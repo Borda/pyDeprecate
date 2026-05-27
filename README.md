@@ -1392,10 +1392,10 @@ pydeprecate expiry path/to/your/package   # auto-detects version from the packag
 # chains — deprecated-to-deprecated forwarding chains only
 pydeprecate chains path/to/your/package
 
-# all — single scan running check + expiry + chains together
+# all — single scan running check + expiry + chains, then appends a deprecation table
 pydeprecate all path/to/your/package --version 2.0.0
 
-# report — print a markdown deprecation table to stdout (or save to a file)
+# report — print a markdown deprecation table (standalone, no checks)
 pydeprecate report path/to/your/package
 pydeprecate report path/to/your/package --style matrix
 pydeprecate report path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
@@ -1404,6 +1404,17 @@ pydeprecate report path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 **Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
 `expiry`, `all`, and `report` also accept `--version VERSION` to set the current version explicitly.
 `report` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+
+**Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
+
+```bash
+# Run all checks + deprecation table on the bundled test fixtures
+pydeprecate all tests
+# Standalone deprecation table only
+pydeprecate report tests
+```
+
+`tests/` contains pyDeprecate's own deprecation fixtures — useful as a live demo without needing your own package. Note: `expiry` and `chains` (run as part of `all`) require an importable package name rather than a plain directory path.
 
 **Example: catching a deprecated-to-deprecated chain**
 

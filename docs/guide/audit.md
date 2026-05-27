@@ -231,7 +231,7 @@ Self-references: 0
 
 ### CLI usage
 
-All audit functions are also available from the command line via four subcommands (`check`, `expiry`, `chains`, `all`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
+All audit functions are also available from the command line via five subcommands (`check`, `expiry`, `chains`, `all`, `report`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
 
 ### pytest integration
 
@@ -475,7 +475,7 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
     Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
 
-The CLI provides four subcommands. Use `check` for wrapper config validation or `all` to run every check in a single pass. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
+The CLI provides five subcommands. Use `check` for wrapper config validation, `all` to run every check in a single pass (and append a deprecation table), or `report` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
 ```bash
 # Install CLI + audit extras (audit needed for expiry checks)
@@ -484,8 +484,11 @@ pip install 'pyDeprecate[audit,cli]'
 # check — exits 1 if invalid arg mappings are found
 pydeprecate check src/your_package
 
-# all — exits 1 on invalid mappings, chains, or expired wrappers
+# all — exits 1 on invalid mappings, chains, or expired wrappers; appends deprecation table
 pydeprecate all src/your_package
+
+# report — standalone deprecation table only (no checks, always exits 0)
+pydeprecate report src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
 pydeprecate check src/your_package --skip_errors true
