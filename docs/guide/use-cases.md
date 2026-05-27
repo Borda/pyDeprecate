@@ -904,7 +904,7 @@ print(result)
 ```
 
 <details>
-  <summary>Output: <code>result</code></summary>
+  <summary>Output: <code>new_create_client("example.com")</code></summary>
 
 ```
 {'host': 'localhost', 'port': 8080}

@@ -626,7 +626,7 @@ print(clean_session)
 ```
 
 <details>
-  <summary>Output: <code>clean_session</code></summary>
+  <summary>Output: <code>new_create_session("prod.example.com")</code></summary>
 
 ```
 {'host': 'localhost', 'timeout': 5}

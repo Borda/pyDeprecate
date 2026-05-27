@@ -67,7 +67,7 @@ print(result)
 ```
 
 <details>
-  <summary>Output: <code>result</code></summary>
+  <summary>Output: <code>old_api(5)</code></summary>
 
 ```
 50
@@ -268,7 +268,7 @@ print(collected_warnings)
 ```
 
 <details>
-  <summary>Output: <code>collected_warnings</code></summary>
+  <summary>Output: <code>print(collected_warnings)</code></summary>
 
 ```
 ['The `source_fn` was deprecated since v1.0 in favor of `your_module.target_fn`. It will be removed in v2.0.']

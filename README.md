@@ -193,7 +193,7 @@ print(result)
 ```
 
 <details>
-  <summary>Output: <code>result</code></summary>
+  <summary>Output: <code>addition(1, 2)</code></summary>
 
 ```
 3
