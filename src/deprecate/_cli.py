@@ -621,15 +621,15 @@ def cmd_report(
     include_members: bool = True,
     output: Optional[str] = None,
 ) -> int:
-    """Generate a markdown deprecation table and print it to stdout.
+    """Run all checks then append a markdown deprecation table.
 
-    Scans the target package for deprecated wrappers and renders their metadata
-    as a Markdown table. When ``--output`` is given, the table is also written to
-    that file and the saved path is printed to stderr.
+    Performs a single scan pass through ``cmd_all`` (wrapper config, expiry, and
+    chain checks), then renders the deprecation table. When ``--output`` is given,
+    the table is also written to that file and the saved path is printed to stderr.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        version: Current package version for lifecycle status (e.g. ``"2.0.0"``).
+        version: Current package version for lifecycle status and expiry checks (e.g. ``"2.0.0"``).
             Auto-detected from installed package metadata if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         style: Table format — ``compact`` (default) or ``matrix``.
@@ -652,9 +652,10 @@ def cmd_report(
         )
         return 1
 
+    cmd_all(path, version=version, recursive=recursive, skip_errors=True)
+
     module_name = _resolve_module_name(path)
     with _managed_sys_path(path):
-        wrappers = find_deprecation_wrappers(module_name, recursive=recursive, include_members=include_members)
         markdown = generate_deprecation_markdown(
             module_name,
             current_version=version,
@@ -663,9 +664,7 @@ def cmd_report(
             include_members=include_members,
         )
 
-    if _Reporter.issues(wrappers, error_on_chains=False):
-        _print("")
-
+    _print("")
     if _Reporter._HAS_RICH:
         from rich.markdown import Markdown
 
