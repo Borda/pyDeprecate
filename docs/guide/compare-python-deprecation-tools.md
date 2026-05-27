@@ -69,7 +69,7 @@ print(old_api(1))
 <details>
   <summary>Output: <code>old_api(1)</code></summary>
 
-```text
+```
 2
 ```
 
@@ -104,7 +104,7 @@ print(old_api(1))
 <details>
   <summary>Output: <code>old_api(1)</code></summary>
 
-```text
+```
 2
 ```
 
@@ -136,7 +136,7 @@ print(old_api(1))
 <details>
   <summary>Output: <code>old_api(1)</code></summary>
 
-```text
+```
 2
 ```
 

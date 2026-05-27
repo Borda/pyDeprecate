@@ -185,7 +185,7 @@ print(old_process([3, 1, 2]))
 <details>
   <summary>Output: <code>old_process([3, 1, 2])</code></summary>
 
-```text
+```
 [1, 2, 3]
 ```
 

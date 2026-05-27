@@ -38,7 +38,7 @@ print(my_func(2))
 <details>
   <summary>Output: <code>my_func(2)</code></summary>
 
-```text
+```
 4
 ```
 
@@ -75,7 +75,7 @@ print(my_func(old_arg=1, new_arg=2))
 <details>
   <summary>Output: <code>my_func(old_arg=1, new_arg=2)</code></summary>
 
-```text
+```
 4
 ```
 
@@ -110,7 +110,7 @@ print(my_func(3))
 <details>
   <summary>Output: <code>my_func(3)</code></summary>
 
-```text
+```
 6
 ```
 

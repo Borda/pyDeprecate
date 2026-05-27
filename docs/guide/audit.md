@@ -584,7 +584,7 @@ print(old_func_warn_n_times(1))
 <details>
   <summary>Output: <code>old_func_warn_n_times(1)</code></summary>
 
-```text
+```
 2
 ```
 

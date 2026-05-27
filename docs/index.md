@@ -35,7 +35,7 @@ print(addition(1, 2))
 <details>
   <summary>Output: <code>addition(1, 2)</code></summary>
 
-```text
+```
 3
 ```
 

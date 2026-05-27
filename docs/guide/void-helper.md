@@ -52,7 +52,7 @@ print(old_add_v2(2, 3))
 <details>
   <summary>Output: <code>old_add_v2(2, 3)</code></summary>
 
-```text
+```
 5
 ```
 
@@ -85,7 +85,7 @@ print(old_compute(2, 3))
 <details>
   <summary>Output: <code>old_compute(2, 3)</code></summary>
 
-```text
+```
 5
 ```
 
@@ -114,7 +114,7 @@ print(old_compute(2, 3))
 <details>
   <summary>Output: <code>old_compute(2, 3)</code></summary>
 
-```text
+```
 5
 ```
 
@@ -143,7 +143,7 @@ print(old_compute(2, 3))
 <details>
   <summary>Output: <code>old_compute(2, 3)</code></summary>
 
-```text
+```
 5
 ```
 
@@ -233,7 +233,7 @@ print(old_func_b(2))
 <details>
   <summary>Output: <code>old_func_b(2)</code></summary>
 
-```text
+```
 4
 ```
 

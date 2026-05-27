@@ -195,7 +195,7 @@ print(result)
 <details>
   <summary>Output: <code>result</code></summary>
 
-```text
+```
 3
 ```
 
@@ -351,7 +351,7 @@ print(calculate(1, 2))
 <details>
   <summary>Output: <code>calculate(1, 2)</code></summary>
 
-```text
+```
 3
 ```
 
@@ -507,7 +507,7 @@ print(my_func(value=42, legacy_param="old"))
 <details>
   <summary>Output: <code>my_func(value=42, legacy_param="old")</code></summary>
 
-```text
+```
 84
 ```
 
@@ -583,7 +583,7 @@ print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
 <details>
   <summary>Output: <code>compute_power(2, factor=3); compute_power(2, scale=3)</code></summary>
 
-```text
+```
 8
 8
 ```
@@ -1109,7 +1109,7 @@ print(asyncio.run(fetch_data(endpoint="https://example.com")))
 <details>
   <summary>Output: <code>asyncio.run(fetch_data(endpoint="https://example.com"))</code></summary>
 
-```text
+```
 b'https://example.com'
 ```
 
@@ -1154,7 +1154,7 @@ print(old_add_v2(2, 3))
 <details>
   <summary>Output: <code>old_add_v2(2, 3)</code></summary>
 
-```text
+```
 5
 ```
 
@@ -1716,7 +1716,7 @@ print(old_func_warn_n_times(1))
 <details>
   <summary>Output: <code>old_func_warn_n_times(1)</code></summary>
 
-```text
+```
 2
 ```
 
@@ -1772,7 +1772,7 @@ print(MyClass(42).x)
 <details>
   <summary>Output: <code>MyClass(42).x</code></summary>
 
-```text
+```
 42
 ```
 
@@ -1886,7 +1886,7 @@ print(old_func2())
 <details>
   <summary>Output: <code>old_func2()</code></summary>
 
-```text
+```
 Hi!
 ```
 
@@ -1936,7 +1936,7 @@ assert callable(old_func_warn_n_times)
 <details>
   <summary>Output: <code>assert callable(old_func_warn_n_times)</code></summary>
 
-```text
+```
 No output
 ```
 

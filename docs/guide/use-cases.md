@@ -108,7 +108,7 @@ print(calculate(1, 2))
 <details>
   <summary>Output: <code>calculate(1, 2)</code></summary>
 
-```text
+```
 3
 ```
 
@@ -244,7 +244,7 @@ print(my_func(value=42, legacy_param="old"))
 <details>
   <summary>Output: <code>my_func(value=42, legacy_param="old")</code></summary>
 
-```text
+```
 84
 ```
 
@@ -385,7 +385,7 @@ print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
 <details>
   <summary>Output: <code>compute_power(2, factor=3); compute_power(2, scale=3)</code></summary>
 
-```text
+```
 8
 8
 ```
@@ -433,7 +433,7 @@ print(any_pow(2))
 <details>
   <summary>Output: <code>any_pow(2)</code></summary>
 
-```text
+```
 4
 ```
 
@@ -962,7 +962,7 @@ print(ApiClient.build_id())
 <details>
   <summary>Output: <code>ApiClient.build_id()</code></summary>
 
-```text
+```
 legacy
 ```
 
@@ -1016,7 +1016,7 @@ print(Config().legacy_url)
 <details>
   <summary>Output: <code>Config().legacy_url</code></summary>
 
-```text
+```
 https://old.example.com
 ```
 
@@ -1082,7 +1082,7 @@ print(list(old_pipeline(["a ", "b "])))
 <details>
   <summary>Output: <code>list(old_pipeline(["a ", "b "]))</code></summary>
 
-```text
+```
 ['a', 'b']
 ```
 
@@ -1114,7 +1114,7 @@ print(list(repeat_value(value=1, count=2)))
 <details>
   <summary>Output: <code>list(repeat_value(value=1, count=2))</code></summary>
 
-```text
+```
 [1, 1]
 ```
 
@@ -1141,7 +1141,7 @@ print(list(old_range(1, 4)))
 <details>
   <summary>Output: <code>list(old_range(1, 4))</code></summary>
 
-```text
+```
 [1, 2, 3]
 ```
 
@@ -1176,7 +1176,7 @@ print(asyncio.run(fetch_data("https://example.com")))
 <details>
   <summary>Output: <code>asyncio.run(fetch_data("https://example.com"))</code></summary>
 
-```text
+```
 b''
 ```
 
@@ -1206,7 +1206,7 @@ print(asyncio.run(fetch_data(endpoint="https://example.com")))
 <details>
   <summary>Output: <code>asyncio.run(fetch_data(endpoint="https://example.com"))</code></summary>
 
-```text
+```
 b'https://example.com'
 ```
 
@@ -1236,7 +1236,7 @@ print(asyncio.run(fetch("https://example.com")))
 <details>
   <summary>Output: <code>asyncio.run(fetch("https://example.com"))</code></summary>
 
-```text
+```
 b'https://example.com'
 ```
 

@@ -53,7 +53,7 @@ print(api(old="demo"))
 <details>
   <summary>Output: <code>api(old="demo")</code></summary>
 
-```text
+```
 demo
 ```
 

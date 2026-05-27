@@ -24,7 +24,7 @@ print(deprecated.__name__)
 <details>
   <summary>Output: <code>deprecated.__name__</code></summary>
 
-```text
+```
 deprecated
 ```
 
@@ -84,7 +84,7 @@ print(MyClass(5).x)
 <details>
   <summary>Output: <code>MyClass(5).x</code></summary>
 
-```text
+```
 5
 ```
 
@@ -491,7 +491,7 @@ print(old_endpoint("/api/users"))
 <details>
   <summary>Output: <code>old_endpoint("/api/users")</code></summary>
 
-```text
+```
 GET /api/users
 ```
 
@@ -545,7 +545,7 @@ print(LegacyConfig(time_limit=30).timeout)  # old name — FutureWarning emitted
 <details>
   <summary>Output: <code>LegacyConfig(...).timeout</code></summary>
 
-```text
+```
 30
 30
 ```
@@ -581,7 +581,7 @@ assert isinstance(my_func(old_name=3), int)
 <details>
   <summary>Output: <code>assert isinstance(my_func(old_name=3), int)</code></summary>
 
-```text
+```
 No output
 ```
 
@@ -605,7 +605,7 @@ print(my_func(3))
 <details>
   <summary>Output: <code>print(my_func(3))</code></summary>
 
-```text
+```
 6
 ```
 
@@ -639,7 +639,7 @@ print(issubclass(ReadOnlyRegistry, dict))
 <details>
   <summary>Output: <code>issubclass(ReadOnlyRegistry, dict)</code></summary>
 
-```text
+```
 True
 ```
 
@@ -683,7 +683,7 @@ print(MyService().run(3))
 <details>
   <summary>Output: <code>MyService().run(3)</code></summary>
 
-```text
+```
 6
 ```
 
@@ -748,7 +748,7 @@ print(my_func())
 <details>
   <summary>Output: <code>my_func()</code></summary>
 
-```text
+```
 0
 ```
 
@@ -859,7 +859,7 @@ print(Foo.old_method(1))
 <details>
   <summary>Output: <code>Foo.old_method(1)</code></summary>
 
-```text
+```
 None
 ```
 
@@ -891,7 +891,7 @@ print(Foo.old_method(1))
 <details>
   <summary>Output: <code>Foo.old_method(1)</code></summary>
 
-```text
+```
 2
 ```
 
@@ -970,7 +970,7 @@ print(url.decode())
 <details>
   <summary>Output: <code>asyncio.run(old_fetch("https://example.com")).decode()</code></summary>
 
-```text
+```
 https://example.com
 ```
 
@@ -1015,7 +1015,7 @@ print(my_decorator(lambda x: x + 1)(41))
 <details>
   <summary>Output: <code>my_decorator(lambda x: x + 1)(41)</code></summary>
 
-```text
+```
 42
 ```
 
