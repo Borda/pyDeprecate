@@ -578,15 +578,6 @@ def my_func(old_name: int = 0, new_name: int = 0) -> int:
 assert isinstance(my_func(old_name=3), int)
 ```
 
-<details>
-  <summary>Output: <code>assert isinstance(my_func(old_name=3), int)</code></summary>
-
-```
-No output
-```
-
-</details>
-
 - **Warn callers with no forwarding or remapping** — use `TargetMode.NOTIFY` instead:
 
 ```python

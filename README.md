@@ -1933,15 +1933,6 @@ assert callable(old_func_warn_n_times)
 
 </details>
 
-<details>
-  <summary>Output: <code>assert callable(old_func_warn_n_times)</code></summary>
-
-```
-No output
-```
-
-</details>
-
 <br>
 
 ### 📦 Deprecation Not Working Across Modules
