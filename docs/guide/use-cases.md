@@ -1010,11 +1010,11 @@ class Config:
         return "https://old.example.com"
 
 
-print(ApiClient().legacy_url)
+print(Config().legacy_url)
 ```
 
 <details>
-  <summary>Output: <code>ApiClient().legacy_url</code></summary>
+  <summary>Output: <code>Config().legacy_url</code></summary>
 
 ```text
 https://old.example.com
