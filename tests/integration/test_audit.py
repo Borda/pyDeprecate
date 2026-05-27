@@ -614,9 +614,7 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_current_version_none_auto_resolves_from_package(self) -> None:
         """current_version=None for an installed package resolves a real version, not Status Unknown."""
-        import deprecate
-
-        report = generate_deprecation_markdown(deprecate, current_version=None, recursive=True)
+        report = generate_deprecation_markdown(deprecated, current_version=None, recursive=True)
         # deprecate has no deprecated symbols, so report is header-only — but no crash, no ImportError
         assert "| Original API |" in report
 
