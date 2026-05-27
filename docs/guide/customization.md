@@ -67,7 +67,7 @@ print(result)
 ```
 
 <details>
-  <summary>Output: <code>print(result)</code></summary>
+  <summary>Output: <code>old_api(5)</code></summary>
 
 ```
 50
@@ -97,7 +97,7 @@ print(train(lr=0.001))
 ```
 
 <details>
-  <summary>Output: <code>print(train(lr=0.001)</code></summary>
+  <summary>Output: <code>train(lr=0.001)</code></summary>
 
 ```
 0.001
@@ -143,7 +143,7 @@ print(old_internal(5))
 ```
 
 <details>
-  <summary>Output: <code>print(old_internal(5)</code></summary>
+  <summary>Output: <code>old_internal(5)</code></summary>
 
 ```
 6
@@ -179,8 +179,17 @@ def old_process(data: list) -> list:
 # Instead of a FutureWarning, this emits a WARNING-level log line:
 #   WARNING:root:The `old_process` was deprecated since v1.0 in favor of `your_module.new_process`.
 #   It will be removed in v2.0.
-old_process([3, 1, 2])
+print(old_process([3, 1, 2]))
 ```
+
+<details>
+  <summary>Output: <code>old_process([3, 1, 2])</code></summary>
+
+```
+[1, 2, 3]
+```
+
+</details>
 
 Pick the log level that matches the urgency:
 
@@ -219,7 +228,7 @@ print(old_greet("World"))
 ```
 
 <details>
-  <summary>Output: <code>print(old_greet("World"))</code></summary>
+  <summary>Output: <code>old_greet("World")</code></summary>
 
 ```
 The `old_greet` was deprecated since v1.0 in favor of `your_module.new_greet`. It will be removed in v2.0.

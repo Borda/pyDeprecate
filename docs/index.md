@@ -27,7 +27,19 @@ def compute_sum(x: int, y: int) -> int:
 
 @deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")
 def addition(x: int, y: int) -> int: ...
+
+
+print(addition(1, 2))
 ```
+
+<details>
+  <summary>Output: <code>addition(1, 2)</code></summary>
+
+```
+3
+```
+
+</details>
 
 Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards to `compute_sum`.
 

@@ -379,6 +379,8 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
+> **Docs examples should be explicit.** For all `docs/**/*.md` blocks that execute code, prefer `print()` with an example output block (as above), or a deterministic assertion of behavior. Avoid placeholders that do not validate behavior.
+
 > [!NOTE]
 > **Some docs examples use collection modules as fixtures and report hardcoded counts.** `docs/guide/audit.md` embeds expected output from scanning `tests.collection_misconfigured` with hardcoded numbers (wrappers scanned, empty mappings, etc.). When you add or remove entries from any `collection_*.py` module:
 >
