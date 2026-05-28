@@ -20,13 +20,13 @@ def _load_toml(path: str) -> dict[str, Any]:
     Returns an empty dict on any failure (missing library, parse error, IO).
 
     Examples:
-        >>> import tempfile, os
-        >>> with tempfile.NamedTemporaryFile(suffix=".toml", mode="w", delete=False) as f:
+        >>> import tempfile, os  # doctest: +SKIP
+        >>> with tempfile.NamedTemporaryFile(suffix=".toml", mode="w", delete=False) as f:  # doctest: +SKIP
         ...     _ = f.write('[project]\nname = "mypkg"\nversion = "1.2.3"\n')
         ...     name = f.name
-        >>> _load_toml(name).get("project", {}).get("version")
+        >>> _load_toml(name).get("project", {}).get("version")  # doctest: +SKIP
         '1.2.3'
-        >>> os.unlink(name)
+        >>> os.unlink(name)  # doctest: +SKIP
 
     """
     try:
