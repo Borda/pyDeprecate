@@ -1330,7 +1330,7 @@ The **Current Status** column uses these labels:
 | 🕒 Scheduled Deprecation | Current version is before `deprecated_in` — not yet active |
 | ℹ️ No Removal Target | No `remove_in` set — no scheduled removal |
 | ⚪ Status Unknown | `packaging` not installed or `current_version` not resolvable |
-| 🚫 Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version |
+| ⚪ Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version |
 | 📢 Deprecation Active | Between `deprecated_in` and `remove_in` — still in the deprecation window |
 | ⏰ Removal Imminent | Dev/alpha/beta pre-release of the `remove_in` base version |
 | 🔔 Remove Before Release | RC pre-release of the `remove_in` base version |
