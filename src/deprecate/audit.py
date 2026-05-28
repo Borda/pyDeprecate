@@ -1053,7 +1053,7 @@ def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["
     # base_version strips pre/post/dev/local markers so "1.8" == "1.8.0" compare equal.
     if current_version.is_prerelease:
         try:
-            _VersionType = type(current_version)
+            _VersionType = type(current_version)  # noqa: N806
             same_base = _VersionType(current_version.base_version) == _VersionType(remove_version.base_version)
         except Exception:
             same_base = False
