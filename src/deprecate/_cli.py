@@ -646,9 +646,9 @@ def cmd_all(
     expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, skip_errors=False, _wrappers=wrappers)
     chains_code = cmd_chains(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
 
-    cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
+    status_code = cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
 
-    has_errors = bool(check_code or expiry_code or chains_code)
+    has_errors = bool(check_code or expiry_code or chains_code or status_code)
     return 0 if not has_errors or skip_errors else 1
 
 
