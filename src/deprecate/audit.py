@@ -1157,17 +1157,19 @@ def generate_deprecation_table(
         version_headers = [_format_report_version(version) for version in sorted_versions]
         header_row = "| Original API | API Type | New API | " + " | ".join(version_headers) + " |"
         divider_row = "| :--- | :--- | :--- | " + " | ".join(":---:" for _ in version_headers) + " |"
+        col_idx = {v: i for i, v in enumerate(sorted_versions)}
+        n_versions = len(sorted_versions)
         rows = [header_row, divider_row]
 
         for info in wrappers:
-            markers: list[str] = []
-            for version in sorted_versions:
-                marker = ""
-                if version == info.deprecated_info.deprecated_in:
-                    marker = "D"
-                if version == info.deprecated_info.remove_in:
-                    marker = "R" if not marker else "D/R"
-                markers.append(marker or " ")
+            markers: list[str] = [" "] * n_versions
+            dep_in = info.deprecated_info.deprecated_in
+            rem_in = info.deprecated_info.remove_in
+            if dep_in and dep_in in col_idx:
+                markers[col_idx[dep_in]] = "D"
+            if rem_in and rem_in in col_idx:
+                i = col_idx[rem_in]
+                markers[i] = "R" if markers[i] == " " else "D/R"
             rows.append(
                 "| "
                 f"`{_format_report_symbol(info)}` | "
