@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
 
+from deprecate._pkg import _auto_detect_version
 from deprecate.audit import (
     DeprecationWrapperInfo,
     ReportStyle,
@@ -61,6 +62,29 @@ def _is_package_dir(pth: Path) -> bool:
     return (pth / "__init__.py").exists()
 
 
+def _find_child_packages(pth: Path) -> list[Path]:
+    """Return package sub-directories of *pth*, checking ``src/`` when none found directly.
+
+    Resolution order:
+    1. Immediate child directories of *pth* that contain ``__init__.py``.
+    2. If none, immediate child directories of ``pth/src/`` that contain ``__init__.py``
+       (standard ``src/``-layout project root).
+
+    Args:
+        pth: Directory to search.
+
+    Returns:
+        List of :class:`~pathlib.Path` objects for each package directory found.
+
+    """
+    src_dir = pth / "src"
+    if src_dir.is_dir():
+        in_src = [c for c in src_dir.iterdir() if c.is_dir() and _is_package_dir(c)]
+        if in_src:
+            return in_src
+    return [c for c in pth.iterdir() if c.is_dir() and _is_package_dir(c)]
+
+
 @contextmanager
 def _managed_sys_path(path: str) -> Generator[None, None, None]:
     """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
@@ -73,7 +97,12 @@ def _managed_sys_path(path: str) -> Generator[None, None, None]:
     abs_path: Path = Path(path).resolve()
     original = list(sys.path)
     if abs_path.is_dir():
-        import_root = str(abs_path.parent) if _is_package_dir(abs_path) else str(abs_path)
+        if _is_package_dir(abs_path):
+            import_root = str(abs_path.parent)
+        else:
+            src_dir = abs_path / "src"
+            in_src = src_dir.is_dir() and any(c.is_dir() and _is_package_dir(c) for c in src_dir.iterdir())
+            import_root = str(src_dir) if in_src else str(abs_path)
         sys.path.insert(0, import_root)
     try:
         with warnings.catch_warnings():
@@ -110,6 +139,16 @@ def _resolve_module_name(path: str) -> str:
     if pth.is_dir():
         if _is_package_dir(pth):
             return pth.resolve().name
+        # Flat src-layout or project root: find package in direct children or src/ subdir.
+        child_pkgs = _find_child_packages(pth)
+        if len(child_pkgs) == 1:
+            return child_pkgs[0].name
+        if len(child_pkgs) > 1:
+            names = ", ".join(sorted(c.name for c in child_pkgs))
+            raise ValueError(
+                f"Directory {path!r} contains multiple packages ({names}). "
+                "Pass the specific package sub-directory instead."
+            )
         raise ValueError(
             f"Plain directories without '__init__.py' are not supported for expiry or chain checks: {path!r}. "
             "Use an importable package layout with '__init__.py', or pass an importable module name instead."
@@ -169,6 +208,10 @@ def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo
         if _is_package_dir(pth):
             # package dir: resolve importable name from directory stem
             return find_deprecation_wrappers(Path(path).resolve().name, recursive=recursive)
+        # Flat src-layout or project root: find package in direct children or src/ subdir.
+        child_pkgs = _find_child_packages(pth)
+        if len(child_pkgs) == 1:
+            return _scan_path(str(child_pkgs[0]), recursive=recursive)
         return _scan_directory(path)
     if pth.is_file():
         raise ValueError(
@@ -393,34 +436,27 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Version auto-detection helper
-# ---------------------------------------------------------------------------
-
-
-def _auto_detect_version(module_name: str) -> Optional[str]:
-    """Return the installed version for *module_name*, or ``None`` on any failure.
-
-    Uses :mod:`importlib.metadata` so no extra dependencies are required.
-
-    Args:
-        module_name: Importable package name whose installed version to look up.
-
-    Returns:
-        Version string (e.g. ``"1.2.3"``) or ``None`` when the package is not
-        installed or the version cannot be determined.
-
-    """
-    try:
-        import importlib.metadata
-
-        return importlib.metadata.version(module_name)
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
 # Subcommand functions
 # ---------------------------------------------------------------------------
+
+
+def _safe_module_name(path: str) -> str:
+    """Return the importable module name for *path*, falling back to *path* itself."""
+    try:
+        return _resolve_module_name(path)
+    except ValueError:
+        return path
+
+
+def _print_scan_header(path: str, version: Optional[str] = None, *, user_provided: bool = False) -> None:
+    """Print a consistent scan header: scanning location, package name, and version."""
+    module = _safe_module_name(path)
+    _print(f"Scanning: {path}")
+    if version is not None:
+        source = "user-provided" if user_provided else "auto-detected"
+        _print(f"Package: {module}  Version: {version} ({source})")
+    else:
+        _print(f"Package: {module}")
 
 
 def cmd_check(
@@ -448,7 +484,7 @@ def cmd_check(
 
     """
     if _wrappers is None:
-        _print(f"Scanning path: {path} ...")
+        _print_scan_header(path)
         with _managed_sys_path(path):
             _wrappers = _scan_path(path, recursive=recursive)
 
@@ -499,7 +535,8 @@ def cmd_expiry(
         version = str(version)
     if _wrappers is None:
         # Standalone path: full scan + version auto-detect inside _do_expiry.
-        _print(f"Scanning path: {path} ...")
+        resolved_version = version or _auto_detect_version(_safe_module_name(path), path=path)
+        _print_scan_header(path, resolved_version, user_provided=version is not None)
         with _managed_sys_path(path):
             raw = _do_expiry(path, version, recursive)
         if raw is None:  # packaging unavailable — warning already printed to stderr
@@ -552,7 +589,7 @@ def cmd_chains(
 
     """
     if _wrappers is None:
-        _print(f"Scanning path: {path} ...")
+        _print_scan_header(path)
         with _managed_sys_path(path):
             _wrappers = validate_deprecation_chains(_resolve_module_name(path), recursive=recursive)
     chains = [r for r in _wrappers if r.chain_type is not None]
@@ -594,19 +631,10 @@ def cmd_all(
     """
     if version is not None:
         version = str(version)
-    _print(f"Scanning path: {path} ...")
+    resolved_version = version or _auto_detect_version(_safe_module_name(path), path=path)
+    _print_scan_header(path, resolved_version, user_provided=version is not None)
     with _managed_sys_path(path):
         wrappers = _scan_path(path, recursive=recursive)
-
-    # Resolve version for expiry check (auto-detect from installed metadata if not given).
-    resolved_version = version
-    if resolved_version is None:
-        try:
-            with _managed_sys_path(path):
-                module_name = _resolve_module_name(path)
-            resolved_version = _auto_detect_version(module_name)
-        except ValueError:
-            resolved_version = None  # plain dir — expiry will warn and skip
 
     check_code = cmd_check(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
     expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, skip_errors=False, _wrappers=wrappers)
@@ -658,10 +686,12 @@ def cmd_report(
         return 1
 
     module_name = _resolve_module_name(path)
+    resolved_version = version or _auto_detect_version(module_name, path=path)
+    _print_scan_header(path, resolved_version, user_provided=version is not None)
     with _managed_sys_path(path):
         markdown = generate_deprecation_markdown(
             module_name,
-            current_version=version,
+            current_version=resolved_version,
             recursive=recursive,
             style=report_style,
             include_members=include_members,

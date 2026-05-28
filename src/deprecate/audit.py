@@ -62,6 +62,87 @@ class ReportStyle(str, enum.Enum):
     MATRIX = "matrix"
 
 
+class ReportStatus(str, enum.Enum):
+    """Lifecycle status labels used in the deprecation report's *Current Status* column.
+
+    Each member's value is the full display string (emoji + text) rendered in the table.
+    Using a ``str`` enum means members compare equal to their string values and can be
+    returned wherever a plain string is expected.
+
+    Members are ordered from least to most urgent for easy visual scanning:
+
+    Examples:
+        >>> ReportStatus.ACTIVE_WARNING.value
+        '⚠️ Active Warning'
+        >>> ReportStatus.PAST_REMOVAL_DATE > ReportStatus.ACTIVE_WARNING
+        False
+
+    """
+
+    SCHEDULED_DEPRECATION = "🕒 Scheduled Deprecation"  # current < deprecated_in
+    NO_REMOVAL_TARGET = "ℹ️ No Removal Target"  # remove_in not set
+    STATUS_UNKNOWN = "⚪ Status Unknown"  # current_version unavailable
+    INVALID_REMOVAL_TARGET = "🚫 Invalid Removal Target"  # remove_in unparsable
+    ACTIVE_WARNING = "📢 Deprecation Active"  # current < remove_in (different base)
+    REMOVAL_IMMINENT = "⏰ Removal Imminent"  # pre-release dev/a/b of remove_in base
+    REMOVE_BEFORE_RELEASE = "🔔 Remove Before Release"  # RC of the remove_in base release
+    PAST_REMOVAL_DATE = "💥 Past Removal Date"  # current >= remove_in
+
+
+def _normalize_version_string(version: str) -> str:
+    """Normalize non-standard version strings before PEP 440 parsing.
+
+    Newer ``packaging`` (>=22) is strict PEP 440 and rejects real-world strings that omit trailing digits
+    on pre/post/dev release labels (e.g. ``"1.8.0.dev"``, ``"1.8.0dev"``, ``"1.8.0.post"``). This helper
+    performs the minimum normalization needed to make such strings parseable, then defers everything else
+    (label aliasing like ``alpha`` -> ``a``, case folding, separator handling) to ``packaging.Version``.
+
+    The transformation is conservative:
+
+    1. Strip a single leading ``v`` or ``V`` prefix (``packaging`` accepts this, but stripping defensively
+       keeps the normalized output stable for downstream callers).
+    2. Append ``0`` to bare pre/post/dev labels that lack a trailing digit. Labels recognized:
+       ``dev``, ``rc``, ``a``, ``b``, ``c``, ``alpha``, ``beta``, ``preview``, ``post``.
+
+    No other transformations are applied — case, separators, and label aliases pass through unchanged
+    so ``packaging.Version`` can apply its own canonicalization.
+
+    Args:
+        version: Raw version string, possibly missing trailing digits on labels.
+
+    Returns:
+        Normalized version string ready to be passed to ``packaging.version.Version``.
+
+    Examples:
+        >>> _normalize_version_string("1.8.0.dev")
+        '1.8.0.dev0'
+        >>> _normalize_version_string("1.8.0dev")
+        '1.8.0dev0'
+        >>> _normalize_version_string("1.8.0.post")
+        '1.8.0.post0'
+        >>> _normalize_version_string("v1.2.3")
+        '1.2.3'
+        >>> _normalize_version_string("1.8.0.RC1")
+        '1.8.0.RC1'
+        >>> _normalize_version_string("1.2.3")
+        '1.2.3'
+
+    """
+    import re
+
+    normalized = version.lstrip("vV")
+    # Append ``0`` to bare pre/post/dev labels with no trailing digit. The ordering of the alternatives
+    # matters: longer labels (``alpha``, ``beta``, ``preview``) must come before their single-letter
+    # forms (``a``, ``b``) so the regex prefers the longer match.
+    # Use a negative lookahead for ``[0-9]`` to detect "no trailing digit"; ``(?=$|[^A-Za-z0-9])``
+    # ensures the label is a whole token (e.g. ``dev`` but not ``develop``).
+    pattern = re.compile(
+        r"(?P<sep>\.?)(?P<label>alpha|beta|preview|post|dev|rc|a|b|c)(?![A-Za-z0-9])",
+        re.IGNORECASE,
+    )
+    return pattern.sub(lambda m: f"{m.group('sep')}{m.group('label')}0", normalized)
+
+
 def _parse_version(version_string: str) -> "Version":
     """Parse a version string using the packaging library (PEP 440 compliant).
 
@@ -70,6 +151,10 @@ def _parse_version(version_string: str) -> "Version":
 
     The packaging library provides robust PEP 440 version parsing and comparison, supporting pre-releases
     (alpha/beta/rc), stable releases, post-releases, and development releases with proper ordering.
+
+    Inputs are first passed through :func:`_normalize_version_string`, which appends ``0`` to bare
+    pre/post/dev labels (e.g. ``"1.8.0.dev"`` becomes ``"1.8.0.dev0"``) so non-canonical-but-common
+    strings parse successfully under strict ``packaging`` (>=22).
 
     Args:
         version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0a1", "1.5.0rc1", "1.5.0.post1").
@@ -91,6 +176,10 @@ def _parse_version(version_string: str) -> "Version":
         True
         >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")
         True
+        >>> _parse_version("1.8.0.dev") < _parse_version("1.8.0")
+        True
+        >>> _parse_version("1.8.0.post") > _parse_version("1.8.0")
+        True
 
     !!! note
         Install the audit extra to use version comparison features:
@@ -105,7 +194,7 @@ def _parse_version(version_string: str) -> "Version":
         ) from err
 
     try:
-        return Version(version_string)
+        return Version(_normalize_version_string(version_string))
     except InvalidVersion as err:
         raise ValueError(
             f"Failed to parse version '{version_string}'. Expected PEP 440 format "
@@ -942,24 +1031,39 @@ def _format_report_version(version: Optional[str], *, missing: str = "—") -> s
 def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> str:
     """Classify one deprecated symbol into a report lifecycle status."""
     if current_version is None:
-        return "ℹ️ No Removal Target" if not info.deprecated_info.remove_in else "⚪ Status Unknown"
+        return ReportStatus.NO_REMOVAL_TARGET if not info.deprecated_info.remove_in else ReportStatus.STATUS_UNKNOWN
 
     deprecated_in = _safe_parse_report_version(info.deprecated_info.deprecated_in)
     if deprecated_in is not None and current_version < deprecated_in:
-        return "🕒 Scheduled Deprecation"
+        return ReportStatus.SCHEDULED_DEPRECATION
 
     remove_in = info.deprecated_info.remove_in
     if not remove_in:
-        return "ℹ️ No Removal Target"
+        return ReportStatus.NO_REMOVAL_TARGET
 
     remove_version = _safe_parse_report_version(remove_in)
     if remove_version is None:
-        return "⚪ Invalid Removal Target"
+        return ReportStatus.INVALID_REMOVAL_TARGET
 
     if current_version >= remove_version:
-        return "❌ Past Removal Date"
+        return ReportStatus.PAST_REMOVAL_DATE
 
-    return "⚠️ Active Warning"
+    # Pre-release of the same base release as remove_in gets an elevated status:
+    # dev/alpha/beta → REMOVAL_IMMINENT; rc → REMOVE_BEFORE_RELEASE.
+    # base_version strips pre/post/dev/local markers so "1.8" == "1.8.0" compare equal.
+    if current_version.is_prerelease:
+        try:
+            from packaging.version import Version as _BaseVersion
+
+            same_base = _BaseVersion(current_version.base_version) == _BaseVersion(remove_version.base_version)
+        except Exception:
+            same_base = False
+        if same_base:
+            if current_version.pre is not None and current_version.pre[0] == "rc":
+                return ReportStatus.REMOVE_BEFORE_RELEASE
+            return ReportStatus.REMOVAL_IMMINENT
+
+    return ReportStatus.ACTIVE_WARNING
 
 
 def generate_deprecation_markdown(

@@ -512,8 +512,8 @@ class TestGenerateDeprecationMarkdown:
         assert "`tests.collection_deprecate.depr_pow_args`" in report
         assert "`tests.collection_deprecate.ServiceCls.old_warn_method`" in report
         assert "`tests.collection_deprecate.PastCls.__init__`" in report
-        assert "v1.0 | v1.3 | ❌ Past Removal Date" in report
-        assert "v1.0 | v2.0 | ⚠️ Active Warning" in report
+        assert "v1.0 | v1.3 | 💥 Past Removal Date" in report
+        assert "v1.0 | v2.0 | 📢 Deprecation Active" in report
 
     @_requires_packaging
     def test_markdown_reports_api_types(self) -> None:

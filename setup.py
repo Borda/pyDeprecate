@@ -89,7 +89,10 @@ setup(
     setup_requires=[],
     install_requires=[],
     extras_require={
-        "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
+        "audit": [
+            "packaging>=20.0",
+            'tomli>=1.2; python_version < "3.11"',
+        ],  # For validate_deprecation_expiry and validation tools
         "cli": ["fire", "rich"],  # For pydeprecate CLI command and Rich output support
     },
     project_urls={
