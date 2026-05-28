@@ -160,7 +160,7 @@ class TestCliSubcommands:
         assert "Original API" in result.stdout
 
     def test_help_lists_subcommands(self) -> None:
-        """'pydeprecate --help' output includes the four subcommand names."""
+        """'pydeprecate --help' output includes the five subcommand names."""
         result = subprocess.run(
             [sys.executable, "-m", "deprecate", "--help"],
             capture_output=True,
