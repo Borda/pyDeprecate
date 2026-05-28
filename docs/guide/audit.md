@@ -683,6 +683,9 @@ report = generate_deprecation_table(my_package, current_version="1.5", recursive
 **Matrix style** — one column per version with `D` (deprecated) and `R` (remove) lifecycle markers:
 
 ```python
+from tests import collection_deprecate as my_package
+from deprecate import generate_deprecation_table
+
 matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
 ```
 
