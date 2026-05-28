@@ -1025,7 +1025,7 @@ def _format_report_version(version: Optional[str], *, missing: str = "—") -> s
     """Format version values with a stable ``v`` prefix for report output."""
     if not version:
         return missing
-    return f"v{version.lstrip('v')}"
+    return f"v{version.lstrip('vV')}"
 
 
 def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> str:
