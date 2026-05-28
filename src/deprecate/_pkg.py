@@ -33,7 +33,7 @@ def _load_toml(path: str) -> dict[str, Any]:
         try:
             import tomllib
         except ImportError:
-            import tomli as tomllib  # type: ignore[no-redef]  # Python 3.10 backport
+            import tomli as tomllib  # Python 3.10 backport
 
         with open(path, "rb") as fh:
             return dict(tomllib.load(fh))

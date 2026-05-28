@@ -14,6 +14,7 @@ Subcommands:
 
 """
 
+import contextlib
 import functools
 import importlib.util
 import sys
@@ -756,8 +757,26 @@ def _wrap(fn: Callable[..., int]) -> Callable[..., None]:
     return wrapper
 
 
+def _ensure_utf8_streams() -> None:
+    """Reconfigure stdout/stderr to UTF-8 on platforms where the default encoding may reject non-ASCII characters.
+
+    On Windows the default console codec (``charmap``) cannot encode Unicode emoji used by
+    :class:`~deprecate.audit.ReportStatus`.  Calling ``reconfigure`` before any output is written ensures emoji reach
+    the terminal (or CI log) without a :exc:`UnicodeEncodeError`.
+
+    The call is a no-op when the streams are already UTF-8 or when they lack a ``reconfigure`` method (binary streams,
+    pytest capture wrappers).
+
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure") and getattr(stream, "encoding", "utf-8").lower() != "utf-8":
+            with contextlib.suppress(Exception):
+                stream.reconfigure(encoding="utf-8")
+
+
 def cli() -> None:
     """CLI entry point for pydeprecate."""
+    _ensure_utf8_streams()
     try:
         import fire
     except ImportError:
