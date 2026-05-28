@@ -168,8 +168,8 @@ class TestParseVersion:
 class TestGetReportStatus:
     """Tests for _get_report_status lifecycle classification return values."""
 
-    def test_status_unknown_without_current_version_and_remove(self) -> None:
-        """Missing package version with no remove_in maps to No Removal Target."""
+    def test_status_no_removal_target_without_current_version_and_remove(self) -> None:
+        """Missing current version with no remove_in maps to No Removal Target."""
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in=None)
         def function() -> None:
