@@ -93,6 +93,10 @@ def _managed_sys_path(path: str) -> Generator[None, None, None]:
     an importable module. For plain directories, inserts the directory itself. Importable module name strings are passed
     through unchanged.
 
+    Warning:
+        Not thread-safe. ``sys.path`` is a process-global list; concurrent use from multiple threads will corrupt
+        the restored state. Each scan should run in a dedicated process or be serialized via a lock.
+
     """
     abs_path: Path = Path(path).resolve()
     original = list(sys.path)
