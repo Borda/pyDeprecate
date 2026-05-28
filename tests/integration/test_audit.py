@@ -163,14 +163,7 @@ class TestMisconfiguredTarget:
 
     def test_misconfigured_flag_detected_when_target_false_used(self) -> None:
         """Audit flags misconfigured_target=True when legacy target=False was passed, even after normalisation."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-
-            @deprecated(target=False, deprecated_in="1.2", remove_in="2.0")
-            def fn() -> None:
-                return None
-
-        result = validate_deprecation_wrapper(fn)
+        result = validate_deprecation_wrapper(sample_module.target_false_deprecation)
         assert result.misconfigured_target is True
 
 
@@ -388,6 +381,7 @@ class TestFindDeprecatedWrappers:
         class SelfRef:
             """A class that holds a reference to itself as a class attribute."""
 
+            # one-off mechanical fixture: wrapper belongs to a dynamically-built class attached to types.ModuleType
             @deprecated(target=_new_compute, deprecated_in="1.0", remove_in="2.0")
             def old_compute(self, x: int) -> None:
                 """Deprecated redirect."""
@@ -628,6 +622,7 @@ class TestGenerateDeprecationMarkdown:
         mod.__name__ = "deprecate"  # type: ignore[attr-defined]
         from deprecate import TargetMode, deprecated
 
+        # one-off mechanical fixture: wrapper must live in a fake module with a specific __name__ for this test
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.2")
         def _old_fn() -> None:
             """Old."""
@@ -661,6 +656,7 @@ class TestGenerateDeprecationMarkdown:
         mod = types.ModuleType("test_bad_remove")
         from deprecate import TargetMode, deprecated
 
+        # one-off mechanical fixture: wrapper with invalid remove_in must be in a controlled fake module
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
         def bad_remove() -> None:
             """Bad remove_in."""
@@ -743,6 +739,7 @@ class TestCheckDeprecationExpiry:
     def test_invalid_remove_in_raises_value_error(self) -> None:
         """Callable with a malformed remove_in string raises ValueError naming the callable."""
 
+        # one-off mechanical fixture: wrapper with malformed remove_in must be created inline for direct inspection
         @deprecated(target=None, deprecated_in="1.0", remove_in="not-semver")
         def _bad_version_fn() -> None:
             pass
