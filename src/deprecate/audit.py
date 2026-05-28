@@ -1094,9 +1094,11 @@ def generate_deprecation_table(
         include_members: If True (default), include deprecated class members (methods, constructors).
 
     Returns:
-        Markdown string containing a formatted table. The first two lines are
-        always the header row and alignment row; subsequent lines are data rows,
-        one per deprecated wrapper discovered.
+        Markdown string containing a formatted table. When a version is
+        resolvable (either from current_version or auto-detected), the
+        first line is an HTML comment <!-- Current version: X.Y -->
+        followed by the header row and alignment row. When no version can be
+        resolved, the first line is the header row directly.
 
     Raises:
         ValueError: If ``style`` is not ``"compact"`` or ``"matrix"``, or if
