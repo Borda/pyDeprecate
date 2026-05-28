@@ -16,7 +16,9 @@ from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     ChainType,
     DeprecationWrapperInfo,
+    ReportStatus,
     _get_package_version,
+    _get_report_status,
     _parse_version,
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
@@ -161,6 +163,52 @@ class TestParseVersion:
         assert _parse_version("1.0") < _parse_version("2.0")
         assert _parse_version("1.0") < _parse_version("1.1")
         assert _parse_version("1.0.0") == _parse_version("1.0")
+
+
+class TestGetReportStatus:
+    """Tests for _get_report_status lifecycle classification return values."""
+
+    def test_status_unknown_without_current_version_and_remove(self) -> None:
+        """Missing package version with no remove_in maps to No Removal Target."""
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in=None)
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        status = _get_report_status(info, current_version=None)
+        assert status is ReportStatus.NO_REMOVAL_TARGET
+        assert status.value == ReportStatus.NO_REMOVAL_TARGET.value
+
+    @_requires_packaging
+    def test_status_active_warning_with_current_version_and_future_remove_in(self) -> None:
+        """Current version before remove_in maps to Deprecation Active."""
+
+        from packaging.version import Version
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        status = _get_report_status(info, current_version=Version("1.5"))
+        assert status is ReportStatus.ACTIVE_WARNING
+        assert status.value == ReportStatus.ACTIVE_WARNING.value
+
+    @_requires_packaging
+    def test_status_invalid_removal_target(self) -> None:
+        """Non-parseable remove_in maps to Invalid Removal Target."""
+
+        from packaging.version import Version
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        status = _get_report_status(info, current_version=Version("1.5"))
+        assert status is ReportStatus.INVALID_REMOVAL_TARGET
+        assert status.value == ReportStatus.INVALID_REMOVAL_TARGET.value
 
 
 @_requires_packaging

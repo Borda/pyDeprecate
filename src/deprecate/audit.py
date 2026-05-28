@@ -1028,7 +1028,7 @@ def _format_report_version(version: Optional[str], *, missing: str = "—") -> s
     return f"v{version.lstrip('vV')}"
 
 
-def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> str:
+def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> ReportStatus:
     """Classify one deprecated symbol into a report lifecycle status."""
     if current_version is None:
         return ReportStatus.NO_REMOVAL_TARGET if not info.deprecated_info.remove_in else ReportStatus.STATUS_UNKNOWN
@@ -1140,7 +1140,7 @@ def generate_deprecation_table(
                 f"`{_format_report_target(info.deprecated_info.target)}` | "
                 f"{_format_report_version(info.deprecated_info.deprecated_in)} | "
                 f"{_format_report_version(info.deprecated_info.remove_in)} | "
-                f"{_get_report_status(info, parsed_version)} |"
+                f"{_get_report_status(info, parsed_version).value} |"
             )
     else:
         version_map: dict[str, Optional[Version]] = {}
