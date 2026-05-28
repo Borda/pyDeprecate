@@ -1,7 +1,9 @@
-"""Package-metadata helpers for pyDeprecate's CLI.
+"""Package and filesystem helpers for pyDeprecate's CLI.
 
-Internal utilities that resolve a package's version from either a local ``pyproject.toml`` (development checkout) or
-installed distribution metadata.
+Internal utilities that resolve a package's version, locate package directories, and manage ``sys.path`` for scanning.
+
+Version resolution uses a local ``pyproject.toml`` (development checkout) when available, falling back to installed
+distribution metadata via ``importlib.metadata``.
 
 TOML parsing uses ``tomllib`` (stdlib on Python 3.11+) or ``tomli`` (backport, via ``pip install 'pyDeprecate[audit]'``
 on Python 3.10). When not available the helpers return ``None`` and callers fall back to ``importlib.metadata``.
@@ -14,6 +16,10 @@ import importlib
 import importlib.metadata
 import os
 import sys
+import warnings
+from collections.abc import Generator
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Optional
 
 
@@ -61,8 +67,6 @@ def _version_from_dynamic(pkg_name: str, scan_path: str, pyproject_dir: str) -> 
         Version string from ``pkg.__version__`` or ``None``.
 
     """
-    import importlib
-
     scan_root = os.path.abspath(scan_path) if os.path.isdir(scan_path) else os.path.dirname(os.path.abspath(scan_path))
     original = list(sys.path)
     added: list[str] = []
@@ -167,3 +171,115 @@ def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Option
         return importlib.metadata.version(module_name)
     except Exception:
         return None
+
+
+def _is_package_dir(pth: Path) -> bool:
+    """Return True if *pth* is an importable package directory (contains ``__init__.py``)."""
+    return (pth / "__init__.py").exists()
+
+
+def _find_child_packages(pth: Path) -> list[Path]:
+    """Return package sub-directories of *pth*, checking ``src/`` when none found directly.
+
+    Resolution order:
+    1. Immediate child directories of ``pth/src/`` that contain ``__init__.py``
+       (standard ``src/``-layout projects take precedence).
+    2. If none, immediate child directories of *pth* that contain ``__init__.py``.
+
+    Args:
+        pth: Directory to search.
+
+    Returns:
+        List of :class:`~pathlib.Path` objects for each package directory found.
+
+    """
+    src_dir = pth / "src"
+    if src_dir.is_dir():
+        in_src = [c for c in src_dir.iterdir() if c.is_dir() and _is_package_dir(c)]
+        if in_src:
+            return in_src
+    return [c for c in pth.iterdir() if c.is_dir() and _is_package_dir(c)]
+
+
+@contextmanager
+def _managed_sys_path(path: str) -> Generator[None, None, None]:
+    """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
+
+    For package directories (containing ``__init__.py``), inserts the parent directory so the package name resolves as
+    an importable module. For plain directories, inserts the directory itself. Importable module name strings are passed
+    through unchanged.
+
+    Warning:
+        Not thread-safe. ``sys.path`` is a process-global list; concurrent use from multiple threads will corrupt
+        the restored state. Each scan should run in a dedicated process or be serialized via a lock.
+
+    """
+    abs_path: Path = Path(path).resolve()
+    original = list(sys.path)
+    if abs_path.is_dir():
+        if _is_package_dir(abs_path):
+            import_root = str(abs_path.parent)
+        else:
+            src_dir = abs_path / "src"
+            in_src = src_dir.is_dir() and any(c.is_dir() and _is_package_dir(c) for c in src_dir.iterdir())
+            import_root = str(src_dir) if in_src else str(abs_path)
+        sys.path.insert(0, import_root)
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning, module="deprecate.*")
+            warnings.filterwarnings("ignore", category=FutureWarning, module="deprecate.*")
+            yield
+    finally:
+        sys.path[:] = original
+
+
+def _resolve_module_name(path: str) -> str:
+    """Convert a filesystem path to an importable module name.
+
+    Accepts a package directory (with ``__init__.py``) or an importable module
+    name string. Plain directories and individual ``.py`` files are not supported
+    because ``validate_deprecation_expiry`` and ``validate_deprecation_chains``
+    require an importable module name, not a filesystem path.
+
+    Args:
+        path: Package directory path or importable module name string.
+
+    Returns:
+        Importable module name string.
+
+    Raises:
+        ValueError: If path is a plain directory without ``__init__.py``, a ``.py``
+            file, or cannot be resolved to an importable module name.
+
+    """
+    pth = Path(path)
+    if pth.is_file():
+        raise ValueError(
+            f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
+        )
+    if pth.is_dir():
+        if _is_package_dir(pth):
+            return pth.resolve().name
+        # Flat src-layout or project root: find package in direct children or src/ subdir.
+        child_pkgs = _find_child_packages(pth)
+        if len(child_pkgs) == 1:
+            return child_pkgs[0].name
+        if len(child_pkgs) > 1:
+            names = ", ".join(sorted(c.name for c in child_pkgs))
+            raise ValueError(
+                f"Directory {path!r} contains multiple packages ({names}). "
+                "Pass the specific package sub-directory instead."
+            )
+        raise ValueError(
+            f"Plain directories without '__init__.py' are not supported for expiry or chain checks: {path!r}. "
+            "Use an importable package layout with '__init__.py', or pass an importable module name instead."
+        )
+    return path
+
+
+def _safe_module_name(path: str) -> str:
+    """Return the importable module name for *path*, falling back to *path* itself."""
+    try:
+        return _resolve_module_name(path)
+    except ValueError:
+        return path
