@@ -10,6 +10,9 @@ This module is private (no ``__all__``); its surface may change without notice.
 
 """
 
+import importlib
+import importlib.metadata
+import os
 import sys
 from typing import Any, Optional
 
@@ -59,7 +62,6 @@ def _version_from_dynamic(pkg_name: str, scan_path: str, pyproject_dir: str) -> 
 
     """
     import importlib
-    import os
 
     scan_root = os.path.abspath(scan_path) if os.path.isdir(scan_path) else os.path.dirname(os.path.abspath(scan_path))
     original = list(sys.path)
@@ -92,8 +94,6 @@ def _version_from_toml(toml_path: str, scan_path: str) -> Optional[str]:
         Version string or ``None`` when not resolvable.
 
     """
-    import os
-
     data = _load_toml(toml_path)
     project = data.get("project", {})
     if not project:
@@ -124,8 +124,6 @@ def _read_pyproject_version(path: str) -> Optional[str]:
         Version string or ``None`` when not found within 2 levels.
 
     """
-    import os
-
     candidate = os.path.abspath(path)
     if not os.path.isdir(candidate):
         candidate = os.path.dirname(candidate)
@@ -166,8 +164,6 @@ def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Option
         if local_ver is not None:
             return local_ver
     try:
-        import importlib.metadata
-
         return importlib.metadata.version(module_name)
     except Exception:
         return None

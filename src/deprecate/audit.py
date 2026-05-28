@@ -39,7 +39,11 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 # so ``validate_deprecation_wrapper`` can read it correctly for proxy objects too.
 
 import enum
+import importlib
+import importlib.metadata
 import inspect
+import pkgutil
+import re
 import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, is_dataclass, replace
@@ -55,14 +59,14 @@ from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 
 
-class ReportStyle(str, enum.Enum):
+class TableStyle(str, enum.Enum):
     """Markdown table layout produced by :func:`~deprecate.audit.generate_deprecation_table`."""
 
     COMPACT = "compact"
     MATRIX = "matrix"
 
 
-class ReportStatus(str, enum.Enum):
+class DeprecationStatus(str, enum.Enum):
     """Lifecycle status labels used in the deprecation report's *Current Status* column.
 
     Each member's value is the full display string (emoji + text) rendered in the table.
@@ -72,9 +76,9 @@ class ReportStatus(str, enum.Enum):
     Members are ordered from least to most urgent for easy visual scanning:
 
     Examples:
-        >>> ReportStatus.ACTIVE_WARNING.value
+        >>> DeprecationStatus.ACTIVE_WARNING.value
         '📢 Deprecation Active'
-        >>> ReportStatus.PAST_REMOVAL_DATE > ReportStatus.ACTIVE_WARNING
+        >>> DeprecationStatus.PAST_REMOVAL_DATE > DeprecationStatus.ACTIVE_WARNING
         False
 
     """
@@ -128,8 +132,6 @@ def _normalize_version_string(version: str) -> str:
         '1.2.3'
 
     """
-    import re
-
     normalized = version.lstrip("vV")
     # Append ``0`` to bare pre/post/dev labels with no trailing digit. The ordering of the alternatives
     # matters: longer labels (``alpha``, ``beta``, ``preview``) must come before their single-letter
@@ -622,17 +624,13 @@ def _get_package_version(package_name: str) -> str:
         ImportError: If the package is not installed or version cannot be determined.
 
     """
-    import importlib.metadata
-
     # Try importlib.metadata first (standard approach for installed packages)
     with suppress(Exception):
         return importlib.metadata.version(package_name)
 
     # Fall back to checking __version__ attribute
     with suppress(Exception):
-        import importlib as _importlib
-
-        module = _importlib.import_module(package_name)
+        module = importlib.import_module(package_name)
         if hasattr(module, "__version__"):
             return module.__version__
 
@@ -729,8 +727,6 @@ def validate_deprecation_expiry(
         - Can be integrated into test suites or pre-commit hooks
 
     """
-    import importlib
-
     # Determine module name for auto-version detection
     module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
 
@@ -816,9 +812,6 @@ def find_deprecation_wrappers(
         - Uses static member inspection to avoid scan-time side effects from dynamic attribute access
 
     """
-    import importlib
-    import pkgutil
-
     results: list[DeprecationWrapperInfo] = []
 
     # Handle string module path
@@ -914,7 +907,7 @@ def find_deprecation_wrappers(
     return results
 
 
-def _resolve_report_version(
+def _resolve_table_version(
     module: Union[Any, str],  # noqa: ANN401
     *,
     current_version: Optional[str],
@@ -940,7 +933,7 @@ def _resolve_report_version(
         return resolved_version, None
 
 
-def _safe_parse_report_version(version: str) -> Optional["Version"]:
+def _safe_parse_version(version: str) -> Optional["Version"]:
     """Best-effort version parser for report status evaluation."""
     if not version:
         return None
@@ -1021,32 +1014,36 @@ def _report_row_sort_key(info: DeprecationWrapperInfo) -> tuple[str, str, str, b
     return (info.module or "", top_level, function, api_type.endswith(" args"), api_type)
 
 
-def _format_report_version(version: Optional[str], *, missing: str = "—") -> str:
+def _format_version(version: Optional[str], *, missing: str = "—") -> str:
     """Format version values with a stable ``v`` prefix for report output."""
     if not version:
         return missing
     return f"v{version.lstrip('vV')}"
 
 
-def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> ReportStatus:
+def _get_deprecation_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> DeprecationStatus:
     """Classify one deprecated symbol into a report lifecycle status."""
     if current_version is None:
-        return ReportStatus.NO_REMOVAL_TARGET if not info.deprecated_info.remove_in else ReportStatus.STATUS_UNKNOWN
+        return (
+            DeprecationStatus.NO_REMOVAL_TARGET
+            if not info.deprecated_info.remove_in
+            else DeprecationStatus.STATUS_UNKNOWN
+        )
 
-    deprecated_in = _safe_parse_report_version(info.deprecated_info.deprecated_in)
+    deprecated_in = _safe_parse_version(info.deprecated_info.deprecated_in)
     if deprecated_in is not None and current_version < deprecated_in:
-        return ReportStatus.SCHEDULED_DEPRECATION
+        return DeprecationStatus.SCHEDULED_DEPRECATION
 
     remove_in = info.deprecated_info.remove_in
     if not remove_in:
-        return ReportStatus.NO_REMOVAL_TARGET
+        return DeprecationStatus.NO_REMOVAL_TARGET
 
-    remove_version = _safe_parse_report_version(remove_in)
+    remove_version = _safe_parse_version(remove_in)
     if remove_version is None:
-        return ReportStatus.INVALID_REMOVAL_TARGET
+        return DeprecationStatus.INVALID_REMOVAL_TARGET
 
     if current_version >= remove_version:
-        return ReportStatus.PAST_REMOVAL_DATE
+        return DeprecationStatus.PAST_REMOVAL_DATE
 
     # Pre-release of the same base release as remove_in gets an elevated status:
     # dev/alpha/beta → REMOVAL_IMMINENT; rc → REMOVE_BEFORE_RELEASE.
@@ -1059,17 +1056,17 @@ def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["
             same_base = False
         if same_base:
             if current_version.pre is not None and current_version.pre[0] == "rc":
-                return ReportStatus.REMOVE_BEFORE_RELEASE
-            return ReportStatus.REMOVAL_IMMINENT
+                return DeprecationStatus.REMOVE_BEFORE_RELEASE
+            return DeprecationStatus.REMOVAL_IMMINENT
 
-    return ReportStatus.ACTIVE_WARNING
+    return DeprecationStatus.ACTIVE_WARNING
 
 
 def generate_deprecation_table(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
-    style: Union[ReportStyle, str] = ReportStyle.COMPACT,
+    style: Union[TableStyle, str] = TableStyle.COMPACT,
     include_members: bool = True,
     *,
     _wrappers: Optional[list["DeprecationWrapperInfo"]] = None,
@@ -1112,13 +1109,13 @@ def generate_deprecation_table(
 
     """
     try:
-        style = ReportStyle(style)
+        style = TableStyle(style)
     except ValueError as err:
         raise ValueError(
-            f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in ReportStyle)}."
+            f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in TableStyle)}."
         ) from err
 
-    resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
+    resolved_version, parsed_version = _resolve_table_version(module, current_version=current_version)
     if _wrappers is None:
         _wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members)
     wrappers = sorted(
@@ -1126,7 +1123,7 @@ def generate_deprecation_table(
         key=_report_row_sort_key,
     )
 
-    if style == ReportStyle.COMPACT:
+    if style == TableStyle.COMPACT:
         rows = [
             "| Original API | API Type | New API | Deprecated | Remove | Current Status |",
             "| :--- | :--- | :--- | :---: | :---: | :--- |",
@@ -1138,16 +1135,16 @@ def generate_deprecation_table(
                 f"`{_format_report_symbol(info)}` | "
                 f"{_format_report_api_type(info)} | "
                 f"`{_format_report_target(info.deprecated_info.target)}` | "
-                f"{_format_report_version(info.deprecated_info.deprecated_in)} | "
-                f"{_format_report_version(info.deprecated_info.remove_in)} | "
-                f"{_get_report_status(info, parsed_version).value} |"
+                f"{_format_version(info.deprecated_info.deprecated_in)} | "
+                f"{_format_version(info.deprecated_info.remove_in)} | "
+                f"{_get_deprecation_status(info, parsed_version).value} |"
             )
     else:
         version_map: dict[str, Optional[Version]] = {}
         for info in wrappers:
             for version in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in):
                 if version and version not in version_map:
-                    version_map[version] = _safe_parse_report_version(version)
+                    version_map[version] = _safe_parse_version(version)
 
         sorted_versions = sorted(
             version_map,
@@ -1156,7 +1153,7 @@ def generate_deprecation_table(
                 version_map[version] if version_map[version] is not None else version,
             ),
         )
-        version_headers = [_format_report_version(version) for version in sorted_versions]
+        version_headers = [_format_version(version) for version in sorted_versions]
         header_row = "| Original API | API Type | New API | " + " | ".join(version_headers) + " |"
         divider_row = "| :--- | :--- | :--- | " + " | ".join(":---:" for _ in version_headers) + " |"
         col_idx = {v: i for i, v in enumerate(sorted_versions)}

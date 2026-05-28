@@ -27,7 +27,7 @@ from typing import Any, Optional
 from deprecate._pkg import _auto_detect_version
 from deprecate.audit import (
     DeprecationWrapperInfo,
-    ReportStyle,
+    TableStyle,
     _check_expiry_for_callables,
     find_deprecation_wrappers,
     generate_deprecation_table,
@@ -688,11 +688,11 @@ def cmd_status(
     if version is not None:
         version = str(version)
     try:
-        report_style = ReportStyle(style)
+        table_style = TableStyle(style)
     except ValueError:
-        valid = ", ".join(s.value for s in ReportStyle)
+        valid = ", ".join(s.value for s in TableStyle)
         _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
-        report_style = ReportStyle.COMPACT
+        table_style = TableStyle.COMPACT
 
     module_name = _resolve_module_name(path)
     resolved_version = version if version is not None else _auto_detect_version(module_name, path=path)
@@ -703,14 +703,14 @@ def cmd_status(
                 module_name,
                 current_version=resolved_version,
                 recursive=recursive,
-                style=report_style,
+                style=table_style,
                 include_members=include_members,
             )
     else:
         markdown = generate_deprecation_table(
             module_name,
             current_version=resolved_version,
-            style=report_style,
+            style=table_style,
             _wrappers=_wrappers,
         )
 
@@ -761,8 +761,8 @@ def _ensure_utf8_streams() -> None:
     """Reconfigure stdout/stderr to UTF-8 on platforms where the default encoding may reject non-ASCII characters.
 
     On Windows the default console codec (``charmap``) cannot encode Unicode emoji used by
-    :class:`~deprecate.audit.ReportStatus`.  Calling ``reconfigure`` before any output is written ensures emoji reach
-    the terminal (or CI log) without a :exc:`UnicodeEncodeError`.
+    :class:`~deprecate.audit.DeprecationStatus`.  Calling ``reconfigure`` before any output is written ensures emoji
+    reach the terminal (or CI log) without a :exc:`UnicodeEncodeError`.
 
     The call is a no-op when the streams are already UTF-8 or when they lack a ``reconfigure`` method (binary streams,
     pytest capture wrappers).
