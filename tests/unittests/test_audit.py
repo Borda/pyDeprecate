@@ -183,7 +183,6 @@ class TestGetReportStatus:
     @_requires_packaging
     def test_status_active_warning_with_current_version_and_future_remove_in(self) -> None:
         """Current version before remove_in maps to Deprecation Active."""
-
         from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
@@ -198,7 +197,6 @@ class TestGetReportStatus:
     @_requires_packaging
     def test_status_invalid_removal_target(self) -> None:
         """Non-parseable remove_in maps to Invalid Removal Target."""
-
         from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
