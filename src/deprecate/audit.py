@@ -73,7 +73,7 @@ class ReportStatus(str, enum.Enum):
 
     Examples:
         >>> ReportStatus.ACTIVE_WARNING.value
-        '⚠️ Active Warning'
+        '📢 Deprecation Active'
         >>> ReportStatus.PAST_REMOVAL_DATE > ReportStatus.ACTIVE_WARNING
         False
 
