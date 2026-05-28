@@ -3,7 +3,7 @@
 Internal utilities that resolve a package's version from either a local ``pyproject.toml`` (development checkout) or
 installed distribution metadata.
 
-TOML parsing uses ``tomlkit`` (available via ``pip install 'pyDeprecate[audit]'``). When not available the helpers
+TOML parsing uses ``tomllib`` (stdlib on Python 3.11+) or ``tomli`` (backport, via ``pip install 'pyDeprecate[audit]'`` on Python 3.10). When not available the helpers
 return ``None`` and callers fall back to ``importlib.metadata``.
 
 This module is private (no ``__all__``); its surface may change without notice.
@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 
 def _load_toml(path: str) -> dict[str, Any]:
-    r"""Load a TOML file using ``tomlkit``.
+    r"""Load a TOML file using ``tomllib`` (Python 3.11+) or ``tomli`` (Python 3.10 backport).
 
     Returns an empty dict on any failure (missing library, parse error, IO).
 
@@ -30,10 +30,13 @@ def _load_toml(path: str) -> dict[str, Any]:
 
     """
     try:
-        import tomlkit
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore[no-redef]  # Python 3.10 backport
 
-        with open(path, encoding="utf-8") as fh:
-            return dict(tomlkit.load(fh))
+        with open(path, "rb") as fh:
+            return dict(tomllib.load(fh))
     except Exception:
         return {}
 

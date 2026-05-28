@@ -91,7 +91,7 @@ setup(
     extras_require={
         "audit": [
             "packaging>=20.0",
-            "tomlkit>=0.11",
+            "tomli>=2.0; python_version<'3.11'",  # tomllib stdlib in 3.11+
         ],  # For validate_deprecation_expiry and pyproject.toml version detection
         "cli": ["fire", "rich"],  # For pydeprecate CLI command and Rich output support
     },
