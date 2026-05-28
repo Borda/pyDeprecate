@@ -540,7 +540,7 @@ def cmd_expiry(
         version = str(version)
     if _wrappers is None:
         # Standalone path: full scan + version auto-detect inside _do_expiry.
-        resolved_version = version or _auto_detect_version(_safe_module_name(path), path=path)
+        resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
         _print_scan_header(path, resolved_version, user_provided=version is not None)
         with _managed_sys_path(path):
             raw = _do_expiry(path, resolved_version, recursive)
@@ -637,7 +637,7 @@ def cmd_all(
     if version is not None:
         version = str(version)
     version_path = path if Path(path).exists() else None
-    resolved_version = version or _auto_detect_version(_safe_module_name(path), path=version_path)
+    resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=version_path)
     _print_scan_header(path, resolved_version, user_provided=version is not None)
     with _managed_sys_path(path):
         wrappers = _scan_path(path, recursive=recursive)
@@ -692,7 +692,7 @@ def cmd_status(
         report_style = ReportStyle.COMPACT
 
     module_name = _resolve_module_name(path)
-    resolved_version = version or _auto_detect_version(module_name, path=path)
+    resolved_version = version if version is not None else _auto_detect_version(module_name, path=path)
     if _wrappers is None:
         _print_scan_header(path, resolved_version, user_provided=version is not None)
         with _managed_sys_path(path):
