@@ -90,7 +90,7 @@ class TestCliSubcommands:
             cwd=tmp_path,
         )
         assert result.returncode == 0
-        assert "Scanning path" in result.stdout
+        assert "Scanning:" in result.stdout
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_expiry_subcommand_no_expired(self, tmp_path: Path) -> None:

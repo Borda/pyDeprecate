@@ -1072,6 +1072,8 @@ def generate_deprecation_table(
     recursive: bool = True,
     style: Union[ReportStyle, str] = ReportStyle.COMPACT,
     include_members: bool = True,
+    *,
+    _wrappers: Optional[list["DeprecationWrapperInfo"]] = None,
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
@@ -1114,8 +1116,10 @@ def generate_deprecation_table(
         raise ValueError(f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in ReportStyle)}.")
 
     resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
+    if _wrappers is None:
+        _wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members)
     wrappers = sorted(
-        find_deprecation_wrappers(module, recursive=recursive, include_members=include_members),
+        _wrappers,
         key=_report_row_sort_key,
     )
 

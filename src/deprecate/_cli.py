@@ -641,7 +641,7 @@ def cmd_all(
     expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, skip_errors=False, _wrappers=wrappers)
     chains_code = cmd_chains(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
 
-    cmd_status(path, version=resolved_version, recursive=recursive)
+    cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
 
     has_errors = bool(check_code or expiry_code or chains_code)
     return 0 if not has_errors or skip_errors else 1
@@ -654,6 +654,8 @@ def cmd_status(
     style: str = "compact",
     include_members: bool = True,
     output: Optional[str] = None,
+    *,
+    _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
     """Print a markdown deprecation status table to stdout.
 
@@ -686,14 +688,22 @@ def cmd_status(
 
     module_name = _resolve_module_name(path)
     resolved_version = version or _auto_detect_version(module_name, path=path)
-    _print_scan_header(path, resolved_version, user_provided=version is not None)
-    with _managed_sys_path(path):
+    if _wrappers is None:
+        _print_scan_header(path, resolved_version, user_provided=version is not None)
+        with _managed_sys_path(path):
+            markdown = generate_deprecation_table(
+                module_name,
+                current_version=resolved_version,
+                recursive=recursive,
+                style=report_style,
+                include_members=include_members,
+            )
+    else:
         markdown = generate_deprecation_table(
             module_name,
             current_version=resolved_version,
-            recursive=recursive,
             style=report_style,
-            include_members=include_members,
+            _wrappers=_wrappers,
         )
 
     if _Reporter._HAS_RICH:

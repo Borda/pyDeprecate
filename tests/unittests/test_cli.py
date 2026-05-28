@@ -756,7 +756,7 @@ class TestHasRichFalse:
         with patch("deprecate._cli._Reporter._HAS_RICH", False):
             assert cmd_check(path="some_module") == 0
         captured = capsys.readouterr()
-        assert "Scanning path" in captured.out
+        assert "Scanning:" in captured.out
         assert "No deprecated callables found" in captured.out
 
     @patch("deprecate._cli.find_deprecation_wrappers")
