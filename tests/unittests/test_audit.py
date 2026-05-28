@@ -171,7 +171,7 @@ class TestGetReportStatus:
     def test_status_no_removal_target_without_current_version_and_remove(self) -> None:
         """Missing current version with no remove_in maps to No Removal Target."""
 
-        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in=None)
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in=None)  # type: ignore[arg-type]
         def function() -> None:
             pass
 
