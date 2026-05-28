@@ -91,7 +91,7 @@ pydeprecate status tests --version 1.2
 
 === "status"
 
-    Generates and prints a markdown deprecation table to stdout. Standalone — runs no checks and always exits `0`. Use this when you only want to render the deprecation status table without running any validation.
+    Generates and prints a markdown deprecation table to stdout. Standalone — runs no checks and exits `0` on success, but exits `1` for invalid `--style`. Use this when you only want to render the deprecation status table without running any validation.
 
     ```bash
     pydeprecate status path/to/your/package

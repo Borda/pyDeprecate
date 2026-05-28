@@ -654,7 +654,7 @@ The `match` parameter on `assert_no_warnings` accepts a substring — it filters
 
 `generate_deprecation_table()` renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two `style=` options:
 
-- `"compact"` (default) — one row per symbol with a **Current Status** column (`⚠️ Active Warning`, `❌ Past Removal Date`, `ℹ️ No Removal Target`, etc.)
+- `"compact"` (default) — one row per symbol with a **Current Status** column (`📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, etc.)
 - `"matrix"` — one column per version with `D` (deprecated) and `R` (remove) markers
 
 ```python
