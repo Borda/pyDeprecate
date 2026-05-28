@@ -119,7 +119,7 @@ pydeprecate status tests --version 1.2
 | `expiry`   | No expired wrappers                                             | Expired wrappers found; or `packaging` not installed                  |
 | `chains`   | No chains                                                       | Deprecated-to-deprecated chains found                                 |
 | `all`      | All checks clean (deprecation table always appended)            | Any hard error above (`packaging` missing → skips expiry, no failure) |
-| `status`   | Always — status table is not a pass/fail gate                        | —                                               |
+| `status`   | Always — status table is not a pass/fail gate                   | —                                                                     |
 
 ## Path formats
 
