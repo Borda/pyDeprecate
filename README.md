@@ -1325,43 +1325,32 @@ It supports two styles via `style=`:
 
 The **Current Status** column uses these labels:
 
-| Status                    | Meaning                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| ⚠️ Active Warning         | Between `deprecated_in` and `remove_in` — still in the deprecation window |
-| ❌ Past Removal Date      | Current version ≥ `remove_in` — zombie code that should be deleted        |
-| ℹ️ No Removal Target      | No `remove_in` set — no scheduled removal                                 |
-| 🕒 Scheduled Deprecation  | Current version is before `deprecated_in` — not yet active                |
-| ⚪ Status Unknown         | `packaging` not installed or `current_version` not resolvable             |
-| ⚪ Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version                         |
+| Status | Meaning |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| 🕒 Scheduled Deprecation | Current version is before `deprecated_in` — not yet active |
+| ℹ️ No Removal Target | No `remove_in` set — no scheduled removal |
+| ⚪ Status Unknown | `packaging` not installed or `current_version` not resolvable |
+| 🚫 Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version |
+| 📢 Deprecation Active | Between `deprecated_in` and `remove_in` — still in the deprecation window |
+| ⏰ Removal Imminent | Dev/alpha/beta pre-release of the `remove_in` base version |
+| 🔔 Remove Before Release | RC pre-release of the `remove_in` base version |
+| 💥 Past Removal Date | Current version ≥ `remove_in` — zombie code that should be deleted |
 
 ```python
 from tests import collection_deprecate as my_package
 from deprecate import generate_deprecation_table
 
-# Compact style (default)
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
 ```
 
 ```text
+<!-- Current version: 1.5 -->
 | Original API | API Type | New API | Deprecated | Remove | Current Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
-| `my_pkg.api.old_method` | callable | `my_pkg.api.new_method` | v1.2.0 | v2.0.0 | ⚠️ Active Warning |
-| `my_pkg.legacy.LegacyClass.__init__` | class constructor | `my_pkg.legacy.NewClass.__init__` | v1.0.0 | v1.8.0 | ❌ Past Removal Date |
-```
-
-```python
-from tests import collection_deprecate as my_package
-from deprecate import generate_deprecation_table
-
-# Matrix style
-matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
-```
-
-```text
-| Original API | API Type | New API | v1.0.0 | v1.2.0 | v1.8.0 | v2.0.0 |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| `my_pkg.legacy.LegacyClass.__init__` | class constructor | `my_pkg.legacy.NewClass.__init__` | D |   | R |   |
-| `my_pkg.api.old_method` | callable | `my_pkg.api.new_method` |   | D |   | R |
+| `my_package.depr_func_same_version` | callable | `—` | v2.0 | v2.0 | 🕒 Scheduled Deprecation |
+| `my_package.ServiceCls.old_redirect_method` | class method | `my_package.ServiceCls.compute` | v1.0 | v2.0 | 📢 Deprecation Active |
+| `my_package.depr_pow_args` | callable | `my_package.base_pow_args` | v1.0 | v1.3 | 💥 Past Removal Date |
+| `my_package.depr_func_no_remove_in` | callable | `—` | v1.0 | — | ℹ️ No Removal Target |
 ```
 
 <br>

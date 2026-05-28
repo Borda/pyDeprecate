@@ -657,18 +657,48 @@ The `match` parameter on `assert_no_warnings` accepts a substring — it filters
 - `"compact"` (default) — one row per symbol with a **Current Status** column (`📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, etc.)
 - `"matrix"` — one column per version with `D` (deprecated) and `R` (remove) markers
 
+**Compact style** — one row per symbol with a lifecycle status column:
+
 ```python
 from tests import collection_deprecate as my_package
 from deprecate import generate_deprecation_table
 
-# Compact style — includes status per symbol
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
-
-# Matrix style — version columns with lifecycle markers
-matrix = generate_deprecation_table(my_package, style="matrix", recursive=False)
 ```
 
-The report derives all data from `__deprecated__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.
+```text
+<!-- Current version: 1.5 -->
+| Original API | API Type | New API | Deprecated | Remove | Current Status |
+| :--- | :--- | :--- | :---: | :---: | :--- |
+| `my_package.CrossGuardOldClass.__init__` | class constructor | `my_package.CrossGuardClassTargetNew` | v1.0 | v2.0 | 📢 Deprecation Active |
+| `my_package.DecoratedDataClass` | dataclass | `my_package.NewDataClass` | v0.5 | v1.0 | 💥 Past Removal Date |
+| `my_package.ServiceCls.old_class_method` | classmethod | `—` | v1.0 | v2.0 | 📢 Deprecation Active |
+| `my_package.ServiceCls.old_redirect_method` | class method | `my_package.ServiceCls.compute` | v1.0 | v2.0 | 📢 Deprecation Active |
+| `my_package.depr_func_no_remove_in` | callable | `—` | v1.0 | — | ℹ️ No Removal Target |
+| `my_package.depr_func_same_version` | callable | `—` | v2.0 | v2.0 | 🕒 Scheduled Deprecation |
+| `my_package.depr_pow_args` | callable | `my_package.base_pow_args` | v1.0 | v1.3 | 💥 Past Removal Date |
+| `my_package.decorated_sum` | callable | `my_package.base_sum_kwargs` | v0.1 | v0.5 | 💥 Past Removal Date |
+```
+
+**Matrix style** — one column per version with `D` (deprecated) and `R` (remove) lifecycle markers:
+
+```python
+matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
+```
+
+```text
+<!-- Current version: 1.5 -->
+| Original API | API Type | New API | v0.1 | v0.5 | v1.0 | v1.3 | v2.0 |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `my_package.CrossGuardOldClass.__init__` | class constructor | `my_package.CrossGuardClassTargetNew` |   |   | D |   | R |
+| `my_package.DecoratedDataClass` | dataclass | `my_package.NewDataClass` |   | D |   |   |   |
+| `my_package.ServiceCls.old_redirect_method` | class method | `my_package.ServiceCls.compute` |   |   | D |   | R |
+| `my_package.depr_func_no_remove_in` | callable | `—` |   |   | D |   |   |
+| `my_package.depr_pow_args` | callable | `my_package.base_pow_args` |   |   | D | R |   |
+| `my_package.decorated_sum` | callable | `my_package.base_sum_kwargs` | D |   |   |   |   |
+```
+
+The table derives all data from `__deprecated__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.
 
 ## See also
 
