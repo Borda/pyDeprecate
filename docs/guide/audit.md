@@ -231,7 +231,7 @@ Self-references: 0
 
 ### CLI usage
 
-All audit functions are also available from the command line via five subcommands (`check`, `expiry`, `chains`, `all`, `report`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
+All audit functions are also available from the command line via five subcommands (`check`, `expiry`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
 
 ### pytest integration
 
@@ -475,7 +475,7 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
     Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
 
-The CLI provides five subcommands. Use `check` for wrapper config validation, `all` to run every check in a single pass (and append a deprecation table), or `report` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
+The CLI provides five subcommands. Use `check` for wrapper config validation, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
 ```bash
 # Install CLI + audit extras (audit needed for expiry checks)

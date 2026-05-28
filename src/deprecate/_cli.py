@@ -10,7 +10,7 @@ Subcommands:
     expiry  — Check for deprecated wrappers that have passed their scheduled ``remove_in`` deadline.
     chains  — Detect deprecated wrappers whose ``target`` is itself a deprecated callable.
     all     — Run all three checks in a single scan pass.
-    report  — Render a markdown deprecation table to stdout (and optionally save it to a file).
+    status  — Render a markdown deprecation table to stdout (and optionally save it to a file).
 
 """
 
