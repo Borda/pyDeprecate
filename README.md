@@ -1310,7 +1310,7 @@ print(f"Self-references: {len(self_refs)}")
 
 ### Generating Deprecation Tables
 
-If you want docs-friendly summaries, `generate_deprecation_markdown()` renders
+If you want docs-friendly summaries, `generate_deprecation_table()` renders
 the discovered wrapper metadata as Markdown tables. The report includes
 deprecated class members such as methods and constructors, so wrapper metadata
 remains the single source of truth.
@@ -1336,10 +1336,10 @@ The **Current Status** column uses these labels:
 
 ```python
 from tests import collection_deprecate as my_package
-from deprecate import generate_deprecation_markdown
+from deprecate import generate_deprecation_table
 
 # Compact style (default)
-report = generate_deprecation_markdown(my_package, current_version="1.5", recursive=False)
+report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
 ```
 
 ```text
@@ -1351,10 +1351,10 @@ report = generate_deprecation_markdown(my_package, current_version="1.5", recurs
 
 ```python
 from tests import collection_deprecate as my_package
-from deprecate import generate_deprecation_markdown
+from deprecate import generate_deprecation_table
 
 # Matrix style
-matrix = generate_deprecation_markdown(my_package, current_version="1.5", recursive=False, style="matrix")
+matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
 ```
 
 ```text
@@ -1395,23 +1395,23 @@ pydeprecate chains path/to/your/package
 # all — single scan running check + expiry + chains, then appends a deprecation table
 pydeprecate all path/to/your/package --version 2.0.0
 
-# report — print a markdown deprecation table (standalone, no checks)
-pydeprecate report path/to/your/package
-pydeprecate report path/to/your/package --style matrix
-pydeprecate report path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
+# status — print a markdown deprecation status table (standalone, no checks)
+pydeprecate status path/to/your/package
+pydeprecate status path/to/your/package --style matrix
+pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
 **Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
-`expiry`, `all`, and `report` also accept `--version VERSION` to set the current version explicitly.
-`report` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+`expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly.
+`status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
 
 ```bash
 # Run all checks + deprecation table on the bundled test fixtures
-pydeprecate all tests
+pydeprecate all tests --version 1.2
 # Standalone deprecation table only
-pydeprecate report tests
+pydeprecate status tests --version 1.2
 ```
 
 `tests/` contains pyDeprecate's own deprecation fixtures — useful as a live demo without needing your own package. Note: `expiry` and `chains` (run as part of `all`) require an importable package name rather than a plain directory path.

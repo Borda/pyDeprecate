@@ -17,7 +17,7 @@ All three are designed to be called from pytest or a CI script against an import
     unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`: ``TARGET`` (forwarding chain)
     and ``STACKED`` (composed argument mappings).
 
-**Report generation** (:func:`~deprecate.audit.generate_deprecation_markdown`):
+**Report generation** (:func:`~deprecate.audit.generate_deprecation_table`):
     Generate a docs-friendly markdown summary from wrapper metadata.
 
 Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, which carry both
@@ -56,7 +56,7 @@ from deprecate.utils import get_func_arguments_types_defaults
 
 
 class ReportStyle(str, enum.Enum):
-    """Markdown table layout produced by :func:`~deprecate.audit.generate_deprecation_markdown`."""
+    """Markdown table layout produced by :func:`~deprecate.audit.generate_deprecation_table`."""
 
     COMPACT = "compact"
     MATRIX = "matrix"
@@ -1066,7 +1066,7 @@ def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["
     return ReportStatus.ACTIVE_WARNING
 
 
-def generate_deprecation_markdown(
+def generate_deprecation_table(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
@@ -1075,7 +1075,7 @@ def generate_deprecation_markdown(
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
-    The report is derived from ``__deprecated__`` metadata and includes both
+    The table is derived from ``__deprecated__`` metadata and includes both
     top-level wrappers and deprecated class members (methods/constructors).
 
     Args:
@@ -1103,7 +1103,7 @@ def generate_deprecation_markdown(
 
     Example:
         >>> from tests import collection_deprecate as pkg
-        >>> report = generate_deprecation_markdown(pkg, recursive=False)
+        >>> report = generate_deprecation_table(pkg, recursive=False)
         >>> report.splitlines()[0]
         '| Original API | API Type | New API | Deprecated | Remove | Current Status |'
 
@@ -1174,6 +1174,9 @@ def generate_deprecation_markdown(
         rows.insert(0, f"<!-- Current version: {resolved_version} -->")
 
     return "\n".join(rows)
+
+
+generate_deprecation_markdown = generate_deprecation_table  # deprecated since 0.8, use generate_deprecation_table
 
 
 def validate_deprecation_chains(

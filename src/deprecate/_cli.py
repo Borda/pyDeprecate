@@ -29,7 +29,7 @@ from deprecate.audit import (
     ReportStyle,
     _check_expiry_for_callables,
     find_deprecation_wrappers,
-    generate_deprecation_markdown,
+    generate_deprecation_table,
     validate_deprecation_chains,
     validate_deprecation_expiry,
 )
@@ -611,7 +611,7 @@ def cmd_all(
 
     Performs a single scan pass and distributes the wrappers to ``cmd_check``,
     ``cmd_expiry``, and ``cmd_chains`` so the filesystem is only traversed once.
-    After all three checks complete, ``cmd_report`` is always called to append a
+    After all three checks complete, ``cmd_status`` is always called to append a
     compact markdown deprecation table to the output.
     Version is auto-detected from installed package metadata when not provided.
     A missing ``packaging`` library skips the expiry check with a warning and does not
@@ -640,13 +640,13 @@ def cmd_all(
     expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, skip_errors=False, _wrappers=wrappers)
     chains_code = cmd_chains(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
 
-    cmd_report(path, version=resolved_version, recursive=recursive)
+    cmd_status(path, version=resolved_version, recursive=recursive)
 
     has_errors = bool(check_code or expiry_code or chains_code)
     return 0 if not has_errors or skip_errors else 1
 
 
-def cmd_report(
+def cmd_status(
     path: str = ".",
     version: Optional[str] = None,
     recursive: bool = True,
@@ -654,11 +654,11 @@ def cmd_report(
     include_members: bool = True,
     output: Optional[str] = None,
 ) -> int:
-    """Generate a markdown deprecation table and print it to stdout.
+    """Print a markdown deprecation status table to stdout.
 
-    Scans the target package for deprecated wrappers and renders their metadata
-    as a Markdown table. When ``--output`` is given, the table is also written to
-    that file and the saved path is printed to stderr.
+    Scans the target package for deprecated wrappers and renders their lifecycle
+    status as a Markdown table. Standalone — runs no checks, always exits 0.
+    When ``--output`` is given, the table is also written to that file.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
@@ -667,11 +667,11 @@ def cmd_report(
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         style: Table format — ``compact`` (default) or ``matrix``.
         include_members: Include deprecated class members such as methods and constructors (default True).
-        output: Optional file path to write the markdown report. The table is always
+        output: Optional file path to write the markdown table. The table is always
             printed to stdout regardless of this flag.
 
     Returns:
-        Always 0 — report generation is not a pass/fail gate.
+        Always 0 — status table generation is not a pass/fail gate.
 
     """
     if version is not None:
@@ -679,17 +679,15 @@ def cmd_report(
     try:
         report_style = ReportStyle(style)
     except ValueError:
-        _print(
-            f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in ReportStyle)}.",
-            stderr=True,
-        )
-        return 1
+        valid = ", ".join(s.value for s in ReportStyle)
+        _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
+        report_style = ReportStyle.COMPACT
 
     module_name = _resolve_module_name(path)
     resolved_version = version or _auto_detect_version(module_name, path=path)
     _print_scan_header(path, resolved_version, user_provided=version is not None)
     with _managed_sys_path(path):
-        markdown = generate_deprecation_markdown(
+        markdown = generate_deprecation_table(
             module_name,
             current_version=resolved_version,
             recursive=recursive,
@@ -747,7 +745,7 @@ def cli() -> None:
     except ImportError:
         sys.exit("The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'")
 
-    subcommands = {"check", "expiry", "chains", "all", "report"}
+    subcommands = {"check", "expiry", "chains", "all", "status"}
     argv = sys.argv[1:]
     if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
         argv = ["check", *argv]
@@ -758,7 +756,7 @@ def cli() -> None:
             "expiry": _wrap(cmd_expiry),
             "chains": _wrap(cmd_chains),
             "all": _wrap(cmd_all),
-            "report": _wrap(cmd_report),
+            "status": _wrap(cmd_status),
         },
         command=argv,
     )

@@ -27,9 +27,9 @@ pydeprecate check mypackage.submodule    # importable module name also accepted
 
 ```bash
 # Run all checks + deprecation table on the bundled test fixtures
-pydeprecate all tests
-# Standalone deprecation table only
-pydeprecate report tests
+pydeprecate all tests --version 1.2
+# Standalone deprecation status table only
+pydeprecate status tests --version 1.2
 ```
 
 `tests/` contains pyDeprecate's own deprecation fixtures. Note: `expiry` and `chains` (run as part of `all`) require an importable package name rather than a plain directory path.
@@ -89,21 +89,21 @@ pydeprecate report tests
 
     Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. If `packaging` is not installed, expiry is skipped with a warning and does not cause exit `1`. The deprecation table is always appended regardless of pass/fail outcome.
 
-=== "report"
+=== "status"
 
     Generates and prints a markdown deprecation table to stdout. Standalone — runs no checks and always exits `0`. Use this when you only want to render the deprecation status table without running any validation.
 
     ```bash
-    pydeprecate report path/to/your/package
-    pydeprecate report path/to/your/package --style matrix
-    pydeprecate report path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
+    pydeprecate status path/to/your/package
+    pydeprecate status path/to/your/package --style matrix
+    pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
     ```
 
     `--style compact` (default) renders one row per symbol with a status column; `--style matrix` renders one column per version with `D`/`R` lifecycle markers. `--output FILE` writes the table to a file in addition to printing it to stdout.
 
 ## Flags
 
-| Flag                | `check` | `expiry` | `chains` | `all` | `report` | Effect                                                                                                  | Note                                                                                                 |
+| Flag                | `check` | `expiry` | `chains` | `all` | `status` | Effect                                                                                                  | Note                                                                                                 |
 | ------------------- | :-----: | :------: | :------: | :---: | :------: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `--version VERSION` |         |    ✓     |          |   ✓   |    ✓     | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |                                                                                                      |
 | `--norecursive`     |    ✓    |    ✓     |    ✓     |   ✓   |    ✓     | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
@@ -119,7 +119,7 @@ pydeprecate report tests
 | `expiry`   | No expired wrappers                                             | Expired wrappers found; or `packaging` not installed                  |
 | `chains`   | No chains                                                       | Deprecated-to-deprecated chains found                                 |
 | `all`      | All checks clean (deprecation table always appended)            | Any hard error above (`packaging` missing → skips expiry, no failure) |
-| `report`   | Always — report generation is not a pass/fail gate              | Invalid `--style` value                                               |
+| `status`   | Always — status table is not a pass/fail gate                        | —                                               |
 
 ## Path formats
 

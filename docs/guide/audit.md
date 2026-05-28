@@ -487,8 +487,8 @@ pydeprecate check src/your_package
 # all — exits 1 on invalid mappings, chains, or expired wrappers; appends deprecation table
 pydeprecate all src/your_package
 
-# report — standalone deprecation table only (no checks, always exits 0)
-pydeprecate report src/your_package
+# status — standalone deprecation status table only (no checks, always exits 0)
+pydeprecate status src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
 pydeprecate check src/your_package --skip_errors true
@@ -652,20 +652,20 @@ The `match` parameter on `assert_no_warnings` accepts a substring — it filters
 
 ## Generating Deprecation Tables
 
-`generate_deprecation_markdown()` renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two `style=` options:
+`generate_deprecation_table()` renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two `style=` options:
 
 - `"compact"` (default) — one row per symbol with a **Current Status** column (`⚠️ Active Warning`, `❌ Past Removal Date`, `ℹ️ No Removal Target`, etc.)
 - `"matrix"` — one column per version with `D` (deprecated) and `R` (remove) markers
 
 ```python
 from tests import collection_deprecate as my_package
-from deprecate import generate_deprecation_markdown
+from deprecate import generate_deprecation_table
 
 # Compact style — includes status per symbol
-report = generate_deprecation_markdown(my_package, current_version="1.5", recursive=False)
+report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
 
 # Matrix style — version columns with lifecycle markers
-matrix = generate_deprecation_markdown(my_package, style="matrix", recursive=False)
+matrix = generate_deprecation_table(my_package, style="matrix", recursive=False)
 ```
 
 The report derives all data from `__deprecated__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.

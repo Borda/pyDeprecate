@@ -3,9 +3,8 @@
 Internal utilities that resolve a package's version from either a local ``pyproject.toml`` (development checkout) or
 installed distribution metadata.
 
-TOML parsing uses ``tomllib`` (Python 3.11+ stdlib) or the ``tomli`` backport (available via ``pip install
-'pyDeprecate[audit]'`` on Python 3.9–3.10). When neither is available the helpers return ``None`` and callers fall back
-to ``importlib.metadata``.
+TOML parsing uses ``tomlkit`` (available via ``pip install 'pyDeprecate[audit]'``). When not available the helpers
+return ``None`` and callers fall back to ``importlib.metadata``.
 
 This module is private (no ``__all__``); its surface may change without notice.
 
@@ -16,7 +15,7 @@ from typing import Any, Optional
 
 
 def _load_toml(path: str) -> dict[str, Any]:
-    r"""Load a TOML file using ``tomllib`` (3.11+) or ``tomli`` backport.
+    r"""Load a TOML file using ``tomlkit``.
 
     Returns an empty dict on any failure (missing library, parse error, IO).
 
@@ -31,12 +30,10 @@ def _load_toml(path: str) -> dict[str, Any]:
 
     """
     try:
-        try:
-            import tomllib  # Python 3.11+
-        except ImportError:
-            import tomli as tomllib
-        with open(path, "rb") as fh:
-            return tomllib.load(fh)
+        import tomlkit
+
+        with open(path, encoding="utf-8") as fh:
+            return dict(tomlkit.load(fh))
     except Exception:
         return {}
 
@@ -112,16 +109,16 @@ def _version_from_toml(toml_path: str, scan_path: str) -> Optional[str]:
 
 
 def _read_pyproject_version(path: str) -> Optional[str]:
-    """Return ``[project].version`` from the nearest ``pyproject.toml`` above *path*.
+    """Return ``[project].version`` from the nearest ``pyproject.toml`` up to 2 levels above *path*.
 
-    Walks up from *path* until a ``pyproject.toml`` with a resolvable
-    ``[project].version`` is found or the filesystem root is reached.
+    Searches the directory itself, its parent, and its grandparent — stops
+    as soon as a resolvable version is found or the limit is reached.
 
     Args:
         path: File-system path to start the upward search from.
 
     Returns:
-        Version string or ``None`` when not found.
+        Version string or ``None`` when not found within 2 levels.
 
     """
     import os
@@ -129,7 +126,7 @@ def _read_pyproject_version(path: str) -> Optional[str]:
     candidate = os.path.abspath(path)
     if not os.path.isdir(candidate):
         candidate = os.path.dirname(candidate)
-    while True:
+    for _ in range(3):  # current dir + 2 levels up
         toml_path = os.path.join(candidate, "pyproject.toml")
         if os.path.isfile(toml_path):
             version = _version_from_toml(toml_path, path)

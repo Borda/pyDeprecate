@@ -24,7 +24,7 @@ from deprecate.audit import (
     _get_package_version,
     _parse_version,
     find_deprecation_wrappers,
-    generate_deprecation_markdown,
+    generate_deprecation_table,
     validate_deprecation_chains,
     validate_deprecation_wrapper,
 )
@@ -507,7 +507,7 @@ class TestGenerateDeprecationMarkdown:
     @_requires_packaging
     def test_markdown_includes_top_level_and_class_members(self) -> None:
         """Markdown report includes functions, methods, and deprecated constructors."""
-        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
         assert "| Original API | API Type | New API | Deprecated | Remove | Current Status |" in report
         assert "`tests.collection_deprecate.depr_pow_args`" in report
         assert "`tests.collection_deprecate.ServiceCls.old_warn_method`" in report
@@ -518,7 +518,7 @@ class TestGenerateDeprecationMarkdown:
     @_requires_packaging
     def test_markdown_reports_api_types(self) -> None:
         """Markdown report differentiates callable/args/class/dataclass-attrs/method APIs."""
-        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
         assert "| `tests.collection_deprecate.depr_pow_args` | callable |" in report
         assert "| `tests.collection_deprecate.depr_accuracy_map` | args |" in report
         assert "| `tests.collection_deprecate.DeprecatedColorEnum` | class |" in report
@@ -527,7 +527,7 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_groups_class_members_together(self) -> None:
         """Rows are ordered by module/symbol family so class members stay contiguous."""
-        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
         symbols = self._extract_markdown_symbols(report)
         service_cls = [
             i for i, symbol in enumerate(symbols) if symbol.startswith("tests.collection_deprecate.ServiceCls.")
@@ -539,7 +539,7 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_handles_missing_or_unknown_version_status(self) -> None:
         """Missing remove_in and non-package modules degrade to informational statuses."""
-        report = generate_deprecation_markdown("tests.collection_deprecate", recursive=False)
+        report = generate_deprecation_table("tests.collection_deprecate", recursive=False)
         assert "`tests.collection_deprecate.depr_func_no_remove_in`" in report
         assert "v1.0 | — | ℹ️ No Removal Target" in report
         assert "⚪ Status Unknown" in report
@@ -548,14 +548,14 @@ class TestGenerateDeprecationMarkdown:
     def test_invalid_current_version_raises(self) -> None:
         """Explicit invalid current_version raises a clear ValueError."""
         with pytest.raises(ValueError, match="Invalid current_version"):
-            generate_deprecation_markdown(proxy_module, current_version="not-a-version", recursive=False)
+            generate_deprecation_table(proxy_module, current_version="not-a-version", recursive=False)
 
     def test_empty_module_markdown_produces_header_only(self) -> None:
         """Empty module yields a valid header-only markdown table with no data rows."""
         import types
 
         mod = types.ModuleType("empty_test_module")
-        report = generate_deprecation_markdown(mod, recursive=False)
+        report = generate_deprecation_table(mod, recursive=False)
         assert "| Original API | API Type | New API | Deprecated | Remove | Current Status |" in report
         assert "| :--- | :--- | :--- | :---: | :---: | :--- |" in report
         data_rows = [ln for ln in report.splitlines() if ln.startswith("| `")]
@@ -564,7 +564,7 @@ class TestGenerateDeprecationMarkdown:
     @_requires_packaging
     def test_markdown_matrix_style_marks_deprecate_and_remove_versions(self) -> None:
         """Matrix style adds version columns and D/R markers per symbol lifecycle."""
-        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False, style="matrix")
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False, style="matrix")
         assert "| Original API | API Type | New API |" in report
         assert "v1.0" in report
         assert "v2.0" in report
@@ -575,7 +575,7 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_invalid_style_raises(self) -> None:
         """Unknown style value raises ValueError with valid choices listed."""
         with pytest.raises(ValueError, match="Invalid style"):
-            generate_deprecation_markdown(proxy_module, recursive=False, style="bad-style")  # type: ignore[arg-type]
+            generate_deprecation_table(proxy_module, recursive=False, style="bad-style")  # type: ignore[arg-type]
 
     def test_markdown_recursive_includes_submodules(self) -> None:
         """recursive=True discovers wrappers across submodules, not just the top-level."""
@@ -583,12 +583,12 @@ class TestGenerateDeprecationMarkdown:
 
         symbols_recursive = {
             line.split("|", maxsplit=3)[1].strip().strip("`")
-            for line in generate_deprecation_markdown(tests, recursive=True).splitlines()
+            for line in generate_deprecation_table(tests, recursive=True).splitlines()
             if line.startswith("| `")
         }
         symbols_top = {
             line.split("|", maxsplit=3)[1].strip().strip("`")
-            for line in generate_deprecation_markdown(top_pkg, recursive=False).splitlines()
+            for line in generate_deprecation_table(top_pkg, recursive=False).splitlines()
             if line.startswith("| `")
         }
         assert symbols_top.issubset(symbols_recursive)
@@ -597,14 +597,14 @@ class TestGenerateDeprecationMarkdown:
     @_requires_packaging
     def test_markdown_matrix_same_version_produces_dr_marker(self) -> None:
         """Matrix style emits D/R marker when deprecated_in equals remove_in."""
-        report = generate_deprecation_markdown(
+        report = generate_deprecation_table(
             "tests.collection_deprecate", recursive=False, style="matrix", current_version="2.0"
         )
         assert "| D/R |" in report
 
     def test_markdown_matrix_no_remove_in_omits_r_column(self) -> None:
         """Matrix style symbol with no remove_in has D marker but no R marker in its row."""
-        report = generate_deprecation_markdown("tests.collection_deprecate", recursive=False, style="matrix")
+        report = generate_deprecation_table("tests.collection_deprecate", recursive=False, style="matrix")
         # Find the row for depr_func_no_remove_in
         rows = [ln for ln in report.splitlines() if "depr_func_no_remove_in" in ln]
         assert rows, "depr_func_no_remove_in must appear in matrix report"
@@ -614,7 +614,7 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_current_version_none_auto_resolves_from_package(self) -> None:
         """current_version=None for an installed package resolves a real version, not Status Unknown."""
-        report = generate_deprecation_markdown(deprecated, current_version=None, recursive=True)
+        report = generate_deprecation_table(deprecated, current_version=None, recursive=True)
         # deprecate has no deprecated symbols, so report is header-only — but no crash, no ImportError
         assert "| Original API |" in report
 
@@ -633,21 +633,21 @@ class TestGenerateDeprecationMarkdown:
             """Old."""
 
         mod._old_fn = _old_fn  # type: ignore[attr-defined]
-        report = generate_deprecation_markdown(mod, current_version=None, recursive=False)
+        report = generate_deprecation_table(mod, current_version=None, recursive=False)
         # With no version resolving (mod.__name__=="deprecate" but it's a fake module object),
         # status degrades to Status Unknown — that's fine; the path is exercised without crash.
         assert "| Original API |" in report
 
     def test_markdown_include_members_false_excludes_class_methods(self) -> None:
         """include_members=False suppresses class member rows from the markdown output."""
-        report = generate_deprecation_markdown(proxy_module, recursive=False, include_members=False)
+        report = generate_deprecation_table(proxy_module, recursive=False, include_members=False)
         assert "ServiceCls.old_warn_method" not in report
         assert "PastCls.__init__" not in report
 
     @_requires_packaging
     def test_markdown_reports_classmethod_and_staticmethod_api_types(self) -> None:
         """Markdown report classifies classmethod and staticmethod descriptors correctly."""
-        report = generate_deprecation_markdown(proxy_module, current_version="1.5", recursive=False)
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
         assert "| `tests.collection_deprecate.ServiceCls.old_class_method` | classmethod |" in report
         assert "| `tests.collection_deprecate.ServiceCls.old_class_method_args` | classmethod args |" in report
         assert "| `tests.collection_deprecate.ServiceCls.old_static_method` | staticmethod |" in report
@@ -667,7 +667,7 @@ class TestGenerateDeprecationMarkdown:
 
         mod.bad_remove = bad_remove  # type: ignore[attr-defined]
         mod.__name__ = "test_bad_remove"  # type: ignore[attr-defined]
-        report = generate_deprecation_markdown(mod, current_version="1.5", recursive=False)
+        report = generate_deprecation_table(mod, current_version="1.5", recursive=False)
         assert "⚪ Invalid Removal Target" in report
 
 

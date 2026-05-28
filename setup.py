@@ -91,8 +91,8 @@ setup(
     extras_require={
         "audit": [
             "packaging>=20.0",
-            'tomli>=1.2; python_version < "3.11"',
-        ],  # For validate_deprecation_expiry and validation tools
+            "tomlkit>=0.11",
+        ],  # For validate_deprecation_expiry and pyproject.toml version detection
         "cli": ["fire", "rich"],  # For pydeprecate CLI command and Rich output support
     },
     project_urls={
