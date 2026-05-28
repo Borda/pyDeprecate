@@ -1114,7 +1114,9 @@ def generate_deprecation_table(
     try:
         style = ReportStyle(style)
     except ValueError as err:
-        raise ValueError(f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in ReportStyle)}.") from err
+        raise ValueError(
+            f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in ReportStyle)}."
+        ) from err
 
     resolved_version, parsed_version = _resolve_report_version(module, current_version=current_version)
     if _wrappers is None:
@@ -1181,8 +1183,6 @@ def generate_deprecation_table(
         rows.insert(0, f"<!-- Current version: {resolved_version} -->")
 
     return "\n".join(rows)
-
-
 
 
 def validate_deprecation_chains(

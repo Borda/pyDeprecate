@@ -3,8 +3,8 @@
 Internal utilities that resolve a package's version from either a local ``pyproject.toml`` (development checkout) or
 installed distribution metadata.
 
-TOML parsing uses ``tomllib`` (stdlib on Python 3.11+) or ``tomli`` (backport, via ``pip install 'pyDeprecate[audit]'`` on Python 3.10). When not available the helpers
-return ``None`` and callers fall back to ``importlib.metadata``.
+TOML parsing uses ``tomllib`` (stdlib on Python 3.11+) or ``tomli`` (backport, via ``pip install 'pyDeprecate[audit]'``
+on Python 3.10). When not available the helpers return ``None`` and callers fall back to ``importlib.metadata``.
 
 This module is private (no ``__all__``); its surface may change without notice.
 

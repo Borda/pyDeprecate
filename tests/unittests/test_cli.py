@@ -776,6 +776,7 @@ class TestHasRichFalse:
         captured = capsys.readouterr()
         assert "Skipping nested Python files" in captured.err
 
+
 class TestCmdStatus:
     """Tests for cmd_status() — markdown table rendering."""
 
@@ -861,4 +862,3 @@ class TestCmdStatus:
         assert result == 0
         assert out_file.exists()
         assert "| Col |" in out_file.read_text()
-

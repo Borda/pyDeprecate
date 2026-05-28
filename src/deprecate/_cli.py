@@ -637,7 +637,9 @@ def cmd_all(
     if version is not None:
         version = str(version)
     version_path = path if Path(path).exists() else None
-    resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=version_path)
+    resolved_version = (
+        version if version is not None else _auto_detect_version(_safe_module_name(path), path=version_path)
+    )
     _print_scan_header(path, resolved_version, user_provided=version is not None)
     with _managed_sys_path(path):
         wrappers = _scan_path(path, recursive=recursive)
