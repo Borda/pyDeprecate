@@ -106,7 +106,8 @@ def _managed_sys_path(path: str) -> Generator[None, None, None]:
         sys.path.insert(0, import_root)
     try:
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+            warnings.filterwarnings("ignore", category=DeprecationWarning, module="deprecate.*")
+            warnings.filterwarnings("ignore", category=FutureWarning, module="deprecate.*")
             yield
     finally:
         sys.path[:] = original
