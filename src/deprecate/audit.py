@@ -1182,7 +1182,6 @@ def generate_deprecation_table(
     return "\n".join(rows)
 
 
-generate_deprecation_markdown = generate_deprecation_table  # deprecated since 0.8, use generate_deprecation_table
 
 
 def validate_deprecation_chains(
