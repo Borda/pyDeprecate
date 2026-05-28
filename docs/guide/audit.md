@@ -666,7 +666,7 @@ from deprecate import generate_deprecation_table
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
 ```
 
-```text
+```markdown
 <!-- Current version: 1.5 -->
 | Original API | API Type | New API | Deprecated | Remove | Current Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
@@ -689,7 +689,7 @@ from deprecate import generate_deprecation_table
 matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
 ```
 
-```text
+```markdown
 <!-- Current version: 1.5 -->
 | Original API | API Type | New API | v0.1 | v0.5 | v1.0 | v1.3 | v2.0 |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |

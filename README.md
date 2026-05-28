@@ -1343,7 +1343,7 @@ from deprecate import generate_deprecation_table
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
 ```
 
-```text
+```markdown
 <!-- Current version: 1.5 -->
 | Original API | API Type | New API | Deprecated | Remove | Current Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
