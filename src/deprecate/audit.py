@@ -1053,9 +1053,8 @@ def _get_report_status(info: DeprecationWrapperInfo, current_version: Optional["
     # base_version strips pre/post/dev/local markers so "1.8" == "1.8.0" compare equal.
     if current_version.is_prerelease:
         try:
-            from packaging.version import Version as _BaseVersion
-
-            same_base = _BaseVersion(current_version.base_version) == _BaseVersion(remove_version.base_version)
+            _VersionType = type(current_version)
+            same_base = _VersionType(current_version.base_version) == _VersionType(remove_version.base_version)
         except Exception:
             same_base = False
         if same_base:
