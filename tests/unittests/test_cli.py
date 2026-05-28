@@ -14,6 +14,7 @@ from deprecate._cli import (
     cmd_chains,
     cmd_check,
     cmd_expiry,
+    cmd_status,
 )
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
@@ -774,3 +775,90 @@ class TestHasRichFalse:
             assert cmd_check(path=str(tmp_path)) == 0
         captured = capsys.readouterr()
         assert "Skipping nested Python files" in captured.err
+
+class TestCmdStatus:
+    """Tests for cmd_status() — markdown table rendering."""
+
+    @patch("deprecate._cli.generate_deprecation_table", return_value="| A | B |\n| :--- | :--- |\n| `fn` | callable |")
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_exits_0_and_prints_table(
+        self,
+        mock_find: MagicMock,
+        mock_gen: MagicMock,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """cmd_status exits 0 and prints the generated table to stdout."""
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").touch()
+
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
+            result = cmd_status(path=str(pkg))
+
+        assert result == 0
+        assert "| A | B |" in capsys.readouterr().out
+
+    @patch("deprecate._cli.generate_deprecation_table", return_value="| A |")
+    def test_pre_scanned_wrappers_skip_scan(
+        self,
+        mock_gen: MagicMock,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Providing _wrappers bypasses find_deprecation_wrappers."""
+        wrappers = [DeprecationWrapperInfo(module="m", function="f")]
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").touch()
+
+        with patch("deprecate._cli.find_deprecation_wrappers") as mock_find:
+            with patch("deprecate._cli._Reporter._HAS_RICH", False):
+                cmd_status(path=str(pkg), _wrappers=wrappers)
+            mock_find.assert_not_called()
+        mock_gen.assert_called_once()
+        _, kwargs = mock_gen.call_args
+        assert kwargs.get("_wrappers") == wrappers
+
+    @patch("deprecate._cli.generate_deprecation_table", return_value="| A |")
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_invalid_style_falls_back_to_compact(
+        self,
+        mock_find: MagicMock,
+        mock_gen: MagicMock,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Unknown style value falls back to compact with a stderr warning and exits 0."""
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").touch()
+
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
+            result = cmd_status(path=str(pkg), style="bogus")
+
+        assert result == 0
+        assert "falling back" in capsys.readouterr().err.lower()
+
+    @patch("deprecate._cli.generate_deprecation_table", return_value="| Col |\n| :--- |\n| `fn` |")
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_output_writes_to_file(
+        self,
+        mock_find: MagicMock,
+        mock_gen: MagicMock,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """--output writes the markdown to a file in addition to stdout."""
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").touch()
+        out_file = tmp_path / "DEPRECATIONS.md"
+
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
+            result = cmd_status(path=str(pkg), output=str(out_file))
+
+        assert result == 0
+        assert out_file.exists()
+        assert "| Col |" in out_file.read_text()
+
