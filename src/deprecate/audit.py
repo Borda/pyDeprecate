@@ -82,7 +82,7 @@ class ReportStatus(str, enum.Enum):
     SCHEDULED_DEPRECATION = "🕒 Scheduled Deprecation"  # current < deprecated_in
     NO_REMOVAL_TARGET = "ℹ️ No Removal Target"  # remove_in not set
     STATUS_UNKNOWN = "⚪ Status Unknown"  # current_version unavailable
-    INVALID_REMOVAL_TARGET = "🚫 Invalid Removal Target"  # remove_in unparsable
+    INVALID_REMOVAL_TARGET = "⚪ Invalid Removal Target"  # remove_in unparsable
     ACTIVE_WARNING = "📢 Deprecation Active"  # current < remove_in (different base)
     REMOVAL_IMMINENT = "⏰ Removal Imminent"  # pre-release dev/a/b of remove_in base
     REMOVE_BEFORE_RELEASE = "🔔 Remove Before Release"  # RC of the remove_in base release
