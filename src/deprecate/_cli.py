@@ -67,9 +67,9 @@ def _find_child_packages(pth: Path) -> list[Path]:
     """Return package sub-directories of *pth*, checking ``src/`` when none found directly.
 
     Resolution order:
-    1. Immediate child directories of *pth* that contain ``__init__.py``.
-    2. If none, immediate child directories of ``pth/src/`` that contain ``__init__.py``
-       (standard ``src/``-layout project root).
+    1. Immediate child directories of ``pth/src/`` that contain ``__init__.py``
+       (standard ``src/``-layout projects take precedence).
+    2. If none, immediate child directories of *pth* that contain ``__init__.py``.
 
     Args:
         pth: Directory to search.
