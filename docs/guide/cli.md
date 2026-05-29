@@ -63,7 +63,7 @@ pydeprecate status tests --version 1.2
     pydeprecate expiry path/to/your/package
     ```
 
-    Exit 1 if any wrapper is past its removal deadline, or if `packaging` is not installed (use `--skip_errors` to suppress).
+    Exit 1 if any wrapper is past its removal deadline, or if `packaging` is not installed (use `--exit-zero` to suppress).
 
 === "chains"
 
@@ -107,7 +107,7 @@ pydeprecate status tests --version 1.2
 | ------------------- | :-----: | :------: | :------: | :---: | :------: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `--version VERSION` |         |    ✓     |          |   ✓   |    ✓     | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |                                                                                                      |
 | `--norecursive`     |    ✓    |    ✓     |    ✓     |   ✓   |    ✓     | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
-| `--skip_errors`     |    ✓    |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
+| `--exit-zero`     |    ✓    |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
 | `--style`           |         |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                |                                                                                                      |
 | `--output FILE`     |         |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                   |                                                                                                      |
 
