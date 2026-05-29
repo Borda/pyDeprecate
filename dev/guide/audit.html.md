@@ -491,14 +491,14 @@ pydeprecate all src/your_package
 pydeprecate status src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
-pydeprecate check src/your_package --skip_errors true
+pydeprecate check src/your_package --exit-zero
 ```
 
 **Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
 
 | Exit code | Meaning                                                             |
 | --------- | ------------------------------------------------------------------- |
-| `0`       | No hard errors (or `--skip_errors true` was set)                    |
+| `0`       | No hard errors (or `--exit-zero` was set)                           |
 | `1`       | Hard error found: invalid arg mappings, chains, or expired wrappers |
 
 ## Testing Deprecated Code

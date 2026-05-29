@@ -63,7 +63,7 @@ pydeprecate status tests --version 1.2
     pydeprecate expiry path/to/your/package
     ```
 
-    Exit 1 if any wrapper is past its removal deadline, or if `packaging` is not installed (use `--skip_errors` to suppress).
+    Exit 1 if any wrapper is past its removal deadline. If `packaging` is not installed, the check is skipped with a warning and exits 0 (use `--exit-zero` to suppress exit 1 when expired wrappers are found).
 
 === "chains"
 
@@ -107,19 +107,19 @@ pydeprecate status tests --version 1.2
 | ------------------- | :-----: | :------: | :------: | :---: | :------: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `--version VERSION` |         |    ✓     |          |   ✓   |    ✓     | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              |                                                                                                      |
 | `--norecursive`     |    ✓    |    ✓     |    ✓     |   ✓   |    ✓     | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
-| `--skip_errors`     |    ✓    |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
+| `--exit-zero`       |    ✓    |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
 | `--style`           |         |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                |                                                                                                      |
 | `--output FILE`     |         |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                   |                                                                                                      |
 
 ## Exit codes
 
-| Subcommand | Exit `0`                                                        | Exit `1`                                                              |
-| ---------- | --------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `check`    | Clean or advisory warnings only (chains / identity / no-effect) | Invalid argument mappings found                                       |
-| `expiry`   | No expired wrappers                                             | Expired wrappers found; or `packaging` not installed                  |
-| `chains`   | No chains                                                       | Deprecated-to-deprecated chains found                                 |
-| `all`      | All checks clean (deprecation table always appended)            | Any hard error above (`packaging` missing → skips expiry, no failure) |
-| `status`   | Always — status table is not a pass/fail gate                   | —                                                                     |
+| Subcommand | Exit `0`                                                                 | Exit `1`                                                              |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       |
+| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    |
+| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 |
+| `all`      | All checks clean (deprecation table always appended)                     | Any hard error above (`packaging` missing → skips expiry, no failure) |
+| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     |
 
 ## Path formats
 
