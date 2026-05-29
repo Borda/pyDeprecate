@@ -981,7 +981,7 @@ async def new_fetch(url: str) -> bytes:
     return url.encode()
 
 
-@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0", stream=logging.warning, num_warns=-1)
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0", stream=logging.warning)
 async def old_fetch(url: str) -> bytes:
     pass
 ```
