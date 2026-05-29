@@ -829,7 +829,7 @@ def find_deprecation_wrappers(
         """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
         if _has_deprecation_meta(obj):
             info = validate_deprecation_wrapper(obj)
-            api_type = classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
+            api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
             info = replace(info, module=module_name, function=qualified_name, api_type=api_type)
             results.append(info)
 
@@ -871,12 +871,8 @@ def find_deprecation_wrappers(
 
             if _has_deprecation_meta(obj):
                 info = validate_deprecation_wrapper(obj)
-                info = replace(
-                    info,
-                    module=mod_name,
-                    function=name,
-                    api_type=_classify_wrapper_api_type(obj, info),
-                )
+                api_type = _classify_wrapper_api_type(obj, info)
+                info = replace(info, module=mod_name, function=name, api_type=api_type)
                 results.append(info)
             elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
                 _scan_class(obj, mod_name, name)
