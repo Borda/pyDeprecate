@@ -89,7 +89,10 @@ setup(
     setup_requires=[],
     install_requires=[],
     extras_require={
-        "audit": ["packaging>=20.0"],  # For validate_deprecation_expiry and validation tools
+        "audit": [
+            "packaging>=20.0",
+            "tomli>=2.0; python_version<'3.11'",  # tomllib stdlib in 3.11+
+        ],  # For validate_deprecation_expiry and pyproject.toml version detection
         "cli": ["fire", "rich"],  # For pydeprecate CLI command and Rich output support
     },
     project_urls={

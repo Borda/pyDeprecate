@@ -21,6 +21,7 @@ Core Components:
 **Audit** (:mod:`deprecate.audit`):
     - :func:`~deprecate.audit.validate_deprecation_wrapper`: Validate a single wrapper's configuration
     - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
+    - :func:`~deprecate.audit.generate_deprecation_table`: Build compact or matrix markdown deprecation tables
     - :func:`~deprecate.audit.validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
     - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated wrappers chaining to
       other deprecated wrappers
@@ -73,9 +74,12 @@ from deprecate._types import TargetMode
 from deprecate.audit import (
     ChainType,
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
+    DeprecationStatus,
     DeprecationWrapperInfo,
+    TableStyle,
     find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
     find_deprecation_wrappers,
+    generate_deprecation_table,
     validate_deprecated_callable,  # noqa: F401 # deprecated since 0.6, use validate_deprecation_wrapper
     validate_deprecation_chains,
     validate_deprecation_expiry,
@@ -92,12 +96,15 @@ from deprecate.utils import (
 __all__ = [
     "ChainType",
     "DeprecationWrapperInfo",
+    "DeprecationStatus",
+    "TableStyle",
     "TargetMode",
     "assert_no_warnings",
     "deprecated",
     "deprecated_class",
     "deprecated_instance",
     "find_deprecation_wrappers",
+    "generate_deprecation_table",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
     "validate_deprecation_wrapper",

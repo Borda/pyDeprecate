@@ -39,6 +39,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `all_identity` — `True` if every entry in `args_mapping` maps a key to itself
 - `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
 - `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
+- `api_type` — inferred API kind for report generation (e.g. `callable`, `args`, `class`, `dataclass attributes`, `class method`); excluded from `repr()` to keep snapshot tests stable
 
 ### Validating a single function
 
@@ -140,9 +141,9 @@ for r in results[:5]:
 Found 0 deprecated wrappers with zero impact!
 tests.collection_deprecate.ChainedProxyColorEnum: no_effect=False
 tests.collection_deprecate.CrossGuardModuleLevel.old_method: no_effect=False
+tests.collection_deprecate.CrossGuardOldClass.__init__: no_effect=False
 tests.collection_deprecate.CrossGuardSameClass.old_method: no_effect=False
 tests.collection_deprecate.DecoratedDataClass: no_effect=False
-tests.collection_deprecate.DecoratedEnum: no_effect=False
 ```
 
 </details>
@@ -230,7 +231,7 @@ Self-references: 0
 
 ### CLI usage
 
-All audit functions are also available from the command line via four subcommands (`check`, `expiry`, `chains`, `all`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
+All audit functions are also available from the command line via five subcommands (`check`, `expiry`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
 
 ### pytest integration
 
@@ -474,7 +475,7 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
     Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
 
-The CLI provides four subcommands. Use `check` for wrapper config validation or `all` to run every check in a single pass. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
+The CLI provides five subcommands. Use `check` for wrapper config validation, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
 ```bash
 # Install CLI + audit extras (audit needed for expiry checks)
@@ -483,8 +484,11 @@ pip install 'pyDeprecate[audit,cli]'
 # check — exits 1 if invalid arg mappings are found
 pydeprecate check src/your_package
 
-# all — exits 1 on invalid mappings, chains, or expired wrappers
+# all — exits 1 on invalid mappings, chains, or expired wrappers; appends deprecation table
 pydeprecate all src/your_package
+
+# status — standalone deprecation status table only (no checks, always exits 0)
+pydeprecate status src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
 pydeprecate check src/your_package --skip_errors true
@@ -645,6 +649,57 @@ print(clean_session)
 | `warnings.catch_warnings()` + `simplefilter("ignore")` | Calling deprecated code in fixtures/setup without assertion | Silently suppresses; never fails                       |
 
 The `match` parameter on `assert_no_warnings` accepts a substring — it filters captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
+
+## Generating Deprecation Tables
+
+`generate_deprecation_table()` renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two `style=` options:
+
+- `"compact"` (default) — one row per symbol with a **Current Status** column (`📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, etc.)
+- `"matrix"` — one column per version with `D` (deprecated) and `R` (remove) markers
+
+**Compact style** — one row per symbol with a lifecycle status column:
+
+```python
+from tests import collection_deprecate as my_package
+from deprecate import generate_deprecation_table
+
+report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
+```
+
+> **Current version: 1.5**
+>
+> | Original API                                | API Type          | New API                               | Deprecated | Remove | Current Status           |
+> | :------------------------------------------ | :---------------- | :------------------------------------ | :--------: | :----: | :----------------------- |
+> | `my_package.CrossGuardOldClass.__init__`    | class constructor | `my_package.CrossGuardClassTargetNew` |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.DecoratedDataClass`             | dataclass         | `my_package.NewDataClass`             |    v0.5    |  v1.0  | 💥 Past Removal Date     |
+> | `my_package.ServiceCls.old_class_method`    | classmethod       | `—`                                   |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.ServiceCls.old_redirect_method` | class method      | `my_package.ServiceCls.compute`       |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.depr_func_no_remove_in`         | callable          | `—`                                   |    v1.0    |   —    | ℹ️ No Removal Target     |
+> | `my_package.depr_func_same_version`         | callable          | `—`                                   |    v2.0    |  v3.0  | 🕒 Scheduled Deprecation |
+> | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |    v1.0    |  v1.3  | 💥 Past Removal Date     |
+> | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |    v0.1    |  v0.5  | 💥 Past Removal Date     |
+
+**Matrix style** — one column per version with `D` (deprecated) and `R` (remove) lifecycle markers:
+
+```python
+from tests import collection_deprecate as my_package
+from deprecate import generate_deprecation_table
+
+matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
+```
+
+> **Current version: 1.5**
+>
+> | Original API                                | API Type          | New API                               | v0.1 | v0.5 | v1.0 | v1.3 | v2.0 |
+> | :------------------------------------------ | :---------------- | :------------------------------------ | :--: | :--: | :--: | :--: | :--: |
+> | `my_package.CrossGuardOldClass.__init__`    | class constructor | `my_package.CrossGuardClassTargetNew` |      |      |  D   |      |  R   |
+> | `my_package.DecoratedDataClass`             | dataclass         | `my_package.NewDataClass`             |      |  D   |      |      |      |
+> | `my_package.ServiceCls.old_redirect_method` | class method      | `my_package.ServiceCls.compute`       |      |      |  D   |      |  R   |
+> | `my_package.depr_func_no_remove_in`         | callable          | `—`                                   |      |      |  D   |      |      |
+> | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |      |      |  D   |  R   |      |
+> | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |  D   |      |      |      |      |
+
+The table derives all data from `__deprecated__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.
 
 ## See also
 

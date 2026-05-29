@@ -910,6 +910,17 @@ class DeprecatedTimerDecorator(TimerDecorator):
 # ========== Testing Expiry Enforcement Examples ==========
 
 
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="2.0")
+def depr_func_same_version(x: int) -> int:
+    """Deprecation with identical deprecated_in and remove_in — exercises D/R matrix marker.
+
+    Examples:
+        Function is deprecated and scheduled for removal in the same version.
+
+    """
+    return x
+
+
 @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0")
 def depr_func_no_remove_in(x: int) -> int:
     """Warning-only deprecation with no removal deadline.
@@ -987,6 +998,70 @@ class ServiceCls:
     def compute_scaled(self, value: int, scale: int = 1) -> int:
         """Current implementation with renamed and extended signature."""
         return value * 2 * scale
+
+    @classmethod
+    def class_compute(cls, x: int) -> int:
+        """Current classmethod implementation."""
+        return x * 2
+
+    @staticmethod
+    def static_compute(x: int) -> int:
+        """Current staticmethod implementation."""
+        return x * 2
+
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    @classmethod
+    def old_class_method(cls, x: int) -> int:
+        """Deprecated classmethod — warns only, body still executes.
+
+        Examples:
+            Deprecated classmethod that forwards to class_compute after warning.
+
+        """
+        return cls.class_compute(x)
+
+    @deprecated(
+        target=TargetMode.ARGS_REMAP,
+        args_mapping={"old_x": "x"},
+        deprecated_in="1.0",
+        remove_in="2.0",
+    )
+    @classmethod
+    def old_class_method_args(cls, old_x: int = 0, x: int = 0) -> int:
+        """Deprecated classmethod with argument rename.
+
+        Examples:
+            Deprecated classmethod remapping old_x to x before body executes.
+
+        """
+        return cls.class_compute(x)
+
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    @staticmethod
+    def old_static_method(x: int) -> int:
+        """Deprecated staticmethod — warns only, body still executes.
+
+        Examples:
+            Deprecated staticmethod that warns and returns result.
+
+        """
+        return x * 2
+
+    @deprecated(
+        target=TargetMode.ARGS_REMAP,
+        args_mapping={"old_x": "x"},
+        deprecated_in="1.0",
+        remove_in="2.0",
+    )
+    @staticmethod
+    def old_static_method_args(old_x: int = 0, x: int = 0) -> int:
+        """Deprecated staticmethod with argument rename.
+
+        Examples:
+            Deprecated staticmethod remapping old_x to x before body executes.
+
+        """
+        return x * 2
 
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def old_warn_method(self, x: int) -> int:

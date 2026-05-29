@@ -90,7 +90,7 @@ class TestCliSubcommands:
             cwd=tmp_path,
         )
         assert result.returncode == 0
-        assert "Scanning path" in result.stdout
+        assert "Scanning:" in result.stdout
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_expiry_subcommand_no_expired(self, tmp_path: Path) -> None:
@@ -145,8 +145,22 @@ class TestCliSubcommands:
         )
         assert result.returncode == 0
 
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_status_subcommand_exits_0(self, tmp_path: Path) -> None:
+        """'pydeprecate status <path> --version 1.0' exits 0 and prints a markdown table."""
+        pkg = _make_pkg(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "status", str(pkg), "--version", "1.0"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+        assert "Original API" in result.stdout
+
     def test_help_lists_subcommands(self) -> None:
-        """'pydeprecate --help' output includes the four subcommand names."""
+        """'pydeprecate --help' output includes the five subcommand names."""
         result = subprocess.run(
             [sys.executable, "-m", "deprecate", "--help"],
             capture_output=True,
@@ -155,7 +169,7 @@ class TestCliSubcommands:
         )
         assert result.returncode == 0
         combined = result.stdout + result.stderr
-        for name in ("check", "expiry", "chains", "all"):
+        for name in ("check", "expiry", "chains", "all", "status"):
             assert name in combined, f"subcommand '{name}' missing from --help output"
 
     def test_subcommand_help(self) -> None:
