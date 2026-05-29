@@ -104,6 +104,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 - **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
 - **CI/Audit Tools**: Validate wrapper configuration, and—when installed with the `pyDeprecate[audit]` extra—enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
+- **Static Type-Checker Signals**: Native PEP 702 static diagnostics are provided by `typing.deprecated`; with pyDeprecate you can layer `typing.deprecated` on top when you need both static hints and runtime forwarding.
 - **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
 - **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
 - **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
@@ -128,6 +129,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 | **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
 | **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
 | **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| **Static Checker Signal**|      ✍️       |            ❌            |         ❌          |          ❌          |               ✅               |
 | **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
 | **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
 | **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
@@ -137,6 +139,13 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 † `typing.deprecated` in the stdlib on Python 3.13+; also available as `typing_extensions.deprecated` for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
+
+**Fair strengths in alternative tools worth considering:**
+
+- `typing.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes.
+- `deprecation` includes `@fail_if_not_removed`, a focused test helper tightly integrated with its own decorator workflow.
+- `Deprecated` includes `@versionadded` / `@versionchanged` helpers for broader lifecycle annotations in Sphinx-style docs.
+- `warnings.warn` stays the lowest-friction option for one-off internal warnings where compatibility shims are unnecessary.
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.

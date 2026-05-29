@@ -8,13 +8,13 @@ Python has several ways to signal deprecation. The right choice depends on wheth
 
 ## Quick comparison
 
-| Tool                             | Best for                               | Runtime forwarding | Argument rename | Class/object alias | CI audit |
-| -------------------------------- | -------------------------------------- | -----------------: | --------------: | -----------------: | -------: |
-| `warnings.warn`                  | One-off internal warnings              |                 No |              No |                 No |       No |
-| `typing.deprecated`              | Python 3.13+ static-checker visibility |                 No |              No |                 No |       No |
-| `deprecation`                    | Simple decorator warnings              |                 No |              No |                 No |       No |
-| `Deprecated`                     | Simple decorator warnings              |                 No |              No |                 No |       No |
-| **pyDeprecate** *(this library)* | Public API migration compatibility     |                Yes |             Yes |                Yes |      Yes |
+| Tool                             | Best for                               | Runtime forwarding | Argument rename | Class/object alias | CI audit | Static checker signal |
+| -------------------------------- | -------------------------------------- | -----------------: | --------------: | -----------------: | -------: | --------------------: |
+| `warnings.warn`                  | One-off internal warnings              |                 No |              No |                 No |       No |                    No |
+| `typing.deprecated`              | Python 3.13+ static-checker visibility |                 No |              No |                 No |       No |                   Yes |
+| `deprecation`                    | Simple decorator warnings              |                 No |              No |                 No |       No |                    No |
+| `Deprecated`                     | Simple decorator warnings              |                 No |              No |                 No |       No |                    No |
+| **pyDeprecate** *(this library)* | Public API migration compatibility     |                Yes |             Yes |                Yes |      Yes |             Via stacking |
 
 ## Use `warnings.warn` when
 
@@ -151,6 +151,15 @@ print(old_api(1))
 - Need class, constant, or object alias compatibility: use `deprecated_class` or `deprecated_instance`.
 - Need removal deadline checks in CI: use pyDeprecate audit tools.
 - One-off internal warning with no forwarding or CI audit: `warnings.warn` is sufficient.
+
+## Meaningful strengths in alternatives
+
+To keep this comparison fair, here are capabilities where alternatives can be the better fit:
+
+- **`typing.deprecated`**: native static diagnostics in mypy/pyright/IDEs without adding runtime wrappers.
+- **`deprecation`**: includes the `@fail_if_not_removed` test decorator for direct test-failure enforcement when removal deadlines are reached.
+- **`Deprecated`**: includes `@versionadded` and `@versionchanged` decorators for richer API lifecycle annotation beyond deprecation-only notices.
+- **`warnings.warn`**: no dependency and minimal surface area for quick internal notices where migration behavior is not needed.
 
 ## Related pages
 
