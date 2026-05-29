@@ -50,6 +50,7 @@ quiet-level = 3
 #  https://github.com/codespell-project/codespell/issues/2839#issuecomment-1731601603
 # also adding links until they ignored by its: nature
 #  https://github.com/codespell-project/codespell/issues/2243#issuecomment-1732019960
+# reserved: async generator .asend() protocol — codespell flags it as an "ascend" typo
 ignore-words-list = "asend"
 
 [tool.docformatter]
