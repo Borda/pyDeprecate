@@ -1389,7 +1389,8 @@ pydeprecate status path/to/your/package --style matrix
 pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
-**Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--exit-zero` always exits `0` even when issues are found.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only.
+`check`, `expiry`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found.
 `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly.
 `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
 

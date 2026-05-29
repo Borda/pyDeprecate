@@ -63,7 +63,7 @@ pydeprecate status tests --version 1.2
     pydeprecate expiry path/to/your/package
     ```
 
-    Exit 1 if any wrapper is past its removal deadline, or if `packaging` is not installed (use `--exit-zero` to suppress).
+Exit 1 if any wrapper is past its removal deadline. If `packaging` is not installed, the check is skipped with a warning and exits 0 (use `--exit-zero` to suppress exit 1 when expired wrappers are found).
 
 === "chains"
 
