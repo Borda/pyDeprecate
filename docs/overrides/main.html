@@ -274,7 +274,7 @@
           "name": "Why does my deprecated async def warning not appear in CI or test output?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. coro = old_fn(x=1) produces no warning; await coro fires it. Common silent-loss scenarios: asyncio.create_task schedules the coroutine so the warning fires in the event loop after your catch_warnings block exits; third-party schedulers (Celery, arq, anyio) run the coroutine in a different context; pytest.warns() wrapping only the call captures nothing. Fix 1 (recommended): use stream=logging.warning — logging bypasses Python warning filters and always appears in CI logs. Fix 2 (tests): wrap the await, not just the call, inside pytest.warns(FutureWarning)."
+            "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. coro = old_fn(x=1) produces no warning; await coro fires it. Common silent-loss scenarios: asyncio.create_task or tasks scheduled via fixtures/library hooks — the warning fires when the event loop executes the coroutine, which may be outside any active catch_warnings context (e.g., in background workers or test setup code); third-party schedulers (Celery, arq, anyio) run the coroutine in a different context; pytest.warns() wrapping only the call captures nothing. Fix 1 (recommended): use stream=logging.warning — logging bypasses Python warning filters and always appears in CI logs. Fix 2 (tests): wrap the await, not just the call, inside pytest.warns(FutureWarning)."
           }
         }
       ]

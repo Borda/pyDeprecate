@@ -938,7 +938,7 @@ ______________________________________________________________________
 
 This means warnings can be silently lost in these common scenarios:
 
-- **`asyncio.create_task(old_fn(x=1))`** — the task is created synchronously; the warning fires when the event loop runs the task. If CI captures warnings from the test body but the task runs after the `catch_warnings` block exits, the warning is missed.
+- **`asyncio.create_task(old_fn(x=1))`** or **tasks scheduled via fixtures or library hooks** — the warning fires when the event loop executes the coroutine, which may happen outside any active `catch_warnings` context (e.g., in application startup code, background workers, or test fixtures that schedule work on the event loop).
 - **Third-party schedulers** (Celery, arq, anyio task groups) — the coroutine is handed off and the warning fires in the scheduler's execution context, not the caller's, and may be routed to a different warning filter.
 - **`pytest.warns(FutureWarning)` wrapping only the call** — `with pytest.warns(FutureWarning): coro = old_fn()` captures nothing because no warning fires at call time. The block must wrap the `await`.
 
