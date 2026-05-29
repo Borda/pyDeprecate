@@ -1,6 +1,6 @@
 ---
 id: troubleshooting
-description: 'Fix common pyDeprecate errors: missing deprecation notices, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger.'
+description: 'Fix common pyDeprecate errors: missing deprecation notices, async warning not appearing in CI, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger.'
 ---
 
 # Troubleshooting
@@ -927,6 +927,82 @@ assert asyncio.run(main()) is None
 ```
 
 If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
+
+______________________________________________________________________
+
+## My deprecated `async def` warning does not appear in CI
+
+**Q:** I decorated an `async def` function with `@deprecated` but the deprecation notice never shows up in my CI logs or test output. Why, and how do I fix it?
+
+**A:** For `async def` functions, the deprecation warning fires when the coroutine is **awaited**, not when the wrapper is called. Creating the coroutine object — `coro = old_fn(x=1)` — produces no warning; `await coro` is what triggers it.
+
+This means warnings can be silently lost in these common scenarios:
+
+- **`asyncio.create_task(old_fn(x=1))`** or **tasks scheduled via fixtures or library hooks** — the warning fires when the event loop executes the coroutine, which may happen outside any active `catch_warnings` context (e.g., in application startup code, background workers, or test fixtures that schedule work on the event loop).
+- **Third-party schedulers** (Celery, arq, anyio task groups) — the coroutine is handed off and the warning fires in the scheduler's execution context, not the caller's, and may be routed to a different warning filter.
+- **`pytest.warns(FutureWarning)` wrapping only the call** — `with pytest.warns(FutureWarning): coro = old_fn()` captures nothing because no warning fires at call time. The block must wrap the `await`.
+
+```python
+import asyncio
+import warnings
+from deprecate import deprecated
+
+
+async def new_fetch(url: str) -> bytes:
+    return url.encode()
+
+
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0")
+async def old_fetch(url: str) -> bytes:
+    pass
+
+
+async def captured_correctly():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = await old_fetch("https://example.com")  # warning fires here, inside block
+    assert len(w) == 1
+    return result
+
+
+asyncio.run(captured_correctly())
+```
+
+**Fix 1 — use `stream=logging.warning`** (recommended for CI):
+
+Logging bypasses Python's warning filter state entirely. The deprecation message appears in your log output regardless of when or where the coroutine is awaited.
+
+```python
+import logging
+from deprecate import deprecated
+
+
+async def new_fetch(url: str) -> bytes:
+    return url.encode()
+
+
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0", stream=logging.warning)
+async def old_fetch(url: str) -> bytes:
+    pass
+```
+
+**Fix 2 — wrap the `await` in tests**, not just the call:
+
+```python
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_old_fetch_warns():
+    with pytest.warns(FutureWarning):
+        await old_fetch("https://example.com")  # correct: await inside the warns block
+```
+
+!!! note "Async warning timing is by design"
+
+    The `async def` wrapper is a true coroutine (`inspect.iscoroutinefunction(wrapper)` returns `True`), so the deprecation warning fires inside the coroutine body when execution begins — on `await`. Warnings for generators and async generators fire eagerly at call time; async functions are the exception because the wrapper itself is a coroutine.
+
+______________________________________________________________________
 
 ## I wrapped a `functools.partial` of an `async def` and the wrapper is not async
 
