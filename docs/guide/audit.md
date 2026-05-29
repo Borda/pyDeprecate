@@ -498,7 +498,7 @@ pydeprecate check src/your_package --exit-zero
 
 | Exit code | Meaning                                                             |
 | --------- | ------------------------------------------------------------------- |
-| `0`       | No hard errors (or `--exit-zero` was set)                    |
+| `0`       | No hard errors (or `--exit-zero` was set)                           |
 | `1`       | Hard error found: invalid arg mappings, chains, or expired wrappers |
 
 ## Testing Deprecated Code
