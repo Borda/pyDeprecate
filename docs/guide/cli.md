@@ -63,7 +63,7 @@ pydeprecate status tests --version 1.2
     pydeprecate expiry path/to/your/package
     ```
 
-Exit 1 if any wrapper is past its removal deadline. If `packaging` is not installed, the check is skipped with a warning and exits 0 (use `--exit-zero` to suppress exit 1 when expired wrappers are found).
+    Exit 1 if any wrapper is past its removal deadline. If `packaging` is not installed, the check is skipped with a warning and exits 0 (use `--exit-zero` to suppress exit 1 when expired wrappers are found).
 
 === "chains"
 
@@ -113,13 +113,13 @@ Exit 1 if any wrapper is past its removal deadline. If `packaging` is not instal
 
 ## Exit codes
 
-| Subcommand | Exit `0`                                                        | Exit `1`                                                              |
-| ---------- | --------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `check`    | Clean or advisory warnings only (chains / identity / no-effect) | Invalid argument mappings found                                       |
-| `expiry`   | No expired wrappers                                             | Expired wrappers found; or `packaging` not installed                  |
-| `chains`   | No chains                                                       | Deprecated-to-deprecated chains found                                 |
-| `all`      | All checks clean (deprecation table always appended)            | Any hard error above (`packaging` missing → skips expiry, no failure) |
-| `status`   | Always — status table is not a pass/fail gate                   | —                                                                     |
+| Subcommand | Exit `0`                                                                 | Exit `1`                                                              |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       |
+| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    |
+| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 |
+| `all`      | All checks clean (deprecation table always appended)                     | Any hard error above (`packaging` missing → skips expiry, no failure) |
+| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     |
 
 ## Path formats
 

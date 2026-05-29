@@ -23,6 +23,21 @@ def old_fn(old: int) -> int:
     pass
 """
 
+# Package with an invalid args_mapping (target param does not exist in new_fn).
+# cmd_check exits 1 for this package without --exit-zero.
+_MYPKG_INIT_INVALID = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "nonexistent"})
+def old_fn(old: int) -> int:
+    pass
+"""
+
 
 def _cli_env(**extra: str) -> dict[str, str]:
     """Build env dict with PYTHONPATH pointing at src/ so subprocess can find deprecate."""
@@ -188,6 +203,34 @@ class TestCliSubcommands:
         pkg = _make_pkg(tmp_path)
         result = subprocess.run(
             [sys.executable, "-m", "deprecate", "check", str(pkg), "--norecursive"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+
+    def test_check_exit_zero_dash_form(self, tmp_path: Path) -> None:
+        """'--exit-zero' (dash form) forces exit 0 even when invalid args are found."""
+        pkg = tmp_path / "badpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_MYPKG_INIT_INVALID)
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "check", str(pkg), "--exit-zero"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+
+    def test_check_exit_zero_underscore_form(self, tmp_path: Path) -> None:
+        """Fire also accepts '--exit_zero' (underscore) as an alias for '--exit-zero'."""
+        pkg = tmp_path / "badpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_MYPKG_INIT_INVALID)
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "check", str(pkg), "--exit_zero"],
             capture_output=True,
             text=True,
             env=_cli_env(),
