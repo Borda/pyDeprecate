@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-05-27"
+  "dateModified": "2026-05-29"
 }
 </script>
 
@@ -744,6 +744,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#generating-deprecation-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generating Deprecation Tables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1250,6 +1261,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#generating-deprecation-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generating Deprecation Tables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1325,6 +1347,7 @@
 <li><code>all_identity</code> — <code>True</code> if every entry in <code>args_mapping</code> maps a key to itself</li>
 <li><code>chain_type</code> — chain classification used when reporting deprecation chains, such as <code>TARGET</code> or <code>STACKED</code></li>
 <li><code>empty_deprecated_in</code> — <code>True</code> when <code>deprecated_in</code> is absent or empty; useful in CI to surface wrappers with no version annotation</li>
+<li><code>api_type</code> — inferred API kind for report generation (e.g. <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass attributes</code>, <code>class method</code>); excluded from <code>repr()</code> to keep snapshot tests stable</li>
 </ul>
 <h3 id="validating-a-single-function">Validating a single function<a class="headerlink" href="#validating-a-single-function" title="Permanent link">🔗</a></h3>
 <p><code>validate_deprecation_wrapper()</code> extracts the configuration from the function's <code>__deprecated__</code> attribute and returns a <code>DeprecationWrapperInfo</code> dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.</p>
@@ -1416,9 +1439,9 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Found 0 deprecated wrappers with zero impact!
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>tests.collection_deprecate.ChainedProxyColorEnum: no_effect=False
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>tests.collection_deprecate.CrossGuardModuleLevel.old_method: no_effect=False
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>tests.collection_deprecate.CrossGuardSameClass.old_method: no_effect=False
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>tests.collection_deprecate.DecoratedDataClass: no_effect=False
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>tests.collection_deprecate.DecoratedEnum: no_effect=False
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>tests.collection_deprecate.CrossGuardOldClass.__init__: no_effect=False
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>tests.collection_deprecate.CrossGuardSameClass.old_method: no_effect=False
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>tests.collection_deprecate.DecoratedDataClass: no_effect=False
 </code></pre></div>
 
 </details>
@@ -1496,7 +1519,7 @@ The raw module scan also sees the typed alias <code>self_ref_typed</code>, so th
 </details>
 
 <h3 id="cli-usage">CLI usage<a class="headerlink" href="#cli-usage" title="Permanent link">🔗</a></h3>
-<p>All audit functions are also available from the command line via four subcommands (<code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>). See the <a href="cli.html">CLI Reference</a> for the full guide including flags, exit codes, and CI recipes.</p>
+<p>All audit functions are also available from the command line via five subcommands (<code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>, <code>status</code>). See the <a href="cli.html">CLI Reference</a> for the full guide including flags, exit codes, and CI recipes.</p>
 <h3 id="pytest-integration">pytest integration<a class="headerlink" href="#pytest-integration" title="Permanent link">🔗</a></h3>
 <p>Add a test that fails the suite when any deprecated wrapper has an invalid configuration. Wrong argument names are hard errors; identity mappings are worth a warning.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
@@ -1710,18 +1733,21 @@ The raw module scan also sees the typed alias <code>self_ref_typed</code>, so th
 <p class="admonition-title">Coming soon</p>
 <p>Native pre-commit hook support is planned. For now, run the validator directly via <code>pydeprecate</code> in your <code>Makefile</code> or CI step.</p>
 </div>
-<p>The CLI provides four subcommands. Use <code>check</code> for wrapper config validation or <code>all</code> to run every check in a single pass. See the <a href="cli.html">CLI Reference</a> for full flag and exit-code documentation.</p>
+<p>The CLI provides five subcommands. Use <code>check</code> for wrapper config validation, <code>all</code> to run every check in a single pass (and append a deprecation table), or <code>status</code> to generate a standalone markdown deprecation table without running any checks. See the <a href="cli.html">CLI Reference</a> for full flag and exit-code documentation.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># Install CLI + audit extras (audit needed for expiry checks)</span>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;pyDeprecate[audit,cli]&#39;</span>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
 <a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># check — exits 1 if invalid arg mappings are found</span>
 <a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>src/your_package
 <a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="c1"># all — exits 1 on invalid mappings, chains, or expired wrappers</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="c1"># all — exits 1 on invalid mappings, chains, or expired wrappers; appends deprecation table</span>
 <a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/your_package
 <a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># Advisory-only: always exit 0, report issues without blocking</span>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>src/your_package<span class="w"> </span>--skip_errors<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># status — standalone deprecation status table only (no checks, always exits 0)</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>src/your_package
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="c1"># Advisory-only: always exit 0, report issues without blocking</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>src/your_package<span class="w"> </span>--skip_errors<span class="w"> </span><span class="nb">true</span>
 </code></pre></div>
 <p><strong>Exit codes</strong> (see <a href="cli.html#exit-codes">CLI Reference — Exit codes</a> for per-subcommand details):</p>
 <table>
@@ -1899,6 +1925,185 @@ The raw module scan also sees the typed alias <code>self_ref_typed</code>, so th
 </tbody>
 </table>
 <p>The <code>match</code> parameter on <code>assert_no_warnings</code> accepts a substring — it filters captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.</p>
+<h2 id="generating-deprecation-tables">Generating Deprecation Tables<a class="headerlink" href="#generating-deprecation-tables" title="Permanent link">🔗</a></h2>
+<p><code>generate_deprecation_table()</code> renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two <code>style=</code> options:</p>
+<ul>
+<li><code>"compact"</code> (default) — one row per symbol with a <strong>Current Status</strong> column (<code>📢 Deprecation Active</code>, <code>💥 Past Removal Date</code>, <code>ℹ️ No Removal Target</code>, etc.)</li>
+<li><code>"matrix"</code> — one column per version with <code>D</code> (deprecated) and <code>R</code> (remove) markers</li>
+</ul>
+<p><strong>Compact style</strong> — one row per symbol with a lifecycle status column:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_deprecation_table</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Current version: 1.5</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Original API</th>
+<th style="text-align: left;">API Type</th>
+<th style="text-align: left;">New API</th>
+<th style="text-align: center;">Deprecated</th>
+<th style="text-align: center;">Remove</th>
+<th style="text-align: left;">Current Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>my_package.CrossGuardOldClass.__init__</code></td>
+<td style="text-align: left;">class constructor</td>
+<td style="text-align: left;"><code>my_package.CrossGuardClassTargetNew</code></td>
+<td style="text-align: center;">v1.0</td>
+<td style="text-align: center;">v2.0</td>
+<td style="text-align: left;">📢 Deprecation Active</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.DecoratedDataClass</code></td>
+<td style="text-align: left;">dataclass</td>
+<td style="text-align: left;"><code>my_package.NewDataClass</code></td>
+<td style="text-align: center;">v0.5</td>
+<td style="text-align: center;">v1.0</td>
+<td style="text-align: left;">💥 Past Removal Date</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.ServiceCls.old_class_method</code></td>
+<td style="text-align: left;">classmethod</td>
+<td style="text-align: left;"><code>—</code></td>
+<td style="text-align: center;">v1.0</td>
+<td style="text-align: center;">v2.0</td>
+<td style="text-align: left;">📢 Deprecation Active</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.ServiceCls.old_redirect_method</code></td>
+<td style="text-align: left;">class method</td>
+<td style="text-align: left;"><code>my_package.ServiceCls.compute</code></td>
+<td style="text-align: center;">v1.0</td>
+<td style="text-align: center;">v2.0</td>
+<td style="text-align: left;">📢 Deprecation Active</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.depr_func_no_remove_in</code></td>
+<td style="text-align: left;">callable</td>
+<td style="text-align: left;"><code>—</code></td>
+<td style="text-align: center;">v1.0</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: left;">ℹ️ No Removal Target</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.depr_func_same_version</code></td>
+<td style="text-align: left;">callable</td>
+<td style="text-align: left;"><code>—</code></td>
+<td style="text-align: center;">v2.0</td>
+<td style="text-align: center;">v3.0</td>
+<td style="text-align: left;">🕒 Scheduled Deprecation</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.depr_pow_args</code></td>
+<td style="text-align: left;">callable</td>
+<td style="text-align: left;"><code>my_package.base_pow_args</code></td>
+<td style="text-align: center;">v1.0</td>
+<td style="text-align: center;">v1.3</td>
+<td style="text-align: left;">💥 Past Removal Date</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.decorated_sum</code></td>
+<td style="text-align: left;">callable</td>
+<td style="text-align: left;"><code>my_package.base_sum_kwargs</code></td>
+<td style="text-align: center;">v0.1</td>
+<td style="text-align: center;">v0.5</td>
+<td style="text-align: left;">💥 Past Removal Date</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p><strong>Matrix style</strong> — one column per version with <code>D</code> (deprecated) and <code>R</code> (remove) lifecycle markers:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_deprecation_table</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="n">matrix</span> <span class="o">=</span> <span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">&quot;matrix&quot;</span><span class="p">)</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Current version: 1.5</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Original API</th>
+<th style="text-align: left;">API Type</th>
+<th style="text-align: left;">New API</th>
+<th style="text-align: center;">v0.1</th>
+<th style="text-align: center;">v0.5</th>
+<th style="text-align: center;">v1.0</th>
+<th style="text-align: center;">v1.3</th>
+<th style="text-align: center;">v2.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>my_package.CrossGuardOldClass.__init__</code></td>
+<td style="text-align: left;">class constructor</td>
+<td style="text-align: left;"><code>my_package.CrossGuardClassTargetNew</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">D</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">R</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.DecoratedDataClass</code></td>
+<td style="text-align: left;">dataclass</td>
+<td style="text-align: left;"><code>my_package.NewDataClass</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">D</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.ServiceCls.old_redirect_method</code></td>
+<td style="text-align: left;">class method</td>
+<td style="text-align: left;"><code>my_package.ServiceCls.compute</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">D</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">R</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.depr_func_no_remove_in</code></td>
+<td style="text-align: left;">callable</td>
+<td style="text-align: left;"><code>—</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">D</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.depr_pow_args</code></td>
+<td style="text-align: left;">callable</td>
+<td style="text-align: left;"><code>my_package.base_pow_args</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">D</td>
+<td style="text-align: center;">R</td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>my_package.decorated_sum</code></td>
+<td style="text-align: left;">callable</td>
+<td style="text-align: left;"><code>my_package.base_sum_kwargs</code></td>
+<td style="text-align: center;">D</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p>The table derives all data from <code>__deprecated__</code> decorator metadata so it stays in sync with the code automatically. Install the <code>audit</code> extra (<code>pip install pyDeprecate[audit]</code>) to enable lifecycle status evaluation.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">🔗</a></h2>
 <ul>
 <li><a href="use-cases.html">Use Cases</a> — deprecation patterns and scenarios that audit tools validate against</li>
@@ -1929,7 +2134,7 @@ The raw module scan also sees the typed alias <code>self_ref_typed</code>, so th
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 27, 2026 09:07:48 UTC">2026-05-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 29, 2026 07:06:18 UTC">2026-05-29</span>
   </span>
 
     

@@ -2632,7 +2632,7 @@ True</p>
 
 
 <h2 id="deprecate.audit.find_deprecation_wrappers" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
 
 <a href="#deprecate.audit.find_deprecation_wrappers" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -2686,6 +2686,22 @@ misconfigured wrappers.</p>
             <td>
               <div class="doc-md-description">
                 <p>If True (default), recursively scan submodules. If False, only scan the top-level module.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_members</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, also scan deprecated methods and constructors defined on classes.</p>
               </div>
             </td>
             <td>
@@ -2947,7 +2963,7 @@ Invalid configurations won't cause runtime errors but will silently have no effe
 
 
 <h2 id="deprecate.audit.validate_deprecation_expiry" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#deprecate.audit.validate_deprecation_expiry" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -3024,6 +3040,22 @@ If None, attempts to auto-detect the version using the package name from the mod
             </td>
             <td>
                   <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_members</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, also scan deprecated class members (methods, constructors).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
             </td>
           </tr>
       </tbody>
@@ -3415,6 +3447,20 @@ See :class:<code>~deprecate.audit.ChainType</code> for values
 (many libraries deprecate without a scheduled removal date), so only the absence of <code>deprecated_in</code>
 is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
 that lack the introductory version metadata without crashing callers.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.api_type">api_type</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inferred deprecated API type for report generation.
+Possible values: <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass</code>, <code>dataclass attributes</code>,
+<code>data</code>, <code>class constructor</code>, <code>class constructor args</code>, <code>class method</code>, <code>class method args</code>,
+<code>classmethod</code>, <code>classmethod args</code>, <code>staticmethod</code>, <code>staticmethod args</code>.</p>
               </div>
             </td>
           </tr>
