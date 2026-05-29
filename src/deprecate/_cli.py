@@ -362,7 +362,7 @@ def _print_scan_header(path: str, version: Optional[str] = None, *, user_provide
 def cmd_check(
     path: str = ".",
     recursive: bool = True,
-    skip_errors: bool = False,
+    exit_zero: bool = False,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -375,12 +375,13 @@ def cmd_check(
     Args:
         path: Path to the module, package directory, or importable module name to scan.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
-        skip_errors: Always exit 0 even if hard errors (invalid argument mappings) are found.
+        exit_zero: Always exit 0 even if hard errors (invalid argument mappings) are found.
+            Useful for advisory CI steps that should report but never block.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore
             prefix hides this parameter from the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 on success or advisory-only issues; 1 when hard errors are found and ``skip_errors`` is False.
+        0 on success or advisory-only issues; 1 when hard errors are found and ``exit_zero`` is False.
 
     """
     if _wrappers is None:
@@ -398,14 +399,14 @@ def cmd_check(
         _print("\nAll deprecated wrappers look correct!")
 
     has_invalid = any(r.invalid_args for r in _wrappers)
-    return 1 if not skip_errors and has_invalid else 0
+    return 1 if not exit_zero and has_invalid else 0
 
 
 def cmd_expiry(
     path: str = ".",
     version: Optional[str] = None,
     recursive: bool = True,
-    skip_errors: bool = False,
+    exit_zero: bool = False,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -419,7 +420,8 @@ def cmd_expiry(
         version: Current package version for comparison (e.g. ``"2.0.0"``). Auto-detected
             from installed package metadata if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
-        skip_errors: Always exit 0 even if expired wrappers are found.
+        exit_zero: Always exit 0 even if expired wrappers are found.
+            Useful for advisory CI steps that should report but never block.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
             expired wrappers via ``_check_expiry_for_callables``. Requires *version* to be
             non-``None`` when set. Underscore prefix hides this parameter from the Fire CLI
@@ -427,7 +429,7 @@ def cmd_expiry(
 
     Returns:
         0 on success or when the ``packaging`` library is unavailable; 1 when expired
-        wrappers are found and ``skip_errors`` is False.
+        wrappers are found and ``exit_zero`` is False.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
@@ -461,13 +463,13 @@ def cmd_expiry(
         return 0
     _Reporter.expiry(expired)
     _print(f"\n{len(expired)} expired wrapper(s) found.")
-    return 0 if skip_errors else 1
+    return 0 if exit_zero else 1
 
 
 def cmd_chains(
     path: str = ".",
     recursive: bool = True,
-    skip_errors: bool = False,
+    exit_zero: bool = False,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -479,13 +481,14 @@ def cmd_chains(
     Args:
         path: Path to the module, package directory, or importable module name to scan.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
-        skip_errors: Always exit 0 even if chains are found.
+        exit_zero: Always exit 0 even if chains are found.
+            Useful for advisory CI steps that should report but never block.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and filters
             for ``chain_type is not None`` internally. Underscore prefix hides this parameter
             from the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 when no chains are found or ``skip_errors`` is True; 1 when chains are found.
+        0 when no chains are found or ``exit_zero`` is True; 1 when chains are found.
 
     """
     if _wrappers is None:
@@ -498,14 +501,14 @@ def cmd_chains(
         return 0
     _Reporter.chains(chains, error=True)
     _print(f"\n{len(chains)} deprecation chain(s) found.")
-    return 0 if skip_errors else 1
+    return 0 if exit_zero else 1
 
 
 def cmd_all(
     path: str = ".",
     version: Optional[str] = None,
     recursive: bool = True,
-    skip_errors: bool = False,
+    exit_zero: bool = False,
 ) -> int:
     """Run all three checks then append a deprecation table.
 
@@ -522,10 +525,11 @@ def cmd_all(
         version: Current package version for expiry comparison (e.g. ``"2.0.0"``).
             Auto-detected from installed package metadata if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
-        skip_errors: Always exit 0 even if issues are found.
+        exit_zero: Always exit 0 even if issues are found.
+            Useful for advisory CI steps that should report but never block.
 
     Returns:
-        0 when all checks pass or ``skip_errors`` is True; 1 when any hard error is found.
+        0 when all checks pass or ``exit_zero`` is True; 1 when any hard error is found.
         The deprecation table is always appended regardless of pass/fail outcome.
 
     """
@@ -539,14 +543,16 @@ def cmd_all(
     with _managed_sys_path(path):
         wrappers = _scan_path(path, recursive=recursive)
 
-    check_code = cmd_check(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
-    expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, skip_errors=False, _wrappers=wrappers)
-    chains_code = cmd_chains(path, recursive=recursive, skip_errors=False, _wrappers=wrappers)
+    # Sub-commands run with exit_zero=False so cmd_all sees their truthful exit codes;
+    # the user-facing --exit-zero is applied to the aggregate below.
+    check_code = cmd_check(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
+    expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, exit_zero=False, _wrappers=wrappers)
+    chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
 
-    status_code = cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
+    cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
 
-    has_errors = bool(check_code or expiry_code or chains_code or status_code)
-    return 0 if not has_errors or skip_errors else 1
+    has_errors = bool(check_code or expiry_code or chains_code)
+    return 0 if not has_errors or exit_zero else 1
 
 
 def cmd_status(

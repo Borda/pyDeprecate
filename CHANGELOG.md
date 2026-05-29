@@ -11,7 +11,7 @@
 
 ### Changed
 
--
+- **CLI: renamed `--skip_errors` to `--exit-zero`** across all four subcommands (`check`, `expiry`, `chains`, `all`). ([#187](https://github.com/Borda/pyDeprecate/pull/187)) **Breaking change for existing scripts** — `--skip_errors` no longer accepted; update calls to `--exit-zero`. The new name matches the established linter convention (ruff, pylint, shellcheck) and accurately describes the behaviour: exit-code override only, no exception suppression.
 
 ### Deprecated
 

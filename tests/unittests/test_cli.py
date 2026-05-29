@@ -139,12 +139,12 @@ class TestCmdCheckScanning:
             cmd_check(path="some_module")
 
     @patch("deprecate._cli.find_deprecation_wrappers")
-    def test_skip_errors(self, mock_find: MagicMock) -> None:
-        """skip_errors=True returns 0 even with invalid args."""
+    def test_exit_zero(self, mock_find: MagicMock) -> None:
+        """exit_zero=True returns 0 even with invalid args."""
         info = DeprecationWrapperInfo(module="test_mod", function="test_func", invalid_args=["bad_arg"])
         mock_find.return_value = [info]
 
-        assert cmd_check(path="some_module", skip_errors=True) == 0
+        assert cmd_check(path="some_module", exit_zero=True) == 0
 
     def test_file_path_rejected(self, tmp_path: Path) -> None:
         """File path raises ValueError; _wrap converts to sys.exit when called via CLI."""
@@ -231,10 +231,10 @@ class TestCmdExpiry:
         assert cmd_expiry(path="some_module", version="2.0") == 1
 
     @patch("deprecate._cli.validate_deprecation_expiry")
-    def test_expired_skip_errors_exits_zero(self, mock_expiry: MagicMock) -> None:
-        """skip_errors=True overrides exit code to 0 even when expired wrappers found."""
+    def test_expired_exit_zero_exits_zero(self, mock_expiry: MagicMock) -> None:
+        """exit_zero=True overrides exit code to 0 even when expired wrappers found."""
         mock_expiry.return_value = [_EXPIRED_MSG]
-        assert cmd_expiry(path="some_module", version="2.0", skip_errors=True) == 0
+        assert cmd_expiry(path="some_module", version="2.0", exit_zero=True) == 0
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_packaging_missing_exits_zero(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
@@ -245,10 +245,10 @@ class TestCmdExpiry:
         assert "pyDeprecate[audit]" in captured.err
 
     @patch("deprecate._cli.validate_deprecation_expiry")
-    def test_packaging_missing_skip_errors_exits_zero(self, mock_expiry: MagicMock) -> None:
-        """ImportError with skip_errors=True → returns 0 (missing packaging is always advisory)."""
+    def test_packaging_missing_exit_zero_exits_zero(self, mock_expiry: MagicMock) -> None:
+        """ImportError with exit_zero=True → returns 0 (missing packaging is always advisory)."""
         mock_expiry.side_effect = ImportError("No module named 'packaging'", name="packaging")
-        assert cmd_expiry(path="some_module", version="2.0", skip_errors=True) == 0
+        assert cmd_expiry(path="some_module", version="2.0", exit_zero=True) == 0
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_version_passed_through(self, mock_expiry: MagicMock) -> None:
@@ -328,10 +328,10 @@ class TestCmdChains:
         assert cmd_chains(path="some_module") == 1
 
     @patch("deprecate._cli.validate_deprecation_chains")
-    def test_chains_skip_errors_exits_zero(self, mock_chains: MagicMock) -> None:
-        """skip_errors=True overrides exit code to 0 even when chains found."""
+    def test_chains_exit_zero_exits_zero(self, mock_chains: MagicMock) -> None:
+        """exit_zero=True overrides exit code to 0 even when chains found."""
         mock_chains.return_value = [_TARGET_CHAIN]
-        assert cmd_chains(path="some_module", skip_errors=True) == 0
+        assert cmd_chains(path="some_module", exit_zero=True) == 0
 
     @patch("deprecate._cli.validate_deprecation_chains")
     def test_no_recursive_threads_flag(self, mock_chains: MagicMock) -> None:
@@ -419,10 +419,10 @@ class TestCmdAll:
 
     @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
     @patch("deprecate._cli.find_deprecation_wrappers")
-    def test_skip_errors_exits_zero(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
-        """skip_errors=True overrides the invalid-args exit 1 to 0."""
+    def test_exit_zero_exits_zero(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
+        """exit_zero=True overrides the invalid-args exit 1 to 0."""
         mock_find.return_value = [_INVALID_ARGS]
-        assert cmd_all(path="some_module", version="1.0", skip_errors=True) == 0
+        assert cmd_all(path="some_module", version="1.0", exit_zero=True) == 0
 
     @patch("deprecate._cli._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
