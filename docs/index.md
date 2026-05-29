@@ -85,24 +85,24 @@ pip install "pyDeprecate[audit]"
 
 The alternatives emit a deprecation notice but leave forwarding, argument mapping, and deadline enforcement to you. Here is what each tool covers:
 
-| Feature              | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
-| -------------------- | :---------: | :-------------: | :-----------: | :------------------: | :----------------------------: |
-| Simple Warnings      |     ✅      |       ✅        |      ✅       |          ✅          |               ✅               |
-| Auto call forwarding |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Argument mapping     |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Argument Deprecation |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
-| Class / Enum proxy   |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Docstring injection  |     ✅      |       ❌        |      ✅       |          ✅          |               ❌               |
-| Version Tracking     |     ✅      |       ✍️        |      ✅       |          ✅          |               ❌               |
-| Prevent Log Spam     |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
-| Zero runtime deps    |     ✅      |       ✅        |      ❌       |          ❌          |               †                |
-| Custom Streams       |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
-| CI audit tools       |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Testing helpers      |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Static checker signal|     ✍️      |       ❌        |      ❌       |          ❌          |               ✅               |
-| Decorator Stacking   |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Sphinx Plugin        |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| MkDocs Plugin        |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Feature               | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
+| --------------------- | :---------: | :-------------: | :-----------: | :------------------: | :----------------------------: |
+| Simple Warnings       |     ✅      |       ✅        |      ✅       |          ✅          |               ✅               |
+| Auto call forwarding  |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Argument mapping      |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Argument Deprecation  |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
+| Class / Enum proxy    |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Docstring injection   |     ✅      |       ❌        |      ✅       |          ✅          |               ❌               |
+| Version Tracking      |     ✅      |       ✍️        |      ✅       |          ✅          |               ❌               |
+| Prevent Log Spam      |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
+| Zero runtime deps     |     ✅      |       ✅        |      ❌       |          ❌          |               †                |
+| Custom Streams        |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
+| CI audit tools        |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Testing helpers       |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Static checker signal |     ✍️      |       ❌        |      ❌       |          ❌          |               ✅               |
+| Decorator Stacking    |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Sphinx Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| MkDocs Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
 
 ✍️ = possible but requires manual implementation
 </br>
