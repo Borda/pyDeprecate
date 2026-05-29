@@ -216,8 +216,17 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 - `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time.
 - `@property` with `@deprecated` in either order: warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`).
 - `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.
-- `@deprecated` on `async def` functions: the wrapper is `async def`; `inspect.iscoroutinefunction(wrapper)` returns `True`. All three TargetModes work. Warning fires when the coroutine is awaited, not when the wrapper is called — `coro = wrapper(x=1)` produces no warning; `await coro` fires it.
+- `@deprecated` on `async def` functions: the wrapper is `async def`; `inspect.iscoroutinefunction(wrapper)` returns `True`. All three TargetModes work. Warning fires when the coroutine is awaited, not when the wrapper is called — `coro = wrapper(x=1)` produces no warning; `await coro` fires it. **CI visibility**: if coroutines are scheduled via `asyncio.create_task` or third-party schedulers, warnings fire in the scheduler's context — use `stream=logging.warning` for guaranteed log output. In tests, `pytest.warns()` must wrap the `await`, not just the call.
 - `@deprecated` on async generator functions (`async def` + `yield`): the wrapper is **sync** (`inspect.iscoroutinefunction(wrapper)` is `False`); calling the wrapper fires the deprecation warning eagerly and returns the async generator object. Callers iterate with `async for item in wrapper(...):`. All three TargetModes work — NOTIFY runs the source body, ARGS_REMAP remaps args before iterating the source body, and `target=<async_gen_callable>` forwards to a replacement async generator. The warning fires at sync call time, before the first `__anext__`.
+
+Warning timing quick reference — all callable kinds:
+
+| Callable kind | Warning fires at | `iscoroutinefunction(wrapper)` |
+|---|---|---|
+| Sync function | call time | N/A (sync) |
+| Generator (`def` + `yield`) | call time (before first `next()`) | N/A (sync) |
+| Async generator (`async def` + `yield`) | call time — sync wrapper (before first `async for`) | `False` |
+| Async function (`async def`) | `await` time (inside coroutine body) | `True` |
 
 ## Anti-Patterns
 
