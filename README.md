@@ -1343,15 +1343,14 @@ from deprecate import generate_deprecation_table
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
 ```
 
-```markdown
-<!-- Current version: 1.5 -->
-| Original API | API Type | New API | Deprecated | Remove | Current Status |
-| :--- | :--- | :--- | :---: | :---: | :--- |
-| `my_package.depr_func_same_version` | callable | `—` | v2.0 | v2.0 | 🕒 Scheduled Deprecation |
-| `my_package.ServiceCls.old_redirect_method` | class method | `my_package.ServiceCls.compute` | v1.0 | v2.0 | 📢 Deprecation Active |
-| `my_package.depr_pow_args` | callable | `my_package.base_pow_args` | v1.0 | v1.3 | 💥 Past Removal Date |
-| `my_package.depr_func_no_remove_in` | callable | `—` | v1.0 | — | ℹ️ No Removal Target |
-```
+> **Current version: 1.5**
+>
+> | Original API                                | API Type     | New API                         | Deprecated | Remove | Current Status           |
+> | :------------------------------------------ | :----------- | :------------------------------ | :--------: | :----: | :----------------------- |
+> | `my_package.depr_func_same_version`         | callable     | `—`                             |    v2.0    |  v3.0  | 🕒 Scheduled Deprecation |
+> | `my_package.ServiceCls.old_redirect_method` | class method | `my_package.ServiceCls.compute` |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.depr_pow_args`                  | callable     | `my_package.base_pow_args`      |    v1.0    |  v1.3  | 💥 Past Removal Date     |
+> | `my_package.depr_func_no_remove_in`         | callable     | `—`                             |    v1.0    |   —    | ℹ️ No Removal Target     |
 
 <br>
 
