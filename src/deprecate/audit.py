@@ -17,8 +17,11 @@ All three are designed to be called from pytest or a CI script against an import
     unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`: ``TARGET`` (forwarding chain)
     and ``STACKED`` (composed argument mappings).
 
-Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, which carry both identification
-info and structured validation results for programmatic processing.
+**Report generation** (:func:`~deprecate.audit.generate_deprecation_table`):
+    Generate a docs-friendly markdown summary from wrapper metadata.
+
+Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, which carry both
+identification info and structured validation results for programmatic processing.
 
 !!! note
     :func:`~deprecate.audit.validate_deprecation_expiry` requires the ``packaging`` library for PEP 440
@@ -35,10 +38,15 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 # :class:`~deprecate._types.DeprecationConfig` — both always populate the ``name`` field,
 # so ``validate_deprecation_wrapper`` can read it correctly for proxy objects too.
 
+import enum
+import importlib
+import importlib.metadata
 import inspect
+import pkgutil
+import re
 import warnings
 from contextlib import suppress
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, is_dataclass, replace
 from enum import Enum
 from functools import cached_property, wraps
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
@@ -51,6 +59,92 @@ from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 
 
+class TableStyle(str, enum.Enum):
+    """Markdown table layout produced by :func:`~deprecate.audit.generate_deprecation_table`."""
+
+    COMPACT = "compact"
+    MATRIX = "matrix"
+
+
+class DeprecationStatus(str, enum.Enum):
+    """Lifecycle status labels used in the deprecation report's *Current Status* column.
+
+    Each member's value is the full display string (emoji + text) rendered in the table.
+    Using a ``str`` enum means members compare equal to their string values and can be
+    returned wherever a plain string is expected.
+
+    Members are ordered from least to most urgent for easy visual scanning:
+
+    Examples:
+        >>> DeprecationStatus.ACTIVE_WARNING.value
+        '📢 Deprecation Active'
+        >>> DeprecationStatus.PAST_REMOVAL_DATE > DeprecationStatus.ACTIVE_WARNING
+        False
+
+    """
+
+    SCHEDULED_DEPRECATION = "🕒 Scheduled Deprecation"  # current < deprecated_in
+    NO_REMOVAL_TARGET = "ℹ️ No Removal Target"  # remove_in not set
+    STATUS_UNKNOWN = "⚪ Status Unknown"  # current_version unavailable
+    INVALID_REMOVAL_TARGET = "⚪ Invalid Removal Target"  # remove_in unparsable
+    ACTIVE_WARNING = "📢 Deprecation Active"  # current < remove_in (different base)
+    REMOVAL_IMMINENT = "⏰ Removal Imminent"  # pre-release dev/a/b of remove_in base
+    REMOVE_BEFORE_RELEASE = "🔔 Remove Before Release"  # RC of the remove_in base release
+    PAST_REMOVAL_DATE = "💥 Past Removal Date"  # current >= remove_in
+
+
+def _normalize_version_string(version: str) -> str:
+    """Normalize non-standard version strings before PEP 440 parsing.
+
+    Newer ``packaging`` (>=22) is strict PEP 440 and rejects real-world strings that omit trailing digits
+    on pre/post/dev release labels (e.g. ``"1.8.0.dev"``, ``"1.8.0dev"``, ``"1.8.0.post"``). This helper
+    performs the minimum normalization needed to make such strings parseable, then defers everything else
+    (label aliasing like ``alpha`` -> ``a``, case folding, separator handling) to ``packaging.Version``.
+
+    The transformation is conservative:
+
+    1. Strip a single leading ``v`` or ``V`` prefix (``packaging`` accepts this, but stripping defensively
+       keeps the normalized output stable for downstream callers).
+    2. Append ``0`` to bare pre/post/dev labels that lack a trailing digit. Labels recognized:
+       ``dev``, ``rc``, ``a``, ``b``, ``c``, ``alpha``, ``beta``, ``preview``, ``post``.
+
+    No other transformations are applied — case, separators, and label aliases pass through unchanged
+    so ``packaging.Version`` can apply its own canonicalization.
+
+    Args:
+        version: Raw version string, possibly missing trailing digits on labels.
+
+    Returns:
+        Normalized version string ready to be passed to ``packaging.version.Version``.
+
+    Examples:
+        >>> _normalize_version_string("1.8.0.dev")
+        '1.8.0.dev0'
+        >>> _normalize_version_string("1.8.0dev")
+        '1.8.0dev0'
+        >>> _normalize_version_string("1.8.0.post")
+        '1.8.0.post0'
+        >>> _normalize_version_string("v1.2.3")
+        '1.2.3'
+        >>> _normalize_version_string("1.8.0.RC1")
+        '1.8.0.RC1'
+        >>> _normalize_version_string("1.2.3")
+        '1.2.3'
+
+    """
+    normalized = version.lstrip("vV")
+    # Append ``0`` to bare pre/post/dev labels with no trailing digit. The ordering of the alternatives
+    # matters: longer labels (``alpha``, ``beta``, ``preview``) must come before their single-letter
+    # forms (``a``, ``b``) so the regex prefers the longer match.
+    # Use a negative lookahead for ``[0-9]`` to detect "no trailing digit"; ``(?=$|[^A-Za-z0-9])``
+    # ensures the label is a whole token (e.g. ``dev`` but not ``develop``).
+    pattern = re.compile(
+        r"(?P<sep>\.?)(?P<label>alpha|beta|preview|post|dev|rc|a|b|c)(?![A-Za-z0-9])",
+        re.IGNORECASE,
+    )
+    return pattern.sub(lambda m: f"{m.group('sep')}{m.group('label')}0", normalized)
+
+
 def _parse_version(version_string: str) -> "Version":
     """Parse a version string using the packaging library (PEP 440 compliant).
 
@@ -59,6 +153,10 @@ def _parse_version(version_string: str) -> "Version":
 
     The packaging library provides robust PEP 440 version parsing and comparison, supporting pre-releases
     (alpha/beta/rc), stable releases, post-releases, and development releases with proper ordering.
+
+    Inputs are first passed through :func:`_normalize_version_string`, which appends ``0`` to bare
+    pre/post/dev labels (e.g. ``"1.8.0.dev"`` becomes ``"1.8.0.dev0"``) so non-canonical-but-common
+    strings parse successfully under strict ``packaging`` (>=22).
 
     Args:
         version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0a1", "1.5.0rc1", "1.5.0.post1").
@@ -80,6 +178,10 @@ def _parse_version(version_string: str) -> "Version":
         True
         >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")
         True
+        >>> _parse_version("1.8.0.dev") < _parse_version("1.8.0")
+        True
+        >>> _parse_version("1.8.0.post") > _parse_version("1.8.0")
+        True
 
     !!! note
         Install the audit extra to use version comparison features:
@@ -94,7 +196,7 @@ def _parse_version(version_string: str) -> "Version":
         ) from err
 
     try:
-        return Version(version_string)
+        return Version(_normalize_version_string(version_string))
     except InvalidVersion as err:
         raise ValueError(
             f"Failed to parse version '{version_string}'. Expected PEP 440 format "
@@ -150,6 +252,10 @@ class DeprecationWrapperInfo:
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
             is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
             that lack the introductory version metadata without crashing callers.
+        api_type: Inferred deprecated API type for report generation.
+            Possible values: ``callable``, ``args``, ``class``, ``dataclass``, ``dataclass attributes``,
+            ``data``, ``class constructor``, ``class constructor args``, ``class method``, ``class method args``,
+            ``classmethod``, ``classmethod args``, ``staticmethod``, ``staticmethod args``.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -178,6 +284,7 @@ class DeprecationWrapperInfo:
     all_identity: bool = False
     chain_type: Optional[ChainType] = None
     empty_deprecated_in: bool = field(init=False, default=False)
+    api_type: str = field(repr=False, default="")
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
@@ -517,17 +624,13 @@ def _get_package_version(package_name: str) -> str:
         ImportError: If the package is not installed or version cannot be determined.
 
     """
-    import importlib.metadata
-
     # Try importlib.metadata first (standard approach for installed packages)
     with suppress(Exception):
         return importlib.metadata.version(package_name)
 
     # Fall back to checking __version__ attribute
     with suppress(Exception):
-        import importlib as _importlib
-
-        module = _importlib.import_module(package_name)
+        module = importlib.import_module(package_name)
         if hasattr(module, "__version__"):
             return module.__version__
 
@@ -577,6 +680,7 @@ def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
+    include_members: bool = False,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.
 
@@ -596,6 +700,7 @@ def validate_deprecation_expiry(
             If None, attempts to auto-detect the version using the package name from the module path (e.g.,
             ``"mypackage"`` extracts ``mypackage`` as package name).
         recursive: If True (default), recursively scan submodules. If False, only scan the top-level module.
+        include_members: If True, also scan deprecated class members (methods, constructors).
 
     Returns:
         List of error messages for callables that have expired (past their removal deadline).
@@ -622,8 +727,6 @@ def validate_deprecation_expiry(
         - Can be integrated into test suites or pre-commit hooks
 
     """
-    import importlib
-
     # Determine module name for auto-version detection
     module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
 
@@ -648,12 +751,15 @@ def validate_deprecation_expiry(
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    return _check_expiry_for_callables(find_deprecation_wrappers(module, recursive=recursive), current_version)
+    return _check_expiry_for_callables(
+        find_deprecation_wrappers(module, recursive=recursive, include_members=include_members), current_version
+    )
 
 
 def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
+    include_members: bool = True,
 ) -> list[DeprecationWrapperInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
 
@@ -668,6 +774,7 @@ def find_deprecation_wrappers(
             - Imported module object (e.g., ``import my_package; find_deprecation_wrappers(my_package)``)
             - String module path (e.g., ``find_deprecation_wrappers("my_package.submodule")``)
         recursive: If True (default), recursively scan submodules. If False, only scan the top-level module.
+        include_members: If True, also scan deprecated methods and constructors defined on classes.
 
     Returns:
         List of :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, one per deprecated wrapper found.
@@ -705,20 +812,25 @@ def find_deprecation_wrappers(
         - Uses static member inspection to avoid scan-time side effects from dynamic attribute access
 
     """
-    import importlib
-    import pkgutil
-
     results: list[DeprecationWrapperInfo] = []
 
     # Handle string module path
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    def _scan_callable(obj: Any, module_name: str, qualified_name: str) -> None:  # noqa: ANN401
+    def _scan_callable(
+        obj: Any,  # noqa: ANN401
+        module_name: str,
+        qualified_name: str,
+        *,
+        member_name: Optional[str] = None,
+        descriptor_kind: Optional[str] = None,
+    ) -> None:
         """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
         if _has_deprecation_meta(obj):
             info = validate_deprecation_wrapper(obj)
-            info = replace(info, module=module_name, function=qualified_name)
+            api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
+            info = replace(info, module=module_name, function=qualified_name, api_type=api_type)
             results.append(info)
 
     def _scan_class(cls: Any, module_name: str, cls_name: str) -> None:  # noqa: ANN401
@@ -728,19 +840,20 @@ def find_deprecation_wrappers(
         except (AttributeError, TypeError):
             return
         for attr_name, obj in members:
-            if attr_name.startswith("_"):
+            if attr_name.startswith("_") and attr_name != "__init__":
                 continue
             qualified = f"{cls_name}.{attr_name}"
             # Peek through descriptors to find the underlying function.
             if isinstance(obj, (classmethod, staticmethod)):
-                _scan_callable(obj.__func__, module_name, qualified)
+                kind = "classmethod" if isinstance(obj, classmethod) else "staticmethod"
+                _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
             elif isinstance(obj, property):
                 if obj.fget is not None:
-                    _scan_callable(obj.fget, module_name, qualified)
+                    _scan_callable(obj.fget, module_name, qualified, member_name=attr_name)
             elif isinstance(obj, cached_property):
-                _scan_callable(obj.func, module_name, qualified)
+                _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
             else:
-                _scan_callable(obj, module_name, qualified)
+                _scan_callable(obj, module_name, qualified, member_name=attr_name)
 
     def _scan_module(mod: Any) -> None:  # noqa: ANN401
         """Scan a single module for deprecated functions and class members."""
@@ -758,9 +871,10 @@ def find_deprecation_wrappers(
 
             if _has_deprecation_meta(obj):
                 info = validate_deprecation_wrapper(obj)
-                info = replace(info, module=mod_name, function=name)
+                api_type = _classify_wrapper_api_type(obj, info)
+                info = replace(info, module=mod_name, function=name, api_type=api_type)
                 results.append(info)
-            elif inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
+            elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
                 _scan_class(obj, mod_name, name)
 
     # Scan the main module
@@ -781,6 +895,281 @@ def find_deprecation_wrappers(
                 _scan_module(submod)
 
     return results
+
+
+def _resolve_table_version(
+    module: Union[Any, str],  # noqa: ANN401
+    *,
+    current_version: Optional[str],
+) -> tuple[Optional[str], Optional["Version"]]:
+    """Resolve report version string and optional parsed version object."""
+    module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
+    resolved_version = current_version
+
+    if resolved_version is None and module_name:
+        with suppress(ImportError):
+            resolved_version = _get_package_version(module_name.split(".")[0])
+
+    if resolved_version is None:
+        return None, None
+
+    try:
+        return resolved_version, _parse_version(resolved_version)
+    except ImportError:
+        return resolved_version, None
+    except ValueError as err:
+        if current_version is not None:
+            raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
+        return resolved_version, None
+
+
+def _safe_parse_version(version: str) -> Optional["Version"]:
+    """Best-effort version parser for report status evaluation."""
+    if not version:
+        return None
+    try:
+        return _parse_version(version)
+    except (ImportError, ValueError):
+        return None
+
+
+def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
+    """Return a stable fully-qualified label for report rows."""
+    return f"{info.module}.{info.function}" if info.module else info.function
+
+
+def _format_report_target(target: Any) -> str:  # noqa: ANN401
+    """Format replacement target name for report rows."""
+    if target is None or target is TargetMode.NOTIFY:
+        return "—"
+    if isinstance(target, TargetMode):
+        return target.value
+    if callable(target):
+        target_module = getattr(target, "__module__", "")
+        target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))
+        return f"{target_module}.{target_name}" if target_module else target_name
+    return str(target)
+
+
+def _classify_wrapper_api_type(
+    wrapped_obj: Any,  # noqa: ANN401
+    info: DeprecationWrapperInfo,
+    *,
+    member_name: Optional[str] = None,
+    descriptor_kind: Optional[str] = None,
+) -> str:
+    """Classify wrapper kind for markdown report rows."""
+    has_mapping = bool(info.deprecated_info.args_mapping)
+
+    if member_name is not None:
+        if member_name == "__init__":
+            return "class constructor args" if has_mapping else "class constructor"
+        if descriptor_kind == "classmethod":
+            return "classmethod args" if has_mapping else "classmethod"
+        if descriptor_kind == "staticmethod":
+            return "staticmethod args" if has_mapping else "staticmethod"
+        return "class method args" if has_mapping else "class method"
+
+    if isinstance(wrapped_obj, _DeprecatedProxy):
+        source_obj = wrapped_obj.wrapped
+        if inspect.isclass(source_obj):
+            if is_dataclass(source_obj):
+                return "dataclass attributes" if has_mapping else "dataclass"
+            return "class"
+        return "data"
+
+    if inspect.isclass(wrapped_obj):
+        if is_dataclass(wrapped_obj):
+            return "dataclass attributes" if has_mapping else "dataclass"
+        return "class"
+
+    if has_mapping:
+        return "args"
+
+    return "callable"
+
+
+def _format_report_api_type(info: DeprecationWrapperInfo) -> str:
+    """Return api_type with backward-compatible fallback."""
+    if info.api_type:
+        return info.api_type
+    return "args" if info.deprecated_info.args_mapping else "callable"
+
+
+def _report_row_sort_key(info: DeprecationWrapperInfo) -> tuple[str, str, str, bool, str]:
+    """Sort report rows by module and symbol family, keeping args-variants adjacent."""
+    function = info.function or ""
+    top_level = function.split(".", maxsplit=1)[0] if function else ""
+    api_type = _format_report_api_type(info)
+    return (info.module or "", top_level, function, api_type.endswith(" args"), api_type)
+
+
+def _format_version(version: Optional[str], *, missing: str = "—") -> str:
+    """Format version values with a stable ``v`` prefix for report output."""
+    if not version:
+        return missing
+    return f"v{version.lstrip('vV')}"
+
+
+def _get_deprecation_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> DeprecationStatus:
+    """Classify one deprecated symbol into a report lifecycle status."""
+    if current_version is None:
+        return (
+            DeprecationStatus.NO_REMOVAL_TARGET
+            if not info.deprecated_info.remove_in
+            else DeprecationStatus.STATUS_UNKNOWN
+        )
+
+    deprecated_in = _safe_parse_version(info.deprecated_info.deprecated_in)
+    if deprecated_in is not None and current_version < deprecated_in:
+        return DeprecationStatus.SCHEDULED_DEPRECATION
+
+    remove_in = info.deprecated_info.remove_in
+    if not remove_in:
+        return DeprecationStatus.NO_REMOVAL_TARGET
+
+    remove_version = _safe_parse_version(remove_in)
+    if remove_version is None:
+        return DeprecationStatus.INVALID_REMOVAL_TARGET
+
+    if current_version >= remove_version:
+        return DeprecationStatus.PAST_REMOVAL_DATE
+
+    # Pre-release of the same base release as remove_in gets an elevated status:
+    # dev/alpha/beta → REMOVAL_IMMINENT; rc → REMOVE_BEFORE_RELEASE.
+    # base_version strips pre/post/dev/local markers so "1.8" == "1.8.0" compare equal.
+    if current_version.is_prerelease:
+        try:
+            _VersionType = type(current_version)  # noqa: N806
+            same_base = _VersionType(current_version.base_version) == _VersionType(remove_version.base_version)
+        except Exception:
+            same_base = False
+        if same_base:
+            if current_version.pre is not None and current_version.pre[0] == "rc":
+                return DeprecationStatus.REMOVE_BEFORE_RELEASE
+            return DeprecationStatus.REMOVAL_IMMINENT
+
+    return DeprecationStatus.ACTIVE_WARNING
+
+
+def generate_deprecation_table(
+    module: Union[Any, str],  # noqa: ANN401
+    current_version: Optional[str] = None,
+    recursive: bool = True,
+    style: Union[TableStyle, str] = TableStyle.COMPACT,
+    include_members: bool = True,
+    *,
+    _wrappers: Optional[list["DeprecationWrapperInfo"]] = None,
+) -> str:
+    """Generate a markdown table summarizing deprecated wrappers.
+
+    The table is derived from ``__deprecated__`` metadata and includes both
+    top-level wrappers and deprecated class members (methods/constructors).
+
+    Args:
+        module: Imported module/package object or string module path to scan.
+        current_version: Optional current package version for lifecycle status
+            evaluation in compact style. If ``None``, auto-detection is attempted
+            via the package name; status falls back to ``"⚪ Status Unknown"`` when
+            ``packaging`` is not installed.
+        recursive: If True (default), include submodules in the scan.
+        style: Table format — ``"compact"`` or ``"matrix"``.
+            - ``"compact"``: ``Original API | API Type | New API | Deprecated | Remove | Current Status``
+            - ``"matrix"``: ``Original API | API Type | New API | <all versions...>``, with markers
+              ``D`` (deprecated) and ``R`` (remove) in version columns.
+        include_members: If True (default), include deprecated class members (methods, constructors).
+
+    Returns:
+        Markdown string containing a formatted table. When a version is
+        resolvable (either from current_version or auto-detected), the
+        first line is an HTML comment <!-- Current version: X.Y -->
+        followed by the header row and alignment row. When no version can be
+        resolved, the first line is the header row directly.
+
+    Raises:
+        ValueError: If ``style`` is not ``"compact"`` or ``"matrix"``, or if
+            ``current_version`` is supplied but is not a valid PEP 440 version
+            string and ``packaging`` is installed.
+
+    Example:
+        >>> from tests import collection_deprecate as pkg
+        >>> report = generate_deprecation_table(pkg, recursive=False)
+        >>> report.splitlines()[0]
+        '| Original API | API Type | New API | Deprecated | Remove | Current Status |'
+
+    """
+    try:
+        style = TableStyle(style)
+    except ValueError as err:
+        raise ValueError(
+            f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in TableStyle)}."
+        ) from err
+
+    resolved_version, parsed_version = _resolve_table_version(module, current_version=current_version)
+    if _wrappers is None:
+        _wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members)
+    wrappers = sorted(
+        _wrappers,
+        key=_report_row_sort_key,
+    )
+
+    if style == TableStyle.COMPACT:
+        rows = [
+            "| Original API | API Type | New API | Deprecated | Remove | Current Status |",
+            "| :--- | :--- | :--- | :---: | :---: | :--- |",
+        ]
+
+        for info in wrappers:
+            rows.append(
+                "| "
+                f"`{_format_report_symbol(info)}` | "
+                f"{_format_report_api_type(info)} | "
+                f"`{_format_report_target(info.deprecated_info.target)}` | "
+                f"{_format_version(info.deprecated_info.deprecated_in)} | "
+                f"{_format_version(info.deprecated_info.remove_in)} | "
+                f"{_get_deprecation_status(info, parsed_version).value} |"
+            )
+    else:
+        version_map: dict[str, Optional[Version]] = {}
+        for info in wrappers:
+            for version in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in):
+                if version and version not in version_map:
+                    version_map[version] = _safe_parse_version(version)
+
+        sorted_versions = sorted(
+            version_map,
+            key=lambda version: (
+                version_map[version] is None,
+                version_map[version] if version_map[version] is not None else version,
+            ),
+        )
+        version_headers = [_format_version(version) for version in sorted_versions]
+        header_row = "| Original API | API Type | New API | " + " | ".join(version_headers) + " |"
+        divider_row = "| :--- | :--- | :--- | " + " | ".join(":---:" for _ in version_headers) + " |"
+        col_idx = {v: i for i, v in enumerate(sorted_versions)}
+        n_versions = len(sorted_versions)
+        rows = [header_row, divider_row]
+
+        for info in wrappers:
+            markers: list[str] = [" "] * n_versions
+            dep_in = info.deprecated_info.deprecated_in
+            rem_in = info.deprecated_info.remove_in
+            if dep_in and dep_in in col_idx:
+                markers[col_idx[dep_in]] = "D"
+            if rem_in and rem_in in col_idx:
+                i = col_idx[rem_in]
+                markers[i] = "R" if markers[i] == " " else "D/R"
+            rows.append(
+                "| "
+                f"`{_format_report_symbol(info)}` | "
+                f"{_format_report_api_type(info)} | "
+                f"`{_format_report_target(info.deprecated_info.target)}` | " + " | ".join(markers) + " |"
+            )
+
+    if resolved_version is not None:
+        rows.insert(0, f"<!-- Current version: {resolved_version} -->")
+
+    return "\n".join(rows)
 
 
 def validate_deprecation_chains(

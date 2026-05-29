@@ -5,6 +5,7 @@ scikit-learn >=1.6.1
 phmdoctest >=1.4.0
 dataclasses  # needed for phmdoctest
 typing_extensions  # PEP 702 stacking regression tests
+packaging  # required for version-comparison audit tests
 
 # Docs extensions
 griffe  # for MKDocs

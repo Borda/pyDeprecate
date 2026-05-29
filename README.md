@@ -48,6 +48,7 @@ ______________________________________________________________________
 - [🔇 Understanding the void() Helper](#understanding-the-void-helper)
 - [🔍 Audit](#audit)
   - [Validating Wrapper Configuration](#validating-wrapper-configuration)
+  - [Generating Deprecation Tables](#generating-deprecation-tables)
   - [Enforcing Deprecation Removal Deadlines](#enforcing-deprecation-removal-deadlines)
   - [Detecting Deprecation Chains](#detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
@@ -1307,6 +1308,52 @@ print(f"Self-references: {len(self_refs)}")
 
 <br>
 
+### Generating Deprecation Tables
+
+If you want docs-friendly summaries, `generate_deprecation_table()` renders
+the discovered wrapper metadata as Markdown tables. The report includes
+deprecated class members such as methods and constructors, so wrapper metadata
+remains the single source of truth.
+
+It supports two styles via `style=`:
+
+- `compact` (default): `Original API | API Type | New API | Deprecated | Remove | Current Status`
+- `matrix`: `Original API | API Type | New API | <all versions ...>` with lifecycle markers:
+  - `D` = deprecated in this version
+  - `R` = remove in this version
+- rows are ordered by module and symbol family (class/function), so related `args` variants stay grouped together
+
+The **Current Status** column uses these labels:
+
+| Status                    | Meaning                                                                   |
+| ------------------------- | ------------------------------------------------------------------------- |
+| 🕒 Scheduled Deprecation  | Current version is before `deprecated_in` — not yet active                |
+| ℹ️ No Removal Target      | No `remove_in` set — no scheduled removal                                 |
+| ⚪ Status Unknown         | `packaging` not installed or `current_version` not resolvable             |
+| ⚪ Invalid Removal Target | `remove_in` cannot be parsed as a PEP 440 version                         |
+| 📢 Deprecation Active     | Between `deprecated_in` and `remove_in` — still in the deprecation window |
+| ⏰ Removal Imminent       | Dev/alpha/beta pre-release of the `remove_in` base version                |
+| 🔔 Remove Before Release  | RC pre-release of the `remove_in` base version                            |
+| 💥 Past Removal Date      | Current version ≥ `remove_in` — zombie code that should be deleted        |
+
+```python
+from tests import collection_deprecate as my_package
+from deprecate import generate_deprecation_table
+
+report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
+```
+
+> **Current version: 1.5**
+>
+> | Original API                                | API Type     | New API                         | Deprecated | Remove | Current Status           |
+> | :------------------------------------------ | :----------- | :------------------------------ | :--------: | :----: | :----------------------- |
+> | `my_package.depr_func_same_version`         | callable     | `—`                             |    v2.0    |  v3.0  | 🕒 Scheduled Deprecation |
+> | `my_package.ServiceCls.old_redirect_method` | class method | `my_package.ServiceCls.compute` |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.depr_pow_args`                  | callable     | `my_package.base_pow_args`      |    v1.0    |  v1.3  | 💥 Past Removal Date     |
+> | `my_package.depr_func_no_remove_in`         | callable     | `—`                             |    v1.0    |   —    | ℹ️ No Removal Target     |
+
+<br>
+
 <details>
 <summary><b>Using the CLI</b></summary>
 
@@ -1318,7 +1365,7 @@ The CLI requires the `cli` extra (includes `fire` and `rich`). Install it with:
 pip install 'pyDeprecate[audit,cli]'
 ```
 
-The CLI has four subcommands.
+The CLI has five subcommands.
 
 ```bash
 # check — wrapper config + deprecated-to-deprecated chains (default)
@@ -1333,12 +1380,29 @@ pydeprecate expiry path/to/your/package   # auto-detects version from the packag
 # chains — deprecated-to-deprecated forwarding chains only
 pydeprecate chains path/to/your/package
 
-# all — single scan running check + expiry + chains together
+# all — single scan running check + expiry + chains, then appends a deprecation table
 pydeprecate all path/to/your/package --version 2.0.0
+
+# status — print a markdown deprecation status table (standalone, no checks)
+pydeprecate status path/to/your/package
+pydeprecate status path/to/your/package --style matrix
+pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
 **Common flags** (all subcommands): `--norecursive` scans the top-level module only; `--skip_errors` always exits `0` even when issues are found.
-`expiry` and `all` also accept `--version VERSION` to set the current version explicitly.
+`expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly.
+`status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+
+**Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
+
+```bash
+# Run all checks + deprecation table on the bundled test fixtures
+pydeprecate all tests --version 1.2
+# Standalone deprecation table only
+pydeprecate status tests --version 1.2
+```
+
+`tests/` contains pyDeprecate's own deprecation fixtures — useful as a live demo without needing your own package. Note: `expiry` and `chains` (run as part of `all`) require an importable package name rather than a plain directory path.
 
 **Example: catching a deprecated-to-deprecated chain**
 

@@ -184,7 +184,8 @@ validate_deprecation_expiry("src", current_version="2.0")
 CLI equivalent:
 
 ```bash
-pydeprecate all src/
+pydeprecate all src/   # runs check + expiry + chains, then appends a deprecation table
+pydeprecate status src/   # standalone deprecation table only (no checks)
 ```
 
 ## Decision Table
@@ -198,6 +199,8 @@ pydeprecate all src/
 | Class rename | `@deprecated_class(target=NewClass)` |
 | Constant/object alias | `deprecated_instance(obj, ...)` |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
+| Docs table | `generate_deprecation_table(pkg, style="compact")` or `style="matrix"` |
+| Deprecation table (CLI) | `pydeprecate status src/` — standalone table, no checks |
 
 ## Decision Flowchart
 

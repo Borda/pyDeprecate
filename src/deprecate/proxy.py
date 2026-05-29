@@ -264,6 +264,11 @@ class _DeprecatedProxy:
                 f"'{name}' is deprecated and read-only. {operation} is not allowed. Migrate away from this object."
             )
 
+    @property
+    def wrapped(self) -> Any:  # noqa: ANN401
+        """The deprecated source object this proxy wraps (audit contract accessor)."""
+        return self._cfg.obj
+
     def _get_active(self) -> Any:  # noqa: ANN401
         """Return the active object: *target* when set, otherwise *source*."""
         target = self._dep.target
