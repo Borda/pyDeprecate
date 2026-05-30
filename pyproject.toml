@@ -97,7 +97,6 @@ ini_options.addopts = [
   "--strict-markers",
   "--doctest-modules",
   "--color=yes",
-  "--disable-pytest-warnings",
 ]
 # filterwarnings = ["error::FutureWarning"]
 # Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`

@@ -118,6 +118,13 @@ class TestProxyWarnBehavior:
             warnings.simplefilter("always")
             proxy._warn()
         assert caught[0].category is FutureWarning
+        # NOTE — stacklevel assertion intentionally omitted.  The current ``_DeprecatedProxy._warn``
+        # implementation calls ``stream(msg)`` (i.e. ``warnings.warn(msg, FutureWarning)``) with the
+        # default ``stacklevel=1``, so the emitted warning is always attributed to ``proxy.py:248``
+        # rather than the caller's frame.  Asserting ``filename.endswith("test_proxy.py")`` here
+        # would currently fail.  Fixing the underlying source — passing an explicit ``stacklevel``
+        # through to ``stream`` — is out of scope for this test-only audit, so the assertion is left
+        # off until that ``src/`` change is approved.
 
 
 class TestProxyTemplateMgs:

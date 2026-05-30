@@ -1,5 +1,6 @@
 """Test the utility helper functions."""
 
+import warnings
 from collections.abc import Callable
 
 import pytest
@@ -66,9 +67,29 @@ class TestNoWarningCallAlias:
     """no_warning_call is a deprecated alias — it still works but emits DeprecationWarning on call."""
 
     def test_emits_deprecation_warning(self) -> None:
-        """Calling no_warning_call emits DeprecationWarning naming the replacement."""
-        with pytest.warns(DeprecationWarning, match=r"no_warning_call.*assert_no_warnings"), no_warning_call():
-            pass
+        """Calling no_warning_call emits DeprecationWarning naming the replacement.
+
+        NOTE — caller-frame filename assertion intentionally omitted.  ``no_warning_call`` is
+        decorated with :func:`contextlib.contextmanager`, which interposes its own
+        ``__enter__`` frame between the user's ``with`` site and the generator body.  The
+        current ``stacklevel=2`` therefore lands in ``contextlib.py`` rather than in the
+        caller's file; routing the warning to the caller would require either
+        ``stacklevel=3`` or replacing ``@contextmanager`` with a manual
+        ``__enter__``/``__exit__`` class.  Adjusting that is a ``src/`` change out of scope
+        for this test-only audit, so the filename assertion is left off until that fix is
+        approved.
+
+        """
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            with no_warning_call():
+                pass
+
+        depr_warns = [w for w in recorded if w.category is DeprecationWarning]
+        assert depr_warns, "Calling no_warning_call must emit a DeprecationWarning"
+        msg = str(depr_warns[0].message)
+        assert "no_warning_call" in msg
+        assert "assert_no_warnings" in msg
 
     def test_passes_when_no_warning_raised(self) -> None:
         """no_warning_call does not raise AssertionError when the block is clean."""

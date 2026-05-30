@@ -15,7 +15,13 @@ import tests
 import tests.collection_chains as chain_module
 import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
-from deprecate import deprecated, validate_deprecation_expiry
+from deprecate import (
+    DeprecatedCallableInfo,
+    deprecated,
+    find_deprecated_callables,
+    validate_deprecated_callable,
+    validate_deprecation_expiry,
+)
 from deprecate._types import DeprecationConfig
 from deprecate.audit import (
     ChainType,
@@ -844,3 +850,61 @@ class TestCheckModuleDeprecationExpiry:
         assert all(isinstance(msg, str) for msg in expired)
         for msg in expired:
             assert "Callable" in msg or "scheduled" in msg
+
+
+class TestBackwardCompatShims:
+    """Coverage for the three v0.6-era public aliases preserved in :mod:`deprecate.audit`.
+
+    The three shims are themselves wrapped with :func:`~deprecate.deprecation.deprecated` /
+    :func:`~deprecate.proxy.deprecated_class` (``deprecated_in="0.6"``, ``remove_in="1.0"``),
+    so calling them must (a) emit a :class:`FutureWarning` (the project default warning
+    category) and (b) forward to the new-name implementation transparently.
+
+    Calling the shims also produces an *inner* ``FutureWarning`` from the underlying
+    fixture each test exercises (e.g. ``decorated_pow_self``); only the shim's own warning
+    is asserted here — the fixture warning is allowed to coexist.
+
+    """
+
+    def test_validate_deprecated_callable_emits_warning_and_forwards(self) -> None:
+        """``validate_deprecated_callable`` warns and returns the same result as the new name."""
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            result_old = validate_deprecated_callable(proxy_module.decorated_pow_self)
+
+        # The shim's own deprecation warning must appear in the record; identify it by message.
+        shim_warns = [w for w in recorded if "validate_deprecated_callable" in str(w.message)]
+        assert shim_warns, "Calling the shim must emit a FutureWarning about its own deprecation"
+        assert shim_warns[0].category is FutureWarning
+
+        # Result must equal the underlying new-name implementation called on the same input.
+        result_new = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
+        assert result_old == result_new
+
+    def test_find_deprecated_callables_emits_warning_and_forwards(self) -> None:
+        """``find_deprecated_callables`` warns and returns the same list as ``find_deprecation_wrappers``."""
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            result_old = find_deprecated_callables(proxy_module, recursive=False)
+
+        shim_warns = [w for w in recorded if "find_deprecated_callables" in str(w.message)]
+        assert shim_warns, "Calling the shim must emit a FutureWarning about its own deprecation"
+        assert shim_warns[0].category is FutureWarning
+
+        result_new = find_deprecation_wrappers(proxy_module, recursive=False)
+        assert result_old == result_new
+
+    def test_deprecated_callable_info_alias_resolves(self) -> None:
+        """``DeprecatedCallableInfo`` is a :func:`deprecated_class` proxy aliasing ``DeprecationWrapperInfo``.
+
+        A real :class:`DeprecationWrapperInfo` instance (obtained from
+        :func:`find_deprecation_wrappers`) must satisfy ``isinstance(_, DeprecatedCallableInfo)`` —
+        the proxy implements ``__instancecheck__`` to delegate to the target class.
+
+        """
+        results = find_deprecation_wrappers(proxy_module, recursive=False)
+        assert results, "Fixture module must contain at least one deprecated wrapper"
+        # Filter to deterministic instance — first item from a non-empty list.
+        info = results[0]
+        assert isinstance(info, DeprecationWrapperInfo)
+        assert isinstance(info, DeprecatedCallableInfo)
