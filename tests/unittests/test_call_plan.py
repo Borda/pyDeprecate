@@ -185,12 +185,8 @@ def test_misconfigured_warning_fires_exactly_once() -> None:
         warnings.simplefilter("always")
         target_false_deprecation(x=2)
 
-    misconfig_call1 = [
-        w for w in call1 if w.category is UserWarning and "invalid deprecation config" in str(w.message)
-    ]
-    misconfig_call2 = [
-        w for w in call2 if w.category is UserWarning and "invalid deprecation config" in str(w.message)
-    ]
+    misconfig_call1 = [w for w in call1 if w.category is UserWarning and "invalid deprecation config" in str(w.message)]
+    misconfig_call2 = [w for w in call2 if w.category is UserWarning and "invalid deprecation config" in str(w.message)]
     assert len(misconfig_call1) == 1, "Misconfigured UserWarning must fire on the first call"
     assert misconfig_call2 == [], "Misconfigured UserWarning must NOT fire on subsequent calls (sticky flag)"
 
