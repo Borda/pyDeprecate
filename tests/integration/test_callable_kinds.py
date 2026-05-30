@@ -129,8 +129,11 @@ def test_generator_warning_stacklevel(wrapper: object, call_kwargs: dict) -> Non
     with warnings.catch_warnings(record=True) as warned:
         warnings.simplefilter("always")
         wrapper(**call_kwargs)  # type: ignore[operator]
-    assert warned
-    w = warned[0]
+    dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+    # Single-warning invariant: one generator instantiation must emit exactly one deprecation
+    # warning, not zero (silent regression) and not multiple (loop re-entry bug).
+    assert len(dep_warns) == 1, f"Expected exactly 1 deprecation warning per call, got {len(dep_warns)}"
+    w = dep_warns[0]
     assert w.filename.endswith("test_callable_kinds.py"), f"Expected caller file, got {w.filename}"
 
 
@@ -151,7 +154,10 @@ def test_sync_deprecated_warning_points_to_caller() -> None:
         warnings.simplefilter("always")
         decorated_sum_calls_inf(1, 2)
     dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
-    assert dep_warns, "Sync wrapper must emit a deprecation warning"
+    # Single-warning invariant: one call must emit exactly one deprecation warning.
+    # ``num_warns=-1`` on the wrapper makes the warning fire every call (no exhaustion);
+    # any deviation from 1 signals a regression in the sync dispatch path.
+    assert len(dep_warns) == 1, f"Expected exactly 1 deprecation warning per call, got {len(dep_warns)}"
     w = dep_warns[0]
     assert w.category is FutureWarning, f"Expected FutureWarning (project default), got {w.category!r}"
     assert w.filename.endswith("test_callable_kinds.py"), f"Expected caller file, got {w.filename}"

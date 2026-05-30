@@ -25,9 +25,10 @@ from deprecate.deprecation import _build_call_plan
 from tests.collection_deprecate import (
     depr_pow_args,
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
+    make_depr_compute_power_stacked,
 )
 from tests.collection_misconfigured import target_false_deprecation
-from tests.collection_targets import double_value, identity_value
+from tests.collection_targets import compute_power, double_value, identity_value
 
 
 def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -> _DeprecatedCallable:
@@ -242,3 +243,66 @@ def test_num_warns_one_exhausts_after_first_call() -> None:
     future_call2 = [w for w in call2 if w.category is FutureWarning]
     assert len(future_call1) == 1, "FutureWarning must fire on the first call when num_warns=1"
     assert future_call2 == [], "FutureWarning must NOT fire on the second call after num_warns budget is exhausted"
+
+
+# ---------------------------------------------------------------------------
+# ``source_is_stacked=True`` — bypasses the migrated-caller short-circuit
+# ---------------------------------------------------------------------------
+
+
+def test_source_is_stacked_skips_positional_conversion() -> None:
+    """When ``source_is_stacked=True`` the helper must not short-circuit on a migrated caller.
+
+    The short-circuit gate (see ``_build_call_plan`` lines 728–739) compresses three conditions:
+    no callable/arg reason, no ``args_extra`` injection, and ``not source_is_stacked``.  When the
+    outer wrapper sits over an already-``@deprecated`` source — the canonical
+    ``ARGS_REMAP``-outer + ``NOTIFY``-inner stack from :func:`make_depr_compute_power_stacked` —
+    the inner layer still needs to run so its own ``FutureWarning`` fires.  Skipping that path
+    when ``source_is_stacked=True`` would silently drop the inner warning.
+
+    The companion test :func:`test_args_remap_migrated_caller_short_circuits` pins the inverse:
+    same migrated-caller kwargs with ``source_is_stacked=False`` *do* short-circuit.
+
+    Two assertions are checked in isolation here:
+
+    * direct call to ``_build_call_plan`` with ``source_is_stacked=True`` returns
+      ``short_circuit=False`` even when no reason fires (the bypass);
+    * end-to-end call to the real stacked wrapper from
+      :func:`make_depr_compute_power_stacked` with the migrated arg name emits the inner
+      ``NOTIFY`` ``FutureWarning`` and returns the correct value.
+
+    """
+    cfg = DeprecationConfig(
+        deprecated_in="1.0",
+        remove_in="2.0",
+        name="src",
+        target=TargetMode.ARGS_REMAP,
+        args_mapping={"factor": "scale"},
+    )
+    wrapper = _make_wrapper_stub(compute_power, cfg)
+    plan = _build_call_plan(
+        wrapper_fn=wrapper,
+        source=compute_power,
+        target=TargetMode.ARGS_REMAP,
+        normalized_target=TargetMode.ARGS_REMAP,
+        args=(),
+        kwargs={"base": 2.0, "scale": 3.0},  # caller already migrated — uses new name
+        dep_cfg=cfg,
+        stream=None,
+        num_warns=1,
+        source_has_var_positional=False,
+        source_is_stacked=True,  # source itself carries @deprecated meta
+    )
+
+    assert plan.short_circuit is False, "source_is_stacked=True must bypass the migrated-caller short-circuit"
+    assert plan.target_func is None, "ARGS_REMAP never resolves a callable target_func"
+
+    # End-to-end check: the real ARGS_REMAP-outer + NOTIFY-inner stack must still emit the
+    # inner NOTIFY warning and return the correct value when the caller migrates to ``scale=``.
+    fn = make_depr_compute_power_stacked()
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        result = fn(2.0, scale=3.0)
+    future_warnings = [w for w in record if w.category is FutureWarning]
+    assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
+    assert len(future_warnings) >= 1, "Inner NOTIFY layer must still fire its FutureWarning on a migrated caller"

@@ -23,6 +23,7 @@ import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
 from functools import lru_cache
+from types import TracebackType
 from typing import Any, Callable, Optional, Union
 
 
@@ -174,22 +175,47 @@ def assert_no_warnings(warning_type: Optional[type[Warning]] = None, match: Opti
             )
 
 
-@contextmanager
-def no_warning_call(warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> Generator:
+class no_warning_call:  # noqa: N801 - kept for backward compatibility with prior snake_case API
     """Deprecated alias for :func:`~deprecate.utils.assert_no_warnings`.
 
     This context manager is kept for backward compatibility so that existing imports like
     ``from deprecate.utils import no_warning_call`` continue to work until v1.0.
 
+    Implemented as a class-based context manager rather than ``@contextmanager`` so the deprecation warning's
+    ``stacklevel=2`` reliably points at the caller's ``with`` site instead of being absorbed by
+    :func:`contextlib.contextmanager`'s interposed ``__enter__`` frame.
+
     """
-    warnings.warn(
-        "`deprecate.utils.no_warning_call` is deprecated in `0.6` and will be removed in `1.0`; "
-        "use `deprecate.utils.assert_no_warnings` instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    with assert_no_warnings(warning_type=warning_type, match=match):
-        yield
+
+    def __init__(self, warning_type: Optional[type[Warning]] = None, match: Optional[str] = None) -> None:
+        """Capture the warning type and optional message pattern for the no-warning assertion."""
+        self._warning_type = warning_type
+        self._match = match
+        self._inner: Any = None  # ``assert_no_warnings`` returns a ``_GeneratorContextManager``
+
+    def __enter__(self) -> None:
+        """Emit the alias-deprecation warning and enter the underlying ``assert_no_warnings`` context."""
+        # ``stacklevel=2`` lands the warning on the caller's ``with`` line — the user's frame is
+        # exactly one level above ``__enter__``, unlike the ``@contextmanager`` form which interposes
+        # ``contextlib``'s own ``__enter__`` between the generator body and the caller.
+        warnings.warn(
+            "`deprecate.utils.no_warning_call` is deprecated in `0.6` and will be removed in `1.0`; "
+            "use `deprecate.utils.assert_no_warnings` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._inner = assert_no_warnings(warning_type=self._warning_type, match=self._match)
+        self._inner.__enter__()
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
+        """Forward exit to the underlying ``assert_no_warnings`` so its AssertionError still surfaces."""
+        assert self._inner is not None  # noqa: S101 — internal invariant: __exit__ only runs after __enter__
+        return self._inner.__exit__(exc_type, exc_val, exc_tb)
 
 
 def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401

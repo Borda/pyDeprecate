@@ -449,6 +449,24 @@ class TestValidateDeprecationChains:
         assert info.chain_type is ChainType.TARGET
         assert info.deprecated_info.args_mapping == {"predictions": "preds", "labels": "truth"}
 
+    def test_detects_three_hop_target_chain(self, chain_issues: list) -> None:
+        """Chain depth > 2 (A → B → C → final, all deprecated) is detected at the outermost hop.
+
+        The detection logic inspects only the immediate target (it does not recursively walk the
+        chain), so ``caller_three_hop_sum`` reports ``ChainType.TARGET`` because its target
+        ``caller_sum_via_depr_sum`` is itself deprecated.  Each intermediate hop is reported
+        independently when scanned — this test pins the outermost hop only, validating that
+        depth ≥ 3 does not break chain detection on the leading wrapper.
+
+        """
+        by_name = {i.function: i for i in chain_issues}
+        assert "caller_three_hop_sum" in by_name, "Three-hop chain fixture must be discovered by the audit"
+        assert by_name["caller_three_hop_sum"].chain_type is ChainType.TARGET
+        # Every intermediate hop is independently a deprecation chain — the audit reports
+        # all three (outer, middle, and inner-via-decorated_sum already covered) when
+        # scanning the module.
+        assert "caller_sum_via_depr_sum" in by_name, "Middle hop must also be flagged as TARGET chain"
+
     @pytest.mark.parametrize(
         "fn_pattern",
         [

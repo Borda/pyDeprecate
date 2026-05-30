@@ -40,6 +40,11 @@ from deprecate.deprecation import (
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 
+#: Stacklevel from inside ``_warn`` to the caller's frame.
+#: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
+#: From ``warnings.warn`` upwards: ``1=_warn``, ``2=accessor`` (e.g. ``__getattr__``), ``3=caller``.
+_DEFAULT_STACKLEVEL_TO_CALLER: int = 3
+
 
 class _DeprecatedProxy:
     """Transparent proxy that emits deprecation warnings on attribute and item access.
@@ -245,7 +250,13 @@ class _DeprecatedProxy:
                 "deprecated_in": dep.deprecated_in,
                 "remove_in": dep.remove_in,
             }
-        stream(msg)
+        # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the
+        # ``_raise_warn`` fallback in ``deprecation.py``: when ``stream`` does not accept a
+        # ``stacklevel`` kwarg (e.g. ``print``, custom callables), fall back to a positional call.
+        try:
+            stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER)
+        except TypeError:
+            stream(msg)
         if arg_name is not None:
             cfg.warned_args[arg_name] = cfg.warned_args.get(arg_name, 0) + 1
         else:
