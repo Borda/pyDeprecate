@@ -158,7 +158,7 @@ To keep this comparison fair, here are capabilities where alternatives can be th
 
 - **`warnings.deprecated`**: native static diagnostics in mypy/pyright/IDEs without adding runtime wrappers.
 - **`deprecation`**: includes the `@fail_if_not_removed` test decorator for direct test-failure enforcement when removal deadlines are reached.
-- **`Deprecated`**: includes `@versionadded` and `@versionchanged` decorators for richer API lifecycle annotation beyond deprecation-only notices.
+- **`Deprecated`**: `deprecated.sphinx` includes `@versionadded` and `@versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
 - **`warnings.warn`**: no dependency and minimal surface area for quick internal notices where migration behavior is not needed.
 
 ## Related pages
