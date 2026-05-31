@@ -104,18 +104,18 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 - **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
 - **CI/Audit Tools**: Validate wrapper configuration, and—when installed with the `pyDeprecate[audit]` extra—enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
-- **Static Type-Checker Signals**: Native PEP 702 static diagnostics are provided by `typing.deprecated`; with pyDeprecate you can layer `typing.deprecated` on top when you need both static hints and runtime forwarding.
+- **Static Type-Checker Signals**: Native PEP 702 static diagnostics are provided by `warnings.deprecated`; with pyDeprecate you can layer `warnings.deprecated` on top when you need both static hints and runtime forwarding.
 - **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
 - **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
 - **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
 
 </details>
 
-> **When to prefer `typing.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
 
 <br>
 
-| _Feature_                 | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
+| _Feature_                 | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
 | ------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: | :----------------------------: |
 | **Simple Warnings**       |      ✅       |            ✅            |         ✅          |          ✅          |               ✅               |
 | **Auto-Forward Calls**    |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
@@ -136,13 +136,13 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 ✍️ = possible but requires manual implementation
 </br>
-† `typing.deprecated` in the stdlib on Python 3.13+; also available as `typing_extensions.deprecated` for Python < 3.13
+† `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as `typing_extensions.deprecated` for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
 **Fair strengths in alternative tools worth considering:**
 
-- `typing.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes.
+- `warnings.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes.
 - `deprecation` includes `@fail_if_not_removed`, a focused test helper tightly integrated with its own decorator workflow.
 - `Deprecated` includes `@versionadded` / `@versionchanged` helpers for broader lifecycle annotations in Sphinx-style docs.
 - `warnings.warn` stays the lowest-friction option for one-off internal warnings where compatibility shims are unnecessary.
