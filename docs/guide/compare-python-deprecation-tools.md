@@ -152,7 +152,7 @@ print(old_api(1))
 - Need removal deadline checks in CI: use pyDeprecate audit tools.
 - One-off internal warning with no forwarding or CI audit: `warnings.warn` is sufficient.
 
-## Meaningful strengths in alternatives
+## Fair strengths in alternative tools worth considering
 
 To keep this comparison fair, here are capabilities where alternatives can be the better fit:
 
