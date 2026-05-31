@@ -143,7 +143,7 @@ _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDep
 **Fair strengths in alternative tools worth considering:**
 
 - `warnings.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes.
-- `deprecation` includes `@fail_if_not_removed`, a focused test helper tightly integrated with its own decorator workflow.
+- `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
 - `Deprecated` includes `@versionadded` / `@versionchanged` helpers for broader lifecycle annotations in Sphinx-style docs.
 - `warnings.warn` stays the lowest-friction option for one-off internal warnings where compatibility shims are unnecessary.
 

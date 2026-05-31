@@ -115,7 +115,7 @@ _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDep
 **Fair strengths in alternative tools worth considering:**
 
 - `warnings.deprecated` is the strongest choice for static-only IDE/type-checker visibility.
-- `deprecation` includes `@fail_if_not_removed`, a focused test helper integrated with its deprecation metadata.
+- `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
 - `Deprecated` includes `deprecated.sphinx.versionadded` / `deprecated.sphinx.versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
 - `warnings.warn` remains the simplest solution for one-off internal warnings without compatibility requirements.
 
