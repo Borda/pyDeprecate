@@ -59,7 +59,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Custom message templates** — `template_mgs` overrides the default message with `%`-style placeholders (`source_name`, `target_path`, `deprecated_in`, `remove_in`, `argument_map`).
 - **Conditional skip** — `skip_if=callable` suppresses the deprecation notice when a runtime condition is met (e.g. caller has migrated to a newer dependency).
 - **CI audit tools** — [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches zombie code past its deadline, [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains, and [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
-- **Static type-checker signals** — native PEP 702 static diagnostics come from `warnings.deprecated`; with pyDeprecate, you can layer `warnings.deprecated` when you need both static hints and runtime migration behavior.
+- **Static type-checker signals** — native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
 - **CLI** — `pydeprecate check src/` / `pydeprecate all src/` runs all audit checks from the command line. See [CLI Reference](guide/cli.md).
 - **Testing helpers** — `assert_no_warnings()` context manager asserts no warnings of a given type escape a block; `no_warning_call` retained as legacy alias.
 - **Zero runtime dependencies** — nothing added to `install_requires`.
