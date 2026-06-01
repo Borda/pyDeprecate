@@ -285,6 +285,7 @@ class TestGetDeprecationStatus:
         assert status is DeprecationStatus.PAST_REMOVAL_DATE
         assert status.value == DeprecationStatus.PAST_REMOVAL_DATE.value
 
+    @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_status_unknown_when_current_version_none_and_remove_in_set(self) -> None:
         """``current_version=None`` with a ``remove_in`` set → ``STATUS_UNKNOWN``.
 

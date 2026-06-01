@@ -208,9 +208,10 @@ def test_args_extra_injection_reaches_target() -> None:
     * and return ``add_values(5, 10) == 15``.
 
     """
-    with warnings.catch_warnings(record=True):
+    with warnings.catch_warnings(record=True) as warned:
         warnings.simplefilter("always")
         result = depr_target_mode_args_only_with_args_extra_injects_kwargs(old_x=5)
+    assert warned
     assert result == 15, "args_extra must inject y=10 alongside the remapped old_x→x=5"
 
 

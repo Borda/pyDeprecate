@@ -1,5 +1,6 @@
 """Test the utility helper functions."""
 
+import os
 import warnings
 from collections.abc import Callable
 
@@ -80,7 +81,7 @@ class TestNoWarningCallAlias:
         assert "assert_no_warnings" in msg
         # ``no_warning_call`` is implemented as a class-based context manager so the warning's
         # ``stacklevel=2`` lands on the user's ``with`` site rather than ``contextlib.py``.
-        assert depr_warns[0].filename.endswith("test_utils.py")
+        assert os.path.basename(depr_warns[0].filename) == "test_utils.py"
 
     def test_passes_when_no_warning_raised(self) -> None:
         """no_warning_call does not raise AssertionError when the block is clean."""
