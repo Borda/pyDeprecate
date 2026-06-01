@@ -46,6 +46,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 ## Features
 
 - **Automatic call forwarding** — the decorator routes every call to the replacement, including positional and keyword arguments. No manual `*args/**kwargs` plumbing.
+- **Generator and async support** — works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`). The deprecation warning fires at call time regardless of callable type; the `async def` wrapper preserves `iscoroutinefunction` introspection.
 - **Argument mapping** — `args_mapping={"old": "new"}` handles renames across the API boundary; map to `None` to drop an argument entirely.
 - **Argument deprecation** — `TargetMode.ARGS_REMAP` warns only when the old argument name is actually passed; callers who have already migrated see no noise.
 - **Class and Enum support** — `@deprecated_class` wraps entire classes, Enums, and dataclasses in a transparent proxy where `isinstance` and `issubclass` just work.
@@ -89,6 +90,7 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 | --------------------- | :---------: | :-------------: | :-----------: | :------------------: | :------------------------------: |
 | Simple Warnings       |     ✅      |       ✅        |      ✅       |          ✅          |                ✅                |
 | Auto call forwarding  |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Generator / async     |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 | Argument mapping      |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 | Argument Deprecation  |     ✅      |       ✍️        |      ❌       |          ❌          |                ❌                |
 | Class / Enum proxy    |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |

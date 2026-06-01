@@ -94,6 +94,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 - **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
 - **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
+- **Generator / Async**: Works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`) — the deprecation warning fires at call time regardless of callable type, and the wrapper preserves the correct introspection flags (`iscoroutinefunction`, etc.).
 - **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
 - **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
 - **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
@@ -119,6 +120,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 | ------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------: |
 | **Simple Warnings**       |      ✅       |            ✅            |         ✅          |          ✅          |                ✅                |
 | **Auto-Forward Calls**    |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Generator / Async**     |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
 | **Argument Mapping**      |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
 | **Argument Deprecation**  |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
 | **Class/Instance Proxy**  |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
@@ -144,7 +146,7 @@ _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDep
 
 - `warnings.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes; it also adds no per-call runtime overhead when the warning category is suppressed.
 - `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
-- `Deprecated` includes `@versionadded` / `@versionchanged` helpers for broader lifecycle annotations in Sphinx-style docs.
+- `Deprecated` — `deprecated.sphinx` includes `@versionadded` and `@versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
 - `warnings.warn` stays the lowest-friction option for one-off internal warnings where compatibility shims are unnecessary.
 
 > [!NOTE]
