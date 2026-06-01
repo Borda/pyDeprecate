@@ -934,7 +934,7 @@ class TestBackwardCompatShims:
         DeprecatedCallableInfo._cfg.warned = 0  # type: ignore[attr-defined]
         with warnings.catch_warnings(record=True) as recorded:
             warnings.simplefilter("always")
-            info = DeprecatedCallableInfo(
+            info = DeprecatedCallableInfo(  # type: ignore[call-arg]
                 module="tests",
                 function="f",
                 deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
