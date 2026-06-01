@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Compare pyDeprecate with warnings.warn, typing.deprecated, deprecation, and Deprecated for Python API migration workflows.">
+        <meta name="description" content="Compare pyDeprecate with warnings.warn, warnings.deprecated, deprecation, and Deprecated for Python API migration workflows.">
       
       
       
@@ -66,7 +66,7 @@
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Compare Python Deprecation Tools — pyDeprecate" />
-<meta property="og:description" content="Compare pyDeprecate with warnings.warn, typing.deprecated, deprecation, and Deprecated for Python API migration workflows." />
+<meta property="og:description" content="Compare pyDeprecate with warnings.warn, warnings.deprecated, deprecation, and Deprecated for Python API migration workflows." />
 <meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
@@ -76,7 +76,7 @@
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Compare Python Deprecation Tools — pyDeprecate" />
-<meta name="twitter:description" content="Compare pyDeprecate with warnings.warn, typing.deprecated, deprecation, and Deprecated for Python API migration workflows." />
+<meta name="twitter:description" content="Compare pyDeprecate with warnings.warn, warnings.deprecated, deprecation, and Deprecated for Python API migration workflows." />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
@@ -87,7 +87,7 @@
   "@context": "https://schema.org",
   "@type": "TechArticle",
   "headline": "Compare Python Deprecation Tools",
-  "description": "Compare pyDeprecate with warnings.warn, typing.deprecated, deprecation, and Deprecated for Python API migration workflows.",
+  "description": "Compare pyDeprecate with warnings.warn, warnings.deprecated, deprecation, and Deprecated for Python API migration workflows.",
   "url": "https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html",
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-23",
-  "dateModified": "2026-05-27"
+  "dateModified": "2026-06-01"
 }
 </script>
 
@@ -504,10 +504,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#use-typingdeprecated-when" class="md-nav__link">
+  <a href="#use-warningsdeprecated-when" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Use typing.deprecated when
+        Use warnings.deprecated when
       
     </span>
   </a>
@@ -541,6 +541,17 @@
     <span class="md-ellipsis">
       
         Decision guide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fair-strengths-in-alternative-tools-worth-considering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fair strengths in alternative tools worth considering
       
     </span>
   </a>
@@ -982,10 +993,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#use-typingdeprecated-when" class="md-nav__link">
+  <a href="#use-warningsdeprecated-when" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Use typing.deprecated when
+        Use warnings.deprecated when
       
     </span>
   </a>
@@ -1019,6 +1030,17 @@
     <span class="md-ellipsis">
       
         Decision guide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fair-strengths-in-alternative-tools-worth-considering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fair strengths in alternative tools worth considering
       
     </span>
   </a>
@@ -1062,9 +1084,13 @@
 <th>Tool</th>
 <th>Best for</th>
 <th style="text-align: right;">Runtime forwarding</th>
+<th style="text-align: right;">Generator / async</th>
 <th style="text-align: right;">Argument rename</th>
+<th style="text-align: right;">Argument deprecation</th>
 <th style="text-align: right;">Class/object alias</th>
+<th style="text-align: right;">Testing helpers</th>
 <th style="text-align: right;">CI audit</th>
+<th style="text-align: right;">Static checker signal</th>
 </tr>
 </thead>
 <tbody>
@@ -1075,20 +1101,32 @@
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
 </tr>
 <tr>
-<td><code>typing.deprecated</code></td>
+<td><code>warnings.deprecated</code></td>
 <td>Python 3.13+ static-checker visibility</td>
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">Yes</td>
 </tr>
 <tr>
 <td><code>deprecation</code></td>
 <td>Simple decorator warnings</td>
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;"><code>@fail_if_not_removed</code></td>
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
 </tr>
@@ -1099,14 +1137,22 @@
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
 <td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
 </tr>
 <tr>
 <td><strong>pyDeprecate</strong> <em>(this library)</em></td>
-<td>Public API migration compatibility</td>
+<td>Full API migration compatibility</td>
 <td style="text-align: right;">Yes</td>
 <td style="text-align: right;">Yes</td>
 <td style="text-align: right;">Yes</td>
 <td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Via stacking</td>
 </tr>
 </tbody>
 </table>
@@ -1118,8 +1164,8 @@
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">internal_hook</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;internal_hook is deprecated&quot;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 </code></pre></div>
-<h2 id="use-typingdeprecated-when">Use <code>typing.deprecated</code> when<a class="headerlink" href="#use-typingdeprecated-when" title="Permanent link">🔗</a></h2>
-<p>Use <code>typing.deprecated</code>/<code>typing_extensions.deprecated</code> for static-checker-only visibility when runtime behavior does not need to change.</p>
+<h2 id="use-warningsdeprecated-when">Use <code>warnings.deprecated</code> when<a class="headerlink" href="#use-warningsdeprecated-when" title="Permanent link">🔗</a></h2>
+<p>Use <code>warnings.deprecated</code>/<code>typing_extensions.deprecated</code> for static-checker-only visibility when runtime behavior does not need to change.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing_extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
@@ -1216,12 +1262,21 @@
 <h2 id="decision-guide">Decision guide<a class="headerlink" href="#decision-guide" title="Permanent link">🔗</a></h2>
 <ul>
 <li>Need only an internal warning: use <code>warnings.warn</code>.</li>
-<li>Need static checker visibility only: use <code>typing.deprecated</code> on Python 3.13+.</li>
+<li>Need static checker visibility only: use <code>warnings.deprecated</code> on Python 3.13+.</li>
 <li>Need public runtime compatibility: use pyDeprecate.</li>
+<li>Need to deprecate <code>async def</code> functions, generator functions, or async generators: use pyDeprecate.</li>
 <li>Need argument rename or dropped argument compatibility: use pyDeprecate with <code>TargetMode.ARGS_REMAP</code>.</li>
 <li>Need class, constant, or object alias compatibility: use <code>deprecated_class</code> or <code>deprecated_instance</code>.</li>
 <li>Need removal deadline checks in CI: use pyDeprecate audit tools.</li>
 <li>One-off internal warning with no forwarding or CI audit: <code>warnings.warn</code> is sufficient.</li>
+</ul>
+<h2 id="fair-strengths-in-alternative-tools-worth-considering">Fair strengths in alternative tools worth considering<a class="headerlink" href="#fair-strengths-in-alternative-tools-worth-considering" title="Permanent link">🔗</a></h2>
+<p>To keep this comparison fair, here are capabilities where alternatives can be the better fit:</p>
+<ul>
+<li><strong><code>warnings.deprecated</code></strong>: native static diagnostics in mypy/pyright/IDEs without adding runtime wrappers; adds no per-call overhead when the warning category is suppressed.</li>
+<li><strong><code>deprecation</code></strong>: includes the <code>@fail_if_not_removed</code> test decorator for direct test-failure enforcement when removal deadlines are reached.</li>
+<li><strong><code>Deprecated</code></strong>: <code>deprecated.sphinx</code> includes <code>@versionadded</code> and <code>@versionchanged</code> decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.</li>
+<li><strong><code>warnings.warn</code></strong>: no dependency and minimal surface area for quick internal notices where migration behavior is not needed.</li>
 </ul>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">🔗</a></h2>
 <ul>
@@ -1251,7 +1306,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 27, 2026 09:07:48 UTC">2026-05-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 1, 2026 22:28:47 UTC">2026-06-01</span>
   </span>
 
     

@@ -46,6 +46,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 ## Features
 
 - **Automatic call forwarding** — the decorator routes every call to the replacement, including positional and keyword arguments. No manual `*args/**kwargs` plumbing.
+- **Generator and async support** — works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`). The deprecation warning fires at call time regardless of callable type; the `async def` wrapper preserves `iscoroutinefunction` introspection.
 - **Argument mapping** — `args_mapping={"old": "new"}` handles renames across the API boundary; map to `None` to drop an argument entirely.
 - **Argument deprecation** — `TargetMode.ARGS_REMAP` warns only when the old argument name is actually passed; callers who have already migrated see no noise.
 - **Class and Enum support** — `@deprecated_class` wraps entire classes, Enums, and dataclasses in a transparent proxy where `isinstance` and `issubclass` just work.
@@ -59,6 +60,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Custom message templates** — `template_mgs` overrides the default message with `%`-style placeholders (`source_name`, `target_path`, `deprecated_in`, `remove_in`, `argument_map`).
 - **Conditional skip** — `skip_if=callable` suppresses the deprecation notice when a runtime condition is met (e.g. caller has migrated to a newer dependency).
 - **CI audit tools** — [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches zombie code past its deadline, [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains, and [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
+- **Static type-checker signals** — native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
 - **CLI** — `pydeprecate check src/` / `pydeprecate all src/` runs all audit checks from the command line. See [CLI Reference](guide/cli.md).
 - **Testing helpers** — `assert_no_warnings()` context manager asserts no warnings of a given type escape a block; `no_warning_call` retained as legacy alias.
 - **Zero runtime dependencies** — nothing added to `install_requires`.
@@ -84,31 +86,40 @@ pip install "pyDeprecate[audit]"
 
 The alternatives emit a deprecation notice but leave forwarding, argument mapping, and deadline enforcement to you. Here is what each tool covers:
 
-| Feature              | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
-| -------------------- | :---------: | :-------------: | :-----------: | :------------------: | :----------------------------: |
-| Simple Warnings      |     ✅      |       ✅        |      ✅       |          ✅          |               ✅               |
-| Auto call forwarding |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Argument mapping     |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Argument Deprecation |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
-| Class / Enum proxy   |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Docstring injection  |     ✅      |       ❌        |      ✅       |          ✅          |               ❌               |
-| Version Tracking     |     ✅      |       ✍️        |      ✅       |          ✅          |               ❌               |
-| Prevent Log Spam     |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
-| Zero runtime deps    |     ✅      |       ✅        |      ❌       |          ❌          |               †                |
-| Custom Streams       |     ✅      |       ✍️        |      ❌       |          ❌          |               ❌               |
-| CI audit tools       |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Testing helpers      |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Decorator Stacking   |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| Sphinx Plugin        |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
-| MkDocs Plugin        |     ✅      |       ❌        |      ❌       |          ❌          |               ❌               |
+| Feature               | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
+| --------------------- | :---------: | :-------------: | :-----------: | :------------------: | :------------------------------: |
+| Simple Warnings       |     ✅      |       ✅        |      ✅       |          ✅          |                ✅                |
+| Auto call forwarding  |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Generator / async     |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Argument mapping      |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Argument Deprecation  |     ✅      |       ✍️        |      ❌       |          ❌          |                ❌                |
+| Class / Enum proxy    |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Docstring injection   |     ✅      |       ❌        |      ✅       |          ✅          |                ❌                |
+| Version Tracking      |     ✅      |       ✍️        |      ✅       |          ✅          |                ❌                |
+| Prevent Log Spam      |     ✅      |       ✍️        |      ❌       |          ❌          |                ❌                |
+| Zero runtime deps     |     ✅      |       ✅        |      ❌       |          ❌          |                †                 |
+| Custom Streams        |     ✅      |       ✍️        |      ❌       |          ❌          |                ❌                |
+| CI audit tools        |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Testing helpers       |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Static checker signal |     ✍️      |       ❌        |      ❌       |          ❌          |                ✅                |
+| Decorator Stacking    |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| Sphinx Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
+| MkDocs Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 
 ✍️ = possible but requires manual implementation
 </br>
-† `typing.deprecated` in the stdlib on Python 3.13+; also available as the `typing_extensions.deprecated` backport for Python < 3.13
+† `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
-> **When to prefer `typing.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
+
+**Fair strengths in alternative tools worth considering:**
+
+- `warnings.deprecated` is the strongest choice for static-only IDE/type-checker visibility; it also adds no per-call runtime overhead when the warning category is suppressed.
+- `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
+- `Deprecated` includes `deprecated.sphinx.versionadded` / `deprecated.sphinx.versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
+- `warnings.warn` remains the simplest solution for one-off internal warnings without compatibility requirements.
 
 ## Where to go next
 
@@ -131,8 +142,8 @@ Recent PyPI download statistics show broad production use; see pepy.tech for cur
 | Optional audit extra         | `packaging`.                                                                                                                                                      |
 | Optional CLI extra           | `fire`, `rich`.                                                                                                                                                   |
 | Docs engines                 | Sphinx and MkDocs compatible.                                                                                                                                     |
-| Type checker static warnings | Prefer `typing.deprecated` for Python 3.13+ static-checker-only cases.                                                                                            |
+| Type checker static warnings | Prefer `warnings.deprecated` for Python 3.13+ static-checker-only cases.                                                                                          |
 
 ### When not to use pyDeprecate
 
-Use `warnings.warn` for one-off internal warnings that do not need compatibility behavior. Use `typing.deprecated` for static-checker-only visibility on Python 3.13+. Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.
+Use `warnings.warn` for one-off internal warnings that do not need compatibility behavior. Use `warnings.deprecated` for static-checker-only visibility on Python 3.13+. Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.

@@ -1131,6 +1131,7 @@
 <h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">🔗</a></h2>
 <ul>
 <li><strong>Automatic call forwarding</strong> — the decorator routes every call to the replacement, including positional and keyword arguments. No manual <code>*args/**kwargs</code> plumbing.</li>
+<li><strong>Generator and async support</strong> — works natively with generator functions (<code>def fn(): yield</code>), <code>async def</code> coroutines, and async generators (<code>async def fn(): yield</code>). The deprecation warning fires at call time regardless of callable type; the <code>async def</code> wrapper preserves <code>iscoroutinefunction</code> introspection.</li>
 <li><strong>Argument mapping</strong> — <code>args_mapping={"old": "new"}</code> handles renames across the API boundary; map to <code>None</code> to drop an argument entirely.</li>
 <li><strong>Argument deprecation</strong> — <code>TargetMode.ARGS_REMAP</code> warns only when the old argument name is actually passed; callers who have already migrated see no noise.</li>
 <li><strong>Class and Enum support</strong> — <code>@deprecated_class</code> wraps entire classes, Enums, and dataclasses in a transparent proxy where <code>isinstance</code> and <code>issubclass</code> just work.</li>
@@ -1144,6 +1145,7 @@
 <li><strong>Custom message templates</strong> — <code>template_mgs</code> overrides the default message with <code>%</code>-style placeholders (<code>source_name</code>, <code>target_path</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>argument_map</code>).</li>
 <li><strong>Conditional skip</strong> — <code>skip_if=callable</code> suppresses the deprecation notice when a runtime condition is met (e.g. caller has migrated to a newer dependency).</li>
 <li><strong>CI audit tools</strong> — <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a> catches zombie code past its deadline, <a href="guide/audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a> detects double-deprecation chains, and <a href="guide/audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a> surfaces misconfigured <code>args_mapping</code> keys before they silently do nothing.</li>
+<li><strong>Static type-checker signals</strong> — native PEP 702 static diagnostics come from <code>warnings.deprecated</code>. For projects that need both static-checker hints and runtime call-forwarding, <code>warnings.deprecated</code> (for the static signal) and pyDeprecate's <code>@deprecated</code> (for forwarding) can be applied separately to the same function.</li>
 <li><strong>CLI</strong> — <code>pydeprecate check src/</code> / <code>pydeprecate all src/</code> runs all audit checks from the command line. See <a href="guide/cli.html">CLI Reference</a>.</li>
 <li><strong>Testing helpers</strong> — <code>assert_no_warnings()</code> context manager asserts no warnings of a given type escape a block; <code>no_warning_call</code> retained as legacy alias.</li>
 <li><strong>Zero runtime dependencies</strong> — nothing added to <code>install_requires</code>.</li>
@@ -1169,7 +1171,7 @@
 <th style="text-align: center;"><code>warnings.warn</code></th>
 <th style="text-align: center;"><code>deprecation</code></th>
 <th style="text-align: center;"><code>Deprecated</code> (wrapt)</th>
-<th style="text-align: center;"><code>typing.deprecated</code>† (py3.13+)</th>
+<th style="text-align: center;"><code>warnings.deprecated</code>† (py3.13+)</th>
 </tr>
 </thead>
 <tbody>
@@ -1183,6 +1185,14 @@
 </tr>
 <tr>
 <td>Auto call forwarding</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td>Generator / async</td>
 <td style="text-align: center;">✅</td>
 <td style="text-align: center;">❌</td>
 <td style="text-align: center;">❌</td>
@@ -1270,6 +1280,14 @@
 <td style="text-align: center;">❌</td>
 </tr>
 <tr>
+<td>Static checker signal</td>
+<td style="text-align: center;">✍️</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
 <td>Decorator Stacking</td>
 <td style="text-align: center;">✅</td>
 <td style="text-align: center;">❌</td>
@@ -1297,11 +1315,18 @@
 </table>
 <p>✍️ = possible but requires manual implementation
 </br>
-† <code>typing.deprecated</code> in the stdlib on Python 3.13+; also available as the <code>typing_extensions.deprecated</code> backport for Python &lt; 3.13</p>
+† <code>warnings.deprecated</code> in the stdlib on Python 3.13+ (PEP 702); also available as the <code>typing_extensions.deprecated</code> backport for Python &lt; 3.13</p>
 <p><em>Comparison as of v0.8, May 2026. <a href="https://github.com/Borda/pyDeprecate/issues">Open an issue</a> if you spot an inaccuracy.</em></p>
 <blockquote>
-<p><strong>When to prefer <code>typing.deprecated</code> (PEP 702):</strong> If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose <code>pyDeprecate</code> when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.</p>
+<p><strong>When to prefer <code>warnings.deprecated</code> (PEP 702):</strong> If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose <code>pyDeprecate</code> when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.</p>
 </blockquote>
+<p><strong>Fair strengths in alternative tools worth considering:</strong></p>
+<ul>
+<li><code>warnings.deprecated</code> is the strongest choice for static-only IDE/type-checker visibility; it also adds no per-call runtime overhead when the warning category is suppressed.</li>
+<li><code>deprecation</code> includes <code>@fail_if_not_removed</code>, a focused test helper for direct test-failure enforcement when removal deadlines are reached.</li>
+<li><code>Deprecated</code> includes <code>deprecated.sphinx.versionadded</code> / <code>deprecated.sphinx.versionchanged</code> decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.</li>
+<li><code>warnings.warn</code> remains the simplest solution for one-off internal warnings without compatibility requirements.</li>
+</ul>
 <h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">🔗</a></h2>
 <ul>
 <li><a href="getting-started.html">Getting Started</a> — install, write your first deprecation, see the full API at a glance.</li>
@@ -1344,12 +1369,12 @@
 </tr>
 <tr>
 <td>Type checker static warnings</td>
-<td>Prefer <code>typing.deprecated</code> for Python 3.13+ static-checker-only cases.</td>
+<td>Prefer <code>warnings.deprecated</code> for Python 3.13+ static-checker-only cases.</td>
 </tr>
 </tbody>
 </table>
 <h3 id="when-not-to-use-pydeprecate">When not to use pyDeprecate<a class="headerlink" href="#when-not-to-use-pydeprecate" title="Permanent link">🔗</a></h3>
-<p>Use <code>warnings.warn</code> for one-off internal warnings that do not need compatibility behavior. Use <code>typing.deprecated</code> for static-checker-only visibility on Python 3.13+. Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.</p>
+<p>Use <code>warnings.warn</code> for one-off internal warnings that do not need compatibility behavior. Use <code>warnings.deprecated</code> for static-checker-only visibility on Python 3.13+. Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.</p>
 
 
 
@@ -1372,7 +1397,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 27, 2026 09:07:48 UTC">2026-05-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 1, 2026 22:28:47 UTC">2026-06-01</span>
   </span>
 
     
