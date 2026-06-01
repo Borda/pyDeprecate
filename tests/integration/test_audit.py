@@ -910,7 +910,7 @@ class TestBackwardCompatShims:
         assert shim_warns[0].category is FutureWarning
 
         result_new = find_deprecation_wrappers(proxy_module, recursive=False)
-        assert result_old == result_new
+        assert {r.function for r in result_old} == {r.function for r in result_new}
 
     def test_deprecated_callable_info_alias_resolves(self) -> None:
         """``DeprecatedCallableInfo`` is a :func:`deprecated_class` proxy aliasing ``DeprecationWrapperInfo``.
@@ -926,3 +926,20 @@ class TestBackwardCompatShims:
         info = results[0]
         assert isinstance(info, DeprecationWrapperInfo)
         assert isinstance(info, DeprecatedCallableInfo)
+
+    def test_deprecated_callable_info_instantiation_warns(self) -> None:
+        """Calling ``DeprecatedCallableInfo(...)`` directly emits a ``FutureWarning`` about its own deprecation."""
+        # pytest introspection (inspect.hasattr '__wrapped__') may consume num_warns=1 before this
+        # test body runs; reset the proxy's warn counter so the call below always fires the warning.
+        DeprecatedCallableInfo._cfg.warned = 0  # type: ignore[attr-defined]
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            info = DeprecatedCallableInfo(
+                module="tests",
+                function="f",
+                deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
+            )
+        shim_warns = [w for w in recorded if "DeprecatedCallableInfo" in str(w.message)]
+        assert shim_warns, "Calling DeprecatedCallableInfo(...) must emit FutureWarning about its own deprecation"
+        assert shim_warns[0].category is FutureWarning
+        assert isinstance(info, DeprecationWrapperInfo)

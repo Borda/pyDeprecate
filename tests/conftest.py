@@ -33,9 +33,22 @@ The following are intentionally preserved:
 
 * ``warned_misconfigured`` is **not** reset — it implements a one-time UserWarning per
   wrapper lifetime (see ``test_callable_kinds.py`` autouse-fixture docstrings).  Resetting
-  it would falsify that contract.
+  it would falsify that contract.  Tests that assert misconfig warnings emit must explicitly
+  reset ``_state.warned_misconfigured = False`` in their own setup — do not rely on fixture
+  ordering.
 * ``called`` is **not** reset — it counts every invocation (including suppressed ones) and
   is not used to gate warning emission.
+
+What this fixture does *not* cover
+-----------------------------------
+
+Class-proxy state (``_ProxyConfig.warned``) on ``_DeprecatedProxy`` instances is **separate**
+from ``_state`` and is a real cross-test leak surface for proxies configured with
+``num_warns=1`` (e.g. ``_class_deprecation_enum``, ``_class_deprecation_dataclass``).  Those
+proxies are reset by ``_ClassFormBase._reset_proxy_state`` in
+``tests/integration/test_classes.py``.  New tests that use ``num_warns=1`` proxies from
+``collection_deprecate`` must either inherit ``_ClassFormBase`` or add their own proxy-state
+reset.
 
 """
 
@@ -43,28 +56,19 @@ from __future__ import annotations
 
 import pytest
 
-import tests.collection_deprecate as _collection_deprecate
 
+def _iter_wrapper_states(module: object) -> list[object]:
+    """Return every module-level attribute of *module* that carries a ``_state`` attribute.
 
-def _iter_wrapper_states() -> list[object]:
-    """Return every module-level attribute of ``collection_deprecate`` carrying ``_state``.
-
-    The decorator may attach ``_state`` either directly to the wrapper (functions, methods,
-    classmethods that are stored as module-level names) or, in the case of class proxies,
-    indirectly via :attr:`__deprecated__`.  The reset only needs to find objects that have
-    a directly accessible ``_state`` — class-proxy state lives on the inner wrapper, which
-    is not part of the cross-test leak surface.
+    Uses ``vars(module)`` (direct ``__dict__`` lookup) and checks for ``_state`` via the
+    instance ``__dict__`` rather than ``hasattr``, so ``_DeprecatedProxy.__getattr__`` is
+    never triggered.  This avoids emitting spurious ``FutureWarning``s and consuming
+    ``num_warns`` budgets during fixture traversal.
 
     """
     found: list[object] = []
-    for name in dir(_collection_deprecate):
-        if name.startswith("__"):
-            continue
-        try:
-            obj = getattr(_collection_deprecate, name)
-        except AttributeError:
-            continue
-        if hasattr(obj, "_state"):
+    for obj in vars(module).values():  # type: ignore[arg-type]
+        if "_state" in getattr(obj, "__dict__", {}):
             found.append(obj)
     return found
 
@@ -74,9 +78,14 @@ def _reset_collection_deprecate_state() -> None:
     """Reset every shared module-level wrapper's warning counters before each test.
 
     Runs before every test function (autouse).  See module docstring for full motivation.
+    The import is deferred to avoid loading ``tests.collection_deprecate`` at conftest
+    parse time, which conflicts with ``--doctest-modules`` collection when pytest resolves
+    ``src/`` imports from the installed package rather than from ``src/``.
 
     """
-    for wrapper in _iter_wrapper_states():
+    import tests.collection_deprecate as _collection_deprecate
+
+    for wrapper in _iter_wrapper_states(_collection_deprecate):
         state = wrapper._state  # type: ignore[attr-defined]
         # Reset only the counter-style state.  ``warned_misconfigured`` and ``called``
         # are intentionally NOT cleared — see module docstring.
