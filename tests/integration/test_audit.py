@@ -878,9 +878,10 @@ class TestBackwardCompatShims:
     so calling them must (a) emit a :class:`FutureWarning` (the project default warning
     category) and (b) forward to the new-name implementation transparently.
 
-    Calling the shims also produces an *inner* ``FutureWarning`` from the underlying
-    fixture each test exercises (e.g. ``decorated_pow_self``); only the shim's own warning
-    is asserted here — the fixture warning is allowed to coexist.
+    Only the shim's own deprecation warning is asserted.  The underlying audit helpers
+    (:func:`~deprecate.audit.validate_deprecation_wrapper`, :func:`~deprecate.audit.find_deprecation_wrappers`)
+    read ``__deprecated__`` metadata without invoking the deprecated callable, so no additional
+    warning originates from the fixture functions themselves.
 
     """
 
