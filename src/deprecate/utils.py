@@ -181,8 +181,21 @@ class no_warning_call:  # noqa: N801 - kept for backward compatibility with prio
     This context manager is kept for backward compatibility so that existing imports like
     ``from deprecate.utils import no_warning_call`` continue to work until v1.0.
 
-    Warning fires at instantiation (``no_warning_call(...)`` call site) via ``stacklevel=2`` in ``__init__``,
-    so attribution lands on the caller's line regardless of how the context manager is used.
+    Warning fires at instantiation — the ``no_warning_call(...)`` call line receives the
+    deprecation notice, regardless of how the context manager is subsequently used.
+
+    Args:
+        warning_type: The :class:`Warning` subclass to watch for.  Defaults to :class:`Warning`
+            (all warning categories).
+        match: Optional substring that must appear in the warning message.  When ``None`` (default),
+            any warning of the right category triggers an :class:`AssertionError`.
+
+    Examples:
+        >>> import warnings
+        >>> with warnings.catch_warnings():
+        ...     warnings.simplefilter("ignore", DeprecationWarning)
+        ...     with no_warning_call():
+        ...         pass  # no AssertionError means no warnings were emitted
 
     """
 
