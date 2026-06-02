@@ -96,7 +96,7 @@ class TestNoWarningCallAlias:
         ):
             raise_pow(3, 2)
 
-    def test_instantiated_without_entering_still_warns(self) -> None:
-        """Instantiating no_warning_call() without entering the context still fires the deprecation warning."""
-        with pytest.warns(DeprecationWarning, match="no_warning_call"):
+    def test_instantiated_without_entering_is_silent(self) -> None:
+        """Instantiating no_warning_call() without entering does not warn (warning fires on context entry)."""
+        with assert_no_warnings(DeprecationWarning):
             unused_ctx = no_warning_call()
