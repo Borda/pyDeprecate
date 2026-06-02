@@ -65,7 +65,10 @@ class _DeprecatedProxy:
         remove_in: Version string when the object will be removed.
         num_warns: Maximum number of warnings to emit. ``1`` (default) warns once; ``-1`` warns on every access.
         stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`
-            (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.
+            (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.  **Note:** the built-in
+            stacklevel budget assumes *stream* is :func:`warnings.warn` itself or a C-level
+            :func:`functools.partial` of it; a Python-defined wrapper interposes an extra frame and
+            the warning will appear to originate inside :mod:`deprecate.proxy` rather than the caller.
         template_mgs: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
