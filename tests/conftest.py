@@ -19,7 +19,9 @@ Two file-scoped ``autouse`` fixtures already cover the **async** and **generator
 in ``tests/integration/test_callable_kinds.py`` (see ``_reset_gen_state``, ``_reset_async_state``,
 ``_reset_async_gen_state``).  This conftest extends that reset to every other wrapper that
 lives at the module level of :mod:`tests.collection_deprecate`, including plain synchronous
-functions and ``deprecated_class`` proxies.
+functions.  ``_DeprecatedProxy`` instances (created by ``deprecated_class``) are **not** covered —
+they store state in ``_cfg.warned`` rather than ``_state``; see the *What this fixture does not
+cover* section below.
 
 Reset semantics
 ---------------
