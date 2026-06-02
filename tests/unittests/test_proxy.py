@@ -112,12 +112,17 @@ class TestProxyWarnBehavior:
         assert "tests.collection_targets.TargetColorEnum" in msg
 
     def test_warn_category_is_future_warning(self) -> None:
-        """Default stream emits FutureWarning."""
-        proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0")
+        """Default stream emits FutureWarning attributed to the caller's frame."""
+        proxy = _DeprecatedProxy(obj={"k": 1}, name="x", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            proxy._warn()
+            # Trigger via subscript access — exercises the realistic accessor path
+            # (``__getitem__ → _warn → stream``) that the stacklevel fix targets.
+            _ = proxy["k"]
         assert caught[0].category is FutureWarning
+        # ``_DeprecatedProxy._warn`` forwards ``stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER`` to ``stream``
+        # so the warning is attributed to this test file rather than ``proxy.py``.
+        assert caught[0].filename.endswith("test_proxy.py")
 
 
 class TestProxyTemplateMgs:

@@ -1,5 +1,7 @@
 """Test the utility helper functions."""
 
+import os
+import warnings
 from collections.abc import Callable
 
 import pytest
@@ -66,9 +68,19 @@ class TestNoWarningCallAlias:
     """no_warning_call is a deprecated alias — it still works but emits DeprecationWarning on call."""
 
     def test_emits_deprecation_warning(self) -> None:
-        """Calling no_warning_call emits DeprecationWarning naming the replacement."""
-        with pytest.warns(DeprecationWarning, match=r"no_warning_call.*assert_no_warnings"), no_warning_call():
-            pass
+        """Calling no_warning_call emits DeprecationWarning naming the replacement, attributed to the caller."""
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            with no_warning_call():
+                pass
+
+        depr_warns = [w for w in recorded if w.category is DeprecationWarning]
+        assert depr_warns, "Calling no_warning_call must emit a DeprecationWarning"
+        msg = str(depr_warns[0].message)
+        assert "no_warning_call" in msg
+        assert "assert_no_warnings" in msg
+        # Warning fires in ``__init__`` with ``stacklevel=2``, landing on the ``no_warning_call(...)`` call line.
+        assert os.path.basename(depr_warns[0].filename) == "test_utils.py"
 
     def test_passes_when_no_warning_raised(self) -> None:
         """no_warning_call does not raise AssertionError when the block is clean."""
@@ -83,3 +95,8 @@ class TestNoWarningCallAlias:
             no_warning_call(UserWarning),
         ):
             raise_pow(3, 2)
+
+    def test_instantiated_without_entering_still_warns(self) -> None:
+        """Instantiating no_warning_call() without entering the context still fires the deprecation warning."""
+        with pytest.warns(DeprecationWarning, match="no_warning_call"):
+            _unused_ctx = no_warning_call()

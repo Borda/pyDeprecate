@@ -40,6 +40,11 @@ from deprecate.deprecation import (
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 
+#: Stacklevel from inside ``_warn`` to the caller's frame.
+#: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
+#: From ``warnings.warn`` upwards: ``1=_warn``, ``2=accessor`` (e.g. ``__getattr__``), ``3=caller``.
+_DEFAULT_STACKLEVEL_TO_CALLER: int = 3
+
 
 class _DeprecatedProxy:
     """Transparent proxy that emits deprecation warnings on attribute and item access.
@@ -60,7 +65,10 @@ class _DeprecatedProxy:
         remove_in: Version string when the object will be removed.
         num_warns: Maximum number of warnings to emit. ``1`` (default) warns once; ``-1`` warns on every access.
         stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`
-            (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.
+            (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.  **Note:** the built-in
+            stacklevel budget assumes *stream* is :func:`warnings.warn` itself or a C-level
+            :func:`functools.partial` of it; a Python-defined wrapper interposes an extra frame and
+            the warning will appear to originate inside :mod:`deprecate.proxy` rather than the caller.
         template_mgs: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
@@ -245,7 +253,13 @@ class _DeprecatedProxy:
                 "deprecated_in": dep.deprecated_in,
                 "remove_in": dep.remove_in,
             }
-        stream(msg)
+        # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the
+        # ``_raise_warn`` fallback in ``deprecation.py``: when ``stream`` does not accept a
+        # ``stacklevel`` kwarg (e.g. ``print``, custom callables), fall back to a positional call.
+        try:
+            stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER)
+        except TypeError:
+            stream(msg)
         if arg_name is not None:
             cfg.warned_args[arg_name] = cfg.warned_args.get(arg_name, 0) + 1
         else:

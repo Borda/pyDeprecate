@@ -208,6 +208,102 @@ class TestGetDeprecationStatus:
         assert status is DeprecationStatus.INVALID_REMOVAL_TARGET
         assert status.value == DeprecationStatus.INVALID_REMOVAL_TARGET.value
 
+    @_requires_packaging
+    def test_status_scheduled_deprecation_current_below_deprecated_in(self) -> None:
+        """``current_version < deprecated_in`` maps to ``SCHEDULED_DEPRECATION``.
+
+        See ``_get_deprecation_status`` — when ``deprecated_in`` parses cleanly and the current
+        version is below it, the symbol is not yet emitting warnings to end users.
+
+        """
+        from packaging.version import Version
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="9.0")
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        status = _get_deprecation_status(info, current_version=Version("0.5"))
+        assert status is DeprecationStatus.SCHEDULED_DEPRECATION
+        assert status.value == DeprecationStatus.SCHEDULED_DEPRECATION.value
+
+    @_requires_packaging
+    def test_status_removal_imminent_on_prerelease_of_same_base(self) -> None:
+        """Pre-release (``dev``/``a``/``b``) of the same base as ``remove_in`` → ``REMOVAL_IMMINENT``.
+
+        The current release is a development pre-release of the eventual ``remove_in`` base, so
+        the audit elevates the status above plain ``ACTIVE_WARNING`` to flag impending removal.
+
+        """
+        from packaging.version import Version
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.10")
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        # ``0.10.dev0`` parses as a dev pre-release with base ``0.10`` matching remove_in's base.
+        status = _get_deprecation_status(info, current_version=Version("0.10.dev0"))
+        assert status is DeprecationStatus.REMOVAL_IMMINENT
+        assert status.value == DeprecationStatus.REMOVAL_IMMINENT.value
+
+    @_requires_packaging
+    def test_status_remove_before_release_on_rc_of_same_base(self) -> None:
+        """RC pre-release of the same base as ``remove_in`` → ``REMOVE_BEFORE_RELEASE``.
+
+        Same elevation path as ``REMOVAL_IMMINENT`` but RC pre-releases trip the higher
+        ``REMOVE_BEFORE_RELEASE`` bucket (see ``audit._get_deprecation_status``: it inspects
+        ``current_version.pre[0] == "rc"`` after confirming ``same_base``).
+
+        """
+        from packaging.version import Version
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.9")
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        status = _get_deprecation_status(info, current_version=Version("0.9rc1"))
+        assert status is DeprecationStatus.REMOVE_BEFORE_RELEASE
+        assert status.value == DeprecationStatus.REMOVE_BEFORE_RELEASE.value
+
+    @_requires_packaging
+    def test_status_past_removal_date_when_current_at_or_above_remove_in(self) -> None:
+        """``current_version >= remove_in`` maps to ``PAST_REMOVAL_DATE``.
+
+        The symbol should have been deleted before this release; audit surfaces it as overdue.
+
+        """
+        from packaging.version import Version
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.9")
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        status = _get_deprecation_status(info, current_version=Version("1.0"))
+        assert status is DeprecationStatus.PAST_REMOVAL_DATE
+        assert status.value == DeprecationStatus.PAST_REMOVAL_DATE.value
+
+    @pytest.mark.filterwarnings("ignore::UserWarning")
+    def test_status_unknown_when_current_version_none_and_remove_in_set(self) -> None:
+        """``current_version=None`` with a ``remove_in`` set → ``STATUS_UNKNOWN``.
+
+        Without a current version the audit cannot place the symbol on the lifecycle timeline,
+        but the presence of ``remove_in`` distinguishes this from ``NO_REMOVAL_TARGET``.  No
+        packaging requirement because the function returns before any version parsing runs.
+
+        """
+
+        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+        def function() -> None:
+            pass
+
+        info = validate_deprecation_wrapper(function)
+        status = _get_deprecation_status(info, current_version=None)
+        assert status is DeprecationStatus.STATUS_UNKNOWN
+        assert status.value == DeprecationStatus.STATUS_UNKNOWN.value
+
 
 @_requires_packaging
 class TestValidateDeprecationWrapperWithProxy:

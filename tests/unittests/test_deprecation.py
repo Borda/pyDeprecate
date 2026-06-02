@@ -678,7 +678,14 @@ class TestDocstringInsertionIndex:
 
 
 class TestDocstringStyleOutput:
-    """Verify each docstring style alias produces the correct notice format."""
+    """Verify each docstring style alias produces the correct notice format.
+
+    The inline ``@deprecated`` decorators in this class are parametrize-coupled
+    (``docstring_style=style`` resolves from the parametrize fixture), so they cannot be
+    moved to :mod:`tests.collection_deprecate` without losing the per-case configuration.
+    This is one of the AGENTS.md three-layer-rule exceptions: a decorator whose config
+    depends on the parametrize value must be defined inside the test method itself.
+    """
 
     @pytest.mark.parametrize(
         ("style", "expected_marker"),
@@ -742,7 +749,15 @@ class TestDocstringStyleOutput:
 
 
 class TestNormalizeTargetInvalidInputs:
-    """_normalize_target passes unrecognised non-class values through unchanged."""
+    """_normalize_target passes unrecognised non-class values through unchanged.
+
+    The inline ``@deprecated`` decorator in :meth:`test_invalid_target_source_body_runs`
+    is parametrize-coupled (``target=bad_target`` resolves from the parametrize fixture),
+    so it cannot be moved to :mod:`tests.collection_deprecate` — one wrapper-per-bad-value
+    would require either four near-identical fixtures or a factory that obscures the test
+    intent.  This is the AGENTS.md three-layer-rule exception for parametrize-coupled
+    decorators.
+    """
 
     @pytest.mark.parametrize("bad_target", [42, "not_callable", [], {}])
     def test_invalid_type_returned_unchanged(self, bad_target: object) -> None:
@@ -839,7 +854,15 @@ class TestEmptyVersionGuardOnClasses:
 
 
 class TestEmptyVersionGuardSymmetry:
-    """Guard fires for all target shapes when deprecated_in and remove_in are absent (F1b)."""
+    """Guard fires for all target shapes when deprecated_in and remove_in are absent (F1b).
+
+    The inline ``@deprecated`` decorators in this class test *decoration-time* behavior —
+    each scenario asserts that ``UserWarning`` fires (or stays silent) at the moment the
+    decorator is applied, captured inside a ``with pytest.warns(...)`` / ``catch_warnings``
+    block.  Moving the wrappers to :mod:`tests.collection_deprecate` would fire the guard
+    warning at module import time, outside any catch context, defeating the test.  This is
+    the AGENTS.md three-layer-rule exception for guard tests.
+    """
 
     def test_guard_fires_for_callable_target(self) -> None:
         """@deprecated(target=<callable>) with no versions emits UserWarning at decoration time."""

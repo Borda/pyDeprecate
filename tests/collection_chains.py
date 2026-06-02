@@ -316,3 +316,22 @@ def caller_sum_direct(a: int, b: int = 3) -> int:
 
     """
     return void(a, b)
+
+
+# Three-link chain: ``caller_three_hop_sum`` → ``caller_sum_via_depr_sum`` (deprecated) →
+# ``decorated_sum`` (deprecated) → ``base_sum_kwargs`` (final).  The audit only inspects the
+# immediate target — ``caller_sum_via_depr_sum`` is itself deprecated with a non-stacking
+# (callable) target, so ``caller_three_hop_sum`` reports ``ChainType.TARGET``.  Used to pin that
+# chain detection works at depths greater than 2 (existing fixtures only cover 2-hop chains).
+@deprecated(target=caller_sum_via_depr_sum, deprecated_in="1.6", remove_in="2.6")
+def caller_three_hop_sum(a: int, b: int = 5) -> int:
+    """Three-link deprecation chain for chain-depth coverage.
+
+    Examples:
+        Each hop is deprecated:
+        ``caller_three_hop_sum`` → ``caller_sum_via_depr_sum`` → ``decorated_sum`` →
+        ``base_sum_kwargs`` (final).  Fix: collapse all hops and point directly to
+        ``base_sum_kwargs``.
+
+    """
+    return void(a, b)
