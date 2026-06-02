@@ -35,9 +35,12 @@ The following are intentionally preserved:
 
 * ``warned_misconfigured`` is **not** reset — it implements a one-time UserWarning per
   wrapper lifetime (see ``test_callable_kinds.py`` autouse-fixture docstrings).  Resetting
-  it would falsify that contract.  Tests that assert misconfig warnings emit must explicitly
+  it would falsify that contract.  Tests that assert misconfig warnings **emit** must explicitly
   reset ``_state.warned_misconfigured = False`` in their own setup — do not rely on fixture
-  ordering.
+  ordering.  Symmetrically, tests that assert misconfig warnings are **not** emitted against a
+  shared misconfigured wrapper depend silently on whether a prior test already consumed the
+  one-time slot: ``assert_no_warnings(UserWarning)`` may pass because the counter is spent, not
+  because the wrapper is correctly configured.  Both directions require explicit per-test setup.
 * ``called`` is **not** reset — it counts every invocation (including suppressed ones) and
   is not used to gate warning emission.
 
