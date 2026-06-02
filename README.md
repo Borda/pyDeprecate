@@ -94,6 +94,7 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 
 - **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
 - **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
+- **Generator / Async**: Works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`) — the deprecation warning fires at call time regardless of callable type, and the wrapper preserves the correct introspection flags (`iscoroutinefunction`, etc.).
 - **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
 - **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
 - **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
@@ -104,39 +105,49 @@ While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, ot
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 - **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
 - **CI/Audit Tools**: Validate wrapper configuration, and—when installed with the `pyDeprecate[audit]` extra—enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
+- **Static Type-Checker Signals**: Native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
 - **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
 - **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
 - **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
 
 </details>
 
-> **When to prefer `typing.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
 
 <br>
 
-| _Feature_                | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `typing.deprecated`† (py3.13+) |
-| ------------------------ | :-----------: | :----------------------: | :-----------------: | :------------------: | :----------------------------: |
-| **Simple Warnings**      |      ✅       |            ✅            |         ✅          |          ✅          |               ✅               |
-| **Auto-Forward Calls**   |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
-| **Argument Mapping**     |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
-| **Argument Deprecation** |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
-| **Class/Instance Proxy** |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
-| **Docstring Updates**    |      ✅       |            ❌            |         ✅          |          ✅          |               ❌               |
-| **Version Tracking**     |      ✅       |            ✍️            |         ✅          |          ✅          |               ❌               |
-| **Prevent Log Spam**     |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
-| **Zero Extra Depend.**   |      ✅       |            ✅            |         ❌          |          ❌          |               †                |
-| **Custom Streams**       |      ✅       |            ✍️            |         ❌          |          ❌          |               ❌               |
-| **Testing Helpers**      |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
-| **CI/Audit Tools**       |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
-| **Decorator Stacking**   |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
-| **Sphinx Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
-| **MkDocs Plugin**        |      ✅       |            ❌            |         ❌          |          ❌          |               ❌               |
+| _Feature_                 | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
+| ------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------: |
+| **Simple Warnings**       |      ✅       |            ✅            |         ✅          |          ✅          |                ✅                |
+| **Auto-Forward Calls**    |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Generator / Async**     |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Argument Mapping**      |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Argument Deprecation**  |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
+| **Class/Instance Proxy**  |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Docstring Updates**     |      ✅       |            ❌            |         ✅          |          ✅          |                ❌                |
+| **Version Tracking**      |      ✅       |            ✍️            |         ✅          |          ✅          |                ❌                |
+| **Prevent Log Spam**      |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
+| **Zero Extra Depend.**    |      ✅       |            ✅            |         ❌          |          ❌          |                †                 |
+| **Custom Streams**        |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
+| **Testing Helpers**       |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **CI/Audit Tools**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Static Checker Signal** |      ✍️       |            ❌            |         ❌          |          ❌          |                ✅                |
+| **Decorator Stacking**    |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Sphinx Plugin**         |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **MkDocs Plugin**         |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
 
 ✍️ = possible but requires manual implementation
 </br>
-† `typing.deprecated` in the stdlib on Python 3.13+; also available as `typing_extensions.deprecated` for Python < 3.13
+† `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as `typing_extensions.deprecated` for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
+
+**Fair strengths in alternative tools worth considering:**
+
+- `warnings.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes; it also adds no per-call runtime overhead when the warning category is suppressed.
+- `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
+- `Deprecated` — `deprecated.sphinx` includes `@versionadded` and `@versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
+- `warnings.warn` stays the lowest-friction option for one-off internal warnings where compatibility shims are unnecessary.
 
 > [!NOTE]
 > This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
