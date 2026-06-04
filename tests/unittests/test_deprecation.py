@@ -1834,3 +1834,23 @@ class TestPropertyErrorPaths:
             deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
                 property(_getter)  # type: ignore[arg-type]
             )
+
+    def test_accessor_with_non_config_deprecated_attr_does_not_raise(self) -> None:
+        """Accessor bearing ``__deprecated__`` set to a non-DeprecationConfig value is not rejected.
+
+        The double-decorate guard uses ``_has_deprecation_meta`` which checks that
+        ``__deprecated__`` is a ``DeprecationConfig`` instance — not just ``hasattr``.
+        A plain attribute with that name on an otherwise undecorated function must not
+        trigger the guard (false-positive prevention).
+        """
+
+        def _getter(self: object) -> int:
+            """Old property getter."""
+            return 0
+
+        _getter.__deprecated__ = "not-a-DeprecationConfig"  # type: ignore[attr-defined]
+
+        result = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
+            property(_getter)  # type: ignore[arg-type]
+        )
+        assert isinstance(result, _DeprecatedProperty)

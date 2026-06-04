@@ -1082,9 +1082,9 @@ def deprecated(
             # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
             # catches property-objects that are themselves already _DeprecatedProperty instances.
             for _acc_name, _acc in (("fget", source.fget), ("fset", source.fset), ("fdel", source.fdel)):
-                if _acc is not None and hasattr(_acc, "__deprecated__"):
+                if _acc is not None and _has_deprecation_meta(_acc):
                     raise TypeError(
-                        f"`@deprecated` cannot wrap accessor `{_acc.__qualname__}` of property"
+                        f"`@deprecated` cannot wrap accessor `{getattr(_acc, '__qualname__', repr(_acc))}` of property"
                         f" `{_acc_name}` — it is already decorated with `@deprecated`."
                         " Apply `@deprecated` once per accessor."
                     )
