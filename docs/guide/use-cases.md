@@ -1058,6 +1058,7 @@ class Config:
 `obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
 
 !!! tip "Testing each accessor independently"
+
     Each accessor (`fget`, `fset`, `fdel`) has its own warning counter — assert read, write, and delete warnings in separate `pytest.warns` blocks, or use `num_warns=-1` to disable per-accessor deduplication.
 
 The explicit `property(fget, fset[, fdel])` construction also works:
@@ -1086,6 +1087,7 @@ class Config:
 ```
 
 !!! note "Audit discoverability with explicit construction"
+
     `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecated__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
 
 ## Deprecating generator functions
