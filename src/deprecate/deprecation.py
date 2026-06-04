@@ -140,6 +140,12 @@ class _DeprecatedProperty(property):
         via ``fset``; a plain-getter property whose ``fget`` is not deprecated but whose ``fset``
         is deprecated is likewise discovered via ``fset``.
 
+        **Typing**: ``getter``/``setter``/``deleter`` return ``_DeprecatedProperty`` (covariant
+        narrowing of ``property``'s ``-> property`` annotation). Static type is preserved for
+        variables typed ``_DeprecatedProperty``; variables typed ``property`` lose the narrowing
+        and mypy infers the rebuilt accessor as plain ``property`` — chain inference still works
+        at runtime via dynamic dispatch.
+
     """
 
     _wrap: Callable[[Callable], Callable]

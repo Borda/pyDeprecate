@@ -1057,6 +1057,10 @@ class Config:
 
 `obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
 
+!!! tip "Want only the getter to warn?"
+
+    If you want the setter or deleter to remain silent, apply `@deprecated` directly to `fget` using inner order (`@property @deprecated`) instead of wrapping the full `property` object.
+
 !!! tip "Testing each accessor independently"
 
     Each accessor (`fget`, `fset`, `fdel`) has its own warning counter — assert read, write, and delete warnings in separate `pytest.warns` blocks, or use `num_warns=-1` to disable per-accessor deduplication.
