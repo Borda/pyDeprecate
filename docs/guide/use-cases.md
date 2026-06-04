@@ -1033,6 +1033,8 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
 When the property being deprecated has a setter or deleter, all three accessors (`fget`, `fset`, `fdel`) are wrapped automatically — each fires a `FutureWarning`. Both the chain-style decorator pattern and the explicit construction pattern work:
 
 ```python
+from typing import Optional
+
 from deprecate import deprecated
 
 
@@ -1040,11 +1042,11 @@ class KeyPoints:
     # Chain-style — conventional Python decorator pattern
     @deprecated(deprecated_in="0.29.0", remove_in="0.32.0")
     @property
-    def confidence(self) -> list[float] | None:
+    def confidence(self) -> Optional[list[float]]:
         return self.keypoint_confidence
 
     @confidence.setter
-    def confidence(self, value: list[float] | None) -> None:
+    def confidence(self, value: Optional[list[float]]) -> None:
         self.keypoint_confidence = value
 
     @confidence.deleter
