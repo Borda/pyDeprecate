@@ -1812,3 +1812,25 @@ class TestPropertyErrorPaths:
             deprecated(target=_new_getter, deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
                 property(_getter)  # type: ignore[arg-type]
             )
+
+    @pytest.mark.parametrize(
+        "target_val",
+        [TargetMode.ARGS_REMAP, True],
+        ids=["TargetMode.ARGS_REMAP", "True_legacy"],
+    )
+    def test_args_remap_target_with_property_raises(self, target_val: object) -> None:
+        """Passing ``target=TargetMode.ARGS_REMAP`` or legacy ``True`` when decorating a ``property`` raises TypeError.
+
+        Self-deprecation mode requires a function signature for argument remapping; properties
+        expose individual accessor callables and cannot use ARGS_REMAP semantics.
+        The error message names the rejected value and suggests ``TargetMode.NOTIFY``.
+        """
+
+        def _getter(self: object) -> int:
+            """Old property getter."""
+            return 0
+
+        with pytest.raises(TypeError, match=r"`target=TargetMode\.ARGS_REMAP` \(or legacy `True`\) is not supported"):
+            deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
+                property(_getter)  # type: ignore[arg-type]
+            )

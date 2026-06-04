@@ -1072,6 +1072,11 @@ def deprecated(
                     f"`target` as a callable is not supported when decorating a `property`. Got: {target!r}."
                     " Use `TargetMode.NOTIFY` or omit `target`."
                 )
+            if target is True or target is TargetMode.ARGS_REMAP:
+                raise TypeError(
+                    f"`target=TargetMode.ARGS_REMAP` (or legacy `True`) is not supported when decorating a `property`."
+                    f" Got: {target!r}. Use `TargetMode.NOTIFY` or omit `target`."
+                )
             # Guard against pre-deprecated individual accessors fed into property(...) then
             # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
             # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
