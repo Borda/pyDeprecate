@@ -1040,7 +1040,7 @@ class Config:
     def __init__(self) -> None:
         self._timeout: int = 30
 
-    # Chain-style — conventional Python decorator pattern
+    # Outer order required: @deprecated @property wraps fget, fset, and fdel
     @deprecated(deprecated_in="1.0", remove_in="2.0")
     @property
     def timeout(self) -> int:

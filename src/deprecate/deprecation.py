@@ -1073,7 +1073,9 @@ def deprecated(
 
             # Closure captured on the returned ``_DeprecatedProperty`` so chain-style
             # ``@value.setter`` / ``@value.deleter`` can re-wrap freshly-supplied accessors
-            # with the *same* packing config (template, stream, stacklevel, args_mapping, ...).
+            # with the same packing config (template_mgs, stream, deprecated_in, remove_in,
+            # num_warns, skip_if, stacklevel). args_mapping / args_extra / callable target are
+            # blocked above by TypeError guards and are never reachable here.
             # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
             # accessor is raw — silently dropping the deprecation warning on attribute writes.
             _accessor_sl = _stacklevel + 1
