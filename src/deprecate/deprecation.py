@@ -125,12 +125,12 @@ class _DeprecatedProperty(property):
         fset: Setter callable, or ``None``.
         fdel: Deleter callable, or ``None``.
         doc: Property docstring; ``None`` defers to ``fget.__doc__``.
-        _wrap: Packing closure to re-apply on accessor rebinds; ``None`` disables re-wrap.
+        _wrap: Required packing closure to re-apply on accessor rebinds.
 
     Attributes:
         _wrap: Closure that re-applies the surrounding ``@deprecated`` decoration to a
             new accessor; captures the same template/stacklevel/config as the original
-            wrap. ``None`` only when constructed bare (defensive default).
+            wrap. Required — always set by ``packing()``; never ``None``.
 
     Note:
         ``_DeprecatedProperty`` itself does **not** carry a ``__deprecated__`` attribute —
@@ -142,7 +142,7 @@ class _DeprecatedProperty(property):
 
     """
 
-    _wrap: Optional[Callable[[Callable], Callable]]
+    _wrap: Callable[[Callable], Callable]
 
     def __init__(
         self,
@@ -151,7 +151,7 @@ class _DeprecatedProperty(property):
         fdel: Optional[Callable] = None,
         doc: Optional[str] = None,
         *,
-        _wrap: Optional[Callable[[Callable], Callable]] = None,
+        _wrap: Callable[[Callable], Callable],
     ) -> None:
         super().__init__(fget, fset, fdel, doc)
         # ``property`` exposes no slot for arbitrary attributes via ``__init__``, but it
@@ -159,8 +159,8 @@ class _DeprecatedProperty(property):
         self._wrap = _wrap
 
     def _rewrap(self, accessor: Optional[Callable]) -> Optional[Callable]:
-        """Apply the stored ``_wrap`` closure to ``accessor`` when both are present."""
-        if accessor is None or self._wrap is None:
+        """Apply the stored ``_wrap`` closure to ``accessor`` when present."""
+        if accessor is None:
             return accessor
         return self._wrap(accessor)
 
