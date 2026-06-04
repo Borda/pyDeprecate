@@ -848,8 +848,15 @@ def find_deprecation_wrappers(
                 kind = "classmethod" if isinstance(obj, classmethod) else "staticmethod"
                 _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
             elif isinstance(obj, property):
-                if obj.fget is not None:
-                    _scan_callable(obj.fget, module_name, qualified, member_name=attr_name)
+                # Scan the first accessor that carries deprecation metadata.
+                # fset/fdel provide fallback for setter-only or deleter-only properties
+                # (fget=None) and explicit property(non_deprecated_fget, deprecated_fset) forms.
+                _prop_accessor = next(
+                    (a for a in (obj.fget, obj.fset, obj.fdel) if a is not None and _has_deprecation_meta(a)),
+                    None,
+                )
+                if _prop_accessor is not None:
+                    _scan_callable(_prop_accessor, module_name, qualified, member_name=attr_name)
             elif isinstance(obj, cached_property):
                 _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
             else:

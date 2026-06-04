@@ -149,6 +149,11 @@ What is being deprecated?
   │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
   │      (classes are callables, but @deprecated is for functions/methods only)
   │
+  ├─ A `@property` or `@cached_property`?
+  │    → use `@deprecated @property` (or either order); all three accessors (`fget`/`fset`/`fdel`)
+  │      auto-wrap on chain-style `@x.setter` / `@x.deleter`. Do NOT stack `@deprecated` twice
+  │      (raises `TypeError`) — apply once; use `.setter()` / `.deleter()` for additional accessors.
+  │
   └─ A function or method (including generator functions — `def gen(): yield` — async functions —
      `async def fn()` — and async generator functions — `async def gen(): yield`)?
        → use @deprecated; then choose target= based on the replacement:
@@ -214,7 +219,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 ## Agent Notes
 
 - `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time.
-- `@property` with `@deprecated` in either order: warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`). All three accessors are wrapped — `fget`, `fset`, and `fdel` each fire `FutureWarning` when accessed, assigned, or deleted. Both the chain-style decorator pattern (`@deprecated @property` then `@value.setter`) and explicit `property(fget, fset[, fdel])` construction work — `@deprecated` returns a `property` subclass whose `.setter()` / `.deleter()` re-wrap new accessors with the same packing closure. Note: `type(x) == property` returns `False` on a decorated property; `isinstance(x, property)` is preserved.
+- `@property` with `@deprecated` in either order: warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`). All three accessors are wrapped — `fget`, `fset`, and `fdel` each fire `FutureWarning` when accessed, assigned, or deleted. Both the chain-style decorator pattern (`@deprecated @property` then `@value.setter`) and explicit `property(fget, fset[, fdel])` construction work — `@deprecated` returns a `property` subclass (`deprecate.deprecation._DeprecatedProperty`) whose `.setter()` / `.deleter()` re-wrap new accessors with the same packing closure. Note: `type(x) == property` returns `False` on a decorated property; `isinstance(x, property)` is preserved. Audit: `find_deprecation_wrappers` scans the first accessor that carries `__deprecated__` metadata (`fget` → `fset` → `fdel`); setter-only properties (`fget=None`) are discovered via `fset`.
 - `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.
 - `@deprecated` on `async def` functions: the wrapper is `async def`; `inspect.iscoroutinefunction(wrapper)` returns `True`. All three TargetModes work. Warning fires when the coroutine is awaited, not when the wrapper is called — `coro = wrapper(x=1)` produces no warning; `await coro` fires it. **CI visibility**: if coroutines are scheduled via `asyncio.create_task` or third-party schedulers, warnings fire in the scheduler's context — use `stream=logging.warning` for guaranteed log output. In tests, `pytest.warns()` must wrap the `await`, not just the call.
 - `@deprecated` on async generator functions (`async def` + `yield`): the wrapper is **sync** (`inspect.iscoroutinefunction(wrapper)` is `False`); calling the wrapper fires the deprecation warning eagerly and returns the async generator object. Callers iterate with `async for item in wrapper(...):`. All three TargetModes work — NOTIFY runs the source body, ARGS_REMAP remaps args before iterating the source body, and `target=<async_gen_callable>` forwards to a replacement async generator. The warning fires at sync call time, before the first `__anext__`.
@@ -237,6 +242,7 @@ Warning timing quick reference — all callable kinds:
 - Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
 - `@deprecated` works with `@classmethod` and `@staticmethod` in either order. pyDeprecate unwraps the underlying function (`.__func__`), applies the deprecation wrapper, and re-wraps the descriptor, so the method remains deprecated regardless of decorator order.
 - `@deprecated` on async generator functions (`async def` + `yield`) is supported: the wrapper is a sync callable that fires the warning eagerly and returns the async generator object; iterate the result with `async for`. The wrapper is **not** a coroutine function and **not** an async generator function — frameworks introspecting the wrapper with `inspect.isasyncgenfunction(wrapper)` will see `False`. If a framework rejects the sync wrapper, hand-write a thin async generator (`async def my_wrapper(*a, **kw): async for item in wrapped(*a, **kw): yield item`) before applying `@deprecated`.
+- Do not stack `@deprecated` on a `@property` — raises `TypeError: @deprecated cannot be applied twice to the already-deprecated property`. Apply `@deprecated` once; use `.setter()` / `.deleter()` rebinding for additional accessors.
 
 ## Known Limitations
 

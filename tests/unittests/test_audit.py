@@ -775,3 +775,48 @@ class TestFindDeprecationWrappersClassScan:
 
         names = [r.function for r in results]
         assert any("old_cp" in n for n in names)
+
+    def test_finds_setter_only_property(self) -> None:
+        """Explicit property(fget=None, fset=deprecated_fset) is discovered by audit scan."""
+        mod = types.ModuleType("test_mod_setter_only")
+
+        def _fset(self: object, v: int) -> None:
+            pass
+
+        class OldCls:
+            write_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(property(None, _fset))  # type: ignore[assignment,arg-type]
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("write_only" in n for n in names)
+
+    def test_finds_explicit_construction_fset_deprecated(self) -> None:
+        """Explicit property(plain_fget, deprecated_fset): fset accessor is discovered."""
+        mod = types.ModuleType("test_mod_explicit_fset")
+
+        def _plain_fget(self: object) -> int:
+            return 1
+
+        def _fset(self: object, v: int) -> None:
+            pass
+
+        _deprecated_fset = deprecated(deprecated_in="1.0", remove_in="2.0")(_fset)
+
+        class OldCls:
+            rw_prop: property = property(_plain_fget, _deprecated_fset)
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("rw_prop" in n for n in names)

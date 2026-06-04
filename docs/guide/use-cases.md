@@ -976,7 +976,7 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
 ## Properties and cached properties
 
-`@deprecated` works with `@property` and `@cached_property` in either decorator order — the deprecation warning fires correctly at access time regardless of which order the decorators were applied.
+`@deprecated` works with `@property` and `@cached_property` in either decorator order — the deprecation warning fires correctly at access time regardless of which order the decorators were applied. All three accessors (`fget`, `fset`, `fdel`) are wrapped automatically — read, write, and delete each fire `FutureWarning`.
 
 ```python
 from functools import cached_property
@@ -1057,16 +1057,36 @@ class Config:
 
 `obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
 
+!!! tip "Testing each accessor independently"
+    Each accessor (`fget`, `fset`, `fdel`) has its own warning counter — assert read, write, and delete warnings in separate `pytest.warns` blocks, or use `num_warns=-1` to disable per-accessor deduplication.
+
 The explicit `property(fget, fset[, fdel])` construction also works:
 
 ```python
-# phmdoctest:skip — _timeout_fget and _timeout_fset are not defined in this standalone snippet
 from deprecate import deprecated
 
 
+def _timeout_fget(self) -> int:
+    return self._timeout
+
+
+def _timeout_fset(self, value: int) -> None:
+    self._timeout = value
+
+
+def _timeout_fdel(self) -> None:
+    del self._timeout
+
+
 class Config:
-    timeout: property = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_timeout_fget, _timeout_fset))
+    def __init__(self) -> None:
+        self._timeout: int = 30
+
+    timeout = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_timeout_fget, _timeout_fset, _timeout_fdel))
 ```
+
+!!! note "Audit discoverability with explicit construction"
+    `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecated__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
 
 ## Deprecating generator functions
 

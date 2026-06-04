@@ -132,6 +132,14 @@ class _DeprecatedProperty(property):
             new accessor; captures the same template/stacklevel/config as the original
             wrap. ``None`` only when constructed bare (defensive default).
 
+    Note:
+        ``_DeprecatedProperty`` itself does **not** carry a ``__deprecated__`` attribute —
+        that attribute lives on the individual wrapped accessors (``fget``, ``fset``, ``fdel``).
+        ``find_deprecation_wrappers`` discovers properties via whichever non-``None`` accessor
+        carries ``__deprecated__`` first. A setter-only property (``fget=None``) is discovered
+        via ``fset``; a plain-getter property whose ``fget`` is not deprecated but whose ``fset``
+        is deprecated is likewise discovered via ``fset``.
+
     """
 
     _wrap: Optional[Callable[[Callable], Callable]]
