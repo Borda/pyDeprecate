@@ -1790,6 +1790,6 @@ class DelOnlyDeprecatedPropCls(_DelOnlyPropTarget):
 
     """
 
-    delete_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[assignment,arg-type]
-        property(None, None, del_only_prop_fdel)
+    delete_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[assignment]
+        property(None, None, del_only_prop_fdel)  # type: ignore[arg-type]
     )

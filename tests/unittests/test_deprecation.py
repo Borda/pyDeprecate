@@ -1647,8 +1647,8 @@ class TestPropertyOrderAgnostic:
         def _del_value(self: object) -> None:
             self._value = None  # type: ignore[attr-defined]
 
-        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
-            property(_get_value, _set_value, _del_value)
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(
+            property(_get_value, _set_value, _del_value)  # type: ignore[arg-type]
         )
 
         class _Cls:
@@ -1683,8 +1683,8 @@ class TestPropertyOrderAgnostic:
         def _set_value(self: object, new_value: int) -> None:
             self._value = new_value  # type: ignore[attr-defined]
 
-        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
-            property(_get_value, _set_value)
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(
+            property(_get_value, _set_value)  # type: ignore[arg-type]
         )
 
         class _Cls:
@@ -1737,9 +1737,7 @@ class TestPropertyOrderAgnostic:
 
         with warnings.catch_warnings():
             warnings.simplefilter("always")
-            expired = validate_deprecation_expiry(
-                mod, current_version="2.0", recursive=False, include_members=True
-            )
+            expired = validate_deprecation_expiry(mod, current_version="2.0", recursive=False, include_members=True)
 
         assert expired, "expected at least one expired entry for deprecated property past remove_in"
         assert any("old_prop" in msg for msg in expired)

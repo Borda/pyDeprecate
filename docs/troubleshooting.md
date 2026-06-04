@@ -1307,7 +1307,6 @@ If you need to chain multiple migration steps across versions, the supported pat
 
 ______________________________________________________________________
 
-
 ## Still stuck?
 
 !!! question "Open a GitHub issue"
