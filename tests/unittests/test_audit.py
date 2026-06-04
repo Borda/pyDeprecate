@@ -820,3 +820,30 @@ class TestFindDeprecationWrappersClassScan:
 
         names = [r.function for r in results]
         assert any("rw_prop" in n for n in names)
+
+    def test_finds_deleter_only_property(self) -> None:
+        """Explicit property(None, None, deprecated_fdel) is discovered by audit scan.
+
+        Symmetric to :meth:`test_finds_setter_only_property` for the fdel accessor: when the only
+        deprecation-wrapped accessor on a property is ``fdel``, :func:`find_deprecation_wrappers`
+        must traverse the deleter and surface the wrapper.
+        """
+        mod = types.ModuleType("test_mod_deleter_only")
+
+        def _fdel(self: object) -> None:
+            pass
+
+        _deprecated_fdel = deprecated(deprecated_in="1.0", remove_in="2.0")(_fdel)
+
+        class OldCls:
+            delete_only: property = property(None, None, _deprecated_fdel)
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        names = [r.function for r in results]
+        assert any("delete_only" in n for n in names)

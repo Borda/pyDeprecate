@@ -2,6 +2,7 @@
 
 import inspect
 import sys
+import types
 import warnings
 from dataclasses import dataclass
 from enum import Enum
@@ -13,6 +14,7 @@ import pytest
 import typing_extensions
 
 from deprecate import TargetMode, deprecated, void
+from deprecate.audit import validate_deprecation_expiry
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _DeprecatedProperty,
@@ -36,6 +38,8 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    DelOnlyDeprecatedPropCls,
+    InnerOrderDeprecatedPropCls,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
@@ -1585,6 +1589,160 @@ class TestPropertyOrderAgnostic:
             obj.value = 20
         assert not any(issubclass(w.category, FutureWarning) for w in caught)
         assert obj._value == 20
+
+    def test_inner_deprecated_property_setter_does_not_warn(self) -> None:
+        """Inner ``@property @deprecated`` order: chain-style setter is NOT wrapped — writes are silent.
+
+        Inner order wraps the ``fget`` accessor only.  ``@value.setter`` afterwards rebuilds a plain
+        :class:`property` whose ``fset`` is the freshly-supplied raw callable — no deprecation closure.
+        Attribute writes must therefore emit no ``FutureWarning`` and the body must still mutate state.
+        """
+        obj = InnerOrderDeprecatedPropCls()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            obj.value = 17
+        assert not any(issubclass(w.category, FutureWarning) for w in caught)
+        assert obj._value == 17
+
+    def test_inner_deprecated_property_deleter_does_not_warn(self) -> None:
+        """Inner ``@property @deprecated`` order: chain-style deleter is NOT wrapped — deletes are silent.
+
+        Symmetric to the setter case: ``@value.deleter`` afterwards rebuilds a plain :class:`property`
+        whose ``fdel`` carries no deprecation closure.  ``del obj.value`` must emit no
+        ``FutureWarning`` while still executing the delete-accessor body.
+        """
+        obj = InnerOrderDeprecatedPropCls()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            del obj.value
+        assert not any(issubclass(w.category, FutureWarning) for w in caught)
+        assert obj._del_value is None
+
+    def test_deleter_only_property_fires_warning(self) -> None:
+        """Deleter-only ``property(None, None, fdel)``: FutureWarning fires on ``del`` via wrapped fdel.
+
+        Symmetric to ``test_property_setter_only_fires_warning`` — when the deprecation surface attaches
+        to the only accessor the property carries (``fdel``), the warning must still fire on access.
+        """
+        obj = DelOnlyDeprecatedPropCls()
+        with pytest.warns(FutureWarning):
+            del obj.delete_only
+        assert obj._value is None
+
+    def test_all_three_accessors_fire_independently(self) -> None:
+        """Outer ``deprecated(...)(property(fget, fset, fdel))``: each accessor fires its own FutureWarning.
+
+        Validates that read, write, and delete each emit a ``FutureWarning`` via their own wrapped
+        accessor.  The three accessors share a packing config but each carries an independent
+        deprecation closure derived from ``_DeprecatedProperty``.
+        """
+
+        def _get_value(self: object) -> Optional[int]:
+            """Old property getter."""
+            return self._value  # type: ignore[attr-defined]
+
+        def _set_value(self: object, new_value: int) -> None:
+            self._value = new_value  # type: ignore[attr-defined]
+
+        def _del_value(self: object) -> None:
+            self._value = None  # type: ignore[attr-defined]
+
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
+            property(_get_value, _set_value, _del_value)
+        )
+
+        class _Cls:
+            value = wrapped
+
+            def __init__(self) -> None:
+                self._value: Optional[int] = 5
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            result = obj.value
+        assert result == 5
+        with pytest.warns(FutureWarning):
+            obj.value = 11  # type: ignore[assignment]
+        assert obj._value == 11
+        with pytest.warns(FutureWarning):
+            del obj.value
+        assert obj._value is None
+
+    def test_cross_accessor_counter_independence(self) -> None:
+        """Each accessor has its own ``num_warns`` counter — exhausting fget's does not silence fset.
+
+        Validates that ``_WrapperState`` is per-accessor: after the first read silences subsequent
+        reads (``num_warns=1`` default), the first write still fires its own ``FutureWarning`` from
+        an independent counter, and a second write is silent only after the fset counter is exhausted.
+        """
+
+        def _get_value(self: object) -> int:
+            """Old property getter."""
+            return self._value  # type: ignore[attr-defined]
+
+        def _set_value(self: object, new_value: int) -> None:
+            self._value = new_value  # type: ignore[attr-defined]
+
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
+            property(_get_value, _set_value)
+        )
+
+        class _Cls:
+            value = wrapped
+
+            def __init__(self) -> None:
+                self._value = 0
+
+        obj = _Cls()
+        # First read — fget counter fires.
+        with pytest.warns(FutureWarning):
+            first_read = obj.value
+        assert first_read == 0
+        # Second read — fget counter exhausted, silent.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            second_read = obj.value
+        assert second_read == 0
+        assert not any(issubclass(w.category, FutureWarning) for w in caught)
+        # First write — fset's independent counter still has one warning available.
+        with pytest.warns(FutureWarning):
+            obj.value = 33  # type: ignore[assignment]
+        assert obj._value == 33
+        # Second write — fset counter now exhausted, silent.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            obj.value = 44  # type: ignore[assignment]
+        assert obj._value == 44
+        assert not any(issubclass(w.category, FutureWarning) for w in caught)
+
+    def test_validate_expiry_with_deprecated_property(self) -> None:
+        """``validate_deprecation_expiry`` reports a deprecated property whose ``remove_in`` is past.
+
+        Builds a synthetic module containing a class with an explicit-construction outer-order
+        deprecated property whose ``remove_in='1.0'`` is below the supplied ``current_version='2.0'``.
+        The audit walker must discover the wrapped accessor via class scan and report it as expired.
+        """
+
+        def _fget(self: object) -> int:
+            """Old property getter."""
+            return 1
+
+        mod = types.ModuleType("test_mod_expiry_property")
+
+        class OldCls:
+            old_prop: property = deprecated(deprecated_in="0.9", remove_in="1.0")(property(_fget))  # type: ignore[assignment,arg-type]
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            expired = validate_deprecation_expiry(
+                mod, current_version="2.0", recursive=False, include_members=True
+            )
+
+        assert expired, "expected at least one expired entry for deprecated property past remove_in"
+        assert any("old_prop" in msg for msg in expired)
 
 
 class TestPropertyErrorPaths:
