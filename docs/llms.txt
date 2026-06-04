@@ -149,11 +149,14 @@ What is being deprecated?
   │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
   │      (classes are callables, but @deprecated is for functions/methods only)
   │
-  ├─ A `@property` or `@cached_property`?
+  ├─ A `@property`?
   │    → use `@deprecated @property` (outer order); all three accessors (`fget`/`fset`/`fdel`)
   │      auto-wrap — chain-style `@x.setter` / `@x.deleter` re-wrap via `_DeprecatedProperty`.
   │      Inner order (`@property @deprecated`) only wraps `fget`. Do NOT stack `@deprecated` twice
   │      (raises `TypeError`) — apply once; use `.setter()` / `.deleter()` for additional accessors.
+  ├─ A `@cached_property`?
+  │    → use `@deprecated @cached_property` (outer order); wraps the getter function (`.func`) only —
+  │      `cached_property` has no setter or deleter.
   │
   └─ A function or method (including generator functions — `def gen(): yield` — async functions —
      `async def fn()` — and async generator functions — `async def gen(): yield`)?
