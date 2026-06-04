@@ -1051,7 +1051,8 @@ def deprecated(
                 # Double-decorating an already-deprecated property would wrap every accessor twice,
                 # emitting two FutureWarnings per access and triggering _warn_stacking_misconfiguration
                 # three times. Raise early with a clear message instead of silently double-wrapping.
-                _src_name = source.fget.__qualname__ if source.fget else repr(source)
+                _accessor = source.fget or source.fset or source.fdel
+                _src_name = _accessor.__qualname__ if _accessor is not None else "<property>"
                 raise TypeError(
                     f"`@deprecated` cannot be applied twice to the already-deprecated property `{_src_name}`."
                     " Apply `@deprecated(...)` once; use `.setter()`/`.deleter()` rebinding for additional accessors."
