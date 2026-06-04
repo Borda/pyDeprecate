@@ -1033,34 +1033,32 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
 When the property being deprecated has a setter or deleter, all three accessors (`fget`, `fset`, `fdel`) are wrapped automatically — each fires a `FutureWarning`. Both the chain-style decorator pattern and the explicit construction pattern work:
 
 ```python
-from typing import Optional
-
 from deprecate import deprecated
 
 
-class KeyPoints:
+class Config:
     # Chain-style — conventional Python decorator pattern
-    @deprecated(deprecated_in="0.29.0", remove_in="0.32.0")
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
     @property
-    def confidence(self) -> Optional[list[float]]:
-        return self.keypoint_confidence
+    def timeout(self) -> int:
+        return self.connect_timeout
 
-    @confidence.setter
-    def confidence(self, value: Optional[list[float]]) -> None:
-        self.keypoint_confidence = value
+    @timeout.setter
+    def timeout(self, value: int) -> None:
+        self.connect_timeout = value
 
-    @confidence.deleter
-    def confidence(self) -> None:
-        self.keypoint_confidence = None
+    @timeout.deleter
+    def timeout(self) -> None:
+        del self.connect_timeout
 ```
 
-`obj.confidence` fires `FutureWarning` on **read**, `obj.confidence = value` fires on **write**, and `del obj.confidence` fires on **delete**.
+`obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
 
 The explicit `property(fget, fset[, fdel])` construction also works:
 
 ```python
-    confidence: property = deprecated(deprecated_in="0.29.0", remove_in="0.32.0")(
-        property(_confidence_fget, _confidence_fset)
+    timeout: property = deprecated(deprecated_in="1.0", remove_in="2.0")(
+        property(_timeout_fget, _timeout_fset)
     )
 ```
 
