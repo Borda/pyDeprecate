@@ -1433,14 +1433,14 @@ class TestPropertyOrderAgnostic:
     def test_property_setter_fires_warning(self) -> None:
         """Outer @deprecated on property with fset: FutureWarning fires on attribute assignment."""
 
-        def _get_value(self: Any) -> int:
+        def _get_value(self: object) -> int:
             """Old property."""
-            return self._value
+            return self._value  # type: ignore[attr-defined]
 
-        def _set_value(self: Any, new_value: int) -> None:
-            self._value = new_value
+        def _set_value(self: object, new_value: int) -> None:
+            self._value = new_value  # type: ignore[attr-defined]
 
-        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_get_value, _set_value))
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_get_value, _set_value))  # type: ignore[arg-type]
 
         class _Cls:
             value = wrapped
@@ -1450,20 +1450,20 @@ class TestPropertyOrderAgnostic:
 
         obj = _Cls()
         with pytest.warns(FutureWarning):
-            obj.value = 99
+            obj.value = 99  # type: ignore[assignment]
         assert obj._value == 99
 
     def test_property_deleter_fires_warning(self) -> None:
         """Outer @deprecated on property with fdel: FutureWarning fires on attribute deletion."""
 
-        def _get_value(self: Any) -> Optional[int]:
+        def _get_value(self: object) -> Optional[int]:
             """Old property."""
-            return self._value
+            return self._value  # type: ignore[attr-defined]
 
-        def _del_value(self: Any) -> None:
-            self._value = None
+        def _del_value(self: object) -> None:
+            self._value = None  # type: ignore[attr-defined]
 
-        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_get_value, None, _del_value))
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_get_value, None, _del_value))  # type: ignore[arg-type]
 
         class _Cls:
             value = wrapped
@@ -1479,10 +1479,10 @@ class TestPropertyOrderAgnostic:
     def test_property_setter_only_fires_warning(self) -> None:
         """Setter-only property (fget is None): FutureWarning fires on assignment via wrapped fset."""
 
-        def _set_value(self: Any, new_value: int) -> None:
-            self._value = new_value
+        def _set_value(self: object, new_value: int) -> None:
+            self._value = new_value  # type: ignore[attr-defined]
 
-        wrapped_setter = deprecated(deprecated_in="1.0", remove_in="2.0")(property(None, _set_value))
+        wrapped_setter = deprecated(deprecated_in="1.0", remove_in="2.0")(property(None, _set_value))  # type: ignore[arg-type]
 
         class _Cls:
             value = wrapped_setter
@@ -1492,7 +1492,7 @@ class TestPropertyOrderAgnostic:
 
         obj = _Cls()
         with pytest.warns(FutureWarning):
-            obj.value = 7
+            obj.value = 7  # type: ignore[assignment]
         assert obj._value == 7
 
     def test_chain_style_setter_fires_warning(self) -> None:
