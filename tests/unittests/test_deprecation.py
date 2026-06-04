@@ -15,6 +15,7 @@ import typing_extensions
 from deprecate import TargetMode, deprecated, void
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
+    _DeprecatedProperty,
     _get_positional_params,
     _normalize_target,
     _prepare_target_call,
@@ -1584,3 +1585,74 @@ class TestPropertyOrderAgnostic:
             obj.value = 20
         assert not any(issubclass(w.category, FutureWarning) for w in caught)
         assert obj._value == 20
+
+
+class TestPropertyErrorPaths:
+    """``@deprecated`` raises ``TypeError`` for unsupported property configurations.
+
+    Defined inline (not in collection_deprecate.py) because all four cases raise at
+    decoration time — placing them at module level would abort the entire import.
+    This matches the AGENTS.md three-layer-rule exception for error-path tests that
+    test the decorator itself raising TypeError.
+    """
+
+    def test_double_deprecated_property_raises(self) -> None:
+        """Applying ``@deprecated`` to an already-decorated ``_DeprecatedProperty`` raises TypeError.
+
+        Double-wrapping would emit two FutureWarnings per access and fire the stacking guard
+        three times. The guard raises early with a clear message naming the offending property.
+        """
+
+        def _getter(self: object) -> int:
+            """Old property getter."""
+            return 0
+
+        once_wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_getter))  # type: ignore[arg-type]
+        assert isinstance(once_wrapped, _DeprecatedProperty)
+
+        with pytest.raises(TypeError, match=r"cannot be applied twice to the already-deprecated property"):
+            deprecated(deprecated_in="2.0", remove_in="3.0")(once_wrapped)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("kwarg_name", "kwarg_value"),
+        [
+            ("args_mapping", {"old_arg": "new_arg"}),
+            ("args_extra", {"injected": True}),
+        ],
+    )
+    def test_unsupported_kwarg_with_property_raises(self, kwarg_name: str, kwarg_value: object) -> None:
+        """Passing ``args_mapping`` or ``args_extra`` when decorating a ``property`` raises TypeError.
+
+        Both kwargs require a function signature to apply argument remapping; properties expose
+        accessor callables only and cannot meaningfully use these kwargs.
+        """
+
+        def _getter(self: object) -> int:
+            """Old property getter."""
+            return 0
+
+        with pytest.raises(TypeError, match=rf"`{kwarg_name}` is not supported when decorating a `property`"):
+            deprecated(deprecated_in="1.0", remove_in="2.0", **{kwarg_name: kwarg_value})(  # type: ignore[call-overload]
+                property(_getter)
+            )
+
+    def test_callable_target_with_property_raises(self) -> None:
+        """Passing a callable ``target=`` when decorating a ``property`` raises TypeError.
+
+        Call forwarding requires a function to reroute to; a property's accessors cannot be
+        forwarded wholesale to another callable. The error message names the rejected target
+        and suggests ``TargetMode.NOTIFY`` as the supported alternative.
+        """
+
+        def _getter(self: object) -> int:
+            """Old property getter."""
+            return 0
+
+        def _new_getter(self: object) -> int:
+            """New property getter."""
+            return 1
+
+        with pytest.raises(TypeError, match=r"`target` as a callable is not supported when decorating a `property`"):
+            deprecated(target=_new_getter, deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
+                property(_getter)
+            )
