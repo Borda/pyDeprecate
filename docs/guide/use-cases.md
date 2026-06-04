@@ -1037,19 +1037,22 @@ from deprecate import deprecated
 
 
 class Config:
+    def __init__(self) -> None:
+        self._timeout: int = 30
+
     # Chain-style — conventional Python decorator pattern
     @deprecated(deprecated_in="1.0", remove_in="2.0")
     @property
     def timeout(self) -> int:
-        return self.connect_timeout
+        return self._timeout
 
     @timeout.setter
     def timeout(self, value: int) -> None:
-        self.connect_timeout = value
+        self._timeout = value
 
     @timeout.deleter
     def timeout(self) -> None:
-        del self.connect_timeout
+        del self._timeout
 ```
 
 `obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
