@@ -149,15 +149,18 @@ class _DeprecatedProperty(property):
 
     def getter(self, fget: Callable) -> "_DeprecatedProperty":
         """Return a new ``_DeprecatedProperty`` whose ``fget`` is freshly wrapped."""
-        return _DeprecatedProperty(self._rewrap(fget), self.fset, self.fdel, self.__doc__, _wrap=self._wrap)
+        doc = fget.__doc__ if fget.__doc__ else self.__doc__
+        return _DeprecatedProperty(self._rewrap(fget), self.fset, self.fdel, doc, _wrap=self._wrap)
 
     def setter(self, fset: Callable) -> "_DeprecatedProperty":
         """Return a new ``_DeprecatedProperty`` whose ``fset`` is freshly wrapped."""
-        return _DeprecatedProperty(self.fget, self._rewrap(fset), self.fdel, self.__doc__, _wrap=self._wrap)
+        doc = fset.__doc__ if fset.__doc__ else self.__doc__
+        return _DeprecatedProperty(self.fget, self._rewrap(fset), self.fdel, doc, _wrap=self._wrap)
 
     def deleter(self, fdel: Callable) -> "_DeprecatedProperty":
         """Return a new ``_DeprecatedProperty`` whose ``fdel`` is freshly wrapped."""
-        return _DeprecatedProperty(self.fget, self.fset, self._rewrap(fdel), self.__doc__, _wrap=self._wrap)
+        doc = fdel.__doc__ if fdel.__doc__ else self.__doc__
+        return _DeprecatedProperty(self.fget, self.fset, self._rewrap(fdel), doc, _wrap=self._wrap)
 
 
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
