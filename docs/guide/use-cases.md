@@ -1063,9 +1063,7 @@ from deprecate import deprecated
 
 
 class Config:
-    timeout: property = deprecated(deprecated_in="1.0", remove_in="2.0")(
-        property(_timeout_fget, _timeout_fset)
-    )
+    timeout: property = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_timeout_fget, _timeout_fset))
 ```
 
 ## Deprecating generator functions
