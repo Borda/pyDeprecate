@@ -1494,3 +1494,59 @@ class TestPropertyOrderAgnostic:
         with pytest.warns(FutureWarning):
             obj.value = 7
         assert obj._value == 7
+
+    def test_chain_style_setter_fires_warning(self) -> None:
+        """Chain-style ``@value.setter`` after outer ``@deprecated @property``: FutureWarning fires on read AND write.
+
+        Validates the ``_DeprecatedProperty.setter`` override: built-in ``property.setter`` rebuilds a
+        plain ``property``, losing the deprecation wrap; the subclass re-wraps the new accessor with the
+        same packing config so the warning fires on both attribute read and attribute write.
+        """
+
+        class _Cls:
+            def __init__(self) -> None:
+                self._value: int = 0
+
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @property
+            def value(self) -> int:
+                """Old chain-style property."""
+                return self._value
+
+            @value.setter  # type: ignore[no-redef, prop-decorator]
+            def value(self, v: int) -> None:
+                self._value = v
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            result = obj.value
+        assert result == 0
+        with pytest.warns(FutureWarning):
+            obj.value = 99
+        assert obj._value == 99
+
+    def test_chain_style_deleter_fires_warning(self) -> None:
+        """Chain-style ``@value.deleter`` after outer ``@deprecated @property``: FutureWarning fires on ``del``.
+
+        Validates ``_DeprecatedProperty.deleter``: ensures the freshly-supplied ``fdel`` is wrapped with
+        the same packing closure so attribute deletion still emits the deprecation warning.
+        """
+
+        class _Cls:
+            def __init__(self) -> None:
+                self._value: Optional[int] = 42
+
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @property
+            def value(self) -> Optional[int]:
+                """Old chain-style property."""
+                return self._value
+
+            @value.deleter  # type: ignore[no-redef, prop-decorator]
+            def value(self) -> None:
+                self._value = None
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            del obj.value
+        assert obj._value is None
