@@ -1039,6 +1039,15 @@ def deprecated(
                     f"`@deprecated` cannot be applied twice to the already-deprecated property `{_src_name}`."
                     " Apply `@deprecated(...)` once; use `.setter()`/`.deleter()` rebinding for additional accessors."
                 )
+            if args_mapping:
+                raise TypeError(f"`args_mapping` is not supported when decorating a `property`. Got: {args_mapping!r}.")
+            if args_extra:
+                raise TypeError(f"`args_extra` is not supported when decorating a `property`. Got: {args_extra!r}.")
+            if callable(target):
+                raise TypeError(
+                    f"`target` as a callable is not supported when decorating a `property`. Got: {target!r}."
+                    " Use `TargetMode.NOTIFY` or omit `target`."
+                )
             # Preserve explicit doc only when it differs from fget's doc (author override)
             # or when fget is absent (setter/deleter-only property with doc= supplied).
             # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
