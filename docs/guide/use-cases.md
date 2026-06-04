@@ -976,7 +976,7 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
 ## Properties and cached properties
 
-`@deprecated` works with `@property` and `@cached_property` in either decorator order — the deprecation warning fires correctly at access time regardless of which order the decorators were applied. All three accessors (`fget`, `fset`, `fdel`) are wrapped automatically — read, write, and delete each fire `FutureWarning`.
+`@deprecated` works with `@property` and `@cached_property`. For a getter-only property, either decorator order fires the deprecation warning at access time. To automatically wrap all three accessors (`fget`, `fset`, `fdel`) so that read, write, **and** delete each fire `FutureWarning`, place `@deprecated` on the **outside** (`@deprecated @property` order, or explicit `deprecated(...)(property(fget, fset, fdel))`). The inner-first order (`@property @deprecated`) only wraps `fget` — setter and deleter must be decorated separately if you also need them to warn.
 
 ```python
 from functools import cached_property
