@@ -1030,6 +1030,15 @@ def deprecated(
         # Order-agnostic @property: unwrap → deprecate fget/fset/fdel → rewrap preserving doc.
         # All three accessors are wrapped so attribute read, write, and delete each fire the warning.
         if isinstance(source, property):
+            if isinstance(source, _DeprecatedProperty):
+                # Double-decorating an already-deprecated property would wrap every accessor twice,
+                # emitting two FutureWarnings per access and triggering _warn_stacking_misconfiguration
+                # three times. Raise early with a clear message instead of silently double-wrapping.
+                _src_name = source.fget.__qualname__ if source.fget else repr(source)
+                raise TypeError(
+                    f"`@deprecated` cannot be applied twice to the already-deprecated property `{_src_name}`."
+                    " Apply `@deprecated(...)` once; use `.setter()`/`.deleter()` rebinding for additional accessors."
+                )
             # Preserve explicit doc only when it differs from fget's doc (author override)
             # or when fget is absent (setter/deleter-only property with doc= supplied).
             # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
