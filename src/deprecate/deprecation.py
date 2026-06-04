@@ -1058,8 +1058,10 @@ def deprecated(
             # with the *same* packing config (template, stream, stacklevel, args_mapping, ...).
             # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
             # accessor is raw — silently dropping the deprecation warning on attribute writes.
-            def _wrap_accessor(fn: Callable, _sl: int = _stacklevel + 1) -> Callable:
-                return packing(fn, _sl)
+            _accessor_sl = _stacklevel + 1
+
+            def _wrap_accessor(fn: Callable) -> Callable:
+                return packing(fn, _accessor_sl)
 
             return _DeprecatedProperty(  # type: ignore[return-value]
                 packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
