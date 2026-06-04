@@ -967,7 +967,8 @@ def deprecated(
         if isinstance(source, (classmethod, staticmethod)):
             wrapped_inner = packing(source.__func__, _stacklevel + 1)
             return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
-        # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
+        # Order-agnostic @property: unwrap → deprecate fget/fset/fdel → rewrap preserving doc.
+        # All three accessors are wrapped so attribute read, write, and delete each fire the warning.
         if isinstance(source, property):
             # Preserve explicit doc only when it differs from fget's doc (author override)
             # or when fget is absent (setter/deleter-only property with doc= supplied).
@@ -975,8 +976,8 @@ def deprecated(
             explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
             return property(  # type: ignore[return-value]
                 packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
-                source.fset,
-                source.fdel,
+                packing(source.fset, _stacklevel + 1) if source.fset is not None else None,
+                packing(source.fdel, _stacklevel + 1) if source.fdel is not None else None,
                 explicit_doc,
             )
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.

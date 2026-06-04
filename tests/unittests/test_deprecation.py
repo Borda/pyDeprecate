@@ -6,7 +6,7 @@ import warnings
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
-from typing import Any, Callable, Union, cast
+from typing import Any, Callable, Optional, Union, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -1429,3 +1429,68 @@ class TestPropertyOrderAgnostic:
                     return 42
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    def test_property_setter_fires_warning(self) -> None:
+        """Outer @deprecated on property with fset: FutureWarning fires on attribute assignment."""
+
+        def _get_value(self: Any) -> int:
+            """Old property."""
+            return self._value
+
+        def _set_value(self: Any, new_value: int) -> None:
+            self._value = new_value
+
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_get_value, _set_value))
+
+        class _Cls:
+            value = wrapped
+
+            def __init__(self) -> None:
+                self._value = 0
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            obj.value = 99
+        assert obj._value == 99
+
+    def test_property_deleter_fires_warning(self) -> None:
+        """Outer @deprecated on property with fdel: FutureWarning fires on attribute deletion."""
+
+        def _get_value(self: Any) -> Optional[int]:
+            """Old property."""
+            return self._value
+
+        def _del_value(self: Any) -> None:
+            self._value = None
+
+        wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_get_value, None, _del_value))
+
+        class _Cls:
+            value = wrapped
+
+            def __init__(self) -> None:
+                self._value: Optional[int] = 42
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            del obj.value
+        assert obj._value is None
+
+    def test_property_setter_only_fires_warning(self) -> None:
+        """Setter-only property (fget is None): FutureWarning fires on assignment via wrapped fset."""
+
+        def _set_value(self: Any, new_value: int) -> None:
+            self._value = new_value
+
+        wrapped_setter = deprecated(deprecated_in="1.0", remove_in="2.0")(property(None, _set_value))
+
+        class _Cls:
+            value = wrapped_setter
+
+            def __init__(self) -> None:
+                self._value = 0
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            obj.value = 7
+        assert obj._value == 7

@@ -1028,6 +1028,44 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
 
     The inner-first order is the conventional Python style. Follow this pattern for consistency if your team has no existing convention.
 
+### Deprecating a property with a setter or deleter
+
+When the property being deprecated has a setter or deleter, construct the `property` object explicitly first, then apply `@deprecated`. This ensures all three accessors (`fget`, `fset`, `fdel`) are wrapped and each fires a `FutureWarning`.
+
+```python
+from deprecate import deprecated
+
+
+class KeyPoints:
+    def _confidence_fget(self) -> list[float] | None:
+        return self.keypoint_confidence
+
+    def _confidence_fset(self, value: list[float] | None) -> None:
+        self.keypoint_confidence = value
+
+    confidence: property = deprecated(deprecated_in="0.29.0", remove_in="0.32.0")(
+        property(_confidence_fget, _confidence_fset)
+    )
+```
+
+With this pattern, `obj.confidence` fires a `FutureWarning` on **read**, and `obj.confidence = value` fires a `FutureWarning` on **write**.
+
+!!! warning "Chain-style setter does not work"
+
+    The `@value.setter` decorator chain rebuilds a fresh `property` and bypasses pyDeprecate's wrapping — no warning fires on assignment:
+
+    ```python
+    # ✗ — setter will NOT emit a deprecation warning
+    @deprecated(deprecated_in="0.29.0", remove_in="0.32.0")
+    @property
+    def confidence(self): ...
+
+    @confidence.setter
+    def confidence(self, value): ...  # raw fset, never wrapped by @deprecated
+    ```
+
+    Always use the explicit `property(fget, fset[, fdel])` construction when a setter or deleter must also warn.
+
 ## Deprecating generator functions
 
 Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you **call** the generator function, not when you first iterate the result.
