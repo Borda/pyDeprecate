@@ -1632,8 +1632,8 @@ class TestPropertyErrorPaths:
             return 0
 
         with pytest.raises(TypeError, match=rf"`{kwarg_name}` is not supported when decorating a `property`"):
-            deprecated(deprecated_in="1.0", remove_in="2.0", **{kwarg_name: kwarg_value})(  # type: ignore[call-overload]
-                property(_getter)
+            deprecated(deprecated_in="1.0", remove_in="2.0", **{kwarg_name: kwarg_value})(  # type: ignore[arg-type]
+                property(_getter)  # type: ignore[arg-type]
             )
 
     def test_callable_target_with_property_raises(self) -> None:
@@ -1654,5 +1654,5 @@ class TestPropertyErrorPaths:
 
         with pytest.raises(TypeError, match=r"`target` as a callable is not supported when decorating a `property`"):
             deprecated(target=_new_getter, deprecated_in="1.0", remove_in="2.0")(  # type: ignore[arg-type]
-                property(_getter)
+                property(_getter)  # type: ignore[arg-type]
             )
