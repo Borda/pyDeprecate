@@ -1552,3 +1552,35 @@ class TestPropertyOrderAgnostic:
         with pytest.warns(FutureWarning):
             del obj.value
         assert obj._value is None
+
+    def test_chain_style_setter_warns_once(self) -> None:
+        """Chain-style setter fires FutureWarning exactly once — second write is silent.
+
+        Validates that the ``_WrapperState`` counter for the wrapped ``fset`` advances after
+        the first write so ``num_warns=1`` silences subsequent writes.
+        """
+
+        class _Cls:
+            def __init__(self) -> None:
+                self._value: int = 0
+
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @property
+            def value(self) -> int:
+                """Old chain-style property."""
+                return self._value
+
+            @value.setter  # type: ignore[no-redef, prop-decorator]
+            def value(self, v: int) -> None:
+                self._value = v
+
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            obj.value = 10
+        assert obj._value == 10
+        # Second write must be silent after num_warns=1 is exhausted.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            obj.value = 20
+        assert not any(issubclass(w.category, FutureWarning) for w in caught)
+        assert obj._value == 20
