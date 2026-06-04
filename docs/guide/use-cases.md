@@ -1059,9 +1059,8 @@ class Config:
 
 The explicit `property(fget, fset[, fdel])` construction also works:
 
-<!--phmdoctest-skip-->
-
 ```python
+# phmdoctest:skip — _timeout_fget and _timeout_fset are not defined in this standalone snippet
 from deprecate import deprecated
 
 
