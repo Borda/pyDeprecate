@@ -276,6 +276,22 @@
             "@type": "Answer",
             "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. coro = old_fn(x=1) produces no warning; await coro fires it. Common silent-loss scenarios: asyncio.create_task or tasks scheduled via fixtures/library hooks — the warning fires when the event loop executes the coroutine, which may be outside any active catch_warnings context (e.g., in background workers or test setup code); third-party schedulers (Celery, arq, anyio) run the coroutine in a different context; pytest.warns() wrapping only the call captures nothing. Fix 1 (recommended): use stream=logging.warning — logging bypasses Python warning filters and always appears in CI logs. Fix 2 (tests): wrap the await, not just the call, inside pytest.warns(FutureWarning)."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why doesn't the setter or deleter on my deprecated property emit a warning?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The two property decorator orders behave differently. Inner order (@property outermost, @deprecated closer to def) wraps the getter (fget) only. Setters and deleters added afterwards via @value.setter / @value.deleter rebuild a plain property whose fset and fdel are not deprecation-wrapped, so writes and deletes are silent. Use outer order (@deprecated outermost, @property closer to def) so all three accessors are wrapped — the _DeprecatedProperty subclass of property re-wraps any chain-style setter or deleter with the same packing config. Alternatively, construct the property explicitly via property(fget, fset, fdel) and wrap it once with @deprecated to control exactly which accessors warn."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does pyDeprecate raise TypeError when I apply @deprecated twice to a property?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Double-wrapping a deprecated property would emit two FutureWarning notices per access and fire the stacking guard three times, so pyDeprecate raises TypeError at decoration time to prevent the misconfiguration from reaching production. The error message names the offending property and points to supported alternatives. Fix: apply @deprecated once and use chain-style @value.setter / @value.deleter to add accessors — the outer-order subclass of property re-wraps the freshly-supplied accessor with the same packing config. Alternative: build the property explicitly via property(fget, fset, fdel) and wrap it once with @deprecated, which covers all three accessors in a single application."
+          }
         }
       ]
     }
