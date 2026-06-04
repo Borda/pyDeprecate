@@ -1066,6 +1066,17 @@ def deprecated(
                     f"`target` as a callable is not supported when decorating a `property`. Got: {target!r}."
                     " Use `TargetMode.NOTIFY` or omit `target`."
                 )
+            # Guard against pre-deprecated individual accessors fed into property(...) then
+            # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
+            # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
+            # catches property-objects that are themselves already _DeprecatedProperty instances.
+            for _acc_name, _acc in (("fget", source.fget), ("fset", source.fset), ("fdel", source.fdel)):
+                if _acc is not None and hasattr(_acc, "__deprecated__"):
+                    raise TypeError(
+                        f"`@deprecated` cannot wrap accessor `{_acc.__qualname__}` of property"
+                        f" `{_acc_name}` — it is already decorated with `@deprecated`."
+                        " Apply `@deprecated` once per accessor."
+                    )
             # Preserve explicit doc only when it differs from fget's doc (author override)
             # or when fget is absent (setter/deleter-only property with doc= supplied).
             # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
