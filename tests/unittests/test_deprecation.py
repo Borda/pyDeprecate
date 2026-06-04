@@ -1521,9 +1521,11 @@ class TestPropertyOrderAgnostic:
         with pytest.warns(FutureWarning):
             result = obj.value
         assert result == 0
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning) as w:
             obj.value = 99
         assert obj._value == 99
+        # Verify the warning points at the caller site, not at deprecation internals.
+        assert w[0].filename == __file__
 
     def test_chain_style_deleter_fires_warning(self) -> None:
         """Chain-style ``@value.deleter`` after outer ``@deprecated @property``: FutureWarning fires on ``del``.
