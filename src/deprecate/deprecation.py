@@ -103,20 +103,29 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
 class _DeprecatedProperty(property):
     """``property`` subclass that re-wraps ``getter``/``setter``/``deleter`` results.
 
-    Built-in ``property.setter`` / ``property.deleter`` construct a *fresh* plain ``property``
+    Built-in ``property.setter`` / ``property.deleter`` construct a fresh plain ``property``
     from the existing accessors plus the newly supplied one — discarding any deprecation
-    wrapping applied to the original accessors. That breaks the chain-style pattern::
+    wrapping applied to the original accessors. Overriding ``getter``/``setter``/``deleter``
+    to return another ``_DeprecatedProperty`` — wrapping the new accessor with the same packing
+    closure stored in ``_wrap`` — preserves the deprecation warning on every subsequent rebind.
 
-        @deprecated(deprecated_in="1.0", remove_in="2.0")
-        @property
-        def value(self): ...
+    Example:
+        Chain-style rebinding works because ``_DeprecatedProperty.setter`` re-wraps the
+        new accessor rather than rebuilding a plain ``property``:
 
-        @value.setter
-        def value(self, v): ...   # default ``property.setter`` returns plain ``property``
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            @property
+            def value(self): ...
 
-    Overriding ``getter``/``setter``/``deleter`` to return another ``_DeprecatedProperty``
-    — wrapping the new accessor with the same packing closure stored in ``_wrap`` —
-    preserves the deprecation on every subsequent rebind.
+            @value.setter
+            def value(self, v): ...  # setter() returns _DeprecatedProperty, not plain property
+
+    Args:
+        fget: Getter callable, or ``None``.
+        fset: Setter callable, or ``None``.
+        fdel: Deleter callable, or ``None``.
+        doc: Property docstring; ``None`` defers to ``fget.__doc__``.
+        _wrap: Packing closure to re-apply on accessor rebinds; ``None`` disables re-wrap.
 
     Attributes:
         _wrap: Closure that re-applies the surrounding ``@deprecated`` decoration to a
