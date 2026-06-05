@@ -259,16 +259,24 @@ class _DeprecatedProxy:
                 "remove_in": dep.remove_in,
                 "argument_map": argument_map,
             }
-        elif arg_name is not None and dep.attrs_mapping is not None and arg_name in dep.attrs_mapping:
+        elif arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
+            # Per-attribute warning for ``attrs_mapping``: strip the internal "__attr__:" prefix that
+            # callers add to keep the budget key disjoint from any same-named ``args_mapping`` key.
+            # IMPORTANT: do not reassign ``arg_name`` here — the prefixed key is the budget key used
+            # by the increment at the end of this method; stripping it here would cause the check and
+            # the increment to use different keys, breaking per-attribute budget isolation.
+            attr_name = arg_name[len("__attr__:"):]
+            if attr_name not in dep.attrs_mapping:
+                return
             # Per-attribute warning for ``attrs_mapping``: format the message so callers see the
             # deprecated attribute name and (when a non-``None`` redirect is configured) the canonical
             # replacement attribute path on the wrapped class.
-            new_attr = dep.attrs_mapping[arg_name]
+            new_attr = dep.attrs_mapping[attr_name]
             if new_attr is not None:
                 target_path = f"{dep.name}.{new_attr}"
                 template = custom_template or TEMPLATE_WARNING_CALLABLE
                 msg = template % {
-                    "source_name": arg_name,
+                    "source_name": attr_name,
                     "deprecated_in": dep.deprecated_in,
                     "remove_in": dep.remove_in,
                     "target_name": new_attr,
@@ -277,7 +285,7 @@ class _DeprecatedProxy:
             else:
                 template = custom_template or TEMPLATE_WARNING_NO_TARGET
                 msg = template % {
-                    "source_name": arg_name,
+                    "source_name": attr_name,
                     "deprecated_in": dep.deprecated_in,
                     "remove_in": dep.remove_in,
                 }
@@ -393,7 +401,7 @@ class _DeprecatedProxy:
         attrs_mapping = self._cfg.attrs_mapping
         if attrs_mapping is not None:
             if name in attrs_mapping:
-                self._warn(arg_name=name)
+                self._warn(arg_name=f"__attr__:{name}")
                 redirect = attrs_mapping[name]
                 active = self._get_active()
                 return getattr(active, redirect if redirect is not None else name)
@@ -423,7 +431,7 @@ class _DeprecatedProxy:
         self._check_read_only(f"Setting attribute '{name}'")
         attrs_mapping = self._cfg.attrs_mapping
         if attrs_mapping is not None and name in attrs_mapping:
-            self._warn(arg_name=name)
+            self._warn(arg_name=f"__attr__:{name}")
             redirect = attrs_mapping[name]
             setattr(self._get_active(), redirect if redirect is not None else name, value)
             return
@@ -442,7 +450,7 @@ class _DeprecatedProxy:
         self._check_read_only(f"Deleting attribute '{name}'")
         attrs_mapping = self._cfg.attrs_mapping
         if attrs_mapping is not None and name in attrs_mapping:
-            self._warn(arg_name=name)
+            self._warn(arg_name=f"__attr__:{name}")
             redirect = attrs_mapping[name]
             delattr(self._get_active(), redirect if redirect is not None else name)
             return
