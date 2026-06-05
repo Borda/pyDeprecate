@@ -943,6 +943,17 @@ print(Palette.colour)  # silent passthrough → "red"
 print(Palette.size)  # silent passthrough → 10
 ```
 
+<details>
+  <summary>Output: <code>Palette.color; Palette.colour; Palette.size</code></summary>
+
+```
+red
+red
+10
+```
+
+</details>
+
 **Wrapper form** — equivalent, useful when wrapping an existing class:
 
 ```python
@@ -965,6 +976,17 @@ print(DeprecatedConfig.color)  # warns → returns Config.colour ("red")
 print(DeprecatedConfig.colour)  # silent passthrough ("red")
 print(DeprecatedConfig.timeout)  # silent passthrough (30)
 ```
+
+<details>
+  <summary>Output: <code>DeprecatedConfig.color; DeprecatedConfig.colour; DeprecatedConfig.timeout</code></summary>
+
+```
+red
+red
+30
+```
+
+</details>
 
 Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
 
