@@ -421,3 +421,15 @@ class TargetPaletteEnum(Enum):
 
     COLOUR = "red"
     TEXT = "hello"
+
+
+class PaletteOld:
+    """Source class for H4 callable-target + attrs_mapping fixture.
+
+    Has a deprecated ``color`` attribute with the old value.  Wrapped by ``deprecated_class`` in
+    :mod:`tests.collection_deprecate` with ``target=TargetPalette`` and ``attrs_mapping={"color": "colour"}``
+    to verify that attribute redirects resolve against the *target* namespace, not this source class.
+
+    """
+
+    color: str = "source_red"

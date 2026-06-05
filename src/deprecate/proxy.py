@@ -682,6 +682,13 @@ def deprecated_class(
 
             When ``attrs_mapping`` is ``None`` (default), the existing behaviour is preserved: a warning is emitted
             on every attribute access through the proxy.
+
+            **Callable target interaction**: when ``target=SomeClass`` is also provided, attribute redirects
+            resolve against ``SomeClass``'s namespace rather than the source class's namespace.  For example,
+            ``deprecated_class(target=NewPalette, attrs_mapping={"color": "colour"})`` redirects reads and writes
+            to ``NewPalette.colour``, not the source class's ``colour``.  This means ``proxy.color = value`` silently
+            mutates the replacement class.  If you need attr redirects to stay within the source namespace, do not
+            combine ``attrs_mapping`` with a callable ``target``.
         update_docstring: If ``True``, inject a deprecation notice into the class docstring at decoration time (same
             behaviour as ``@deprecated(update_docstring=True)``).
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the

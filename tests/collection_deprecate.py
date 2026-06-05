@@ -58,6 +58,7 @@ from tests.collection_targets import (
     NewIntEnum,
     SomeTargetClass,
     TargetColorEnum,
+    PaletteOld,
     TargetPalette,
     TargetPaletteEnum,
     TargetWithInjected,
@@ -1840,3 +1841,15 @@ DeprecatedAttrsPaletteWithStream = deprecated_class(
     deprecated_in="1.0",
     remove_in="2.0",
 )(TargetPalette)
+
+
+# H4 fixture: callable target + attrs_mapping.  Wraps ``PaletteOld`` (source_red) with
+# ``target=TargetPalette`` so that ``_get_active()`` returns ``TargetPalette``.  Attr redirects
+# therefore resolve against ``TargetPalette``'s namespace, not ``PaletteOld``'s.
+DeprecatedAttrsPaletteCallableTarget = deprecated_class(
+    target=TargetPalette,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(PaletteOld)

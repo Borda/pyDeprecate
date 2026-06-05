@@ -10,6 +10,7 @@ import pytest
 from deprecate._types import TargetMode
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
+    DeprecatedAttrsPaletteCallableTarget,
     DeprecatedAttrsNotifyOnly,
     DeprecatedAttrsPalette,
     DeprecatedAttrsPaletteEnum,
@@ -1339,3 +1340,28 @@ class TestDeprecatedAttrs:
         """
         meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
         assert meta.attrs_mapping == {"color": "colour", "txt": "text"}
+
+    def test_attrs_mapping_with_callable_target_resolves_against_target_namespace(self) -> None:
+        """When ``target=SomeClass`` and ``attrs_mapping`` are both set, attr redirects use the target namespace.
+
+        ``_get_active()`` returns the callable target when set.  So
+        ``deprecated_class(target=TargetPalette, attrs_mapping={"color": "colour"})(PaletteOld)``
+        redirects reads of ``proxy.color`` to ``TargetPalette.colour`` rather than the source
+        ``PaletteOld.color``.  This behaviour is documented in the ``deprecated_class`` docstring;
+        this test pins it so any future change is visible in the diff.
+
+        """
+        # DeprecatedAttrsPaletteCallableTarget wraps PaletteOld (color="source_red") with
+        # target=TargetPalette (colour="red") and attrs_mapping={"color": "colour"}.
+        # Read: proxy.color should return TargetPalette.colour ("red"), not PaletteOld.color ("source_red").
+        value = DeprecatedAttrsPaletteCallableTarget.color  # type: ignore[attr-defined]
+        assert value == TargetPalette.colour  # resolved against target namespace
+        assert value != "source_red"  # NOT the source class attribute value
+
+        # Write: proxy.color = "blue" should mutate TargetPalette.colour (target namespace).
+        original = TargetPalette.colour
+        try:
+            DeprecatedAttrsPaletteCallableTarget.color = "blue"  # type: ignore[attr-defined]
+            assert TargetPalette.colour == "blue"  # target was mutated
+        finally:
+            TargetPalette.colour = original  # restore to avoid test pollution
