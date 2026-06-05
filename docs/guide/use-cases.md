@@ -695,6 +695,56 @@ True
 
 </details>
 
+## Selective attribute deprecation
+
+Use `attrs_mapping` on `deprecated_class()` to deprecate only specific attribute names — all other attributes pass through silently. This covers attribute renames, misspelling corrections (e.g. `color` → `colour`), and warn-only notices on individual attributes.
+
+The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and redirect. Reads, writes, and deletes on non-listed attribute names pass through without any warning.
+
+```python
+from deprecate import deprecated_class
+
+
+class Config:
+    # Canonical names — callers should use these
+    colour: str = "red"
+    timeout: int = 30
+
+
+# Misspelling migration: "color" → "colour"; "size" is warn-only (no rename)
+DeprecatedConfig = deprecated_class(
+    attrs_mapping={"color": "colour", "size": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Config)
+
+# Deprecated alias — warns and returns Config.colour
+print(DeprecatedConfig.color)
+
+# Canonical name — silent passthrough, no warning
+print(DeprecatedConfig.colour)
+
+# Warn-only: no rename, "size" is still returned as-is (value shown as 0 since Config has no "size")
+print(DeprecatedConfig.timeout)
+```
+
+<details>
+  <summary>Output: <code>DeprecatedConfig.color; DeprecatedConfig.colour; DeprecatedConfig.timeout</code></summary>
+
+```
+red
+red
+30
+```
+
+</details>
+
+`attrs_mapping` can be combined with `target=NewClass` — the class-level proxy warning fires on instantiation, while `attrs_mapping` intercepts individual attribute reads/writes/deletes.
+
+!!! note "Audit visibility"
+
+    `find_deprecation_wrappers` discovers the proxy via its class-level `__deprecated__`. Individual `attrs_mapping` entries are data inside the single proxy config and are not emitted as separate `DeprecationWrapperInfo` records. All entries share the same `deprecated_in`/`remove_in` lifecycle.
+
 ## Automatic docstring updates
 
 Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring at import time. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep.

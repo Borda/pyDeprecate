@@ -253,7 +253,7 @@ Not sure which API to reach for? Start here.
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 
 > [!TIP]
-> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
+> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `attrs_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
 > `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
@@ -911,6 +911,36 @@ True
 True
 (3, 4)
 (3.25, 4.75)
+```
+
+</details>
+
+<br>
+
+<details>
+<summary>Example: selective attribute deprecation with <code>attrs_mapping</code></summary>
+
+Use `attrs_mapping` to deprecate only specific attribute names — other attributes pass through silently. Covers renames, misspelling corrections, and warn-only notices on individual attributes.
+
+```python
+from deprecate import deprecated_class
+
+
+class Config:
+    colour: str = "red"
+    timeout: int = 30
+
+
+# "color" is a deprecated alias for "colour"; access warns and redirects
+DeprecatedConfig = deprecated_class(
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Config)
+
+print(DeprecatedConfig.color)  # warns → returns Config.colour ("red")
+print(DeprecatedConfig.colour)  # silent passthrough ("red")
+print(DeprecatedConfig.timeout)  # silent passthrough (30)
 ```
 
 </details>
