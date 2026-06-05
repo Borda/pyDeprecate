@@ -1141,10 +1141,11 @@ class TestPEP702ProxyStackingRegression:
 class TestDeprecatedAttrs:
     """Selective per-attribute deprecation via ``attrs_mapping`` on ``deprecated_class``.
 
-    Each test sets up an isolated proxy state because ``DeprecatedAttrsPalette`` and friends are module-level singletons
-    whose per-attribute warning counters (``_cfg.warned_args``) persist across tests once consumed.  The
-    :meth:`_reset_proxy_state` autouse fixture clears those counters and re-seeds the canonical attribute values on the
-    wrapped target so each test starts from the same baseline.
+    Each test sets up an isolated proxy state because ``DeprecatedAttrsPalette`` and friends are
+    module-level singletons whose per-attribute warning counters (``_cfg.warned_args``) persist
+    across tests once consumed. The :meth:`_reset_proxy_state` autouse fixture clears those
+    counters and re-seeds the canonical attribute values on the wrapped target so each test
+    starts from the same baseline.
 
     """
 
