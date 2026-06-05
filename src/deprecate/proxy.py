@@ -121,17 +121,26 @@ class _DeprecatedProxy:
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of on the first proxy access.
         _validate_template_mgs(template_mgs)
-        # Reject circular ``attrs_mapping`` mappings at decoration time so the misconfiguration
-        # surfaces before any caller hits the proxy.  A key that is also a non-``None`` redirect
-        # target would cause an infinite forwarding loop when the deprecated name is accessed.
+        # Reject true cycle redirects in ``attrs_mapping`` at decoration time.  A cycle is when
+        # following the redirect chain eventually loops back to a previously-visited key
+        # (e.g. {"a": "b", "b": "a"}).  Multi-stage rename chains like {"a": "b", "b": "c"} are
+        # valid: they terminate at "c" which is not a key in the mapping, so no loop occurs.
         if attrs_mapping is not None:
-            non_none_values = {v for v in attrs_mapping.values() if v is not None}
-            overlap = set(attrs_mapping) & non_none_values
-            if overlap:
+            seen_cycle_starters: list[str] = []
+            for start in attrs_mapping:
+                visited: set[str] = {start}
+                current = attrs_mapping[start]
+                while current is not None and current in attrs_mapping:
+                    if current in visited:
+                        seen_cycle_starters.append(start)
+                        break
+                    visited.add(current)
+                    current = attrs_mapping[current]
+            if seen_cycle_starters:
                 raise ValueError(
-                    f"`attrs_mapping` has circular redirects — keys that are also redirect targets:"
-                    f" {sorted(overlap)}."
-                    " Each deprecated name must not appear as a redirect target of another entry."
+                    f"`attrs_mapping` has circular redirects — the redirect chain starting from"
+                    f" {sorted(set(seen_cycle_starters))} loops back to a previously visited key."
+                    " Redirect chains must terminate at an attribute name not present as a key in `attrs_mapping`."
                 )
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
@@ -664,8 +673,9 @@ def deprecated_class(
         attrs_mapping: Optional dict mapping deprecated attribute names to canonical names (or ``None`` for
             warn-only).  When set, only the listed attribute names emit a deprecation warning on access; all other
             attributes are forwarded silently.  The redirect applies to reads (``__getattr__``), writes
-            (``__setattr__``), and deletes (``__delattr__``).  Keys and non-``None`` values must be disjoint to prevent
-            circular redirects — a circular mapping raises :class:`ValueError` at decoration time.
+            (``__setattr__``), and deletes (``__delattr__``).  Redirect chains must not form cycles (e.g. ``{"a": "b", "b": "a"}`` raises
+            :class:`ValueError` at decoration time).  Multi-stage rename chains like ``{"a": "b", "b": "c"}``
+            are valid because the chain terminates at ``"c"`` which is not a key in the mapping.
 
             Example: ``attrs_mapping={"color": "colour", "txt": "text"}`` warns on ``proxy.color`` access and
             returns ``proxy.colour``; ``proxy.colour`` is forwarded silently.
