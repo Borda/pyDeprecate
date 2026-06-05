@@ -10,6 +10,10 @@ import pytest
 from deprecate._types import TargetMode
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
+    DeprecatedAttrsNotifyOnly,
+    DeprecatedAttrsPalette,
+    DeprecatedAttrsPaletteEnum,
+    DeprecatedAttrsPaletteWithStream,
     DeprecatedColorDataClass,
     DeprecatedColorEnum,
     MappedColorEnum,
@@ -22,7 +26,14 @@ from tests.collection_deprecate import (
     WarnOnlyColorEnum,
     pep702_proxy_stacked,
 )
-from tests.collection_targets import NewDataClass, TargetColorEnum, TargetWithInjected, _Pep702ProxyTarget
+from tests.collection_targets import (
+    NewDataClass,
+    TargetColorEnum,
+    TargetPalette,
+    TargetPaletteEnum,
+    TargetWithInjected,
+    _Pep702ProxyTarget,
+)
 
 
 class TestProxyInit:
@@ -1124,3 +1135,207 @@ class TestPEP702ProxyStackingRegression:
         """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning on call."""
         with pytest.warns(DeprecationWarning, match="use `Pep702ProxyTarget`"):
             pep702_proxy_stacked()
+
+
+class TestDeprecatedAttrs:
+    """Selective per-attribute deprecation via ``attrs_mapping`` on ``deprecated_class``.
+
+    Each test sets up an isolated proxy state because ``DeprecatedAttrsPalette`` and friends are module-level singletons
+    whose per-attribute warning counters (``_cfg.warned_args``) persist across tests once consumed.  The
+    :meth:`_reset_proxy_state` autouse fixture clears those counters and re-seeds the canonical attribute values on the
+    wrapped target so each test starts from the same baseline.
+
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_proxy_state(self) -> None:
+        """Reset module-level fixture proxies and re-seed the wrapped target attributes between tests.
+
+        Required because ``_ProxyConfig.warned_args`` is *not* covered by the project conftest's ``_state`` reset
+        (the conftest targets ``@deprecated`` wrappers only).  Without this reset, a previous test consuming the
+        per-attribute budget would silently invalidate any subsequent test that asserts a warning fires.
+
+        """
+        for proxy in (
+            DeprecatedAttrsPalette,
+            DeprecatedAttrsNotifyOnly,
+            DeprecatedAttrsPaletteEnum,
+            DeprecatedAttrsPaletteWithStream,
+        ):
+            cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
+            cfg.warned = 0
+            cfg.warned_args.clear()
+        # Restore canonical class attributes mutated by previous write-redirect tests.
+        TargetPalette.colour = "red"
+        TargetPalette.text = "hello"
+        TargetPalette.size = 42
+
+    def test_read_redirect_warns_and_returns_canonical(self) -> None:
+        """Accessing a deprecated attribute alias warns and transparently returns the canonical value.
+
+        A class has both ``color`` (deprecated alias, misspelling) and ``colour`` (canonical name).  Wrapping the
+        class with ``deprecated_class(attrs_mapping={"color": "colour"})`` ensures that reading ``proxy.color``
+        emits a ``FutureWarning`` and returns the same value as ``proxy.colour``, so callers using the old name still
+        get correct data during the migration window.
+
+        """
+        with pytest.warns(FutureWarning, match="color"):
+            value = DeprecatedAttrsPaletteWithStream.color  # type: ignore[attr-defined]
+        assert value == "red"
+
+    def test_canonical_attr_no_warning(self) -> None:
+        """Accessing the canonical (non-deprecated) attribute passes through silently.
+
+        Only attribute names listed as keys in ``attrs_mapping`` trigger warnings.  Callers who have already migrated
+        to the new name (e.g. ``colour`` instead of ``color``) must not receive any warning — the deprecation system
+        should be invisible to migrated code.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            value = DeprecatedAttrsPaletteWithStream.colour  # type: ignore[attr-defined]
+        assert value == "red"
+        assert not caught
+
+    def test_write_redirect_warns_and_sets_canonical(self) -> None:
+        """Writing to a deprecated attribute alias warns and sets the canonical attribute.
+
+        A caller assigns to ``proxy.color = "blue"``.  The proxy emits a FutureWarning and then sets
+        ``proxy.colour = "blue"``, so that subsequent reads of the canonical attribute reflect the written value.  This
+        prevents split-brain state where the deprecated name and canonical name diverge in storage.
+
+        """
+        with pytest.warns(FutureWarning, match="color"):
+            DeprecatedAttrsPaletteWithStream.color = "blue"  # type: ignore[attr-defined]
+        # Reading the canonical attribute must now show the new value (no warning on canonical reads).
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert DeprecatedAttrsPaletteWithStream.colour == "blue"  # type: ignore[attr-defined]
+        assert not caught
+
+    def test_notify_only_warns_no_redirect(self) -> None:
+        """A ``None`` redirect value warns on access but does not rename the attribute.
+
+        When ``attrs_mapping={"size": None}``, reading ``proxy.size`` emits a FutureWarning using the no-target
+        template ("will be removed in v...") but still returns the value of ``proxy.size`` unchanged.  This is
+        equivalent to ``TargetMode.NOTIFY`` for an individual attribute.
+
+        """
+        # Use a fresh proxy with stream enabled because DeprecatedAttrsNotifyOnly suppresses warnings.
+        proxy = deprecated_class(
+            attrs_mapping={"size": None},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )(TargetPalette)
+        with pytest.warns(FutureWarning, match="size") as record:
+            value = proxy.size  # type: ignore[attr-defined]
+        assert value == 42
+        # The no-target template does not include any "in favor of" phrase.
+        assert "in favor of" not in str(record[0].message)
+
+    def test_per_attribute_warning_budget_independent(self) -> None:
+        """Each deprecated attribute name has its own warning budget under ``num_warns=1``.
+
+        With two entries in ``attrs_mapping`` and ``num_warns=1``, accessing both deprecated names must emit one
+        warning each (two warnings total), not just one warning shared across all deprecated names.  This mirrors the
+        per-argument budget of ``args_mapping`` deprecation and ensures callers see the migration notice for every
+        attribute they use.
+
+        """
+        proxy = deprecated_class(
+            attrs_mapping={"color": "colour", "txt": "text"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            num_warns=1,
+        )(TargetPalette)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = proxy.color  # type: ignore[attr-defined]
+            _ = proxy.txt  # type: ignore[attr-defined]
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warnings) == 2
+        # Subsequent access on either name is silent because each budget is exhausted.
+        with warnings.catch_warnings(record=True) as caught_after:
+            warnings.simplefilter("always")
+            _ = proxy.color  # type: ignore[attr-defined]
+            _ = proxy.txt  # type: ignore[attr-defined]
+        assert not [w for w in caught_after if issubclass(w.category, FutureWarning)]
+
+    def test_unlisted_attr_no_warning(self) -> None:
+        """Attributes not listed in ``attrs_mapping`` pass through without any warning.
+
+        The selective mode must not affect attributes that are not deprecated.  A class with
+        ``attrs_mapping={"color": "colour"}`` should forward ``proxy.size`` silently — no warning, no redirect — so
+        that the addition of ``attrs_mapping`` does not inadvertently alter performance-sensitive or hot-path
+        attribute reads on non-deprecated names.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            value = DeprecatedAttrsPaletteWithStream.size  # type: ignore[attr-defined]
+        assert value == 42
+        assert not caught
+
+    def test_enum_member_redirect(self) -> None:
+        """Enum member aliases redirect transparently through the proxy.
+
+        An enum ``TargetPaletteEnum`` has ``COLOUR`` as the canonical member name.  A deprecated alias ``COLOR`` is
+        registered via ``attrs_mapping={"COLOR": "COLOUR"}``.  Accessing ``DeprecatedAttrsPaletteEnum.COLOR`` must
+        warn and return the same object as ``DeprecatedAttrsPaletteEnum.COLOUR``.
+
+        """
+        # Use a fresh stream-enabled proxy so we can assert on the FutureWarning.
+        proxy = deprecated_class(
+            attrs_mapping={"COLOR": "COLOUR"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )(TargetPaletteEnum)
+        with pytest.warns(FutureWarning, match="COLOR"):
+            value = proxy.COLOR  # type: ignore[attr-defined]
+        assert value is TargetPaletteEnum.COLOUR
+
+    def test_warning_message_uses_callable_template(self) -> None:
+        """Warning message for a redirect attr uses the callable template naming the canonical attr.
+
+        The FutureWarning emitted for ``proxy.color`` (where ``color`` redirects to ``colour``) must contain the
+        deprecated name ``color`` and the canonical name ``colour`` in the message text, so callers can immediately
+        identify the migration action from the warning alone.
+
+        """
+        with pytest.warns(FutureWarning) as record:
+            _ = DeprecatedAttrsPaletteWithStream.color  # type: ignore[attr-defined]
+        message = str(record[0].message)
+        assert "color" in message
+        assert "colour" in message
+        # The callable template includes the canonical class name and an "in favor of" phrase.
+        assert "TargetPalette.colour" in message
+
+    def test_circular_redirect_raises_at_decoration_time(self) -> None:
+        """Circular redirect mapping raises ``ValueError`` at decoration time.
+
+        Passing ``attrs_mapping={"a": "b", "b": "a"}`` would create an infinite loop if both names were looked up
+        through the proxy.  The decorator must detect this at class-decoration time and raise ``ValueError`` before any
+        instance is created, making the misconfiguration visible immediately rather than at access time.
+
+        """
+        with pytest.raises(ValueError, match="circular"):
+
+            @deprecated_class(
+                attrs_mapping={"a": "b", "b": "a"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )
+            class _Circular:
+                a = 1
+                b = 2
+
+    def test_attrs_mapping_stored_in_metadata(self) -> None:
+        """``attrs_mapping`` is visible in ``__deprecated__`` metadata for audit tools.
+
+        Audit tooling reads ``DeprecationConfig`` via ``obj.__deprecated__`` to build deprecation tables and enforce
+        expiry policies.  The ``attrs_mapping`` dict must be stored in the frozen ``DeprecationConfig`` so that
+        ``find_deprecation_wrappers`` can surface it without reading internal proxy state.
+
+        """
+        meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
+        assert meta.attrs_mapping == {"color": "colour", "txt": "text"}

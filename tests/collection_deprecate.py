@@ -58,6 +58,8 @@ from tests.collection_targets import (
     NewIntEnum,
     SomeTargetClass,
     TargetColorEnum,
+    TargetPalette,
+    TargetPaletteEnum,
     TargetWithInjected,
     TimerDecorator,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
@@ -1793,3 +1795,48 @@ class DelOnlyDeprecatedPropCls(_DelOnlyPropTarget):
     delete_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[assignment]
         property(None, None, del_only_prop_fdel)  # type: ignore[arg-type]
     )
+
+
+# ========== attrs_mapping fixtures (selective per-attribute deprecation) ==========
+# Wrap ``TargetPalette`` and ``TargetPaletteEnum`` to expose deprecated attribute aliases
+# (``color``→``colour``, ``txt``→``text``, etc.).  ``stream=None`` is used on most fixtures
+# so reads/writes/deletes do not emit warnings during fixture import and can be controlled
+# per-test via the WithStream variant below.
+
+
+# Read-redirect: ``color``→``colour`` and ``txt``→``text``.  Used by tests that exercise
+# per-attribute warning budgets and silent passthrough of non-listed attribute names.
+DeprecatedAttrsPalette = deprecated_class(
+    attrs_mapping={"color": "colour", "txt": "text"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(TargetPalette)
+
+
+# Warn-only: ``size`` is registered with redirect target ``None``, so reads warn but the
+# canonical attribute name is unchanged (no rename).
+DeprecatedAttrsNotifyOnly = deprecated_class(
+    attrs_mapping={"size": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(TargetPalette)
+
+
+# Enum variant: deprecated alias ``COLOR`` redirects to canonical enum member ``COLOUR``.
+DeprecatedAttrsPaletteEnum = deprecated_class(
+    attrs_mapping={"COLOR": "COLOUR"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(TargetPaletteEnum)
+
+
+# Stream-enabled variant used by warning-message content tests: this fixture must NOT use
+# ``stream=None`` because the tests assert the FutureWarning text emitted on access.
+DeprecatedAttrsPaletteWithStream = deprecated_class(
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(TargetPalette)

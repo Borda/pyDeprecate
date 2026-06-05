@@ -394,3 +394,30 @@ def del_only_prop_fdel(self: _DelOnlyPropTarget) -> None:
 
     """
     self._value = None
+
+
+class TargetPalette:
+    """Target class with canonical attribute names for ``attrs_mapping`` tests.
+
+    Carries both the canonical names (``colour``, ``text``, ``size``) and is wrapped by ``deprecated_class`` fixtures in
+    :mod:`tests.collection_deprecate` to register deprecated aliases (``color`` → ``colour``, ``txt`` → ``text``).  The
+    canonical attributes are mutable instance-style class attributes so that read/write/delete tests can exercise the
+    forwarding behaviour without instantiating the class.
+
+    """
+
+    colour: str = "red"
+    text: str = "hello"
+    size: int = 42
+
+
+class TargetPaletteEnum(Enum):
+    """Enum with canonical member names for the ``attrs_mapping`` enum redirect test.
+
+    Wrapped by ``DeprecatedAttrsPaletteEnum`` in :mod:`tests.collection_deprecate` to register a deprecated alias
+    ``COLOR`` → ``COLOUR``.  Used to verify that proxy ``__getattr__`` redirect logic survives the enum metaclass.
+
+    """
+
+    COLOUR = "red"
+    TEXT = "hello"

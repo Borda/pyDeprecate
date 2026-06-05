@@ -266,6 +266,10 @@ class DeprecationConfig:
             templates at warn time. ``None`` (default) keeps the built-in template selected for the active scenario.
             Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated` for the
             available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
+        attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
+            ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when selective per-attribute
+            deprecation is enabled.  Audit tools surface this for documentation and migration tracking.  ``None``
+            (default) means the proxy uses its blanket-warning behaviour (every attribute access emits a warning).
 
     """
 
@@ -278,6 +282,7 @@ class DeprecationConfig:
     misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     template_mgs: Optional[str] = None
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None
 
 
 @runtime_checkable
@@ -334,6 +339,9 @@ class _ProxyConfig:
         template_mgs: Optional custom warning-message template (``%``-style placeholders) that overrides the built-in
             templates at warn time. ``None`` (default) keeps the built-in templates. See
             :func:`~deprecate.proxy.deprecated_class` for the placeholder catalogue.
+        attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
+            ``None`` for warn-only).  When set, the proxy emits warnings only on access to listed names and forwards
+            all other reads/writes/deletes silently.  See :func:`~deprecate.proxy.deprecated_class` for full semantics.
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
@@ -346,6 +354,7 @@ class _ProxyConfig:
     read_only: bool
     args_extra: Optional[dict[str, Any]] = None
     template_mgs: Optional[str] = None
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
 
