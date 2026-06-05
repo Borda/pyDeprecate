@@ -5,9 +5,14 @@
 ### Added
 
 - **Generator function support for `@deprecated`.** Decorating a generator function now emits the deprecation warning eagerly at call time — before the first `next()` — consistent with regular function behavior. The generator body executes lazily as normal when iterated. All three `TargetMode` variants (`NOTIFY`, `ARGS_REMAP`, callable target) work transparently; no `isgeneratorfunction` check is required. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
+
 - **`async def` coroutine wrapper support for `@deprecated`.** Decorating an `async def` function now produces an `async def` wrapper — `inspect.iscoroutinefunction(wrapper)` returns `True`. All three `TargetMode` variants (`NOTIFY`, `ARGS_REMAP`, callable target) work with async sources and async targets. The deprecation warning fires when the coroutine is awaited, not when the wrapper is called. `pytest-asyncio` is required in the test suite to run the async integration tests.
+
 - **Async generator function support for `@deprecated`.** Decorating an `async def` + `yield` function no longer emits a `UserWarning` at decoration time. The wrapper is a sync callable that fires the deprecation warning eagerly at call time and returns the async generator object; callers iterate with `async for`. All three `TargetMode` variants work. Because the wrapper is sync, `inspect.isasyncgenfunction(wrapper)` returns `False` — frameworks that branch on that flag may need a thin async generator passthrough.
+
 - **Order-agnostic `classmethod`/`staticmethod` guard.** Applying `@deprecated` outside `@classmethod` (wrong decorator order) is now silently rescued at decoration time: the descriptor is unwrapped, the inner function is deprecated, and the result is re-wrapped as `classmethod(deprecated_wrapper)`. No `UserWarning` is emitted; a `FutureWarning` fires normally at call time. The preferred order (`@classmethod` outermost, `@deprecated` closer to `def`) is unchanged. ([#176](https://github.com/Borda/pyDeprecate/pull/176))
+
+- **`@deprecated @property` now wraps `fset` and `fdel` with `FutureWarning`.** Applying `@deprecated` on the outside of `@property` (outer order, or explicit `deprecated(...)(property(fget, fset, fdel))`) now wraps all three accessors. Previously, only `fget` emitted a warning; `fset` and `fdel` were silently passed through. Consumers running `filterwarnings=error::FutureWarning` that wrote to or deleted a deprecated property will now see `FutureWarning` errors — use inner-order (`@property @deprecated`) or decorate only `fget` directly if you want a silent setter/deleter. Chain-style rebinding via `@value.setter` / `@value.deleter` is fully supported through the new `_DeprecatedProperty` subclass. ([#190](https://github.com/Borda/pyDeprecate/pull/190))
 
 ### Changed
 
