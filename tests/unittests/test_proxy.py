@@ -10,9 +10,9 @@ import pytest
 from deprecate._types import TargetMode
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
-    DeprecatedAttrsPaletteCallableTarget,
     DeprecatedAttrsNotifyOnly,
     DeprecatedAttrsPalette,
+    DeprecatedAttrsPaletteCallableTarget,
     DeprecatedAttrsPaletteEnum,
     DeprecatedAttrsPaletteWithStream,
     DeprecatedColorDataClass,
@@ -1365,3 +1365,47 @@ class TestDeprecatedAttrs:
             assert TargetPalette.colour == "blue"  # target was mutated
         finally:
             TargetPalette.colour = original  # restore to avoid test pollution
+
+    def test_delete_redirect_warns_and_deletes_canonical(self) -> None:
+        """Deleting a deprecated attribute alias warns and deletes the canonical attribute.
+
+        A class has ``colour`` as the canonical attribute and ``color`` registered as a deprecated alias in
+        ``attrs_mapping={"color": "colour"}``.  Calling ``del proxy.color`` must emit a ``FutureWarning`` for ``color``
+        and then delete ``TargetPalette.colour``, so that callers migrating away from the deprecated name still trigger
+        the expected deletion on the live canonical attribute.
+
+        """
+        proxy = deprecated_class(
+            attrs_mapping={"color": "colour"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )(TargetPalette)
+        original = TargetPalette.colour
+        try:
+            with pytest.warns(FutureWarning, match="color"):
+                del proxy.color  # type: ignore[attr-defined]
+            assert not hasattr(TargetPalette, "colour")
+        finally:
+            TargetPalette.colour = original  # restore canonical attr for subsequent tests
+
+    def test_delete_notify_only_warns_and_deletes_same_name(self) -> None:
+        """Deleting a warn-only attribute (``None`` redirect) warns and deletes the same-name attribute.
+
+        When ``attrs_mapping={"size": None}``, the attribute name is both deprecated and canonical — ``None`` means
+        "warn but keep the same name."  Calling ``del proxy.size`` must emit a ``FutureWarning`` for ``size`` and then
+        delete ``TargetPalette.size`` (the same attribute, not a redirect target), mirroring the read/write semantics
+        for the notify-only case.
+
+        """
+        proxy = deprecated_class(
+            attrs_mapping={"size": None},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )(TargetPalette)
+        original = TargetPalette.size
+        try:
+            with pytest.warns(FutureWarning, match="size"):
+                del proxy.size  # type: ignore[attr-defined]
+            assert not hasattr(TargetPalette, "size")
+        finally:
+            TargetPalette.size = original  # restore for subsequent tests
