@@ -746,6 +746,7 @@ from deprecate import deprecated_class
 
 class Config:
     colour: str = "red"
+    size: int = 42
     timeout: int = 30
 
 
@@ -758,16 +759,16 @@ DeprecatedConfig = deprecated_class(
 
 print(DeprecatedConfig.color)  # warns → returns Config.colour ("red")
 print(DeprecatedConfig.colour)  # silent passthrough ("red")
-print(DeprecatedConfig.timeout)  # silent passthrough (30)
+print(DeprecatedConfig.size)  # warns (warn-only, size=42 unchanged)
 ```
 
 <details>
-  <summary>Output: <code>DeprecatedConfig.color; DeprecatedConfig.colour; DeprecatedConfig.timeout</code></summary>
+  <summary>Output: <code>DeprecatedConfig.color; DeprecatedConfig.colour; DeprecatedConfig.size</code></summary>
 
 ```
 red
 red
-30
+42
 ```
 
 </details>
