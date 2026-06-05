@@ -966,7 +966,7 @@ print(DeprecatedConfig.colour)  # silent passthrough ("red")
 print(DeprecatedConfig.timeout)  # silent passthrough (30)
 ```
 
-Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/use-cases/#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
+Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
 
 </details>
 
