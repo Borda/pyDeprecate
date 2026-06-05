@@ -486,6 +486,16 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 - **One behavior per test** — each test method should verify one specific aspect.
 - **Prefer parametrization for repetitive shapes** — when the setup/assertion flow is the same and only inputs/expected outputs differ, use `pytest.mark.parametrize(...)` to reduce duplication while keeping one behavioral intent per case.
 - **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
+- **Scenario description in docstrings** — every non-trivial test method must include a prose paragraph after the one-line summary that describes the real-world situation being tested. A one-line summary alone is not sufficient for complex tests.
+
+```python
+def test_warns_on_read(self) -> None:
+    """FutureWarning fires on property read access.
+
+    A user accesses a deprecated property on an existing object and
+    expects a FutureWarning with the original value still returned.
+    """
+```
 
 **For bug fixes:**
 
