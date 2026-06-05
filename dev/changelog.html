@@ -92,7 +92,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-05-29"
+  "dateModified": "2026-06-05"
 }
 </script>
 
@@ -734,15 +734,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#unreleased-2026-mm-dd" class="md-nav__link">
+  <a href="#090-2026-06-05-generators-async-markdown-audit-tables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        [Unreleased] — 2026-MM-DD
+        [0.9.0] — 2026-06-05 — Generators, async, &amp; markdown audit tables
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="[Unreleased] — 2026-MM-DD">
+    <nav class="md-nav" aria-label="[0.9.0] — 2026-06-05 — Generators, async, &amp; markdown audit tables">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1374,15 +1374,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#unreleased-2026-mm-dd" class="md-nav__link">
+  <a href="#090-2026-06-05-generators-async-markdown-audit-tables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        [Unreleased] — 2026-MM-DD
+        [0.9.0] — 2026-06-05 — Generators, async, &amp; markdown audit tables
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="[Unreleased] — 2026-MM-DD">
+    <nav class="md-nav" aria-label="[0.9.0] — 2026-06-05 — Generators, async, &amp; markdown audit tables">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1887,23 +1887,35 @@
 
 
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">🔗</a></h1>
-<h2 id="unreleased-2026-mm-dd">[Unreleased] — 2026-MM-DD<a class="headerlink" href="#unreleased-2026-mm-dd" title="Permanent link">🔗</a></h2>
+<h2 id="090-2026-06-05-generators-async-markdown-audit-tables">[0.9.0] — 2026-06-05 — Generators, async, &amp; markdown audit tables<a class="headerlink" href="#090-2026-06-05-generators-async-markdown-audit-tables" title="Permanent link">🔗</a></h2>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong>Generator function support for <code>@deprecated</code>.</strong> Decorating a generator function now emits the deprecation warning eagerly at call time — before the first <code>next()</code> — consistent with regular function behavior. The generator body executes lazily as normal when iterated. All three <code>TargetMode</code> variants (<code>NOTIFY</code>, <code>ARGS_REMAP</code>, callable target) work transparently; no <code>isgeneratorfunction</code> check is required. (<a href="https://github.com/Borda/pyDeprecate/pull/176">#176</a>)</li>
-<li><strong><code>async def</code> coroutine wrapper support for <code>@deprecated</code>.</strong> Decorating an <code>async def</code> function now produces an <code>async def</code> wrapper — <code>inspect.iscoroutinefunction(wrapper)</code> returns <code>True</code>. All three <code>TargetMode</code> variants (<code>NOTIFY</code>, <code>ARGS_REMAP</code>, callable target) work with async sources and async targets. The deprecation warning fires when the coroutine is awaited, not when the wrapper is called. <code>pytest-asyncio</code> is required in the test suite to run the async integration tests.</li>
-<li><strong>Async generator function support for <code>@deprecated</code>.</strong> Decorating an <code>async def</code> + <code>yield</code> function no longer emits a <code>UserWarning</code> at decoration time. The wrapper is a sync callable that fires the deprecation warning eagerly at call time and returns the async generator object; callers iterate with <code>async for</code>. All three <code>TargetMode</code> variants work. Because the wrapper is sync, <code>inspect.isasyncgenfunction(wrapper)</code> returns <code>False</code> — frameworks that branch on that flag may need a thin async generator passthrough.</li>
-<li><strong>Order-agnostic <code>classmethod</code>/<code>staticmethod</code> guard.</strong> Applying <code>@deprecated</code> outside <code>@classmethod</code> (wrong decorator order) is now silently rescued at decoration time: the descriptor is unwrapped, the inner function is deprecated, and the result is re-wrapped as <code>classmethod(deprecated_wrapper)</code>. No <code>UserWarning</code> is emitted; a <code>FutureWarning</code> fires normally at call time. The preferred order (<code>@classmethod</code> outermost, <code>@deprecated</code> closer to <code>def</code>) is unchanged. (<a href="https://github.com/Borda/pyDeprecate/pull/176">#176</a>)</li>
+<li><strong><code>async def</code> coroutine wrapper support for <code>@deprecated</code>.</strong> Decorating an <code>async def</code> function now produces an <code>async def</code> wrapper — <code>inspect.iscoroutinefunction(wrapper)</code> returns <code>True</code>. All three <code>TargetMode</code> variants (<code>NOTIFY</code>, <code>ARGS_REMAP</code>, callable target) work with async sources and async targets. The deprecation warning fires when the coroutine is awaited, not when the wrapper is called. <code>pytest-asyncio</code> is required in the test suite to run the async integration tests. (<a href="https://github.com/Borda/pyDeprecate/pull/180">#180</a>)</li>
+<li><strong>Async generator function support for <code>@deprecated</code>.</strong> Decorating an <code>async def</code> + <code>yield</code> function no longer emits a <code>UserWarning</code> at decoration time. The wrapper is a sync callable that fires the deprecation warning eagerly at call time and returns the async generator object; callers iterate with <code>async for</code>. All three <code>TargetMode</code> variants work. Because the wrapper is sync, <code>inspect.isasyncgenfunction(wrapper)</code> returns <code>False</code> — frameworks that branch on that flag may need a thin async generator passthrough. (<a href="https://github.com/Borda/pyDeprecate/pull/181">#181</a>)</li>
+<li><strong>Order-agnostic <code>@classmethod</code> / <code>@staticmethod</code>.</strong> Both <code>@classmethod @deprecated</code> and <code>@deprecated @classmethod</code> (and the equivalent for <code>@staticmethod</code>) now produce <code>classmethod(deprecated_wrapper)</code> — the descriptor is unwrapped at decoration time, the inner function is deprecated, and the result is re-wrapped. <code>FutureWarning</code> fires at call time in either order; no <code>UserWarning</code> is emitted. (<a href="https://github.com/Borda/pyDeprecate/pull/178">#178</a>)</li>
+<li><strong>Stacked <code>@deprecated</code> — <code>ARGS_REMAP + NOTIFY</code> combination.</strong> Lifecycle pattern: rename arguments first, deprecate the whole function later. The outer <code>ARGS_REMAP</code> remaps kwargs, then the inner <code>NOTIFY</code> warns and runs the source body. Six other stacking shapes (e.g. callable-over-callable, callable-over-<code>ARGS_REMAP</code>) now emit <code>UserWarning</code> at decoration time naming the specific shape and will become <code>TypeError</code> in v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/172">#172</a>)</li>
+<li><strong>Markdown deprecation tables — <code>generate_deprecation_table()</code> + <code>pydeprecate status</code> CLI subcommand.</strong> Renders compact or matrix-style Markdown reports grouped by module and API-type (function, method, classmethod, staticmethod, property, class, instance). Two new public enums: <code>DeprecationStatus</code> (lifecycle classification — active, expired, plus dev/alpha/beta/rc removal windows) and <code>TableStyle</code> (<code>compact</code> / <code>matrix</code>). New <code>--style</code> and <code>--output</code> CLI flags. Integrated into <code>pydeprecate all</code>. Auto-detects package version from <code>pyproject.toml</code> or installed metadata. (<a href="https://github.com/Borda/pyDeprecate/pull/133">#133</a>)</li>
+<li><strong><code>ChainType</code> enum now exported as public API.</strong> Previously documented and returned by <code>validate_deprecation_chains()</code>; now listed in <code>deprecate.__all__</code>.</li>
+<li><strong>Audit discovery extended to class descriptors.</strong> <code>find_deprecation_wrappers()</code> now inspects <code>classmethod</code> and <code>staticmethod</code> descriptors on class members so <code>@deprecated</code>-wrapped descriptors are found during scans. (<a href="https://github.com/Borda/pyDeprecate/pull/178">#178</a>)</li>
 </ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
 <ul>
-<li><strong>CLI: renamed <code>--skip_errors</code> to <code>--exit-zero</code></strong> across all four subcommands (<code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>). (<a href="https://github.com/Borda/pyDeprecate/pull/187">#187</a>) <strong>Breaking change for existing scripts</strong> — <code>--skip_errors</code> no longer accepted; update calls to <code>--exit-zero</code>. The new name matches the established linter convention (ruff, pylint, shellcheck) and accurately describes the behaviour: exit-code override only, no exception suppression.</li>
+<li><strong>CLI: renamed <code>--skip_errors</code> to <code>--exit-zero</code></strong> across all four subcommands (<code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>). (<a href="https://github.com/Borda/pyDeprecate/pull/187">#187</a>) <strong>Breaking change for existing scripts</strong> — <code>--skip_errors</code> no longer accepted; update calls to <code>--exit-zero</code>. The new name matches the established linter convention (ruff, pylint, shellcheck) and accurately describes the behaviour: exit-code override only, no exception suppression. The canonical spelling is <code>--exit-zero</code> (dash); the CLI framework also accepts <code>--exit_zero</code> (underscore) as an alias.</li>
+<li><strong>Misconfigured stacking combinations warn at decoration time.</strong> Six previously-undefined <code>@deprecated</code> stacking shapes (e.g. callable-over-callable, callable-over-<code>ARGS_REMAP</code>) now emit <code>UserWarning</code> at decoration time naming the specific shape. Scheduled to become <code>TypeError</code> in v1.0. The new module-level <code>_V1_BREAK_VERSION = "v1.0"</code> constant centralises the "Will be TypeError in v1.0" wording across these warnings. (<a href="https://github.com/Borda/pyDeprecate/pull/172">#172</a>)</li>
+<li><strong>Audit chain classification — <code>ARGS_REMAP + NOTIFY</code> is now classified as <code>STACKED</code></strong> rather than <code>TARGET</code>. Fixes audit reports for the supported new stacking shape. (<a href="https://github.com/Borda/pyDeprecate/pull/172">#172</a>)</li>
+<li><strong>CLI warning suppression narrowed to <code>deprecate.*</code> warnings only.</strong> Third-party warnings emitted during a scan are no longer silenced. (<a href="https://github.com/Borda/pyDeprecate/pull/133">#133</a>)</li>
+<li><strong><code>generate_deprecation_table()</code> gains <code>include_members</code> parameter</strong> for scanning descriptor members; <code>validate_deprecation_expiry()</code> default unchanged at <code>include_members=False</code> to preserve existing scan scope. (<a href="https://github.com/Borda/pyDeprecate/pull/133">#133</a>)</li>
 </ul>
 <h3 id="deprecated">Deprecated<a class="headerlink" href="#deprecated" title="Permanent link">🔗</a></h3>
-<p>-</p>
+<ul>
+<li><em>(none — all deprecation-cycle migrations were emitted in v0.8.0 or earlier)</em></li>
+</ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong><code>stacklevel</code> attribution on Python 3.12+.</strong> <code>inspect.signature(warnings.warn)</code> raises <code>ValueError</code> on Python 3.12+ because the C builtin lacks an introspectable signature. This caused every <code>@deprecated</code> warning to point to <code>deprecation.py</code> instead of the caller's file. Fixed by replacing the <code>inspect.signature</code> probe with a try/except at call site: <code>stream(msg, stacklevel=N)</code> is tried first; if <code>TypeError</code> is raised (stream does not accept <code>stacklevel</code>), retried as <code>stream(msg)</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/176">#176</a>)</li>
+<li><strong><code>find_deprecation_wrappers()</code> no longer aborts on PEP 702 <code>typing_extensions.deprecated</code> objects.</strong> The scanner previously checked <code>callable(obj) and hasattr(obj, "__deprecated__")</code>, which matched PEP 702 wrappers (whose <code>__deprecated__</code> is a string), causing <code>validate_deprecation_wrapper</code> to raise <code>ValueError</code> and abort the scan. Replaced with <code>_has_deprecation_meta(obj)</code>, which checks <code>isinstance(..., DeprecationConfig)</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/178">#178</a>)</li>
+<li><strong>Short-circuit forwarding for <code>*args</code> sources now preserves extra positional arguments.</strong> Previously, when forwarding from a <code>*args</code> source, extra positional arguments past the named parameters were silently dropped. (<a href="https://github.com/Borda/pyDeprecate/pull/180">#180</a>)</li>
 </ul>
 <hr />
 <h2 id="080-2026-05-21-default-targetmode-enum-cli-audit-tools">[0.8.0] — 2026-05-21 — Default <code>TargetMode</code> enum &amp; CLI audit tools<a class="headerlink" href="#080-2026-05-21-default-targetmode-enum-cli-audit-tools" title="Permanent link">🔗</a></h2>
@@ -2099,7 +2111,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 29, 2026 10:00:09 UTC">2026-05-29</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 5, 2026 16:09:52 UTC">2026-06-05</span>
   </span>
 
     
