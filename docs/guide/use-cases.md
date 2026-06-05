@@ -715,16 +715,16 @@ from deprecate import deprecated_class
     remove_in="3.0",
 )
 class Palette:
-    colour: str = "red"   # canonical name
-    size: int = 10        # unlisted — silent passthrough, no warning
+    colour: str = "red"  # canonical name
+    size: int = 10  # unlisted — silent passthrough, no warning
 
 
 # Deprecated alias — warns: "The `color` was deprecated since v2.0 in favor of `Palette.colour`."
-print(Palette.color)   # red
+print(Palette.color)  # red
 
 # Canonical names — silent passthrough, no warning
 print(Palette.colour)  # red
-print(Palette.size)    # 10
+print(Palette.size)  # 10
 ```
 
 <details>
@@ -756,8 +756,8 @@ DeprecatedConfig = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-print(DeprecatedConfig.color)    # warns → returns Config.colour ("red")
-print(DeprecatedConfig.colour)   # silent passthrough ("red")
+print(DeprecatedConfig.color)  # warns → returns Config.colour ("red")
+print(DeprecatedConfig.colour)  # silent passthrough ("red")
 print(DeprecatedConfig.timeout)  # silent passthrough (30)
 ```
 
@@ -869,7 +869,7 @@ proxy = deprecated_class(
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     _ = proxy.color  # consumes the "color" budget
-    _ = proxy.txt    # consumes the "txt" budget (independent counter)
+    _ = proxy.txt  # consumes the "txt" budget (independent counter)
 
 print(len(w))  # 2 — one per deprecated attribute
 
@@ -915,10 +915,10 @@ LegacyDirection = deprecated_class(
 )(Direction)
 
 # Deprecated lowercase alias — warns and returns the canonical Direction.NORTH member
-print(LegacyDirection.north is Direction.NORTH)   # True
+print(LegacyDirection.north is Direction.NORTH)  # True
 
 # Canonical uppercase name — silent passthrough, no warning
-print(LegacyDirection.NORTH is Direction.NORTH)   # True
+print(LegacyDirection.NORTH is Direction.NORTH)  # True
 ```
 
 <details>

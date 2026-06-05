@@ -934,13 +934,13 @@ from deprecate import deprecated_class
     remove_in="3.0",
 )
 class Palette:
-    colour: str = "red"   # canonical name
-    size: int = 10        # unlisted — passes through silently
+    colour: str = "red"  # canonical name
+    size: int = 10  # unlisted — passes through silently
 
 
-print(Palette.color)   # warns → returns "red" (redirected to colour)
+print(Palette.color)  # warns → returns "red" (redirected to colour)
 print(Palette.colour)  # silent passthrough → "red"
-print(Palette.size)    # silent passthrough → 10
+print(Palette.size)  # silent passthrough → 10
 ```
 
 **Wrapper form** — equivalent, useful when wrapping an existing class:
@@ -961,8 +961,8 @@ DeprecatedConfig = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-print(DeprecatedConfig.color)    # warns → returns Config.colour ("red")
-print(DeprecatedConfig.colour)   # silent passthrough ("red")
+print(DeprecatedConfig.color)  # warns → returns Config.colour ("red")
+print(DeprecatedConfig.colour)  # silent passthrough ("red")
 print(DeprecatedConfig.timeout)  # silent passthrough (30)
 ```
 
