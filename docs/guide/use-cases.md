@@ -1053,7 +1053,22 @@ class Config:
     @timeout.deleter
     def timeout(self) -> None:
         del self._timeout
+
+
+cfg = Config()
+cfg.timeout = 10  # FutureWarning: write
+print(cfg.timeout)  # FutureWarning: read; prints 10
+del cfg.timeout  # FutureWarning: delete
 ```
+
+<details>
+  <summary>Output: <code>print(cfg.timeout)</code></summary>
+
+```
+10
+```
+
+</details>
 
 `obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
 
@@ -1121,6 +1136,15 @@ cfg = Config(timeout_ms=5_000)
 print(cfg.timeout)  # FutureWarning fired; prints 5
 ```
 
+<details>
+  <summary>Output: <code>print(cfg.timeout)</code></summary>
+
+```
+5
+```
+
+</details>
+
 **Read-write alias (warns on read and write):** use the outer order and chain `.setter`:
 
 ```python
@@ -1141,7 +1165,23 @@ class Config:
     @timeout.setter
     def timeout(self, value: int) -> None:
         self.timeout_ms = value * 1000
+
+
+cfg = Config(timeout_ms=5_000)
+print(cfg.timeout)  # FutureWarning fired; prints 5
+cfg.timeout = 10  # FutureWarning fired; sets timeout_ms = 10_000
+print(cfg.timeout_ms)  # prints 10_000
 ```
+
+<details>
+  <summary>Output: <code>print(cfg.timeout); print(cfg.timeout_ms)</code></summary>
+
+```
+5
+10000
+```
+
+</details>
 
 `cfg.timeout` fires `FutureWarning` and returns `cfg.timeout_ms // 1000`. `cfg.timeout = 5` fires `FutureWarning` and sets `cfg.timeout_ms = 5000`.
 
@@ -1179,7 +1219,23 @@ class Widget:
     @colour.setter
     def colour(self, value: str) -> None:
         self.color = value  # manual delegation; setter also warns (outer order re-wraps it)
+
+
+w = Widget()
+print(w.colour)  # FutureWarning fired; prints 'red'
+w.colour = "blue"  # FutureWarning fired
+print(w.color)  # prints 'blue'
 ```
+
+<details>
+  <summary>Output: <code>print(w.colour); print(w.color)</code></summary>
+
+```
+red
+blue
+```
+
+</details>
 
 `obj.colour` fires `FutureWarning` and returns `obj.color`. `obj.colour = "blue"` fires `FutureWarning` and delegates to `obj.color = "blue"`.
 
