@@ -147,9 +147,7 @@ class _DeprecatedProxy:
             # For callable targets, redirects land on the target class; otherwise they land on obj.
             _attr_check_obj = target if callable(target) else obj
             missing_targets = [
-                f"{k!r} -> {v!r}"
-                for k, v in attrs_mapping.items()
-                if v is not None and not hasattr(_attr_check_obj, v)
+                f"{k!r} -> {v!r}" for k, v in attrs_mapping.items() if v is not None and not hasattr(_attr_check_obj, v)
             ]
             if missing_targets:
                 raise ValueError(
@@ -279,7 +277,7 @@ class _DeprecatedProxy:
             # IMPORTANT: do not reassign ``arg_name`` here — the prefixed key is the budget key used
             # by the increment at the end of this method; stripping it here would cause the check and
             # the increment to use different keys, breaking per-attribute budget isolation.
-            attr_name = arg_name[len("__attr__:"):]
+            attr_name = arg_name[len("__attr__:") :]
             if attr_name not in dep.attrs_mapping:
                 return
             # Per-attribute warning for ``attrs_mapping``: format the message so callers see the
@@ -695,9 +693,10 @@ def deprecated_class(
         attrs_mapping: Optional dict mapping deprecated attribute names to canonical names (or ``None`` for
             warn-only).  When set, only the listed attribute names emit a deprecation warning on access; all other
             attributes are forwarded silently.  The redirect applies to reads (``__getattr__``), writes
-            (``__setattr__``), and deletes (``__delattr__``).  Redirect chains must not form cycles (e.g. ``{"a": "b", "b": "a"}`` raises
-            :class:`ValueError` at decoration time).  Multi-stage rename chains like ``{"a": "b", "b": "c"}``
-            are valid because the chain terminates at ``"c"`` which is not a key in the mapping.
+            (``__setattr__``), and deletes (``__delattr__``).  Redirect chains must not form cycles
+            (e.g. ``{"a": "b", "b": "a"}`` raises :class:`ValueError` at decoration time).  Multi-stage
+            rename chains like ``{"a": "b", "b": "c"}`` are valid because the chain terminates at ``"c"``
+            which is not a key in the mapping.
 
             Example: ``attrs_mapping={"color": "colour", "txt": "text"}`` warns on ``proxy.color`` access and
             returns ``proxy.colour``; ``proxy.colour`` is forwarded silently.
