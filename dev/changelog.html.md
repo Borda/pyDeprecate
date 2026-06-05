@@ -37,10 +37,6 @@ ______________________________________________________________________
 - **CLI warning suppression narrowed to `deprecate.*` warnings only.** Third-party warnings emitted during a scan are no longer silenced. ([#133](https://github.com/Borda/pyDeprecate/pull/133))
 - **`generate_deprecation_table()` gains `include_members` parameter** for scanning descriptor members; `validate_deprecation_expiry()` default unchanged at `include_members=False` to preserve existing scan scope. ([#133](https://github.com/Borda/pyDeprecate/pull/133))
 
-### Deprecated
-
-- *(none — all deprecation-cycle migrations were emitted in v0.8.0 or earlier)*
-
 ### Fixed
 
 - **`stacklevel` attribution on Python 3.12+.** `inspect.signature(warnings.warn)` raises `ValueError` on Python 3.12+ because the C builtin lacks an introspectable signature. This caused every `@deprecated` warning to point to `deprecation.py` instead of the caller's file. Fixed by replacing the `inspect.signature` probe with a try/except at call site: `stream(msg, stacklevel=N)` is tried first; if `TypeError` is raised (stream does not accept `stacklevel`), retried as `stream(msg)`. ([#176](https://github.com/Borda/pyDeprecate/pull/176))

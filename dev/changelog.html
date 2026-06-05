@@ -840,17 +840,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deprecated
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -890,7 +879,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated_2" class="md-nav__link">
+  <a href="#deprecated_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Deprecated
@@ -1029,7 +1018,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated_3" class="md-nav__link">
+  <a href="#deprecated_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Deprecated
@@ -1552,17 +1541,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deprecated
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1602,7 +1580,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated_2" class="md-nav__link">
+  <a href="#deprecated_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Deprecated
@@ -1741,7 +1719,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated_3" class="md-nav__link">
+  <a href="#deprecated_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Deprecated
@@ -2061,10 +2039,6 @@
 <li><strong>CLI warning suppression narrowed to <code>deprecate.*</code> warnings only.</strong> Third-party warnings emitted during a scan are no longer silenced. (<a href="https://github.com/Borda/pyDeprecate/pull/133">#133</a>)</li>
 <li><strong><code>generate_deprecation_table()</code> gains <code>include_members</code> parameter</strong> for scanning descriptor members; <code>validate_deprecation_expiry()</code> default unchanged at <code>include_members=False</code> to preserve existing scan scope. (<a href="https://github.com/Borda/pyDeprecate/pull/133">#133</a>)</li>
 </ul>
-<h3 id="deprecated_1">Deprecated<a class="headerlink" href="#deprecated_1" title="Permanent link">🔗</a></h3>
-<ul>
-<li><em>(none — all deprecation-cycle migrations were emitted in v0.8.0 or earlier)</em></li>
-</ul>
 <h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong><code>stacklevel</code> attribution on Python 3.12+.</strong> <code>inspect.signature(warnings.warn)</code> raises <code>ValueError</code> on Python 3.12+ because the C builtin lacks an introspectable signature. This caused every <code>@deprecated</code> warning to point to <code>deprecation.py</code> instead of the caller's file. Fixed by replacing the <code>inspect.signature</code> probe with a try/except at call site: <code>stream(msg, stacklevel=N)</code> is tried first; if <code>TypeError</code> is raised (stream does not accept <code>stacklevel</code>), retried as <code>stream(msg)</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/176">#176</a>)</li>
@@ -2086,7 +2060,7 @@
 <li><strong><code>template_mgs</code> validated at decoration time.</strong> Malformed <code>%</code>-style format strings now raise <code>ValueError</code> immediately at decoration time — not silently at call time. Applies to <code>@deprecated</code> and the <code>deprecated_class()</code>/<code>deprecated_instance()</code> proxy factories. (<a href="https://github.com/Borda/pyDeprecate/pull/169">#169</a>)</li>
 <li><strong>Stacked-callable-target guard.</strong> Applying <code>@deprecated(target=fn_a)</code> on a callable whose target is itself a callable-target <code>@deprecated</code> wrapper now emits <code>UserWarning</code> at decoration time instead of crashing with <code>TypeError</code> at call time. (<a href="https://github.com/Borda/pyDeprecate/pull/169">#169</a>)</li>
 </ul>
-<h3 id="deprecated_2">Deprecated<a class="headerlink" href="#deprecated_2" title="Permanent link">🔗</a></h3>
+<h3 id="deprecated_1">Deprecated<a class="headerlink" href="#deprecated_1" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong><code>target=None</code> sentinel — use <code>TargetMode.NOTIFY</code>.</strong> Passing <code>target=None</code> now emits a <code>FutureWarning</code> at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to <code>target=TargetMode.NOTIFY</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
 <li><strong><code>target=True</code> sentinel — use <code>TargetMode.ARGS_REMAP</code>.</strong> Passing <code>target=True</code> now emits a <code>FutureWarning</code> at decoration time. The sentinel remains accepted but will be removed in v1.0. Migrate to <code>target=TargetMode.ARGS_REMAP</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/150">#150</a>)</li>
@@ -2141,7 +2115,7 @@
 <ul>
 <li><strong><code>@deprecated</code> on a class raises <code>TypeError</code>.</strong> Applying <code>@deprecated</code> directly to a class now raises <code>TypeError</code> at decoration time instead of silently misbehaving. Superseded in <code>v0.6.0.post0</code> by a <code>UserWarning</code> + delegation to <code>deprecated_class()</code>. Use <code>@deprecated_class()</code> for class-level deprecation. (<a href="https://github.com/Borda/pyDeprecate/pull/120">#120</a>)</li>
 </ul>
-<h3 id="deprecated_3">Deprecated<a class="headerlink" href="#deprecated_3" title="Permanent link">🔗</a></h3>
+<h3 id="deprecated_2">Deprecated<a class="headerlink" href="#deprecated_2" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong>Audit API renamed for consistency.</strong> Old names remain as <code>@deprecated</code> shims until v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/125">#125</a>)</li>
 </ul>
