@@ -1,0 +1,4121 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python deprecation decorator library for API migration: automatic call forwarding, argument renaming, class and instance deprecation, warning control, and CI audit checks for removal deadlines. Zero runtime dependencies.">
+      
+      
+      
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/api-reference.html">
+      
+      
+        <link rel="prev" href="guide/migration.html">
+      
+      
+        <link rel="next" href="troubleshooting.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>API Reference - pyDeprecate — Python Deprecation Library</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="stylesheets/extra.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+
+
+
+<!-- Open Graph meta tags -->
+<meta property="og:type" content="article" />
+<meta property="og:title" content="API Reference — pyDeprecate" />
+<meta property="og:description" content="Python deprecation decorator library for API migration: automatic call forwarding, argument renaming, class and instance deprecation, warning control, and CI audit checks for removal deadlines. Zero runtime dependencies." />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/api-reference.html" />
+<meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
+<meta property="og:image" content="https://borda.github.io/pyDeprecate/v0.9.0/assets/images/demo-docs-mkdocs.png" />
+<meta property="og:image:alt" content="pyDeprecate documentation" />
+<meta property="og:image:width" content="1280" />
+<meta property="og:image:height" content="640" />
+<meta property="og:locale" content="en_US" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="API Reference — pyDeprecate" />
+<meta name="twitter:description" content="Python deprecation decorator library for API migration: automatic call forwarding, argument renaming, class and instance deprecation, warning control, and CI audit checks for removal deadlines. Zero runtime dependencies." />
+<meta name="twitter:image" content="https://borda.github.io/pyDeprecate/v0.9.0/assets/images/demo-docs-mkdocs.png" />
+<meta name="twitter:image:alt" content="pyDeprecate documentation" />
+
+<!-- JSON-LD structured data -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "API Reference",
+  "description": "Python deprecation decorator library for API migration: automatic call forwarding, argument renaming, class and instance deprecation, warning control, and CI audit checks for removal deadlines. Zero runtime dependencies.",
+  "url": "https://borda.github.io/pyDeprecate/stable/api-reference.html",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/api-reference.html" },
+  "image": "https://borda.github.io/pyDeprecate/v0.9.0/assets/images/demo-docs-mkdocs.png",
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
+  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
+  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
+  "datePublished": "2026-05-23",
+  "dateModified": "2026-05-23"
+}
+</script>
+
+
+<!-- BreadcrumbList: non-homepage, non-demo content pages -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
+    {"@type": "ListItem", "position": 2, "name": "API Reference", "item": "https://borda.github.io/pyDeprecate/stable/api-reference.html"}
+  ]
+}
+</script>
+
+
+
+
+
+  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/api-reference.html.md">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
+</head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-header__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            pyDeprecate — Python Deprecation Library
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Borda/pyDeprecate" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Borda/pyDeprecate
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="index.html" title="pyDeprecate — Python Deprecation Library" class="md-nav__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    pyDeprecate — Python Deprecation Library
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Borda/pyDeprecate" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Borda/pyDeprecate
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/use-cases.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compare Python Deprecation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/agent-recipes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/audit.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/customization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/migration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="api-reference.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#decorator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decorator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" deprecated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--basic-forwarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic forwarding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--argument-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Argument mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--self-deprecation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-deprecation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--warn-only-default-no-target-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Warn-only (default — no target needed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.proxy.deprecated_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated_class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.proxy.deprecated_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated_instance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;find_deprecation_wrappers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" find_deprecation_wrappers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers--also-works-with-string-module-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Also works with string module paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers--filter-to-find-only-problematic-wrappers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter to find only problematic wrappers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecation_wrapper
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" validate_deprecation_wrapper">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_wrapper--valid-mapping-to-different-function-has-effect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Valid mapping to different function - has effect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_wrapper--identity-mapping-with-self-deprecation-no-effect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity mapping with self-deprecation - no effect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_expiry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecation_expiry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" validate_deprecation_expiry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_expiry--check-a-specific-module-with-version-before-any-deadlines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a specific module with version before any deadlines
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check with version past some removal deadlines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_chains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecation_chains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DeprecationWrapperInfo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" DeprecationWrapperInfo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;empty_mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;identity_mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.ChainType" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ChainType
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.TargetMode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TargetMode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Utilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.utils.void" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;void
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;assert_no_warnings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" assert_no_warnings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--assert-new-function-doesnt-trigger-futurewarning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assert new function doesn't trigger FutureWarning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--assert-no-warnings-at-all-are-raised" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assert NO warnings at all are raised
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--only-fail-if-warning-message-matches-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Only fail if warning message matches pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--passes-because-warning-contains-feature-not-other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passes because warning contains "feature", not "other"
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="troubleshooting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="changelog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="demo-sphinx/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sphinx
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="demo-mkdocs/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MkDocs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#decorator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decorator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" deprecated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--basic-forwarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic forwarding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--argument-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Argument mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--self-deprecation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-deprecation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.deprecation.deprecated--warn-only-default-no-target-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Warn-only (default — no target needed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.proxy.deprecated_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated_class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.proxy.deprecated_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated_instance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;find_deprecation_wrappers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" find_deprecation_wrappers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers--also-works-with-string-module-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Also works with string module paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers--filter-to-find-only-problematic-wrappers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter to find only problematic wrappers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecation_wrapper
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" validate_deprecation_wrapper">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_wrapper--valid-mapping-to-different-function-has-effect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Valid mapping to different function - has effect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_wrapper--identity-mapping-with-self-deprecation-no-effect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity mapping with self-deprecation - no effect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_expiry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecation_expiry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" validate_deprecation_expiry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_expiry--check-a-specific-module-with-version-before-any-deadlines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a specific module with version before any deadlines
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check with version past some removal deadlines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecation_chains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecation_chains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DeprecationWrapperInfo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" DeprecationWrapperInfo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;empty_mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;identity_mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.ChainType" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ChainType
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.TargetMode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TargetMode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Utilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.utils.void" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;void
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;assert_no_warnings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" assert_no_warnings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--assert-new-function-doesnt-trigger-futurewarning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assert new function doesn't trigger FutureWarning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--assert-no-warnings-at-all-are-raised" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assert NO warnings at all are raised
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--only-fail-if-warning-message-matches-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Only fail if warning message matches pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.utils.assert_no_warnings--passes-because-warning-contains-feature-not-other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passes because warning contains "feature", not "other"
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">🔗</a></h1>
+<p>Auto-generated from source docstrings. For usage examples see the <a href="getting-started.html">User Guide</a>.</p>
+<h2 id="decorator">Decorator<a class="headerlink" href="#decorator" title="Permanent link">🔗</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.deprecation.deprecated" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">deprecation</span><span class="o">.</span><span class="n">deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">deprecation_warning</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">template_mgs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">update_docstring</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">docstring_style</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span></code>
+
+<a href="#deprecate.deprecation.deprecated" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Decorate a function/method with warning message and forward calls to target.</p>
+<p>This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement
+implementation.  It supports argument mapping, custom warning messages, and flexible warning control.</p>
+<p>For <strong>generator functions</strong> (<code>def gen(): yield</code>) and <strong>async generator functions</strong> (<code>async def gen(): yield</code>),
+the deprecation warning fires at call time — when the (async) generator object is created — not at first
+iteration.  The generator body executes lazily as normal when iterated (<code>next()</code> / <code>async for</code>).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>target</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="bool">bool</span>, None, <span title="typing.Callable">Callable</span>, <a class="autorefs autorefs-internal" title="            deprecate.TargetMode (deprecate._types.TargetMode)" href="#deprecate.TargetMode">TargetMode</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How to handle the deprecation. Defaults to :attr:<code>~deprecate.TargetMode.NOTIFY</code> (warn-only; source
+body executes unchanged). Pass an explicit value to forward calls or remap arguments:</p>
+<ul>
+<li><code>Callable</code>: Forward all calls to this callable (function, method, or class target). The
+  decorated function's body is <strong>not executed</strong> under normal forwarding — use <code>pass</code> or <code>...</code>
+  as the body. <strong>Exception</strong>: when <code>skip_if</code> evaluates <code>True</code> at call time, the source body
+  executes as a fallback, so keep a working implementation if you combine <code>target=Callable</code>
+  with <code>skip_if</code>.</li>
+<li>:attr:<code>~deprecate.TargetMode.ARGS_REMAP</code> (or legacy <code>True</code>): Self-deprecation — deprecate argument
+  names only, remapping them within the same function body</li>
+<li>:attr:<code>~deprecate.TargetMode.NOTIFY</code> (default): Warning-only mode — no forwarding, source body executes
+  normally</li>
+</ul>
+<p>Omitting <code>target</code> is the preferred way to express warn-only deprecation.  Passing <code>target=None</code>
+is a legacy synonym that also resolves to :attr:<code>~deprecate.TargetMode.NOTIFY</code> but emits a
+:class:<code>FutureWarning</code> directing you to use the enum form.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="deprecate._types.TargetMode.NOTIFY">NOTIFY</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>deprecated_in</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Version when the function was deprecated (e.g., "1.0.0"). Default is empty string.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>remove_in</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Version when the function will be removed (e.g., "2.0.0"). Default is empty string.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>stream</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Callable">Callable</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Function to output warnings (default: :func:<code>~deprecate.deprecation.deprecation_warning</code>, which is
+:func:<code>warnings.warn</code> with <code>FutureWarning</code> category). Set to <code>None</code> to disable warnings entirely.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="deprecate.deprecation.deprecation_warning">deprecation_warning</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>num_warns</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of times to show warning per function or per deprecated argument:
+- <code>1</code> (default): Show warning once per function/argument
+- <code>-1</code>: Show warning on every call
+- <code>0</code>: Suppress deprecation warnings emitted for the decorated function/argument
+- <code>N &gt; 1</code>: Show warning N times total</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>template_mgs</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Custom warning message template with format specifiers:
+- <code>source_name</code>: Function name (e.g., "my_func")
+- <code>source_path</code>: Full path (e.g., "module.my_func")
+- <code>target_name</code>: Target function name (only for callable targets)
+- <code>target_path</code>: Full target path (only for callable targets)
+- <code>deprecated_in</code>: Value of deprecated_in parameter
+- <code>remove_in</code>: Value of remove_in parameter
+- <code>argument_map</code>: String showing argument mapping (for args deprecation only)
+Example: <code>"v%(deprecated_in)s: `%(source_name)s` was deprecated."</code></p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>args_mapping</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="deprecate.deprecation.ArgsMapping">ArgsMapping</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Map or skip arguments when forwarding:
+- <code>{'old_arg': 'new_arg'}</code>: Rename argument
+- <code>{'old_arg': None}</code>: Skip argument (don't forward it)
+- <code>{}</code>: Empty mapping (no remapping)
+Works with both <code>target=Callable</code> and <code>target=True</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>args_extra</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional arguments merged into kwargs before the call. Used when target is a Callable or
+:attr:<code>~deprecate._types.TargetMode.ARGS_REMAP</code> (with <code>args_mapping</code>). Ignored when target is
+:attr:<code>~deprecate._types.TargetMode.NOTIFY</code>.
+Example: <code>{'new_required_arg': 42}</code></p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>skip_if</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="bool">bool</span>, <span title="typing.Callable">Callable</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Conditionally skip deprecation warning and forwarding:
+- <code>bool</code>: Static condition (True = skip deprecation)
+- <code>Callable</code>: Function returning bool (checked at runtime, must return bool)
+If condition is True, original function executes without warning.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>update_docstring</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, automatically inject a deprecation notice into the function's docstring (inserted
+before Google/NumPy-style sections when present, otherwise appended at the end).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>docstring_style</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Output style for injected deprecation notice when <code>update_docstring=True</code>. Supported values:
+- <code>"auto"</code> (default): Automatically choose a style based on the current environment (e.g., loaded
+  modules, CLI/tooling context). This may resolve to either <code>"rst"</code> or <code>"mkdocs"</code>/<code>"markdown"</code>
+  at decoration time.
+- <code>"rst"</code>: Explicitly force Sphinx-style <code>.. deprecated::</code> directive.
+- <code>"mkdocs"</code> or <code>"markdown"</code>: Explicitly force a Markdown admonition of the form
+  <code>!!! warning "Deprecated in X"</code>.
+Validated eagerly at decoration time regardless of <code>update_docstring</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;auto&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="typing.Callable">Callable</span>[..., <span title="typing.Any">Any</span>]], <span title="typing.Callable">Callable</span>[..., <span title="typing.Any">Any</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Decorator function that wraps the source function/method.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Warns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>UserWarning</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If applied directly to a class. The decorator delegates to
+:func:<code>~deprecate.proxy.deprecated_class</code> and emits this warning. Use <code>@deprecated_class()</code> directly
+to suppress it. Suppressed when <code>stream=None</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>UserWarning</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>deprecated_in</code> is absent, <code>stream</code> is not <code>None</code>, no <code>template_mgs</code> is set,
+and the decorated source is not a class. Fired at decoration time (not call time) to catch missing
+version metadata early. Suppressed by passing <code>stream=None</code> or <code>template_mgs</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the source is a class method and target is a method on a <em>different</em> class (cross-class
+method forwarding detected at decoration time via <code>__qualname__</code> comparison). Skipped silently
+when the target's qualname prefix names a class absent from the target's module globals.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If skip_if is a callable that doesn't return a bool.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<h3 id="deprecate.deprecation.deprecated--basic-forwarding">Basic forwarding<a class="headerlink" href="#deprecate.deprecation.deprecated--basic-forwarding" title="Permanent link">🔗</a></h3>
+<p>def new_func(x: int) -&gt; int:
+...     return x * 2
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+... def old_func(x: int) -&gt; int:
+...     pass</p>
+<h3 id="deprecate.deprecation.deprecated--argument-mapping">Argument mapping<a class="headerlink" href="#deprecate.deprecation.deprecated--argument-mapping" title="Permanent link">🔗</a></h3>
+<p>@deprecated(
+...     target=new_func,
+...     args_mapping={'old_name': 'new_name', 'unused': None}
+... )
+... def old_func(old_name: int, unused: str) -&gt; int:
+...     pass</p>
+<h3 id="deprecate.deprecation.deprecated--self-deprecation">Self-deprecation<a class="headerlink" href="#deprecate.deprecation.deprecated--self-deprecation" title="Permanent link">🔗</a></h3>
+<p>from deprecate import TargetMode
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={'old_arg': 'new_arg'})
+... def my_func(old_arg: int = 0, new_arg: int = 0) -&gt; int:
+...     return new_arg * 2</p>
+<h3 id="deprecate.deprecation.deprecated--warn-only-default-no-target-needed">Warn-only (default — no target needed)<a class="headerlink" href="#deprecate.deprecation.deprecated--warn-only-default-no-target-needed" title="Permanent link">🔗</a></h3>
+<p>@deprecated(deprecated_in="1.0", remove_in="2.0")
+... def legacy_func(x: int) -&gt; int:
+...     return x</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div><h2 id="proxy">Proxy<a class="headerlink" href="#proxy" title="Permanent link">🔗</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.proxy.deprecated_class" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">proxy</span><span class="o">.</span><span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">deprecation_warning</span><span class="p">,</span> <span class="n">template_mgs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">update_docstring</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">docstring_style</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">_misconfigured_override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+<a href="#deprecate.proxy.deprecated_class" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Decorator factory for deprecating class definitions with optional target redirection.</p>
+<p>Apply <code>@deprecated_class(...)</code> to an Enum or dataclass to wrap the class in a
+:class:<code>~deprecate.proxy._DeprecatedProxy</code>.  All attribute, item, and call access on the resulting object will
+emit a deprecation warning and, if <em>target</em> is provided, will be forwarded to the replacement class.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>target</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional replacement class to redirect all access to.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>deprecated_in</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Version string when the class was deprecated.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>remove_in</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Version string when the class will be removed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>num_warns</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum number of warnings to emit per proxy instance. <code>1</code> warns once; <code>-1</code> warns on every
+access.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>stream</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Callable">Callable</span>[..., None]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Callable used to emit warnings. Defaults to :data:<code>~deprecate.deprecation.deprecation_warning</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="deprecate.deprecation.deprecation_warning">deprecation_warning</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>template_mgs</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional custom warning message template that overrides the built-in templates.  When <code>None</code>
+(default), the built-in template for the active scenario is used (callable-target, no-target, or
+per-argument for <code>args_mapping</code>).  Available <code>%</code>-style placeholders:</p>
+<ul>
+<li><code>%(source_name)s</code> — the deprecated class name (taken from <code>cls.__name__</code>)</li>
+<li><code>%(deprecated_in)s</code> — value of the <code>deprecated_in</code> argument</li>
+<li><code>%(remove_in)s</code> — value of the <code>remove_in</code> argument</li>
+<li><code>%(target_name)s</code> — target class name (only when <em>target</em> is callable)</li>
+<li><code>%(target_path)s</code> — fully-qualified target path (only when <em>target</em> is callable)</li>
+<li><code>%(argument_map)s</code> — formatted <code>\`old\` -&gt; \`new\``` string (only for per-argument warnings
+  emitted by</code>args_mapping``)</li>
+</ul>
+<p>Example: <code>"v%(deprecated_in)s:</code>%(source_name)s<code>-&gt;</code>%(target_name)s<code>"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>args_mapping</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Optional">Optional</span>[<span title="str">str</span>]]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional dict remapping keyword argument names when the decorated class is called.  Keys are
+old argument names; values are new names, or <code>None</code> to drop the argument entirely.  When provided
+without an explicit callable <em>target</em>, the mode auto-resolves to
+:attr:<code>~deprecate._types.TargetMode.ARGS_REMAP</code>: the proxy warns <strong>only when an old argument name is
+actually used</strong> in the call, matching the per-argument warning behaviour of
+<code>@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)</code>.  Passing <code>args_mapping</code> together with
+<code>target=TargetMode.NOTIFY</code> is a misconfiguration and emits a :class:<code>UserWarning</code> at decoration time
+(will be :class:<code>TypeError</code> in v1.0).  Similarly, <code>target=TargetMode.ARGS_REMAP</code> without
+<code>args_mapping</code> emits a :class:<code>UserWarning</code> at decoration time.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>args_extra</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional dict of extra keyword arguments merged into the forwarded call after <code>args_mapping</code> has
+been applied.  Caller-supplied values override entries with the same key.  Ignored when <code>target</code> is
+:attr:<code>~deprecate._types.TargetMode.NOTIFY</code> (passing both emits a :class:<code>UserWarning</code> at decoration
+time; will be :class:<code>TypeError</code> in v1.0).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>update_docstring</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>True</code>, inject a deprecation notice into the class docstring at decoration time (same
+behaviour as <code>@deprecated(update_docstring=True)</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>docstring_style</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Output style for the injected notice when <code>update_docstring=True</code>.  <code>"auto"</code> detects the
+doc engine at decoration time; <code>"rst"</code> emits a <code>.. deprecated::</code> directive; <code>"mkdocs"</code> /
+<code>"markdown"</code> emit a <code>!!! warning</code> admonition.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;auto&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="type">type</span>], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A decorator that wraps the class in a :class:<code>~deprecate.proxy._DeprecatedProxy</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">NewColor</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">... </span>    <span class="n">RED</span> <span class="o">=</span> <span class="mi">1</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="nd">@deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">NewColor</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">... </span><span class="k">class</span><span class="w"> </span><span class="nc">OldColor</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">... </span>    <span class="n">RED</span> <span class="o">=</span> <span class="mi">1</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">OldColor</span><span class="o">.</span><span class="n">RED</span> <span class="ow">is</span> <span class="n">NewColor</span><span class="o">.</span><span class="n">RED</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="go">True</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">OldColor</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="n">NewColor</span><span class="o">.</span><span class="n">RED</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="go">True</span>
+</code></pre></div>
+    <p>When only argument names changed, omit <em>target</em> and supply <code>args_mapping</code>. The proxy auto-resolves to
+:attr:<code>~deprecate._types.TargetMode.ARGS_REMAP</code> and warns <strong>only when the old argument name is passed</strong>:</p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">... </span>        <span class="bp">self</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="n">timeout</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">LegacyConfig</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">... </span>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;time_limit&quot;</span><span class="p">:</span> <span class="s2">&quot;timeout&quot;</span><span class="p">},</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">... </span>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">... </span><span class="p">)(</span><span class="n">Config</span><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">LegacyConfig</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">timeout</span>     <span class="c1"># new name — no remap needed</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="go">30</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">LegacyConfig</span><span class="p">(</span><span class="n">time_limit</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">timeout</span>  <span class="c1"># old name — remapped to timeout</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="go">30</span>
+</code></pre></div>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.proxy.deprecated_instance" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">proxy</span><span class="o">.</span><span class="n">deprecated_instance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">deprecation_warning</span><span class="p">,</span> <span class="n">template_mgs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">args_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#deprecate.proxy.deprecated_instance" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Wrap any Python object with deprecation warnings.</p>
+<p>Returns a :class:<code>~deprecate.proxy._DeprecatedProxy</code> that transparently forwards all read access to <em>obj</em> while
+emitting a :class:<code>FutureWarning</code>.  In <em>read-only</em> mode any write attempt through the proxy raises
+:class:<code>AttributeError</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>obj</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The object to deprecate (dict, list, custom object, …).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Display name for <em>obj</em> used in the warning message. When omitted, the type name of <em>obj</em> is used
+(e.g. <code>"dict"</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>deprecated_in</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Version string when <em>obj</em> was deprecated.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>remove_in</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Version string when <em>obj</em> will be removed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>num_warns</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum number of warnings to emit. <code>1</code> (default) warns once; <code>-1</code> warns on every access.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>stream</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Callable">Callable</span>[..., None]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Callable used to emit warnings. Defaults to :data:<code>~deprecate.deprecation.deprecation_warning</code>
+(:class:<code>FutureWarning</code>).  Pass <code>None</code> to suppress warnings.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="deprecate.deprecation.deprecation_warning">deprecation_warning</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>template_mgs</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional custom warning message template that overrides the built-in templates.  When <code>None</code>
+(default), the built-in template for the active scenario is used.  See
+:func:<code>~deprecate.proxy.deprecated_class</code> for the available <code>%</code>-style placeholders.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>read_only</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>True</code>, raise :class:<code>AttributeError</code> on any write attempt through the proxy.
+Only the following standard collection mutator names are intercepted: <code>append</code>, <code>clear</code>,
+<code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code>, <code>add</code>.
+Custom method names (e.g. <code>register()</code>, <code>reload()</code>, <code>set_value()</code>) are not blocked.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>args_extra</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
+Caller-supplied values override entries with the same key.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>A</code></td>            <td>
+                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>cfg = {"threshold": 0.5, "enabled": True}
+proxy = deprecated_instance(
+...     cfg,
+...     name="config_dict",
+...     deprecated_in="1.0",
+...     remove_in="2.0",
+...     stream=None,
+... )
+proxy["threshold"]
+0.5
+proxy.get("enabled")
+True</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div><h2 id="audit">Audit<a class="headerlink" href="#audit" title="Permanent link">🔗</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.audit.find_deprecation_wrappers" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.find_deprecation_wrappers" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Scan a module or package for deprecated wrappers and validate them.</p>
+<p>This is a development/CI tool to scan a codebase for all wrappers created with :func:<code>~deprecate.deprecated</code>,
+:func:<code>~deprecate.deprecated_class</code>, or :func:<code>~deprecate.deprecated_instance</code> and validate that each wrapper
+configuration is meaningful.
+Returns comprehensive information about each deprecated wrapper including validation results that help identify
+misconfigured wrappers.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>module</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Python module or package to scan for deprecated wrappers. Can be:
+- Imported module object (e.g., <code>import my_package; find_deprecation_wrappers(my_package)</code>)
+- String module path (e.g., <code>find_deprecation_wrappers("my_package.submodule")</code>)</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>recursive</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default), recursively scan submodules. If False, only scan the top-level module.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_members</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, also scan deprecated methods and constructors defined on classes.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.DeprecationWrapperInfo
+
+
+  
+      dataclass
+  " href="#deprecate.audit.DeprecationWrapperInfo">DeprecationWrapperInfo</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of :class:<code>~deprecate.audit.DeprecationWrapperInfo</code> dataclasses, one per deprecated wrapper found.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.DeprecationWrapperInfo
+
+
+  
+      dataclass
+  " href="#deprecate.audit.DeprecationWrapperInfo">DeprecationWrapperInfo</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Each contains:
+- module: Module name where the wrapper is defined
+- function: Wrapper name
+- deprecated_info: DeprecationConfig metadata from the decorator (<code>__deprecated__</code> attribute)
+- invalid_args: List of args_mapping keys not in wrapper signature
+- empty_args_mapping: True if args_mapping is None or empty
+- identity_args_mapping: List of identity mappings (key == value)
+- self_reference: True if target points to same wrapper
+- no_effect: True if wrapper has zero impact</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>from deprecate import find_deprecation_wrappers
+from tests import collection_deprecate as my_package</p>
+<p>results = find_deprecation_wrappers(my_package)
+print(len(results) &gt; 0)  # Should find deprecated wrappers
+True</p>
+<h3 id="deprecate.audit.find_deprecation_wrappers--also-works-with-string-module-paths">Also works with string module paths<a class="headerlink" href="#deprecate.audit.find_deprecation_wrappers--also-works-with-string-module-paths" title="Permanent link">🔗</a></h3>
+<p>results = find_deprecation_wrappers("tests.collection_deprecate")
+print(len(results) &gt; 0)
+True</p>
+<h3 id="deprecate.audit.find_deprecation_wrappers--filter-to-find-only-problematic-wrappers">Filter to find only problematic wrappers<a class="headerlink" href="#deprecate.audit.find_deprecation_wrappers--filter-to-find-only-problematic-wrappers" title="Permanent link">🔗</a></h3>
+<p>problematic = [r for r in results if r.invalid_args or r.no_effect]
+print(len(results) &gt; 0)  # May or may not have problematic ones
+True</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+<details class="note" open>
+  <summary>Note</summary>
+  <ul>
+<li>Requires that the module be importable</li>
+<li>Inspects the <code>__deprecated__</code> attribute set by the :func:<code>~deprecate.deprecated</code> decorator</li>
+<li>Skips private/magic attributes and imports from other modules</li>
+<li>Uses static member inspection to avoid scan-time side effects from dynamic attribute access</li>
+</ul>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.audit.validate_deprecation_wrapper" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_wrapper</span><span class="p">(</span><span class="n">func</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.validate_deprecation_wrapper" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Validate if a deprecated wrapper configuration is effective.</p>
+<p>This is a development tool to check if deprecated wrappers are configured correctly and will have the intended
+effect. It examines the <code>__deprecated__</code> attribute set by the :func:<code>~deprecate.deprecated</code> decorator and
+identifies
+configurations that would result in zero impact:</p>
+<ul>
+<li>args_mapping keys that don't exist in the function's signature</li>
+<li>Empty or None args_mapping (no argument remapping)</li>
+<li>Identity mappings where key equals value (e.g., {'arg': 'arg'})</li>
+<li>Target pointing to the same function (self-reference)</li>
+<li>target=None with no args_mapping (just warns, no forwarding)</li>
+</ul>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>func</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The decorated function to validate. Must have a <code>__deprecated__</code> attribute set by the <code>@deprecated</code>
+decorator.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            deprecate.audit.DeprecationWrapperInfo
+
+
+  
+      dataclass
+  " href="#deprecate.audit.DeprecationWrapperInfo">DeprecationWrapperInfo</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>function: Name of the wrapper being validated</li>
+<li>deprecated_info: The typed :class:<code>~deprecate._types.DeprecationConfig</code> metadata from <code>__deprecated__</code></li>
+<li>invalid_args: List of args_mapping keys not in wrapper signature</li>
+<li>empty_args_mapping: True if args_mapping is None or empty</li>
+<li>identity_args_mapping: List of args where key equals value (no effect)</li>
+<li>self_reference: True if target is the same as the wrapper</li>
+<li>no_effect: True if wrapper has zero impact (all checks combined)</li>
+<li>empty_deprecated_in: True when <code>deprecated_in</code> is absent or empty</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the wrapper has missing or invalid <code>__deprecated__</code> metadata (expected
+:class:<code>~deprecate._types.DeprecationConfig</code>).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>from deprecate import deprecated, validate_deprecation_wrapper
+def new_implementation(value: int) -&gt; int:
+...     return value * 2</p>
+<p>@deprecated(target=new_implementation, deprecated_in="1.0", args_mapping={"old_val": "value"})
+... def old_func(old_val: int) -&gt; int:
+...     pass</p>
+<h3 id="deprecate.audit.validate_deprecation_wrapper--valid-mapping-to-different-function-has-effect">Valid mapping to different function - has effect<a class="headerlink" href="#deprecate.audit.validate_deprecation_wrapper--valid-mapping-to-different-function-has-effect" title="Permanent link">🔗</a></h3>
+<p>result = validate_deprecation_wrapper(old_func)
+result.no_effect
+False
+result.invalid_args
+[]</p>
+<p>@deprecated(target=True, deprecated_in="1.0", args_mapping={"arg": "arg"})
+... def identity_func(arg: int) -&gt; int:
+...     return arg</p>
+<h3 id="deprecate.audit.validate_deprecation_wrapper--identity-mapping-with-self-deprecation-no-effect">Identity mapping with self-deprecation - no effect<a class="headerlink" href="#deprecate.audit.validate_deprecation_wrapper--identity-mapping-with-self-deprecation-no-effect" title="Permanent link">🔗</a></h3>
+<p>result = validate_deprecation_wrapper(identity_func)
+result.identity_args_mapping
+['arg']
+result.no_effect
+True</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Use this function during development or in CI to ensure deprecation decorators are configured meaningfully.
+Invalid configurations won't cause runtime errors but will silently have no effect.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.audit.validate_deprecation_expiry" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.validate_deprecation_expiry" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Check all deprecated callables in a module/package for expired removal deadlines.</p>
+<p>This enforcement tool scans an entire module or package for deprecated functions and checks if any have passed
+their scheduled removal version. It's designed for CI/CD pipelines to automatically detect and report zombie code
+across a codebase.</p>
+<p>The function uses :func:<code>~deprecate.audit.find_deprecation_wrappers</code> to discover all deprecated wrappers,
+then checks each one against
+the current version. Any wrappers that have reached or passed their removal deadline are collected and reported.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>module</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Python module or package to scan. Can be:
+- Imported module object (e.g., <code>import my_package; validate_deprecation_expiry(my_package, "2.0")</code>)
+- String module path (e.g., <code>validate_deprecation_expiry("my_package.submodule", "2.0")</code>)</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>current_version</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The current version of your package to compare against removal deadlines (e.g., <code>"2.0.0"</code>).
+If None, attempts to auto-detect the version using the package name from the module path (e.g.,
+<code>"mypackage"</code> extracts <code>mypackage</code> as package name).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>recursive</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default), recursively scan submodules. If False, only scan the top-level module.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_members</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, also scan deprecated class members (methods, constructors).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of error messages for callables that have expired (past their removal deadline).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Empty list if all deprecated callables are still within their deprecation period.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<h3 id="deprecate.audit.validate_deprecation_expiry--check-a-specific-module-with-version-before-any-deadlines">Check a specific module with version before any deadlines<a class="headerlink" href="#deprecate.audit.validate_deprecation_expiry--check-a-specific-module-with-version-before-any-deadlines" title="Permanent link">🔗</a></h3>
+<p>from deprecate import validate_deprecation_expiry
+expired = validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+len(expired)
+0</p>
+<h3 id="deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines">Check with version past some removal deadlines<a class="headerlink" href="#deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines" title="Permanent link">🔗</a></h3>
+<p>expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+print(len(expired))  # Some functions have remove_in="0.5"
+28</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>        <div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul>
+<li>Skips callables without a <code>remove_in</code> field (warnings only, no removal deadline)</li>
+<li>Skips callables that cannot be imported or accessed</li>
+<li>Silently skips callables with invalid <code>remove_in</code> version formats</li>
+<li>Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")</li>
+<li>Intended for automated checks in CI/CD pipelines</li>
+<li>Can be integrated into test suites or pre-commit hooks</li>
+</ul>
+</div>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.audit.validate_deprecation_chains" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_chains</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.validate_deprecation_chains" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Validate that deprecated functions don't form chains with other deprecated code.</p>
+<p>This is a developer utility that scans a module or package for deprecated functions that form chains in two ways:</p>
+<ol>
+<li><strong>TARGET chains</strong>: The <code>target</code> argument points to another deprecated callable instead of the final
+   non-deprecated implementation.</li>
+<li><strong>STACKED chains</strong>: Multiple <code>@deprecated(True, ...)</code> decorators are stacked on the same function with
+   argument mappings that should be collapsed, or a callable <code>target</code> is itself a self-deprecation
+   (<code>target=True</code>) requiring mapping composition.</li>
+</ol>
+<p>Both types are wasteful: wrappers should point directly to the final (non-deprecated) implementation with
+composed argument mappings.</p>
+<p>Detection is based purely on decorator metadata (<code>__deprecated__</code> attributes) — no source-code or AST
+inspection is performed.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>module</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Python module or package to scan for deprecation chains. Can be:
+- Imported module object (e.g., <code>import my_package; validate_deprecation_chains(my_package)</code>)
+- String module path (e.g., <code>validate_deprecation_chains("my_package.submodule")</code>)</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>recursive</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default), recursively scan submodules. If False, only scan the top-level module.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.DeprecationWrapperInfo
+
+
+  
+      dataclass
+  " href="#deprecate.audit.DeprecationWrapperInfo">DeprecationWrapperInfo</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of :class:<code>~deprecate.audit.DeprecationWrapperInfo</code> where <code>chain_type</code> is not <code>None</code>, i.e. every</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.DeprecationWrapperInfo
+
+
+  
+      dataclass
+  " href="#deprecate.audit.DeprecationWrapperInfo">DeprecationWrapperInfo</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>deprecated wrapper that forms a chain (<code>ChainType.TARGET</code> or <code>ChainType.STACKED</code>).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>from deprecate import validate_deprecation_chains
+import tests.collection_chains as test_module</p>
+<p>issues = validate_deprecation_chains(test_module, recursive=False)
+len(issues) &gt; 0  # Should find chains
+True</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+<details class="note" open>
+  <summary>Note</summary>
+  <ul>
+<li>Only flags callees using the :func:<code>~deprecate.deprecated</code> decorator</li>
+<li>Uses :func:<code>~deprecate.audit.find_deprecation_wrappers</code> and inspects <code>chain_type</code> to detect chains</li>
+</ul>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="deprecate.audit.DeprecationWrapperInfo" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>deprecate.audit.DeprecationWrapperInfo</code>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#deprecate.audit.DeprecationWrapperInfo" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Information about a deprecated wrapper and its validation results.</p>
+<p>This dataclass represents a deprecated wrapper (a :func:<code>~deprecate.deprecated</code>-decorated function or a
+:func:<code>~deprecate.proxy.deprecated_class</code>/:func:<code>~deprecate.proxy.deprecated_instance</code> proxy), containing both
+identification info and validation results from :func:<code>~deprecate.audit.validate_deprecation_wrapper</code> or
+:func:<code>~deprecate.audit.find_deprecation_wrappers</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.module">module</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Module name where the wrapper is defined (empty for direct validation).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.function">function</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Wrapper name.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.deprecated_info">deprecated_info</span></code></td>
+            <td>
+                  <code><span title="deprecate._types.DeprecationConfig">DeprecationConfig</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>__deprecated__</code> attribute from the decorator,
+as a :class:<code>~deprecate._types.DeprecationConfig</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.invalid_args">invalid_args</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of <code>args_mapping</code> keys that don't exist in the wrapper's signature.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.empty_args_mapping">empty_args_mapping</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if <code>args_mapping</code> is None or empty (no argument remapping).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.identity_args_mapping">identity_args_mapping</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of args where key equals value (e.g., <code>{'arg': 'arg'}</code>).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.self_reference">self_reference</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if target points to the same wrapper.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.no_effect">no_effect</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if wrapper has zero impact (combines all checks).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.all_identity">all_identity</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True when every configured mapping is an identity mapping (key == value, non-empty).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.chain_type">chain_type</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.ChainType" href="#deprecate.audit.ChainType">ChainType</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The kind of deprecation chain detected, or <code>None</code> if no chain.
+See :class:<code>~deprecate.audit.ChainType</code> for values
+(:attr:<code>~deprecate.audit.ChainType.TARGET</code> or :attr:<code>~deprecate.audit.ChainType.STACKED</code>).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.misconfigured_target">misconfigured_target</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True when the wrapper has an invalid target configuration:
+<code>target=False</code>, :attr:<code>~deprecate._types.TargetMode.NOTIFY</code> with <code>args_mapping</code>, or
+:attr:<code>~deprecate._types.TargetMode.ARGS_REMAP</code> with empty <code>args_mapping</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.empty_deprecated_in">empty_deprecated_in</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True when <code>deprecated_in</code> is empty. Missing <code>remove_in</code> alone is a valid use case
+(many libraries deprecate without a scheduled removal date), so only the absence of <code>deprecated_in</code>
+is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
+that lack the introductory version metadata without crashing callers.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.api_type">api_type</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inferred deprecated API type for report generation.
+Possible values: <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass</code>, <code>dataclass attributes</code>,
+<code>data</code>, <code>class constructor</code>, <code>class constructor args</code>, <code>class method</code>, <code>class method args</code>,
+<code>classmethod</code>, <code>classmethod args</code>, <code>staticmethod</code>, <code>staticmethod args</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>info = DeprecationWrapperInfo(
+...     module="my_package.module",
+...     function="old_function",
+...     deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
+...     invalid_args=["nonexistent"],
+...     no_effect=True,
+... )
+info.function
+'old_function'
+info.invalid_args
+['nonexistent']</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">empty_mapping</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deprecated alias for :attr:<code>~deprecate.audit.DeprecationWrapperInfo.empty_args_mapping</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Deprecated in 0.8</p>
+<p>Renamed to :attr:<code>~deprecate.audit.DeprecationWrapperInfo.empty_args_mapping</code>.
+Will be removed in v1.0.</p>
+</div>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Python's default warning filter deduplicates per <code>(message, category, module, lineno)</code>,
+so accessing this property in a loop from the same call site emits at most one warning.</p>
+</details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">identity_mapping</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deprecated alias for :attr:<code>~deprecate.audit.DeprecationWrapperInfo.identity_args_mapping</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Deprecated in 0.8</p>
+<p>Renamed to :attr:<code>~deprecate.audit.DeprecationWrapperInfo.identity_args_mapping</code>.
+Will be removed in v1.0.</p>
+</div>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Python's default warning filter deduplicates per <code>(message, category, module, lineno)</code>,
+so accessing this property in a loop from the same call site emits at most one warning.</p>
+</details>
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.audit.DeprecationWrapperInfo.__post_init__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">__post_init__</span><span class="p">()</span></code>
+
+<a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Derive <code>empty_deprecated_in</code> from <code>deprecated_info</code> to keep them in sync.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="deprecate.audit.ChainType" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>deprecate.audit.ChainType</code>
+
+
+<a href="#deprecate.audit.ChainType" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.Enum">Enum</span></code></p>
+
+
+
+        <p>Type of deprecation chain detected by :func:<code>~deprecate.audit.validate_deprecation_chains</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.ChainType.TARGET">TARGET</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>target</code> argument is itself a callable decorated with :func:<code>~deprecate.deprecated</code>
+(a forwarding chain). Fix by pointing directly to the final non-deprecated target.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.ChainType.STACKED">STACKED</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Arg mappings chain and must be composed/collapsed. Two sub-cases:
+(a) Callable <code>target</code> is itself <code>@deprecated(True, args_mapping=...)</code> — the
+caller's mapping feeds into the target's self-renaming, so both hops must be
+collapsed into one. (b) Multiple <code>@deprecated(True, args_mapping=...)</code> decorators
+are stacked on the same function and should be merged into a single decorator.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="types">Types<a class="headerlink" href="#types" title="Permanent link">🔗</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="deprecate.TargetMode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>deprecate.TargetMode</code>
+
+
+<a href="#deprecate.TargetMode" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.Enum">Enum</span></code></p>
+
+
+
+        <p>Selects <code>@deprecated</code> behaviour when no callable replacement is provided.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.TargetMode.NOTIFY">NOTIFY</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Notify-only deprecation -- warn on every call; original body executes unchanged. Replaces
+<code>target=None</code>. Passing <code>args_mapping</code> or <code>args_extra</code> with this mode emits a :class:<code>UserWarning</code>
+today; :class:<code>TypeError</code> is planned in <code>v1.0</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.TargetMode.ARGS_REMAP">ARGS_REMAP</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Deprecate argument names only -- warn only when deprecated argument names are passed; remaps
+kwargs via <code>args_mapping</code> before calling the original body. Replaces <code>target=True</code>. This mode is
+strongly recommended with <code>args_mapping</code>; omitting it emits a :class:<code>UserWarning</code> today, and
+:class:<code>TypeError</code> is planned in <code>v1.0</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="o">.</span><span class="n">value</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="go">&#39;notify&#39;</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="o">.</span><span class="n">value</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="go">&#39;args_remap&#39;</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="utilities">Utilities<a class="headerlink" href="#utilities" title="Permanent link">🔗</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.utils.void" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">void</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwrgs</span><span class="p">)</span></code>
+
+<a href="#deprecate.utils.void" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Empty function that accepts any arguments and returns None.</p>
+<p>This helper function is used to silence IDE warnings about unused parameters in deprecated functions where the
+body is never executed (calls are forwarded to a target function). It's purely a convenience for developers.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>*args</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Any positional arguments (ignored).</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwrgs</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Any keyword arguments (ignored).</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None always.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>from deprecate import deprecated, void</p>
+<p>def new_func(x: int) -&gt; int:
+...     return x * 2</p>
+<p>@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+... def old_func(x: int) -&gt; int:
+...     void(x)  # Silences IDE warning about unused 'x'
+...     # This line is never reached - call forwarded to new_func</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>This function has no runtime effect - it's purely for developer convenience. You can also use <code>pass</code> or
+just a docstring instead of calling <code>void()</code>.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.utils.assert_no_warnings" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">assert_no_warnings</span><span class="p">(</span><span class="n">warning_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#deprecate.utils.assert_no_warnings" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Context manager asserting that no warnings are raised — the inverse of <code>pytest.warns()</code>.</p>
+<p>Useful for testing that refactored code properly avoids deprecated functionality or that new implementations don't
+trigger warnings.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>warning_type</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="type">type</span>[<span title="Warning">Warning</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The warning type that must NOT be raised (e.g., :class:<code>FutureWarning</code>,
+:class:<code>DeprecationWarning</code>). If <code>None</code>, asserts that no warnings of any type are raised.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>match</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If given, only fail if a warning message contains this string. If <code>None</code>, fails on any warning of
+the specified type.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="AssertionError">AssertionError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a warning of the specified type (and optionally matching the message pattern) was raised
+during the context.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<h3 id="deprecate.utils.assert_no_warnings--assert-new-function-doesnt-trigger-futurewarning">Assert new function doesn't trigger FutureWarning<a class="headerlink" href="#deprecate.utils.assert_no_warnings--assert-new-function-doesnt-trigger-futurewarning" title="Permanent link">🔗</a></h3>
+<p>import warnings
+def new_func(x: int) -&gt; int:
+...     return x * 2
+with assert_no_warnings(FutureWarning):
+...     result = new_func(42)
+result
+84</p>
+<h3 id="deprecate.utils.assert_no_warnings--assert-no-warnings-at-all-are-raised">Assert NO warnings at all are raised<a class="headerlink" href="#deprecate.utils.assert_no_warnings--assert-no-warnings-at-all-are-raised" title="Permanent link">🔗</a></h3>
+<p>def clean_function():
+...     pass
+with assert_no_warnings():
+...     clean_function()</p>
+<h3 id="deprecate.utils.assert_no_warnings--only-fail-if-warning-message-matches-pattern">Only fail if warning message matches pattern<a class="headerlink" href="#deprecate.utils.assert_no_warnings--only-fail-if-warning-message-matches-pattern" title="Permanent link">🔗</a></h3>
+<p>def some_function():
+...     warnings.warn("deprecated feature", FutureWarning)</p>
+<h3 id="deprecate.utils.assert_no_warnings--passes-because-warning-contains-feature-not-other">Passes because warning contains "feature", not "other"<a class="headerlink" href="#deprecate.utils.assert_no_warnings--passes-because-warning-contains-feature-not-other" title="Permanent link">🔗</a></h3>
+<p>with assert_no_warnings(FutureWarning, match="other"):
+...     some_function()</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>This context manager is particularly useful in pytest for testing that refactored code properly uses new APIs
+without triggering deprecation warnings.</p>
+</details>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 23, 2026 09:31:16 UTC">2026-05-23</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 23, 2026 09:31:16 UTC">2026-05-23</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020&ndash;2026 Jiri Borovec
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
