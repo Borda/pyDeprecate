@@ -1062,7 +1062,7 @@ del cfg.timeout  # FutureWarning: delete
 ```
 
 <details>
-  <summary>Output: <code>print(cfg.timeout)</code></summary>
+  <summary>Output: <code>cfg.timeout</code></summary>
 
 ```
 10
@@ -1137,7 +1137,7 @@ print(cfg.timeout)  # FutureWarning fired; prints 5
 ```
 
 <details>
-  <summary>Output: <code>print(cfg.timeout)</code></summary>
+  <summary>Output: <code>cfg.timeout</code></summary>
 
 ```
 5
@@ -1174,7 +1174,7 @@ print(cfg.timeout_ms)  # prints 10_000
 ```
 
 <details>
-  <summary>Output: <code>print(cfg.timeout); print(cfg.timeout_ms)</code></summary>
+  <summary>Output: <code>cfg.timeout; cfg.timeout_ms</code></summary>
 
 ```
 5
@@ -1228,7 +1228,7 @@ print(w.color)  # prints 'blue'
 ```
 
 <details>
-  <summary>Output: <code>print(w.colour); print(w.color)</code></summary>
+  <summary>Output: <code>w.colour; w.color</code></summary>
 
 ```
 red

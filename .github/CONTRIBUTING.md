@@ -374,7 +374,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > [!IMPORTANT]
 > **README examples must be runnable.** Every Python code block in `README.md` is extracted by `phmdoctest` and executed as a test. Follow these rules when writing README examples:
 >
-> - Use `print()` for values you want to verify, paired with a `<details><summary>Output: ...</summary>` block immediately after the code block.
+> - Use `print()` for values you want to verify, paired with a `<details><summary>Output: <code>expression</code></summary>` block immediately after the code block. The `<summary>` label shows the **expression** being evaluated (e.g. `cfg.timeout`), not the `print()` wrapper.
 > - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
