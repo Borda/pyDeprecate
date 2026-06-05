@@ -147,7 +147,9 @@ class _DeprecatedProxy:
             # For callable targets, redirects land on the target class; otherwise they land on obj.
             _attr_check_obj = target if callable(target) else obj
             missing_targets = [
-                f"{k!r} -> {v!r}" for k, v in attrs_mapping.items() if v is not None and not hasattr(_attr_check_obj, v)
+                f"{k!r} -> {v!r}"
+                for k, v in attrs_mapping.items()
+                if v is not None and not hasattr(_attr_check_obj, v)
             ]
             if missing_targets:
                 raise ValueError(
