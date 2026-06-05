@@ -920,7 +920,30 @@ True
 <details>
 <summary>Example: selective attribute deprecation with <code>attrs_mapping</code></summary>
 
-Use `attrs_mapping` to deprecate only specific attribute names — other attributes pass through silently. Covers renames, misspelling corrections, and warn-only notices on individual attributes.
+Use `attrs_mapping` to deprecate only specific attribute names — other attributes pass through silently. Covers renames, misspelling corrections, warn-only notices, and Enum member aliases.
+
+**Decorator syntax** — apply `@deprecated_class(attrs_mapping=...)` at class definition time:
+
+```python
+from deprecate import deprecated_class
+
+
+@deprecated_class(
+    attrs_mapping={"color": "colour"},  # "color" is the deprecated spelling
+    deprecated_in="2.0",
+    remove_in="3.0",
+)
+class Palette:
+    colour: str = "red"   # canonical name
+    size: int = 10        # unlisted — passes through silently
+
+
+print(Palette.color)   # warns → returns "red" (redirected to colour)
+print(Palette.colour)  # silent passthrough → "red"
+print(Palette.size)    # silent passthrough → 10
+```
+
+**Wrapper form** — equivalent, useful when wrapping an existing class:
 
 ```python
 from deprecate import deprecated_class
@@ -931,17 +954,19 @@ class Config:
     timeout: int = 30
 
 
-# "color" is a deprecated alias for "colour"; access warns and redirects
+# "color" → "colour" rename; "size" warn-only (None = no rename, just warn)
 DeprecatedConfig = deprecated_class(
-    attrs_mapping={"color": "colour"},
+    attrs_mapping={"color": "colour", "size": None},
     deprecated_in="1.0",
     remove_in="2.0",
 )(Config)
 
-print(DeprecatedConfig.color)  # warns → returns Config.colour ("red")
-print(DeprecatedConfig.colour)  # silent passthrough ("red")
+print(DeprecatedConfig.color)    # warns → returns Config.colour ("red")
+print(DeprecatedConfig.colour)   # silent passthrough ("red")
 print(DeprecatedConfig.timeout)  # silent passthrough (30)
 ```
+
+Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/use-cases/#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
 
 </details>
 

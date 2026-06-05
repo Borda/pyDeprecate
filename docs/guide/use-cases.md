@@ -699,14 +699,52 @@ True
 
 Use `attrs_mapping` on `deprecated_class()` to deprecate only specific attribute names — all other attributes pass through silently. This covers attribute renames, misspelling corrections (e.g. `color` → `colour`), and warn-only notices on individual attributes.
 
-The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and redirect. Reads, writes, and deletes on non-listed attribute names pass through without any warning.
+The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and redirect. Non-listed attribute names pass through without any warning.
+
+### Decorator syntax — attribute rename
+
+Apply `@deprecated_class(attrs_mapping=...)` at class definition time. Only the attribute names listed as keys emit a `FutureWarning`; all others pass through silently:
+
+```python
+from deprecate import deprecated_class
+
+
+@deprecated_class(
+    attrs_mapping={"color": "colour"},  # "color" is the deprecated spelling
+    deprecated_in="2.0",
+    remove_in="3.0",
+)
+class Palette:
+    colour: str = "red"   # canonical name
+    size: int = 10        # unlisted — silent passthrough, no warning
+
+
+# Deprecated alias — warns: "The `color` was deprecated since v2.0 in favor of `Palette.colour`."
+print(Palette.color)   # red
+
+# Canonical names — silent passthrough, no warning
+print(Palette.colour)  # red
+print(Palette.size)    # 10
+```
+
+<details>
+  <summary>Output: <code>Palette.color; Palette.colour; Palette.size</code></summary>
+
+```
+red
+red
+10
+```
+
+</details>
+
+Wrapper form — equivalent to decorator syntax, useful when wrapping an already-existing class or applying deprecation outside the class definition:
 
 ```python
 from deprecate import deprecated_class
 
 
 class Config:
-    # Canonical names — callers should use these
     colour: str = "red"
     timeout: int = 30
 
@@ -718,14 +756,9 @@ DeprecatedConfig = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-# Deprecated alias — warns and returns Config.colour
-print(DeprecatedConfig.color)
-
-# Canonical name — silent passthrough, no warning
-print(DeprecatedConfig.colour)
-
-# Warn-only: no rename, "size" is still returned as-is (value shown as 0 since Config has no "size")
-print(DeprecatedConfig.timeout)
+print(DeprecatedConfig.color)    # warns → returns Config.colour ("red")
+print(DeprecatedConfig.colour)   # silent passthrough ("red")
+print(DeprecatedConfig.timeout)  # silent passthrough (30)
 ```
 
 <details>
@@ -739,7 +772,166 @@ red
 
 </details>
 
-`attrs_mapping` can be combined with `target=NewClass` — the class-level proxy warning fires on instantiation, while `attrs_mapping` intercepts individual attribute reads/writes/deletes.
+### Reads, writes, and deletes all redirect
+
+The `attrs_mapping` interception applies to all three access modes. Writing to a deprecated attribute alias warns and sets the canonical attribute instead:
+
+```python
+import warnings
+from deprecate import deprecated_class
+
+
+class Palette:
+    colour: str = "red"
+
+
+DeprecatedPalette = deprecated_class(
+    attrs_mapping={"color": "colour"},  # "color" is the deprecated spelling
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Palette)
+
+# Write — warns and redirects to Palette.colour
+with warnings.catch_warnings(record=True) as w:
+    warnings.simplefilter("always")
+    DeprecatedPalette.color = "blue"
+print(len(w), w[0].category.__name__)  # 1 FutureWarning
+
+# Canonical attribute now holds the new value (no warning on canonical reads)
+print(Palette.colour)  # blue
+```
+
+<details>
+  <summary>Output: <code>len(w), w[0].category.__name__; Palette.colour</code></summary>
+
+```
+1 FutureWarning
+blue
+```
+
+</details>
+
+### Warn-only with `None` redirect
+
+Map a deprecated attribute to `None` to emit a warning on access without renaming anything. The attribute is fetched by its original name after the warning fires. Use this when an attribute is going away with no replacement:
+
+```python
+from deprecate import deprecated_class
+
+
+class Widget:
+    size: int = 42  # scheduled for removal — callers should stop reading it
+
+
+DeprecatedWidget = deprecated_class(
+    attrs_mapping={"size": None},  # warn-only, no rename
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Widget)
+
+# Warns: "The `size` was deprecated since v1.0. It will be removed in v2.0."
+print(DeprecatedWidget.size)  # 42 — value still returned, just warned
+
+# Second access is silent — num_warns=1 budget exhausted
+print(DeprecatedWidget.size)  # 42 — no second warning
+```
+
+<details>
+  <summary>Output: <code>DeprecatedWidget.size; DeprecatedWidget.size (second call)</code></summary>
+
+```
+42
+42
+```
+
+</details>
+
+### Per-attribute independent warning budgets
+
+Each deprecated attribute name has its own warning counter. With `num_warns=1` (the default), accessing two different deprecated aliases each emits one warning independently — two warnings total, not one shared budget:
+
+```python
+import warnings
+from deprecate import deprecated_class
+
+
+class Config:
+    colour: str = "red"
+    text: str = "hello"
+
+
+proxy = deprecated_class(
+    attrs_mapping={"color": "colour", "txt": "text"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Config)
+
+with warnings.catch_warnings(record=True) as w:
+    warnings.simplefilter("always")
+    _ = proxy.color  # consumes the "color" budget
+    _ = proxy.txt    # consumes the "txt" budget (independent counter)
+
+print(len(w))  # 2 — one per deprecated attribute
+
+# Both budgets now exhausted — subsequent accesses are silent
+with warnings.catch_warnings(record=True) as w2:
+    warnings.simplefilter("always")
+    _ = proxy.color
+    _ = proxy.txt
+print(len(w2))  # 0
+```
+
+<details>
+  <summary>Output: <code>len(w); len(w2)</code></summary>
+
+```
+2
+0
+```
+
+</details>
+
+### Enum — deprecated member aliases
+
+`attrs_mapping` works on Enum proxies too. Use it when Enum member names changed (for example, a casing convention migration) and callers may still be using the old names. Wrap the canonical Enum in a proxy that registers the deprecated names as aliases:
+
+```python
+from enum import Enum
+from deprecate import deprecated_class
+
+
+class Direction(Enum):
+    NORTH = "N"
+    SOUTH = "S"
+    EAST = "E"
+    WEST = "W"
+
+
+# Wrap the canonical Enum and add deprecated lowercase aliases that redirect to canonical members
+LegacyDirection = deprecated_class(
+    attrs_mapping={"north": "NORTH", "south": "SOUTH"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Direction)
+
+# Deprecated lowercase alias — warns and returns the canonical Direction.NORTH member
+print(LegacyDirection.north is Direction.NORTH)   # True
+
+# Canonical uppercase name — silent passthrough, no warning
+print(LegacyDirection.NORTH is Direction.NORTH)   # True
+```
+
+<details>
+  <summary>Output: <code>LegacyDirection.north is Direction.NORTH; LegacyDirection.NORTH is Direction.NORTH</code></summary>
+
+```
+True
+True
+```
+
+</details>
+
+`attrs_mapping` can be combined with `target=NewClass` — the proxy warning fires on attribute access, while `attrs_mapping` intercepts specific deprecated attribute aliases and redirects them to their canonical counterparts on the target class.
 
 !!! note "Audit visibility"
 
