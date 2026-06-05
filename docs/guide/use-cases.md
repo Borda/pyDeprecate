@@ -1094,6 +1094,99 @@ class Config:
 
     `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecated__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
 
+### Deprecated property alias on a dataclass
+
+When a dataclass field is renamed, a deprecated property creates a backward-compatible alias while emitting `FutureWarning`. The property uses the old name and delegates to the new field in the accessor body.
+
+**Read-only alias (warns on read only):**
+
+```python
+from dataclasses import dataclass
+
+from deprecate import deprecated
+
+
+@dataclass
+class Config:
+    timeout_ms: int = 30_000  # renamed from `timeout`
+
+    @property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def timeout(self) -> int:
+        """Deprecated — use ``timeout_ms`` instead."""
+        return self.timeout_ms // 1000
+
+
+cfg = Config(timeout_ms=5_000)
+print(cfg.timeout)  # FutureWarning fired; prints 5
+```
+
+**Read-write alias (warns on read and write):** use the outer order and chain `.setter`:
+
+```python
+from dataclasses import dataclass
+
+from deprecate import deprecated
+
+
+@dataclass
+class Config:
+    timeout_ms: int = 30_000  # renamed from `timeout`
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @property
+    def timeout(self) -> int:
+        return self.timeout_ms // 1000
+
+    @timeout.setter
+    def timeout(self, value: int) -> None:
+        self.timeout_ms = value * 1000
+```
+
+`cfg.timeout` fires `FutureWarning` and returns `cfg.timeout_ms // 1000`. `cfg.timeout = 5` fires `FutureWarning` and sets `cfg.timeout_ms = 5000`.
+
+!!! warning "Do not shadow a dataclass field"
+
+    Do **not** use the same name as an existing dataclass field for the deprecated property. The `@dataclass`-generated `__init__` performs `self.field = value`, which conflicts with a property descriptor of the same name. Use a different name for the deprecated alias and keep the dataclass field under its new name.
+
+### Redirecting through a deprecated property
+
+`target=<callable>` raises `TypeError` when applied to a `@property` — properties have three independent accessors (`fget`, `fset`, `fdel`) and there is no unambiguous way to auto-forward them to a single callable. Redirect manually in the accessor body instead:
+
+```python
+from deprecate import deprecated
+
+
+class Widget:
+    def __init__(self) -> None:
+        self._color: str = "red"
+
+    @property
+    def color(self) -> str:
+        return self._color
+
+    @color.setter
+    def color(self, value: str) -> None:
+        self._color = value
+
+    # Deprecated alias — warns on read and write; delegates to the new property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @property
+    def colour(self) -> str:
+        """Deprecated — use ``color`` (American spelling) instead."""
+        return self.color  # manual delegation
+
+    @colour.setter
+    def colour(self, value: str) -> None:
+        self.color = value  # manual delegation; setter also warns (outer order re-wraps it)
+```
+
+`obj.colour` fires `FutureWarning` and returns `obj.color`. `obj.colour = "blue"` fires `FutureWarning` and delegates to `obj.color = "blue"`.
+
+!!! note "Why not `target=<callable>`?"
+
+    `@deprecated` rejects `target=<callable>` on a property with `TypeError: target as a callable is not supported when decorating a property`. The replacement accessor(s) may have entirely different signatures for `fget`, `fset`, and `fdel`; delegate manually in each body instead.
+
 ## Deprecating generator functions
 
 Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you **call** the generator function, not when you first iterate the result.
