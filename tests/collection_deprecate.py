@@ -60,6 +60,8 @@ from tests.collection_targets import (
     TargetColorEnum,
     TargetWithInjected,
     TimerDecorator,
+    _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
+    _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
     async_gen_target,
@@ -69,6 +71,7 @@ from tests.collection_targets import (
     both_old_new_target,
     compute_power,
     cross_guard_standalone_increment,
+    del_only_prop_fdel,
     double_value,
     fn_remap_with_extra_body,
     fn_with_default,
@@ -1737,3 +1740,56 @@ async_gen_args_remap = deprecated(
 async_gen_callable = deprecated(target=async_gen_target, deprecated_in="1.0", remove_in="2.0")(
     _async_gen_source_callable
 )
+
+
+# ========== Inner-order @property @deprecated regression fixtures (H2) ==========
+# Inner-order means ``@property`` outermost, ``@deprecated`` closer to ``def`` — only ``fget`` is
+# wrapped.  Chain-style ``@value.setter`` / ``@value.deleter`` afterwards builds a plain ``property``
+# whose ``fset`` / ``fdel`` are *not* deprecation-wrapped, so writes and deletes must be silent.
+
+
+class InnerOrderDeprecatedPropCls(_InnerOrderPropTarget):
+    """Inner-order ``@property @deprecated`` with chain-style setter and deleter (H2 fixture).
+
+    Inner-order wrapping wraps ``fget`` only.  ``@value.setter`` and ``@value.deleter`` rebuild the
+    ``property`` from the inner ``property`` base class — not :class:`~deprecate.deprecation._DeprecatedProperty` —
+    so the freshly-added accessors are plain callables.  The regression tests assert that writes
+    and deletes do NOT emit ``FutureWarning`` for this configuration.
+
+    """
+
+    @property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def value(self) -> int:
+        """Inner-order deprecated property: only the getter is wrapped."""
+        return self._value
+
+    @value.setter
+    def value(self, new_value: int) -> None:
+        """Plain setter — not wrapped because inner order only wraps the getter."""
+        self._value = new_value
+
+    @value.deleter
+    def value(self) -> None:
+        """Plain deleter — not wrapped because inner order only wraps the getter."""
+        self._del_value = None
+
+
+# ========== fdel-only deprecated property regression fixture (H3) ==========
+# ``deprecated(...)(property(None, None, fdel))`` — the only accessor is the delete accessor.
+# Wrapping must still emit ``FutureWarning`` on ``del obj.prop`` and the body must execute.
+
+
+class DelOnlyDeprecatedPropCls(_DelOnlyPropTarget):
+    """Deprecated fdel-only property (H3 fixture).
+
+    Constructed via explicit ``property(None, None, fdel)`` so the only deprecation-wrapped
+    accessor is the delete accessor.  Used by both the deprecation-warning test and the audit
+    discovery test to guarantee :func:`deprecate.find_deprecation_wrappers` traverses
+    fdel-only properties.
+
+    """
+
+    delete_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[assignment]
+        property(None, None, del_only_prop_fdel)  # type: ignore[arg-type]
+    )

@@ -10,7 +10,7 @@ import warnings
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -352,3 +352,45 @@ async def async_gen_target(x: int) -> AsyncIterator[int]:
     """
     for i in range(1, 4):
         yield x * i
+
+
+class _InnerOrderPropTarget:
+    """Target class for inner-order ``@property @deprecated`` regression tests (H2 fixture).
+
+    Inner-order wrapping (``@property`` outermost, ``@deprecated`` closer to ``def``) wraps the
+    ``fget`` accessor only.  Setters and deleters added afterwards via ``@value.setter`` /
+    ``@value.deleter`` are *not* re-wrapped, so writes and deletes must be silent.
+
+    The class is consumed by :mod:`tests.collection_deprecate` which subclasses it to attach the
+    inner-order deprecated property + chain-style setter/deleter.
+
+    """
+
+    def __init__(self) -> None:
+        """Initialise the mutable read/write/delete slots."""
+        self._value: int = 0
+        self._del_value: Optional[int] = 42
+
+
+class _DelOnlyPropTarget:
+    """Target class for fdel-only property regression tests (H3 fixture).
+
+    A ``property(None, None, fdel)`` exposes only the delete accessor.  Wrapping it with
+    ``@deprecated`` must still emit a ``FutureWarning`` on ``del obj.prop`` because the
+    deprecation surface attaches to the only callable the property carries.
+
+    """
+
+    def __init__(self) -> None:
+        """Initialise the slot mutated by the delete accessor."""
+        self._value: Optional[int] = 99
+
+
+def del_only_prop_fdel(self: _DelOnlyPropTarget) -> None:
+    """Delete accessor for the fdel-only deprecated property fixture (H3).
+
+    Mutates ``self._value`` to ``None`` so the regression test can assert the body actually ran
+    after the deprecation warning fired.
+
+    """
+    self._value = None

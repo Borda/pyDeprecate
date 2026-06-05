@@ -374,7 +374,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > [!IMPORTANT]
 > **README examples must be runnable.** Every Python code block in `README.md` is extracted by `phmdoctest` and executed as a test. Follow these rules when writing README examples:
 >
-> - Use `print()` for values you want to verify, paired with a `<details><summary>Output: ...</summary>` block immediately after the code block.
+> - Use `print()` for values you want to verify, paired with a `<details><summary>Output: <code>expression</code></summary>` block immediately after the code block. The `<summary>` label shows the **expression** being evaluated (e.g. `cfg.timeout`), not the `print()` wrapper.
 > - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
@@ -486,6 +486,16 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 - **One behavior per test** — each test method should verify one specific aspect.
 - **Prefer parametrization for repetitive shapes** — when the setup/assertion flow is the same and only inputs/expected outputs differ, use `pytest.mark.parametrize(...)` to reduce duplication while keeping one behavioral intent per case.
 - **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
+- **Scenario description in docstrings** — every non-trivial test method must include a prose paragraph after the one-line summary that describes the real-world situation being tested. A one-line summary alone is not sufficient for complex tests.
+
+```python
+def test_warns_on_read(self) -> None:
+    """FutureWarning fires on property read access.
+
+    A user accesses a deprecated property on an existing object and
+    expects a FutureWarning with the original value still returned.
+    """
+```
 
 **For bug fixes:**
 

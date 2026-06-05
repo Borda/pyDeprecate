@@ -75,6 +75,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Help onboard new contributors
 - Ensure deprecation examples are documented in both README and `docs/guide/use-cases.md`
 - Keep `docs/troubleshooting.md` and its FAQPage JSON-LD in `docs/overrides/main.html` in sync
+- Every `docs/**/*.md` code block containing `print()` must be followed by a `<details><summary>Output: <code>…</code></summary>` block with verified output (see [Docs examples](.github/CONTRIBUTING.md#test-organization))
 
 **Guidelines**:
 
@@ -121,6 +122,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Three-layer separation**: targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, test logic in `test_*.py`
 - **Do not** define targets or `@deprecated` wrappers directly in test files
+- **Scenario description required** — every non-trivial test method docstring must include a prose paragraph describing the real-world situation being tested; a one-line summary alone is not sufficient (see [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
 - See [Test Organization](.github/CONTRIBUTING.md#test-organization) for details
 
 ### Documentation Site

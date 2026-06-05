@@ -100,6 +100,89 @@ def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Para
     return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
 
 
+class _DeprecatedProperty(property):
+    """``property`` subclass that re-wraps ``getter``/``setter``/``deleter`` results.
+
+    Built-in ``property.setter`` / ``property.deleter`` construct a fresh plain ``property``
+    from the existing accessors plus the newly supplied one — discarding any deprecation
+    wrapping applied to the original accessors. Overriding ``getter``/``setter``/``deleter``
+    to return another ``_DeprecatedProperty`` — wrapping the new accessor with the same packing
+    closure stored in ``_wrap`` — preserves the deprecation warning on every subsequent rebind.
+
+    Example:
+        Chain-style rebinding works because ``_DeprecatedProperty.setter`` re-wraps the
+        new accessor rather than rebuilding a plain ``property``:
+
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            @property
+            def value(self): ...
+
+            @value.setter
+            def value(self, v): ...  # setter() returns _DeprecatedProperty, not plain property
+
+    Args:
+        fget: Getter callable, or ``None``.
+        fset: Setter callable, or ``None``.
+        fdel: Deleter callable, or ``None``.
+        doc: Property docstring; ``None`` defers to ``fget.__doc__``.
+        _wrap: Required packing closure to re-apply on accessor rebinds.
+
+    Attributes:
+        _wrap: Closure that re-applies the surrounding ``@deprecated`` decoration to a
+            new accessor; captures the same template/stacklevel/config as the original
+            wrap. Required — always set by ``packing()``; never ``None``.
+
+    Note:
+        ``_DeprecatedProperty`` itself does **not** carry a ``__deprecated__`` attribute —
+        that attribute lives on the individual wrapped accessors (``fget``, ``fset``, ``fdel``).
+        ``find_deprecation_wrappers`` discovers properties via whichever non-``None`` accessor
+        carries ``__deprecated__`` first. A setter-only property (``fget=None``) is discovered
+        via ``fset``; a plain-getter property whose ``fget`` is not deprecated but whose ``fset``
+        is deprecated is likewise discovered via ``fset``.
+
+        **Typing**: ``getter``/``setter``/``deleter`` return ``_DeprecatedProperty`` (covariant
+        narrowing of ``property``'s ``-> property`` annotation). Static type is preserved for
+        variables typed ``_DeprecatedProperty``; variables typed ``property`` lose the narrowing
+        and mypy infers the rebuilt accessor as plain ``property`` — chain inference still works
+        at runtime via dynamic dispatch.
+
+    """
+
+    _wrap: Callable[[Callable], Callable]
+
+    def __init__(
+        self,
+        fget: Optional[Callable] = None,
+        fset: Optional[Callable] = None,
+        fdel: Optional[Callable] = None,
+        doc: Optional[str] = None,
+        *,
+        _wrap: Callable[[Callable], Callable],
+    ) -> None:
+        super().__init__(fget, fset, fdel, doc)
+        # ``property`` exposes no slot for arbitrary attributes via ``__init__``, but it
+        # *does* permit attribute assignment on subclass instances.
+        self._wrap = _wrap
+
+    def _rewrap(self, accessor: Optional[Callable]) -> Optional[Callable]:
+        """Apply the stored ``_wrap`` closure to ``accessor`` when present."""
+        if accessor is None:
+            return accessor
+        return self._wrap(accessor)
+
+    def getter(self, fget: Callable) -> "_DeprecatedProperty":
+        """Return a new ``_DeprecatedProperty`` whose ``fget`` is freshly wrapped."""
+        return _DeprecatedProperty(self._rewrap(fget), self.fset, self.fdel, self.__doc__, _wrap=self._wrap)
+
+    def setter(self, fset: Callable) -> "_DeprecatedProperty":
+        """Return a new ``_DeprecatedProperty`` whose ``fset`` is freshly wrapped."""
+        return _DeprecatedProperty(self.fget, self._rewrap(fset), self.fdel, self.__doc__, _wrap=self._wrap)
+
+    def deleter(self, fdel: Callable) -> "_DeprecatedProperty":
+        """Return a new ``_DeprecatedProperty`` whose ``fdel`` is freshly wrapped."""
+        return _DeprecatedProperty(self.fget, self.fset, self._rewrap(fdel), self.__doc__, _wrap=self._wrap)
+
+
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
     """Raise ``TypeError`` when target is a method on a different class than source.
 
@@ -967,17 +1050,67 @@ def deprecated(
         if isinstance(source, (classmethod, staticmethod)):
             wrapped_inner = packing(source.__func__, _stacklevel + 1)
             return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
-        # Order-agnostic @property: unwrap → deprecate fget → rewrap preserving fset/fdel/doc.
+        # Order-agnostic @property: unwrap → deprecate fget/fset/fdel → rewrap preserving doc.
+        # All three accessors are wrapped so attribute read, write, and delete each fire the warning.
         if isinstance(source, property):
+            if isinstance(source, _DeprecatedProperty):
+                # Double-decorating an already-deprecated property would wrap every accessor twice,
+                # emitting two FutureWarnings per access and triggering _warn_stacking_misconfiguration
+                # three times. Raise early with a clear message instead of silently double-wrapping.
+                _accessor = source.fget or source.fset or source.fdel
+                _src_name = _accessor.__qualname__ if _accessor is not None else "<property>"
+                raise TypeError(
+                    f"`@deprecated` cannot be applied twice to the already-deprecated property `{_src_name}`."
+                    " Apply `@deprecated(...)` once; use `.setter()`/`.deleter()` rebinding for additional accessors."
+                )
+            if args_mapping:
+                raise TypeError(f"`args_mapping` is not supported when decorating a `property`. Got: {args_mapping!r}.")
+            if args_extra:
+                raise TypeError(f"`args_extra` is not supported when decorating a `property`. Got: {args_extra!r}.")
+            if callable(target):
+                raise TypeError(
+                    f"`target` as a callable is not supported when decorating a `property`. Got: {target!r}."
+                    " Use `TargetMode.NOTIFY` or omit `target`."
+                )
+            if target is True or target is TargetMode.ARGS_REMAP:
+                raise TypeError(
+                    f"`target=TargetMode.ARGS_REMAP` (or legacy `True`) is not supported when decorating a `property`."
+                    f" Got: {target!r}. Use `TargetMode.NOTIFY` or omit `target`."
+                )
+            # Guard against pre-deprecated individual accessors fed into property(...) then
+            # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
+            # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
+            # catches property-objects that are themselves already _DeprecatedProperty instances.
+            for _acc_name, _acc in (("fget", source.fget), ("fset", source.fset), ("fdel", source.fdel)):
+                if _acc is not None and _has_deprecation_meta(_acc):
+                    raise TypeError(
+                        f"`@deprecated` cannot wrap accessor `{getattr(_acc, '__qualname__', repr(_acc))}` of property"
+                        f" `{_acc_name}` — it is already decorated with `@deprecated`."
+                        " Apply `@deprecated` once per accessor."
+                    )
             # Preserve explicit doc only when it differs from fget's doc (author override)
             # or when fget is absent (setter/deleter-only property with doc= supplied).
             # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
             explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
-            return property(  # type: ignore[return-value]
+
+            # Closure captured on the returned ``_DeprecatedProperty`` so chain-style
+            # ``@value.setter`` / ``@value.deleter`` can re-wrap freshly-supplied accessors
+            # with the same packing config (template_mgs, stream, deprecated_in, remove_in,
+            # num_warns, skip_if, stacklevel). args_mapping / args_extra / callable target are
+            # blocked above by TypeError guards and are never reachable here.
+            # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
+            # accessor is raw — silently dropping the deprecation warning on attribute writes.
+            _accessor_sl = _stacklevel + 1
+
+            def _wrap_accessor(fn: Callable) -> Callable:
+                return packing(fn, _accessor_sl)
+
+            return _DeprecatedProperty(  # type: ignore[return-value]
                 packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
-                source.fset,
-                source.fdel,
+                packing(source.fset, _stacklevel + 1) if source.fset is not None else None,
+                packing(source.fdel, _stacklevel + 1) if source.fdel is not None else None,
                 explicit_doc,
+                _wrap=_wrap_accessor,
             )
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
         if isinstance(source, cached_property):

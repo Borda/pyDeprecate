@@ -1092,6 +1092,221 @@ With this pattern, stacking `@my_decorator` above `@deprecated` on an `async def
 
 ______________________________________________________________________
 
+## Setter or deleter on a deprecated property doesn't warn
+
+**Q:** I decorated my property with `@deprecated` and added a setter via `@value.setter`, but writing to the property is silent — no `FutureWarning` is emitted. Deleting via `del obj.value` is also silent. What is happening?
+
+**A:** The two property decorator orders behave differently. **Inner order** (`@property` outermost, `@deprecated` closer to `def`) wraps the getter (`fget`) only. Any setter or deleter added later via `@value.setter` / `@value.deleter` is a plain accessor with no deprecation closure, so writes and deletes are silent.
+
+```python
+# phmdoctest:skip — silent setter/deleter is intended for inner-order wrapping
+from deprecate import deprecated
+
+
+class MyClass:
+    @property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")  # inner order — wraps fget only
+    def value(self) -> int:
+        return self._value
+
+    @value.setter
+    def value(self, new_value: int) -> None:
+        self._value = new_value  # write is SILENT — no FutureWarning
+
+    @value.deleter
+    def value(self) -> None:
+        self._value = 0  # delete is SILENT — no FutureWarning
+```
+
+Use **outer order** (`@deprecated` outermost, `@property` closer to `def`) so all three accessors are wrapped — the `property` subclass re-wraps any setter or deleter added later via chain-style decorators:
+
+```python
+from deprecate import deprecated
+
+
+class MyClass:
+    def __init__(self) -> None:
+        self._value = 0
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0")  # outer order — wraps fget, fset, fdel
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @value.setter
+    def value(self, new_value: int) -> None:
+        self._value = new_value  # write now FIRES FutureWarning
+
+    @value.deleter
+    def value(self) -> None:
+        self._value = 0  # delete now FIRES FutureWarning
+
+
+obj = MyClass()
+obj.value = 5  # FutureWarning fires here
+del obj.value  # FutureWarning fires here
+print(obj._value)
+```
+
+<details>
+  <summary>Output: <code>obj._value</code></summary>
+
+```
+0
+```
+
+</details>
+
+When you need full control over which accessors warn — for example a setter-only or deleter-only property — construct the `property` explicitly and wrap it once with `@deprecated`:
+
+```python
+from deprecate import deprecated
+
+
+def _fget(self):
+    return self._value
+
+
+def _fset(self, v):
+    self._value = v
+
+
+def _fdel(self):
+    self._value = None
+
+
+class MyClass:
+    def __init__(self) -> None:
+        self._value = 0
+
+    # All three accessors deprecation-wrapped in one shot.
+    value = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_fget, _fset, _fdel))
+
+
+obj = MyClass()
+obj.value = 7  # FutureWarning on write
+print(obj.value)  # FutureWarning on read
+del obj.value  # FutureWarning on delete
+print(obj._value)
+```
+
+<details>
+  <summary>Output: <code>obj._value</code></summary>
+
+```
+7
+None
+```
+
+</details>
+
+______________________________________________________________________
+
+## TypeError: `@deprecated` cannot be applied twice to the already-deprecated property
+
+**Q:** I tried to stack two `@deprecated` decorators on a property and got `TypeError: ... cannot be applied twice to the already-deprecated property`. Why is this disallowed, and how do I add a setter or deleter to an already-deprecated property?
+
+**A:** Double-wrapping a deprecated property would emit two `FutureWarning` notices per access and run the stacking guard three times. The decorator raises `TypeError` at decoration time so the misconfiguration cannot reach production. The error message names the offending property and points to the supported alternatives.
+
+```python
+# phmdoctest:skip — intentional misconfiguration; raises TypeError at decoration time
+from deprecate import deprecated
+
+
+def _fget(self):
+    return 0
+
+
+# First @deprecated — fine.
+once_wrapped = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_fget))
+
+# Second @deprecated on the already-wrapped property — TypeError at decoration time.
+twice_wrapped = deprecated(deprecated_in="2.0", remove_in="3.0")(once_wrapped)
+# TypeError: @deprecated cannot be applied twice to the already-deprecated property ...
+```
+
+**Fix — apply `@deprecated` once, then use chain-style `@value.setter` / `@value.deleter`** to add accessors. The outer-order subclass of `property` re-wraps the freshly-supplied accessor with the same packing config so warnings continue to fire on every access kind:
+
+```python
+from deprecate import deprecated
+
+
+class MyClass:
+    def __init__(self) -> None:
+        self._value = 0
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0")  # outer order — single application
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @value.setter
+    def value(self, new_value: int) -> None:
+        self._value = new_value  # warning fires here too
+
+    @value.deleter
+    def value(self) -> None:
+        self._value = 0  # warning fires here too
+
+
+obj = MyClass()
+obj.value = 9
+print(obj.value)
+```
+
+<details>
+  <summary>Output: <code>obj.value</code></summary>
+
+```
+9
+```
+
+</details>
+
+**Alternative — build the `property` explicitly with all three accessors and wrap once:**
+
+```python
+from deprecate import deprecated
+
+
+def _fget(self):
+    return self._value
+
+
+def _fset(self, v):
+    self._value = v
+
+
+def _fdel(self):
+    self._value = None
+
+
+class MyClass:
+    def __init__(self) -> None:
+        self._value = 0
+
+    # Single @deprecated wraps all three accessors at once — no chain stacking needed.
+    value = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_fget, _fset, _fdel))
+
+
+obj = MyClass()
+obj.value = 42
+print(obj.value)
+```
+
+<details>
+  <summary>Output: <code>obj.value</code></summary>
+
+```
+42
+```
+
+</details>
+
+If you need to chain multiple migration steps across versions, the supported pattern is one `@deprecated` on the property plus chain-style accessors — not a second `@deprecated` on top.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"
