@@ -268,8 +268,9 @@ class DeprecationConfig:
             available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
             ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when selective per-attribute
-            deprecation is enabled.  Audit tools surface this for documentation and migration tracking.  ``None``
-            (default) means the proxy uses its blanket-warning behaviour (every attribute access emits a warning).
+            deprecation is enabled.  Stored here for future audit tooling; ``audit.py`` does not yet surface
+            per-attribute fields.  ``None`` (default) means the proxy uses its blanket-warning behaviour (every
+            attribute access emits a warning).
 
     """
 
