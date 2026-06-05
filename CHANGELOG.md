@@ -1,5 +1,19 @@
 # Changelog
 
+## [UnReleased] - 2026-MM-DD
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+______________________________________________________________________
+
 ## [0.9.0] — 2026-06-05 — Generators, async, & markdown audit tables
 
 ### Added
@@ -20,10 +34,6 @@
 - **Audit chain classification — `ARGS_REMAP + NOTIFY` is now classified as `STACKED`** rather than `TARGET`. Fixes audit reports for the supported new stacking shape. ([#172](https://github.com/Borda/pyDeprecate/pull/172))
 - **CLI warning suppression narrowed to `deprecate.*` warnings only.** Third-party warnings emitted during a scan are no longer silenced. ([#133](https://github.com/Borda/pyDeprecate/pull/133))
 - **`generate_deprecation_table()` gains `include_members` parameter** for scanning descriptor members; `validate_deprecation_expiry()` default unchanged at `include_members=False` to preserve existing scan scope. ([#133](https://github.com/Borda/pyDeprecate/pull/133))
-
-### Deprecated
-
-- *(none — all deprecation-cycle migrations were emitted in v0.8.0 or earlier)*
 
 ### Fixed
 
