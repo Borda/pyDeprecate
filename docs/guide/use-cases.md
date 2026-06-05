@@ -976,7 +976,7 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
 ## Properties and cached properties
 
-`@deprecated` works with `@property` and `@cached_property`. For a getter-only property, either decorator order fires the deprecation warning at access time. To automatically wrap all three accessors (`fget`, `fset`, `fdel`) so that read, write, **and** delete each fire `FutureWarning`, place `@deprecated` on the **outside** (`@deprecated @property` order, or explicit `deprecated(...)(property(fget, fset, fdel))`). The inner-first order (`@property @deprecated`) only wraps `fget` — setter and deleter must be decorated separately if you also need them to warn.
+`@deprecated` works with `@property` and `@cached_property`. The decorator only adds a `FutureWarning` at access time — it does **not** forward reads or writes to another property. For a getter-only property, either decorator order is valid. To add a warning to all three accessors (`fget`, `fset`, `fdel`) so that read, write, **and** delete each fire `FutureWarning`, place `@deprecated` on the **outside** (`@deprecated @property` order, or explicit `deprecated(...)(property(fget, fset, fdel))`). The inner-first order (`@property @deprecated`) only adds a warning to `fget` — apply `@deprecated` to setter and deleter separately if you also need them to warn.
 
 ```python
 from functools import cached_property
@@ -985,48 +985,34 @@ from deprecate import deprecated
 
 
 class Config:
-    # @deprecated inside @property — conventional order
     @property
     @deprecated(deprecated_in="1.0", remove_in="2.0")
     def timeout(self) -> int:
         return 30
 
-    # @deprecated outside @property — also works
-    @deprecated(deprecated_in="1.0", remove_in="2.0")
-    @property
-    def retries(self) -> int:
-        return 3
-
-    # @deprecated inside @cached_property — conventional order
     @cached_property
     @deprecated(deprecated_in="1.0", remove_in="2.0")
     def base_url(self) -> str:
         return "https://example.com"
 
-    # @deprecated outside @cached_property — also works
-    @deprecated(deprecated_in="1.0", remove_in="2.0")
-    @cached_property
-    def legacy_url(self) -> str:
-        return "https://old.example.com"
 
-
-print(Config().legacy_url)
+print(Config().timeout)
 ```
 
 <details>
-  <summary>Output: <code>Config().legacy_url</code></summary>
+  <summary>Output: <code>Config().timeout</code></summary>
 
 ```
-https://old.example.com
+30
 ```
 
 </details>
 
 The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning.
 
-!!! tip "Prefer `@property @deprecated` (deprecated closer to `def`)"
+!!! tip "Decorator order for getter-only properties"
 
-    The inner-first order is the conventional Python style. Follow this pattern for consistency if your team has no existing convention.
+    Either `@property @deprecated` (inner) or `@deprecated @property` (outer) order works for getter-only properties. Inner order is conventional — the deprecated decorator is closer to the `def`. For properties with a setter or deleter, use outer order; see the next section.
 
 ### Deprecating a property with a setter or deleter
 
@@ -1111,7 +1097,7 @@ class Config:
 
 ### Deprecated property alias on a dataclass
 
-When a dataclass field is renamed, a deprecated property creates a backward-compatible alias while emitting `FutureWarning`. The property uses the old name and delegates to the new field in the accessor body.
+When a dataclass field is renamed, define a property with the old name that delegates to the new field in its accessor body. `@deprecated` adds a `FutureWarning` to each accessor — the delegation itself is plain Python in the method body, not something the library provides.
 
 **Read-only alias (warns on read only):**
 
@@ -1183,65 +1169,17 @@ print(cfg.timeout_ms)  # prints 10_000
 
 </details>
 
-`cfg.timeout` fires `FutureWarning` and returns `cfg.timeout_ms // 1000`. `cfg.timeout = 5` fires `FutureWarning` and sets `cfg.timeout_ms = 5000`.
+`cfg.timeout` fires `FutureWarning` (from `@deprecated`) and the getter body returns `cfg.timeout_ms // 1000`. `cfg.timeout = 5` fires `FutureWarning` and the setter body assigns `cfg.timeout_ms = 5000`.
 
 !!! warning "Do not shadow a dataclass field"
 
     Do **not** use the same name as an existing dataclass field for the deprecated property. The `@dataclass`-generated `__init__` performs `self.field = value`, which conflicts with a property descriptor of the same name. Use a different name for the deprecated alias and keep the dataclass field under its new name.
 
-### Redirecting through a deprecated property
+The same pattern works on regular (non-dataclass) classes — replace field access with `self._attr` lookups in the accessor body. `@deprecated` only adds the warning in either case.
 
-`target=<callable>` raises `TypeError` when applied to a `@property` — properties have three independent accessors (`fget`, `fset`, `fdel`) and there is no unambiguous way to auto-forward them to a single callable. Redirect manually in the accessor body instead:
+!!! note "`target=<callable>` not supported on properties"
 
-```python
-from deprecate import deprecated
-
-
-class Widget:
-    def __init__(self) -> None:
-        self._color: str = "red"
-
-    @property
-    def color(self) -> str:
-        return self._color
-
-    @color.setter
-    def color(self, value: str) -> None:
-        self._color = value
-
-    # Deprecated alias — warns on read and write; delegates to the new property
-    @deprecated(deprecated_in="1.0", remove_in="2.0")
-    @property
-    def colour(self) -> str:
-        """Deprecated — use ``color`` (American spelling) instead."""
-        return self.color  # manual delegation
-
-    @colour.setter
-    def colour(self, value: str) -> None:
-        self.color = value  # manual delegation; setter also warns (outer order re-wraps it)
-
-
-w = Widget()
-print(w.colour)  # FutureWarning fired; prints 'red'
-w.colour = "blue"  # FutureWarning fired
-print(w.color)  # prints 'blue'
-```
-
-<details>
-  <summary>Output: <code>w.colour; w.color</code></summary>
-
-```
-red
-blue
-```
-
-</details>
-
-`obj.colour` fires `FutureWarning` and returns `obj.color`. `obj.colour = "blue"` fires `FutureWarning` and delegates to `obj.color = "blue"`.
-
-!!! note "Why not `target=<callable>`?"
-
-    `@deprecated` rejects `target=<callable>` on a property with `TypeError: target as a callable is not supported when decorating a property`. The replacement accessor(s) may have entirely different signatures for `fget`, `fset`, and `fdel`; delegate manually in each body instead.
+    `@deprecated` rejects `target=<callable>` on a `property` with `TypeError`. Properties have three independent accessors (`fget`, `fset`, `fdel`); there is no single callable to forward to. Delegate in each accessor body as shown above.
 
 ## Deprecating generator functions
 
