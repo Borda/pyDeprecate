@@ -142,6 +142,20 @@ class _DeprecatedProxy:
                     f" {sorted(set(seen_cycle_starters))} loops back to a previously visited key."
                     " Redirect chains must terminate at an attribute name not present as a key in `attrs_mapping`."
                 )
+            # Validate that every non-None redirect target attribute exists on the class so that
+            # accessing a deprecated alias never raises AttributeError on the first warning.
+            # For callable targets, redirects land on the target class; otherwise they land on obj.
+            _attr_check_obj = target if callable(target) else obj
+            missing_targets = [
+                f"{k!r} -> {v!r}"
+                for k, v in attrs_mapping.items()
+                if v is not None and not hasattr(_attr_check_obj, v)
+            ]
+            if missing_targets:
+                raise ValueError(
+                    f"`attrs_mapping` redirect targets not found on the wrapped class: {missing_targets}."
+                    " Each non-None value must be an existing attribute name."
+                )
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
         misconfigured = target is False or _misconfigured_override
