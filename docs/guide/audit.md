@@ -372,7 +372,7 @@ A deprecated wrapper whose `target` is itself another deprecated function create
 Two chain types are reported:
 
 - `ChainType.TARGET` — the target is a deprecated callable that forwards to another function. Fix by pointing directly to the final (non-deprecated) implementation.
-- `ChainType.STACKED` — argument mappings chain through multiple hops and must be composed. This covers both the case where a callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming), and the case where multiple `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators are stacked on the same function without being merged.
+- `ChainType.STACKED` — mappings chain through multiple hops and must be composed. This covers callable argument chains, stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators, and `deprecated_class(attrs_mapping=...)` entries where one deprecated attribute redirects to another deprecated attribute alias.
 
 The example below shows both bad patterns and the correct direct form:
 

@@ -382,6 +382,25 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.invalid_args == []
         assert result.no_effect is False
 
+    def test_proxy_attrs_mapping_chain_detected_as_stacked_chain(self) -> None:
+        """Audit reports an ``attrs_mapping`` chain without decoration-time failure."""
+
+        class Palette:
+            a = 1
+            b = 2
+            c = 3
+
+        proxy = _DeprecatedProxy(
+            obj=Palette,
+            name="Palette",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            attrs_mapping={"a": "b", "b": "c"},
+            stream=None,
+        )
+        result = validate_deprecation_wrapper(proxy)
+        assert result.chain_type is ChainType.STACKED
+
     def test_proxy_function_name_from_dep_info(self) -> None:
         """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
 

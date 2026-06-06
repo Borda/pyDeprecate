@@ -24,6 +24,7 @@ Example:
 
 """
 
+import inspect
 import types
 import warnings
 from collections.abc import Iterator
@@ -83,6 +84,28 @@ class _DeprecatedProxy:
 
     """
 
+    @staticmethod
+    def _get_static_attr_owner(obj: Any) -> Any:  # noqa: ANN401
+        """Return the object whose attributes should be validated without dynamic lookup."""
+        if isinstance(obj, _DeprecatedProxy):
+            return object.__getattribute__(obj, "wrapped")
+        return obj
+
+    @classmethod
+    def _has_static_attribute(cls, obj: Any, name: str) -> bool:  # noqa: ANN401
+        """Return whether *name* exists without invoking ``__getattr__`` or descriptors."""
+        try:
+            inspect.getattr_static(cls._get_static_attr_owner(obj), name)
+        except AttributeError:
+            return False
+        return True
+
+    @staticmethod
+    def _target_display_name(target: Any, fallback: str) -> str:  # noqa: ANN401
+        """Return a warning-display name without triggering proxy ``__getattr__``."""
+        target_owner = _DeprecatedProxy._get_static_attr_owner(target)
+        return getattr(target_owner, "__name__", fallback)
+
     def __init__(
         self,
         obj: Any,  # noqa: ANN401
@@ -121,38 +144,38 @@ class _DeprecatedProxy:
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of on the first proxy access.
         _validate_template_mgs(template_mgs)
-        # Reject true cycle redirects in ``attrs_mapping`` at decoration time.  A cycle is when
-        # following the redirect chain eventually loops back to a previously-visited key
-        # (e.g. {"a": "b", "b": "a"}).  Multi-stage rename chains like {"a": "b", "b": "c"} are
-        # valid: they terminate at "c" which is not a key in the mapping, so no loop occurs.
+        # Reject true cycles in ``attrs_mapping`` at decoration time. Non-cyclic chains
+        # are allowed at runtime and surfaced by audit as mapping chains.
         if attrs_mapping is not None:
-            seen_cycle_starters: list[str] = []
+            cycle_starters: list[str] = []
             for start in attrs_mapping:
                 visited: set[str] = {start}
                 current = attrs_mapping[start]
                 while current is not None and current in attrs_mapping:
                     if current in visited:
-                        seen_cycle_starters.append(start)
+                        cycle_starters.append(start)
                         break
                     visited.add(current)
                     current = attrs_mapping[current]
-            if seen_cycle_starters:
+            if cycle_starters:
                 raise ValueError(
                     f"`attrs_mapping` has circular redirects — the redirect chain starting from"
-                    f" {sorted(set(seen_cycle_starters))} loops back to a previously visited key."
-                    " Redirect chains must terminate at an attribute name not present as a key in `attrs_mapping`."
+                    f" {sorted(set(cycle_starters))} loops back to a previously visited key."
+                    " Redirect chains must terminate at an attribute name that does not loop."
                 )
             # Validate that every non-None redirect target attribute exists on the class so that
             # accessing a deprecated alias never raises AttributeError on the first warning.
-            # For callable targets, redirects land on the target class; otherwise they land on obj.
-            _attr_check_obj = target if callable(target) else obj
+            attr_check_obj = target if target is not None and not isinstance(target, TargetMode) else obj
             missing_targets = [
-                f"{k!r} -> {v!r}" for k, v in attrs_mapping.items() if v is not None and not hasattr(_attr_check_obj, v)
+                f"{k!r} -> {v!r}"
+                for k, v in attrs_mapping.items()
+                if v is not None and not self._has_static_attribute(attr_check_obj, v)
             ]
             if missing_targets:
                 raise ValueError(
-                    f"`attrs_mapping` redirect targets not found on the wrapped class: {missing_targets}."
-                    " Each non-None value must be an existing attribute name."
+                    f"`attrs_mapping` redirect targets not found on the active class: {missing_targets}."
+                    " Each non-None value must be an existing attribute name on the target class when `target` is"
+                    " provided, or on the wrapped class otherwise."
                 )
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
@@ -282,9 +305,10 @@ class _DeprecatedProxy:
                 return
             # Per-attribute warning for ``attrs_mapping``: format the message so callers see the
             # deprecated attribute name and (when a non-``None`` redirect is configured) the canonical
-            # replacement attribute path on the wrapped class.
-            if target is not None:
-                owner = target.__name__ if callable(target) else dep.name
+            # replacement attribute path on the active class.
+            new_attr = dep.attrs_mapping[attr_name]
+            if new_attr is not None:
+                owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
                 target_path = f"{owner}.{new_attr}"
                 template = custom_template or TEMPLATE_WARNING_CALLABLE
                 msg = template % {
@@ -415,7 +439,7 @@ class _DeprecatedProxy:
             if name in attrs_mapping:
                 self._warn(arg_name=f"__attr__:{name}")
                 redirect = attrs_mapping[name]
-                active = self._get_active()
+                active = self._get_active() if redirect is not None else self._cfg.obj
                 return getattr(active, redirect if redirect is not None else name)
             # Not a deprecated attr — silent passthrough, no warning.
             return getattr(self._get_active(), name)
@@ -445,7 +469,8 @@ class _DeprecatedProxy:
         if attrs_mapping is not None and name in attrs_mapping:
             self._warn(arg_name=f"__attr__:{name}")
             redirect = attrs_mapping[name]
-            setattr(self._get_active(), redirect if redirect is not None else name, value)
+            active = self._get_active() if redirect is not None else self._cfg.obj
+            setattr(active, redirect if redirect is not None else name, value)
             return
         setattr(self._get_active(), name, value)
 
@@ -464,7 +489,8 @@ class _DeprecatedProxy:
         if attrs_mapping is not None and name in attrs_mapping:
             self._warn(arg_name=f"__attr__:{name}")
             redirect = attrs_mapping[name]
-            delattr(self._get_active(), redirect if redirect is not None else name)
+            active = self._get_active() if redirect is not None else self._cfg.obj
+            delattr(active, redirect if redirect is not None else name)
             return
         delattr(self._get_active(), name)
 
@@ -693,10 +719,11 @@ def deprecated_class(
         attrs_mapping: Optional dict mapping deprecated attribute names to canonical names (or ``None`` for
             warn-only).  When set, only the listed attribute names emit a deprecation warning on access; all other
             attributes are forwarded silently.  The redirect applies to reads (``__getattr__``), writes
-            (``__setattr__``), and deletes (``__delattr__``).  Redirect chains must not form cycles
-            (e.g. ``{"a": "b", "b": "a"}`` raises :class:`ValueError` at decoration time).  Multi-stage
-            rename chains like ``{"a": "b", "b": "c"}`` are valid because the chain terminates at ``"c"``
-            which is not a key in the mapping.
+            (``__setattr__``), and deletes (``__delattr__``).  Every non-``None`` value must be an existing attribute
+            on the target class when ``target`` is provided, or on the wrapped source class otherwise.
+            Redirect chains such as ``{"a": "b", "b": "c"}`` are allowed at decoration time and reported by audit as
+            :attr:`~deprecate.audit.ChainType.STACKED`. Cycles such as ``{"a": "b", "b": "a"}`` raise
+            :class:`ValueError` at decoration time.
 
             Example: ``attrs_mapping={"color": "colour", "txt": "text"}`` warns on ``proxy.color`` access and
             returns ``proxy.colour``; ``proxy.colour`` is forwarded silently.
@@ -704,12 +731,9 @@ def deprecated_class(
             When ``attrs_mapping`` is ``None`` (default), the existing behaviour is preserved: a warning is emitted
             on every attribute access through the proxy.
 
-            **Callable target interaction**: when ``target=SomeClass`` is also provided, attribute redirects
-            resolve against ``SomeClass``'s namespace rather than the source class's namespace.  For example,
-            ``deprecated_class(target=NewPalette, attrs_mapping={"color": "colour"})`` redirects reads and writes
-            to ``NewPalette.colour``, not the source class's ``colour``.  This means ``proxy.color = value`` silently
-            mutates the replacement class.  If you need attr redirects to stay within the source namespace, do not
-            combine ``attrs_mapping`` with a callable ``target``.
+            **Callable target interaction**: when ``target=SomeClass`` is also provided, listed attribute aliases
+            resolve against ``SomeClass``.  Unlisted attributes and calls continue to use the normal target-forwarding
+            behaviour.
         update_docstring: If ``True``, inject a deprecation notice into the class docstring at decoration time (same
             behaviour as ``@deprecated(update_docstring=True)``).
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the

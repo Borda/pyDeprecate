@@ -700,6 +700,7 @@ True
 Use `attrs_mapping` on `deprecated_class()` to deprecate only specific attribute names — all other attributes pass through silently. This covers attribute renames, misspelling corrections (e.g. `color` → `colour`), and warn-only notices on individual attributes.
 
 The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and redirect. Non-listed attribute names pass through without any warning.
+Non-`None` values must exist on the `target` class when `target=` is provided, or on the wrapped source class otherwise. Redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise immediately.
 
 ### Decorator syntax — attribute rename
 
@@ -932,7 +933,7 @@ True
 
 </details>
 
-`attrs_mapping` can be combined with `target=NewClass` — the proxy warning fires on attribute access, while `attrs_mapping` intercepts specific deprecated attribute aliases and redirects them to their canonical counterparts on the target class.
+`attrs_mapping` can be combined with `target=NewClass`; listed attribute aliases redirect to their canonical counterparts on the target class. Unlisted attributes and calls continue to use the normal target-forwarding behaviour.
 
 !!! note "Audit visibility"
 

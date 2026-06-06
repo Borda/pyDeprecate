@@ -1843,9 +1843,9 @@ DeprecatedAttrsPaletteWithStream = deprecated_class(
 )(TargetPalette)
 
 
-# H4 fixture: callable target + attrs_mapping.  Wraps ``PaletteOld`` (source_red) with
-# ``target=TargetPalette`` so that ``_get_active()`` returns ``TargetPalette``.  Attr redirects
-# therefore resolve against ``TargetPalette``'s namespace, not ``PaletteOld``'s.
+# H4 fixture: callable target + attrs_mapping.  Wraps ``PaletteOld`` with
+# ``target=TargetPalette``.  Listed attr redirects resolve against ``TargetPalette``; unlisted attrs
+# and calls still use normal target-forwarding behaviour.
 DeprecatedAttrsPaletteCallableTarget = deprecated_class(
     target=TargetPalette,
     attrs_mapping={"color": "colour"},

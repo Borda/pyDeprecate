@@ -921,6 +921,8 @@ True
 <summary>Example: selective attribute deprecation with <code>attrs_mapping</code></summary>
 
 Use `attrs_mapping` to deprecate only specific attribute names — other attributes pass through silently. Covers renames, misspelling corrections, warn-only notices, and Enum member aliases.
+Mapping values must exist on the `target` class when `target=` is provided, or on the wrapped class otherwise.
+Non-cyclic chains are allowed at decoration time and reported by audit; cycles raise immediately.
 
 **Decorator syntax** — apply `@deprecated_class(attrs_mapping=...)` at class definition time:
 
@@ -1777,9 +1779,10 @@ def enforce_no_deprecation_chains():
 > - The function scans all deprecated functions found by `find_deprecation_wrappers()`
 > - Returns `list[DeprecationWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
 > - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
-> - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
+> - `ChainType.STACKED` — mappings chain through multiple hops and must be composed; includes:
 >   - Callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming) — mappings compose across hops
 >   - Stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
+>   - `deprecated_class(attrs_mapping=...)` where one deprecated attribute redirects to another deprecated attribute alias
 > - Use `recursive=False` to scan only the top-level module
 
 ## 🧪 Testing Deprecated Code

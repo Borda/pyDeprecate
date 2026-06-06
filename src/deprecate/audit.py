@@ -15,7 +15,7 @@ All three are designed to be called from pytest or a CI script against an import
 **Chain detection** (:func:`~deprecate.audit.validate_deprecation_chains`):
     Detect wrappers whose ``target`` is itself a deprecated callable, forming a chain that users traverse
     unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`: ``TARGET`` (forwarding chain)
-    and ``STACKED`` (composed argument mappings).
+    and ``STACKED`` (composed argument or attribute mappings).
 
 **Report generation** (:func:`~deprecate.audit.generate_deprecation_table`):
     Generate a docs-friendly markdown summary from wrapper metadata.
@@ -215,6 +215,7 @@ class ChainType(Enum):
             caller's mapping feeds into the target's self-renaming, so both hops must be
             collapsed into one. (b) Multiple ``@deprecated(True, args_mapping=...)`` decorators
             are stacked on the same function and should be merged into a single decorator.
+            Also used when ``attrs_mapping`` values point at another deprecated attribute alias.
 
     """
 
@@ -506,6 +507,13 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
             erp_depr_tgt = wrapped.__deprecated__.target
             if erp_depr_tgt is True or erp_depr_tgt is TargetMode.ARGS_REMAP:
                 chain_type = ChainType.STACKED  # stacked self-deprecation decorators
+    attrs_mapping = dep_info.attrs_mapping
+    if (
+        chain_type is None
+        and attrs_mapping
+        and any(new_attr is not None and new_attr in attrs_mapping for new_attr in attrs_mapping.values())
+    ):
+        chain_type = ChainType.STACKED
 
     all_identity = False
     if args_mapping:

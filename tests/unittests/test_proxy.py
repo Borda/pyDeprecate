@@ -29,6 +29,7 @@ from tests.collection_deprecate import (
 )
 from tests.collection_targets import (
     NewDataClass,
+    PaletteOld,
     TargetColorEnum,
     TargetPalette,
     TargetPaletteEnum,
@@ -1171,6 +1172,8 @@ class TestDeprecatedAttrs:
         TargetPalette.colour = "red"
         TargetPalette.text = "hello"
         TargetPalette.size = 42
+        PaletteOld.color = "source_red"
+        PaletteOld.colour = "source_colour"
 
     def test_read_redirect_warns_and_returns_canonical(self) -> None:
         """Accessing a deprecated attribute alias warns and transparently returns the canonical value.
@@ -1233,6 +1236,26 @@ class TestDeprecatedAttrs:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
         # The no-target template does not include any "in favor of" phrase.
+        assert "in favor of" not in str(record[0].message)
+
+    def test_callable_target_notify_only_attr_uses_no_target_template(self) -> None:
+        """A callable class target does not turn a ``None`` attr mapping into a redirect message.
+
+        A migration can redirect some attributes through a replacement class while keeping another attribute as
+        warn-only with ``attrs_mapping={"size": None}``.  Accessing that warn-only attribute must still read the
+        active class attribute unchanged and render the no-target warning template, not an ``in favor of`` message
+        pointing at a nonexistent replacement attribute.
+
+        """
+        proxy = deprecated_class(
+            target=TargetPalette,
+            attrs_mapping={"size": None},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )(TargetPalette)
+        with pytest.warns(FutureWarning, match="size") as record:
+            value = proxy.size  # type: ignore[attr-defined]
+        assert value == 42
         assert "in favor of" not in str(record[0].message)
 
     def test_per_attribute_warning_budget_independent(self) -> None:
@@ -1320,7 +1343,7 @@ class TestDeprecatedAttrs:
         instance is created, making the misconfiguration visible immediately rather than at access time.
 
         """
-        with pytest.raises(ValueError, match="circular"):
+        with pytest.raises(ValueError, match="circular redirects"):
 
             @deprecated_class(
                 attrs_mapping={"a": "b", "b": "a"},
@@ -1330,6 +1353,27 @@ class TestDeprecatedAttrs:
             class _Circular:
                 a = 1
                 b = 2
+
+    def test_redirect_chain_allowed_at_decoration_time(self) -> None:
+        """Multi-hop attribute redirects are allowed for audit to report later.
+
+        ``attrs_mapping={"a": "b", "b": "c"}`` is a mapping chain, but not a cycle. The decorator should keep import
+        time usable and leave chain hygiene to audit tooling.
+
+        """
+
+        @deprecated_class(
+            attrs_mapping={"a": "b", "b": "c"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=None,
+        )
+        class _Chained:
+            a = 1
+            b = 2
+            c = 3
+
+        assert _Chained.a == 2
 
     def test_attrs_mapping_stored_in_metadata(self) -> None:
         """``attrs_mapping`` is visible in ``__deprecated__`` metadata for audit tools.
@@ -1343,29 +1387,65 @@ class TestDeprecatedAttrs:
         assert meta.attrs_mapping == {"color": "colour", "txt": "text"}
 
     def test_attrs_mapping_with_callable_target_resolves_against_target_namespace(self) -> None:
-        """When ``target=SomeClass`` and ``attrs_mapping`` are both set, attr redirects use the target namespace.
+        """When ``target=SomeClass`` and ``attrs_mapping`` are both set, attr redirects use the target class.
 
-        ``_get_active()`` returns the callable target when set.  So
         ``deprecated_class(target=TargetPalette, attrs_mapping={"color": "colour"})(PaletteOld)``
-        redirects reads of ``proxy.color`` to ``TargetPalette.colour`` rather than the source
-        ``PaletteOld.color``.  This behaviour is documented in the ``deprecated_class`` docstring;
-        this test pins it so any future change is visible in the diff.
+        redirects mapped reads of ``proxy.color`` to ``TargetPalette.colour``.  Without a callable target the redirect
+        would stay on the wrapped source class.
 
         """
-        # DeprecatedAttrsPaletteCallableTarget wraps PaletteOld (color="source_red") with
-        # target=TargetPalette (colour="red") and attrs_mapping={"color": "colour"}.
-        # Read: proxy.color should return TargetPalette.colour ("red"), not PaletteOld.color ("source_red").
+        PaletteOld.colour = "source_colour"
+        TargetPalette.colour = "red"
         value = DeprecatedAttrsPaletteCallableTarget.color  # type: ignore[attr-defined]
-        assert value == TargetPalette.colour  # resolved against target namespace
-        assert value != "source_red"  # NOT the source class attribute value
+        assert value == TargetPalette.colour
+        assert value != PaletteOld.colour
 
-        # Write: proxy.color = "blue" should mutate TargetPalette.colour (target namespace).
-        original = TargetPalette.colour
+        original_source = PaletteOld.colour
+        original_target = TargetPalette.colour
         try:
             DeprecatedAttrsPaletteCallableTarget.color = "blue"  # type: ignore[attr-defined]
-            assert TargetPalette.colour == "blue"  # target was mutated
+            assert TargetPalette.colour == "blue"
+            assert PaletteOld.colour == original_source
         finally:
-            TargetPalette.colour = original  # restore to avoid test pollution
+            PaletteOld.colour = original_source
+            TargetPalette.colour = original_target
+
+    def test_attrs_mapping_validation_does_not_consume_target_proxy_warning_budget(self) -> None:
+        """Validation does not call ``hasattr`` on a live target proxy.
+
+        A target proxy can warn from ``__getattr__`` when queried for one of its deprecated aliases.  Decorating a
+        second proxy with that object as ``target`` must not touch the target proxy during redirect-target validation,
+        otherwise the target's one-warning budget can be consumed before any user access.
+
+        """
+
+        class TargetAlias:
+            alias = "target_alias"
+            canonical = "target_canonical"
+
+        target_proxy = deprecated_class(
+            attrs_mapping={"alias": "canonical"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            num_warns=1,
+        )(TargetAlias)
+        target_cfg = object.__getattribute__(target_proxy, "_DeprecatedProxy__config")
+        target_cfg.warned_args.clear()
+
+        class SourceAlias:
+            old = "source_old"
+            alias = "source_alias"
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            deprecated_class(
+                target=target_proxy,
+                attrs_mapping={"old": "alias"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )(SourceAlias)
+        assert not caught
+        assert target_cfg.warned_args == {}
 
     def test_delete_redirect_warns_and_deletes_canonical(self) -> None:
         """Deleting a deprecated attribute alias warns and deletes the canonical attribute.
