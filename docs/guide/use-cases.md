@@ -773,7 +773,6 @@ red
 The `attrs_mapping` interception applies to all three access modes. Writing to a deprecated attribute alias warns and sets the canonical attribute instead:
 
 ```python
-import warnings
 from deprecate import deprecated_class
 
 
@@ -958,7 +957,6 @@ Three misconfiguration combinations are caught at decoration time and emit a `Us
 When `deprecated_class` receives both `target=NewClass` and `attrs_mapping`, the two features compose cleanly: listed deprecated attribute aliases resolve against `NewClass`, while unlisted attributes and instantiation calls also forward to `NewClass`. Entries mapped to `None` keep the same attribute name on `NewClass`; for example, `attrs_mapping={"size": None}` warns and then reads, writes, or deletes `NewClass.size`. Use this pattern for a full class replacement where some attribute names changed between the old and the new class.
 
 ```python
-import warnings
 from deprecate import deprecated_class
 
 
