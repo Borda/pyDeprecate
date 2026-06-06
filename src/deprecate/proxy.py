@@ -177,6 +177,19 @@ class _DeprecatedProxy:
                     " Each non-None value must be an existing attribute name on the target class when `target` is"
                     " provided, or on the wrapped class otherwise."
                 )
+            # Validate that every warn-only key (None-value entry) also exists on the active class.
+            # Warn-only accesses route to attr_check_obj (target when callable, else source), so the
+            # key must exist there. A missing key would pass decoration silently but raise AttributeError
+            # on first access.
+            missing_keys = [
+                k for k, v in attrs_mapping.items() if v is None and not self._has_static_attribute(attr_check_obj, k)
+            ]
+            if missing_keys:
+                raise ValueError(
+                    f"`attrs_mapping` warn-only keys not found on the active class: {missing_keys}."
+                    " Each key with a `None` value must be an existing attribute name on the target class"
+                    " when `target` is provided, or on the wrapped class otherwise."
+                )
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
         misconfigured = target is False or _misconfigured_override
@@ -438,8 +451,8 @@ class _DeprecatedProxy:
 
         When ``attrs_mapping`` is configured, only attributes listed in the mapping emit a warning; all other accesses
         are forwarded silently without a warning.  The redirect target name (value in the mapping) is used for the
-        actual attribute lookup when the value is a non-``None`` string; ``None`` means warn-only with no rename on
-        the active object.
+        actual attribute lookup when the value is a non-``None`` string; ``None`` means warn-only with no rename on the
+        active object.
 
         In read-only mode, common mutating methods on built-in collections (for example, ``append`` or ``update``) are
         wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.

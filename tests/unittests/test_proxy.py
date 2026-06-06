@@ -1541,6 +1541,25 @@ class TestDeprecatedAttrs:
         finally:
             TargetPalette.size = original  # restore for subsequent tests
 
+    def test_warn_only_key_missing_from_source_raises_at_decoration_time(self) -> None:
+        """A warn-only ``attrs_mapping`` key that does not exist on the source class raises at decoration time.
+
+        When ``attrs_mapping={"nonexistent": None}`` is passed and the source class has no ``nonexistent`` attribute,
+        the decorator must raise ``ValueError`` immediately during class decoration rather than silently producing a
+        proxy that raises ``AttributeError`` only on first access.  This mirrors the behaviour for redirect-target
+        validation (non-None values) and ensures the complete mapping is validated eagerly.
+
+        """
+        with pytest.raises(ValueError, match="warn-only keys not found on the active class"):
+
+            @deprecated_class(
+                attrs_mapping={"nonexistent": None},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )
+            class _MissingWarnOnly:
+                colour: str = "red"
+
 
 class TestAttrsMappingCombinations:
     """Combination matrix for ``deprecated_class()`` ``attrs_mapping`` configurations.
