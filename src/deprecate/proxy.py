@@ -283,7 +283,7 @@ class _DeprecatedProxy:
             # Per-attribute warning for ``attrs_mapping``: format the message so callers see the
             # deprecated attribute name and (when a non-``None`` redirect is configured) the canonical
             # replacement attribute path on the wrapped class.
-            if new_attr is not None:
+            if owner is not None:
                 owner = target.__name__ if callable(target) else dep.name
                 target_path = f"{owner}.{new_attr}"
                 template = custom_template or TEMPLATE_WARNING_CALLABLE
