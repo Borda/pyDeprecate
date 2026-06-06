@@ -434,3 +434,38 @@ class PaletteOld:
 
     color: str = "source_red"
     colour: str = "source_colour"
+
+
+class CombinedAttrsArgsTarget:
+    """Target class combining a canonical attribute and a constructor keyword for combination matrix tests.
+
+    Carries ``colour`` as the canonical attribute name (paired with deprecated alias ``color`` on a wrapping proxy) and
+    a ``new_arg`` constructor keyword (paired with deprecated alias ``old_arg`` on the same proxy).  Wrapped by
+    ``DeprecatedAttrsPaletteAllThree`` in :mod:`tests.collection_deprecate` to verify that ``attrs_mapping`` and
+    ``args_mapping`` operate on disjoint surfaces (attribute access vs constructor kwargs) without interference.
+
+    """
+
+    colour: str = "red"
+    color: str = "target_color_legacy"  # canonical-side alias, never read by the proxy
+
+    def __init__(self, new_arg: int = 0) -> None:
+        """Store the canonical constructor keyword argument."""
+        self.new_arg = new_arg
+
+
+class CombinedAttrsArgsSource:
+    """Source class for combination matrix tests with deprecated attr alias and constructor kwarg.
+
+    Has ``colour`` (canonical) and ``color`` (deprecated alias).  Constructor takes ``old_arg`` (deprecated) and
+    ``new_arg`` (canonical). Wrapped by ``DeprecatedAttrsPaletteAllThree`` with both ``attrs_mapping`` and
+    ``args_mapping`` configured against :class:`CombinedAttrsArgsTarget` as the forwarding target.
+
+    """
+
+    colour: str = "source_red"
+    color: str = "source_color_legacy"
+
+    def __init__(self, old_arg: int = 0, new_arg: int = 0) -> None:
+        """Store either the old or the new keyword argument under a single attribute for assertions."""
+        self.value = old_arg or new_arg

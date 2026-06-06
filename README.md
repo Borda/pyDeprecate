@@ -992,6 +992,8 @@ red
 
 Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
 
+**Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Three misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.NOTIFY` + `attrs_mapping=...` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only.
+
 </details>
 
 <br>

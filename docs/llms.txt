@@ -18,6 +18,7 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 - If `target=<callable>` is provided, pyDeprecate forwards the call to the target. The deprecated function body is not the migration path.
 - If you only need a warning and no forwarding, omit `target` or use `TargetMode.NOTIFY`.
 - For argument rename migrations, use `TargetMode.ARGS_REMAP` and `args_mapping={"old": "new"}`.
+- For selective per-attribute deprecation on a class proxy, use `TargetMode.ATTRS_REMAP` and `attrs_mapping={"old": "new"}` (or pass `attrs_mapping` alone — auto-resolves to `ATTRS_REMAP`). Proxy-only mode; `TypeError` on `@deprecated` functions/methods.
 - For classes, use `deprecated_class`; for constants or object aliases, use `deprecated_instance`.
 - Always provide `deprecated_in`, `remove_in`, and a migration message when possible.
 
@@ -115,6 +116,20 @@ DeprecatedConfig = deprecated_class(
     deprecated_in="1.2",
     remove_in="2.0",
     # FutureWarning on DeprecatedConfig.color: "The `color` was deprecated since v1.2 in favor of `Config.colour`. It will be removed in v2.0."
+)(Config)
+
+# Equivalent self-documenting form: explicit target=TargetMode.ATTRS_REMAP.
+# Both forms are equivalent; the explicit form makes the intent visible at the call site.
+# Misconfigs caught at decoration time:
+#   - target=TargetMode.ATTRS_REMAP without attrs_mapping → UserWarning (TypeError in v1.0)
+#   - target=TargetMode.NOTIFY with attrs_mapping → UserWarning (TypeError in v1.0)
+#   - attrs_mapping={} (empty dict) → UserWarning (TypeError in v1.0)
+from deprecate import TargetMode
+DeprecatedConfigExplicit = deprecated_class(
+    target=TargetMode.ATTRS_REMAP,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.2",
+    remove_in="2.0",
 )(Config)
 ```
 
@@ -236,7 +251,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 | Drop deprecated argument | `args_mapping={"old": None}` |
 | No replacement | `@deprecated(target=TargetMode.NOTIFY)` or omit `target` |
 | Class rename | `@deprecated_class(target=NewClass)` |
-| Deprecate selected class attributes | `deprecated_class(attrs_mapping={"old": "new"}, ...)` |
+| Deprecate selected class attributes | `deprecated_class(attrs_mapping={"old": "new"}, ...)` (or `target=TargetMode.ATTRS_REMAP` + `attrs_mapping`) |
 | Constant/object alias | `deprecated_instance(obj, ...)` |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
 | Docs table | `generate_deprecation_table(pkg, style="compact")` or `style="matrix"` |
@@ -247,14 +262,14 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 1. Are you renaming a callable? Use `@deprecated(target=new_callable)`.
 2. Are you renaming or dropping arguments? Use `TargetMode.ARGS_REMAP`.
 3. Are you renaming a class? Use `deprecated_class(target=NewClass)`.
-3a. Deprecating only some attributes (rename or misspelling)? Use `deprecated_class(attrs_mapping={"old": "new"}, ...)`.
+3a. Deprecating only some attributes (rename or misspelling)? Use `deprecated_class(attrs_mapping={"old": "new"}, ...)` — auto-resolves to `TargetMode.ATTRS_REMAP`. For explicit/self-documenting form, pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`.
 4. Are you keeping an object alias? Use `deprecated_instance(obj, ...)`.
 5. Do you only need a warning? Use `TargetMode.NOTIFY` or omit `target`.
 6. Do you need removal governance? Add audit checks in CI.
 
 ## Agent Notes
 
-- `deprecated_class(attrs_mapping={...})` deprecates only the listed attribute names on a class proxy. Keys are deprecated names; values are canonical replacement names (string) or `None` for warn-only. When `target=` is provided, non-`None` values must exist on the target class and mapped reads/writes/deletes route there; otherwise they route on the wrapped source class. All other attribute access is silent or follows normal `target=` forwarding when present. Non-cyclic redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise `ValueError`. All entries share the same `deprecated_in`/`remove_in`; per-attribute lifecycle is not supported. `find_deprecation_wrappers` discovers the proxy but does not emit separate records for individual `attrs_mapping` entries.
+- `deprecated_class(attrs_mapping={...})` deprecates only the listed attribute names on a class proxy. Keys are deprecated names; values are canonical replacement names (string) or `None` for warn-only. When `target=` is provided, non-`None` values must exist on the target class and mapped reads/writes/deletes route there; otherwise they route on the wrapped source class. All other attribute access is silent or follows normal `target=` forwarding when present. Non-cyclic redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise `ValueError`. All entries share the same `deprecated_in`/`remove_in`; per-attribute lifecycle is not supported. `find_deprecation_wrappers` discovers the proxy but does not emit separate records for individual `attrs_mapping` entries. **Activation forms**: passing `attrs_mapping` alone auto-resolves the mode to `TargetMode.ATTRS_REMAP`; the equivalent self-documenting form is `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`. Misconfig signals at decoration time (all `UserWarning`, will be `TypeError` in v1.0): `target=TargetMode.NOTIFY` with `attrs_mapping` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` empty dict (no-op). `TargetMode.ATTRS_REMAP` is proxy-only — applying it via `@deprecated` on a function/method raises `TypeError` at decoration time.
 - `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time.
 - `@property` with `@deprecated`: when `@deprecated` is on the **outside** (`@deprecated @property` order or explicit `deprecated(...)(property(...))`), all three accessors are wrapped — `fget`, `fset`, and `fdel` each fire `FutureWarning` when accessed, assigned, or deleted. Warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`). When `@deprecated` is on the **inside** (`@property @deprecated`), only `fget` is wrapped — warning fires on read but not on write or delete. For setter/deleter wrapping use the outer order: `@deprecated @property` then chain `@value.setter` / `@value.deleter` (re-wrapped via `_DeprecatedProperty`), or explicit `property(fget, fset[, fdel])` construction. Note: `type(x) == property` returns `False` on a decorated property; `isinstance(x, property)` is preserved. Audit: `find_deprecation_wrappers` scans the first accessor that carries `__deprecated__` metadata (`fget` → `fset` → `fdel`); setter-only properties (`fget=None`) are discovered via `fset`. `target=<callable>` and `target=TargetMode.ARGS_REMAP` / `True` both raise `TypeError` when decorating a property — property deprecation is warn-only; to redirect, delegate manually in the accessor body (e.g. `return self.new_prop`). Dataclass field alias: add a deprecated `@property` with the old name delegating to the new field; do NOT reuse an existing dataclass field name (the `@dataclass`-generated `__init__` assigns `self.field = value` which conflicts with a property descriptor of the same name).
 - `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.

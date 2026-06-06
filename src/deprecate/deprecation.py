@@ -1077,6 +1077,12 @@ def deprecated(
                     f"`target=TargetMode.ARGS_REMAP` (or legacy `True`) is not supported when decorating a `property`."
                     f" Got: {target!r}. Use `TargetMode.NOTIFY` or omit `target`."
                 )
+            if target is TargetMode.ATTRS_REMAP:
+                raise TypeError(
+                    "`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on a `property`."
+                    " `TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
+                    "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
+                )
             # Guard against pre-deprecated individual accessors fed into property(...) then
             # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
             # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
@@ -1199,6 +1205,15 @@ def deprecated(
         if callable(target) and not inspect.isclass(target):
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
+        # ATTRS_REMAP is a proxy-only mode — it is meaningless on @deprecated functions/methods
+        # because there is no attribute-access surface to intercept. Raise at decoration time
+        # rather than silently producing a wrapper whose stored target has no runtime effect.
+        if _target is TargetMode.ATTRS_REMAP:
+            raise TypeError(
+                f"`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on `{source.__name__}`. "
+                "`TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
+                "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
+            )
 
         if _has_deprecation_meta(source):
             _source_is_stacked = True

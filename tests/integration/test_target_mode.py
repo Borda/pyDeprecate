@@ -58,10 +58,11 @@ class TestTargetModeContract:
     """TargetMode enum public contract — membership and importability."""
 
     def test_members_exist(self) -> None:
-        """TargetMode exposes exactly NOTIFY and ARGS_REMAP members."""
+        """TargetMode exposes NOTIFY, ARGS_REMAP, and ATTRS_REMAP members."""
         assert hasattr(TargetMode, "NOTIFY")
         assert hasattr(TargetMode, "ARGS_REMAP")
-        assert len(list(TargetMode)) == 2
+        assert hasattr(TargetMode, "ATTRS_REMAP")
+        assert len(list(TargetMode)) == 3
 
     def test_importable_from_top_level(self) -> None:
         """TargetMode is part of the public API surface."""

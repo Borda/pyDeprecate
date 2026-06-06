@@ -185,6 +185,11 @@ class _DeprecatedProxy:
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
+        # Auto-resolve: no explicit target but attrs_mapping provided → ATTRS_REMAP
+        # Mirrors the args_mapping auto-resolve above: presence of the dict is the activation
+        # signal; explicit TargetMode.ATTRS_REMAP is the equivalent self-documenting form.
+        if target is None and attrs_mapping:
+            target = TargetMode.ATTRS_REMAP
         # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all four signals.
@@ -192,6 +197,11 @@ class _DeprecatedProxy:
             misconfigured |= TargetMode._validate(
                 target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4
             )
+        # Proxy-specific validation: attrs_mapping combinations not covered by _validate().
+        # stacklevel=5: caller → deprecated_class → inner_func → __init__ → _validate_proxy → warn
+        misconfigured |= TargetMode._validate_proxy(
+            target, name, attrs_mapping=attrs_mapping, args_mapping=args_mapping, stacklevel=5
+        )
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object,
         # extras to merge after args_mapping at call time, optional custom warning template.
         cfg = _ProxyConfig(
@@ -734,6 +744,13 @@ def deprecated_class(
             **Callable target interaction**: when ``target=SomeClass`` is also provided, listed attribute aliases
             resolve against ``SomeClass``.  Unlisted attributes and calls continue to use the normal target-forwarding
             behaviour.
+
+            The mode can also be set explicitly as ``target=TargetMode.ATTRS_REMAP`` — both forms are equivalent;
+            the explicit form is self-documenting and enables validation at decoration time. Passing
+            ``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping``, or passing an empty ``attrs_mapping={}``,
+            emits a :class:`UserWarning` at decoration time (will be :class:`TypeError` in v1.0). Passing
+            ``attrs_mapping`` together with ``target=TargetMode.NOTIFY`` is also a misconfiguration and emits a
+            :class:`UserWarning` at decoration time.
         update_docstring: If ``True``, inject a deprecation notice into the class docstring at decoration time (same
             behaviour as ``@deprecated(update_docstring=True)``).
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the

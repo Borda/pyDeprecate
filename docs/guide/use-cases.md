@@ -284,7 +284,6 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 ```python
 from deprecate import TargetMode, deprecated
-import warnings
 
 
 # TargetMode.NOTIFY: warns once by default (num_warns=1)
@@ -299,14 +298,9 @@ def renamed_arg(old_x: int = 0, x: int = 0) -> int:
     return x
 
 
-with warnings.catch_warnings(record=True) as w:
-    warnings.simplefilter("always")
-
-    going_away(1)  # → 1 warning ("going_away was deprecated since v1.0 …")
-    renamed_arg(x=1)  # → 0 warnings  (new name used — no deprecated arg present)
-    renamed_arg(old_x=1)  # → 1 warning ("renamed_arg uses deprecated arguments: `old_x` -> `x` …")
-
-    print(len(w))  # 2
+going_away(1)  # warns: FutureWarning — "going_away was deprecated since v1.0 …"
+renamed_arg(x=1)  # silent — new name used, no deprecated arg present
+renamed_arg(old_x=1)  # warns: FutureWarning — "renamed_arg uses deprecated arguments: `old_x` → `x` …"
 ```
 
 !!! danger "`target=True` (or `TargetMode.ARGS_REMAP`) without `args_mapping` is a misconfiguration"
@@ -793,21 +787,17 @@ DeprecatedPalette = deprecated_class(
     remove_in="2.0",
 )(Palette)
 
-# Write — warns and redirects to Palette.colour
-with warnings.catch_warnings(record=True) as w:
-    warnings.simplefilter("always")
-    DeprecatedPalette.color = "blue"
-print(len(w), w[0].category.__name__)  # 1 FutureWarning
+# Write — warns: FutureWarning and redirects to Palette.colour
+DeprecatedPalette.color = "blue"  # warns: FutureWarning
 
 # Canonical attribute now holds the new value (no warning on canonical reads)
 print(Palette.colour)  # blue
 ```
 
 <details>
-  <summary>Output: <code>len(w), w[0].category.__name__; Palette.colour</code></summary>
+  <summary>Output: <code>Palette.colour</code></summary>
 
 ```
-1 FutureWarning
 blue
 ```
 
@@ -853,7 +843,6 @@ print(DeprecatedWidget.size)  # 42 — no second warning
 Each deprecated attribute name has its own warning counter. With `num_warns=1` (the default), accessing two different deprecated aliases each emits one warning independently — two warnings total, not one shared budget:
 
 ```python
-import warnings
 from deprecate import deprecated_class
 
 
@@ -868,30 +857,15 @@ proxy = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-with warnings.catch_warnings(record=True) as w:
-    warnings.simplefilter("always")
-    _ = proxy.color  # consumes the "color" budget
-    _ = proxy.txt  # consumes the "txt" budget (independent counter)
-
-print(len(w))  # 2 — one per deprecated attribute
+_ = proxy.color  # warns: FutureWarning — "color" budget consumed
+_ = proxy.txt  # warns: FutureWarning — "txt" budget consumed (independent counter)
 
 # Both budgets now exhausted — subsequent accesses are silent
-with warnings.catch_warnings(record=True) as w2:
-    warnings.simplefilter("always")
-    _ = proxy.color
-    _ = proxy.txt
-print(len(w2))  # 0
+_ = proxy.color  # silent
+_ = proxy.txt  # silent
 ```
 
-<details>
-  <summary>Output: <code>len(w); len(w2)</code></summary>
 
-```
-2
-0
-```
-
-</details>
 
 ### Enum — deprecated member aliases
 
@@ -938,6 +912,329 @@ True
 !!! note "Audit visibility"
 
     `find_deprecation_wrappers` discovers the proxy via its class-level `__deprecated__`. Individual `attrs_mapping` entries are data inside the single proxy config and are not emitted as separate `DeprecationWrapperInfo` records. All entries share the same `deprecated_in`/`remove_in` lifecycle.
+
+### Explicit `TargetMode.ATTRS_REMAP` form
+
+Passing `attrs_mapping` alone auto-resolves the mode to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping` — both forms are behaviourally identical, and the explicit form makes the intent visible at the call site without changing semantics:
+
+```python
+from deprecate import TargetMode, deprecated_class
+
+
+class Palette:
+    colour: str = "red"  # canonical name
+
+
+# Explicit form — equivalent to passing `attrs_mapping` alone
+DeprecatedPalette = deprecated_class(
+    target=TargetMode.ATTRS_REMAP,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Palette)
+
+print(DeprecatedPalette.color)  # warns → returns "red"
+```
+
+<details>
+  <summary>Output: <code>DeprecatedPalette.color</code></summary>
+
+```
+red
+```
+
+</details>
+
+Three misconfiguration combinations are caught at decoration time and emit a `UserWarning` (planned to become `TypeError` in `v1.0`):
+
+| Misconfiguration                                        | Why it is wrong                                                                                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `target=TargetMode.NOTIFY` + `attrs_mapping=...`        | `NOTIFY` means "warn on every access"; `attrs_mapping` switches to selective per-attribute warning. They contradict each other — drop one. |
+| `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` | `ATTRS_REMAP` requires the deprecated attribute names listed via `attrs_mapping`. Without it the proxy has zero selective effect.          |
+| `attrs_mapping={}` (empty dict)                         | An empty mapping has no effect. Remove it or add deprecated attribute names.                                                               |
+
+`TargetMode.ATTRS_REMAP` is a **proxy-only** mode: applying it via `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function, method, or property raises `TypeError` at decoration time, with the error message pointing to `deprecated_class(attrs_mapping=...)` as the correct API.
+
+### Callable target with attribute redirection
+
+When `deprecated_class` receives both `target=NewClass` and `attrs_mapping`, the two features compose cleanly: listed deprecated attribute aliases resolve against `NewClass`, while unlisted attributes and instantiation calls also forward to `NewClass`. Use this pattern for a full class replacement where some attribute names changed between the old and the new class.
+
+```python
+import warnings
+from deprecate import deprecated_class
+
+
+class Config:
+    lr: float = 0.01  # canonical name in the new class
+    batch_size: int = 32  # unchanged attribute
+
+
+@deprecated_class(
+    target=Config,
+    attrs_mapping={"learning_rate": "lr"},  # "learning_rate" was renamed to "lr"
+    deprecated_in="2.0",
+    remove_in="3.0",
+    num_warns=-1,
+)
+class LegacyConfig:
+    learning_rate: float = 0.01  # old name — will warn
+    lr: float = 0.01  # canonical alias also present
+
+
+print(LegacyConfig.learning_rate)  # warns: FutureWarning — value from Config.lr
+
+print(LegacyConfig.lr)  # silent — canonical name
+
+print(LegacyConfig.batch_size)  # silent — unlisted attribute
+```
+
+<details>
+  <summary>Output: <code>LegacyConfig.learning_rate; LegacyConfig.lr; LegacyConfig.batch_size</code></summary>
+
+```
+0.01
+0.01
+32
+```
+
+</details>
+
+Instantiation calls are also forwarded to `Config` — `LegacyConfig(lr=0.05)` returns a `Config` instance. The `attrs_mapping` applies only to class-level attribute access on the proxy, not to the returned instance.
+
+### Combining attribute and argument deprecation
+
+`attrs_mapping` and `args_mapping` operate on orthogonal surfaces: `attrs_mapping` intercepts class-level attribute access (`__getattr__` / `__setattr__` / `__delattr__` on the proxy), while `args_mapping` intercepts call arguments (`__call__`). Both can be combined on the same proxy when `target` is a callable class with renamed class attributes and a renamed constructor parameter.
+
+```python
+from deprecate import deprecated_class
+
+
+class NewTrainer:
+    epochs: int = 10  # class-level default, required for attrs_mapping validation
+    lr: float = 0.01  # class-level default, required for attrs_mapping validation
+
+    def __init__(self, lr: float = 0.01, epochs: int = 10) -> None:
+        self.lr = lr
+        self.epochs = epochs
+
+
+@deprecated_class(
+    target=NewTrainer,
+    attrs_mapping={"n_epochs": "epochs"},  # class-level attribute rename
+    args_mapping={"learning_rate": "lr"},  # constructor argument rename
+    deprecated_in="2.0",
+    remove_in="3.0",
+    num_warns=-1,
+)
+class LegacyTrainer:
+    pass
+
+
+# Warning path 1 — args_mapping fires: old kwarg "learning_rate" remapped to "lr"
+trainer = LegacyTrainer(learning_rate=0.05)  # warns: FutureWarning
+print(trainer.lr)  # NewTrainer instance has lr=0.05
+
+# Warning path 2 — attrs_mapping fires: class-level "n_epochs" redirects to "epochs"
+default_epochs = LegacyTrainer.n_epochs  # warns: FutureWarning
+print(default_epochs)  # value from NewTrainer.epochs
+```
+
+<details>
+  <summary>Output: <code>trainer.lr; default_epochs</code></summary>
+
+```
+0.05
+10
+```
+
+</details>
+
+The two warning budgets are independent — exhausting one does not affect the other. Each deprecated name (argument or attribute) maintains its own counter, so `num_warns=1` (the default) allows each old name to warn exactly once before silencing.
+
+### Chained redirect
+
+`attrs_mapping` supports multi-hop rename chains. `{"num_iters": "num_steps", "num_steps": "max_steps"}` is a valid chain — accessing `proxy.num_iters` warns once (for `num_iters`) and resolves directly to the value stored under `num_steps` on the active class; accessing `proxy.num_steps` warns once (for `num_steps`) and resolves to `max_steps`. Audit reports this mapping structure as `ChainType.STACKED`. Cycles such as `{"a": "b", "b": "a"}` raise `ValueError` at decoration time.
+
+Every non-`None` redirect target in the chain must be a static class attribute. In the example below, `num_steps` must exist on the class because it is a redirect target for `num_iters`:
+
+```python
+from deprecate import deprecated_class
+
+
+class TrainLoop:
+    max_steps: int = 200
+    num_steps: int = max_steps  # redirect target — must exist as a static class attribute
+
+
+proxy = deprecated_class(
+    attrs_mapping={"num_iters": "num_steps", "num_steps": "max_steps"},
+    deprecated_in="2.0",
+    remove_in="3.0",
+    num_warns=-1,
+)(TrainLoop)
+
+
+val1 = proxy.num_iters  # warns: FutureWarning — deprecated v1.0 name
+print(val1)
+
+val2 = proxy.num_steps  # warns: FutureWarning — deprecated v2.0 name
+print(val2)
+
+val3 = proxy.max_steps  # silent — canonical name
+print(val3)
+```
+
+<details>
+  <summary>Output: <code>val1; val2; val3</code></summary>
+
+```
+200
+200
+200
+```
+
+</details>
+
+Each deprecated name in the chain fires exactly one warning per access (not two). The resolution is a single lookup hop: `proxy.num_iters` warns for `num_iters` and then reads `TrainLoop.num_steps` directly, which at the class level holds the same value as `max_steps`.
+
+### Nested proxy wrappers
+
+A `deprecated_class` proxy can wrap another `deprecated_class` proxy. The inner proxy handles selective attribute deprecation; the outer proxy adds a blanket class-level deprecation warning on every access regardless of attribute name. The two warning budgets are independent.
+
+```python
+from deprecate import deprecated_class
+
+
+class Palette:
+    colour: str = "red"
+    color: str = colour  # deprecated alias kept for backwards compatibility
+
+
+# Inner proxy: warns only when the deprecated alias "color" is accessed
+selective_proxy = deprecated_class(
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)(Palette)
+
+# Outer proxy: warns on every attribute access regardless of name
+blanket_proxy = deprecated_class(
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)(selective_proxy)
+
+
+# Accessing the deprecated alias through the outer proxy: two warnings fire —
+# one from the outer blanket proxy ("Palette" is deprecated) and one from the
+# inner selective proxy ("color" is deprecated in favor of "colour").
+_ = blanket_proxy.color  # warns: FutureWarning × 2 — outer blanket + inner selective
+
+# Accessing the canonical name through the outer proxy: one warning fires —
+# only the outer blanket proxy warns; the inner proxy forwards silently.
+_ = blanket_proxy.colour  # warns: FutureWarning × 1 — outer blanket only
+```
+
+
+
+The outer proxy issues its blanket class-deprecation warning first; the inner proxy then handles the attribute redirect. Two warnings fire for `blanket_proxy.color` — one per proxy layer. Accessing `blanket_proxy.colour` fires only the outer proxy warning because `colour` is not listed in the inner proxy's `attrs_mapping`.
+
+### Real-world migration: ML training config
+
+The following end-to-end example shows a typical ML library migration where a `TrainingConfig` dataclass renames several fields across versions. Existing code using the old attribute names continues to work with deprecation notices guiding users toward the canonical API.
+
+Migration summary:
+
+- v1.0 → v2.0: `lr` renamed to `learning_rate`, `n_epochs` renamed to `max_epochs`
+- v2.0: `size` attribute removed with no replacement (warn-only, `None` redirect)
+- Constructor: `hidden_dim` renamed to `hidden_size`
+
+```python
+from dataclasses import dataclass
+from deprecate import deprecated_class, find_deprecation_wrappers
+
+
+@dataclass
+class TrainingConfig:
+    learning_rate: float = 0.001
+    max_epochs: int = 100
+    hidden_size: int = 256
+
+
+@deprecated_class(
+    target=TrainingConfig,
+    attrs_mapping={
+        "lr": "learning_rate",  # v2.0 rename
+        "n_epochs": "max_epochs",  # v2.0 rename
+        "size": None,  # removed in v2.0 — warn-only, no replacement
+    },
+    args_mapping={"hidden_dim": "hidden_size"},  # constructor rename
+    deprecated_in="2.0",
+    remove_in="3.0",
+)
+class LegacyTrainingConfig:
+    lr: float = 0.001
+    learning_rate: float = 0.001
+    n_epochs: int = 100
+    max_epochs: int = 100
+    size: int = 128  # removed in v2.0
+    hidden_size: int = 256
+
+
+# Old attribute names still work — each emits one FutureWarning
+print(LegacyTrainingConfig.lr)  # warns: FutureWarning — "lr" → "learning_rate"
+print(LegacyTrainingConfig.n_epochs)  # warns: FutureWarning — "n_epochs" → "max_epochs"
+print(LegacyTrainingConfig.size)  # warns: FutureWarning — "size" removed (no replacement)
+```
+
+<details>
+  <summary>Output: <code>LegacyTrainingConfig.lr; LegacyTrainingConfig.n_epochs; LegacyTrainingConfig.size</code></summary>
+
+```
+0.001
+100
+128
+```
+
+</details>
+
+```python
+# Old constructor argument still works — emits one FutureWarning
+cfg = LegacyTrainingConfig(hidden_dim=512)  # warns: FutureWarning
+print(cfg.hidden_size)
+```
+
+<details>
+  <summary>Output: <code>cfg.hidden_size</code></summary>
+
+```
+512
+```
+
+</details>
+
+```python
+# Audit tools discover the proxy — useful for CI expiry checks
+import sys
+import types
+
+mod = types.ModuleType("my_ml_lib")
+mod.LegacyTrainingConfig = LegacyTrainingConfig
+sys.modules["my_ml_lib"] = mod
+
+results = find_deprecation_wrappers(mod)
+print(results[0].function, results[0].deprecated_info.deprecated_in)
+```
+
+<details>
+  <summary>Output: <code>results[0].function; results[0].deprecated_info.deprecated_in</code></summary>
+
+```
+LegacyTrainingConfig 2.0
+```
+
+</details>
 
 ## Automatic docstring updates
 

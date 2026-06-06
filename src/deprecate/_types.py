@@ -25,6 +25,12 @@ class TargetMode(Enum):
             kwargs via ``args_mapping`` before calling the original body. Replaces ``target=True``. This mode is
             strongly recommended with ``args_mapping``; omitting it emits a :class:`UserWarning` today, and
             :class:`TypeError` is planned in ``v1.0``.
+        ATTRS_REMAP: Selective per-attribute deprecation -- warn only when a deprecated attribute alias listed in
+            ``attrs_mapping`` is accessed; all other attribute access is forwarded silently. Proxy-specific mode:
+            only valid for :func:`~deprecate.proxy.deprecated_class`; raises :class:`TypeError` on
+            :func:`~deprecate.deprecated` decorated functions/methods. Analogous to :attr:`ARGS_REMAP` but for
+            attribute access instead of call arguments. This mode is selected automatically when ``attrs_mapping``
+            is non-empty and no explicit ``target`` is provided.
 
     Examples:
         >>> from deprecate import TargetMode
@@ -32,11 +38,14 @@ class TargetMode(Enum):
         'notify'
         >>> TargetMode.ARGS_REMAP.value
         'args_remap'
+        >>> TargetMode.ATTRS_REMAP.value
+        'attrs_remap'
 
     """
 
     NOTIFY = "notify"
     ARGS_REMAP = "args_remap"
+    ATTRS_REMAP = "attrs_remap"
 
     @classmethod
     def _from_legacy(
@@ -241,6 +250,72 @@ class TargetMode(Enum):
                 warnings.warn(msg, UserWarning, stacklevel=stacklevel)
         return bool(messages)
 
+    @classmethod
+    def _validate_proxy(
+        cls,
+        mode: "Union[TargetMode, Callable[..., Any], None]",
+        source_name: str,
+        attrs_mapping: Optional[dict[str, Optional[str]]] = None,
+        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        *,
+        stacklevel: Optional[int] = 2,
+    ) -> bool:
+        """Validate proxy-specific configuration: ``attrs_mapping`` combinations.
+
+        Catches misconfiguration pairs involving ``attrs_mapping`` that the existing
+        :meth:`~deprecate._types.TargetMode._validate` does not cover (it handles only ``args_mapping`` /
+        ``args_extra`` and is used by the function-decorator path as well).
+
+        Misconfiguration warnings will become :class:`TypeError` in ``v1.0``.
+
+        Args:
+            mode: Resolved target (:class:`~deprecate._types.TargetMode` member, callable, or ``None``).
+            source_name: ``__name__`` of the decorated class, for warning messages.
+            attrs_mapping: The ``attrs_mapping`` dict passed to :func:`~deprecate.proxy.deprecated_class`, or
+                ``None``.
+            args_mapping: The ``args_mapping`` dict, forwarded here so we can detect the
+                ``ATTRS_REMAP + args_mapping`` combination.
+            stacklevel: Forwarded to :func:`warnings.warn`. Pass ``None`` to suppress warnings. Defaults to ``2``.
+
+        Returns:
+            ``True`` if any misconfiguration was detected, ``False`` otherwise.
+
+        Examples:
+            >>> TargetMode._validate_proxy(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
+            True
+            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None, stacklevel=None)
+            True
+            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={}, stacklevel=None)
+            True
+            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
+            False
+
+        """
+        messages = []
+        if mode is cls.NOTIFY and attrs_mapping:
+            messages.append(
+                f"`deprecated_class(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
+                "`attrs_mapping`. Drop one of them: `attrs_mapping` switches to selective per-attribute "
+                "warning, which contradicts NOTIFY's warn-on-every-access semantics. "
+                "This will be `TypeError` in `v1.0`."
+            )
+        if mode is cls.ATTRS_REMAP and not attrs_mapping:
+            messages.append(
+                f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` requires "
+                "`attrs_mapping` to specify which attribute names are deprecated. Without it the "
+                "proxy has zero selective effect. This will be `TypeError` in `v1.0`."
+            )
+        if attrs_mapping is not None and len(attrs_mapping) == 0:
+            messages.append(
+                f"`deprecated_class` on `{source_name}` received `attrs_mapping={{}}` (empty dict). "
+                "An empty mapping has no effect — remove it or add deprecated attribute names. "
+                "This will be `TypeError` in `v1.0`."
+            )
+        if stacklevel is not None:
+            for msg in messages:
+                warnings.warn(msg, UserWarning, stacklevel=stacklevel)
+        return bool(messages)
+
 
 @dataclass(frozen=True)
 class DeprecationConfig:
@@ -254,8 +329,9 @@ class DeprecationConfig:
         remove_in: Version string when the callable will be removed.
         name: Display the name of the deprecated source (function or class name).
         target: Normalised target — ``None`` (default), :attr:`~deprecate._types.TargetMode.NOTIFY`,
-            :attr:`~deprecate._types.TargetMode.ARGS_REMAP`, or a callable. Legacy sentinels (``True``/``False``)
-            are normalised at decoration time and never stored verbatim.
+            :attr:`~deprecate._types.TargetMode.ARGS_REMAP`, :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`,
+            or a callable. Legacy sentinels (``True``/``False``) are normalised at decoration time and never
+            stored verbatim.
         args_mapping: Optional dict remapping argument names; values may be ``None`` to drop the argument entirely.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
         misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.

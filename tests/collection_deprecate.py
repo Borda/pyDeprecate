@@ -43,7 +43,7 @@ from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, Callable
+from typing import Any, Callable, cast
 from warnings import warn
 
 import typing_extensions
@@ -51,6 +51,8 @@ from sklearn.metrics import accuracy_score
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
 from tests.collection_targets import (
+    CombinedAttrsArgsSource,
+    CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
     NewCls,
     NewDataClass,
@@ -1853,3 +1855,48 @@ DeprecatedAttrsPaletteCallableTarget = deprecated_class(
     remove_in="2.0",
     stream=None,
 )(PaletteOld)
+
+
+# ========== Combination fixtures: deprecated_class() config matrix ==========
+# These fixtures cover the valid combinations for ATTRS_REMAP (additive alias added in v0.10):
+# - C1: Explicit ``target=TargetMode.ATTRS_REMAP`` + ``attrs_mapping`` (equivalent to implicit auto-resolve)
+# - C3: Callable target + ``attrs_mapping`` + ``args_mapping`` (three disjoint surfaces active)
+# - Nested: ``deprecated_class`` wrapping another proxy (blanket-warn outer, ATTRS_REMAP inner)
+
+# C1: Explicit TargetMode.ATTRS_REMAP form — semantically identical to the implicit
+# ``DeprecatedAttrsPalette`` fixture above. Used to verify both forms are equivalent.
+DeprecatedAttrsExplicitMode = deprecated_class(
+    target=TargetMode.ATTRS_REMAP,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(TargetPalette)
+
+
+# C3: Callable target + attrs_mapping + args_mapping — three independent surfaces.
+# ``attrs_mapping`` handles ``__getattr__``/``__setattr__``/``__delattr__`` for ``colour`` redirects;
+# ``args_mapping`` handles ``__call__`` (``old_arg`` -> ``new_arg`` kwarg rename); the callable
+# target ``CombinedAttrsArgsTarget`` receives the forwarded construction call.
+DeprecatedAttrsPaletteAllThree = deprecated_class(
+    target=CombinedAttrsArgsTarget,
+    attrs_mapping={"color": "colour"},
+    args_mapping={"old_arg": "new_arg"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(CombinedAttrsArgsSource)
+
+
+# Nested fixture: ``deprecated_class`` (blanket-warn outer) wraps another ``deprecated_class``
+# proxy (ATTRS_REMAP inner). Used to verify nested proxy semantics: the outer blanket proxy
+# warns on every attribute access; the inner selective proxy forwards silently because its
+# selective set is consumed by the outer's __getattr__ before it reaches the inner.
+# ``DeprecatedAttrsPalette`` is a ``_DeprecatedProxy`` instance (not a ``type``); the proxy
+# transparently forwards attribute access, so wrapping it again is legal at runtime — the
+# ``cast`` placates ``deprecated_class``'s type-only parameter annotation.
+DeprecatedAttrsPaletteNested = deprecated_class(
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(cast(type, DeprecatedAttrsPalette))

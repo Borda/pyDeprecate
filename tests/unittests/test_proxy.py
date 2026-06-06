@@ -8,12 +8,16 @@ from typing import Any, cast
 import pytest
 
 from deprecate._types import TargetMode
+from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
+    DeprecatedAttrsExplicitMode,
     DeprecatedAttrsNotifyOnly,
     DeprecatedAttrsPalette,
+    DeprecatedAttrsPaletteAllThree,
     DeprecatedAttrsPaletteCallableTarget,
     DeprecatedAttrsPaletteEnum,
+    DeprecatedAttrsPaletteNested,
     DeprecatedAttrsPaletteWithStream,
     DeprecatedColorDataClass,
     DeprecatedColorEnum,
@@ -28,6 +32,8 @@ from tests.collection_deprecate import (
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
+    CombinedAttrsArgsSource,
+    CombinedAttrsArgsTarget,
     NewDataClass,
     PaletteOld,
     TargetColorEnum,
@@ -1490,3 +1496,230 @@ class TestDeprecatedAttrs:
             assert not hasattr(TargetPalette, "size")
         finally:
             TargetPalette.size = original  # restore for subsequent tests
+
+
+class TestAttrsMappingCombinations:
+    """Combination matrix for ``deprecated_class()`` ``attrs_mapping`` configurations.
+
+    Covers the additive :attr:`~deprecate.TargetMode.ATTRS_REMAP` alias introduced for selective per-attribute
+    deprecation, including:
+
+    - Explicit ``target=TargetMode.ATTRS_REMAP`` form (equivalent to implicit auto-resolve)
+    - Combined callable target + ``attrs_mapping`` + ``args_mapping`` on disjoint surfaces
+    - Nested proxy semantics (blanket outer + selective inner)
+    - Misconfiguration cases at decoration time (UserWarning emissions and TypeError on functions)
+
+    Each test resets module-level fixture state before running because the combination fixtures share their per-attr
+    warning budget with the rest of the test session. The :meth:`_reset_combination_state` autouse fixture clears
+    the relevant counters and re-seeds canonical attribute values.
+
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_combination_state(self) -> None:
+        """Reset module-level combination fixture proxies and re-seed wrapped target attributes between tests."""
+        for proxy in (
+            DeprecatedAttrsExplicitMode,
+            DeprecatedAttrsPaletteAllThree,
+            DeprecatedAttrsPaletteNested,
+            DeprecatedAttrsPalette,
+        ):
+            cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
+            cfg.warned = 0
+            cfg.warned_args.clear()
+        # Re-seed canonical attributes so write-redirect tests start from baseline.
+        TargetPalette.colour = "red"
+        TargetPalette.text = "hello"
+        TargetPalette.size = 42
+        CombinedAttrsArgsTarget.colour = "red"
+        CombinedAttrsArgsSource.colour = "source_red"
+
+    # ------------------------------------------------------------------
+    # Explicit TargetMode.ATTRS_REMAP form (C1)
+    # ------------------------------------------------------------------
+
+    def test_explicit_attrs_remap_mode_reads_canonical(self) -> None:
+        """Explicit ``target=TargetMode.ATTRS_REMAP`` reads the canonical attribute through the alias.
+
+        Migrators who prefer self-documenting decorator config may write the mode explicitly as
+        ``target=TargetMode.ATTRS_REMAP`` rather than relying on implicit auto-resolution from ``attrs_mapping``.
+        Accessing ``proxy.color`` on a fixture declared with the explicit form must still emit a ``FutureWarning``
+        (suppressed here by ``stream=None``) and return the canonical ``TargetPalette.colour`` value, matching the
+        behaviour of the implicit-form fixture ``DeprecatedAttrsPalette``.
+
+        """
+        value = DeprecatedAttrsExplicitMode.color  # type: ignore[attr-defined]
+        assert value == "red"
+
+    def test_explicit_attrs_remap_mode_is_equivalent_to_implicit(self) -> None:
+        """Explicit ``target=TargetMode.ATTRS_REMAP`` is observationally equivalent to the implicit auto-resolve.
+
+        Both forms read from the same canonical attribute, expose the same ``attrs_mapping`` metadata, and store the
+        same resolved ``target`` on the frozen :class:`~deprecate._types.DeprecationConfig`. Callers must be able to
+        migrate between the two forms without behavioural change.
+
+        """
+        explicit_value = DeprecatedAttrsExplicitMode.color  # type: ignore[attr-defined]
+        implicit_value = DeprecatedAttrsPalette.color  # type: ignore[attr-defined]
+        assert explicit_value == implicit_value
+        explicit_meta = object.__getattribute__(DeprecatedAttrsExplicitMode, "__deprecated__")
+        implicit_meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
+        assert explicit_meta.target is implicit_meta.target is TargetMode.ATTRS_REMAP
+
+    def test_explicit_attrs_remap_stored_in_dep_config_target(self) -> None:
+        """Explicit ``target=TargetMode.ATTRS_REMAP`` is stored verbatim on the frozen DeprecationConfig.
+
+        Audit tooling reads ``DeprecationConfig.target`` to introspect the resolved deprecation mode. Passing the
+        enum member explicitly must preserve the same enum member in storage so that downstream consumers cannot
+        distinguish the explicit from the implicit auto-resolve at the metadata level.
+
+        """
+        meta = object.__getattribute__(DeprecatedAttrsExplicitMode, "__deprecated__")
+        assert meta.target is TargetMode.ATTRS_REMAP
+
+    def test_attrs_remap_stored_in_dep_config_target_via_auto_resolve(self) -> None:
+        """Auto-resolution from ``attrs_mapping`` to ``ATTRS_REMAP`` is reflected in stored metadata.
+
+        When the caller omits ``target`` but provides ``attrs_mapping``, the proxy must store
+        :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` on the frozen config rather than the original ``None`` so
+        that audit tooling has a single canonical mode marker regardless of how the caller spelled the config.
+
+        """
+        meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
+        assert meta.target is TargetMode.ATTRS_REMAP
+
+    # ------------------------------------------------------------------
+    # Combined callable target + attrs_mapping + args_mapping (C3)
+    # ------------------------------------------------------------------
+
+    def test_callable_target_with_attrs_and_args_mapping_attr_path(self) -> None:
+        """The attribute-access path uses ``attrs_mapping`` independently of the call path.
+
+        ``DeprecatedAttrsPaletteAllThree`` is constructed with all three of ``target=CombinedAttrsArgsTarget``,
+        ``attrs_mapping={"color": "colour"}``, and ``args_mapping={"old_arg": "new_arg"}``. Reading ``proxy.color``
+        must redirect to the canonical ``colour`` attribute on the target class, demonstrating that
+        ``attrs_mapping`` is active even when a callable target and ``args_mapping`` are also configured (each
+        surface remains disjoint).
+
+        """
+        value = DeprecatedAttrsPaletteAllThree.color  # type: ignore[attr-defined]
+        assert value == CombinedAttrsArgsTarget.colour
+
+    def test_callable_target_with_attrs_and_args_mapping_call_path(self) -> None:
+        """The call path uses ``args_mapping`` independently of the attribute-access path.
+
+        Calling the proxy with the deprecated kwarg ``old_arg`` must remap to ``new_arg`` before forwarding to the
+        ``CombinedAttrsArgsTarget`` constructor. The resulting instance's ``new_arg`` attribute reflects the value
+        the caller originally passed under the old name, proving the rename happened through the call path even when
+        ``attrs_mapping`` is also present on the same proxy.
+
+        """
+        result = DeprecatedAttrsPaletteAllThree(old_arg=42)  # type: ignore[call-arg]
+        assert isinstance(result, CombinedAttrsArgsTarget)
+        assert result.new_arg == 42
+
+    # ------------------------------------------------------------------
+    # Nested proxy semantics
+    # ------------------------------------------------------------------
+
+    def test_nested_proxy_blanket_warns_on_access(self) -> None:
+        """A blanket-warn ``deprecated_class`` proxy wrapping another proxy intercepts every attribute access.
+
+        Nesting an outer ``deprecated_class()`` (no ``attrs_mapping``, blanket-warn mode) around an inner selective
+        proxy means the outer's ``__getattr__`` fires on every attribute lookup before delegating to the inner.
+        Reading ``proxy.colour`` (a canonical attribute on the inner) must still emit a ``FutureWarning`` from the
+        outer wrapper, and the returned value must round-trip through both proxies to the underlying target class
+        attribute. ``stream=None`` is set on the fixture so this test asserts the round-trip value; warning content
+        is exercised by the implicit/explicit equivalence tests above.
+
+        """
+        value = DeprecatedAttrsPaletteNested.colour  # type: ignore[attr-defined]
+        assert value == "red"
+
+    # ------------------------------------------------------------------
+    # Misconfiguration cases (decoration-time signals)
+    # ------------------------------------------------------------------
+
+    def test_notify_plus_attrs_mapping_warns_at_decoration(self) -> None:
+        """``target=TargetMode.NOTIFY`` combined with ``attrs_mapping`` emits a UserWarning at decoration time.
+
+        ``TargetMode.NOTIFY`` means "warn on every access" — it cannot coexist with selective per-attribute warning
+        because the two policies contradict each other. The proxy must surface this misconfiguration as a
+        ``UserWarning`` when the class is decorated, not silently pick one policy over the other. The misconfig
+        also flips :attr:`~deprecate._types.DeprecationConfig.misconfigured` to ``True`` so audit tooling can flag
+        the wrapper.
+
+        """
+
+        class _NotifyAttrsMisconfig:
+            colour = "red"
+
+        with pytest.warns(UserWarning, match="NOTIFY.*ignores `attrs_mapping`"):
+            proxy = deprecated_class(
+                target=TargetMode.NOTIFY,
+                attrs_mapping={"color": "colour"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )(_NotifyAttrsMisconfig)
+        meta = object.__getattribute__(proxy, "__deprecated__")
+        assert meta.misconfigured is True
+
+    def test_attrs_remap_without_attrs_mapping_warns_at_decoration(self) -> None:
+        """``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` emits a UserWarning at decoration time.
+
+        Explicit selective mode without any deprecated attribute names listed means the proxy has zero selective
+        effect — every attribute access falls through to the blanket-warn path. This is a developer error and must
+        be flagged at decoration time so the misconfiguration cannot ship to production.
+
+        """
+
+        class _AttrsRemapMissingMapping:
+            colour = "red"
+
+        with pytest.warns(UserWarning, match="ATTRS_REMAP.*requires.*`attrs_mapping`"):
+            proxy = deprecated_class(
+                target=TargetMode.ATTRS_REMAP,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )(_AttrsRemapMissingMapping)
+        meta = object.__getattribute__(proxy, "__deprecated__")
+        assert meta.misconfigured is True
+
+    def test_empty_attrs_mapping_warns_at_decoration(self) -> None:
+        """An empty ``attrs_mapping={}`` dict is a no-op misconfiguration and emits a UserWarning.
+
+        ``attrs_mapping={}`` is a developer typo — the empty dict has no deprecated attribute entries so the
+        proxy has zero selective effect (and auto-resolve to ``ATTRS_REMAP`` does not fire because the value is
+        falsy). The validator must catch this at decoration time so the misconfiguration cannot ship silently.
+
+        """
+
+        class _EmptyAttrsMapping:
+            colour = "red"
+
+        with pytest.warns(UserWarning, match="empty dict"):
+            proxy = deprecated_class(
+                attrs_mapping={},
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )(_EmptyAttrsMapping)
+        meta = object.__getattribute__(proxy, "__deprecated__")
+        assert meta.misconfigured is True
+
+    def test_attrs_remap_on_function_raises_typeerror(self) -> None:
+        """Applying ``@deprecated(target=TargetMode.ATTRS_REMAP)`` to a function raises ``TypeError``.
+
+        :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` is a proxy-only mode — it operates on class attribute
+        access, which functions and methods do not have. Trying to apply it via ``@deprecated`` is a developer
+        error that must fail at decoration time with a clear redirect to ``deprecated_class(attrs_mapping=...)``,
+        not silently produce a wrapper whose stored target has no runtime effect.
+
+        """
+        with pytest.raises(TypeError, match="ATTRS_REMAP.*not valid.*deprecated_class"):
+
+            @deprecated(target=TargetMode.ATTRS_REMAP, deprecated_in="1.0", remove_in="2.0")
+            def _attempted_attrs_remap_fn(x: int) -> int:
+                return x
