@@ -112,6 +112,89 @@ class TestDescriptorOrderAgnostic:
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
 
 
+class TestStaticMethodDescriptorTarget:
+    """``target=<staticmethod descriptor>`` is accepted and unwrapped to the underlying function.
+
+    Inside a class body ``some_method`` is still the raw ``staticmethod`` descriptor (the descriptor
+    protocol has not yet bound it to the class).  Passing it directly as ``target=some_method`` used
+    to require the caller to write ``target=some_method.__func__``.  After the ``_normalize_target``
+    descriptor-unwrap fix, the raw descriptor is accepted and silently unwrapped — ``.__func__`` is no
+    longer needed.
+    """
+
+    def test_forwards_call(self) -> None:
+        """Calls are forwarded to the underlying function; deprecated body is dead code; FutureWarning fires.
+
+        Inside the class body ``bbb`` holds a ``staticmethod`` object.  Passing it directly as
+        ``target`` unwraps to ``bbb.__func__`` so every call is redirected without the caller
+        needing to write ``target=bbb.__func__`` explicitly.
+        """
+
+        class _Cls:
+            @staticmethod
+            def bbb(x: int) -> int:
+                """New static implementation."""
+                return x * 2
+
+            @staticmethod
+            @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
+            def aaa(x: int) -> int:
+                """Deprecated — use bbb()."""
+                raise AssertionError("body must not execute when target forwards the call")
+
+        with pytest.warns(FutureWarning):
+            result = _Cls.aaa(5)
+        assert result == 10
+
+    def test_with_args_mapping(self) -> None:
+        """``args_mapping`` renames the argument before forwarding to the descriptor target.
+
+        Combining descriptor-target unwrapping with ``args_mapping`` covers the case where the
+        old static method also renamed a parameter: ``old_x`` is remapped to ``x`` before the
+        forwarded call reaches ``bbb.__func__``.
+        """
+
+        class _Cls:
+            @staticmethod
+            def bbb(x: int) -> int:
+                """New static implementation."""
+                return x * 3
+
+            @staticmethod
+            @deprecated(
+                target=bbb,
+                args_mapping={"old_x": "x"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )
+            def aaa(old_x: int = 0, x: int = 0) -> int:
+                """Deprecated — use bbb(x=...)."""
+                raise AssertionError("body must not execute when target forwards the call")
+
+        with pytest.warns(FutureWarning):
+            result = _Cls.aaa(old_x=4)
+        assert result == 12
+
+    def test_no_decoration_time_warning(self) -> None:
+        """Descriptor unwrap is silent — no UserWarning fires when the class body is executed."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @staticmethod
+                def bbb(x: int) -> int:
+                    """New static implementation."""
+                    return x
+
+                @staticmethod
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
+                def aaa(x: int) -> int:
+                    """Deprecated."""
+                    return 0
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+
 class TestPropertyOrderAgnostic:
     """@deprecated on property/cached_property works in both decorator orders.
 

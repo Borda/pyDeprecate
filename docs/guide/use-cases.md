@@ -974,6 +974,74 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
     The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.
 
+### Forwarding a static method to another static method in the same class
+
+When renaming a `@staticmethod` within the same class, pass the new method directly as `target=new_method` — no `.__func__` suffix needed. Inside the class body `new_method` is still the raw `staticmethod` descriptor (not yet bound); pyDeprecate unwraps it automatically.
+
+```python
+from deprecate import deprecated, void
+
+
+class Compute:
+    @staticmethod
+    def area(radius: float) -> float:
+        return 3.14159 * radius ** 2
+
+    # DEPRECATED — renamed from surface() to area()
+    @staticmethod
+    @deprecated(target=area, deprecated_in="1.0", remove_in="2.0")
+    def surface(radius: float) -> float:
+        """Deprecated — use area() instead."""
+        return void(radius)
+
+
+print(Compute.surface(3.0))
+```
+
+<details>
+  <summary>Output: <code>Compute.surface(3.0)</code></summary>
+
+```
+28.27431
+```
+
+</details>
+
+Combine with `args_mapping` when a parameter was also renamed:
+
+```python
+from deprecate import deprecated, void
+
+
+class Compute:
+    @staticmethod
+    def area(radius: float) -> float:
+        return 3.14159 * radius ** 2
+
+    @staticmethod
+    @deprecated(
+        target=area,
+        args_mapping={"r": "radius"},
+        deprecated_in="1.0",
+        remove_in="2.0",
+    )
+    def surface(r: float = 0.0, radius: float = 0.0) -> float:
+        """Deprecated — use area(radius=...) instead."""
+        return void(r, radius)
+
+
+print(Compute.surface(r=3.0))
+```
+
+<details>
+  <summary>Output: <code>Compute.surface(r=3.0)</code></summary>
+
+```
+28.27431
+```
+
+</details>
+
 ## Properties and cached properties
 
 `@deprecated` works with `@property` and `@cached_property`. The decorator only adds a `FutureWarning` at access time — it does **not** forward reads or writes to another property. For a getter-only property, either decorator order is valid. To add a warning to all three accessors (`fget`, `fset`, `fdel`) so that read, write, **and** delete each fire `FutureWarning`, place `@deprecated` on the **outside** (`@deprecated @property` order, or explicit `deprecated(...)(property(fget, fset, fdel))`). The inner-first order (`@property @deprecated`) only adds a warning to `fget` — apply `@deprecated` to setter and deleter separately if you also need them to warn.

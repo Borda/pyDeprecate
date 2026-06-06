@@ -122,6 +122,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Three-layer separation**: targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, test logic in `test_*.py`
 - **Do not** define targets or `@deprecated` wrappers directly in test files
+- **No redundant naming** — test method names must not repeat the class name; in `TestFooBar` write `test_returns_value` not `test_foo_bar_returns_value` (see [CONTRIBUTING.md#avoid-redundant-naming](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
 - **Scenario description required** — every non-trivial test method docstring must include a prose paragraph describing the real-world situation being tested; a one-line summary alone is not sufficient (see [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
 - See [Test Organization](.github/CONTRIBUTING.md#test-organization) for details
 

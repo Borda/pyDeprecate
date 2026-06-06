@@ -367,7 +367,7 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
 
 def _normalize_target(
     source: Callable,
-    target: Union[bool, None, Callable, TargetMode],
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
 ) -> Union[TargetMode, Callable]:
     """Normalise the effective target callable before the wrapper closure captures it.
 
@@ -389,6 +389,12 @@ def _normalize_target(
     3. ``source`` is a module-level function → keep ``target=NewCls`` as-is; calling ``NewCls(**kwargs)`` creates
        a new instance directly.
 
+    Descriptor unwrapping:
+
+    - ``target=staticmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); enables ``target=bbb`` inside a class
+      body where ``bbb`` is still the raw ``staticmethod`` descriptor, not yet bound.
+    - ``target=classmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); same pattern for classmethod targets.
+
     Args:
         source: The callable being decorated with ``@deprecated``.
         target: Raw ``target`` argument from the ``@deprecated`` call.
@@ -408,6 +414,10 @@ def _normalize_target(
     # --- TargetMode enum pass-through ---
     if isinstance(target, TargetMode):
         return target
+
+    # --- Descriptor unwrap (staticmethod/classmethod passed from class body before binding) ---
+    if isinstance(target, (staticmethod, classmethod)):
+        return target.__func__
 
     # --- Class target handling ---
     if inspect.isclass(target):
@@ -610,7 +620,7 @@ def _source_display_name(source: Callable) -> str:
 def _raise_warn_callable(
     stream: Callable,
     source: Callable,
-    target: Union[None, bool, Callable, TargetMode],
+    target: Union[None, bool, Callable, TargetMode, staticmethod, classmethod],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -737,7 +747,7 @@ def _raise_warn_arguments(
 def _build_call_plan(
     wrapper_fn: Callable[..., Any],
     source: Callable[..., Any],
-    target: Union[bool, None, Callable[..., Any], TargetMode],
+    target: Union[bool, None, Callable[..., Any], TargetMode, staticmethod, classmethod],
     normalized_target: Union[Callable[..., Any], TargetMode],
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
@@ -911,7 +921,7 @@ def _build_call_plan(
 
 
 def deprecated(
-    target: Union[bool, None, Callable, TargetMode] = TargetMode.NOTIFY,
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod] = TargetMode.NOTIFY,
     deprecated_in: str = "",
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,

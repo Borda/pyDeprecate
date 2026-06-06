@@ -1066,6 +1066,40 @@ class ServiceCls:
         """
         return x * 2
 
+    @staticmethod
+    @deprecated(target=static_compute, deprecated_in="1.0", remove_in="2.0")
+    def old_static_redirect(x: int) -> int:
+        """Deprecated staticmethod — forwards to static_compute via descriptor target.
+
+        ``target=static_compute`` passes the raw ``staticmethod`` descriptor; ``_normalize_target``
+        unwraps it to ``static_compute.__func__`` so call forwarding works without the caller
+        needing to write ``target=static_compute.__func__`` explicitly.
+
+        Examples:
+            ``old_static_redirect(5)`` transparently calls ``static_compute(5)`` after warning.
+
+        """
+        return void(x)
+
+    @staticmethod
+    @deprecated(
+        target=static_compute,
+        args_mapping={"old_x": "x"},
+        deprecated_in="1.0",
+        remove_in="2.0",
+    )
+    def old_static_redirect_mapped(old_x: int = 0, x: int = 0) -> int:
+        """Deprecated staticmethod forwarding to static_compute with argument rename.
+
+        Combines descriptor-target unwrapping with ``args_mapping``: ``old_x`` is remapped to ``x``
+        before the call is forwarded to ``static_compute.__func__``.
+
+        Examples:
+            ``old_static_redirect_mapped(old_x=5)`` remaps to ``x=5`` then calls ``static_compute(x=5)``.
+
+        """
+        return void(old_x, x)
+
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def old_warn_method(self, x: int) -> int:
         """Deprecated — warns only, body still executes.
