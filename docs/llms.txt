@@ -168,8 +168,14 @@ What is being deprecated?
        → use @deprecated; then choose target= based on the replacement:
          ├─ Has a replacement function/method?
          │    → target=<callable>; leave body empty (pass / void())
-         │      └─ Argument names differ between old and new?
-         │           → also add args_mapping={"old_name": "new_name"}
+         │      ├─ Argument names differ between old and new?
+         │      │    → also add args_mapping={"old_name": "new_name"}
+         │      └─ Renaming a @staticmethod or @classmethod inside the same class?
+         │           → target=new_method (raw descriptor in class body) — NO .__func__ needed;
+         │             pyDeprecate unwraps it automatically.
+         │             Anti-pattern: target=new_method.__func__ (unnecessary — omit .__func__)
+         │             Note: @classmethod descriptor target requires source to also be a @classmethod
+         │             (symmetric same-class pattern only)
          ├─ Only renaming an argument within the same function?
          │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
          ├─ No replacement, warn-only?
