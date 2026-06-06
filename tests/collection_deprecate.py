@@ -1100,6 +1100,40 @@ class ServiceCls:
         """
         return void(old_x, x)
 
+    @classmethod
+    @deprecated(target=class_compute, deprecated_in="1.0", remove_in="2.0")
+    def old_class_redirect(cls, x: int) -> int:
+        """Deprecated classmethod — forwards to class_compute via descriptor target.
+
+        ``target=class_compute`` passes the raw ``classmethod`` descriptor; ``_normalize_target``
+        unwraps it to ``class_compute.__func__`` so call forwarding works.  The symmetric case
+        (both source and target are classmethods) is valid: ``cls`` is supplied by the caller.
+
+        Examples:
+            ``old_class_redirect(5)`` transparently calls ``class_compute(5)`` after warning.
+
+        """
+        return void(x)
+
+    @classmethod
+    @deprecated(
+        target=class_compute,
+        args_mapping={"old_x": "x"},
+        deprecated_in="1.0",
+        remove_in="2.0",
+    )
+    def old_class_redirect_mapped(cls, old_x: int = 0, x: int = 0) -> int:
+        """Deprecated classmethod forwarding to class_compute with argument rename.
+
+        Combines descriptor-target unwrapping with ``args_mapping``: ``old_x`` is remapped to ``x``
+        before the call is forwarded to ``class_compute.__func__``.
+
+        Examples:
+            ``old_class_redirect_mapped(old_x=5)`` remaps to ``x=5`` then calls ``class_compute(x=5)``.
+
+        """
+        return void(old_x, x)
+
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def old_warn_method(self, x: int) -> int:
         """Deprecated — warns only, body still executes.
