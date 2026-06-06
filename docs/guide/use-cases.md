@@ -985,7 +985,7 @@ from deprecate import deprecated, void
 class Compute:
     @staticmethod
     def area(radius: float) -> float:
-        return 3.14159 * radius ** 2
+        return 3.14159 * radius**2
 
     # DEPRECATED — renamed from surface() to area()
     @staticmethod
@@ -1016,7 +1016,7 @@ from deprecate import deprecated, void
 class Compute:
     @staticmethod
     def area(radius: float) -> float:
-        return 3.14159 * radius ** 2
+        return 3.14159 * radius**2
 
     @staticmethod
     @deprecated(
