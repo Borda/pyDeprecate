@@ -865,8 +865,6 @@ _ = proxy.color  # silent
 _ = proxy.txt  # silent
 ```
 
-
-
 ### Enum — deprecated member aliases
 
 `attrs_mapping` works on Enum proxies too. Use it when Enum member names changed (for example, a casing convention migration) and callers may still be using the old names. Wrap the canonical Enum in a proxy that registers the deprecated names as aliases:
@@ -1135,8 +1133,6 @@ _ = blanket_proxy.color  # warns: FutureWarning × 2 — outer blanket + inner s
 # only the outer blanket proxy warns; the inner proxy forwards silently.
 _ = blanket_proxy.colour  # warns: FutureWarning × 1 — outer blanket only
 ```
-
-
 
 The outer proxy issues its blanket class-deprecation warning first; the inner proxy then handles the attribute redirect. Two warnings fire for `blanket_proxy.color` — one per proxy layer. Accessing `blanket_proxy.colour` fires only the outer proxy warning because `colour` is not listed in the inner proxy's `attrs_mapping`.
 
