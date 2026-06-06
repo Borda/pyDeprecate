@@ -393,7 +393,10 @@ def _normalize_target(
 
     - ``target=staticmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); enables ``target=bbb`` inside a class
       body where ``bbb`` is still the raw ``staticmethod`` descriptor, not yet bound.
-    - ``target=classmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); same pattern for classmethod targets.
+    - ``target=classmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); same pattern, but only when ``source``
+      accepts ``cls`` as its first positional parameter.  Asymmetric usage (non-classmethod source targeting a
+      ``classmethod`` descriptor) raises :exc:`TypeError` at decoration time because ``cls`` would be missing at
+      call time otherwise.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
@@ -417,6 +420,22 @@ def _normalize_target(
 
     # --- Descriptor unwrap (staticmethod/classmethod passed from class body before binding) ---
     if isinstance(target, (staticmethod, classmethod)):
+        if isinstance(target, classmethod):
+            # Guard: classmethod.__func__ expects cls as its first arg.  If source does not
+            # accept cls, it will never be supplied → TypeError at call time.  Raise early.
+            try:
+                src_params = list(inspect.signature(source).parameters)
+            except (ValueError, TypeError):
+                src_params = []
+            if not src_params or src_params[0] != "cls":
+                func_name = getattr(target.__func__, "__name__", "target")
+                raise TypeError(
+                    f"@deprecated(target=<classmethod descriptor>) on '{source.__name__}': "
+                    f"the underlying function expects 'cls' as its first argument, but "
+                    f"'{source.__name__}' has no 'cls' parameter. "
+                    f"Pass 'target={func_name}' after the class is defined, "
+                    f"or 'target={func_name}.__func__' explicitly."
+                )
         return target.__func__
 
     # --- Class target handling ---
@@ -668,6 +687,12 @@ def _raise_warn_callable(
         >>> #           `__main__.new_func`. It will be removed in v2.0."
 
     """
+    # Unwrap descriptor: _build_call_plan passes the raw (pre-normalization) target so
+    # the warning can name the class rather than __init__.  For descriptor targets,
+    # callable(staticmethod(fn)) is False on Python 3.9 and callable(classmethod(fn))
+    # is always False, so without this unwrap the no-target template fires incorrectly.
+    if isinstance(target, (staticmethod, classmethod)):
+        target = target.__func__
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
@@ -1206,8 +1231,11 @@ def deprecated(
             )(source)
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
-        if callable(target) and not inspect.isclass(target):
-            _check_cross_class_method_target(source, target)
+        # Descriptor targets: unwrap __func__ so the guard can inspect the qualname;
+        # raw staticmethod/classmethod descriptors lack __qualname__ on the instance.
+        _guard_target = target.__func__ if isinstance(target, (staticmethod, classmethod)) else target
+        if callable(_guard_target) and not inspect.isclass(_guard_target):
+            _check_cross_class_method_target(source, _guard_target)
         _target = _normalize_target(source, target)
 
         if _has_deprecation_meta(source):
