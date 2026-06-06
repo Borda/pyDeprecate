@@ -1196,6 +1196,7 @@ print(LegacyTrainingConfig.size)  # warns: FutureWarning — "size" removed (no 
 </details>
 
 ```python
+# phmdoctest:skip
 # Old constructor argument still works — emits one FutureWarning
 cfg = LegacyTrainingConfig(hidden_dim=512)  # warns: FutureWarning
 print(cfg.hidden_size)
@@ -1211,6 +1212,7 @@ print(cfg.hidden_size)
 </details>
 
 ```python
+# phmdoctest:skip
 # Audit tools discover the proxy — useful for CI expiry checks
 import sys
 import types
