@@ -693,7 +693,7 @@ True
 
 Use `attrs_mapping` on `deprecated_class()` to deprecate only specific attribute names — all other attributes pass through silently. This covers attribute renames, misspelling corrections (e.g. `color` → `colour`), and warn-only notices on individual attributes.
 
-The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and redirect. Non-listed attribute names pass through without any warning.
+The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and resolve against the active class. Non-listed attribute names pass through without any warning.
 Non-`None` values must exist on the `target` class when `target=` is provided, or on the wrapped source class otherwise. Redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise immediately.
 
 ### Decorator syntax — attribute rename
@@ -805,7 +805,7 @@ blue
 
 ### Warn-only with `None` redirect
 
-Map a deprecated attribute to `None` to emit a warning on access without renaming anything. The attribute is fetched by its original name after the warning fires. Use this when an attribute is going away with no replacement:
+Map a deprecated attribute to `None` to emit a warning on access without renaming anything. The attribute is fetched by its original name on the active class after the warning fires. Use this when an attribute is going away with no replacement:
 
 ```python
 from deprecate import deprecated_class
@@ -955,7 +955,7 @@ Three misconfiguration combinations are caught at decoration time and emit a `Us
 
 ### Callable target with attribute redirection
 
-When `deprecated_class` receives both `target=NewClass` and `attrs_mapping`, the two features compose cleanly: listed deprecated attribute aliases resolve against `NewClass`, while unlisted attributes and instantiation calls also forward to `NewClass`. Use this pattern for a full class replacement where some attribute names changed between the old and the new class.
+When `deprecated_class` receives both `target=NewClass` and `attrs_mapping`, the two features compose cleanly: listed deprecated attribute aliases resolve against `NewClass`, while unlisted attributes and instantiation calls also forward to `NewClass`. Entries mapped to `None` keep the same attribute name on `NewClass`; for example, `attrs_mapping={"size": None}` warns and then reads, writes, or deletes `NewClass.size`. Use this pattern for a full class replacement where some attribute names changed between the old and the new class.
 
 ```python
 import warnings

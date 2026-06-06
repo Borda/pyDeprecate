@@ -1857,6 +1857,31 @@ DeprecatedAttrsPaletteCallableTarget = deprecated_class(
 )(PaletteOld)
 
 
+# H5 fixture: callable target + warn-only attrs_mapping in decorator form.
+@deprecated_class(
+    target=TargetPalette,
+    attrs_mapping={"size": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)
+class DeprecatedAttrsNotifyOnlyCallableTargetDecorated:
+    """Deprecated source class whose replacement target owns the warn-only attribute."""
+
+    color: str = "source_red"
+    colour: str = "source_colour"
+
+
+# H5 fixture: callable target + warn-only attrs_mapping in wrapper form.
+DeprecatedAttrsNotifyOnlyCallableTargetWrapped = deprecated_class(
+    target=TargetPalette,
+    attrs_mapping={"size": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)(PaletteOld)
+
+
 # ========== Combination fixtures: deprecated_class() config matrix ==========
 # These fixtures cover the valid combinations for ATTRS_REMAP (additive alias added in v0.10):
 # - C1: Explicit ``target=TargetMode.ATTRS_REMAP`` + ``attrs_mapping`` (equivalent to implicit auto-resolve)

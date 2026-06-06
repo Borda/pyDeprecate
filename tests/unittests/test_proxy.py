@@ -13,6 +13,8 @@ from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_insta
 from tests.collection_deprecate import (
     DeprecatedAttrsExplicitMode,
     DeprecatedAttrsNotifyOnly,
+    DeprecatedAttrsNotifyOnlyCallableTargetDecorated,
+    DeprecatedAttrsNotifyOnlyCallableTargetWrapped,
     DeprecatedAttrsPalette,
     DeprecatedAttrsPaletteAllThree,
     DeprecatedAttrsPaletteCallableTarget,
@@ -1168,12 +1170,17 @@ class TestDeprecatedAttrs:
         for proxy in (
             DeprecatedAttrsPalette,
             DeprecatedAttrsNotifyOnly,
+            DeprecatedAttrsNotifyOnlyCallableTargetDecorated,
+            DeprecatedAttrsNotifyOnlyCallableTargetWrapped,
             DeprecatedAttrsPaletteEnum,
             DeprecatedAttrsPaletteWithStream,
         ):
             cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
             cfg.warned = 0
             cfg.warned_args.clear()
+            source = cfg.obj
+            if hasattr(source, "size"):
+                delattr(source, "size")
         # Restore canonical class attributes mutated by previous write-redirect tests.
         TargetPalette.colour = "red"
         TargetPalette.text = "hello"
@@ -1263,6 +1270,43 @@ class TestDeprecatedAttrs:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
         assert "in favor of" not in str(record[0].message)
+
+    @pytest.mark.parametrize(
+        ("proxy", "form"),
+        [
+            (DeprecatedAttrsNotifyOnlyCallableTargetDecorated, "decorator"),
+            (DeprecatedAttrsNotifyOnlyCallableTargetWrapped, "wrapper"),
+        ],
+    )
+    def test_callable_target_notify_only_attr_uses_active_target_for_mutations(self, proxy: Any, form: str) -> None:  # noqa: ANN401
+        """Warn-only attributes on a callable-target proxy resolve against the active target class.
+
+        A replacement class may keep an attribute under the same name while the deprecated source class lacks that
+        attribute entirely.  With ``target=TargetPalette`` and ``attrs_mapping={"size": None}``, reads, writes, and
+        deletes of ``proxy.size`` must operate on ``TargetPalette.size``.  Falling back to the wrapped source class
+        either raises ``AttributeError`` on read/delete or silently writes to the wrong class.  The behaviour must be
+        identical for decorator-form and wrapper-form ``deprecated_class`` usage.
+
+        """
+        source = object.__getattribute__(proxy, "_DeprecatedProxy__config").obj
+        original_target = TargetPalette.size
+        assert form in {"decorator", "wrapper"}
+        assert not hasattr(source, "size")
+
+        with pytest.warns(FutureWarning, match="size") as read_record:
+            value = proxy.size  # type: ignore[attr-defined]
+        assert value == original_target
+        assert "in favor of" not in str(read_record[0].message)
+
+        with pytest.warns(FutureWarning, match="size"):
+            proxy.size = 99  # type: ignore[attr-defined]
+        assert TargetPalette.size == 99
+        assert not hasattr(PaletteOld, "size")
+
+        with pytest.warns(FutureWarning, match="size"):
+            del proxy.size  # type: ignore[attr-defined]
+        assert not hasattr(TargetPalette, "size")
+        assert not hasattr(source, "size")
 
     def test_per_attribute_warning_budget_independent(self) -> None:
         """Each deprecated attribute name has its own warning budget under ``num_warns=1``.

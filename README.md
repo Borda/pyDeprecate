@@ -921,7 +921,8 @@ True
 <summary>Example: selective attribute deprecation with <code>attrs_mapping</code></summary>
 
 Use `attrs_mapping` to deprecate only specific attribute names — other attributes pass through silently. Covers renames, misspelling corrections, warn-only notices, and Enum member aliases.
-Mapping values must exist on the `target` class when `target=` is provided, or on the wrapped class otherwise.
+Non-`None` mapping values must exist on the `target` class when `target=` is provided, or on the wrapped class otherwise.
+Entries mapped to `None` keep the same attribute name but still resolve on the active class, so `target=NewClass` with `attrs_mapping={"size": None}` warns and then reads, writes, or deletes `NewClass.size`.
 Non-cyclic chains are allowed at decoration time and reported by audit; cycles raise immediately.
 
 **Decorator syntax** — apply `@deprecated_class(attrs_mapping=...)` at class definition time:

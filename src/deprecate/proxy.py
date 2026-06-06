@@ -438,7 +438,8 @@ class _DeprecatedProxy:
 
         When ``attrs_mapping`` is configured, only attributes listed in the mapping emit a warning; all other accesses
         are forwarded silently without a warning.  The redirect target name (value in the mapping) is used for the
-        actual attribute lookup when the value is a non-``None`` string; ``None`` means warn-only with no rename.
+        actual attribute lookup when the value is a non-``None`` string; ``None`` means warn-only with no rename on
+        the active object.
 
         In read-only mode, common mutating methods on built-in collections (for example, ``append`` or ``update``) are
         wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
@@ -449,8 +450,9 @@ class _DeprecatedProxy:
             if name in attrs_mapping:
                 self._warn(arg_name=f"__attr__:{name}")
                 redirect = attrs_mapping[name]
-                active = self._get_active() if redirect is not None else self._cfg.obj
-                return getattr(active, redirect if redirect is not None else name)
+                active = self._get_active()
+                attr_name = redirect if redirect is not None else name
+                return getattr(active, attr_name)
             # Not a deprecated attr — silent passthrough, no warning.
             return getattr(self._get_active(), name)
         self._warn()
@@ -479,8 +481,9 @@ class _DeprecatedProxy:
         if attrs_mapping is not None and name in attrs_mapping:
             self._warn(arg_name=f"__attr__:{name}")
             redirect = attrs_mapping[name]
-            active = self._get_active() if redirect is not None else self._cfg.obj
-            setattr(active, redirect if redirect is not None else name, value)
+            active = self._get_active()
+            attr_name = redirect if redirect is not None else name
+            setattr(active, attr_name, value)
             return
         setattr(self._get_active(), name, value)
 
@@ -499,8 +502,9 @@ class _DeprecatedProxy:
         if attrs_mapping is not None and name in attrs_mapping:
             self._warn(arg_name=f"__attr__:{name}")
             redirect = attrs_mapping[name]
-            active = self._get_active() if redirect is not None else self._cfg.obj
-            delattr(active, redirect if redirect is not None else name)
+            active = self._get_active()
+            attr_name = redirect if redirect is not None else name
+            delattr(active, attr_name)
             return
         delattr(self._get_active(), name)
 
@@ -731,6 +735,9 @@ def deprecated_class(
             attributes are forwarded silently.  The redirect applies to reads (``__getattr__``), writes
             (``__setattr__``), and deletes (``__delattr__``).  Every non-``None`` value must be an existing attribute
             on the target class when ``target`` is provided, or on the wrapped source class otherwise.
+            ``None`` values keep the same attribute name but still resolve against the active class, so with
+            ``target=SomeClass`` a warn-only mapping such as ``{"size": None}`` reads, writes, and deletes
+            ``SomeClass.size``.
             Redirect chains such as ``{"a": "b", "b": "c"}`` are allowed at decoration time and reported by audit as
             :attr:`~deprecate.audit.ChainType.STACKED`. Cycles such as ``{"a": "b", "b": "a"}`` raise
             :class:`ValueError` at decoration time.
@@ -742,8 +749,8 @@ def deprecated_class(
             on every attribute access through the proxy.
 
             **Callable target interaction**: when ``target=SomeClass`` is also provided, listed attribute aliases
-            resolve against ``SomeClass``.  Unlisted attributes and calls continue to use the normal target-forwarding
-            behaviour.
+            resolve against ``SomeClass``.  A ``None`` mapping keeps the original attribute name on ``SomeClass``.
+            Unlisted attributes and calls continue to use the normal target-forwarding behaviour.
 
             The mode can also be set explicitly as ``target=TargetMode.ATTRS_REMAP`` — both forms are equivalent;
             the explicit form is self-documenting and enables validation at decoration time. Passing
