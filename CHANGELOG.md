@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`target=` now accepts raw `staticmethod` / `classmethod` descriptors directly.** Inside a class body the new method is still a raw descriptor (not yet bound); passing it as `target=new_method` no longer requires the explicit `.__func__` suffix. `_normalize_target` unwraps the descriptor automatically. For `classmethod` descriptors the symmetric same-class pattern is supported (both deprecated and replacement are classmethods); asymmetric usage raises `TypeError` at decoration time. ([#192](https://github.com/Borda/pyDeprecate/pull/192))
+
 - **`@deprecated @property` now wraps `fset` and `fdel` with `FutureWarning`.** Applying `@deprecated` on the outside of `@property` (outer order, or explicit `deprecated(...)(property(fget, fset, fdel))`) now wraps all three accessors. Previously, only `fget` emitted a warning; `fset` and `fdel` were silently passed through. Consumers running `filterwarnings=error::FutureWarning` that wrote to or deleted a deprecated property will now see `FutureWarning` errors — use inner-order (`@property @deprecated`) or decorate only `fget` directly if you want a silent setter/deleter. Chain-style rebinding via `@value.setter` / `@value.deleter` is fully supported through the new `_DeprecatedProperty` subclass. ([#190](https://github.com/Borda/pyDeprecate/pull/190))
 
 ### Changed
