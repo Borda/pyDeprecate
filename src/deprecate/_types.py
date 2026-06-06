@@ -289,6 +289,11 @@ class TargetMode(Enum):
             True
             >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
             False
+            >>> TargetMode._validate_proxy(
+            ...     TargetMode.ARGS_REMAP, "Cls",
+            ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, stacklevel=None,
+            ... )
+            True
 
         """
         messages = []
@@ -297,6 +302,14 @@ class TargetMode(Enum):
                 f"`deprecated_class(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`attrs_mapping`. Drop one of them: `attrs_mapping` switches to selective per-attribute "
                 "warning, which contradicts NOTIFY's warn-on-every-access semantics. "
+                "This will be `TypeError` in `v1.0`."
+            )
+        if mode is cls.ARGS_REMAP and args_mapping and attrs_mapping:
+            messages.append(
+                f"`deprecated_class` on `{source_name}` provides both `args_mapping` and `attrs_mapping` "
+                "without an explicit `target`. Auto-resolve set `target=TargetMode.ARGS_REMAP`; "
+                "`DeprecationConfig.target` no longer reflects that `attrs_mapping` is also active. "
+                "Pass an explicit `target=<class>` or `target=TargetMode.ATTRS_REMAP` to suppress this warning. "
                 "This will be `TypeError` in `v1.0`."
             )
         if mode is cls.ATTRS_REMAP and not attrs_mapping:

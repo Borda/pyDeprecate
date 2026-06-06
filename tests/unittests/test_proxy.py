@@ -1786,3 +1786,26 @@ class TestAttrsMappingCombinations:
             @deprecated(target=TargetMode.ATTRS_REMAP, deprecated_in="1.0", remove_in="2.0")
             def _attempted_attrs_remap_fn(x: int) -> int:
                 return x
+
+    def test_both_mappings_without_explicit_target_emits_userwarning(self) -> None:
+        """Providing both ``args_mapping`` and ``attrs_mapping`` without explicit ``target`` emits a ``UserWarning``.
+
+        When no ``target`` is given, auto-resolution sets ``target=TargetMode.ARGS_REMAP`` (args_mapping takes
+        precedence) and ``DeprecationConfig.target`` no longer reflects that ``attrs_mapping`` is also active.
+        Audit tooling reading only ``DeprecationConfig.target`` cannot detect the selective attribute deprecation.
+        The proxy must emit a ``UserWarning`` directing the caller to pass an explicit target so the metadata
+        remains complete.
+
+        """
+
+        class _BothMappingsSource:
+            colour = "red"
+
+        with pytest.warns(UserWarning, match="both.*args_mapping.*attrs_mapping|ARGS_REMAP"):
+            deprecated_class(
+                args_mapping={"old_arg": "new_arg"},
+                attrs_mapping={"color": "colour"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )(_BothMappingsSource)
