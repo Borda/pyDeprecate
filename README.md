@@ -965,6 +965,7 @@ from deprecate import deprecated_class
 
 class Config:
     colour: str = "red"
+    size: int = 42
     timeout: int = 30
 
 

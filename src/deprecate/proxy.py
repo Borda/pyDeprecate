@@ -177,18 +177,23 @@ class _DeprecatedProxy:
                     " Each non-None value must be an existing attribute name on the target class when `target` is"
                     " provided, or on the wrapped class otherwise."
                 )
-            # Validate that every warn-only key (None-value entry) also exists on the active class.
-            # Warn-only accesses route to attr_check_obj (target when callable, else source), so the
-            # key must exist there. A missing key would pass decoration silently but raise AttributeError
-            # on first access.
+            # Validate that every warn-only key (None-value entry) exists on at least one class.
+            # A None redirect means "warn but still serve the attribute value" — the attribute can live
+            # on the target (same-name warning: kept in new API) or only on the source (being-removed
+            # attribute that falls back to the source value in __getattr__). Raise only when absent
+            # from both classes; a key on neither would always raise AttributeError on access.
             missing_keys = [
-                k for k, v in attrs_mapping.items() if v is None and not self._has_static_attribute(attr_check_obj, k)
+                k
+                for k, v in attrs_mapping.items()
+                if v is None
+                and not self._has_static_attribute(attr_check_obj, k)
+                and not self._has_static_attribute(obj, k)
             ]
             if missing_keys:
                 raise ValueError(
-                    f"`attrs_mapping` warn-only keys not found on the active class: {missing_keys}."
+                    f"`attrs_mapping` warn-only keys not found on either class: {missing_keys}."
                     " Each key with a `None` value must be an existing attribute name on the target class"
-                    " when `target` is provided, or on the wrapped class otherwise."
+                    " when `target` is provided, or on the wrapped class."
                 )
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
@@ -466,6 +471,14 @@ class _DeprecatedProxy:
                 redirect = attrs_mapping[name]
                 active = self._get_active()
                 attr_name = redirect if redirect is not None else name
+                if redirect is None:
+                    try:
+                        return getattr(active, attr_name)
+                    except AttributeError:
+                        # Attribute absent from target — fall back to source.
+                        # Covers the "being-removed" pattern where the deprecated attribute
+                        # still lives on the old class but was dropped from the new target.
+                        return getattr(self._cfg.obj, attr_name)
                 return getattr(active, attr_name)
             # Not a deprecated attr — silent passthrough, no warning.
             return getattr(self._get_active(), name)
