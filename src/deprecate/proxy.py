@@ -211,9 +211,10 @@ class _DeprecatedProxy:
                 target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4
             )
         # Proxy-specific validation: attrs_mapping combinations not covered by _validate().
-        # stacklevel=5: caller → deprecated_class → inner_func → __init__ → _validate_proxy → warn
+        # stacklevel=4: caller → decorator(cls) → __init__ → _validate_proxy → warn
+        # deprecated_class() itself is already off the stack when decorator(cls) runs.
         misconfigured |= TargetMode._validate_proxy(
-            target, name, attrs_mapping=attrs_mapping, args_mapping=args_mapping, stacklevel=5
+            target, name, attrs_mapping=attrs_mapping, args_mapping=args_mapping, stacklevel=4
         )
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object,
         # extras to merge after args_mapping at call time, optional custom warning template.

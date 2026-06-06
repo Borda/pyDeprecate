@@ -1336,6 +1336,29 @@ class TestDeprecatedAttrs:
             _ = proxy.txt  # type: ignore[attr-defined]
         assert not [w for w in caught_after if issubclass(w.category, FutureWarning)]
 
+    def test_per_attribute_warning_budget_num_warns_two(self) -> None:
+        """``num_warns=2`` allows exactly two warnings per deprecated attribute before going silent.
+
+        With ``attrs_mapping={"color": "colour"}`` and ``num_warns=2``, three successive reads of
+        ``proxy.color`` must emit exactly two ``FutureWarning`` instances — one on the first access,
+        one on the second, and none on the third.  This verifies the off-by-one boundary
+        ``warned_args.get(key, 0) >= num_warns`` at the budget limit.
+
+        """
+        proxy = deprecated_class(
+            attrs_mapping={"color": "colour"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            num_warns=2,
+        )(TargetPalette)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = proxy.color  # type: ignore[attr-defined]
+            _ = proxy.color  # type: ignore[attr-defined]
+            _ = proxy.color  # type: ignore[attr-defined]
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warnings) == 2
+
     def test_unlisted_attr_no_warning(self) -> None:
         """Attributes not listed in ``attrs_mapping`` pass through without any warning.
 
@@ -1809,3 +1832,30 @@ class TestAttrsMappingCombinations:
                 remove_in="2.0",
                 stream=None,
             )(_BothMappingsSource)
+
+    def test_validate_proxy_userwarning_points_to_decoration_call_site(self) -> None:
+        """The ``UserWarning`` from ``_validate_proxy`` points to the file that called ``deprecated_class``.
+
+        ``_validate_proxy`` is called from ``_DeprecatedProxy.__init__``, which is invoked through
+        ``deprecated_class → inner_func → __init__``.  The stacklevel must be calibrated so that
+        ``warning.filename`` reports the module that applied the decorator, not an internal pyDeprecate
+        frame.  A wrong stacklevel (e.g. 4 instead of 5) would make the warning appear to originate
+        from inside the library, making it hard for users to locate their misconfigured class.
+
+        """
+
+        class _MisconfiguredForStacklevel:
+            colour = "red"
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            deprecated_class(
+                target=TargetMode.NOTIFY,
+                attrs_mapping={"color": "colour"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )(_MisconfiguredForStacklevel)
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert user_warnings, "Expected a UserWarning from _validate_proxy but got none"
+        assert user_warnings[0].filename == __file__
