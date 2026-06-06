@@ -976,7 +976,7 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
 ### Forwarding a static method to another static method in the same class
 
-When renaming a `@staticmethod` within the same class, pass the new method directly as `target=new_method` — no `.__func__` suffix needed. Inside the class body `new_method` is still the raw `staticmethod` descriptor (not yet bound); pyDeprecate unwraps it automatically.
+When renaming a `@staticmethod` or `@classmethod` within the same class, pass the new method directly as `target=new_method` — no `.__func__` suffix needed. Inside the class body `new_method` is still the raw descriptor (not yet bound); pyDeprecate unwraps it automatically.
 
 ```python
 from deprecate import deprecated, void
