@@ -380,6 +380,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 >
 > - Use `print()` for values you want to verify, paired with a `<details><summary>Output: <code>expression</code></summary>` block immediately after the code block. The `<summary>` label shows the **expression** being evaluated (e.g. `cfg.timeout`), not the `print()` wrapper.
 > - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
+> - **Never use `with warnings.catch_warnings(record=True) as w: warnings.simplefilter("always")`** in any `.md` code block (README, docs, docstrings). Use direct calls annotated with `# warns: FutureWarning` or `# silent` instead. Output blocks show only return values — not warning counts or `w[0].category.__name__`.
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
