@@ -1272,13 +1272,13 @@ class TestDeprecatedAttrs:
         assert "in favor of" not in str(record[0].message)
 
     @pytest.mark.parametrize(
-        ("proxy", "form"),
+        "proxy",
         [
-            (DeprecatedAttrsNotifyOnlyCallableTargetDecorated, "decorator"),
-            (DeprecatedAttrsNotifyOnlyCallableTargetWrapped, "wrapper"),
+            pytest.param(DeprecatedAttrsNotifyOnlyCallableTargetDecorated, id="decorator"),
+            pytest.param(DeprecatedAttrsNotifyOnlyCallableTargetWrapped, id="wrapper"),
         ],
     )
-    def test_callable_target_notify_only_attr_uses_active_target_for_mutations(self, proxy: Any, form: str) -> None:  # noqa: ANN401
+    def test_callable_target_notify_only_attr_uses_active_target_for_mutations(self, proxy: Any) -> None:  # noqa: ANN401
         """Warn-only attributes on a callable-target proxy resolve against the active target class.
 
         A replacement class may keep an attribute under the same name while the deprecated source class lacks that
@@ -1290,7 +1290,6 @@ class TestDeprecatedAttrs:
         """
         source = object.__getattribute__(proxy, "_DeprecatedProxy__config").obj
         original_target = TargetPalette.size
-        assert form in {"decorator", "wrapper"}
         assert not hasattr(source, "size")
 
         with pytest.warns(FutureWarning, match="size") as read_record:
