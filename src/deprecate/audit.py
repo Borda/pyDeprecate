@@ -508,11 +508,10 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
             if erp_depr_tgt is True or erp_depr_tgt is TargetMode.ARGS_REMAP:
                 chain_type = ChainType.STACKED  # stacked self-deprecation decorators
     attrs_mapping = dep_info.attrs_mapping
-    if (
-        chain_type is None
-        and attrs_mapping
-        and any(new_attr is not None and new_attr in attrs_mapping for new_attr in attrs_mapping.values())
-    ):
+    has_chained_attrs = attrs_mapping is not None and any(
+        new_attr is not None and new_attr in attrs_mapping for new_attr in attrs_mapping.values()
+    )
+    if chain_type is None and has_chained_attrs:
         chain_type = ChainType.STACKED
 
     all_identity = False
