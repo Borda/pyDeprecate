@@ -1459,7 +1459,9 @@ class TestDeprecatedAttrs:
         meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
         assert meta.attrs_mapping == {"color": "colour", "txt": "text"}
 
-    def test_attrs_mapping_with_callable_target_resolves_against_target_namespace(self) -> None:
+    def test_attrs_mapping_with_callable_target_resolves_against_target_namespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When ``target=SomeClass`` and ``attrs_mapping`` are both set, attr redirects use the target class.
 
         ``deprecated_class(target=TargetPalette, attrs_mapping={"color": "colour"})(PaletteOld)``
@@ -1467,21 +1469,16 @@ class TestDeprecatedAttrs:
         would stay on the wrapped source class.
 
         """
-        PaletteOld.colour = "source_colour"
-        TargetPalette.colour = "red"
+        monkeypatch.setattr(PaletteOld, "colour", "source_colour")
+        monkeypatch.setattr(TargetPalette, "colour", "red")
+
         value = DeprecatedAttrsPaletteCallableTarget.color  # type: ignore[attr-defined]
         assert value == TargetPalette.colour
         assert value != PaletteOld.colour
 
-        original_source = PaletteOld.colour
-        original_target = TargetPalette.colour
-        try:
-            DeprecatedAttrsPaletteCallableTarget.color = "blue"  # type: ignore[attr-defined]
-            assert TargetPalette.colour == "blue"
-            assert PaletteOld.colour == original_source
-        finally:
-            PaletteOld.colour = original_source
-            TargetPalette.colour = original_target
+        DeprecatedAttrsPaletteCallableTarget.color = "blue"  # type: ignore[attr-defined]
+        assert TargetPalette.colour == "blue"
+        assert PaletteOld.colour == "source_colour"
 
     def test_attrs_mapping_validation_does_not_consume_target_proxy_warning_budget(self) -> None:
         """Validation does not call ``hasattr`` on a live target proxy.
@@ -1520,7 +1517,7 @@ class TestDeprecatedAttrs:
         assert not caught
         assert target_cfg.warned_args == {}
 
-    def test_delete_redirect_warns_and_deletes_canonical(self) -> None:
+    def test_delete_redirect_warns_and_deletes_canonical(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deleting a deprecated attribute alias warns and deletes the canonical attribute.
 
         A class has ``colour`` as the canonical attribute and ``color`` registered as a deprecated alias in
@@ -1529,20 +1526,17 @@ class TestDeprecatedAttrs:
         the expected deletion on the live canonical attribute.
 
         """
+        monkeypatch.setattr(TargetPalette, "colour", TargetPalette.colour)
         proxy = deprecated_class(
             attrs_mapping={"color": "colour"},
             deprecated_in="1.0",
             remove_in="2.0",
         )(TargetPalette)
-        original = TargetPalette.colour
-        try:
-            with pytest.warns(FutureWarning, match="color"):
-                del proxy.color  # type: ignore[attr-defined]
-            assert not hasattr(TargetPalette, "colour")
-        finally:
-            TargetPalette.colour = original  # restore canonical attr for subsequent tests
+        with pytest.warns(FutureWarning, match="color"):
+            del proxy.color  # type: ignore[attr-defined]
+        assert not hasattr(TargetPalette, "colour")
 
-    def test_delete_notify_only_warns_and_deletes_same_name(self) -> None:
+    def test_delete_notify_only_warns_and_deletes_same_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deleting a warn-only attribute (``None`` redirect) warns and deletes the same-name attribute.
 
         When ``attrs_mapping={"size": None}``, the attribute name is both deprecated and canonical — ``None`` means
@@ -1551,18 +1545,15 @@ class TestDeprecatedAttrs:
         for the notify-only case.
 
         """
+        monkeypatch.setattr(TargetPalette, "size", TargetPalette.size)
         proxy = deprecated_class(
             attrs_mapping={"size": None},
             deprecated_in="1.0",
             remove_in="2.0",
         )(TargetPalette)
-        original = TargetPalette.size
-        try:
-            with pytest.warns(FutureWarning, match="size"):
-                del proxy.size  # type: ignore[attr-defined]
-            assert not hasattr(TargetPalette, "size")
-        finally:
-            TargetPalette.size = original  # restore for subsequent tests
+        with pytest.warns(FutureWarning, match="size"):
+            del proxy.size  # type: ignore[attr-defined]
+        assert not hasattr(TargetPalette, "size")
 
     def test_warn_only_key_missing_from_both_classes_raises_at_decoration_time(self) -> None:
         """A warn-only ``attrs_mapping`` key absent from both source and target raises at decoration time.

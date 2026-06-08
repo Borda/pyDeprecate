@@ -278,6 +278,48 @@ class _DeprecatedProxy:
         """
         return cast(DeprecationConfig, object.__getattribute__(self, "__deprecated__"))
 
+    def _build_attr_warning_msg(
+        self,
+        arg_name: str,
+        dep: DeprecationConfig,
+        attrs_mapping: dict[str, Optional[str]],
+        target: Any,  # noqa: ANN401
+        custom_template: Optional[str],
+    ) -> Optional[str]:
+        """Build the warning message for a deprecated ``attrs_mapping`` attribute access.
+
+        Strips the ``"__attr__:"`` prefix from *arg_name* to recover the attribute name visible to
+        callers.  The prefix must be preserved in the *arg_name* passed by the caller so that the
+        per-attribute budget key in ``cfg.warned_args`` stays disjoint from any same-named
+        ``args_mapping`` key — this method intentionally does not reassign *arg_name*.
+
+        Returns:
+            The formatted warning string, or ``None`` when *attr_name* is not registered in
+            ``dep.attrs_mapping`` (caller should silently return without warning).
+
+        """
+        attr_name = arg_name[len("__attr__:") :]
+        if attr_name not in attrs_mapping:
+            return None
+        new_attr = attrs_mapping[attr_name]
+        if new_attr is not None:
+            owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
+            target_path = f"{owner}.{new_attr}"
+            template = custom_template or TEMPLATE_WARNING_CALLABLE
+            return template % {
+                "source_name": attr_name,
+                "deprecated_in": dep.deprecated_in,
+                "remove_in": dep.remove_in,
+                "target_name": new_attr,
+                "target_path": target_path,
+            }
+        template = custom_template or TEMPLATE_WARNING_NO_TARGET
+        return template % {
+            "source_name": attr_name,
+            "deprecated_in": dep.deprecated_in,
+            "remove_in": dep.remove_in,
+        }
+
     def _warn(self, *, arg_name: Optional[str] = None) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted.
 
@@ -324,36 +366,10 @@ class _DeprecatedProxy:
                 "argument_map": argument_map,
             }
         elif arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
-            # Per-attribute warning for ``attrs_mapping``: strip the internal "__attr__:" prefix that
-            # callers add to keep the budget key disjoint from any same-named ``args_mapping`` key.
-            # IMPORTANT: do not reassign ``arg_name`` here — the prefixed key is the budget key used
-            # by the increment at the end of this method; stripping it here would cause the check and
-            # the increment to use different keys, breaking per-attribute budget isolation.
-            attr_name = arg_name[len("__attr__:") :]
-            if attr_name not in dep.attrs_mapping:
+            _attr_msg = self._build_attr_warning_msg(arg_name, dep, dep.attrs_mapping, target, custom_template)
+            if _attr_msg is None:
                 return
-            # Per-attribute warning for ``attrs_mapping``: format the message so callers see the
-            # deprecated attribute name and (when a non-``None`` redirect is configured) the canonical
-            # replacement attribute path on the active class.
-            new_attr = dep.attrs_mapping[attr_name]
-            if new_attr is not None:
-                owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
-                target_path = f"{owner}.{new_attr}"
-                template = custom_template or TEMPLATE_WARNING_CALLABLE
-                msg = template % {
-                    "source_name": attr_name,
-                    "deprecated_in": dep.deprecated_in,
-                    "remove_in": dep.remove_in,
-                    "target_name": new_attr,
-                    "target_path": target_path,
-                }
-            else:
-                template = custom_template or TEMPLATE_WARNING_NO_TARGET
-                msg = template % {
-                    "source_name": attr_name,
-                    "deprecated_in": dep.deprecated_in,
-                    "remove_in": dep.remove_in,
-                }
+            msg = _attr_msg
         elif callable(target):
             target_name = target.__name__
             target_path = f"{target.__module__}.{target_name}"
