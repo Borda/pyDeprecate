@@ -856,13 +856,25 @@ proxy = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-_ = proxy.color  # warns: FutureWarning — "color" budget consumed
-_ = proxy.txt  # warns: FutureWarning — "txt" budget consumed (independent counter)
+print(proxy.color)  # warns: FutureWarning — "color" budget consumed
+print(proxy.txt)  # warns: FutureWarning — "txt" budget consumed (independent counter)
 
 # Both budgets now exhausted — subsequent accesses are silent
-_ = proxy.color  # silent
-_ = proxy.txt  # silent
+print(proxy.color)  # silent
+print(proxy.txt)  # silent
 ```
+
+<details>
+  <summary>Output: <code>proxy.color; proxy.txt; proxy.color (silent); proxy.txt (silent)</code></summary>
+
+```
+red
+hello
+red
+hello
+```
+
+</details>
 
 ### Enum — deprecated member aliases
 
