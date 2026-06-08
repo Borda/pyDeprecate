@@ -448,7 +448,38 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 wrapped_sum_warn_only = _deprecation_warn_only(original_sum_warn_only)
 ```
 
-The same pattern applies to `deprecated_class()` pairs — define `_class_deprecation_<name> = deprecated_class(...)` once and reuse it for both `Wrapped<Name>` and `@Decorated<Name>`.
+The same pattern applies to `deprecated_class()` pairs — define `_class_deprecation_<name> = deprecated_class(...)` once and reuse it for both `Wrapped<Name>` and `@Decorated<Name>`:
+
+```python
+from deprecate import deprecated_class
+
+
+class NewWidget:
+    """Canonical replacement class."""
+
+    size: int = 42
+
+
+_class_deprecation_widget = deprecated_class(target=NewWidget, deprecated_in="1.0", remove_in="2.0")
+
+
+@_class_deprecation_widget
+class DecoratedWidget:
+    """Decorator-form: same config as WrappedWidget."""
+
+    size: int = 42
+
+
+class _OriginalWidget:
+    """Source class for the wrapper form."""
+
+    size: int = 42
+
+
+WrappedWidget = _class_deprecation_widget(_OriginalWidget)
+```
+
+> **Rule**: when a `Decorated<Name>` / `Wrapped<Name>` pair exists, both **must** share a single `_class_deprecation_<name>` instance. Duplicating the `deprecated_class(...)` kwargs is a bug — a silent config drift will cause the parametrized test to compare two different deprecations instead of the same one in two application forms.
 
 **Docstrings in test collections:**
 

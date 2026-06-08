@@ -1857,29 +1857,25 @@ DeprecatedAttrsPaletteCallableTarget = deprecated_class(
 )(PaletteOld)
 
 
-# H5 fixture: callable target + warn-only attrs_mapping in decorator form.
-@deprecated_class(
+# H5 fixture: callable target + warn-only attrs_mapping — shared config for both application forms.
+_class_deprecation_notify_only_callable_target = deprecated_class(
     target=TargetPalette,
     attrs_mapping={"size": None},
     deprecated_in="1.0",
     remove_in="2.0",
     num_warns=-1,
 )
+
+
+@_class_deprecation_notify_only_callable_target
 class DeprecatedAttrsNotifyOnlyCallableTargetDecorated:
-    """Deprecated source class whose replacement target owns the warn-only attribute."""
+    """Decorator-form: replacement target owns the warn-only attribute."""
 
     color: str = "source_red"
     colour: str = "source_colour"
 
 
-# H5 fixture: callable target + warn-only attrs_mapping in wrapper form.
-DeprecatedAttrsNotifyOnlyCallableTargetWrapped = deprecated_class(
-    target=TargetPalette,
-    attrs_mapping={"size": None},
-    deprecated_in="1.0",
-    remove_in="2.0",
-    num_warns=-1,
-)(PaletteOld)
+DeprecatedAttrsNotifyOnlyCallableTargetWrapped = _class_deprecation_notify_only_callable_target(PaletteOld)
 
 
 # ========== Combination fixtures: deprecated_class() config matrix ==========
