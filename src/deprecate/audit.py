@@ -410,6 +410,7 @@ def _detect_chain_type(
     target: Any,  # noqa: ANN401
     _is_args_remap: bool,
 ) -> Optional[ChainType]:
+    """Return the chain type when target or attrs_mapping forms a deprecation chain, else None."""
     chain_type: Optional[ChainType] = None
     if callable(target) and _has_deprecation_meta(target):
         wrp_depr_tgt = target.__deprecated__.target
@@ -433,6 +434,7 @@ def _validate_args_mapping(
     func: Callable,
     args_mapping: Optional[dict[str, Optional[str]]],
 ) -> tuple[list[str], list[str], bool]:
+    """Return (invalid_args, identity_args_mapping, all_identity) for the given mapping."""
     if not args_mapping:
         return [], [], False
     if isinstance(func, _DeprecatedProxy):

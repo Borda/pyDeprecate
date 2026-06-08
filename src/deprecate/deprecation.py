@@ -1109,6 +1109,7 @@ def deprecated(
             _accessor_sl = _stacklevel + 1
 
             def _wrap_accessor(fn: Callable) -> Callable:
+                """Apply packing to a property accessor with the adjusted stacklevel."""
                 return packing(fn, _accessor_sl)
 
             return _DeprecatedProperty(  # type: ignore[return-value]

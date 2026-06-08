@@ -109,6 +109,7 @@ else:
                     sys.path.remove(source_dir)
 
         def _update_obj(self, obj: griffe.Object, parent: object, name: str) -> None:
+            """Patch obj with runtime deprecation metadata from the live import."""
             runtime_obj = getattr(parent, name, None)
             if runtime_obj is None:
                 return

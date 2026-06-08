@@ -504,6 +504,7 @@ class _DeprecatedProxy:
         if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
 
             def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+                """Raise a read-only error when this mutating method is called."""
                 self._check_read_only(f"Calling mutating method '{name}'")
 
             return _guarded_mutator
