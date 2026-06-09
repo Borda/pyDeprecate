@@ -94,11 +94,7 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
 
     """
     cfg = DeprecationConfig(
-        deprecated_in="1.0",
-        remove_in="2.0",
-        name="src",
-        target=TargetMode.ARGS_REMAP,
-        args_mapping={"old_x": "x"},
+        deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}
     )
     wrapper = _make_wrapper_stub(identity_value, cfg)
     plan = _build_call_plan(
@@ -270,11 +266,7 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
 
     """
     cfg = DeprecationConfig(
-        deprecated_in="1.0",
-        remove_in="2.0",
-        name="src",
-        target=TargetMode.ARGS_REMAP,
-        args_mapping={"factor": "scale"},
+        deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"factor": "scale"}
     )
     wrapper = _make_wrapper_stub(compute_power, cfg)
     plan = _build_call_plan(

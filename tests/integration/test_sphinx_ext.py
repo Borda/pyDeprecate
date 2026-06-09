@@ -8,8 +8,7 @@ import pytest
 from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE
 
 _skipif_sphinx_missing = pytest.mark.skipif(
-    not (_SPHINX_AVAILABLE and _PROXY_AVAILABLE),
-    reason="sphinx or _DeprecatedProxy not available",
+    not (_SPHINX_AVAILABLE and _PROXY_AVAILABLE), reason="sphinx or _DeprecatedProxy not available"
 )
 
 

@@ -53,18 +53,8 @@ class TestStackedDeprecatedClass:
     def stacked_proxy(self) -> _DeprecatedProxy:
         """Two-layer stacked proxy with disjoint attrs_mapping and distinct version pairs."""
 
-        @deprecated_class(
-            attrs_mapping={"old_attr": "new_attr"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
-        )
-        @deprecated_class(
-            attrs_mapping={"older_attr": "newer_attr"},
-            deprecated_in="0.9",
-            remove_in="1.0",
-            stream=None,
-        )
+        @deprecated_class(attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0", stream=None)
+        @deprecated_class(attrs_mapping={"older_attr": "newer_attr"}, deprecated_in="0.9", remove_in="1.0", stream=None)
         class _Stacked(_V09Class):
             older_attr: str = "value_new"  # deprecated alias for newer_attr
             old_attr: str = "value_b"  # deprecated alias for new_attr
@@ -103,7 +93,7 @@ class TestStackedDeprecatedClass:
         """
         instance = stacked_proxy()
         assert isinstance(instance, _V09Class)
-        assert isinstance(instance, stacked_proxy)  # <-- this is the Blocker 1 assertion
+        assert isinstance(instance, stacked_proxy)  # type: ignore[arg-type]  # <-- this is the Blocker 1 assertion
 
     def test_stacked_proxy_no_double_warn_on_instantiation(self, stacked_proxy: _DeprecatedProxy) -> None:
         """Instantiating a two-layer ATTRS_REMAP proxy emits at most one warning, not two.
@@ -114,16 +104,10 @@ class TestStackedDeprecatedClass:
         executes normally.
 
         """
-        outer_proxy = deprecated_class(
-            attrs_mapping={"old_attr": "new_attr"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(
-            deprecated_class(
-                attrs_mapping={"older_attr": "newer_attr"},
-                deprecated_in="0.9",
-                remove_in="1.0",
-            )(_V09Class)
+        outer_proxy = deprecated_class(attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0")(
+            deprecated_class(attrs_mapping={"older_attr": "newer_attr"}, deprecated_in="0.9", remove_in="1.0")(
+                _V09Class
+            )
         )
 
         with warnings.catch_warnings(record=True) as caught:
@@ -145,16 +129,10 @@ class TestStackedDeprecatedClass:
 
         """
         outer = deprecated_class(
-            attrs_mapping={"old_attr": "new_attr"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=-1,
+            attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1
         )(
             deprecated_class(
-                attrs_mapping={"older_attr": "newer_attr"},
-                deprecated_in="0.9",
-                remove_in="1.0",
-                num_warns=-1,
+                attrs_mapping={"older_attr": "newer_attr"}, deprecated_in="0.9", remove_in="1.0", num_warns=-1
             )(_V09Class)
         )
 
@@ -273,12 +251,9 @@ class TestDeprecationEntry:
             new_attr: str = "x"
 
         entry = DeprecationEntry("new_attr", deprecated_in="0.9", remove_in="1.0")
-        proxy = deprecated_class(
-            attrs_mapping={"old_attr": entry},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
-        )(_Target)
+        proxy = deprecated_class(attrs_mapping={"old_attr": entry}, deprecated_in="1.0", remove_in="2.0", stream=None)(
+            _Target
+        )
 
         meta = object.__getattribute__(proxy, "__deprecated__")
         stored = meta.attrs_mapping["old_attr"]
@@ -367,22 +342,13 @@ class TestStackingCombinations:
             canonical: str = "deep"
 
         proxy = deprecated_class(
-            attrs_mapping={"old_attr": "canonical"},
-            deprecated_in="1.2",
-            remove_in="2.0",
-            num_warns=-1,
+            attrs_mapping={"old_attr": "canonical"}, deprecated_in="1.2", remove_in="2.0", num_warns=-1
         )(
             deprecated_class(
-                attrs_mapping={"older_attr": "canonical"},
-                deprecated_in="1.0",
-                remove_in="2.0",
-                num_warns=-1,
+                attrs_mapping={"older_attr": "canonical"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1
             )(
                 deprecated_class(
-                    attrs_mapping={"oldest_attr": "canonical"},
-                    deprecated_in="0.8",
-                    remove_in="1.0",
-                    num_warns=-1,
+                    attrs_mapping={"oldest_attr": "canonical"}, deprecated_in="0.8", remove_in="1.0", num_warns=-1
                 )(_Base)
             )
         )
@@ -410,30 +376,17 @@ class TestStackingCombinations:
         class _Leaf:
             canonical: str = "leaf"
 
-        proxy = deprecated_class(
-            attrs_mapping={"a": "canonical"},
-            deprecated_in="1.2",
-            remove_in="2.0",
-            stream=None,
-        )(
-            deprecated_class(
-                attrs_mapping={"b": "canonical"},
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=None,
-            )(
-                deprecated_class(
-                    attrs_mapping={"c": "canonical"},
-                    deprecated_in="0.8",
-                    remove_in="1.0",
-                    stream=None,
-                )(_Leaf)
+        proxy = deprecated_class(attrs_mapping={"a": "canonical"}, deprecated_in="1.2", remove_in="2.0", stream=None)(
+            deprecated_class(attrs_mapping={"b": "canonical"}, deprecated_in="1.0", remove_in="2.0", stream=None)(
+                deprecated_class(attrs_mapping={"c": "canonical"}, deprecated_in="0.8", remove_in="1.0", stream=None)(
+                    _Leaf
+                )
             )
         )
 
         instance = proxy()
         assert isinstance(instance, _Leaf)
-        assert isinstance(instance, proxy)
+        assert isinstance(instance, proxy)  # type: ignore[arg-type]
 
         class _Sub(_Leaf):
             pass
@@ -452,16 +405,8 @@ class TestStackingCombinations:
         class _Base:
             canonical: str = "silent"
 
-        proxy = deprecated_class(
-            attrs_mapping={"old_attr": "canonical"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(
-            deprecated_class(
-                attrs_mapping={"older_attr": "canonical"},
-                deprecated_in="0.9",
-                remove_in="1.0",
-            )(_Base)
+        proxy = deprecated_class(attrs_mapping={"old_attr": "canonical"}, deprecated_in="1.0", remove_in="2.0")(
+            deprecated_class(attrs_mapping={"older_attr": "canonical"}, deprecated_in="0.9", remove_in="1.0")(_Base)
         )
 
         with warnings.catch_warnings(record=True) as caught:
@@ -486,18 +431,11 @@ class TestStackingCombinations:
         class _Base:
             colour: str = "red"
 
-        inner = deprecated_class(
-            attrs_mapping={"color": "colour"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=-1,
-        )(_Base)
+        inner = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1)(
+            _Base
+        )
 
-        outer = deprecated_class(
-            deprecated_in="2.0",
-            remove_in="3.0",
-            num_warns=-1,
-        )(inner)  # type: ignore[arg-type]
+        outer = deprecated_class(deprecated_in="2.0", remove_in="3.0", num_warns=-1)(inner)  # type: ignore[arg-type]
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -524,10 +462,7 @@ class TestStackingCombinations:
             new_attr: str = "original"
 
         proxy = deprecated_class(
-            attrs_mapping={"old_attr": "new_attr"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=-1,
+            attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1
         )(
             deprecated_class(
                 attrs_mapping={"older_attr": "new_attr"},
@@ -597,17 +532,11 @@ class TestStackingCombinations:
                 self.new_arg = new_arg
 
         outer = deprecated_class(
-            attrs_mapping={"old_attr": "new_attr"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=-1,
+            attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1
         )(
-            deprecated_class(
-                args_mapping={"old_arg": "new_arg"},
-                deprecated_in="0.9",
-                remove_in="1.0",
-                num_warns=-1,
-            )(_Base)
+            deprecated_class(args_mapping={"old_arg": "new_arg"}, deprecated_in="0.9", remove_in="1.0", num_warns=-1)(
+                _Base
+            )
         )
 
         with pytest.warns(FutureWarning, match="1.0") as record:
@@ -623,4 +552,4 @@ class TestStackingCombinations:
         assert inst.new_arg == 7
 
         assert isinstance(inst, _Base)
-        assert isinstance(inst, outer)
+        assert isinstance(inst, outer)  # type: ignore[arg-type]

@@ -138,10 +138,7 @@ class TestHasDeprecationMeta:
 class TestParseVersion:
     """Tests for _parse_version — wraps packaging.version.Version with a ValueError on bad input."""
 
-    @pytest.mark.parametrize(
-        "version",
-        ["1.0", "2.3.4", "0.5.0a1", "1.0.0.post1", "1.0.0rc1"],
-    )
+    @pytest.mark.parametrize("version", ["1.0", "2.3.4", "0.5.0a1", "1.0.0.post1", "1.0.0rc1"])
     def test_parses_valid_pep440_strings(self, version: str) -> None:
         """All valid PEP 440 version strings parse without error."""
         parsed = _parse_version(version)
@@ -543,9 +540,7 @@ class TestDwiCompatInit:
         """DeprecationWrapperInfo(empty_mapping=True) emits DeprecationWarning and sets empty_args_mapping."""
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
             info = DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
+                function="f", deprecated_info=DeprecationConfig(), empty_mapping=True
             )
         assert info.empty_args_mapping is True
 
@@ -553,9 +548,7 @@ class TestDwiCompatInit:
         """DeprecationWrapperInfo(identity_mapping=[...]) emits DeprecationWarning and sets identity_args_mapping."""
         with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
             info = DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                identity_mapping=["a"],
+                function="f", deprecated_info=DeprecationConfig(), identity_mapping=["a"]
             )
         assert info.identity_args_mapping == ["a"]
 
@@ -563,10 +556,7 @@ class TestDwiCompatInit:
         """Passing both old kwargs emits one DeprecationWarning per renamed field."""
         with pytest.warns(DeprecationWarning, match="renamed") as caught:
             DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
-                identity_mapping=["b"],
+                function="f", deprecated_info=DeprecationConfig(), empty_mapping=True, identity_mapping=["b"]
             )
         categories = [str(w.message) for w in caught.list if issubclass(w.category, DeprecationWarning)]
         assert any("empty_args_mapping" in m for m in categories)
@@ -576,10 +566,7 @@ class TestDwiCompatInit:
         """When both old and new names are supplied (as in replace()), old-name value is honoured."""
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
             info = DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
-                empty_args_mapping=False,
+                function="f", deprecated_info=DeprecationConfig(), empty_mapping=True, empty_args_mapping=False
             )
         assert info.empty_args_mapping is True
 
@@ -591,11 +578,7 @@ class TestDwiCompatInit:
         auto-injected value, and honour the old-name value.
 
         """
-        base = DeprecationWrapperInfo(
-            function="f",
-            deprecated_info=DeprecationConfig(),
-            empty_args_mapping=False,
-        )
+        base = DeprecationWrapperInfo(function="f", deprecated_info=DeprecationConfig(), empty_args_mapping=False)
 
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
             result = dataclasses.replace(base, empty_mapping=True)  # type: ignore[call-arg]

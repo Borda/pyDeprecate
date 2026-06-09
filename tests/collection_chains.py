@@ -252,41 +252,21 @@ def caller_stacked_args_map(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) 
     return void(base, c1, nc1, nc2)
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"c1": "nc2"},
-)
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"nc1": "nc2"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
 def caller_stacked_args_enum_enum(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
     """Stacked self-deprecation decorators using TargetMode on both layers."""
     return stacked_chain_identity(base)
 
 
 @deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"nc1": "nc2"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
 def caller_stacked_args_legacy_enum(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
     """Stacked self-deprecation decorators mixing legacy and TargetMode forms."""
     return stacked_chain_identity(base)
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"c1": "nc2"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
 @deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
 def caller_stacked_args_enum_legacy(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
     """Stacked self-deprecation decorators mixing TargetMode and legacy forms."""

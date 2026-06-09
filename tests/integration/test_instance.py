@@ -6,10 +6,7 @@ from collections.abc import Callable
 import pytest
 
 from deprecate import deprecated_instance
-from tests.collection_deprecate import (
-    depr_config_dict,
-    depr_config_dict_read_only,
-)
+from tests.collection_deprecate import depr_config_dict, depr_config_dict_read_only
 
 
 class TestInstanceProxy:

@@ -123,6 +123,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Three-layer separation**: targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, test logic in `test_*.py`
 - **Do not** define targets or `@deprecated` wrappers directly in test files
 - **Scenario description required** — every non-trivial test method docstring must include a prose paragraph describing the real-world situation being tested; a one-line summary alone is not sufficient (see [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
+- **Unification pattern**: when 3+ call sites share the same `(deprecated_in, remove_in[, num_warns])` combo, extract to `_DEPRS_CASE_<SLUG>_ARGS: dict[str, Any]` and splat with `**`. Hoist `_class_deprecation_*` shared instances to the top constants block. No trailing commas before `)` in test files. See [Unification pattern](.github/CONTRIBUTING.md#unification-pattern--shared-version-kwargs-and-hoisted-instances) for full rules.
 - See [Test Organization](.github/CONTRIBUTING.md#test-organization) for details
 
 ### Documentation Site

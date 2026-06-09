@@ -121,13 +121,7 @@ class TestProxyWarnBehavior:
 
     def test_warn_message_includes_target_path_for_callable_target(self) -> None:
         """Warnings include replacement path when target is callable."""
-        proxy = _DeprecatedProxy(
-            obj={},
-            name="old_color",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            target=ColorEnum,
-        )
+        proxy = _DeprecatedProxy(obj={}, name="old_color", deprecated_in="1.0", remove_in="2.0", target=ColorEnum)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             proxy._warn()
@@ -225,11 +219,7 @@ class TestProxyTemplateMgs:
     def test_template_mgs_stored_on_deprecation_config(self) -> None:
         """``template_mgs`` is recorded on ``DeprecationConfig`` for audit/introspection."""
         proxy = _DeprecatedProxy(
-            obj={},
-            name="legacy_obj",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            template_mgs="CUSTOM %(source_name)s",
+            obj={}, name="legacy_obj", deprecated_in="1.0", remove_in="2.0", template_mgs="CUSTOM %(source_name)s"
         )
         dep = object.__getattribute__(proxy, "__deprecated__")
         assert dep.template_mgs == "CUSTOM %(source_name)s"
@@ -260,11 +250,7 @@ class TestProxyTemplateMgs:
     def test_deprecated_instance_custom_template_applied(self) -> None:
         """``deprecated_instance(template_mgs=...)`` propagates the override to ``_warn``."""
         proxy = deprecated_instance(
-            {"k": 1},
-            name="legacy_cfg",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            template_mgs="OVERRIDE %(source_name)s",
+            {"k": 1}, name="legacy_cfg", deprecated_in="1.0", remove_in="2.0", template_mgs="OVERRIDE %(source_name)s"
         )
         with pytest.warns(FutureWarning) as caught:
             _ = proxy["k"]
@@ -422,14 +408,7 @@ class TestProxyNoWarnMethods:
 
     def test_len_uses_target_when_set(self) -> None:
         """__len__ reflects the target when a target is configured."""
-        proxy = _DeprecatedProxy(
-            obj=[1],
-            target=[1, 2, 3],
-            name="x",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
-        )
+        proxy = _DeprecatedProxy(obj=[1], target=[1, 2, 3], name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         assert len(proxy) == 3
 
     def test_contains_no_warn(self) -> None:
@@ -444,12 +423,7 @@ class TestProxyNoWarnMethods:
     def test_contains_uses_target_when_set(self) -> None:
         """__contains__ reflects the target when a target is configured."""
         proxy = _DeprecatedProxy(
-            obj={"old": 1},
-            target={"new": 2},
-            name="x",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
+            obj={"old": 1}, target={"new": 2}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None
         )
         assert "new" in proxy
         assert "old" not in proxy
@@ -571,20 +545,12 @@ class TestDecoratorFactory:
         ],
     )
     def test_boolean_target_is_normalized_and_class_access_still_works(
-        self,
-        raw_target: bool,
-        warning_category: type[Warning],
-        warning_message: str,
+        self, raw_target: bool, warning_category: type[Warning], warning_message: str
     ) -> None:
         """Legacy boolean targets are normalized before proxy metadata and access use them."""
         with pytest.warns(warning_category) as caught:
 
-            @deprecated_class(
-                target=raw_target,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=None,
-            )
+            @deprecated_class(target=raw_target, deprecated_in="1.0", remove_in="2.0", stream=None)
             class OldClass:
                 def method(self) -> str:
                     return "ok"
@@ -603,11 +569,7 @@ class TestDecoratorFactory:
         with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP") as caught:
 
             @deprecated_class(
-                target=True,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                args_mapping={"old_attr": "new_attr"},
-                stream=None,
+                target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_attr": "new_attr"}, stream=None
             )
             class OldClass:
                 def method(self) -> str:
@@ -688,10 +650,7 @@ class TestArgsMapping:
         deprecation template (``old -> new``) — matching the decorator's argument-deprecation form.
 
         """
-        with pytest.warns(
-            FutureWarning,
-            match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`",
-        ):
+        with pytest.warns(FutureWarning, match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`"):
             result = MappedDataClass(**kwargs)  # type: ignore[arg-type]
         assert isinstance(result, NewDataClass)
         assert result.label == expected_label
@@ -705,8 +664,7 @@ class TestArgsMapping:
 
         """
         with pytest.warns(
-            FutureWarning,
-            match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`",
+            FutureWarning, match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`"
         ):
             result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
@@ -724,10 +682,7 @@ class TestArgsMapping:
         decorator's argument-deprecation form.
 
         """
-        with pytest.warns(
-            FutureWarning,
-            match=r"`MappedColorEnum` uses deprecated arguments: `val` -> `value`",
-        ):
+        with pytest.warns(FutureWarning, match=r"`MappedColorEnum` uses deprecated arguments: `val` -> `value`"):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is ColorEnum.RED
 
@@ -1078,10 +1033,7 @@ class TestProxyArgsMappingBehavior:
         with pytest.warns(UserWarning, match="args_mapping"):
 
             @deprecated_class(
-                deprecated_in="1.2",
-                remove_in="2.0",
-                target=TargetMode.NOTIFY,
-                args_mapping={"old_key": "new_key"},
+                deprecated_in="1.2", remove_in="2.0", target=TargetMode.NOTIFY, args_mapping={"old_key": "new_key"}
             )
             class _ProxyNotifyWithArgsMapping:
                 pass
@@ -1090,11 +1042,7 @@ class TestProxyArgsMappingBehavior:
         """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match="args_mapping"):
 
-            @deprecated_class(
-                deprecated_in="1.2",
-                remove_in="2.0",
-                target=TargetMode.ARGS_REMAP,
-            )
+            @deprecated_class(deprecated_in="1.2", remove_in="2.0", target=TargetMode.ARGS_REMAP)
             class _ProxyArgsRemapNoMapping:
                 pass
 
@@ -1337,11 +1285,7 @@ class TestDeprecatedAttrs:
 
         """
         # Use a fresh proxy with stream enabled because DeprecatedAttrsNotifyOnly suppresses warnings.
-        proxy = deprecated_class(
-            attrs_mapping={"size": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(Palette)
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -1357,12 +1301,9 @@ class TestDeprecatedAttrs:
         pointing at a nonexistent replacement attribute.
 
         """
-        proxy = deprecated_class(
-            target=Palette,
-            attrs_mapping={"size": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(target=Palette, attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(
+            Palette
+        )
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -1452,10 +1393,7 @@ class TestDeprecatedAttrs:
 
         """
         proxy = deprecated_class(
-            attrs_mapping={"color": "colour", "txt": "text"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=1,
+            attrs_mapping={"color": "colour", "txt": "text"}, deprecated_in="1.0", remove_in="2.0", num_warns=1
         )(Palette)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -1479,12 +1417,9 @@ class TestDeprecatedAttrs:
         ``warned_args.get(key, 0) >= num_warns`` at the budget limit.
 
         """
-        proxy = deprecated_class(
-            attrs_mapping={"color": "colour"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=2,
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0", num_warns=2)(
+            Palette
+        )
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             _ = proxy.color  # type: ignore[attr-defined]
@@ -1517,11 +1452,7 @@ class TestDeprecatedAttrs:
 
         """
         # Use a fresh stream-enabled proxy so we can assert on the FutureWarning.
-        proxy = deprecated_class(
-            attrs_mapping={"COLOR": "COLOUR"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(PaletteEnum)
+        proxy = deprecated_class(attrs_mapping={"COLOR": "COLOUR"}, deprecated_in="1.0", remove_in="2.0")(PaletteEnum)
         with pytest.warns(FutureWarning, match="COLOR"):
             value = proxy.COLOR  # type: ignore[attr-defined]
         assert value is PaletteEnum.COLOUR
@@ -1552,11 +1483,7 @@ class TestDeprecatedAttrs:
         """
         with pytest.raises(ValueError, match="circular redirects"):
 
-            @deprecated_class(
-                attrs_mapping={"a": "b", "b": "a"},
-                deprecated_in="1.0",
-                remove_in="2.0",
-            )
+            @deprecated_class(attrs_mapping={"a": "b", "b": "a"}, deprecated_in="1.0", remove_in="2.0")
             class _Circular:
                 a = 1
                 b = 2
@@ -1569,12 +1496,7 @@ class TestDeprecatedAttrs:
 
         """
 
-        @deprecated_class(
-            attrs_mapping={"a": "b", "b": "c"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
-        )
+        @deprecated_class(attrs_mapping={"a": "b", "b": "c"}, deprecated_in="1.0", remove_in="2.0", stream=None)
         class _Chained:
             a = 1
             b = 2
@@ -1628,10 +1550,7 @@ class TestDeprecatedAttrs:
             canonical = "target_canonical"
 
         target_proxy = deprecated_class(
-            attrs_mapping={"alias": "canonical"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=1,
+            attrs_mapping={"alias": "canonical"}, deprecated_in="1.0", remove_in="2.0", num_warns=1
         )(TargetAlias)
         target_cfg = object.__getattribute__(target_proxy, "_DeprecatedProxy__config")
         target_cfg.warned_args.clear()
@@ -1642,12 +1561,9 @@ class TestDeprecatedAttrs:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            deprecated_class(
-                target=target_proxy,
-                attrs_mapping={"old": "alias"},
-                deprecated_in="1.0",
-                remove_in="2.0",
-            )(SourceAlias)
+            deprecated_class(target=target_proxy, attrs_mapping={"old": "alias"}, deprecated_in="1.0", remove_in="2.0")(
+                SourceAlias
+            )
         assert not caught
         assert target_cfg.warned_args == {}
 
@@ -1661,11 +1577,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(Palette, "colour", Palette.colour)
-        proxy = deprecated_class(
-            attrs_mapping={"color": "colour"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
         with pytest.warns(FutureWarning, match="color"):
             del proxy.color  # type: ignore[attr-defined]
         assert not hasattr(Palette, "colour")
@@ -1680,11 +1592,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(Palette, "size", Palette.size)
-        proxy = deprecated_class(
-            attrs_mapping={"size": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(Palette)
         with pytest.warns(FutureWarning, match="size"):
             del proxy.size  # type: ignore[attr-defined]
         assert not hasattr(Palette, "size")
@@ -1700,12 +1608,9 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
-        proxy = deprecated_class(
-            target=Palette,
-            attrs_mapping={"color": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(PaletteOld)
+        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, deprecated_in="1.0", remove_in="2.0")(
+            PaletteOld
+        )
         assert not hasattr(Palette, "color")
         original = PaletteOld.color
 
@@ -1727,12 +1632,9 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
-        proxy = deprecated_class(
-            target=Palette,
-            attrs_mapping={"color": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(PaletteOld)
+        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, deprecated_in="1.0", remove_in="2.0")(
+            PaletteOld
+        )
         assert not hasattr(Palette, "color")
 
         with pytest.warns(FutureWarning, match="color"):
@@ -1752,11 +1654,7 @@ class TestDeprecatedAttrs:
         """
         with pytest.raises(ValueError, match="warn-only keys not found on either class"):
 
-            @deprecated_class(
-                attrs_mapping={"nonexistent": None},
-                deprecated_in="1.0",
-                remove_in="2.0",
-            )
+            @deprecated_class(attrs_mapping={"nonexistent": None}, deprecated_in="1.0", remove_in="2.0")
             class _MissingWarnOnly:
                 colour: str = "red"
 
@@ -1958,12 +1856,9 @@ class TestAttrsMappingCombinations:
             colour = "red"
 
         with pytest.warns(UserWarning, match="ATTRS_REMAP.*requires.*`attrs_mapping`"):
-            proxy = deprecated_class(
-                target=TargetMode.ATTRS_REMAP,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=None,
-            )(_AttrsRemapMissingMapping)
+            proxy = deprecated_class(target=TargetMode.ATTRS_REMAP, deprecated_in="1.0", remove_in="2.0", stream=None)(
+                _AttrsRemapMissingMapping
+            )
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert meta.misconfigured is True
 
@@ -1980,12 +1875,9 @@ class TestAttrsMappingCombinations:
             colour = "red"
 
         with pytest.warns(UserWarning, match="empty dict"):
-            proxy = deprecated_class(
-                attrs_mapping={},
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=None,
-            )(_EmptyAttrsMapping)
+            proxy = deprecated_class(attrs_mapping={}, deprecated_in="1.0", remove_in="2.0", stream=None)(
+                _EmptyAttrsMapping
+            )
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert meta.misconfigured is True
 

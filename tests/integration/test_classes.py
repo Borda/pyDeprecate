@@ -333,11 +333,7 @@ def test_deprecated_class_attribute_set_at_decoration_time() -> None:
     # Verify __deprecated__ is set on the __init__ WITHOUT instantiating the class
     assert hasattr(PastCls.__init__, "__deprecated__")
     assert PastCls.__init__.__deprecated__ == DeprecationConfig(
-        deprecated_in="0.2",
-        remove_in="0.4",
-        name="__init__",
-        target=NewCls,
-        args_mapping=None,
+        deprecated_in="0.2", remove_in="0.4", name="__init__", target=NewCls, args_mapping=None
     )
 
 
@@ -358,10 +354,7 @@ class TestEnumFormEquivalence(_ClassFormBase):
 
     def test_emits_warning(self, proxy: _DeprecatedProxy, name: str) -> None:
         """Accessing proxy.ALPHA emits a FutureWarning with class name and version info."""
-        with pytest.warns(
-            FutureWarning,
-            match=rf"{name}.*deprecated since v0\.5.*removed in v1\.0",
-        ):
+        with pytest.warns(FutureWarning, match=rf"{name}.*deprecated since v0\.5.*removed in v1\.0"):
             _ = proxy.ALPHA
 
     def test_attribute_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:
@@ -403,10 +396,7 @@ class TestDataclassFormEquivalence(_ClassFormBase):
 
     def test_emits_warning(self, proxy: _DeprecatedProxy, name: str) -> None:
         """Instantiating proxy emits a FutureWarning with class name and version info."""
-        with pytest.warns(
-            FutureWarning,
-            match=rf"{name}.*deprecated since v0\.5.*removed in v1\.0",
-        ):
+        with pytest.warns(FutureWarning, match=rf"{name}.*deprecated since v0\.5.*removed in v1\.0"):
             proxy(label="x")
 
     def test_forwarding(self, proxy: _DeprecatedProxy, name: str) -> None:

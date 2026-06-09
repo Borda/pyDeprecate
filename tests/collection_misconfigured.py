@@ -31,10 +31,7 @@ from deprecate._types import TargetMode, _DeprecatedCallable
 
 
 @deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    args_mapping={"nonexistent_arg": "new_arg"},
+    target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"nonexistent_arg": "new_arg"}
 )
 def invalid_args_deprecation(real_arg: int = 1) -> int:
     """Nonexistent argument name in args_mapping.
@@ -69,12 +66,7 @@ def none_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    args_mapping={"arg1": "arg1"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"arg1": "arg1"})
 def identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """Single identity mapping (arg mapped to itself).
 
@@ -86,10 +78,7 @@ def identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
 
 
 @deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    args_mapping={"arg1": "arg1", "arg2": "arg2"},
+    target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"arg1": "arg1", "arg2": "arg2"}
 )
 def all_identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """All arguments are identity mapped.
@@ -159,12 +148,7 @@ def target_false_deprecation(x: int = 1) -> int:
     return x
 
 
-@deprecated(
-    target=TargetMode.NOTIFY,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    args_mapping={"old_x": "x"},
-)
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"})
 def whole_with_mapping_deprecation(x: int = 1) -> int:
     """NOTIFY + args_mapping — mapping ignored; emits UserWarning at decoration time.
 
@@ -180,12 +164,7 @@ def args_only_no_mapping_deprecation(x: int = 1) -> int:
     return x
 
 
-@deprecated(
-    target=TargetMode.NOTIFY,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    args_extra={"bias": 1},
-)
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5", args_extra={"bias": 1})
 def whole_with_args_extra_deprecation(x: int = 1) -> int:
     """NOTIFY + args_extra — extra ignored; emits UserWarning at decoration time.
 
@@ -201,12 +180,7 @@ def whole_clean_deprecation(x: int = 1) -> int:
     return x
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    args_mapping={"old_x": "x"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"})
 def args_only_clean_deprecation(x: int = 1) -> int:
     """ARGS_REMAP with args_mapping — correctly configured; audit should not flag."""
     return x
@@ -237,13 +211,7 @@ def make_class_target_none_with_args_mapping() -> type:
 
     """
 
-    @deprecated(
-        target=None,
-        deprecated_in="0.1",
-        remove_in="0.5",
-        args_mapping={"old": "new"},
-        num_warns=-1,
-    )
+    @deprecated(target=None, deprecated_in="0.1", remove_in="0.5", args_mapping={"old": "new"}, num_warns=-1)
     class _NoneArgsMappingClass:
         """Source class — deprecated_class delegates to this body unchanged."""
 
@@ -292,12 +260,7 @@ def make_class_target_false_with_args_mapping() -> type:
 
     """
 
-    @deprecated(
-        target=False,
-        deprecated_in="0.1",
-        remove_in="0.5",
-        args_mapping={"old": "new"},
-    )
+    @deprecated(target=False, deprecated_in="0.1", remove_in="0.5", args_mapping={"old": "new"})
     class _FalseTargetWithArgsMappingClass:
         """Source class with invalid target sentinel and args_mapping."""
 

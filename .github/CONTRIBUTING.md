@@ -486,6 +486,43 @@ WrappedWidget = _class_deprecation_widget(_OriginalWidget)
 
 > **Rule**: when a `Decorated<Name>` / `Wrapped<Name>` pair exists, both **must** share a single `_class_deprecation_<name>` instance. Duplicating the `deprecated_class(...)` kwargs is a bug — a silent config drift will cause the parametrized test to compare two different deprecations instead of the same one in two application forms.
 
+**Unification pattern — shared version kwargs and hoisted instances:**
+
+When three or more `@deprecated(...)` or `@deprecated_class(...)` call sites share the same `(deprecated_in, remove_in[, num_warns])` combination, extract the repeated kwargs into a named `dict` constant and splat it at each call site. This eliminates silent version drift and makes bulk version-bump changes a one-line edit.
+
+Naming convention: `_DEPRS_CASE_<SLUG>_ARGS` where `<SLUG>` is an ALL_CAPS descriptor of the usage context (e.g. `PROXY_LEGACY`, `TGT_MODE`, `STD_INF`). Type-annotate as `dict[str, Any]` to avoid mypy narrowing complaints on heterogeneous values.
+
+```python
+from typing import Any
+
+# Reusable deprecation-version kwarg groups.
+_DEPRS_CASE_PROXY_LEGACY_ARGS: dict[str, Any] = {"deprecated_in": "0.1", "remove_in": "0.2", "num_warns": -1}
+_DEPRS_CASE_TGT_MODE_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in": "2.0"}
+
+
+@deprecated_class(**_DEPRS_CASE_PROXY_LEGACY_ARGS)
+class DeprecatedEnum(Enum): ...
+
+
+@deprecated_class(target=NewEnum, **_DEPRS_CASE_PROXY_LEGACY_ARGS)
+class RedirectedEnum(Enum): ...
+
+
+@deprecated(**_DEPRS_CASE_TGT_MODE_ARGS, target=TargetMode.NOTIFY, num_warns=-1)
+def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
+```
+
+Rules:
+
+- Minimum **3 call sites** before extracting — two occurrences stay inline.
+- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
+- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `collection_deprecate.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
+- When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
+
+**Trailing commas in test files:**
+
+Do **not** add trailing commas before closing `)` in function calls in test files. Ruff uses a trailing comma as a "magic" signal to keep a call expanded across multiple lines even when it would fit on one. Without trailing commas, ruff can auto-collapse short calls to a single line when formatting. Existing trailing commas are removed periodically; don't re-introduce them.
+
 **Docstrings in test collections:**
 
 Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collection_chains.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
