@@ -32,6 +32,7 @@ from tests.collection_deprecate import (
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
+    depr_read_only_attrs_list,
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
@@ -1176,11 +1177,14 @@ class TestDeprecatedAttrs:
             DeprecatedAttrsNotifyOnlyCallableTargetWrapped,
             DeprecatedAttrsPaletteEnum,
             DeprecatedAttrsPaletteWithStream,
+            depr_read_only_attrs_list,
         ):
             cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
             cfg.warned = 0
             cfg.warned_args.clear()
             source = cfg.obj
+            if hasattr(source, "items"):
+                source.items.clear()
             if hasattr(source, "size"):
                 delattr(source, "size")
         # Restore canonical class attributes mutated by previous write-redirect tests.
@@ -1272,6 +1276,22 @@ class TestDeprecatedAttrs:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
         assert "in favor of" not in str(record[0].message)
+
+    def test_read_only_attrs_mapping_blocks_mapped_mutator(self) -> None:
+        """Read-only proxies block mutators returned through an attribute mapping.
+
+        A project may keep a deprecated alias such as ``push`` while the replacement object exposes the standard
+        list-like ``append`` method.  When the proxy is also read-only, resolving ``push`` through
+        ``attrs_mapping={"push": "append"}`` must still return a guarded callable so calling it raises
+        ``AttributeError`` and leaves the underlying collection unchanged.
+
+        """
+        source = object.__getattribute__(depr_read_only_attrs_list, "_DeprecatedProxy__config").obj
+
+        with pytest.raises(AttributeError, match="read-only"):
+            depr_read_only_attrs_list.push("x")  # type: ignore[attr-defined]
+
+        assert source.items == []
 
     @pytest.mark.parametrize(
         "proxy",

@@ -50,12 +50,14 @@ import typing_extensions
 from sklearn.metrics import accuracy_score
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
+from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
     LegacyBoolAttrsSource,
+    MutableAttrsList,
     NewCls,
     NewDataClass,
     NewEnum,
@@ -1179,6 +1181,17 @@ depr_config_dict_read_only = deprecated_instance(
     remove_in="2.0",
     num_warns=-1,
     read_only=True,
+)
+
+depr_read_only_attrs_list = _DeprecatedProxy(
+    obj=MutableAttrsList(),
+    name="legacy_mutable_attrs_list",
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+    stream=None,
+    read_only=True,
+    attrs_mapping={"push": "append"},
 )
 
 

@@ -538,6 +538,17 @@ class _DeprecatedProxy:
         }
         return name in mutating_names
 
+    def _guard_read_only_mutator(self, attr: Any, name: str) -> Any:  # noqa: ANN401
+        """Return a guarded callable for standard mutators in read-only mode."""
+        if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
+
+            def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+                """Raise a read-only error when this mutating method is called."""
+                self._check_read_only(f"Calling mutating method '{name}'")
+
+            return _guarded_mutator
+        return attr
+
     # ------------------------------------------------------------------
     # Attribute access
     # ------------------------------------------------------------------
@@ -563,25 +574,20 @@ class _DeprecatedProxy:
                 attr_name = redirect if redirect is not None else name
                 if redirect is None:
                     try:
-                        return getattr(active, attr_name)
+                        attr = getattr(active, attr_name)
                     except AttributeError:
                         # Attribute absent from target — fall back to source. Covers the "being-removed" pattern where
                         # the deprecated attribute still lives on the old class but was dropped from the new target.
-                        return getattr(self._cfg.obj, attr_name)
-                return getattr(active, attr_name)
+                        attr = getattr(self._cfg.obj, attr_name)
+                    return self._guard_read_only_mutator(attr, attr_name)
+                attr = getattr(active, attr_name)
+                return self._guard_read_only_mutator(attr, attr_name)
             # Not a deprecated attr — silent passthrough, no warning.
-            return getattr(self._get_active(), name)
+            attr = getattr(self._get_active(), name)
+            return self._guard_read_only_mutator(attr, name)
         self._warn()
         attr = getattr(self._get_active(), name)
-        # In read-only mode, guard common mutating methods accessed via attribute lookup.
-        if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
-
-            def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-                """Raise a read-only error when this mutating method is called."""
-                self._check_read_only(f"Calling mutating method '{name}'")
-
-            return _guarded_mutator
-        return attr
+        return self._guard_read_only_mutator(attr, name)
 
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
         """Forward attribute mutation to the active object, raising in read-only mode.

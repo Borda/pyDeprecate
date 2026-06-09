@@ -480,3 +480,22 @@ class CombinedAttrsArgsSource:
     def __init__(self, old_arg: int = 0, new_arg: int = 0) -> None:
         """Store either the old or the new keyword argument under a single attribute for assertions."""
         self.value = old_arg or new_arg
+
+
+class MutableAttrsList:
+    """List-like target object for read-only ``attrs_mapping`` regression coverage.
+
+    Wrapped by :mod:`tests.collection_deprecate` with ``read_only=True`` and
+    ``attrs_mapping={"push": "append"}`` so tests can verify that a deprecated
+    attribute alias resolving to a standard collection mutator cannot mutate the
+    underlying object through the proxy.
+
+    """
+
+    def __init__(self) -> None:
+        """Initialise the list-like storage used by the mutator."""
+        self.items: list[str] = []
+
+    def append(self, item: str) -> None:
+        """Append an item to the backing list."""
+        self.items.append(item)
