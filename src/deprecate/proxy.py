@@ -268,9 +268,7 @@ class _DeprecatedProxy:
         # Reject true cycles in ``attrs_mapping`` at decoration time. Non-cyclic chains are allowed at runtime
         # and surfaced by audit as mapping chains.
         if attrs_mapping is not None:
-            attr_check_obj = (
-                target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
-            )
+            attr_check_obj = target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
             self._validate_attrs_mapping(attrs_mapping, obj, attr_check_obj)
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
