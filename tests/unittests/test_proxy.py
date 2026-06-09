@@ -1684,11 +1684,13 @@ class TestAttrsMappingCombinations:
         the proxy can be called.
 
         """
+        instance: LegacyBoolAttrsSource | None = None
         try:
             instance = DeprecatedAttrsLegacyTrue()
         except ValueError as ex:
             pytest.fail(f"legacy target=True attrs_mapping proxy raised ValueError: {ex}")
 
+        assert instance is not None
         assert isinstance(instance, LegacyBoolAttrsSource)
         assert instance.ready is True
         meta = object.__getattribute__(DeprecatedAttrsLegacyTrue, "__deprecated__")
