@@ -217,8 +217,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
 
     """
     # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
-    # including across different classes, because PastCls inherits NewCls so `self`
-    # is a valid NewCls instance.
+    # including across different classes, because PastCls inherits NewCls so `self` is a valid NewCls instance.
     if source.__name__ == "__init__" and getattr(target, "__name__", "") == "__init__":
         return
     src_qualname = getattr(source, "__qualname__", "")
@@ -241,8 +240,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     #   2: enclosing class body (where `@deprecated(...)` is written)
     # The final-segment bracket filter rejects lambda/comprehension/genexp scopes
     # (whose qualname's last component is ``<lambda>`` / ``<listcomp>`` / etc.); class
-    # bodies always end in a plain identifier, even when nested inside a function
-    # (e.g. ``"outer.<locals>.MyClass"``).
+    # bodies always end in a plain identifier, even when nested inside a function (e.g. ``"outer.<locals>.MyClass"``).
     try:
         frame_qn = sys._getframe(2).f_locals.get("__qualname__", "")
         if frame_qn and not frame_qn.rsplit(".", 1)[-1].startswith("<"):
@@ -1077,6 +1075,12 @@ def deprecated(
                     f"`target=TargetMode.ARGS_REMAP` (or legacy `True`) is not supported when decorating a `property`."
                     f" Got: {target!r}. Use `TargetMode.NOTIFY` or omit `target`."
                 )
+            if target is TargetMode.ATTRS_REMAP:
+                raise TypeError(
+                    "`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on a `property`."
+                    " `TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
+                    "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
+                )
             # Guard against pre-deprecated individual accessors fed into property(...) then
             # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
             # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
@@ -1103,6 +1107,7 @@ def deprecated(
             _accessor_sl = _stacklevel + 1
 
             def _wrap_accessor(fn: Callable) -> Callable:
+                """Apply packing to a property accessor with the adjusted stacklevel."""
                 return packing(fn, _accessor_sl)
 
             return _DeprecatedProperty(  # type: ignore[return-value]
@@ -1199,6 +1204,15 @@ def deprecated(
         if callable(target) and not inspect.isclass(target):
             _check_cross_class_method_target(source, target)
         _target = _normalize_target(source, target)
+        # ATTRS_REMAP is a proxy-only mode — it is meaningless on @deprecated functions/methods
+        # because there is no attribute-access surface to intercept. Raise at decoration time
+        # rather than silently producing a wrapper whose stored target has no runtime effect.
+        if _target is TargetMode.ATTRS_REMAP:
+            raise TypeError(
+                f"`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on `{source.__name__}`. "
+                "`TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
+                "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
+            )
 
         if _has_deprecation_meta(source):
             _source_is_stacked = True

@@ -109,6 +109,7 @@ else:
                     sys.path.remove(source_dir)
 
         def _update_obj(self, obj: griffe.Object, parent: object, name: str) -> None:
+            """Patch obj with runtime deprecation metadata from the live import."""
             runtime_obj = getattr(parent, name, None)
             if runtime_obj is None:
                 return
@@ -134,6 +135,5 @@ else:
             griffe_obj.docstring.value = runtime_doc
             # Griffe caches parsed sections in docstring.__dict__["parsed"].
             # If the cache was populated from the static source before this
-            # extension ran, it must be cleared so the next access re-parses
-            # from the updated value.
+            # extension ran, it must be cleared so the next access re-parses from the updated value.
             griffe_obj.docstring.__dict__.pop("parsed", None)

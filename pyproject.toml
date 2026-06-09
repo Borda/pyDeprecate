@@ -88,10 +88,13 @@ ini_options.testpaths = [ "src", "tests" ]
 ini_options.norecursedirs = [
   ".git",
   ".github",
+  ".claude",
   "dist",
   "build",
   "docs",
   "demo-*",
+  "releases",
+  "site",
 ]
 ini_options.addopts = [
   "--strict-markers",

@@ -323,26 +323,26 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_callable_target_no_effect_false(self) -> None:
         """Proxy forwarding to a callable target is effective → no_effect=False."""
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
-            obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=TargetColorEnum, stream=None
+            obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.function == "old_enum"
-        assert result.deprecated_info.target is TargetColorEnum
+        assert result.deprecated_info.target is ColorEnum
         assert result.no_effect is False
 
     def test_proxy_with_args_mapping_skips_signature_validation(self) -> None:
         """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
             obj={},
             name="mapped",
             deprecated_in="1.0",
             remove_in="2.0",
-            target=TargetColorEnum,
+            target=ColorEnum,
             args_mapping={"old_key": "value"},
             stream=None,
         )
@@ -352,14 +352,14 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_identity_args_mapping_detected(self) -> None:
         """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
             obj={},
             name="identity_mapped",
             deprecated_in="1.0",
             remove_in="2.0",
-            target=TargetColorEnum,
+            target=ColorEnum,
             args_mapping={"value": "value"},
             stream=None,
         )
@@ -382,20 +382,39 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.invalid_args == []
         assert result.no_effect is False
 
+    def test_proxy_attrs_mapping_chain_detected_as_stacked_chain(self) -> None:
+        """Audit reports an ``attrs_mapping`` chain without decoration-time failure."""
+
+        class Palette:
+            a = 1
+            b = 2
+            c = 3
+
+        proxy = _DeprecatedProxy(
+            obj=Palette,
+            name="Palette",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            attrs_mapping={"a": "b", "b": "c"},
+            stream=None,
+        )
+        result = validate_deprecation_wrapper(proxy)
+        assert result.chain_type is ChainType.STACKED
+
     def test_proxy_function_name_from_dep_info(self) -> None:
         """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
 
         Without this, getattr routes through __getattr__ and leaks the target's __name__.
 
         """
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
-            obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=TargetColorEnum, stream=None
+            obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.function == "SourceName"
-        assert result.function != TargetColorEnum.__name__
+        assert result.function != ColorEnum.__name__
 
     def test_proxy_empty_args_mapping_true_when_no_args_mapping(self) -> None:
         """Proxy with args_mapping=None reports empty_args_mapping=True."""

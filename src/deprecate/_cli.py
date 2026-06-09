@@ -216,6 +216,7 @@ class _Reporter:
         """Report wrappers that have no observable effect on callers."""
 
         def _reasons(r: DeprecationWrapperInfo) -> str:
+            """Format the no-effect reasons for a single wrapper as a comma-separated string."""
             parts = []
             if r.empty_args_mapping:
                 parts.append("Empty mapping")

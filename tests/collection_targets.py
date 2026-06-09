@@ -117,7 +117,7 @@ class NewIntEnum(Enum):
     BETA = 2
 
 
-class TargetColorEnum(Enum):
+class ColorEnum(Enum):
     """Target enum for deprecated_class forwarding tests."""
 
     RED = 1
@@ -189,7 +189,7 @@ class SomeTargetClass:
         self.new_key = new_key
 
 
-class TargetWithInjected:
+class WithInjected:
     """Target class accepting an ``injected`` kwarg for ``args_extra`` tests.
 
     Used by proxy ``args_extra`` fixtures to verify that deprecated_class() merges configured extra kwargs into
@@ -394,3 +394,108 @@ def del_only_prop_fdel(self: _DelOnlyPropTarget) -> None:
 
     """
     self._value = None
+
+
+class Palette:
+    """Target class with canonical attribute names for ``attrs_mapping`` tests.
+
+    Carries both the canonical names (``colour``, ``text``, ``size``) and is wrapped by ``deprecated_class`` fixtures in
+    :mod:`tests.collection_deprecate` to register deprecated aliases (``color`` → ``colour``, ``txt`` → ``text``).  The
+    canonical attributes are mutable instance-style class attributes so that read/write/delete tests can exercise the
+    forwarding behaviour without instantiating the class.
+
+    """
+
+    colour: str = "red"
+    text: str = "hello"
+    size: int = 42
+
+
+class PaletteEnum(Enum):
+    """Enum with canonical member names for the ``attrs_mapping`` enum redirect test.
+
+    Wrapped by ``DeprecatedAttrsPaletteEnum`` in :mod:`tests.collection_deprecate` to register a deprecated alias
+    ``COLOR`` → ``COLOUR``.  Used to verify that proxy ``__getattr__`` redirect logic survives the enum metaclass.
+
+    """
+
+    COLOUR = "red"
+    TEXT = "hello"
+
+
+class PaletteOld:
+    """Source class for H4 callable-target + attrs_mapping fixture.
+
+    Has both a deprecated ``color`` attribute and canonical ``colour`` attribute.  Wrapped by ``deprecated_class`` in
+    :mod:`tests.collection_deprecate` with ``target=Palette`` and ``attrs_mapping={"color": "colour"}``
+    to verify that mapped attributes resolve against the target class when a callable target is configured.
+
+    """
+
+    color: str = "source_red"
+    colour: str = "source_colour"
+
+
+class LegacyBoolAttrsSource:
+    """Source class for ``target=True`` plus ``attrs_mapping`` regression coverage."""
+
+    color: str = "legacy_red"
+    colour: str = "canonical_red"
+
+    def __init__(self) -> None:
+        """Initialise a stable marker so tests can confirm construction succeeded."""
+        self.ready = True
+
+
+class CombinedAttrsArgsTarget:
+    """Target class combining a canonical attribute and a constructor keyword for combination matrix tests.
+
+    Carries ``colour`` as the canonical attribute name (paired with deprecated alias ``color`` on a wrapping proxy) and
+    a ``new_arg`` constructor keyword (paired with deprecated alias ``old_arg`` on the same proxy).  Wrapped by
+    ``DeprecatedAttrsPaletteAllThree`` in :mod:`tests.collection_deprecate` to verify that ``attrs_mapping`` and
+    ``args_mapping`` operate on disjoint surfaces (attribute access vs constructor kwargs) without interference.
+
+    """
+
+    colour: str = "red"
+    color: str = "target_color_legacy"  # canonical-side alias, never read by the proxy
+
+    def __init__(self, new_arg: int = 0) -> None:
+        """Store the canonical constructor keyword argument."""
+        self.new_arg = new_arg
+
+
+class CombinedAttrsArgsSource:
+    """Source class for combination matrix tests with deprecated attr alias and constructor kwarg.
+
+    Has ``colour`` (canonical) and ``color`` (deprecated alias).  Constructor takes ``old_arg`` (deprecated) and
+    ``new_arg`` (canonical). Wrapped by ``DeprecatedAttrsPaletteAllThree`` with both ``attrs_mapping`` and
+    ``args_mapping`` configured against :class:`CombinedAttrsArgsTarget` as the forwarding target.
+
+    """
+
+    colour: str = "source_red"
+    color: str = "source_color_legacy"
+
+    def __init__(self, old_arg: int = 0, new_arg: int = 0) -> None:
+        """Store either the old or the new keyword argument under a single attribute for assertions."""
+        self.value = old_arg or new_arg
+
+
+class MutableAttrsList:
+    """List-like target object for read-only ``attrs_mapping`` regression coverage.
+
+    Wrapped by :mod:`tests.collection_deprecate` with ``read_only=True`` and
+    ``attrs_mapping={"push": "append"}`` so tests can verify that a deprecated
+    attribute alias resolving to a standard collection mutator cannot mutate the
+    underlying object through the proxy.
+
+    """
+
+    def __init__(self) -> None:
+        """Initialise the list-like storage used by the mutator."""
+        self.items: list[str] = []
+
+    def append(self, item: str) -> None:
+        """Append an item to the backing list."""
+        self.items.append(item)

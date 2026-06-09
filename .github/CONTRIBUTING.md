@@ -283,7 +283,11 @@ git push origin fix/123-your-bug-description
 ### Style & Formatting
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
-- Write clear, descriptive docstrings (Google-style convention) for all public functions, methods, and classes; include an `Example:` section for non-trivial behavior — omit only when an example literally cannot run (e.g., requires an external service or produces non-deterministic output); showing the call without output (`>>> result = fn(x)` with no output line) is fine and still counts as a runnable doctest; `# doctest: +SKIP` and `# phmdoctest:skip` are highly discouraged — each instance degrades testability; if you must use one, explain why in a comment on the same line
+- Write clear, descriptive docstrings (Google-style convention) for all public **and** private functions, methods, and classes:
+  - **Private functions** (name starts with `_`): minimum one-line summary — callers and reviewers must be able to understand the function contract without reading the body
+  - **Public functions**: full Google-style sections — `Args:` for every parameter (name, type if not already in the signature, what it means), `Returns:` describing the return value and its type when non-obvious, `Raises:` listing every exception the function intentionally raises with the condition that triggers it; omit a section only when it genuinely does not apply (e.g. no parameters, returns `None`, raises nothing)
+  - Include an `Examples:` section for non-trivial behavior — omit only when an example literally cannot run (e.g., requires an external service or produces non-deterministic output); showing the call without output (`>>> result = fn(x)` with no output line) is fine and still counts as a runnable doctest; `# doctest: +SKIP` and `# phmdoctest:skip` are highly discouraged — each instance degrades testability; if you must use one, explain why in a comment on the same line
+  - **If a function has no dedicated test**, it must have at least one runnable `Examples:` doctest — the doctest is the minimum proof that the function works as documented
 - In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax (e.g., `` :func:`~deprecate.deprecation.deprecated` `` rather than just `` :func:`deprecated` ``); standard library symbols (e.g., `FutureWarning`) do not need a module prefix
 - Use **MkDocs admonition syntax** for docstring notices in `src/deprecate/` by default — `!!! note`, `!!! warning "Deprecated in X.Y"`, etc. Do not use RST directives (`.. note::`, `.. deprecated::`) in package source docstrings unless the module specifically exists to integrate with Sphinx/RST docstrings (for example, `src/deprecate/docstring/sphinx_ext.py` and `src/deprecate/docstring/griffe_ext.py`). For demos, `demo-docs/sphinx/` follows RST conventions and `demo-docs/mkdocs/` follows MkDocs conventions — each demo matches its own renderer.
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
@@ -376,6 +380,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 >
 > - Use `print()` for values you want to verify, paired with a `<details><summary>Output: <code>expression</code></summary>` block immediately after the code block. The `<summary>` label shows the **expression** being evaluated (e.g. `cfg.timeout`), not the `print()` wrapper.
 > - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
+> - **Never use `with warnings.catch_warnings(record=True) as w: warnings.simplefilter("always")`** in any `.md` code block (README, docs, docstrings). Use direct calls annotated with `# warns: FutureWarning` or `# silent` instead. Output blocks show only return values — not warning counts or `w[0].category.__name__`.
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
@@ -448,7 +453,38 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 wrapped_sum_warn_only = _deprecation_warn_only(original_sum_warn_only)
 ```
 
-The same pattern applies to `deprecated_class()` pairs — define `_class_deprecation_<name> = deprecated_class(...)` once and reuse it for both `Wrapped<Name>` and `@Decorated<Name>`.
+The same pattern applies to `deprecated_class()` pairs — define `_class_deprecation_<name> = deprecated_class(...)` once and reuse it for both `Wrapped<Name>` and `@Decorated<Name>`:
+
+```python
+from deprecate import deprecated_class
+
+
+class NewWidget:
+    """Canonical replacement class."""
+
+    size: int = 42
+
+
+_class_deprecation_widget = deprecated_class(target=NewWidget, deprecated_in="1.0", remove_in="2.0")
+
+
+@_class_deprecation_widget
+class DecoratedWidget:
+    """Decorator-form: same config as WrappedWidget."""
+
+    size: int = 42
+
+
+class _OriginalWidget:
+    """Source class for the wrapper form."""
+
+    size: int = 42
+
+
+WrappedWidget = _class_deprecation_widget(_OriginalWidget)
+```
+
+> **Rule**: when a `Decorated<Name>` / `Wrapped<Name>` pair exists, both **must** share a single `_class_deprecation_<name>` instance. Duplicating the `deprecated_class(...)` kwargs is a bug — a silent config drift will cause the parametrized test to compare two different deprecations instead of the same one in two application forms.
 
 **Docstrings in test collections:**
 

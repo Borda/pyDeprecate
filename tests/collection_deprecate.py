@@ -43,23 +43,31 @@ from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, Callable
-from warnings import warn
+from typing import Any, Callable, cast
+from warnings import catch_warnings, simplefilter, warn
 
 import typing_extensions
 from sklearn.metrics import accuracy_score
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
+from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
+    ColorEnum,
+    CombinedAttrsArgsSource,
+    CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
+    LegacyBoolAttrsSource,
+    MutableAttrsList,
     NewCls,
     NewDataClass,
     NewEnum,
     NewIntEnum,
+    Palette,
+    PaletteEnum,
+    PaletteOld,
     SomeTargetClass,
-    TargetColorEnum,
-    TargetWithInjected,
     TimerDecorator,
+    WithInjected,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
     _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
@@ -1175,13 +1183,24 @@ depr_config_dict_read_only = deprecated_instance(
     read_only=True,
 )
 
+depr_read_only_attrs_list = _DeprecatedProxy(
+    obj=MutableAttrsList(),
+    name="legacy_mutable_attrs_list",
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+    stream=None,
+    read_only=True,
+    attrs_mapping={"push": "append"},
+)
 
-@deprecated_class(target=TargetColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+
+@deprecated_class(target=ColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 class DeprecatedColorEnum(Enum):
-    """Deprecated color enum forwarding to TargetColorEnum via deprecated_class.
+    """Deprecated color enum forwarding to ColorEnum via deprecated_class.
 
     Example:
-        A user calling DeprecatedColorEnum.RED receives TargetColorEnum.RED.
+        A user calling DeprecatedColorEnum.RED receives ColorEnum.RED.
 
     """
 
@@ -1216,7 +1235,7 @@ class WarnOnlyColorEnum(Enum):
 
 
 @deprecated_class(
-    target=TargetColorEnum,
+    target=ColorEnum,
     deprecated_in="1.0",
     remove_in="2.0",
     num_warns=-1,
@@ -1226,7 +1245,7 @@ class MappedColorEnum(Enum):
     """Deprecated enum with args_mapping: remaps 'val' kwarg to 'value' when called.
 
     Example:
-        A user calling MappedColorEnum(val=1) receives TargetColorEnum.RED.
+        A user calling MappedColorEnum(val=1) receives ColorEnum.RED.
 
     """
 
@@ -1301,7 +1320,7 @@ class ChainedProxyColorEnum(Enum):
     """Deprecated color enum whose target is itself a deprecated proxy (proxy→proxy chain).
 
     Example:
-        This creates a two-hop chain: ChainedProxyColorEnum → DeprecatedColorEnum → TargetColorEnum.
+        This creates a two-hop chain: ChainedProxyColorEnum → DeprecatedColorEnum → ColorEnum.
         Used to test that validate_deprecation_chains detects proxy-to-proxy chains.
 
     """
@@ -1378,7 +1397,7 @@ def make_class_target_args_remap() -> type:
 ProxyClassWithArgsExtra = deprecated_class(
     deprecated_in="1.2",
     remove_in="2.0",
-    target=TargetWithInjected,
+    target=WithInjected,
     args_extra={"injected": "from-extra"},
     num_warns=-1,
 )(SomeTargetClass)
@@ -1793,3 +1812,139 @@ class DelOnlyDeprecatedPropCls(_DelOnlyPropTarget):
     delete_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[assignment]
         property(None, None, del_only_prop_fdel)  # type: ignore[arg-type]
     )
+
+
+# ========== attrs_mapping fixtures (selective per-attribute deprecation) ==========
+# Wrap ``Palette`` and ``PaletteEnum`` to expose deprecated attribute aliases
+# (``color``→``colour``, ``txt``→``text``, etc.).  ``stream=None`` is used on most fixtures
+# so reads/writes/deletes do not emit warnings during fixture import and can be controlled
+# per-test via the WithStream variant below.
+
+
+# Read-redirect: ``color``→``colour`` and ``txt``→``text``.  Used by tests that exercise
+# per-attribute warning budgets and silent passthrough of non-listed attribute names.
+DeprecatedAttrsPalette = deprecated_class(
+    attrs_mapping={"color": "colour", "txt": "text"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(Palette)
+
+
+# Warn-only: ``size`` is registered with redirect target ``None``, so reads warn but the
+# canonical attribute name is unchanged (no rename).
+DeprecatedAttrsNotifyOnly = deprecated_class(
+    attrs_mapping={"size": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(Palette)
+
+
+# Enum variant: deprecated alias ``COLOR`` redirects to canonical enum member ``COLOUR``.
+DeprecatedAttrsPaletteEnum = deprecated_class(
+    attrs_mapping={"COLOR": "COLOUR"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(PaletteEnum)
+
+
+# Stream-enabled variant used by warning-message content tests: this fixture must NOT use
+# ``stream=None`` because the tests assert the FutureWarning text emitted on access.
+DeprecatedAttrsPaletteWithStream = deprecated_class(
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Palette)
+
+
+# H4 fixture: callable target + attrs_mapping.  Wraps ``PaletteOld`` with
+# ``target=Palette``.  Listed attr redirects resolve against ``Palette``; unlisted attrs
+# and calls still use normal target-forwarding behaviour.
+DeprecatedAttrsPaletteCallableTarget = deprecated_class(
+    target=Palette,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(PaletteOld)
+
+
+# H5 fixture: callable target + warn-only attrs_mapping — shared config for both application forms.
+_class_deprecation_notify_only_callable_target = deprecated_class(
+    target=Palette,
+    attrs_mapping={"size": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    num_warns=-1,
+)
+
+
+@_class_deprecation_notify_only_callable_target
+class DeprecatedAttrsNotifyOnlyCallableTargetDecorated:
+    """Decorator-form: replacement target owns the warn-only attribute."""
+
+    color: str = "source_red"
+    colour: str = "source_colour"
+
+
+DeprecatedAttrsNotifyOnlyCallableTargetWrapped = _class_deprecation_notify_only_callable_target(PaletteOld)
+
+
+# ========== Combination fixtures: deprecated_class() config matrix ==========
+# These fixtures cover the valid combinations for ATTRS_REMAP (additive alias added in v0.10):
+# - C1: Explicit ``target=TargetMode.ATTRS_REMAP`` + ``attrs_mapping`` (equivalent to implicit auto-resolve)
+# - C3: Callable target + ``attrs_mapping`` + ``args_mapping`` (three disjoint surfaces active)
+# - Nested: ``deprecated_class`` wrapping another proxy (blanket-warn outer, ATTRS_REMAP inner)
+
+# C1: Explicit TargetMode.ATTRS_REMAP form — semantically identical to the implicit
+# ``DeprecatedAttrsPalette`` fixture above. Used to verify both forms are equivalent.
+DeprecatedAttrsExplicitMode = deprecated_class(
+    target=TargetMode.ATTRS_REMAP,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(Palette)
+
+
+# Legacy bool sentinel regression: before validation normalisation, ``target=True`` must
+# validate ``attrs_mapping`` against the wrapped source class instead of the bool object.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+    DeprecatedAttrsLegacyTrue = deprecated_class(
+        target=True,
+        attrs_mapping={"color": "colour"},
+        deprecated_in="1.0",
+        remove_in="2.0",
+        stream=None,
+    )(LegacyBoolAttrsSource)
+
+
+# C3: Callable target + attrs_mapping + args_mapping — three independent surfaces.
+# ``attrs_mapping`` handles ``__getattr__``/``__setattr__``/``__delattr__`` for ``colour`` redirects;
+# ``args_mapping`` handles ``__call__`` (``old_arg`` -> ``new_arg`` kwarg rename); the callable
+# target ``CombinedAttrsArgsTarget`` receives the forwarded construction call.
+DeprecatedAttrsPaletteAllThree = deprecated_class(
+    target=CombinedAttrsArgsTarget,
+    attrs_mapping={"color": "colour"},
+    args_mapping={"old_arg": "new_arg"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(CombinedAttrsArgsSource)
+
+
+# Nested fixture: ``deprecated_class`` (blanket-warn outer) wraps another ``deprecated_class``
+# proxy (ATTRS_REMAP inner). Used to verify nested proxy semantics: the outer blanket proxy
+# warns on every attribute access; the inner selective proxy forwards silently because its
+# selective set is consumed by the outer's __getattr__ before it reaches the inner.
+# ``DeprecatedAttrsPalette`` is a ``_DeprecatedProxy`` instance (not a ``type``); the proxy
+# transparently forwards attribute access, so wrapping it again is legal at runtime — the
+# ``cast`` placates ``deprecated_class``'s type-only parameter annotation.
+DeprecatedAttrsPaletteNested = deprecated_class(
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(cast(type, DeprecatedAttrsPalette))
