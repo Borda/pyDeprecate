@@ -2124,7 +2124,7 @@ when the target's qualname prefix names a class absent from the target's module 
 
 
 <h2 id="deprecate.proxy.deprecated_class" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">proxy</span><span class="o">.</span><span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">deprecation_warning</span><span class="p">,</span> <span class="n">template_mgs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">update_docstring</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">docstring_style</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">_misconfigured_override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">proxy</span><span class="o">.</span><span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">deprecation_warning</span><span class="p">,</span> <span class="n">template_mgs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">update_docstring</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">docstring_style</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">_misconfigured_override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#deprecate.proxy.deprecated_class" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -2302,6 +2302,51 @@ time; will be :class:<code>TypeError</code> in v1.0).</p>
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>attrs_mapping</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Optional">Optional</span>[<span title="str">str</span>]]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional dict mapping deprecated attribute names to canonical names (or <code>None</code> for
+warn-only).  When set, only the listed attribute names emit a deprecation warning on access; all other
+attributes are forwarded silently.  The redirect applies to reads (<code>__getattr__</code>), writes
+(<code>__setattr__</code>), and deletes (<code>__delattr__</code>).  Every non-<code>None</code> value must be an existing attribute
+on the target class when <code>target</code> is provided, or on the wrapped source class otherwise.
+<code>None</code> values keep the same attribute name but still resolve against the active class, so with
+<code>target=SomeClass</code> a warn-only mapping such as <code>{"size": None}</code> reads, writes, and deletes
+<code>SomeClass.size</code>.
+Redirect chains such as <code>{"a": "b", "b": "c"}</code> are allowed at decoration time and reported by audit as
+:attr:<code>~deprecate.audit.ChainType.STACKED</code>. Cycles such as <code>{"a": "b", "b": "a"}</code> raise
+:class:<code>ValueError</code> at decoration time.</p>
+<p>Example: <code>attrs_mapping={"color": "colour", "txt": "text"}</code> warns on <code>proxy.color</code> access and
+returns <code>proxy.colour</code>; <code>proxy.colour</code> is forwarded silently.</p>
+<p>When <code>attrs_mapping</code> is <code>None</code> (default), the existing behaviour is preserved: a warning is emitted
+on every attribute access through the proxy.</p>
+<p><strong>Callable target interaction</strong>: when <code>target=SomeClass</code> is also provided, listed attribute aliases
+resolve against <code>SomeClass</code>.  A <code>None</code> mapping keeps the original attribute name on <code>SomeClass</code>.
+Unlisted attributes and calls continue to use the normal target-forwarding behaviour.</p>
+<p><strong>Validation limitation</strong>: attribute existence is checked using :func:<code>inspect.getattr_static</code>,
+which detects class-level attributes and <code>__slots__</code> entries but not instance-only attributes
+set in <code>__init__</code> via <code>self.x = ...</code>.  For dataclass targets without defaults, the field
+name appears in <code>__dataclass_fields__</code> but the attribute itself is instance-only —
+decoration-time validation will raise :class:<code>ValueError</code> even though access would succeed at
+runtime.  As a workaround, add a class-level default or use a <code>None</code> (warn-only) entry.</p>
+<p>The mode can also be set explicitly as <code>target=TargetMode.ATTRS_REMAP</code> — both forms are equivalent;
+the explicit form is self-documenting and enables validation at decoration time. Passing
+<code>target=TargetMode.ATTRS_REMAP</code> without <code>attrs_mapping</code>, or passing an empty <code>attrs_mapping={}</code>,
+emits a :class:<code>UserWarning</code> at decoration time (will be :class:<code>TypeError</code> in v1.0). Passing
+<code>attrs_mapping</code> together with <code>target=TargetMode.NOTIFY</code> is also a misconfiguration and emits a
+:class:<code>UserWarning</code> at decoration time.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>update_docstring</code>
             </td>
             <td>
@@ -2387,6 +2432,22 @@ doc engine at decoration time; <code>"rst"</code> emits a <code>.. deprecated::<
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="go">30</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">LegacyConfig</span><span class="p">(</span><span class="n">time_limit</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">timeout</span>  <span class="c1"># old name — remapped to timeout</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="go">30</span>
+</code></pre></div>
+    <p>Selective per-attribute deprecation via <code>attrs_mapping</code>: only the listed attribute
+aliases emit a warning; other attribute accesses pass through silently.</p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="nd">@deprecated_class</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">... </span>    <span class="n">attrs_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;colour&quot;</span><span class="p">},</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">... </span>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">... </span>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">... </span>    <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">... </span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">... </span><span class="k">class</span><span class="w"> </span><span class="nc">Palette</span><span class="p">:</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">... </span>    <span class="n">colour</span> <span class="o">=</span> <span class="s2">&quot;red&quot;</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">... </span>    <span class="n">color</span> <span class="o">=</span> <span class="n">colour</span>  <span class="c1"># deprecated alias for ``colour``</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Palette</span><span class="o">.</span><span class="n">colour</span>     <span class="c1"># canonical name — silent passthrough</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="go">&#39;red&#39;</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Palette</span><span class="o">.</span><span class="n">color</span>      <span class="c1"># deprecated alias — warns (suppressed by ``stream=None``)</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="go">&#39;red&#39;</span>
 </code></pre></div>
 
 
@@ -3652,7 +3713,8 @@ so accessing this property in a loop from the same call site emits at most one w
 (a) Callable <code>target</code> is itself <code>@deprecated(True, args_mapping=...)</code> — the
 caller's mapping feeds into the target's self-renaming, so both hops must be
 collapsed into one. (b) Multiple <code>@deprecated(True, args_mapping=...)</code> decorators
-are stacked on the same function and should be merged into a single decorator.</p>
+are stacked on the same function and should be merged into a single decorator.
+Also used when <code>attrs_mapping</code> values point at another deprecated attribute alias.</p>
               </div>
             </td>
           </tr>
@@ -3744,6 +3806,21 @@ strongly recommended with <code>args_mapping</code>; omitting it emits a :class:
               </div>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.TargetMode.ATTRS_REMAP">ATTRS_REMAP</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selective per-attribute deprecation -- warn only when a deprecated attribute alias listed in
+<code>attrs_mapping</code> is accessed; all other attribute access is forwarded silently. Proxy-specific mode:
+only valid for :func:<code>~deprecate.proxy.deprecated_class</code>; raises :class:<code>TypeError</code> on
+:func:<code>~deprecate.deprecated</code> decorated functions/methods. Analogous to :attr:<code>ARGS_REMAP</code> but for
+attribute access instead of call arguments. This mode is selected automatically when <code>attrs_mapping</code>
+is non-empty and no explicit <code>target</code> is provided.</p>
+              </div>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -3754,6 +3831,8 @@ strongly recommended with <code>args_mapping</code>; omitting it emits a :class:
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="go">&#39;notify&#39;</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="o">.</span><span class="n">value</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="go">&#39;args_remap&#39;</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ATTRS_REMAP</span><span class="o">.</span><span class="n">value</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="go">&#39;attrs_remap&#39;</span>
 </code></pre></div>
 
 
