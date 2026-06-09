@@ -145,7 +145,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Commit sensitive information (`.env`, API keys)
 - Use bare `except:` clauses
 - Define deprecated wrappers inside test files
-- Use `with warnings.catch_warnings(record=True) as w: warnings.simplefilter("always")` in `.md` documentation examples — replace with direct calls annotated `# warns: FutureWarning`; output blocks show only return values, not warning counts or `w[0].category.__name__`
+- Use `with warnings.catch_warnings(record=True) as w: warnings.simplefilter("always")` in `.md` documentation examples — use direct calls annotated `# warns: FutureWarning` instead; output blocks show only return values, not warning counts or `w[0].category.__name__`
 - Skip test coverage for new features or bug fixes
 - Implement features without maintainer approval
 - Start work without first reading config files and guidelines
