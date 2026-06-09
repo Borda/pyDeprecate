@@ -84,21 +84,20 @@ class _DeprecatedProxy:
 
     """
 
+    @staticmethod
+    def _get_static_attr_owner(obj: Any) -> Any:  # noqa: ANN401
+        """Return the object whose attributes should be validated without dynamic lookup.
 
-@staticmethod
-def _get_static_attr_owner(obj: Any) -> Any:  # noqa: ANN401
-    """Return the object whose attributes should be validated without dynamic lookup.
+        For proxy targets, validate against the same "active" object attribute access will ultimately reach (callable
+        target when configured, otherwise the wrapped source).
 
-    For proxy targets, validate against the same "active" object attribute access will ultimately reach (callable target
-    when configured, otherwise the wrapped source).
-
-    """
-    while isinstance(obj, _DeprecatedProxy):
-        dep = object.__getattribute__(obj, "__deprecated__")
-        cfg = object.__getattribute__(obj, "_DeprecatedProxy__config")
-        target = dep.target
-        obj = target if target is not None and not isinstance(target, TargetMode) else cfg.obj
-    return obj
+        """
+        while isinstance(obj, _DeprecatedProxy):
+            dep = object.__getattribute__(obj, "__deprecated__")
+            cfg = object.__getattribute__(obj, "_DeprecatedProxy__config")
+            target = dep.target
+            obj = target if target is not None and not isinstance(target, TargetMode) else cfg.obj
+        return obj
 
     @classmethod
     def _has_static_attribute(cls, obj: Any, name: str) -> bool:  # noqa: ANN401
