@@ -3,7 +3,7 @@
 import inspect
 import warnings
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import pytest
 
@@ -1576,6 +1576,60 @@ class TestDeprecatedAttrs:
             del proxy.size  # type: ignore[attr-defined]
         assert not hasattr(Palette, "size")
 
+    def test_write_on_warn_only_attr_source_only_callable_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Writing a warn-only attr that lives only on the source falls back to the source class.
+
+        The "being-removed" pattern places a deprecated attribute on the old source class only — the replacement target
+        class dropped it.  With ``attrs_mapping={"color": None}`` and ``target=Palette`` (which has no ``color``),
+        setting ``proxy.color = value`` must warn and write to ``PaletteOld.color``, not silently create a new class
+        attribute on ``Palette``.  Without the source fallback, a regular class target accepts the spurious setattr
+        without raising, leaving the source unchanged and the target polluted.
+
+        """
+        monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
+        proxy = deprecated_class(
+            target=Palette,
+            attrs_mapping={"color": None},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=None,
+        )(PaletteOld)
+        assert not hasattr(Palette, "color")
+        original = PaletteOld.color
+
+        with pytest.warns(FutureWarning, match="color"):
+            proxy.color = "updated"  # type: ignore[attr-defined]
+
+        assert PaletteOld.color == "updated"
+        assert not hasattr(Palette, "color"), "setattr must not pollute the target class"
+        monkeypatch.setattr(PaletteOld, "color", original)
+
+    def test_delete_on_warn_only_attr_source_only_callable_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Deleting a warn-only attr that lives only on the source falls back to the source class.
+
+        The "being-removed" pattern places a deprecated attribute on the old source class only.  With
+        ``attrs_mapping={"color": None}`` and ``target=Palette`` (which has no ``color``), ``del proxy.color`` must
+        warn and delete ``PaletteOld.color``.  Without the source fallback, ``delattr(Palette, "color")`` raises a bare
+        ``AttributeError`` with no deprecation context, confusing callers who do not know the attribute lives on the
+        old class.
+
+        """
+        monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
+        proxy = deprecated_class(
+            target=Palette,
+            attrs_mapping={"color": None},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=None,
+        )(PaletteOld)
+        assert not hasattr(Palette, "color")
+
+        with pytest.warns(FutureWarning, match="color"):
+            del proxy.color  # type: ignore[attr-defined]
+
+        assert not hasattr(PaletteOld, "color"), "delattr must remove from source class"
+        assert not hasattr(Palette, "color"), "target must remain unaffected"
+
     def test_warn_only_key_missing_from_both_classes_raises_at_decoration_time(self) -> None:
         """A warn-only ``attrs_mapping`` key absent from both source and target raises at decoration time.
 
@@ -1684,7 +1738,7 @@ class TestAttrsMappingCombinations:
         the proxy can be called.
 
         """
-        instance: LegacyBoolAttrsSource | None = None
+        instance: Optional[LegacyBoolAttrsSource] = None
         try:
             instance = DeprecatedAttrsLegacyTrue()
         except ValueError as ex:

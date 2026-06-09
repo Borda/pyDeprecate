@@ -612,6 +612,12 @@ class _DeprecatedProxy:
             redirect = attrs_mapping[name]
             active = self._get_active()
             attr_name = redirect if redirect is not None else name
+            if redirect is None:
+                # "Being-removed" pattern: attribute may live only on the source class.
+                # Mirror the __getattr__ fallback: prefer active, fall back to source.
+                owner = active if hasattr(active, attr_name) else self._cfg.obj
+                setattr(owner, attr_name, value)
+                return
             setattr(active, attr_name, value)
             return
         setattr(self._get_active(), name, value)
@@ -633,6 +639,14 @@ class _DeprecatedProxy:
             redirect = attrs_mapping[name]
             active = self._get_active()
             attr_name = redirect if redirect is not None else name
+            if redirect is None:
+                # "Being-removed" pattern: attribute may live only on the source class.
+                # Mirror the __getattr__ fallback so delete behaviour is symmetric.
+                try:
+                    delattr(active, attr_name)
+                except AttributeError:
+                    delattr(self._cfg.obj, attr_name)
+                return
             delattr(active, attr_name)
             return
         delattr(self._get_active(), name)
