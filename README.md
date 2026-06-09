@@ -941,9 +941,9 @@ class Palette:
     size: int = 10  # unlisted — passes through silently
 
 
-print(Palette.color)  # warns → returns "red" (redirected to colour)
-print(Palette.colour)  # silent passthrough → "red"
-print(Palette.size)  # silent passthrough → 10
+print(Palette.color)  # warns: FutureWarning — redirected to colour → "red"
+print(Palette.colour)  # silent
+print(Palette.size)  # silent
 ```
 
 <details>
@@ -976,9 +976,9 @@ DeprecatedConfig = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-print(DeprecatedConfig.color)  # warns → returns Config.colour ("red")
-print(DeprecatedConfig.colour)  # silent passthrough ("red")
-print(DeprecatedConfig.timeout)  # silent passthrough (30)
+print(DeprecatedConfig.color)  # warns: FutureWarning — redirected to colour → "red"
+print(DeprecatedConfig.colour)  # silent
+print(DeprecatedConfig.timeout)  # silent
 ```
 
 <details>

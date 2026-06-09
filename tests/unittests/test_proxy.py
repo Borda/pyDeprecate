@@ -3,7 +3,7 @@
 import inspect
 import warnings
 from collections.abc import Callable
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import pytest
 
@@ -1293,6 +1293,26 @@ class TestDeprecatedAttrs:
 
         assert source.items == []
 
+    def test_read_only_proxy_with_attrs_mapping_blocks_set_on_deprecated_attr(self) -> None:
+        """``read_only=True`` takes precedence over ``attrs_mapping`` on write — no deprecation warning is emitted.
+
+        ``_check_read_only`` fires before the ``attrs_mapping`` branch in ``__setattr__`` and ``__delattr__``.
+        Writing to a deprecated alias on a ``read_only`` proxy raises :class:`AttributeError` immediately, without
+        emitting a ``FutureWarning``.  This is intentional — read-only is the stronger contract — but is pinned here
+        so the precedence order is explicitly asserted and not accidentally reversed by future refactors.
+
+        """
+        proxy = deprecated_class(
+            attrs_mapping={"color": "colour"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            read_only=True,
+            stream=None,
+        )(Palette)
+
+        with pytest.raises(AttributeError, match="read-only"):
+            proxy.color = "blue"  # type: ignore[attr-defined]
+
     @pytest.mark.parametrize(
         "proxy",
         [
@@ -1738,13 +1758,8 @@ class TestAttrsMappingCombinations:
         the proxy can be called.
 
         """
-        instance: Optional[LegacyBoolAttrsSource] = None
-        try:
-            instance = DeprecatedAttrsLegacyTrue()
-        except ValueError as ex:
-            pytest.fail(f"legacy target=True attrs_mapping proxy raised ValueError: {ex}")
+        instance = DeprecatedAttrsLegacyTrue()  # must not raise ValueError
 
-        assert instance is not None
         assert isinstance(instance, LegacyBoolAttrsSource)
         assert instance.ready is True
         meta = object.__getattribute__(DeprecatedAttrsLegacyTrue, "__deprecated__")

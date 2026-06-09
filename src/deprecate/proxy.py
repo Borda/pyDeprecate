@@ -895,6 +895,8 @@ def deprecated_class(
             resolve against ``SomeClass``.  A ``None`` mapping keeps the original attribute name on ``SomeClass``.
             Unlisted attributes and calls continue to use the normal target-forwarding behaviour.
 
+            **Validation limitation**: attribute existence is checked using :func:`inspect.getattr_static`, which detects class-level attributes and ``__slots__`` entries but not instance-only attributes set in ``__init__`` via ``self.x = ...``.  For dataclass targets without defaults, the field name appears in ``__dataclass_fields__`` but the attribute itself is instance-only — decoration-time validation will raise :class:`ValueError` even though access would succeed at runtime.  As a workaround, add a class-level default or use a ``None`` (warn-only) entry.
+
             The mode can also be set explicitly as ``target=TargetMode.ATTRS_REMAP`` — both forms are equivalent;
             the explicit form is self-documenting and enables validation at decoration time. Passing
             ``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping``, or passing an empty ``attrs_mapping={}``,

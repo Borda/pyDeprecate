@@ -314,7 +314,7 @@ class TargetMode(Enum):
                 f"`deprecated_class` on `{source_name}` provides both `args_mapping` and `attrs_mapping` "
                 "without an explicit `target`. Auto-resolve set `target=TargetMode.ARGS_REMAP`; "
                 "`DeprecationConfig.target` no longer reflects that `attrs_mapping` is also active. "
-                "Pass an explicit `target=<class>` or `target=TargetMode.ATTRS_REMAP` to suppress this warning. "
+                "Pass an explicit callable `target=<class>` to activate both mappings on the same proxy. "
                 "This will be `TypeError` in `v1.0`."
             )
         if mode is cls.ATTRS_REMAP and not attrs_mapping:
