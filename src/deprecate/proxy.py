@@ -84,12 +84,14 @@ class _DeprecatedProxy:
 
     """
 
+
 @staticmethod
 def _get_static_attr_owner(obj: Any) -> Any:  # noqa: ANN401
     """Return the object whose attributes should be validated without dynamic lookup.
 
-    For proxy targets, validate against the same "active" object attribute access will ultimately reach
-    (callable target when configured, otherwise the wrapped source).
+    For proxy targets, validate against the same "active" object attribute access will ultimately reach (callable target
+    when configured, otherwise the wrapped source).
+
     """
     while isinstance(obj, _DeprecatedProxy):
         dep = object.__getattribute__(obj, "__deprecated__")
