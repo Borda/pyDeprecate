@@ -1302,13 +1302,15 @@ class TestDeprecatedAttrs:
         so the precedence order is explicitly asserted and not accidentally reversed by future refactors.
 
         """
-        proxy = deprecated_class(
-            attrs_mapping={"color": "colour"},
+        proxy = _DeprecatedProxy(
+            obj=Palette,
+            name="Palette",
             deprecated_in="1.0",
             remove_in="2.0",
             read_only=True,
             stream=None,
-        )(Palette)
+            attrs_mapping={"color": "colour"},
+        )
 
         with pytest.raises(AttributeError, match="read-only"):
             proxy.color = "blue"  # type: ignore[attr-defined]
@@ -1612,7 +1614,6 @@ class TestDeprecatedAttrs:
             attrs_mapping={"color": None},
             deprecated_in="1.0",
             remove_in="2.0",
-            stream=None,
         )(PaletteOld)
         assert not hasattr(Palette, "color")
         original = PaletteOld.color
@@ -1640,7 +1641,6 @@ class TestDeprecatedAttrs:
             attrs_mapping={"color": None},
             deprecated_in="1.0",
             remove_in="2.0",
-            stream=None,
         )(PaletteOld)
         assert not hasattr(Palette, "color")
 
