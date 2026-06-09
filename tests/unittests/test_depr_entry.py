@@ -577,3 +577,50 @@ class TestStackingCombinations:
         with pytest.warns(FutureWarning, match="1.5"):
             value = proxy.old_attr  # type: ignore[attr-defined]
         assert value == "value"
+
+    def test_stacked_attrs_remap_outer_args_remap_inner(self) -> None:
+        """ATTRS_REMAP outer + ARGS_REMAP inner: each layer warns only for its own concern.
+
+        The outer proxy deprecates an attribute name (``old_attr``); the inner deprecates a
+        constructor argument name (``old_arg``).  Accessing ``old_attr`` must emit exactly one
+        ``FutureWarning`` (from the outer, v1.0) — the inner ARGS_REMAP proxy must NOT emit a
+        spurious global warning on attribute access.  Calling with ``old_arg`` must emit exactly
+        one warning (from the inner, v0.9).
+
+        """
+
+        class _Base:
+            new_attr: str = "b"
+
+            def __init__(self, new_arg: int = 0) -> None:
+                """Construct _Base."""
+                self.new_arg = new_arg
+
+        outer = deprecated_class(
+            attrs_mapping={"old_attr": "new_attr"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            num_warns=-1,
+        )(
+            deprecated_class(
+                args_mapping={"old_arg": "new_arg"},
+                deprecated_in="0.9",
+                remove_in="1.0",
+                num_warns=-1,
+            )(_Base)
+        )
+
+        with pytest.warns(FutureWarning, match="1.0") as record:
+            value = outer.old_attr  # type: ignore[attr-defined]
+        future_warns = [w for w in record if issubclass(w.category, FutureWarning)]
+        assert len(future_warns) == 1
+        assert value == "b"
+
+        with pytest.warns(FutureWarning, match="0.9") as record:
+            inst = outer(old_arg=7)  # type: ignore[call-arg]
+        future_warns = [w for w in record if issubclass(w.category, FutureWarning)]
+        assert len(future_warns) == 1
+        assert inst.new_arg == 7
+
+        assert isinstance(inst, _Base)
+        assert isinstance(inst, outer)

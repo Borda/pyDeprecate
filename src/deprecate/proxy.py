@@ -608,7 +608,10 @@ class _DeprecatedProxy:
             # Not a deprecated attr — silent passthrough, no warning.
             attr = getattr(self._get_active(), name)
             return self._guard_read_only_mutator(attr, name)
-        self._warn()
+        # ARGS_REMAP deprecates constructor argument names only; attribute access is unrelated
+        # to the deprecated call signature and must not emit a spurious global warning.
+        if self._dep.target is not TargetMode.ARGS_REMAP:
+            self._warn()
         attr = getattr(self._get_active(), name)
         return self._guard_read_only_mutator(attr, name)
 
