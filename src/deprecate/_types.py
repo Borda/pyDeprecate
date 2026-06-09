@@ -311,8 +311,9 @@ class TargetMode(Enum):
             )
         if mode is cls.ARGS_REMAP and args_mapping and attrs_mapping:
             messages.append(
-                f"`deprecated_class` on `{source_name}` provides both `args_mapping` and `attrs_mapping` "
-                "without an explicit `target`. Auto-resolve set `target=TargetMode.ARGS_REMAP`; "
+                f"`deprecated_class` on `{source_name}` has both `args_mapping` and `attrs_mapping` "
+                "configured with `target=TargetMode.ARGS_REMAP`. `ARGS_REMAP` governs call-time argument "
+                "renames only; `attrs_mapping` is inactive in this mode. "
                 "`DeprecationConfig.target` no longer reflects that `attrs_mapping` is also active. "
                 "Pass an explicit callable `target=<class>` to activate both mappings on the same proxy. "
                 "This will be `TypeError` in `v1.0`."
