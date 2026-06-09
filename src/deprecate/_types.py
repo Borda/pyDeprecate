@@ -294,6 +294,11 @@ class TargetMode(Enum):
             ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, stacklevel=None,
             ... )
             True
+            >>> TargetMode._validate_proxy(
+            ...     TargetMode.ATTRS_REMAP, "Cls",
+            ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, stacklevel=None,
+            ... )
+            True
 
         """
         messages = []
@@ -317,6 +322,13 @@ class TargetMode(Enum):
                 f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` requires "
                 "`attrs_mapping` to specify which attribute names are deprecated. Without it the "
                 "proxy has zero selective effect. This will be `TypeError` in `v1.0`."
+            )
+        if mode is cls.ATTRS_REMAP and args_mapping:
+            messages.append(
+                f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_mapping`. "
+                "`ATTRS_REMAP` only governs attribute access; argument renames on `__call__` are not applied. "
+                "Use `target=<class>` (with both mappings) or `TargetMode.ARGS_REMAP` (with `args_mapping` only). "
+                "This will be `TypeError` in `v1.0`."
             )
         if attrs_mapping is not None and len(attrs_mapping) == 0:
             messages.append(

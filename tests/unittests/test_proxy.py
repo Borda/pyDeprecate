@@ -1912,7 +1912,7 @@ class TestAttrsMappingCombinations:
         class _BothMappingsSource:
             colour = "red"
 
-        with pytest.warns(UserWarning, match="both.*args_mapping.*attrs_mapping|ARGS_REMAP"):
+        with pytest.warns(UserWarning, match="both.*args_mapping.*attrs_mapping"):
             deprecated_class(
                 args_mapping={"old_arg": "new_arg"},
                 attrs_mapping={"color": "colour"},
@@ -1920,6 +1920,30 @@ class TestAttrsMappingCombinations:
                 remove_in="2.0",
                 stream=None,
             )(_BothMappingsSource)
+
+    def test_explicit_attrs_remap_with_args_mapping_emits_userwarning(self) -> None:
+        """Explicit ``target=TargetMode.ATTRS_REMAP`` with ``args_mapping`` emits a ``UserWarning``.
+
+        ``ATTRS_REMAP`` only governs attribute access; ``__call__`` has no dispatch branch for it, so any
+        ``args_mapping`` provided alongside it is silently dead code.  The companion auto-resolve case
+        (``ARGS_REMAP + attrs_mapping``) is already caught; this test pins the symmetric case where the user
+        explicitly sets ``target=TargetMode.ATTRS_REMAP`` and also supplies ``args_mapping``, which would
+        otherwise silently ignore the call-path renames.
+
+        """
+
+        class _ExplicitAttrsRemapSource:
+            colour = "red"
+
+        with pytest.warns(UserWarning, match="ignores.*args_mapping"):
+            deprecated_class(
+                target=TargetMode.ATTRS_REMAP,
+                args_mapping={"old_arg": "new_arg"},
+                attrs_mapping={"color": "colour"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=None,
+            )(_ExplicitAttrsRemapSource)
 
     def test_validate_proxy_userwarning_points_to_decoration_call_site(self) -> None:
         """The ``UserWarning`` from ``_validate_proxy`` points to the file that called ``deprecated_class``.
