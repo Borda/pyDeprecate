@@ -117,7 +117,7 @@ class NewIntEnum(Enum):
     BETA = 2
 
 
-class TargetColorEnum(Enum):
+class ColorEnum(Enum):
     """Target enum for deprecated_class forwarding tests."""
 
     RED = 1
@@ -189,7 +189,7 @@ class SomeTargetClass:
         self.new_key = new_key
 
 
-class TargetWithInjected:
+class WithInjected:
     """Target class accepting an ``injected`` kwarg for ``args_extra`` tests.
 
     Used by proxy ``args_extra`` fixtures to verify that deprecated_class() merges configured extra kwargs into
@@ -396,7 +396,7 @@ def del_only_prop_fdel(self: _DelOnlyPropTarget) -> None:
     self._value = None
 
 
-class TargetPalette:
+class Palette:
     """Target class with canonical attribute names for ``attrs_mapping`` tests.
 
     Carries both the canonical names (``colour``, ``text``, ``size``) and is wrapped by ``deprecated_class`` fixtures in
@@ -411,7 +411,7 @@ class TargetPalette:
     size: int = 42
 
 
-class TargetPaletteEnum(Enum):
+class PaletteEnum(Enum):
     """Enum with canonical member names for the ``attrs_mapping`` enum redirect test.
 
     Wrapped by ``DeprecatedAttrsPaletteEnum`` in :mod:`tests.collection_deprecate` to register a deprecated alias
@@ -427,7 +427,7 @@ class PaletteOld:
     """Source class for H4 callable-target + attrs_mapping fixture.
 
     Has both a deprecated ``color`` attribute and canonical ``colour`` attribute.  Wrapped by ``deprecated_class`` in
-    :mod:`tests.collection_deprecate` with ``target=TargetPalette`` and ``attrs_mapping={"color": "colour"}``
+    :mod:`tests.collection_deprecate` with ``target=Palette`` and ``attrs_mapping={"color": "colour"}``
     to verify that mapped attributes resolve against the target class when a callable target is configured.
 
     """

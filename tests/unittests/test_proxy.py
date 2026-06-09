@@ -38,10 +38,10 @@ from tests.collection_targets import (
     CombinedAttrsArgsTarget,
     NewDataClass,
     PaletteOld,
-    TargetColorEnum,
-    TargetPalette,
-    TargetPaletteEnum,
-    TargetWithInjected,
+    ColorEnum,
+    Palette,
+    PaletteEnum,
+    WithInjected,
     _Pep702ProxyTarget,
 )
 
@@ -123,14 +123,14 @@ class TestProxyWarnBehavior:
             name="old_color",
             deprecated_in="1.0",
             remove_in="2.0",
-            target=TargetColorEnum,
+            target=ColorEnum,
         )
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             proxy._warn()
         msg = str(caught[0].message)
         assert "old_color" in msg
-        assert "tests.collection_targets.TargetColorEnum" in msg
+        assert "tests.collection_targets.ColorEnum" in msg
 
     def test_warn_category_is_future_warning(self) -> None:
         """Default stream emits FutureWarning attributed to the caller's frame."""
@@ -549,7 +549,7 @@ class TestDecoratorFactory:
         """With a target, attribute access returns the target's member."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assert DeprecatedColorEnum.RED is TargetColorEnum.RED
+            assert DeprecatedColorEnum.RED is ColorEnum.RED
 
     @pytest.mark.parametrize(
         ("raw_target", "warning_category", "warning_message"),
@@ -632,11 +632,11 @@ class TestDecoratorEnum:
             FutureWarning,
             match=(
                 r"The `DeprecatedColorEnum` was deprecated since v1\.0 in favor of "
-                r"`tests\.collection_targets\.TargetColorEnum`"
+                r"`tests\.collection_targets\.ColorEnum`"
             ),
         ):
             result = action()
-        assert result is TargetColorEnum.RED
+        assert result is ColorEnum.RED
 
     def test_no_target_warns_and_reads_source(self) -> None:
         """With ``target=None``, deprecated Enum should warn and return members from the original source Enum."""
@@ -726,7 +726,7 @@ class TestArgsMapping:
             match=r"`MappedColorEnum` uses deprecated arguments: `val` -> `value`",
         ):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
-        assert result is TargetColorEnum.RED
+        assert result is ColorEnum.RED
 
     def test_target_mode_args_remap_emits_per_argument_warning(self) -> None:
         """TargetMode.ARGS_REMAP path emits old -> new arg names in the warning message."""
@@ -760,13 +760,13 @@ class TestArgsExtra:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             proxy = deprecated_class(
-                target=TargetWithInjected,
+                target=WithInjected,
                 deprecated_in="1.2",
                 remove_in="2.0",
                 args_mapping={"old_key": "new_key"},
                 args_extra={"injected": "extra"},
                 num_warns=-1,
-            )(TargetWithInjected)
+            )(WithInjected)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
             instance = proxy(old_key=11)
@@ -776,7 +776,7 @@ class TestArgsExtra:
     def test_deprecated_instance_accepts_args_extra_and_forwards(self) -> None:
         """deprecated_instance also accepts args_extra and merges it into forwarded calls."""
         proxy = deprecated_instance(
-            TargetWithInjected,
+            WithInjected,
             name="LegacyTarget",
             deprecated_in="1.2",
             remove_in="2.0",
@@ -1182,9 +1182,9 @@ class TestDeprecatedAttrs:
             if hasattr(source, "size"):
                 delattr(source, "size")
         # Restore canonical class attributes mutated by previous write-redirect tests.
-        TargetPalette.colour = "red"
-        TargetPalette.text = "hello"
-        TargetPalette.size = 42
+        Palette.colour = "red"
+        Palette.text = "hello"
+        Palette.size = 42
         PaletteOld.color = "source_red"
         PaletteOld.colour = "source_colour"
 
@@ -1244,7 +1244,7 @@ class TestDeprecatedAttrs:
             attrs_mapping={"size": None},
             deprecated_in="1.0",
             remove_in="2.0",
-        )(TargetPalette)
+        )(Palette)
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -1261,11 +1261,11 @@ class TestDeprecatedAttrs:
 
         """
         proxy = deprecated_class(
-            target=TargetPalette,
+            target=Palette,
             attrs_mapping={"size": None},
             deprecated_in="1.0",
             remove_in="2.0",
-        )(TargetPalette)
+        )(Palette)
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -1282,14 +1282,14 @@ class TestDeprecatedAttrs:
         """Warn-only attributes on a callable-target proxy resolve against the active target class.
 
         A replacement class may keep an attribute under the same name while the deprecated source class lacks that
-        attribute entirely.  With ``target=TargetPalette`` and ``attrs_mapping={"size": None}``, reads, writes, and
-        deletes of ``proxy.size`` must operate on ``TargetPalette.size``.  Falling back to the wrapped source class
+        attribute entirely.  With ``target=Palette`` and ``attrs_mapping={"size": None}``, reads, writes, and
+        deletes of ``proxy.size`` must operate on ``Palette.size``.  Falling back to the wrapped source class
         either raises ``AttributeError`` on read/delete or silently writes to the wrong class.  The behaviour must be
         identical for decorator-form and wrapper-form ``deprecated_class`` usage.
 
         """
         source = object.__getattribute__(proxy, "_DeprecatedProxy__config").obj
-        original_target = TargetPalette.size
+        original_target = Palette.size
         assert not hasattr(source, "size")
 
         with pytest.warns(FutureWarning, match="size") as read_record:
@@ -1299,12 +1299,12 @@ class TestDeprecatedAttrs:
 
         with pytest.warns(FutureWarning, match="size"):
             proxy.size = 99  # type: ignore[attr-defined]
-        assert TargetPalette.size == 99
+        assert Palette.size == 99
         assert not hasattr(PaletteOld, "size")
 
         with pytest.warns(FutureWarning, match="size"):
             del proxy.size  # type: ignore[attr-defined]
-        assert not hasattr(TargetPalette, "size")
+        assert not hasattr(Palette, "size")
         assert not hasattr(source, "size")
 
     def test_per_attribute_warning_budget_independent(self) -> None:
@@ -1321,7 +1321,7 @@ class TestDeprecatedAttrs:
             deprecated_in="1.0",
             remove_in="2.0",
             num_warns=1,
-        )(TargetPalette)
+        )(Palette)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             _ = proxy.color  # type: ignore[attr-defined]
@@ -1349,7 +1349,7 @@ class TestDeprecatedAttrs:
             deprecated_in="1.0",
             remove_in="2.0",
             num_warns=2,
-        )(TargetPalette)
+        )(Palette)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             _ = proxy.color  # type: ignore[attr-defined]
@@ -1376,7 +1376,7 @@ class TestDeprecatedAttrs:
     def test_enum_member_redirect(self) -> None:
         """Enum member aliases redirect transparently through the proxy.
 
-        An enum ``TargetPaletteEnum`` has ``COLOUR`` as the canonical member name.  A deprecated alias ``COLOR`` is
+        An enum ``PaletteEnum`` has ``COLOUR`` as the canonical member name.  A deprecated alias ``COLOR`` is
         registered via ``attrs_mapping={"COLOR": "COLOUR"}``.  Accessing ``DeprecatedAttrsPaletteEnum.COLOR`` must
         warn and return the same object as ``DeprecatedAttrsPaletteEnum.COLOUR``.
 
@@ -1386,10 +1386,10 @@ class TestDeprecatedAttrs:
             attrs_mapping={"COLOR": "COLOUR"},
             deprecated_in="1.0",
             remove_in="2.0",
-        )(TargetPaletteEnum)
+        )(PaletteEnum)
         with pytest.warns(FutureWarning, match="COLOR"):
             value = proxy.COLOR  # type: ignore[attr-defined]
-        assert value is TargetPaletteEnum.COLOUR
+        assert value is PaletteEnum.COLOUR
 
     def test_warning_message_uses_callable_template(self) -> None:
         """Warning message for a redirect attr uses the callable template naming the canonical attr.
@@ -1405,7 +1405,7 @@ class TestDeprecatedAttrs:
         assert "color" in message
         assert "colour" in message
         # The callable template includes the canonical class name and an "in favor of" phrase.
-        assert "TargetPalette.colour" in message
+        assert "Palette.colour" in message
 
     def test_circular_redirect_raises_at_decoration_time(self) -> None:
         """Circular redirect mapping raises ``ValueError`` at decoration time.
@@ -1463,20 +1463,20 @@ class TestDeprecatedAttrs:
     ) -> None:
         """When ``target=SomeClass`` and ``attrs_mapping`` are both set, attr redirects use the target class.
 
-        ``deprecated_class(target=TargetPalette, attrs_mapping={"color": "colour"})(PaletteOld)``
-        redirects mapped reads of ``proxy.color`` to ``TargetPalette.colour``.  Without a callable target the redirect
+        ``deprecated_class(target=Palette, attrs_mapping={"color": "colour"})(PaletteOld)``
+        redirects mapped reads of ``proxy.color`` to ``Palette.colour``.  Without a callable target the redirect
         would stay on the wrapped source class.
 
         """
         monkeypatch.setattr(PaletteOld, "colour", "source_colour")
-        monkeypatch.setattr(TargetPalette, "colour", "red")
+        monkeypatch.setattr(Palette, "colour", "red")
 
         value = DeprecatedAttrsPaletteCallableTarget.color  # type: ignore[attr-defined]
-        assert value == TargetPalette.colour
+        assert value == Palette.colour
         assert value != PaletteOld.colour
 
         DeprecatedAttrsPaletteCallableTarget.color = "blue"  # type: ignore[attr-defined]
-        assert TargetPalette.colour == "blue"
+        assert Palette.colour == "blue"
         assert PaletteOld.colour == "source_colour"
 
     def test_attrs_mapping_validation_does_not_consume_target_proxy_warning_budget(self) -> None:
@@ -1521,38 +1521,38 @@ class TestDeprecatedAttrs:
 
         A class has ``colour`` as the canonical attribute and ``color`` registered as a deprecated alias in
         ``attrs_mapping={"color": "colour"}``.  Calling ``del proxy.color`` must emit a ``FutureWarning`` for ``color``
-        and then delete ``TargetPalette.colour``, so that callers migrating away from the deprecated name still trigger
+        and then delete ``Palette.colour``, so that callers migrating away from the deprecated name still trigger
         the expected deletion on the live canonical attribute.
 
         """
-        monkeypatch.setattr(TargetPalette, "colour", TargetPalette.colour)
+        monkeypatch.setattr(Palette, "colour", Palette.colour)
         proxy = deprecated_class(
             attrs_mapping={"color": "colour"},
             deprecated_in="1.0",
             remove_in="2.0",
-        )(TargetPalette)
+        )(Palette)
         with pytest.warns(FutureWarning, match="color"):
             del proxy.color  # type: ignore[attr-defined]
-        assert not hasattr(TargetPalette, "colour")
+        assert not hasattr(Palette, "colour")
 
     def test_delete_notify_only_warns_and_deletes_same_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deleting a warn-only attribute (``None`` redirect) warns and deletes the same-name attribute.
 
         When ``attrs_mapping={"size": None}``, the attribute name is both deprecated and canonical — ``None`` means
         "warn but keep the same name."  Calling ``del proxy.size`` must emit a ``FutureWarning`` for ``size`` and then
-        delete ``TargetPalette.size`` (the same attribute, not a redirect target), mirroring the read/write semantics
+        delete ``Palette.size`` (the same attribute, not a redirect target), mirroring the read/write semantics
         for the notify-only case.
 
         """
-        monkeypatch.setattr(TargetPalette, "size", TargetPalette.size)
+        monkeypatch.setattr(Palette, "size", Palette.size)
         proxy = deprecated_class(
             attrs_mapping={"size": None},
             deprecated_in="1.0",
             remove_in="2.0",
-        )(TargetPalette)
+        )(Palette)
         with pytest.warns(FutureWarning, match="size"):
             del proxy.size  # type: ignore[attr-defined]
-        assert not hasattr(TargetPalette, "size")
+        assert not hasattr(Palette, "size")
 
     def test_warn_only_key_missing_from_both_classes_raises_at_decoration_time(self) -> None:
         """A warn-only ``attrs_mapping`` key absent from both source and target raises at decoration time.
@@ -1604,9 +1604,9 @@ class TestAttrsMappingCombinations:
             cfg.warned = 0
             cfg.warned_args.clear()
         # Re-seed canonical attributes so write-redirect tests start from baseline.
-        TargetPalette.colour = "red"
-        TargetPalette.text = "hello"
-        TargetPalette.size = 42
+        Palette.colour = "red"
+        Palette.text = "hello"
+        Palette.size = 42
         CombinedAttrsArgsTarget.colour = "red"
         CombinedAttrsArgsSource.colour = "source_red"
 
@@ -1620,7 +1620,7 @@ class TestAttrsMappingCombinations:
         Migrators who prefer self-documenting decorator config may write the mode explicitly as
         ``target=TargetMode.ATTRS_REMAP`` rather than relying on implicit auto-resolution from ``attrs_mapping``.
         Accessing ``proxy.color`` on a fixture declared with the explicit form must still emit a ``FutureWarning``
-        (suppressed here by ``stream=None``) and return the canonical ``TargetPalette.colour`` value, matching the
+        (suppressed here by ``stream=None``) and return the canonical ``Palette.colour`` value, matching the
         behaviour of the implicit-form fixture ``DeprecatedAttrsPalette``.
 
         """

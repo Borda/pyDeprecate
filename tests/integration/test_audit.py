@@ -123,7 +123,7 @@ class TestValidateDeprecatedWrapper:
         # Confirm the proxy leaks the wrong __name__ via __getattr__:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assert proxy_module.DeprecatedColorEnum.__name__ == "TargetColorEnum"
+            assert proxy_module.DeprecatedColorEnum.__name__ == "ColorEnum"
         assert result.function != getattr(result.deprecated_info.target, "__name__", None)
 
     def test_no_deprecated_attr(self) -> None:
@@ -179,7 +179,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
     @pytest.mark.parametrize(
         ("proxy_obj", "fn_name", "target_name"),
         [
-            (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", "TargetColorEnum"),
+            (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", "ColorEnum"),
             (proxy_module.DeprecatedColorDataClass, "DeprecatedColorDataClass", "NewDataClass"),
         ],
     )
@@ -199,7 +199,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
     @pytest.mark.parametrize(
         ("proxy_obj", "fn_name", "expected_mapping", "target_name"),
         [
-            (proxy_module.MappedColorEnum, "MappedColorEnum", {"val": "value"}, "TargetColorEnum"),
+            (proxy_module.MappedColorEnum, "MappedColorEnum", {"val": "value"}, "ColorEnum"),
             (
                 proxy_module.MappedDataClass,
                 "MappedDataClass",
@@ -336,7 +336,7 @@ class TestFindDeprecatedWrappers:
         by_name = {r.function: r for r in find_deprecation_wrappers(proxy_module, recursive=False)}
         assert "depr_config_dict" in by_name
         assert "DeprecatedColorEnum" in by_name
-        assert getattr(by_name["DeprecatedColorEnum"].deprecated_info.target, "__name__", None) == "TargetColorEnum"
+        assert getattr(by_name["DeprecatedColorEnum"].deprecated_info.target, "__name__", None) == "ColorEnum"
         assert by_name["MappedColorEnum"].deprecated_info.args_mapping == {"val": "value"}
         # deprecated_class on dataclass
         assert getattr(by_name["DeprecatedColorDataClass"].deprecated_info.target, "__name__", None) == "NewDataClass"
