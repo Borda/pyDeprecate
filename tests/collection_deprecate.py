@@ -51,6 +51,7 @@ from sklearn.metrics import accuracy_score
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
 from tests.collection_targets import (
+    ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
@@ -58,13 +59,12 @@ from tests.collection_targets import (
     NewDataClass,
     NewEnum,
     NewIntEnum,
-    PaletteOld,
-    SomeTargetClass,
-    ColorEnum,
     Palette,
     PaletteEnum,
-    WithInjected,
+    PaletteOld,
+    SomeTargetClass,
     TimerDecorator,
+    WithInjected,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
     _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below

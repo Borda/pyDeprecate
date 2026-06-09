@@ -34,13 +34,13 @@ from tests.collection_deprecate import (
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
+    ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     NewDataClass,
-    PaletteOld,
-    ColorEnum,
     Palette,
     PaletteEnum,
+    PaletteOld,
     WithInjected,
     _Pep702ProxyTarget,
 )
