@@ -1150,6 +1150,95 @@ class TestPEP702ProxyStackingRegression:
             pep702_proxy_stacked()
 
 
+class TestCombinedArgAttrsMapping:
+    """Single ``deprecated_class()`` call combining ``args_mapping`` and ``attrs_mapping``.
+
+    Stacking two separate ``@deprecated_class()`` decorators (one per mapping) is NOT supported — it silently
+    breaks ``isinstance()``, hides the inner layer from audit tools, and emits a stray ``FutureWarning`` during
+    the outer decoration.  The canonical pattern is one ``deprecated_class()`` call with both mappings and an
+    explicit ``target=<NewClass>`` argument.  These tests pin the combined single-call contract.
+
+    """
+
+    def test_combined_args_and_attrs_mapping_call_path(self) -> None:
+        """Constructor argument rename fires when calling the combined proxy.
+
+        A single ``deprecated_class(target=NewClass, args_mapping=..., attrs_mapping=...)`` call must remap the
+        old constructor argument on the call path.  The attribute path is independent — exhausting the call-path
+        warning budget does not silence the attribute path and vice-versa.
+
+        """
+
+        class _New:
+            lr: float = 0.01
+            n_epochs: int = 10  # will be deprecated with warn-only mapping
+
+            def __init__(self, lr: float = 0.01) -> None:
+                self.lr = lr
+
+        proxy = deprecated_class(
+            target=_New,
+            args_mapping={"learning_rate": "lr"},
+            attrs_mapping={"n_epochs": None},  # warn on n_epochs, no rename
+            deprecated_in="2.0",
+            remove_in="3.0",
+            num_warns=-1,
+        )(_New)
+
+        with pytest.warns(FutureWarning, match="learning_rate"):
+            instance = proxy(learning_rate=0.05)  # type: ignore[call-arg]
+
+        assert instance.lr == 0.05
+
+    def test_combined_args_and_attrs_mapping_attr_path(self) -> None:
+        """Attribute alias read fires when accessing a deprecated name on the combined proxy.
+
+        The attribute-path warning budget is independent of the call-path budget.  Accessing a deprecated alias
+        after exhausting the call-path budget must still warn exactly once (``num_warns=1``).
+
+        """
+
+        class _Config:
+            lr: float = 0.01
+            epochs: int = 10
+
+        proxy = deprecated_class(
+            target=_Config,
+            args_mapping={"learning_rate": "lr"},
+            attrs_mapping={"n_epochs": "epochs"},
+            deprecated_in="2.0",
+            remove_in="3.0",
+        )(_Config)
+
+        with pytest.warns(FutureWarning, match="n_epochs"):
+            value = proxy.n_epochs  # type: ignore[attr-defined]
+
+        assert value == 10
+
+    def test_combined_isinstance_passes_through(self) -> None:
+        """``isinstance()`` returns ``True`` for the combined single-call form (single proxy layer).
+
+        Unlike stacking two ``@deprecated_class()`` decorators (which breaks ``isinstance()`` because the inner
+        proxy becomes the ``active`` target), a single-call combined proxy has exactly one ``_DeprecatedProxy``
+        layer, so ``__instancecheck__`` correctly resolves to the real class.
+
+        """
+
+        class _Target:
+            old_attr: str = "value"  # deprecated attribute — redirect target for isinstance test
+
+        proxy = deprecated_class(
+            target=_Target,
+            attrs_mapping={"old_attr": None},  # warn on old_attr, no rename
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=None,
+        )(_Target)
+
+        instance = proxy()
+        assert isinstance(instance, _Target)
+
+
 class TestDeprecatedAttrs:
     """Selective per-attribute deprecation via ``attrs_mapping`` on ``deprecated_class``.
 

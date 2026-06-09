@@ -1059,6 +1059,10 @@ print(default_epochs)  # value from NewTrainer.epochs
 
 The two warning budgets are independent — exhausting one does not affect the other. Each deprecated name (argument or attribute) maintains its own counter, so `num_warns=1` (the default) allows each old name to warn exactly once before silencing.
 
+!!! warning "Use one `deprecated_class()` call — do not stack two decorators"
+
+    Applying two separate `@deprecated_class()` decorators to the same class — one for `args_mapping` and one for `attrs_mapping` — appears to work at first but has concrete defects: `isinstance()` returns `False` for the resulting proxy, `__deprecated__` exposes only the outer layer (inner layer invisible to audit tools), and a spurious `FutureWarning` fires during the inner-class decoration. Always use a **single** `deprecated_class()` call with both mappings and an explicit `target=<NewClass>` — as shown in the example above. Omitting `target` when both mappings are present emits a `UserWarning` (planned `TypeError` in v1.0).
+
 ### Chained redirect
 
 `attrs_mapping` supports multi-hop rename chains. `{"num_iters": "num_steps", "num_steps": "max_steps"}` is a valid chain — accessing `proxy.num_iters` warns once (for `num_iters`) and resolves directly to the value stored under `num_steps` on the active class; accessing `proxy.num_steps` warns once (for `num_steps`) and resolves to `max_steps`. Audit reports this mapping structure as `ChainType.STACKED`. Cycles such as `{"a": "b", "b": "a"}` raise `ValueError` at decoration time.
