@@ -217,8 +217,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
 
     """
     # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
-    # including across different classes, because PastCls inherits NewCls so `self`
-    # is a valid NewCls instance.
+    # including across different classes, because PastCls inherits NewCls so `self` is a valid NewCls instance.
     if source.__name__ == "__init__" and getattr(target, "__name__", "") == "__init__":
         return
     src_qualname = getattr(source, "__qualname__", "")
@@ -241,8 +240,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     #   2: enclosing class body (where `@deprecated(...)` is written)
     # The final-segment bracket filter rejects lambda/comprehension/genexp scopes
     # (whose qualname's last component is ``<lambda>`` / ``<listcomp>`` / etc.); class
-    # bodies always end in a plain identifier, even when nested inside a function
-    # (e.g. ``"outer.<locals>.MyClass"``).
+    # bodies always end in a plain identifier, even when nested inside a function (e.g. ``"outer.<locals>.MyClass"``).
     try:
         frame_qn = sys._getframe(2).f_locals.get("__qualname__", "")
         if frame_qn and not frame_qn.rsplit(".", 1)[-1].startswith("<"):

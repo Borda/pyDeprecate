@@ -463,8 +463,7 @@ class TestValidateDeprecationChains:
         assert "caller_three_hop_sum" in by_name, "Three-hop chain fixture must be discovered by the audit"
         assert by_name["caller_three_hop_sum"].chain_type is ChainType.TARGET
         # Every intermediate hop is independently a deprecation chain — the audit reports
-        # all three (outer, middle, and inner-via-decorated_sum already covered) when
-        # scanning the module.
+        # all three (outer, middle, and inner-via-decorated_sum already covered) when scanning the module.
         assert "caller_sum_via_depr_sum" in by_name, "Middle hop must also be flagged as TARGET chain"
 
     @pytest.mark.parametrize(

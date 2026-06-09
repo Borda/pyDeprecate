@@ -310,8 +310,7 @@ class TestArgumentMapping:
         assert len(warns) == 2
         # Pin the warning category explicitly on each recorded entry.  ``pytest.warns(FutureWarning)``
         # only asserts that *at least one* matching warning fires — a regression that smuggled in a
-        # different category alongside the expected one would still pass.  Asserting on every entry
-        # closes that hole.
+        # different category alongside the expected one would still pass.  Asserting on every entry closes that hole.
         assert warns[0].category is FutureWarning
         assert warns[1].category is FutureWarning
 

@@ -135,6 +135,5 @@ else:
             griffe_obj.docstring.value = runtime_doc
             # Griffe caches parsed sections in docstring.__dict__["parsed"].
             # If the cache was populated from the static source before this
-            # extension ran, it must be cleared so the next access re-parses
-            # from the updated value.
+            # extension ran, it must be cleared so the next access re-parses from the updated value.
             griffe_obj.docstring.__dict__.pop("parsed", None)
