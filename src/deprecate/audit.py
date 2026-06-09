@@ -54,7 +54,13 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
-from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
+from deprecate._types import (
+    DeprecationConfig,
+    TargetMode,
+    _has_deprecation_meta,
+    _MappingValue,
+    _resolve_mapping_redirect,
+)
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 
@@ -432,7 +438,7 @@ def _detect_chain_type(
 
 def _validate_args_mapping(
     func: Callable,
-    args_mapping: Optional[dict[str, Optional[str]]],
+    args_mapping: Optional[dict[str, _MappingValue]],
 ) -> tuple[list[str], list[str], bool]:
     """Return (invalid_args, identity_args_mapping, all_identity) for the given mapping."""
     if not args_mapping:
@@ -442,7 +448,7 @@ def _validate_args_mapping(
     else:
         func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
         invalid_args = [arg for arg in args_mapping if arg not in func_args]
-    identity_args_mapping = [arg for arg, val in args_mapping.items() if arg == val]
+    identity_args_mapping = [arg for arg, val in args_mapping.items() if arg == _resolve_mapping_redirect(val)]
     all_identity = len(identity_args_mapping) == len(args_mapping) > 0
     return invalid_args, identity_args_mapping, all_identity
 

@@ -133,6 +133,26 @@ DeprecatedConfigExplicit = deprecated_class(
 )(Config)
 ```
 
+### Per-attribute version overrides with DeprecationEntry
+
+```python
+from deprecate import DeprecationEntry, deprecated_class
+
+# DeprecationEntry lets each attrs_mapping / args_mapping key carry its own deprecated_in/remove_in.
+# Plain strings fall back to the proxy-level versions.
+# Stacking two @deprecated_class decorators is also supported (fully; isinstance/issubclass work).
+DeprecatedMultiVersion = deprecated_class(
+    attrs_mapping={
+        "old_attr":   DeprecationEntry("new_attr",   deprecated_in="1.0", remove_in="2.0"),
+        "older_attr": DeprecationEntry("newer_attr", deprecated_in="0.9", remove_in="1.0"),
+        "plain_attr": "other_attr",  # plain str — uses proxy-level deprecated_in/remove_in as fallback
+    },
+    deprecated_in="0.9",  # fallback for plain-string entries
+    remove_in="2.0",
+)(Config)
+# DeprecationEntry values are stored in __deprecated__.attrs_mapping and visible to audit tools.
+```
+
 ### Deprecate a constant or object
 
 ```python

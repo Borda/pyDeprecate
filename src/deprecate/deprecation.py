@@ -16,6 +16,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
+from collections.abc import Mapping
 from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
@@ -28,6 +29,8 @@ from deprecate._types import (
     _DeprecatedCallable,
     _has_deprecation_meta,
     _HasDeprecationMeta,
+    _MappingValue,
+    _resolve_mapping_redirect,
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
@@ -57,7 +60,7 @@ POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 deprecation_warning = partial(warn, category=FutureWarning)
 
-ArgsMapping = dict[str, Optional[str]]
+ArgsMapping = dict[str, _MappingValue]
 
 #: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
 #: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
@@ -678,7 +681,7 @@ def _raise_warn_callable(
 def _raise_warn_arguments(
     stream: Callable,
     source: Callable,
-    arguments: ArgsMapping,
+    arguments: Mapping[str, _MappingValue],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -720,7 +723,12 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
+    args_map = ", ".join(
+        [
+            TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(_resolve_mapping_redirect(b))}
+            for a, b in arguments.items()
+        ]
+    )
     _raise_warn(
         stream,
         source,
@@ -799,9 +807,9 @@ def _build_call_plan(
     kwargs = _update_kwargs_with_args(source, args, kwargs)
 
     reason_callable = normalized_target is TargetMode.NOTIFY or callable(normalized_target)
-    reason_argument: dict[str, Optional[str]] = {}
+    reason_argument: dict[str, _MappingValue] = {}
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
-        reason_argument = {a: b for a, b in dep_cfg.args_mapping.items() if a in kwargs}
+        reason_argument = {a: _resolve_mapping_redirect(b) for a, b in dep_cfg.args_mapping.items() if a in kwargs}
     # Migrated callers (using the new arg name) produce empty reason_argument;
     # without the args_extra guard they short-circuit before extras are injected.
     # When source is a stacked @deprecated wrapper (e.g. ARGS_REMAP outer + NOTIFY inner),
@@ -863,7 +871,9 @@ def _build_call_plan(
         if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
             _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
             caller_keys = set(kwargs)
-            rename_targets = {v for v in _am.values() if v}
+            rename_targets: set[str] = {
+                r for r in (_resolve_mapping_redirect(v) for v in _am.values()) if r is not None
+            }
             rename_sources = set(_am)
             # For ARGS_REMAP, source IS the target; Python applies its own default
             # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
@@ -878,15 +888,19 @@ def _build_call_plan(
             full_defaults = _update_kwargs_with_defaults(source, kwargs)
 
             def is_default_dropped(k: str) -> bool:
-                remapped = k in rename_sources and _am.get(k) in target_defaults
+                remapped = k in rename_sources and _resolve_mapping_redirect(_am.get(k)) in target_defaults
                 return k not in rename_targets and not remapped
 
             kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_default_dropped(k)}
         else:
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
-        args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
-        kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
+        args_skip = [arg for arg in dep_cfg.args_mapping if not _resolve_mapping_redirect(dep_cfg.args_mapping[arg])]
+        kwargs = {
+            (_resolve_mapping_redirect(dep_cfg.args_mapping.get(arg)) or arg): val
+            for arg, val in kwargs.items()
+            if arg not in args_skip
+        }
 
     if dep_cfg.args_extra and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         kwargs.update(dep_cfg.args_extra)

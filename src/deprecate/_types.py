@@ -6,6 +6,7 @@ catch schema mismatches at analysis time rather than silently returning ``None``
 """
 
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Union, runtime_checkable
@@ -117,7 +118,7 @@ class TargetMode(Enum):
         cls,
         target: Any,  # noqa: ANN401
         *,
-        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        args_mapping: Optional[Mapping[str, Any]] = None,
         stacklevel: Optional[int] = 3,
     ) -> "Union[Callable[..., Any], TargetMode, None]":
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
@@ -189,7 +190,7 @@ class TargetMode(Enum):
         cls,
         mode: "TargetMode",
         source_name: str,
-        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        args_mapping: Optional[Mapping[str, Any]] = None,
         args_extra: Optional[dict[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
@@ -255,8 +256,8 @@ class TargetMode(Enum):
         cls,
         mode: "Union[TargetMode, Callable[..., Any], None]",
         source_name: str,
-        attrs_mapping: Optional[dict[str, Optional[str]]] = None,
-        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        attrs_mapping: Optional[Mapping[str, Any]] = None,
+        args_mapping: Optional[Mapping[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
     ) -> bool:
@@ -344,6 +345,140 @@ class TargetMode(Enum):
 
 
 @dataclass(frozen=True)
+class DeprecationEntry:
+    """Per-entry version override for a single key in ``attrs_mapping`` or ``args_mapping``.
+
+    Allows individual attributes or arguments to carry their own ``deprecated_in`` / ``remove_in``
+    versions independently of the proxy-level fallback values.  Any field left as ``None`` falls
+    back to the enclosing proxy's corresponding version string.
+
+    Use inside ``attrs_mapping`` or ``args_mapping`` instead of a plain ``str`` (or ``None``) when
+    different attributes or arguments were deprecated at different library versions:
+
+    .. code-block:: python
+
+        @deprecated_class(
+            attrs_mapping={
+                "old_attr":   DeprecationEntry("new_attr",   deprecated_in="1.0", remove_in="2.0"),
+                "older_attr": DeprecationEntry("newer_attr", deprecated_in="0.9", remove_in="1.0"),
+            },
+            deprecated_in="0.9",  # fallback for plain-string entries
+            remove_in="2.0",
+        )
+        class MyClass: ...
+
+    Attributes:
+        target: Redirect target attribute / argument name, or ``None`` for warn-only (no rename).
+        deprecated_in: Version when this specific attribute / argument was deprecated.  ``None``
+            uses the proxy-level ``deprecated_in`` as fallback.
+        remove_in: Version when this specific attribute / argument will be removed.  ``None``
+            uses the proxy-level ``remove_in`` as fallback.
+
+    Examples:
+        >>> entry = DeprecationEntry("new_attr", deprecated_in="1.0", remove_in="2.0")
+        >>> entry.target
+        'new_attr'
+        >>> entry.deprecated_in
+        '1.0'
+        >>> DeprecationEntry(None).target is None
+        True
+
+    """
+
+    target: Optional[str]
+    deprecated_in: Optional[str] = None
+    remove_in: Optional[str] = None
+
+
+# Type alias for a single value in ``attrs_mapping`` / ``args_mapping``.
+# A plain ``str`` is a rename target; ``None`` means warn-only (no rename);
+# :class:`DeprecationEntry` carries per-entry version metadata alongside the target.
+_MappingValue = Union[str, DeprecationEntry, None]
+
+
+def _resolve_mapping_redirect(v: _MappingValue) -> Optional[str]:
+    """Return the redirect target name from a mapping value.
+
+    Extracts the redirect target from a :class:`DeprecationEntry` or returns the plain string /
+    ``None`` value unchanged.
+
+    Args:
+        v: A mapping value — ``str``, ``None``, or :class:`DeprecationEntry`.
+
+    Returns:
+        The target attribute / argument name, or ``None`` for warn-only entries.
+
+    Examples:
+        >>> _resolve_mapping_redirect("new_attr")
+        'new_attr'
+        >>> _resolve_mapping_redirect(None) is None
+        True
+        >>> _resolve_mapping_redirect(DeprecationEntry("new_attr", deprecated_in="1.0"))
+        'new_attr'
+        >>> _resolve_mapping_redirect(DeprecationEntry(None)) is None
+        True
+
+    """
+    if isinstance(v, DeprecationEntry):
+        return v.target
+    return v
+
+
+def _get_entry_deprecated_in(v: _MappingValue, fallback: str) -> str:
+    """Return the ``deprecated_in`` for a mapping entry, falling back to *fallback*.
+
+    Args:
+        v: A mapping value — ``str``, ``None``, or :class:`DeprecationEntry`.
+        fallback: Proxy-level ``deprecated_in`` used when *v* carries no per-entry override.
+
+    Returns:
+        Per-entry ``deprecated_in`` when *v* is a :class:`DeprecationEntry` with a non-``None``
+        ``deprecated_in``; *fallback* otherwise.
+
+    Examples:
+        >>> _get_entry_deprecated_in("new_attr", "1.0")
+        '1.0'
+        >>> _get_entry_deprecated_in(None, "1.0")
+        '1.0'
+        >>> _get_entry_deprecated_in(DeprecationEntry("x", deprecated_in="0.9"), "1.0")
+        '0.9'
+        >>> _get_entry_deprecated_in(DeprecationEntry("x"), "1.0")
+        '1.0'
+
+    """
+    if isinstance(v, DeprecationEntry) and v.deprecated_in is not None:
+        return v.deprecated_in
+    return fallback
+
+
+def _get_entry_remove_in(v: _MappingValue, fallback: str) -> str:
+    """Return the ``remove_in`` for a mapping entry, falling back to *fallback*.
+
+    Args:
+        v: A mapping value — ``str``, ``None``, or :class:`DeprecationEntry`.
+        fallback: Proxy-level ``remove_in`` used when *v* carries no per-entry override.
+
+    Returns:
+        Per-entry ``remove_in`` when *v* is a :class:`DeprecationEntry` with a non-``None``
+        ``remove_in``; *fallback* otherwise.
+
+    Examples:
+        >>> _get_entry_remove_in("new_attr", "2.0")
+        '2.0'
+        >>> _get_entry_remove_in(None, "2.0")
+        '2.0'
+        >>> _get_entry_remove_in(DeprecationEntry("x", remove_in="1.0"), "2.0")
+        '1.0'
+        >>> _get_entry_remove_in(DeprecationEntry("x"), "2.0")
+        '2.0'
+
+    """
+    if isinstance(v, DeprecationEntry) and v.remove_in is not None:
+        return v.remove_in
+    return fallback
+
+
+@dataclass(frozen=True)
 class DeprecationConfig:
     """Static deprecation metadata attached to deprecated callables as ``__deprecated__``.
 
@@ -369,11 +504,14 @@ class DeprecationConfig:
             Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated` for the
             available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
-            ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when selective per-attribute
-            deprecation is enabled.  Non-``None`` values must be terminal attribute names on the target class when
-            ``target`` is provided, or on the wrapped source class otherwise.  Non-cyclic chains are stored and
-            surfaced by audit tooling.  ``None`` (default) means the proxy uses its blanket-warning behaviour (every
-            attribute access emits a warning).
+            ``None`` for warn-only).  Values may also be :class:`DeprecationEntry` instances to carry per-attribute
+            ``deprecated_in`` / ``remove_in`` overrides.  Set by :func:`~deprecate.proxy.deprecated_class` when
+            selective per-attribute deprecation is enabled.  Non-``None`` redirect targets must be existing attribute
+            names on the target class when ``target`` is provided, or on the wrapped source class otherwise.
+            Non-cyclic chains are stored and surfaced by audit tooling.  ``None`` (default) means the proxy uses its
+            blanket-warning behaviour (every attribute access emits a warning).
+        args_mapping: Optional dict remapping argument names; values may be a plain string (new argument name),
+            ``None`` (drop the argument), or :class:`DeprecationEntry` (rename with per-arg version metadata).
 
     """
 
@@ -381,12 +519,12 @@ class DeprecationConfig:
     remove_in: str = ""
     name: str = ""
     target: Optional[Union[Callable[..., Any], "TargetMode"]] = None
-    args_mapping: Optional[dict[str, Optional[str]]] = None
+    args_mapping: Optional[dict[str, _MappingValue]] = None
     args_extra: Optional[dict[str, Any]] = None
     misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     template_mgs: Optional[str] = None
-    attrs_mapping: Optional[dict[str, Optional[str]]] = None
+    attrs_mapping: Optional[dict[str, _MappingValue]] = None
 
 
 @runtime_checkable
@@ -458,7 +596,7 @@ class _ProxyConfig:
     read_only: bool
     args_extra: Optional[dict[str, Any]] = None
     template_mgs: Optional[str] = None
-    attrs_mapping: Optional[dict[str, Optional[str]]] = None
+    attrs_mapping: Optional[dict[str, _MappingValue]] = None
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
 
@@ -536,5 +674,5 @@ class _CallPlan:
     short_circuit: bool
     original_kwargs: dict[str, Any]
     resolved_kwargs: dict[str, Any]
-    reason_argument: dict[str, Optional[str]] = field(default_factory=dict)
+    reason_argument: dict[str, _MappingValue] = field(default_factory=dict)
     target_func: Optional[Callable[..., Any]] = None

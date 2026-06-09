@@ -43,7 +43,7 @@ from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, Callable, cast
+from typing import Any, Callable
 from warnings import catch_warnings, simplefilter, warn
 
 import typing_extensions
@@ -1940,11 +1940,10 @@ DeprecatedAttrsPaletteAllThree = deprecated_class(
 # proxy (ATTRS_REMAP inner). Used to verify nested proxy semantics: the outer blanket proxy
 # warns on every attribute access; the inner selective proxy forwards silently because its
 # selective set is consumed by the outer's __getattr__ before it reaches the inner.
-# ``DeprecatedAttrsPalette`` is a ``_DeprecatedProxy`` instance (not a ``type``); the proxy
-# transparently forwards attribute access, so wrapping it again is legal at runtime — the
-# ``cast`` placates ``deprecated_class``'s type-only parameter annotation.
+# ``DeprecatedAttrsPalette`` is a ``_DeprecatedProxy`` instance — the annotation now accepts
+# Union[type, _DeprecatedProxy] so no cast is needed.
 DeprecatedAttrsPaletteNested = deprecated_class(
     deprecated_in="1.0",
     remove_in="2.0",
     stream=None,
-)(cast(type, DeprecatedAttrsPalette))
+)(DeprecatedAttrsPalette)  # type: ignore[arg-type]

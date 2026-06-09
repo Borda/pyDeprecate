@@ -1059,9 +1059,57 @@ print(default_epochs)  # value from NewTrainer.epochs
 
 The two warning budgets are independent — exhausting one does not affect the other. Each deprecated name (argument or attribute) maintains its own counter, so `num_warns=1` (the default) allows each old name to warn exactly once before silencing.
 
-!!! warning "Use one `deprecated_class()` call — do not stack two decorators"
+**Choosing between a single call and stacking**
 
-    Applying two separate `@deprecated_class()` decorators to the same class — one for `args_mapping` and one for `attrs_mapping` — appears to work at first but has concrete defects: `isinstance()` returns `False` for the resulting proxy, `__deprecated__` exposes only the outer layer (inner layer invisible to audit tools), and a spurious `FutureWarning` fires during the inner-class decoration. Always use a **single** `deprecated_class()` call with both mappings and an explicit `target=<NewClass>` — as shown in the example above. Omitting `target` when both mappings are present emits a `UserWarning` (planned `TypeError` in v1.0).
+Use a **single `deprecated_class()` call** when all attributes and arguments share the same `deprecated_in`/`remove_in` — it is the simplest form and keeps both mappings in one place.
+
+**Stack two `@deprecated_class()` decorators** when different attributes were deprecated at different versions and each mapping needs its own version pair:
+
+```python
+@deprecated_class(
+    attrs_mapping={"old_attr": "new_attr"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+@deprecated_class(
+    attrs_mapping={"older_attr": "newer_attr"},
+    deprecated_in="0.9",
+    remove_in="1.0",
+)
+class MyClass:
+    newer_attr: str = "a"
+    new_attr: str = "b"
+```
+
+Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. As an alternative to stacking, use [`DeprecationEntry`](#per-entry-version-overrides-with-deprecationentry) values inside a single `deprecated_class()` call for the same per-attribute version control without an extra proxy layer.
+
+### Per-entry version overrides with `DeprecationEntry`
+
+`DeprecationEntry` lets each key in `attrs_mapping` or `args_mapping` carry its own `deprecated_in`/`remove_in` pair, independent of the proxy-level fallback. Use it instead of stacking when you prefer a single proxy layer:
+
+```python
+from deprecate import DeprecationEntry, deprecated_class
+
+
+class Config:
+    new_attr: str = "b"
+    newer_attr: str = "a"
+
+
+proxy = deprecated_class(
+    attrs_mapping={
+        "old_attr": DeprecationEntry("new_attr", deprecated_in="1.0", remove_in="2.0"),
+        "older_attr": DeprecationEntry("newer_attr", deprecated_in="0.9", remove_in="1.0"),
+    },
+    deprecated_in="0.9",  # fallback for plain-string entries
+    remove_in="2.0",
+)(Config)
+
+proxy.old_attr  # warns: deprecated since v1.0
+proxy.older_attr  # warns: deprecated since v0.9
+```
+
+Plain-string values and `None` (warn-only) entries continue to work as before and fall back to the proxy-level `deprecated_in`/`remove_in`. `DeprecationEntry` values are stored verbatim in `__deprecated__.attrs_mapping` and visible to audit tools.
 
 ### Chained redirect
 

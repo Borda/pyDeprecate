@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`DeprecationEntry` — per-attribute and per-argument version overrides.** `attrs_mapping` and `args_mapping` now accept `DeprecationEntry(target, deprecated_in, remove_in)` values in addition to plain strings. Each entry can carry its own `deprecated_in`/`remove_in` pair, independent of the proxy-level fallback. Example: `attrs_mapping={"old": DeprecationEntry("new", deprecated_in="0.9", remove_in="1.0")}`. Plain string entries and `None` (warn-only) continue to work unchanged.
+- **`deprecated_class` stacking is now supported.** Two `@deprecated_class` decorators applied to the same class (each with its own `attrs_mapping` and version pair) now work correctly: `isinstance()` resolves through the proxy chain, instantiation emits at most one warning instead of two, and the type annotation accepts `_DeprecatedProxy` without a `cast`.
 - **`@deprecated @property` now wraps `fset` and `fdel` with `FutureWarning`.** Applying `@deprecated` on the outside of `@property` (outer order, or explicit `deprecated(...)(property(fget, fset, fdel))`) now wraps all three accessors. Previously, only `fget` emitted a warning; `fset` and `fdel` were silently passed through. Consumers running `filterwarnings=error::FutureWarning` that wrote to or deleted a deprecated property will now see `FutureWarning` errors — use inner-order (`@property @deprecated`) or decorate only `fget` directly if you want a silent setter/deleter. Chain-style rebinding via `@value.setter` / `@value.deleter` is fully supported through the new `_DeprecatedProperty` subclass. ([#190](https://github.com/Borda/pyDeprecate/pull/190))
 
 ### Changed

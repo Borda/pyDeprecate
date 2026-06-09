@@ -1153,10 +1153,12 @@ class TestPEP702ProxyStackingRegression:
 class TestCombinedArgAttrsMapping:
     """Single ``deprecated_class()`` call combining ``args_mapping`` and ``attrs_mapping``.
 
-    Stacking two separate ``@deprecated_class()`` decorators (one per mapping) is NOT supported — it silently
-    breaks ``isinstance()``, hides the inner layer from audit tools, and emits a stray ``FutureWarning`` during
-    the outer decoration.  The canonical pattern is one ``deprecated_class()`` call with both mappings and an
-    explicit ``target=<NewClass>`` argument.  These tests pin the combined single-call contract.
+    The canonical pattern for combining arg-rename and attr-rename deprecation is one ``deprecated_class()``
+    call with both mappings and an explicit ``target=<NewClass>`` argument.  These tests pin that contract.
+
+    Two decorators may also be stacked (see :class:`TestStackedDeprecatedClass` in ``test_depr_entry.py``)
+    when each mapping layer needs an independent ``deprecated_in``/``remove_in`` version pair — e.g.
+    ``old_attr`` deprecated in v1.0 while ``older_attr`` was deprecated earlier in v0.9.
 
     """
 
@@ -1216,11 +1218,11 @@ class TestCombinedArgAttrsMapping:
         assert value == 10
 
     def test_combined_isinstance_passes_through(self) -> None:
-        """``isinstance()`` returns ``True`` for the combined single-call form (single proxy layer).
+        """``isinstance()`` returns ``True`` for the combined single-call form.
 
-        Unlike stacking two ``@deprecated_class()`` decorators (which breaks ``isinstance()`` because the inner
-        proxy becomes the ``active`` target), a single-call combined proxy has exactly one ``_DeprecatedProxy``
-        layer, so ``__instancecheck__`` correctly resolves to the real class.
+        A single-call combined proxy has exactly one ``_DeprecatedProxy`` layer so ``__instancecheck__``
+        resolves directly to the real class without recursion.  Stacked two-decorator forms also support
+        ``isinstance()`` — see :class:`TestStackedDeprecatedClass` in ``test_depr_entry.py``.
 
         """
 
