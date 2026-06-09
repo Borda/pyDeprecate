@@ -12,6 +12,7 @@ from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
     DeprecatedAttrsExplicitMode,
+    DeprecatedAttrsLegacyTrue,
     DeprecatedAttrsNotifyOnly,
     DeprecatedAttrsNotifyOnlyCallableTargetDecorated,
     DeprecatedAttrsNotifyOnlyCallableTargetWrapped,
@@ -37,6 +38,7 @@ from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    LegacyBoolAttrsSource,
     NewDataClass,
     Palette,
     PaletteEnum,
@@ -1652,6 +1654,26 @@ class TestAttrsMappingCombinations:
         """
         meta = object.__getattribute__(DeprecatedAttrsExplicitMode, "__deprecated__")
         assert meta.target is TargetMode.ATTRS_REMAP
+
+    def test_legacy_true_with_attrs_mapping_does_not_raise_value_error(self) -> None:
+        """Legacy ``target=True`` validates ``attrs_mapping`` against the source class.
+
+        A legacy caller can combine ``target=True`` with ``attrs_mapping`` while still defining the canonical
+        attribute on the deprecated class itself.  The decorator should fall through to the normal misconfiguration
+        path for the boolean sentinel, not validate redirect targets against ``bool`` and raise ``ValueError`` before
+        the proxy can be called.
+
+        """
+        try:
+            instance = DeprecatedAttrsLegacyTrue()
+        except ValueError as ex:
+            pytest.fail(f"legacy target=True attrs_mapping proxy raised ValueError: {ex}")
+
+        assert isinstance(instance, LegacyBoolAttrsSource)
+        assert instance.ready is True
+        meta = object.__getattribute__(DeprecatedAttrsLegacyTrue, "__deprecated__")
+        assert meta.target is TargetMode.NOTIFY
+        assert meta.misconfigured is True
 
     def test_attrs_remap_stored_in_dep_config_target_via_auto_resolve(self) -> None:
         """Auto-resolution from ``attrs_mapping`` to ``ATTRS_REMAP`` is reflected in stored metadata.

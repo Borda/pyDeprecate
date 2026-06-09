@@ -436,6 +436,17 @@ class PaletteOld:
     colour: str = "source_colour"
 
 
+class LegacyBoolAttrsSource:
+    """Source class for ``target=True`` plus ``attrs_mapping`` regression coverage."""
+
+    color: str = "legacy_red"
+    colour: str = "canonical_red"
+
+    def __init__(self) -> None:
+        """Initialise a stable marker so tests can confirm construction succeeded."""
+        self.ready = True
+
+
 class CombinedAttrsArgsTarget:
     """Target class combining a canonical attribute and a constructor keyword for combination matrix tests.
 

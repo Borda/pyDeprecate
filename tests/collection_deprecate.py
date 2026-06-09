@@ -44,7 +44,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from typing import Any, Callable, cast
-from warnings import warn
+from warnings import catch_warnings, simplefilter, warn
 
 import typing_extensions
 from sklearn.metrics import accuracy_score
@@ -55,6 +55,7 @@ from tests.collection_targets import (
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
+    LegacyBoolAttrsSource,
     NewCls,
     NewDataClass,
     NewEnum,
@@ -1893,6 +1894,19 @@ DeprecatedAttrsExplicitMode = deprecated_class(
     remove_in="2.0",
     stream=None,
 )(Palette)
+
+
+# Legacy bool sentinel regression: before validation normalisation, ``target=True`` must
+# validate ``attrs_mapping`` against the wrapped source class instead of the bool object.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+    DeprecatedAttrsLegacyTrue = deprecated_class(
+        target=True,
+        attrs_mapping={"color": "colour"},
+        deprecated_in="1.0",
+        remove_in="2.0",
+        stream=None,
+    )(LegacyBoolAttrsSource)
 
 
 # C3: Callable target + attrs_mapping + args_mapping — three independent surfaces.
