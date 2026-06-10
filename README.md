@@ -998,13 +998,13 @@ Each deprecated attribute name has its own independent warning counter — with 
 
 **Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Three misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.NOTIFY` + `attrs_mapping=...` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only.
 
-**Per-entry version overrides with `DeprecationEntry`** — when different attributes were deprecated at different library versions, pass `DeprecationEntry(target, deprecated_in, remove_in)` as the mapping value instead of a plain string. The proxy-level `deprecated_in`/`remove_in` acts as a fallback for plain-string entries:
+**Per-entry version overrides with `DeprecationEntry`** — when different attributes were deprecated at different library versions, pass `DeprecationEntry(redirect, deprecated_in, remove_in)` as the mapping value instead of a plain string. The proxy-level `deprecated_in`/`remove_in` acts as a fallback for plain-string entries:
 
 ```python
 from deprecate import DeprecationEntry, deprecated_class
 
 
-class _Config:
+class Config:
     new_attr: str = "b"
     newer_attr: str = "a"
 
@@ -1016,7 +1016,7 @@ proxy = deprecated_class(
     },
     deprecated_in="0.9",  # fallback for plain-string entries
     remove_in="2.0",
-)(_Config)
+)(Config)
 ```
 
 Alternatively, stack two `@deprecated_class()` decorators — each layer carries its own version pair and `isinstance()`/`issubclass()` resolve correctly through the proxy chain.

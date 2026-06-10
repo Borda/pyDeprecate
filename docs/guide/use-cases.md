@@ -1113,6 +1113,10 @@ from deprecate import deprecated_class
 class MyClass:
     newer_attr: str = "a"
     new_attr: str = "b"
+
+
+obj = MyClass()
+assert isinstance(obj, MyClass)
 ```
 
 Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. As an alternative to stacking, use [`DeprecationEntry`](#per-entry-version-overrides-with-deprecationentry) values inside a single `deprecated_class()` call for the same per-attribute version control without an extra proxy layer. When stacking two `ATTRS_REMAP` layers, only the innermost layer’s instantiation warning fires — the outer layer’s `deprecated_in`/`remove_in` are omitted from the instantiation notice (attribute-access warnings remain independent and fire for each layer).
