@@ -15,7 +15,7 @@ import warnings
 
 import pytest
 
-from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from deprecate.proxy import deprecated_class
 from tests.collection_deprecate import StackedAttrProxy
 from tests.collection_targets import (
     StackingArgsAttrsBase,
@@ -40,14 +40,15 @@ class TestStackedDeprecatedClass:
     Each decorator carries a different ``deprecated_in``/``remove_in`` pair so that
     callers migrating to the new API get accurate version information per attribute.
 
+    ``StackedAttrProxy`` is a module-level singleton defined in ``collection_deprecate``.
+    Both layers use ``stream=None``, which causes ``_warn()`` to return before incrementing
+    ``_ProxyConfig.warned`` or ``warned_args`` — so warning state does not accumulate across
+    tests despite the shared reference.  If ``stream`` is ever set to a non-``None`` value,
+    tests become order-sensitive because ``num_warns=1`` (default) would silence later tests.
+
     """
 
-    @pytest.fixture
-    def stacked_proxy(self) -> _DeprecatedProxy:
-        """Two-layer stacked proxy with disjoint attrs_mapping and distinct version pairs."""
-        return StackedAttrProxy  # type: ignore[return-value]
-
-    def test_stacked_proxy_outer_attr_access(self, stacked_proxy: _DeprecatedProxy) -> None:
+    def test_stacked_proxy_outer_attr_access(self) -> None:
         """Outer layer: accessing ``old_attr`` returns the value from ``new_attr``.
 
         The outer proxy maps ``old_attr -> new_attr``.  The redirected attribute resolves
@@ -55,10 +56,10 @@ class TestStackedDeprecatedClass:
         returns the canonical value on the target class.
 
         """
-        value = stacked_proxy.old_attr  # type: ignore[attr-defined]
+        value = StackedAttrProxy.old_attr  # type: ignore[attr-defined]
         assert value == "value_b"
 
-    def test_stacked_proxy_inner_attr_access(self, stacked_proxy: _DeprecatedProxy) -> None:
+    def test_stacked_proxy_inner_attr_access(self) -> None:
         """Inner layer: accessing ``older_attr`` returns the value from ``newer_attr``.
 
         The inner proxy maps ``older_attr -> newer_attr``.  The outer proxy has no entry for
@@ -66,22 +67,22 @@ class TestStackedDeprecatedClass:
         and redirects.
 
         """
-        value = stacked_proxy.older_attr  # type: ignore[attr-defined]
+        value = StackedAttrProxy.older_attr  # type: ignore[attr-defined]
         assert value == "value_new"
 
-    def test_stacked_proxy_isinstance_works(self, stacked_proxy: _DeprecatedProxy) -> None:
-        """``isinstance(instance, stacked_proxy)`` returns ``True`` after Blocker 1 fix.
+    def test_stacked_proxy_isinstance_works(self) -> None:
+        """``isinstance(instance, StackedAttrProxy)`` returns ``True`` after Blocker 1 fix.
 
         Without the fix, ``__instancecheck__`` returns ``False`` because it only delegates
         when ``active`` is a ``type``.  After the fix it also delegates when ``active`` is
         a ``_DeprecatedProxy``, triggering recursive delegation down to the real class.
 
         """
-        instance = stacked_proxy()
+        instance = StackedAttrProxy()
         assert isinstance(instance, _V09Class)
-        assert isinstance(instance, stacked_proxy)  # type: ignore[arg-type]  # <-- this is the Blocker 1 assertion
+        assert isinstance(instance, StackedAttrProxy)  # type: ignore[arg-type]  # <-- this is the Blocker 1 assertion
 
-    def test_stacked_proxy_no_double_warn_on_instantiation(self, stacked_proxy: _DeprecatedProxy) -> None:
+    def test_stacked_proxy_no_double_warn_on_instantiation(self) -> None:
         """Instantiating a two-layer ATTRS_REMAP proxy emits at most one warning, not two.
 
         Before Blocker 2 fix, both the outer AND inner ATTRS_REMAP proxy fall through to

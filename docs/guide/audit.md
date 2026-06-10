@@ -469,6 +469,118 @@ def enforce_no_deprecation_chains():
 
 Use `recursive=False` to restrict scanning to the top-level module only, which can speed up large codebases when you know submodules are clean.
 
+## Detecting Mapping Incompatibilities
+
+`deprecated_class(args_mapping=...)` remaps deprecated argument names to their replacements before forwarding the call to the target constructor. That forwarding works only when the replacement name is a regular keyword parameter. When the replacement name is `POSITIONAL_ONLY` (i.e. declared with a `/` in the constructor signature), Python rejects it as a keyword argument. The proxy detects this at decoration time, emits a `UserWarning`, and falls back to `setattr` at call time instead of passing as a constructor kwarg — which works for most plain classes and dataclasses but silently degrades for C-extension types, `tuple`/`frozenset` subclasses, and any class where post-construction attribute assignment diverges from constructor initialisation.
+
+`validate_mapping_compatibility()` surfaces every wrapper whose `incompatible_args_mapping` field is non-empty so you can review and fix these configurations before they reach users.
+
+### The problem: POSITIONAL_ONLY remap target
+
+A class whose constructor uses the `/` positional-only separator:
+
+```python
+import warnings
+from deprecate import deprecated_class
+
+
+class Point:
+    def __init__(self, x: float, y: float, /) -> None:  # x and y are POSITIONAL_ONLY
+        self.x = x
+        self.y = y
+
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", UserWarning)
+    OldPoint = deprecated_class(
+        Point,
+        deprecated_in="2.0",
+        remove_in="3.0",
+        args_mapping={"px": "x", "py": "y"},  # x and y are POSITIONAL_ONLY — incompatible
+    )
+# At decoration time deprecated_class emits a UserWarning naming the incompatible keys.
+# Suppress it above when you understand the trade-off and accept the setattr fallback.
+```
+
+At call time the proxy constructs `Point` without the incompatible kwargs, then assigns the remapped values via `setattr`:
+
+```python
+p = OldPoint(px=1.0, py=2.0)  # warns: FutureWarning
+print(p.x, p.y)
+```
+
+<details>
+  <summary>Output: <code>p.x, p.y</code></summary>
+
+```
+1.0 2.0
+```
+
+</details>
+
+The `setattr` fallback produces the correct result for `Point` above because `__init__` stores values in `self.x`/`self.y`. For classes where construction and post-construction assignment differ (immutable types, `__slots__` without a matching `__setattr__`, C extensions), the fallback may silently produce wrong values or raise an error. Prefer `attrs_mapping` when the target class exposes deprecated attribute names separately from its constructor kwargs, or restructure the target constructor to accept keyword arguments.
+
+### Scanning for incompatible wrappers
+
+```python
+from deprecate import validate_mapping_compatibility
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+issues = validate_mapping_compatibility(my_package)
+print(f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities")
+
+for info in issues:
+    print(f"  {info.module}.{info.function}: incompatible keys = {info.incompatible_args_mapping}")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
+
+```
+Found 0 wrappers with POSITIONAL_ONLY mapping incompatibilities
+```
+
+</details>
+
+The function accepts the same `module` and `recursive` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module.
+
+### pytest integration for mapping compatibility
+
+```python
+import pytest
+from deprecate import validate_mapping_compatibility
+
+# normally you would import your own package
+from tests import collection_deprecate as my_package
+
+
+def test_no_positional_only_mapping_incompatibilities():
+    """Ensure no deprecated_class wrapper remaps to a POSITIONAL_ONLY constructor param.
+
+    Incompatible wrappers fall back to setattr at call time, which may silently
+    produce wrong values for immutable or C-extension types.
+    """
+    issues = validate_mapping_compatibility(my_package)
+
+    if issues:
+        lines = [
+            f"  - {info.module}.{info.function}: incompatible keys {info.incompatible_args_mapping}"
+            for info in issues
+        ]
+        pytest.fail(
+            "Found deprecated_class wrappers with POSITIONAL_ONLY mapping incompatibilities:
+"
+            + "
+".join(lines)
+            + "
+Use attrs_mapping or change the constructor to accept keyword arguments."
+        )
+```
+
+The `pydeprecate check` CLI subcommand also covers this check — it exits `1` when any wrapper has a non-empty `incompatible_args_mapping`. See the [CLI Reference](cli.md) for flags and exit codes.
+
 ## Pre-commit Integration
 
 !!! info "Coming soon"

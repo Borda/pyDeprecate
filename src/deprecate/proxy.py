@@ -442,24 +442,22 @@ class _DeprecatedProxy:
         if attr_name not in attrs_mapping:
             return None
         new_attr = attrs_mapping[attr_name]
-        deprecated_in = dep.deprecated_in
-        remove_in = dep.remove_in
         if new_attr is not None:
             owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
             target_path = f"{owner}.{new_attr}"
             template = custom_template or TEMPLATE_WARNING_CALLABLE
             return template % {
                 "source_name": attr_name,
-                "deprecated_in": deprecated_in,
-                "remove_in": remove_in,
+                "deprecated_in": dep.deprecated_in,
+                "remove_in": dep.remove_in,
                 "target_name": new_attr,
                 "target_path": target_path,
             }
         template = custom_template or TEMPLATE_WARNING_NO_TARGET
         return template % {
             "source_name": attr_name,
-            "deprecated_in": deprecated_in,
-            "remove_in": remove_in,
+            "deprecated_in": dep.deprecated_in,
+            "remove_in": dep.remove_in,
         }
 
     def _warn(self, *, arg_name: Optional[str] = None) -> None:

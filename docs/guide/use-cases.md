@@ -1099,6 +1099,74 @@ print(default_epochs)  # value from NewTrainer.epochs
 
 The two warning budgets are independent — exhausting one does not affect the other. Each deprecated name (argument or attribute) maintains its own counter, so `num_warns=1` (the default) allows each old name to warn exactly once before silencing.
 
+#### Mixed redirect and warn-only entries
+
+`attrs_mapping` values can be a string (redirect to a new name) or `None` (warn but keep the same attribute name, no rename).
+Both forms can appear in the same mapping alongside `args_mapping`, making a single proxy the authoritative record for every deprecated surface on the class.
+
+The example below deprecates a `Model` class that renamed its `gpu` attribute to `device` and retired the `cuda` flag entirely.
+The constructor kwarg `n_layers` was also renamed to `num_layers`:
+
+```python
+from deprecate import deprecated_class
+
+
+class Model:
+    device: str = "cpu"
+    num_layers: int = 4
+
+    def __init__(self, num_layers: int = 4, device: str = "cpu") -> None:
+        self.num_layers = num_layers
+        self.device = device
+
+
+@deprecated_class(
+    target=Model,
+    attrs_mapping={
+        "cuda": None,     # warn-only — flag is being removed, still served from LegacyModel
+        "gpu": "device",  # redirect — old name "gpu" resolves to Model.device
+    },
+    args_mapping={"n_layers": "num_layers"},  # constructor kwarg rename
+    deprecated_in="3.0",
+    remove_in="4.0",
+    num_warns=-1,
+)
+class LegacyModel:
+    cuda: bool = False  # being-removed attribute; must live on LegacyModel for warn-only validation
+
+
+# 1. Constructor — args_mapping fires: "n_layers" remapped to "num_layers"
+m = LegacyModel(n_layers=8)  # warns: FutureWarning
+print(m.num_layers)
+
+# 2. Attribute redirect — attrs_mapping "gpu" -> "device" fires
+print(LegacyModel.gpu)  # warns: FutureWarning
+
+# 3. Warn-only — "cuda" warns but is still served from LegacyModel.cuda
+print(LegacyModel.cuda)  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>m.num_layers; LegacyModel.gpu; LegacyModel.cuda</code></summary>
+
+```
+8
+cpu
+False
+```
+
+</details>
+
+`"cuda": None` emits a `FutureWarning` on every access but serves the value from `LegacyModel.cuda` (the source class) because `Model` does not define `cuda`.
+`"gpu": "device"` warns and redirects the lookup to `Model.device`.
+Validation at decoration time requires that every `None`-value key exists on at least one of the two classes, so `cuda` must be defined on `LegacyModel` (or on `Model` if keeping it in the new API).
+
+#### Audit coverage for mapping compatibility
+
+After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg, which may not behave correctly on all target types.
+The function returns a list of `DeprecationWrapperInfo` objects whose `incompatible_args_mapping` field is non-empty, giving you an actionable list before issues reach users.
+See the [Audit guide](audit.md) for the full CI integration pattern.
+
 **Choosing between a single call and stacking**
 
 Use a **single `deprecated_class()` call** when all attributes and arguments share the same `deprecated_in`/`remove_in` — it is the simplest form and keeps both mappings in one place.
