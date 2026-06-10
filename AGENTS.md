@@ -147,6 +147,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Use bare `except:` clauses
 - Define deprecated wrappers inside test files
 - Use `with warnings.catch_warnings(record=True) as w: warnings.simplefilter("always")` in `.md` documentation examples — use direct calls annotated `# warns: FutureWarning` instead; output blocks show only return values, not warning counts or `w[0].category.__name__`
+- Use bare `assert` statements in `.md` documentation examples (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output
 - Skip test coverage for new features or bug fixes
 - Implement features without maintainer approval
 - Start work without first reading config files and guidelines

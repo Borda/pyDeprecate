@@ -2114,8 +2114,17 @@ def old_func_warn_n_times():
     pass
 
 
-assert callable(old_func_warn_n_times)
+print(callable(old_func_warn_n_times))
 ```
+
+<details>
+  <summary>Output: <code>callable(old_func_warn_n_times)</code></summary>
+
+```
+True
+```
+
+</details>
 
 </details>
 

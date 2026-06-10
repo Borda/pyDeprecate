@@ -1033,8 +1033,17 @@ OldPoint = deprecated_class(
 
 # Constructor kwarg warns: FutureWarning — "px" remapped to "x"
 pt = OldPoint(px=1.0)  # warns: FutureWarning
-assert pt.x == 1.0
+print(pt.x)
 ```
+
+<details>
+  <summary>Output: <code>pt.x</code></summary>
+
+```
+1.0
+```
+
+</details>
 
 ### Class-type compatibility
 
@@ -1116,8 +1125,17 @@ class MyClass:
 
 
 obj = MyClass()
-assert isinstance(obj, MyClass)
+print(isinstance(obj, MyClass))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(obj, MyClass)</code></summary>
+
+```
+True
+```
+
+</details>
 
 Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. As an alternative to stacking, use [`DeprecationEntry`](#per-entry-version-overrides-with-deprecationentry) values inside a single `deprecated_class()` call for the same per-attribute version control without an extra proxy layer. When stacking two `ATTRS_REMAP` layers, only the innermost layer’s instantiation warning fires — the outer layer’s `deprecated_in`/`remove_in` are omitted from the instantiation notice (attribute-access warnings remain independent and fire for each layer).
 

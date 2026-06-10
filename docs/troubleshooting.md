@@ -240,8 +240,17 @@ def old_func(old_arg: int, new_arg: int) -> int:
     pass
 
 
-assert isinstance(old_func(old_arg=1, new_arg=2), int)
+print(isinstance(old_func(old_arg=1, new_arg=2), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(old_func(old_arg=1, new_arg=2), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 **Option 2 — Rename the argument** (the target uses a different parameter name):
 
@@ -261,8 +270,17 @@ def old_func(old_name: int) -> int:
     pass
 
 
-assert isinstance(old_func(old_name=3), int)
+print(isinstance(old_func(old_name=3), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(old_func(old_name=3), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 **Option 3 — Use `TargetMode.ARGS_REMAP`** (deprecating an argument of the same function, not forwarding to a different one):
 
@@ -276,8 +294,17 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 
 
-assert isinstance(my_func(old_arg=1, new_arg=2), int)
+print(isinstance(my_func(old_arg=1, new_arg=2), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(my_func(old_arg=1, new_arg=2), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 ## TypeError: skip_if function must return bool
 
@@ -314,9 +341,19 @@ def old_func2():
     pass
 
 
-assert old_func1() == "Hi!"
-assert old_func2() == "Hi!"
+print(old_func1())
+print(old_func2())
 ```
+
+<details>
+  <summary>Output: <code>old_func1(), old_func2()</code></summary>
+
+```
+Hi!
+Hi!
+```
+
+</details>
 
 ## Deprecation notice not appearing
 
@@ -349,8 +386,17 @@ def old_func_warn_n_times():
     pass
 
 
-assert callable(old_func_always_warn) and callable(old_func_warn_n_times)
+print(callable(old_func_always_warn), callable(old_func_warn_n_times))
 ```
+
+<details>
+  <summary>Output: <code>callable(old_func_always_warn), callable(old_func_warn_n_times)</code></summary>
+
+```
+True True
+```
+
+</details>
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
 
@@ -575,8 +621,17 @@ def my_func(old_name: int = 0, new_name: int = 0) -> int:
     return new_name * 2
 
 
-assert isinstance(my_func(old_name=3), int)
+print(isinstance(my_func(old_name=3), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(my_func(old_name=3), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 - **Warn callers with no forwarding or remapping** — use `TargetMode.NOTIFY` instead:
 
@@ -923,8 +978,17 @@ async def main():
     await asyncio.gather(*[old_fetch(u) for u in urls])
 
 
-assert asyncio.run(main()) is None
+print(asyncio.run(main()) is None)
 ```
+
+<details>
+  <summary>Output: <code>asyncio.run(main()) is None</code></summary>
+
+```
+True
+```
+
+</details>
 
 If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
 
