@@ -15,6 +15,7 @@ Covers three orthogonal capabilities:
 """
 
 import warnings
+import sys
 
 import pytest
 
@@ -589,9 +590,9 @@ class TestFindDeprecationWrappersWithEntry:
         ``deprecated_info.attrs_mapping["old_attr"]`` is a ``DeprecationEntry`` with the
         expected per-entry ``deprecated_in``/``remove_in`` fields.
         """
-        import tests.collection_deprecate as col
         from deprecate.audit import find_deprecation_wrappers
 
+        col = sys.modules[DeprecationEntryAttrProxy.__module__]
         results = find_deprecation_wrappers(col)
         expected_mapping = DeprecationEntryAttrProxy.__deprecated__.attrs_mapping
         entry_results = [r for r in results if r.deprecated_info.attrs_mapping == expected_mapping]
