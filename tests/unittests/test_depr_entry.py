@@ -26,7 +26,22 @@ from tests.collection_deprecate import (
     StackedAttrProxy,
     depr_fn_with_entry_args_mapping,
 )
-from tests.collection_targets import V09TwoAttrClass as _V09Class
+from tests.collection_targets import (
+    DeprEntryArgsInitTarget,
+    DeprEntryMixedTarget,
+    DeprEntryRedirectTarget,
+    DeprEntrySizeTarget,
+    StackingArgsAttrsBase,
+    StackingBlanketBase,
+    StackingDeepBase,
+    StackingEntryBase,
+    StackingLeafBase,
+    StackingMutableBase,
+    StackingSilentBase,
+)
+from tests.collection_targets import (
+    V09TwoAttrClass as _V09Class,
+)
 
 # ---------------------------------------------------------------------------
 # Feature 1 & 2: Stacking two ATTRS_REMAP deprecated_class decorators
@@ -154,10 +169,6 @@ class TestDeprecationEntry:
         proxy-level ``deprecated_in="1.0"`` fallback.
 
         """
-
-        class _Target:
-            new_attr: str = "value"
-
         proxy = deprecated_class(
             attrs_mapping={
                 "old_attr": DeprecationEntry("new_attr", deprecated_in="0.9", remove_in="1.0"),
@@ -165,7 +176,7 @@ class TestDeprecationEntry:
             deprecated_in="1.0",
             remove_in="2.0",
             num_warns=-1,
-        )(_Target)
+        )(DeprEntryRedirectTarget)
 
         with pytest.warns(FutureWarning, match="0.9"):
             _ = proxy.old_attr  # type: ignore[attr-defined]
@@ -178,11 +189,6 @@ class TestDeprecationEntry:
         plain-string key.
 
         """
-
-        class _Target:
-            new_attr: str = "a"
-            new_attr2: str = "b"
-
         proxy = deprecated_class(
             attrs_mapping={
                 "old_attr": DeprecationEntry("new_attr", deprecated_in="0.9", remove_in="1.0"),
@@ -191,7 +197,7 @@ class TestDeprecationEntry:
             deprecated_in="1.0",
             remove_in="2.0",
             num_warns=-1,
-        )(_Target)
+        )(DeprEntryMixedTarget)
 
         with pytest.warns(FutureWarning, match="0.9"):
             _ = proxy.old_attr  # type: ignore[attr-defined]
@@ -201,10 +207,6 @@ class TestDeprecationEntry:
 
     def test_deprecation_entry_redirects_correctly(self) -> None:
         """``DeprecationEntry`` attribute redirect returns the canonical attribute value."""
-
-        class _Target:
-            new_attr: str = "canonical"
-
         proxy = deprecated_class(
             attrs_mapping={
                 "old_attr": DeprecationEntry("new_attr", deprecated_in="0.9", remove_in="1.0"),
@@ -212,7 +214,7 @@ class TestDeprecationEntry:
             deprecated_in="1.0",
             remove_in="2.0",
             stream=None,
-        )(_Target)
+        )(DeprEntryRedirectTarget)
 
         value = proxy.old_attr  # type: ignore[attr-defined]
         assert value == "canonical"
@@ -225,13 +227,9 @@ class TestDeprecationEntry:
         frozen ``DeprecationConfig``.
 
         """
-
-        class _Target:
-            new_attr: str = "x"
-
         entry = DeprecationEntry("new_attr", deprecated_in="0.9", remove_in="1.0")
         proxy = deprecated_class(attrs_mapping={"old_attr": entry}, deprecated_in="1.0", remove_in="2.0", stream=None)(
-            _Target
+            DeprEntryRedirectTarget
         )
 
         meta = object.__getattribute__(proxy, "__deprecated__")
@@ -245,12 +243,6 @@ class TestDeprecationEntry:
         per-arg ``deprecated_in``, not the proxy-level fallback.
 
         """
-
-        class _Target:
-            def __init__(self, new_arg: int = 0) -> None:
-                """Construct _Target."""
-                self.new_arg = new_arg
-
         proxy = deprecated_class(
             args_mapping={
                 "old_arg": DeprecationEntry("new_arg", deprecated_in="0.8", remove_in="1.0"),
@@ -258,7 +250,7 @@ class TestDeprecationEntry:
             deprecated_in="1.0",
             remove_in="2.0",
             num_warns=-1,
-        )(_Target)
+        )(DeprEntryArgsInitTarget)
 
         with pytest.warns(FutureWarning, match="0.8"):
             instance = proxy(old_arg=5)  # type: ignore[call-arg]
@@ -272,10 +264,6 @@ class TestDeprecationEntry:
         per-entry ``deprecated_in`` must appear in the warning even though no redirect happens.
 
         """
-
-        class _Target:
-            size: int = 42
-
         proxy = deprecated_class(
             attrs_mapping={
                 "size": DeprecationEntry(None, deprecated_in="0.7", remove_in="1.0"),
@@ -283,7 +271,7 @@ class TestDeprecationEntry:
             deprecated_in="1.0",
             remove_in="2.0",
             num_warns=-1,
-        )(_Target)
+        )(DeprEntrySizeTarget)
 
         with pytest.warns(FutureWarning, match="0.7"):
             value = proxy.size  # type: ignore[attr-defined]
@@ -314,10 +302,6 @@ class TestStackingCombinations:
         layer 3 with its own ``deprecated_in`` version.
 
         """
-
-        class _Base:
-            canonical: str = "deep"
-
         proxy = deprecated_class(
             attrs_mapping={"old_attr": "canonical"}, deprecated_in="1.2", remove_in="2.0", num_warns=-1
         )(
@@ -326,7 +310,7 @@ class TestStackingCombinations:
             )(
                 deprecated_class(
                     attrs_mapping={"oldest_attr": "canonical"}, deprecated_in="0.8", remove_in="1.0", num_warns=-1
-                )(_Base)
+                )(StackingDeepBase)
             )
         )
 
@@ -349,23 +333,19 @@ class TestStackingCombinations:
         the original class regardless of the number of proxy layers.
 
         """
-
-        class _Leaf:
-            canonical: str = "leaf"
-
         proxy = deprecated_class(attrs_mapping={"a": "canonical"}, deprecated_in="1.2", remove_in="2.0", stream=None)(
             deprecated_class(attrs_mapping={"b": "canonical"}, deprecated_in="1.0", remove_in="2.0", stream=None)(
                 deprecated_class(attrs_mapping={"c": "canonical"}, deprecated_in="0.8", remove_in="1.0", stream=None)(
-                    _Leaf
+                    StackingLeafBase
                 )
             )
         )
 
         instance = proxy()
-        assert isinstance(instance, _Leaf)
+        assert isinstance(instance, StackingLeafBase)
         assert isinstance(instance, proxy)  # type: ignore[arg-type]
 
-        class _Sub(_Leaf):
+        class _Sub(StackingLeafBase):
             pass
 
         assert issubclass(_Sub, proxy)
@@ -378,12 +358,10 @@ class TestStackingCombinations:
         must not emit any ``FutureWarning`` from either layer.
 
         """
-
-        class _Base:
-            canonical: str = "silent"
-
         proxy = deprecated_class(attrs_mapping={"old_attr": "canonical"}, deprecated_in="1.0", remove_in="2.0")(
-            deprecated_class(attrs_mapping={"older_attr": "canonical"}, deprecated_in="0.9", remove_in="1.0")(_Base)
+            deprecated_class(attrs_mapping={"older_attr": "canonical"}, deprecated_in="0.9", remove_in="1.0")(
+                StackingSilentBase
+            )
         )
 
         with warnings.catch_warnings(record=True) as caught:
@@ -404,12 +382,8 @@ class TestStackingCombinations:
         selective).
 
         """
-
-        class _Base:
-            colour: str = "red"
-
         inner = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1)(
-            _Base
+            StackingBlanketBase
         )
 
         outer = deprecated_class(deprecated_in="2.0", remove_in="3.0", num_warns=-1)(inner)  # type: ignore[arg-type]
@@ -434,10 +408,6 @@ class TestStackingCombinations:
         canonical name ``new_attr``.
 
         """
-
-        class _Mutable:
-            new_attr: str = "original"
-
         proxy = deprecated_class(
             attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1
         )(
@@ -447,7 +417,7 @@ class TestStackingCombinations:
                 remove_in="1.0",
                 num_warns=-1,
                 stream=None,
-            )(_Mutable)
+            )(StackingMutableBase)
         )
 
         with pytest.warns(FutureWarning, match="old_attr"):
@@ -464,10 +434,6 @@ class TestStackingCombinations:
         ``deprecated_in="0.9"``.
 
         """
-
-        class _Base:
-            canonical: str = "value"
-
         proxy = deprecated_class(
             attrs_mapping={
                 "old_attr": DeprecationEntry("canonical", deprecated_in="1.5", remove_in="2.0"),
@@ -482,7 +448,7 @@ class TestStackingCombinations:
                 remove_in="1.0",
                 num_warns=-1,
                 stream=None,
-            )(_Base)
+            )(StackingEntryBase)
         )
 
         with pytest.warns(FutureWarning, match="1.5"):
@@ -499,19 +465,11 @@ class TestStackingCombinations:
         one warning (from the inner, v0.9).
 
         """
-
-        class _Base:
-            new_attr: str = "b"
-
-            def __init__(self, new_arg: int = 0) -> None:
-                """Construct _Base."""
-                self.new_arg = new_arg
-
         outer = deprecated_class(
             attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1
         )(
             deprecated_class(args_mapping={"old_arg": "new_arg"}, deprecated_in="0.9", remove_in="1.0", num_warns=-1)(
-                _Base
+                StackingArgsAttrsBase
             )
         )
 
@@ -527,7 +485,7 @@ class TestStackingCombinations:
         assert len(future_warns) == 1
         assert inst.new_arg == 7
 
-        assert isinstance(inst, _Base)
+        assert isinstance(inst, StackingArgsAttrsBase)
         assert isinstance(inst, outer)  # type: ignore[arg-type]
 
 

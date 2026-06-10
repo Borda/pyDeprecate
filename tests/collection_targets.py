@@ -515,3 +515,93 @@ class V09TwoAttrClass:
     def __init__(self, new_arg: int = 0) -> None:
         """Construct V09TwoAttrClass."""
         self.new_arg = new_arg
+
+
+class DeprEntryRedirectTarget:
+    """Single-attribute target for DeprecationEntry per-attr version and redirect tests.
+
+    Has ``new_attr`` as the canonical attribute; used by version-in-warning,
+    redirects-correctly, and stored-in-deprecated_meta test scenarios.
+    """
+
+    new_attr: str = "canonical"
+
+
+class DeprEntryMixedTarget:
+    """Two-attribute target for DeprecationEntry mixed-mapping fallback tests.
+
+    Has both ``new_attr`` and ``new_attr2`` as canonical attributes to verify that
+    ``DeprecationEntry`` per-entry versions are applied independently from the
+    proxy-level fallback on plain string entries.
+    """
+
+    new_attr: str = "a"
+    new_attr2: str = "b"
+
+
+class DeprEntrySizeTarget:
+    """Single-attribute target for DeprecationEntry warn-only tests.
+
+    Has ``size`` as the deprecated attribute receiving a warn-only
+    ``DeprecationEntry(None, ...)``.
+    """
+
+    size: int = 42
+
+
+class DeprEntryArgsInitTarget:
+    """Constructor-arg target for DeprecationEntry args_mapping tests.
+
+    Constructor accepts ``new_arg``; used to verify that per-arg version strings from
+    ``DeprecationEntry`` appear in the emitted warning.
+    """
+
+    def __init__(self, new_arg: int = 0) -> None:
+        """Construct DeprEntryArgsInitTarget."""
+        self.new_arg = new_arg
+
+
+class StackingDeepBase:
+    """Three-layer stacking target; canonical attr value ``deep`` for depth-assertion tests."""
+
+    canonical: str = "deep"
+
+
+class StackingLeafBase:
+    """Leaf class for isinstance/issubclass recursive stacking tests."""
+
+    canonical: str = "leaf"
+
+
+class StackingSilentBase:
+    """Target for canonical-attr-passes-through-both-layers-silently stacking tests."""
+
+    canonical: str = "silent"
+
+
+class StackingBlanketBase:
+    """Target for blanket-outer plus ATTRS_REMAP-inner stacking combination tests."""
+
+    colour: str = "red"
+
+
+class StackingMutableBase:
+    """Target for setattr-propagates-through-stacked-proxy stacking tests."""
+
+    new_attr: str = "original"
+
+
+class StackingEntryBase:
+    """Target for DeprecationEntry-in-stacked-outer-layer tests."""
+
+    canonical: str = "value"
+
+
+class StackingArgsAttrsBase:
+    """Combined attribute and constructor-arg target for ATTRS_REMAP plus ARGS_REMAP stacking tests."""
+
+    new_attr: str = "b"
+
+    def __init__(self, new_arg: int = 0) -> None:
+        """Construct StackingArgsAttrsBase."""
+        self.new_arg = new_arg
