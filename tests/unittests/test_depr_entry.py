@@ -14,8 +14,8 @@ Covers three orthogonal capabilities:
 3. **DeprecationEntry** — per-attribute and per-arg version overrides on a single proxy call.
 """
 
-import warnings
 import sys
+import warnings
 
 import pytest
 
