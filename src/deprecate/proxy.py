@@ -48,6 +48,7 @@ from deprecate.deprecation import (
     deprecation_warning,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
+from deprecate.utils import _get_incompatible_args_mapping_keys, _is_dataclass_target
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
@@ -192,11 +193,17 @@ class _DeprecatedProxy:
             ValueError: If any non-``None`` redirect target is absent from *attr_check_obj*.
 
         """
+        # For @dataclass targets, required fields (no default) are not visible via getattr_static
+        # because they have no class-level value — but they DO exist as valid constructor params
+        # and instance attributes.  Check __dataclass_fields__ as a fallback.
+        _dc_field_names: set[str] = set(getattr(attr_check_obj, "__dataclass_fields__", {}))
         _resolved_targets = [(k, _resolve_mapping_redirect(v)) for k, v in attrs_mapping.items()]
         missing_targets = [
             f"{k!r} -> {target!r}"
             for k, target in _resolved_targets
-            if target is not None and not _DeprecatedProxy._has_static_attribute(attr_check_obj, target)
+            if target is not None
+            and not _DeprecatedProxy._has_static_attribute(attr_check_obj, target)
+            and target not in _dc_field_names
         ]
         if missing_targets:
             raise ValueError(
@@ -292,6 +299,47 @@ class _DeprecatedProxy:
         misconfigured = target is False or _misconfigured_override
         if isinstance(target, bool):
             target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
+        # Dataclass dual-surface auto-expand: when the target (or wrapped object) is a @dataclass,
+        # copy attrs_mapping entries whose redirect points to a dataclass field into args_mapping so
+        # that both `instance.old_field` (attribute access) and `DC(old_field=5)` (constructor kwarg)
+        # emit a FutureWarning from a single deprecated_class() call.  Keys already present in
+        # args_mapping are left untouched (explicit user values always win).  DeprecationEntry
+        # instances are copied verbatim so per-entry version overrides survive the expansion.
+        _auto_expanded: list[str] = []
+        _dc_check = target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
+        if attrs_mapping and _is_dataclass_target(_dc_check):
+            import dataclasses as _dc_mod
+
+            _dc_fields: set[str] = {f.name for f in _dc_mod.fields(_dc_check)}
+            for _old_key, _mapping_val in attrs_mapping.items():
+                _redirect = _resolve_mapping_redirect(_mapping_val)
+                if _redirect in _dc_fields:
+                    if args_mapping is None:
+                        args_mapping = {}
+                    if _old_key not in args_mapping:
+                        args_mapping[_old_key] = _mapping_val
+                        _auto_expanded.append(_old_key)
+        # When auto-expand produced a non-empty args_mapping and the user provided no explicit
+        # target, set target = obj (the dataclass itself) so that the callable-target + both-
+        # mappings path in __call__ and _validate_proxy activates both surfaces without
+        # triggering the ARGS_REMAP + attrs_mapping misconfiguration check.
+        if _auto_expanded and target is None:
+            target = obj
+        # Kwargs-compatibility guard: if args_mapping remaps old keys to POSITIONAL_ONLY constructor
+        # params, calling the proxy with those old names would TypeError after remapping.  Detect at
+        # decoration time, emit UserWarning, and record for audit + call-time fallback.
+        _incompatible: tuple[str, ...] = ()
+        if args_mapping and isinstance(_dc_check, type):
+            _incompatible = _get_incompatible_args_mapping_keys(_dc_check, args_mapping)
+            if _incompatible:
+                warnings.warn(
+                    f"`args_mapping` on `{name}` remaps {list(_incompatible)!r} to POSITIONAL_ONLY "
+                    f"constructor parameter(s) of `{_dc_check.__name__}`. "
+                    "Calls using those deprecated names will fall back to attribute assignment "
+                    "instead of constructor kwargs — consider using `attrs_mapping` instead.",
+                    UserWarning,
+                    stacklevel=4,
+                )
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
@@ -337,6 +385,8 @@ class _DeprecatedProxy:
             docstring_style=normalize_docstring_style(docstring_style),
             template_mgs=template_mgs,
             attrs_mapping=attrs_mapping,
+            args_mapping_auto_expanded=tuple(_auto_expanded),
+            incompatible_args_mapping=_incompatible,
         )
         object.__setattr__(self, "__deprecated__", dep_meta)
         # Expose the wrapped object's docstring as an instance attribute so that external tools (autodoc,
@@ -751,6 +801,22 @@ class _DeprecatedProxy:
                     self._warn(arg_name=old_key)
             mapped_kwargs = self._apply_args_mapping(kwargs)
             mapped_kwargs = self._merge_args_extra(mapped_kwargs)
+            # Positional-only fallback: after remapping, mapped_kwargs holds NEW keys; incompatible
+            # old keys have already been renamed to their POSITIONAL_ONLY target names.  Extract those
+            # new keys (cannot be forwarded as kwargs), construct the object, then setattr.
+            if dep.incompatible_args_mapping and dep.args_mapping:
+                _incompat_new: set[str] = {
+                    r
+                    for old in dep.incompatible_args_mapping
+                    if old in dep.args_mapping
+                    for r in (_resolve_mapping_redirect(dep.args_mapping[old]),)
+                    if r is not None
+                }
+                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+                instance = cfg.obj(*args, **mapped_kwargs)
+                for new_key, val in pending.items():
+                    object.__setattr__(instance, new_key, val)
+                return instance
             return cfg.obj(*args, **mapped_kwargs)
         if callable(dep.target) and dep.args_mapping:
             mapping = dep.args_mapping or {}
@@ -762,6 +828,20 @@ class _DeprecatedProxy:
                 self._warn()
             mapped_kwargs = self._apply_args_mapping(kwargs)
             mapped_kwargs = self._merge_args_extra(mapped_kwargs)
+            # Positional-only fallback for callable target path.
+            if dep.incompatible_args_mapping and dep.args_mapping:
+                _incompat_new = {
+                    r
+                    for old in dep.incompatible_args_mapping
+                    if old in dep.args_mapping
+                    for r in (_resolve_mapping_redirect(dep.args_mapping[old]),)
+                    if r is not None
+                }
+                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+                instance = dep.target(*args, **mapped_kwargs)
+                for new_key, val in pending.items():
+                    object.__setattr__(instance, new_key, val)
+                return instance
             return dep.target(*args, **mapped_kwargs)
         # Callable target without args_mapping: warn globally; still merge args_extra so
         # injected defaults reach the target.

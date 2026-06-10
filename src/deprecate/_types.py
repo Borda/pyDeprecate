@@ -511,6 +511,16 @@ class DeprecationConfig:
             blanket-warning behaviour (every attribute access emits a warning).
         args_mapping: Optional dict remapping argument names; values may be a plain string (new argument name),
             ``None`` (drop the argument), or :class:`DeprecationEntry` (rename with per-arg version metadata).
+        args_mapping_auto_expanded: Keys that were automatically copied from ``attrs_mapping`` into
+            ``args_mapping`` by the dataclass dual-surface expansion in
+            :class:`~deprecate.proxy._DeprecatedProxy`.  Empty tuple when no auto-expansion occurred.
+            Populated at decoration time; read by audit tools to distinguish user-supplied mappings from
+            auto-generated ones.
+        incompatible_args_mapping: ``args_mapping`` old-key names whose remapped target name is a
+            POSITIONAL_ONLY parameter in the target class constructor.  Calling the proxy with such
+            keys as keyword arguments would raise ``TypeError`` without the runtime fallback.  Empty
+            tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
+            surfaced by :func:`~deprecate.audit.validate_mapping_compatibility`.
 
     """
 
@@ -524,6 +534,8 @@ class DeprecationConfig:
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     template_mgs: Optional[str] = None
     attrs_mapping: Optional[dict[str, _MappingValue]] = None
+    args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
+    incompatible_args_mapping: tuple[str, ...] = field(default_factory=tuple)
 
 
 @runtime_checkable
