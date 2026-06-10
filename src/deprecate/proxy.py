@@ -307,7 +307,9 @@ class _DeprecatedProxy:
         # args_mapping are left untouched (explicit user values always win).  DeprecationEntry
         # instances are copied verbatim so per-entry version overrides survive the expansion.
         _auto_expanded: list[str] = []
-        _dc_check = target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
+        _dc_check = _DeprecatedProxy._get_static_attr_owner(
+            target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
+        )
         if args_mapping is not None:
             args_mapping = dict(args_mapping)
         if attrs_mapping and _is_dataclass_target(_dc_check):
