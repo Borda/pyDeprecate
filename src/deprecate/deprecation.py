@@ -27,6 +27,8 @@ from deprecate._types import (
     TargetMode,
     _CallPlan,
     _DeprecatedCallable,
+    _get_entry_deprecated_in,
+    _get_entry_remove_in,
     _has_deprecation_meta,
     _HasDeprecationMeta,
     _MappingValue,
@@ -723,21 +725,25 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join(
-        [
-            TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(_resolve_mapping_redirect(b))}
-            for a, b in arguments.items()
-        ]
-    )
-    _raise_warn(
-        stream,
-        source,
-        template_mgs or TEMPLATE_WARNING_ARGUMENTS,
-        stacklevel=stacklevel,
-        deprecated_in=deprecated_in,
-        remove_in=remove_in,
-        argument_map=args_map,
-    )
+    # Group arguments by their effective (deprecated_in, remove_in) pair so that
+    # DeprecationEntry per-arg version overrides produce separate, version-accurate warnings.
+    groups: dict[tuple[str, str], list[tuple[str, _MappingValue]]] = {}
+    for a, b in arguments.items():
+        key = (_get_entry_deprecated_in(b, deprecated_in), _get_entry_remove_in(b, remove_in))
+        groups.setdefault(key, []).append((a, b))
+    for (entry_deprecated_in, entry_remove_in), args in groups.items():
+        args_map = ", ".join(
+            TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(_resolve_mapping_redirect(b))} for a, b in args
+        )
+        _raise_warn(
+            stream,
+            source,
+            template_mgs or TEMPLATE_WARNING_ARGUMENTS,
+            stacklevel=stacklevel,
+            deprecated_in=entry_deprecated_in,
+            remove_in=entry_remove_in,
+            argument_map=args_map,
+        )
 
 
 def _build_call_plan(
@@ -809,7 +815,7 @@ def _build_call_plan(
     reason_callable = normalized_target is TargetMode.NOTIFY or callable(normalized_target)
     reason_argument: dict[str, _MappingValue] = {}
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
-        reason_argument = {a: _resolve_mapping_redirect(b) for a, b in dep_cfg.args_mapping.items() if a in kwargs}
+        reason_argument = {a: b for a, b in dep_cfg.args_mapping.items() if a in kwargs}
     # Migrated callers (using the new arg name) produce empty reason_argument;
     # without the args_extra guard they short-circuit before extras are injected.
     # When source is a stacked @deprecated wrapper (e.g. ARGS_REMAP outer + NOTIFY inner),
