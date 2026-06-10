@@ -1137,35 +1137,7 @@ True
 
 </details>
 
-Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. As an alternative to stacking, use [`DeprecationEntry`](#per-entry-version-overrides-with-deprecationentry) values inside a single `deprecated_class()` call for the same per-attribute version control without an extra proxy layer. When stacking two `ATTRS_REMAP` layers, only the innermost layer’s instantiation warning fires — the outer layer’s `deprecated_in`/`remove_in` are omitted from the instantiation notice (attribute-access warnings remain independent and fire for each layer).
-
-### Per-entry version overrides with `DeprecationEntry`
-
-`DeprecationEntry` lets each key in `attrs_mapping` or `args_mapping` carry its own `deprecated_in`/`remove_in` pair, independent of the proxy-level fallback. Use it instead of stacking when you prefer a single proxy layer:
-
-```python
-from deprecate import DeprecationEntry, deprecated_class
-
-
-class Config:
-    new_attr: str = "b"
-    newer_attr: str = "a"
-
-
-proxy = deprecated_class(
-    attrs_mapping={
-        "old_attr": DeprecationEntry("new_attr", deprecated_in="1.0", remove_in="2.0"),
-        "older_attr": DeprecationEntry("newer_attr", deprecated_in="0.9", remove_in="1.0"),
-    },
-    deprecated_in="0.9",  # fallback for plain-string entries
-    remove_in="2.0",
-)(Config)
-
-proxy.old_attr  # warns: FutureWarning — deprecated since v1.0
-proxy.older_attr  # warns: FutureWarning — deprecated since v0.9
-```
-
-Plain-string values and `None` (warn-only) entries continue to work as before and fall back to the proxy-level `deprecated_in`/`remove_in`. `DeprecationEntry` values are stored verbatim in `__deprecated__.attrs_mapping` and visible to audit tools.
+Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. When stacking two `ATTRS_REMAP` layers, only the innermost layer’s instantiation warning fires — the outer layer’s `deprecated_in`/`remove_in` are omitted from the instantiation notice (attribute-access warnings remain independent and fire for each layer).
 
 ### Chained redirect
 

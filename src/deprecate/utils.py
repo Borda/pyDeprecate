@@ -126,8 +126,6 @@ def _get_incompatible_args_mapping_keys(
         the target's constructor signature.  Empty tuple when no incompatibilities detected.
 
     """
-    from deprecate._types import _resolve_mapping_redirect
-
     try:
         sig = inspect.signature(target_cls)
     except (TypeError, ValueError):
@@ -140,9 +138,7 @@ def _get_incompatible_args_mapping_keys(
         return ()
 
     return tuple(
-        old_key
-        for old_key, mapping_val in args_mapping.items()
-        if _resolve_mapping_redirect(mapping_val) in positional_only
+        old_key for old_key, mapping_val in args_mapping.items() if mapping_val in positional_only
     )
 
 

@@ -27,12 +27,9 @@ from deprecate._types import (
     TargetMode,
     _CallPlan,
     _DeprecatedCallable,
-    _get_entry_deprecated_in,
-    _get_entry_remove_in,
     _has_deprecation_meta,
     _HasDeprecationMeta,
     _MappingValue,
-    _resolve_mapping_redirect,
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
@@ -725,25 +722,18 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    # Group arguments by their effective (deprecated_in, remove_in) pair so that
-    # DeprecationEntry per-arg version overrides produce separate, version-accurate warnings.
-    groups: dict[tuple[str, str], list[tuple[str, _MappingValue]]] = {}
-    for a, b in arguments.items():
-        key = (_get_entry_deprecated_in(b, deprecated_in), _get_entry_remove_in(b, remove_in))
-        groups.setdefault(key, []).append((a, b))
-    for (entry_deprecated_in, entry_remove_in), args in groups.items():
-        args_map = ", ".join(
-            TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(_resolve_mapping_redirect(b))} for a, b in args
-        )
-        _raise_warn(
-            stream,
-            source,
-            template_mgs or TEMPLATE_WARNING_ARGUMENTS,
-            stacklevel=stacklevel,
-            deprecated_in=entry_deprecated_in,
-            remove_in=entry_remove_in,
-            argument_map=args_map,
-        )
+    args_map = ", ".join(
+        TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()
+    )
+    _raise_warn(
+        stream,
+        source,
+        template_mgs or TEMPLATE_WARNING_ARGUMENTS,
+        stacklevel=stacklevel,
+        deprecated_in=deprecated_in,
+        remove_in=remove_in,
+        argument_map=args_map,
+    )
 
 
 def _build_call_plan(
@@ -877,9 +867,7 @@ def _build_call_plan(
         if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
             _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
             caller_keys = set(kwargs)
-            rename_targets: set[str] = {
-                r for r in (_resolve_mapping_redirect(v) for v in _am.values()) if r is not None
-            }
+            rename_targets: set[str] = {r for r in _am.values() if r is not None}
             rename_sources = set(_am)
             # For ARGS_REMAP, source IS the target; Python applies its own default
             # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
@@ -894,18 +882,16 @@ def _build_call_plan(
             full_defaults = _update_kwargs_with_defaults(source, kwargs)
 
             def is_default_dropped(k: str) -> bool:
-                remapped = k in rename_sources and _resolve_mapping_redirect(_am.get(k)) in target_defaults
+                remapped = k in rename_sources and _am.get(k) in target_defaults
                 return k not in rename_targets and not remapped
 
             kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_default_dropped(k)}
         else:
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
-        args_skip = [arg for arg in dep_cfg.args_mapping if not _resolve_mapping_redirect(dep_cfg.args_mapping[arg])]
+        args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
         kwargs = {
-            (_resolve_mapping_redirect(dep_cfg.args_mapping.get(arg)) or arg): val
-            for arg, val in kwargs.items()
-            if arg not in args_skip
+            (dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip
         }
 
     if dep_cfg.args_extra and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):

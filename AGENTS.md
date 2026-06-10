@@ -7,6 +7,14 @@
 
 pyDeprecate is a lightweight Python library providing decorator-based deprecation for functions, methods, and classes with automatic call forwarding. Python 3.9+, zero runtime dependencies.
 
+## 🎯 Design Principles
+
+- **Simplicity**: the API surface must be learnable in minutes; a single decorator covers the common case with no config files required.
+- **Robustness**: deprecated code is on the removal path; correctness must hold regardless of call order or framework integration; audit tools must surface all live deprecations.
+- **Flexibility**: work with any Python callable — functions, class methods, async, properties, dataclasses, enums — without special-casing the caller.
+
+When a proposed feature conflicts with simplicity, complexity wins only when robustness or flexibility requires it.
+
 ## ⚓ Before Any Work: Anchor with Repository Context
 
 > [!IMPORTANT]

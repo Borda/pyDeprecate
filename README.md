@@ -2,7 +2,7 @@
 
 **Simple tooling for marking deprecated functions or classes and re-routing to their successors.**
 
-> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility.
+> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility. Designed around three principles: **simplicity** (single decorator, no config files), **robustness** (works with any Python callable), and **flexibility** (forward, remap, or notify — your choice).
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
@@ -998,28 +998,7 @@ Each deprecated attribute name has its own independent warning counter — with 
 
 **Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Three misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.NOTIFY` + `attrs_mapping=...` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only.
 
-**Per-entry version overrides with `DeprecationEntry`** — when different attributes were deprecated at different library versions, pass `DeprecationEntry(redirect, deprecated_in, remove_in)` as the mapping value instead of a plain string. The proxy-level `deprecated_in`/`remove_in` acts as a fallback for plain-string entries:
-
-```python
-from deprecate import DeprecationEntry, deprecated_class
-
-
-class Config:
-    new_attr: str = "b"
-    newer_attr: str = "a"
-
-
-proxy = deprecated_class(
-    attrs_mapping={
-        "old_attr": DeprecationEntry("new_attr", deprecated_in="1.0", remove_in="2.0"),
-        "older_attr": DeprecationEntry("newer_attr", deprecated_in="0.9", remove_in="1.0"),
-    },
-    deprecated_in="0.9",  # fallback for plain-string entries
-    remove_in="2.0",
-)(Config)
-```
-
-Alternatively, stack two `@deprecated_class()` decorators — each layer carries its own version pair and `isinstance()`/`issubclass()` resolve correctly through the proxy chain.
+To deprecate attributes at different library versions, stack two `@deprecated_class()` decorators — each layer carries its own version pair and `isinstance()`/`issubclass()` resolve correctly through the proxy chain.
 
 </details>
 

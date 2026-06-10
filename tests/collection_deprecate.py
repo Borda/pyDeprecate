@@ -49,7 +49,7 @@ from warnings import catch_warnings, simplefilter, warn
 import typing_extensions
 from sklearn.metrics import accuracy_score
 
-from deprecate import DeprecationEntry, TargetMode, deprecated, deprecated_class, deprecated_instance, void
+from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
     AutoExpandDC,
@@ -1764,12 +1764,7 @@ DeprecatedAttrsPaletteAllThree = deprecated_class(
 DeprecatedAttrsPaletteNested = deprecated_class(**_DEPRS_CASE_STD_ARGS, stream=None)(DeprecatedAttrsPalette)
 
 
-# ========== DeprecationEntry stacking and per-entry version fixtures ==========
-# These fixtures support tests that verify DeprecationEntry semantics in:
-#   - two-layer ATTRS_REMAP stacking (StackedAttrProxy)
-#   - @deprecated with DeprecationEntry in args_mapping (depr_fn_with_entry_args_mapping)
-#   - single proxy with DeprecationEntry in attrs_mapping (DeprecationEntryAttrProxy)
-
+# ========== ATTRS_REMAP stacking fixture ==========
 # Two-layer ATTRS_REMAP stacked proxy: each layer carries a distinct version pair.
 # Outer proxy maps old_attr -> new_attr (deprecated_in="1.0").
 # Inner proxy maps older_attr -> newer_attr (deprecated_in="0.9").
@@ -1786,36 +1781,6 @@ StackedAttrProxy = deprecated_class(
         stream=None,
     )(V09TwoAttrClass)
 )
-
-# Single proxy using DeprecationEntry values in attrs_mapping.
-# Used to verify find_deprecation_wrappers() returns DeprecationEntry instances verbatim.
-DeprecationEntryAttrProxy = deprecated_class(
-    attrs_mapping={
-        "old_attr": DeprecationEntry("new_attr", deprecated_in="1.0", remove_in="2.0"),
-        "older_attr": DeprecationEntry("newer_attr", deprecated_in="0.9", remove_in="1.0"),
-    },
-    deprecated_in="0.9",
-    remove_in="2.0",
-    num_warns=-1,
-    stream=None,
-)(V09TwoAttrClass)
-
-
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    args_mapping={"old_arg": DeprecationEntry("new_arg", deprecated_in="0.9", remove_in="1.0")},
-    deprecated_in="0.9",
-    remove_in="2.0",
-    num_warns=-1,
-)
-def depr_fn_with_entry_args_mapping(old_arg: int = 0, new_arg: int = 0) -> int:
-    """Self-deprecating function using DeprecationEntry in args_mapping.
-
-    ``old_arg`` is the legacy parameter name; callers should use ``new_arg``.
-    The ``old_arg`` entry carries per-arg ``deprecated_in="0.9"`` / ``remove_in="1.0"``
-    independent of the wrapper-level ``deprecated_in="0.9"`` / ``remove_in="2.0"`` fallback.
-    """
-    return new_arg
 
 
 # ========== Dataclass dual-surface auto-expand fixtures ==========

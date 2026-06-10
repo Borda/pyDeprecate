@@ -32,10 +32,7 @@ from typing import Literal, Optional, cast
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
-    _get_entry_deprecated_in,
-    _get_entry_remove_in,
     _has_deprecation_meta,
-    _resolve_mapping_redirect,
 )
 
 #: Default templates for documentation with deprecated callable — RST/Sphinx style
@@ -544,9 +541,9 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
         all_args_found = True
         for arg_name, new_arg in dep_info.args_mapping.items():
             note = _build_arg_deprecation_note(
-                _resolve_mapping_redirect(new_arg),
-                _get_entry_deprecated_in(new_arg, dep_info.deprecated_in),
-                _get_entry_remove_in(new_arg, dep_info.remove_in),
+                new_arg,
+                dep_info.deprecated_in,
+                dep_info.remove_in,
             )
             lines, found = _annotate_google_style_arg(lines, arg_name, note)
             if not found:

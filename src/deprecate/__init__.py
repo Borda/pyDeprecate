@@ -70,7 +70,7 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
-from deprecate._types import DeprecationEntry, TargetMode
+from deprecate._types import TargetMode
 from deprecate.audit import (
     ChainType,
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
@@ -96,7 +96,6 @@ from deprecate.utils import (
 
 __all__ = [
     "ChainType",
-    "DeprecationEntry",
     "DeprecationStatus",
     "DeprecationWrapperInfo",
     "TableStyle",

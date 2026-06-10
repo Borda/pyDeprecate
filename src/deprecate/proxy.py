@@ -33,11 +33,8 @@ from typing import Any, Callable, Literal, Optional, Union, cast
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
-    _get_entry_deprecated_in,
-    _get_entry_remove_in,
     _MappingValue,
     _ProxyConfig,
-    _resolve_mapping_redirect,
 )
 from deprecate.deprecation import (
     TEMPLATE_ARGUMENT_MAPPING,
@@ -157,13 +154,13 @@ class _DeprecatedProxy:
         cycle_starters: list[str] = []
         for start in attrs_mapping:
             visited: set[str] = {start}
-            current = _resolve_mapping_redirect(attrs_mapping[start])
+            current = attrs_mapping[start]
             while current is not None and current in attrs_mapping:
                 if current in visited:
                     cycle_starters.append(start)
                     break
                 visited.add(current)
-                current = _resolve_mapping_redirect(attrs_mapping[current])
+                current = attrs_mapping[current]
         if cycle_starters:
             raise ValueError(
                 f"`attrs_mapping` has circular redirects — the redirect chain starting from"
@@ -198,7 +195,7 @@ class _DeprecatedProxy:
         # and instance attributes.  Check __dataclass_fields__ as a fallback.
         _owner = _DeprecatedProxy._get_static_attr_owner(attr_check_obj)
         _dc_field_names: set[str] = set(getattr(_owner, "__dataclass_fields__", {}))
-        _resolved_targets = [(k, _resolve_mapping_redirect(v)) for k, v in attrs_mapping.items()]
+        _resolved_targets = list(attrs_mapping.items())
         missing_targets = [
             f"{k!r} -> {target!r}"
             for k, target in _resolved_targets
@@ -241,7 +238,7 @@ class _DeprecatedProxy:
         missing_keys = [
             k
             for k, v in attrs_mapping.items()
-            if _resolve_mapping_redirect(v) is None
+            if v is None
             and not _DeprecatedProxy._has_static_attribute(attr_check_obj, k)
             and not _DeprecatedProxy._has_static_attribute(obj, k)
         ]
@@ -304,8 +301,7 @@ class _DeprecatedProxy:
         # copy attrs_mapping entries whose redirect points to a dataclass field into args_mapping so
         # that both `instance.old_field` (attribute access) and `DC(old_field=5)` (constructor kwarg)
         # emit a FutureWarning from a single deprecated_class() call.  Keys already present in
-        # args_mapping are left untouched (explicit user values always win).  DeprecationEntry
-        # instances are copied verbatim so per-entry version overrides survive the expansion.
+        # args_mapping are left untouched (explicit user values always win).
         _auto_expanded: list[str] = []
         _dc_check = _DeprecatedProxy._get_static_attr_owner(
             target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
@@ -317,8 +313,7 @@ class _DeprecatedProxy:
 
             _dc_fields: set[str] = {f.name for f in _dc_mod.fields(_dc_check)}
             for _old_key, _mapping_val in attrs_mapping.items():
-                _redirect = _resolve_mapping_redirect(_mapping_val)
-                if _redirect in _dc_fields:
+                if _mapping_val in _dc_fields:
                     if args_mapping is None:
                         args_mapping = {}
                     if _old_key not in args_mapping:
@@ -447,10 +442,9 @@ class _DeprecatedProxy:
         attr_name = arg_name[len("__attr__:") :]
         if attr_name not in attrs_mapping:
             return None
-        entry = attrs_mapping[attr_name]
-        new_attr = _resolve_mapping_redirect(entry)
-        deprecated_in = _get_entry_deprecated_in(entry, dep.deprecated_in)
-        remove_in = _get_entry_remove_in(entry, dep.remove_in)
+        new_attr = attrs_mapping[attr_name]
+        deprecated_in = dep.deprecated_in
+        remove_in = dep.remove_in
         if new_attr is not None:
             owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
             target_path = f"{owner}.{new_attr}"
@@ -503,16 +497,13 @@ class _DeprecatedProxy:
         # Per-argument warning: use the same template the decorator emits for `args_mapping` deprecations so callers
         # see `old -> new` rather than a generic class-deprecation message.
         if arg_name is not None and args_mapping and arg_name in args_mapping:
-            entry = args_mapping[arg_name]
-            new_arg = _resolve_mapping_redirect(entry)
+            new_arg = args_mapping[arg_name]
             argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
             template = custom_template or TEMPLATE_WARNING_ARGUMENTS
-            _deprecated_in = _get_entry_deprecated_in(entry, dep.deprecated_in)
-            _remove_in = _get_entry_remove_in(entry, dep.remove_in)
             msg = template % {
                 "source_name": dep.name,
-                "deprecated_in": _deprecated_in,
-                "remove_in": _remove_in,
+                "deprecated_in": dep.deprecated_in,
+                "remove_in": dep.remove_in,
                 "argument_map": argument_map,
             }
         elif arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
@@ -580,10 +571,8 @@ class _DeprecatedProxy:
         args_mapping = self._dep.args_mapping
         if not args_mapping or not kwargs:
             return kwargs
-        args_to_drop = {k for k, v in args_mapping.items() if _resolve_mapping_redirect(v) is None}
-        return {
-            (_resolve_mapping_redirect(args_mapping.get(k)) or k): v for k, v in kwargs.items() if k not in args_to_drop
-        }
+        args_to_drop = {k for k, v in args_mapping.items() if v is None}
+        return {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
 
     @staticmethod
     def _resolve_incompat_new_keys(dep: "DeprecationConfig") -> frozenset[str]:
@@ -594,7 +583,7 @@ class _DeprecatedProxy:
             r
             for old in dep.incompatible_args_mapping
             if old in dep.args_mapping
-            for r in (_resolve_mapping_redirect(dep.args_mapping[old]),)
+            for r in (dep.args_mapping[old],)
             if r is not None
         )
 
@@ -660,7 +649,7 @@ class _DeprecatedProxy:
         if attrs_mapping is not None:
             if name in attrs_mapping:
                 self._warn(arg_name=f"__attr__:{name}")
-                redirect = _resolve_mapping_redirect(attrs_mapping[name])
+                redirect = attrs_mapping[name]
                 active = self._get_active()
                 attr_name = redirect if redirect is not None else name
                 if redirect is None:
@@ -697,7 +686,7 @@ class _DeprecatedProxy:
         attrs_mapping = self._cfg.attrs_mapping
         if attrs_mapping is not None and name in attrs_mapping:
             self._warn(arg_name=f"__attr__:{name}")
-            redirect = _resolve_mapping_redirect(attrs_mapping[name])
+            redirect = attrs_mapping[name]
             active = self._get_active()
             attr_name = redirect if redirect is not None else name
             if redirect is None:
@@ -724,7 +713,7 @@ class _DeprecatedProxy:
         attrs_mapping = self._cfg.attrs_mapping
         if attrs_mapping is not None and name in attrs_mapping:
             self._warn(arg_name=f"__attr__:{name}")
-            redirect = _resolve_mapping_redirect(attrs_mapping[name])
+            redirect = attrs_mapping[name]
             active = self._get_active()
             attr_name = redirect if redirect is not None else name
             if redirect is None:

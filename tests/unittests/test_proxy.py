@@ -1104,7 +1104,7 @@ class TestCombinedArgAttrsMapping:
     The canonical pattern for combining arg-rename and attr-rename deprecation is one ``deprecated_class()``
     call with both mappings and an explicit ``target=<NewClass>`` argument.  These tests pin that contract.
 
-    Two decorators may also be stacked (see :class:`TestStackedDeprecatedClass` in ``test_depr_entry.py``)
+    Two decorators may also be stacked (see :class:`TestStackedDeprecatedClass` in ``test_stacking.py``)
     when each mapping layer needs an independent ``deprecated_in``/``remove_in`` version pair — e.g.
     ``old_attr`` deprecated in v1.0 while ``older_attr`` was deprecated earlier in v0.9.
 
@@ -1170,7 +1170,7 @@ class TestCombinedArgAttrsMapping:
 
         A single-call combined proxy has exactly one ``_DeprecatedProxy`` layer so ``__instancecheck__``
         resolves directly to the real class without recursion.  Stacked two-decorator forms also support
-        ``isinstance()`` — see :class:`TestStackedDeprecatedClass` in ``test_depr_entry.py``.
+        ``isinstance()`` — see :class:`TestStackedDeprecatedClass` in ``test_stacking.py``.
 
         """
 
@@ -2040,27 +2040,6 @@ class TestDataclassAutoExpand:
         )(AutoExpandDC)
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert "old_field" not in meta.args_mapping_auto_expanded
-
-    def test_deprecation_entry_preserved_through_auto_expand(self) -> None:
-        """``DeprecationEntry`` in ``attrs_mapping`` survives auto-copy to ``args_mapping``.
-
-        Per-entry version metadata must not be lost during auto-expand — the same
-        ``DeprecationEntry`` instance must appear in both mappings.
-        """
-        from deprecate import DeprecationEntry, deprecated_class
-        from tests.collection_targets import AutoExpandDC
-
-        entry = DeprecationEntry("new_field", deprecated_in="0.9", remove_in="1.5")
-        proxy = deprecated_class(
-            attrs_mapping={"old_field": entry},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=-1,
-        )(AutoExpandDC)
-        meta = object.__getattribute__(proxy, "__deprecated__")
-        assert meta.args_mapping is not None
-        assert meta.args_mapping["old_field"] is entry
-
 
 # ---------------------------------------------------------------------------
 # Positional-only constructor guard + setattr fallback

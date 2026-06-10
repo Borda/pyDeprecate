@@ -133,26 +133,6 @@ DeprecatedConfigExplicit = deprecated_class(
 )(Config)
 ```
 
-### Per-attribute version overrides with DeprecationEntry
-
-```python
-from deprecate import DeprecationEntry, deprecated_class
-
-# DeprecationEntry lets each attrs_mapping / args_mapping key carry its own deprecated_in/remove_in.
-# Plain strings fall back to the proxy-level versions.
-# Stacking two @deprecated_class decorators is also supported (fully; isinstance/issubclass work).
-DeprecatedMultiVersion = deprecated_class(
-    attrs_mapping={
-        "old_attr":   DeprecationEntry("new_attr",   deprecated_in="1.0", remove_in="2.0"),
-        "older_attr": DeprecationEntry("newer_attr", deprecated_in="0.9", remove_in="1.0"),
-        "plain_attr": "other_attr",  # plain str — uses proxy-level deprecated_in/remove_in as fallback
-    },
-    deprecated_in="0.9",  # fallback for plain-string entries
-    remove_in="2.0",
-)(Config)
-# DeprecationEntry values are stored in __deprecated__.attrs_mapping and visible to audit tools.
-```
-
 ### Deprecate a constant or object
 
 ```python
@@ -209,8 +189,7 @@ What is being deprecated?
   │           → also add attrs_mapping={"old_attr": "new_attr"} (or None for warn-only)
   │              only listed attrs warn; all others pass through silently
   │              └─ Different attrs deprecated at different versions?
-  │                   → use DeprecationEntry: attrs_mapping={"old": DeprecationEntry("new", deprecated_in="1.0", remove_in="2.0")}
-  │                     each entry carries its own deprecated_in/remove_in; proxy-level is the fallback
+  │                   → stack two @deprecated_class() calls, each with its own deprecated_in/remove_in
   │
   ├─ A `@property`?
   │    → use `@deprecated @property` (outer order); all three accessors (`fget`/`fset`/`fdel`)
@@ -293,7 +272,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 
 ## Agent Notes
 
-- `deprecated_class(attrs_mapping={...})` deprecates only the listed attribute names on a class proxy. Keys are deprecated names; values are canonical replacement names (string) or `None` for warn-only. When `target=` is provided, all mapped reads/writes/deletes route to the target class: non-`None` values rename the attribute, while `None` keeps the same attribute name on the target. Without `target=`, mapped reads/writes/deletes route on the wrapped source class. Non-`None` values must exist on the active class at decoration time. All other attribute access is silent or follows normal `target=` forwarding when present. Non-cyclic redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise `ValueError`. Plain-string entries use the proxy-level `deprecated_in`/`remove_in` as fallback; pass `DeprecationEntry("new_name", deprecated_in="…", remove_in="…")` as a mapping value to give a specific attribute or argument its own version pair. `find_deprecation_wrappers` discovers the proxy but does not emit separate records for individual `attrs_mapping` entries. **Activation forms**: passing `attrs_mapping` alone auto-resolves the mode to `TargetMode.ATTRS_REMAP`; the equivalent self-documenting form is `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`. Misconfig signals at decoration time (all `UserWarning`, will be `TypeError` in v1.0): `target=TargetMode.NOTIFY` with `attrs_mapping` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` empty dict (no-op). `TargetMode.ATTRS_REMAP` is proxy-only — applying it via `@deprecated` on a function/method raises `TypeError` at decoration time. **Dataclass auto-expand**: when the wrapped class is a `@dataclass`, each `attrs_mapping` entry whose redirect target is a dataclass field is automatically copied into `args_mapping`, so a single `deprecated_class(attrs_mapping={...})` call warns on both attribute access (`obj.old_field`) and constructor kwargs (`DC(old_field=5)`). Explicit `args_mapping` entries are never overwritten by auto-expand. **Positional-only guard**: if `args_mapping` remaps a deprecated name to a `POSITIONAL_ONLY` constructor parameter, a `UserWarning` fires at decoration time and the proxy falls back to `setattr` at call time; use `validate_mapping_compatibility(module)` in CI to detect these patterns.
+- `deprecated_class(attrs_mapping={...})` deprecates only the listed attribute names on a class proxy. Keys are deprecated names; values are canonical replacement names (string) or `None` for warn-only. When `target=` is provided, all mapped reads/writes/deletes route to the target class: non-`None` values rename the attribute, while `None` keeps the same attribute name on the target. Without `target=`, mapped reads/writes/deletes route on the wrapped source class. Non-`None` values must exist on the active class at decoration time. All other attribute access is silent or follows normal `target=` forwarding when present. Non-cyclic redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise `ValueError`. `find_deprecation_wrappers` discovers the proxy but does not emit separate records for individual `attrs_mapping` entries. **Activation forms**: passing `attrs_mapping` alone auto-resolves the mode to `TargetMode.ATTRS_REMAP`; the equivalent self-documenting form is `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`. Misconfig signals at decoration time (all `UserWarning`, will be `TypeError` in v1.0): `target=TargetMode.NOTIFY` with `attrs_mapping` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` empty dict (no-op). `TargetMode.ATTRS_REMAP` is proxy-only — applying it via `@deprecated` on a function/method raises `TypeError` at decoration time. **Dataclass auto-expand**: when the wrapped class is a `@dataclass`, each `attrs_mapping` entry whose redirect target is a dataclass field is automatically copied into `args_mapping`, so a single `deprecated_class(attrs_mapping={...})` call warns on both attribute access (`obj.old_field`) and constructor kwargs (`DC(old_field=5)`). Explicit `args_mapping` entries are never overwritten by auto-expand. **Positional-only guard**: if `args_mapping` remaps a deprecated name to a `POSITIONAL_ONLY` constructor parameter, a `UserWarning` fires at decoration time and the proxy falls back to `setattr` at call time; use `validate_mapping_compatibility(module)` in CI to detect these patterns.
 - `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time.
 - `@property` with `@deprecated`: when `@deprecated` is on the **outside** (`@deprecated @property` order or explicit `deprecated(...)(property(...))`), all three accessors are wrapped — `fget`, `fset`, and `fdel` each fire `FutureWarning` when accessed, assigned, or deleted. Warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`). When `@deprecated` is on the **inside** (`@property @deprecated`), only `fget` is wrapped — warning fires on read but not on write or delete. For setter/deleter wrapping use the outer order: `@deprecated @property` then chain `@value.setter` / `@value.deleter` (re-wrapped via `_DeprecatedProperty`), or explicit `property(fget, fset[, fdel])` construction. Note: `type(x) == property` returns `False` on a decorated property; `isinstance(x, property)` is preserved. Audit: `find_deprecation_wrappers` scans the first accessor that carries `__deprecated__` metadata (`fget` → `fset` → `fdel`); setter-only properties (`fget=None`) are discovered via `fset`. `target=<callable>` and `target=TargetMode.ARGS_REMAP` / `True` both raise `TypeError` when decorating a property — property deprecation is warn-only; to redirect, delegate manually in the accessor body (e.g. `return self.new_prop`). Dataclass field alias: add a deprecated `@property` with the old name delegating to the new field; do NOT reuse an existing dataclass field name (the `@dataclass`-generated `__init__` assigns `self.field = value` which conflicts with a property descriptor of the same name).
 - `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.

@@ -59,7 +59,6 @@ from deprecate._types import (
     TargetMode,
     _has_deprecation_meta,
     _MappingValue,
-    _resolve_mapping_redirect,
 )
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
@@ -438,8 +437,7 @@ def _detect_chain_type(
                 chain_type = ChainType.STACKED
     attrs_mapping = dep_info.attrs_mapping
     has_chained_attrs = attrs_mapping is not None and any(
-        (resolved := _resolve_mapping_redirect(v)) is not None and resolved in attrs_mapping
-        for v in attrs_mapping.values()
+        v is not None and v in attrs_mapping for v in attrs_mapping.values()
     )
     if chain_type is None and has_chained_attrs:
         chain_type = ChainType.STACKED
@@ -458,7 +456,7 @@ def _validate_args_mapping(
     else:
         func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
         invalid_args = [arg for arg in args_mapping if arg not in func_args]
-    identity_args_mapping = [arg for arg, val in args_mapping.items() if arg == _resolve_mapping_redirect(val)]
+    identity_args_mapping = [arg for arg, val in args_mapping.items() if arg == val]
     all_identity = len(identity_args_mapping) == len(args_mapping) > 0
     return invalid_args, identity_args_mapping, all_identity
 

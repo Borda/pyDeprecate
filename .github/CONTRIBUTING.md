@@ -280,6 +280,14 @@ git push origin fix/123-your-bug-description
 
 ## 📋 Coding Standards
 
+### Design Principles
+
+- **Simplicity**: the API surface must be learnable in minutes; prefer patterns users already know; do not introduce a new concept unless it solves a real gap that existing primitives cannot address.
+- **Robustness**: deprecated code is on the removal path; correctness must hold regardless of call order or framework integration; audit tools must surface all live deprecations so nothing slips through to a breaking release.
+- **Flexibility**: work with any Python callable — functions, class methods, async, properties, dataclasses, enums — without special-casing the caller; the library adapts to the user's code, not the other way around.
+
+When a proposed feature conflicts with simplicity, complexity wins only when robustness or flexibility requires it.
+
 ### Style & Formatting
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
