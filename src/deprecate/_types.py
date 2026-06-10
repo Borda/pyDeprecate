@@ -493,7 +493,6 @@ class DeprecationConfig:
             :attr:`~deprecate._types.TargetMode.ARGS_REMAP`, :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`,
             or a callable. Legacy sentinels (``True``/``False``) are normalised at decoration time and never
             stored verbatim.
-        args_mapping: Optional dict remapping argument names; values may be ``None`` to drop the argument entirely.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
         misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.
             Audit tools surface this via
