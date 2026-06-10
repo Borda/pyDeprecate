@@ -592,7 +592,7 @@ class TestFindDeprecationWrappersWithEntry:
         """
         from deprecate.audit import find_deprecation_wrappers
 
-        col = sys.modules[DeprecationEntryAttrProxy.__module__]
+        col = sys.modules["tests.collection_deprecate"]
         results = find_deprecation_wrappers(col)
         expected_mapping = DeprecationEntryAttrProxy.__deprecated__.attrs_mapping
         entry_results = [r for r in results if r.deprecated_info.attrs_mapping == expected_mapping]

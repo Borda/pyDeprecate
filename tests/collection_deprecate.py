@@ -1805,11 +1805,11 @@ DeprecationEntryAttrProxy = deprecated_class(
     remove_in="2.0",
     num_warns=-1,
 )
-def depr_fn_with_entry_args_mapping(new_arg: int = 0) -> int:
+def depr_fn_with_entry_args_mapping(old_arg: int = 0, new_arg: int = 0) -> int:
     """Self-deprecating function using DeprecationEntry in args_mapping.
 
-    Wraps :func:`tests.collection_targets.v09_func_new_arg` semantics inline (ARGS_REMAP).
+    ``old_arg`` is the legacy parameter name; callers should use ``new_arg``.
     The ``old_arg`` entry carries per-arg ``deprecated_in="0.9"`` / ``remove_in="1.0"``
-    independent of the proxy-level ``deprecated_in="0.9"`` / ``remove_in="2.0"`` fallback.
+    independent of the wrapper-level ``deprecated_in="0.9"`` / ``remove_in="2.0"`` fallback.
     """
     return new_arg

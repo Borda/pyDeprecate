@@ -515,13 +515,3 @@ class V09TwoAttrClass:
     def __init__(self, new_arg: int = 0) -> None:
         """Construct V09TwoAttrClass."""
         self.new_arg = new_arg
-
-
-def v09_func_new_arg(new_arg: int = 0) -> int:
-    """Target function for ``DeprecationEntry``-in-``args_mapping`` coverage.
-
-    Wrapped by :mod:`tests.collection_deprecate` as ``depr_fn_with_entry_args_mapping``
-    with ``old_arg`` mapped to a :class:`deprecate.DeprecationEntry` carrying per-entry
-    ``deprecated_in``/``remove_in`` overrides.
-    """
-    return new_arg
