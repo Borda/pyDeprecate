@@ -1022,10 +1022,7 @@ async def old_fetch(url: str) -> bytes:
 
 
 async def captured_correctly():
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        result = await old_fetch("https://example.com")  # warning fires here, inside block
-    assert len(w) == 1
+    result = await old_fetch("https://example.com")  # warns: FutureWarning
     return result
 
 

@@ -480,7 +480,6 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 A class whose constructor uses the `/` positional-only separator:
 
 ```python
-import warnings
 from deprecate import deprecated_class
 
 
@@ -490,16 +489,12 @@ class Point:
         self.y = y
 
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", UserWarning)
-    OldPoint = deprecated_class(
-        Point,
-        deprecated_in="2.0",
-        remove_in="3.0",
-        args_mapping={"px": "x", "py": "y"},  # x and y are POSITIONAL_ONLY — incompatible
-    )
-# At decoration time deprecated_class emits a UserWarning naming the incompatible keys.
-# Suppress it above when you understand the trade-off and accept the setattr fallback.
+OldPoint = deprecated_class(  # warns: UserWarning — px, py target POSITIONAL_ONLY params
+    Point,
+    deprecated_in="2.0",
+    remove_in="3.0",
+    args_mapping={"px": "x", "py": "y"},
+)
 ```
 
 At call time the proxy constructs `Point` without the incompatible kwargs, then assigns the remapped values via `setattr`:
@@ -546,40 +541,7 @@ Found 0 wrappers with POSITIONAL_ONLY mapping incompatibilities
 
 The function accepts the same `module` and `recursive` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module.
 
-### pytest integration for mapping compatibility
-
-```python
-import pytest
-from deprecate import validate_mapping_compatibility
-
-# normally you would import your own package
-from tests import collection_deprecate as my_package
-
-
-def test_no_positional_only_mapping_incompatibilities():
-    """Ensure no deprecated_class wrapper remaps to a POSITIONAL_ONLY constructor param.
-
-    Incompatible wrappers fall back to setattr at call time, which may silently
-    produce wrong values for immutable or C-extension types.
-    """
-    issues = validate_mapping_compatibility(my_package)
-
-    if issues:
-        lines = [
-            f"  - {info.module}.{info.function}: incompatible keys {info.incompatible_args_mapping}"
-            for info in issues
-        ]
-        pytest.fail(
-            "Found deprecated_class wrappers with POSITIONAL_ONLY mapping incompatibilities:
-"
-            + "
-".join(lines)
-            + "
-Use attrs_mapping or change the constructor to accept keyword arguments."
-        )
-```
-
-The `pydeprecate check` CLI subcommand also covers this check — it exits `1` when any wrapper has a non-empty `incompatible_args_mapping`. See the [CLI Reference](cli.md) for flags and exit codes.
+Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, an incompatible mapping is graceful degradation — the wrapper still works via `setattr`. Prefer `pydeprecate check` for advisory CI reporting; it exits `1` when any wrapper has a non-empty `incompatible_args_mapping`. See the [CLI Reference](cli.md) for flags and exit codes.
 
 ## Pre-commit Integration
 
@@ -725,10 +687,8 @@ def create_session(host: str, timeout: int = 30) -> dict:
 
 
 def make_test_session(host: str = "localhost") -> dict:
-    """Test fixture helper — calls deprecated API silently."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", FutureWarning)
-        return create_session(host, timeout=5)
+    """Test fixture helper — calls deprecated API."""
+    return create_session(host, timeout=5)  # warns: FutureWarning
 
 
 # The helper works without emitting warnings:

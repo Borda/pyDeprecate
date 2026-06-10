@@ -1580,13 +1580,9 @@ def create_client(host: str, port: int = 443) -> dict:
     return void(host, port)
 
 
-# In test fixtures you need the forwarding result but not the warning noise.
-# Use warnings.catch_warnings to suppress, then assert_no_warnings for new code:
 def make_test_client() -> dict:
-    """Test helper that calls the deprecated API without emitting warnings."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", FutureWarning)
-        return create_client("localhost", 8080)
+    """Test helper that calls the deprecated API."""
+    return create_client("localhost", 8080)  # warns: FutureWarning
 
 
 # The helper works silently:
