@@ -814,6 +814,9 @@ class _DeprecatedProxy:
                 }
                 pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
                 for new_key, val in pending.items():
+                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+                instance = cfg.obj(*args, **mapped_kwargs)
+                for new_key, val in pending.items():
                     setattr(instance, new_key, val)
             return cfg.obj(*args, **mapped_kwargs)
         if callable(dep.target) and dep.args_mapping:
