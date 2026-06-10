@@ -1123,7 +1123,7 @@ class Model:
 @deprecated_class(
     target=Model,
     attrs_mapping={
-        "cuda": None,     # warn-only — flag is being removed, still served from LegacyModel
+        "cuda": None,  # warn-only — flag is being removed, still served from LegacyModel
         "gpu": "device",  # redirect — old name "gpu" resolves to Model.device
     },
     args_mapping={"n_layers": "num_layers"},  # constructor kwarg rename
