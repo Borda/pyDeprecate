@@ -516,16 +516,13 @@ class RedirectedEnum(Enum): ...
 def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 ```
 
-Rules:
+**Rules:**
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
 - Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
 - `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `collection_deprecate.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
 
-**Trailing commas in test files:**
-
-Do **not** add trailing commas before closing `)` in function calls in test files. Ruff uses a trailing comma as a "magic" signal to keep a call expanded across multiple lines even when it would fit on one. Without trailing commas, ruff can auto-collapse short calls to a single line when formatting. Existing trailing commas are removed periodically; don't re-introduce them.
 
 **Docstrings in test collections:**
 
