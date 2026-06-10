@@ -118,7 +118,7 @@ class TargetMode(Enum):
         cls,
         target: Any,  # noqa: ANN401
         *,
-        args_mapping: Optional[Mapping[str, Any]] = None,
+        args_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
         stacklevel: Optional[int] = 3,
     ) -> "Union[Callable[..., Any], TargetMode, None]":
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
@@ -190,7 +190,7 @@ class TargetMode(Enum):
         cls,
         mode: "TargetMode",
         source_name: str,
-        args_mapping: Optional[Mapping[str, Any]] = None,
+        args_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
         args_extra: Optional[dict[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
@@ -256,8 +256,8 @@ class TargetMode(Enum):
         cls,
         mode: "Union[TargetMode, Callable[..., Any], None]",
         source_name: str,
-        attrs_mapping: Optional[Mapping[str, Any]] = None,
-        args_mapping: Optional[Mapping[str, Any]] = None,
+        attrs_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
+        args_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
         *,
         stacklevel: Optional[int] = 2,
     ) -> bool:
@@ -368,7 +368,7 @@ class DeprecationEntry:
         class MyClass: ...
 
     Attributes:
-        target: Redirect target attribute / argument name, or ``None`` for warn-only (no rename).
+        redirect: Redirect target attribute / argument name, or ``None`` for warn-only (no rename).
         deprecated_in: Version when this specific attribute / argument was deprecated.  ``None``
             uses the proxy-level ``deprecated_in`` as fallback.
         remove_in: Version when this specific attribute / argument will be removed.  ``None``
@@ -376,16 +376,16 @@ class DeprecationEntry:
 
     Examples:
         >>> entry = DeprecationEntry("new_attr", deprecated_in="1.0", remove_in="2.0")
-        >>> entry.target
+        >>> entry.redirect
         'new_attr'
         >>> entry.deprecated_in
         '1.0'
-        >>> DeprecationEntry(None).target is None
+        >>> DeprecationEntry(None).redirect is None
         True
 
     """
 
-    target: Optional[str]
+    redirect: Optional[str]
     deprecated_in: Optional[str] = None
     remove_in: Optional[str] = None
 
@@ -420,7 +420,7 @@ def _resolve_mapping_redirect(v: _MappingValue) -> Optional[str]:
 
     """
     if isinstance(v, DeprecationEntry):
-        return v.target
+        return v.redirect
     return v
 
 
