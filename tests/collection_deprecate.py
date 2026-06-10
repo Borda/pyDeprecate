@@ -1835,10 +1835,8 @@ DepAutoExpandReqDC = deprecated_class(attrs_mapping={"old_field": "new_field"}, 
 # PositionalOnlyTarget — proxy emits UserWarning at decoration time and falls
 # back to setattr at call time.  Suppress the decoration-time UserWarning here
 # so importing this module does not pollute test output.
-import warnings as _warnings_mod  # noqa: E402
-
-with _warnings_mod.catch_warnings():
-    _warnings_mod.simplefilter("ignore", UserWarning)
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
     DepPositionalOnly = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
         PositionalOnlyTarget
     )
