@@ -208,6 +208,9 @@ What is being deprecated?
   │      └─ Only some attributes deprecated (rename or misspelling fix)?
   │           → also add attrs_mapping={"old_attr": "new_attr"} (or None for warn-only)
   │              only listed attrs warn; all others pass through silently
+  │              └─ Different attrs deprecated at different versions?
+  │                   → use DeprecationEntry: attrs_mapping={"old": DeprecationEntry("new", deprecated_in="1.0", remove_in="2.0")}
+  │                     each entry carries its own deprecated_in/remove_in; proxy-level is the fallback
   │
   ├─ A `@property`?
   │    → use `@deprecated @property` (outer order); all three accessors (`fget`/`fset`/`fdel`)

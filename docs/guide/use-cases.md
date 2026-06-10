@@ -1066,6 +1066,9 @@ Use a **single `deprecated_class()` call** when all attributes and arguments sha
 **Stack two `@deprecated_class()` decorators** when different attributes were deprecated at different versions and each mapping needs its own version pair:
 
 ```python
+from deprecate import deprecated_class
+
+
 @deprecated_class(
     attrs_mapping={"old_attr": "new_attr"},
     deprecated_in="1.0",
@@ -1081,7 +1084,7 @@ class MyClass:
     new_attr: str = "b"
 ```
 
-Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. As an alternative to stacking, use [`DeprecationEntry`](#per-entry-version-overrides-with-deprecationentry) values inside a single `deprecated_class()` call for the same per-attribute version control without an extra proxy layer.
+Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. As an alternative to stacking, use [`DeprecationEntry`](#per-entry-version-overrides-with-deprecationentry) values inside a single `deprecated_class()` call for the same per-attribute version control without an extra proxy layer. When stacking two `ATTRS_REMAP` layers, only the innermost layer’s instantiation warning fires — the outer layer’s `deprecated_in`/`remove_in` are omitted from the instantiation notice (attribute-access warnings remain independent and fire for each layer).
 
 ### Per-entry version overrides with `DeprecationEntry`
 
@@ -1105,8 +1108,8 @@ proxy = deprecated_class(
     remove_in="2.0",
 )(Config)
 
-proxy.old_attr  # warns: deprecated since v1.0
-proxy.older_attr  # warns: deprecated since v0.9
+proxy.old_attr  # warns: FutureWarning — deprecated since v1.0
+proxy.older_attr  # warns: FutureWarning — deprecated since v0.9
 ```
 
 Plain-string values and `None` (warn-only) entries continue to work as before and fall back to the proxy-level `deprecated_in`/`remove_in`. `DeprecationEntry` values are stored verbatim in `__deprecated__.attrs_mapping` and visible to audit tools.
