@@ -2029,20 +2029,15 @@ class TestDataclassAutoExpand:
         When the user supplies ``args_mapping={"old_field": ...}`` explicitly, the auto-
         expand skips that key so the user-supplied value always wins.
         """
-        import dataclasses
-
         from deprecate.proxy import deprecated_class
-
-        @dataclasses.dataclass
-        class _DC:
-            new_field: int = 0
+        from tests.collection_targets import AutoExpandDC
 
         proxy = deprecated_class(
             attrs_mapping={"old_field": "new_field"},
             args_mapping={"old_field": "new_field"},
             deprecated_in="1.0",
             remove_in="2.0",
-        )(_DC)
+        )(AutoExpandDC)
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert "old_field" not in meta.args_mapping_auto_expanded
 
@@ -2052,13 +2047,8 @@ class TestDataclassAutoExpand:
         Per-entry version metadata must not be lost during auto-expand — the same
         ``DeprecationEntry`` instance must appear in both mappings.
         """
-        import dataclasses
-
         from deprecate import DeprecationEntry, deprecated_class
-
-        @dataclasses.dataclass
-        class _DC:
-            new_field: int = 0
+        from tests.collection_targets import AutoExpandDC
 
         entry = DeprecationEntry("new_field", deprecated_in="0.9", remove_in="1.5")
         proxy = deprecated_class(
@@ -2066,7 +2056,7 @@ class TestDataclassAutoExpand:
             deprecated_in="1.0",
             remove_in="2.0",
             num_warns=-1,
-        )(_DC)
+        )(AutoExpandDC)
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert meta.args_mapping is not None
         assert meta.args_mapping["old_field"] is entry
