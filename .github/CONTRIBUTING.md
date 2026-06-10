@@ -385,6 +385,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
 > **Docs examples must use `print()` + output blocks — no `assert`.** For all `docs/**/*.md` blocks that execute code:
+>
 > - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
 > - Do **not** use bare `assert` statements (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`.
 > - Avoid placeholders that do not validate behavior.
