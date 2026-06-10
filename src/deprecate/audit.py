@@ -1001,9 +1001,10 @@ def _classify_wrapper_api_type(
         return "class method args" if has_mapping else "class method"
 
     if isinstance(wrapped_obj, _DeprecatedProxy):
-        source_obj = wrapped_obj.wrapped
-        if inspect.isclass(source_obj):
-            if is_dataclass(source_obj):
+        while isinstance(wrapped_obj, _DeprecatedProxy):
+            wrapped_obj = wrapped_obj.wrapped
+        if inspect.isclass(wrapped_obj):
+            if is_dataclass(wrapped_obj):
                 return "dataclass attributes" if has_mapping else "dataclass"
             return "class"
         return "data"

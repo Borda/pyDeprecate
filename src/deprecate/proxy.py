@@ -196,7 +196,8 @@ class _DeprecatedProxy:
         # For @dataclass targets, required fields (no default) are not visible via getattr_static
         # because they have no class-level value — but they DO exist as valid constructor params
         # and instance attributes.  Check __dataclass_fields__ as a fallback.
-        _dc_field_names: set[str] = set(getattr(attr_check_obj, "__dataclass_fields__", {}))
+        _owner = _DeprecatedProxy._get_static_attr_owner(attr_check_obj)
+        _dc_field_names: set[str] = set(getattr(_owner, "__dataclass_fields__", {}))
         _resolved_targets = [(k, _resolve_mapping_redirect(v)) for k, v in attrs_mapping.items()]
         missing_targets = [
             f"{k!r} -> {target!r}"
@@ -307,6 +308,8 @@ class _DeprecatedProxy:
         # instances are copied verbatim so per-entry version overrides survive the expansion.
         _auto_expanded: list[str] = []
         _dc_check = target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
+        if args_mapping is not None:
+            args_mapping = dict(args_mapping)
         if attrs_mapping and _is_dataclass_target(_dc_check):
             import dataclasses as _dc_mod
 
@@ -580,6 +583,19 @@ class _DeprecatedProxy:
             (_resolve_mapping_redirect(args_mapping.get(k)) or k): v for k, v in kwargs.items() if k not in args_to_drop
         }
 
+    @staticmethod
+    def _resolve_incompat_new_keys(dep: "DeprecationConfig") -> frozenset[str]:
+        """Return the set of remapped-to names whose original was POSITIONAL_ONLY."""
+        if not (dep.incompatible_args_mapping and dep.args_mapping):
+            return frozenset()
+        return frozenset(
+            r
+            for old in dep.incompatible_args_mapping
+            if old in dep.args_mapping
+            for r in (_resolve_mapping_redirect(dep.args_mapping[old]),)
+            if r is not None
+        )
+
     def _merge_args_extra(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; extra values win."""
         args_extra = self._cfg.args_extra
@@ -805,19 +821,12 @@ class _DeprecatedProxy:
             # old keys have already been renamed to their POSITIONAL_ONLY target names.  Extract those
             # new keys (cannot be forwarded as kwargs), construct the object, then setattr.
             if dep.incompatible_args_mapping and dep.args_mapping:
-                _incompat_new: set[str] = {
-                    r
-                    for old in dep.incompatible_args_mapping
-                    if old in dep.args_mapping
-                    for r in (_resolve_mapping_redirect(dep.args_mapping[old]),)
-                    if r is not None
-                }
-                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
-                for new_key, val in pending.items():
+                _incompat_new = self._resolve_incompat_new_keys(dep)
                 pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
                 instance = cfg.obj(*args, **mapped_kwargs)
                 for new_key, val in pending.items():
                     setattr(instance, new_key, val)
+                return instance
             return cfg.obj(*args, **mapped_kwargs)
         if callable(dep.target) and dep.args_mapping:
             mapping = dep.args_mapping or {}
@@ -831,14 +840,9 @@ class _DeprecatedProxy:
             mapped_kwargs = self._merge_args_extra(mapped_kwargs)
             # Positional-only fallback for callable target path.
             if dep.incompatible_args_mapping and dep.args_mapping:
-                _incompat_new = {
-                    r
-                    for old in dep.incompatible_args_mapping
-                    if old in dep.args_mapping
-                    for r in (_resolve_mapping_redirect(dep.args_mapping[old]),)
-                    if r is not None
-                }
+                _incompat_new = self._resolve_incompat_new_keys(dep)
                 pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+                instance = dep.target(*args, **mapped_kwargs)
                 for new_key, val in pending.items():
                     setattr(instance, new_key, val)
                 return instance
