@@ -29,7 +29,6 @@ from deprecate._types import (
     _DeprecatedCallable,
     _has_deprecation_meta,
     _HasDeprecationMeta,
-    _MappingValue,
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
@@ -58,8 +57,6 @@ TEMPLATE_WARNING_NO_TARGET = (
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 deprecation_warning = partial(warn, category=FutureWarning)
-
-ArgsMapping = dict[str, _MappingValue]
 
 #: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
 #: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
@@ -680,7 +677,7 @@ def _raise_warn_callable(
 def _raise_warn_arguments(
     stream: Callable,
     source: Callable,
-    arguments: Mapping[str, _MappingValue],
+    arguments: Mapping[str, Optional[str]],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -801,7 +798,7 @@ def _build_call_plan(
     kwargs = _update_kwargs_with_args(source, args, kwargs)
 
     reason_callable = normalized_target is TargetMode.NOTIFY or callable(normalized_target)
-    reason_argument: dict[str, _MappingValue] = {}
+    reason_argument: dict[str, Optional[str]] = {}
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         reason_argument = {a: b for a, b in dep_cfg.args_mapping.items() if a in kwargs}
     # Migrated callers (using the new arg name) produce empty reason_argument;
@@ -917,7 +914,7 @@ def deprecated(
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
     template_mgs: Optional[str] = None,
-    args_mapping: Optional[ArgsMapping] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,

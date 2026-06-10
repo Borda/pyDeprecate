@@ -33,7 +33,6 @@ from typing import Any, Callable, Literal, Optional, Union, cast
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
-    _MappingValue,
     _ProxyConfig,
 )
 from deprecate.deprecation import (
@@ -122,7 +121,7 @@ class _DeprecatedProxy:
 
     @staticmethod
     def _validate_attrs_mapping(
-        attrs_mapping: dict[str, _MappingValue],
+        attrs_mapping: dict[str, Optional[str]],
         obj: Any,  # noqa: ANN401
         attr_check_obj: Any,  # noqa: ANN401
     ) -> None:
@@ -172,7 +171,7 @@ class _DeprecatedProxy:
 
     @staticmethod
     def _validate_attrs_redirect_targets(
-        attrs_mapping: dict[str, _MappingValue],
+        attrs_mapping: dict[str, Optional[str]],
         attr_check_obj: Any,  # noqa: ANN401
     ) -> None:
         """Validate that every non-``None`` redirect target attribute exists on the class.
@@ -212,7 +211,7 @@ class _DeprecatedProxy:
 
     @staticmethod
     def _validate_attrs_warn_only_keys(
-        attrs_mapping: dict[str, _MappingValue],
+        attrs_mapping: dict[str, Optional[str]],
         obj: Any,  # noqa: ANN401
         attr_check_obj: Any,  # noqa: ANN401
     ) -> None:
@@ -255,9 +254,9 @@ class _DeprecatedProxy:
         name: str,
         *,
         target: Any = None,  # noqa: ANN401
-        args_mapping: Optional[dict[str, _MappingValue]] = None,
+        args_mapping: Optional[dict[str, Optional[str]]] = None,
         args_extra: Optional[dict[str, Any]] = None,
-        attrs_mapping: Optional[dict[str, _MappingValue]] = None,
+        attrs_mapping: Optional[dict[str, Optional[str]]] = None,
         deprecated_in: str = "",
         remove_in: str = "",
         num_warns: int = 1,
@@ -423,7 +422,7 @@ class _DeprecatedProxy:
         self,
         arg_name: str,
         dep: DeprecationConfig,
-        attrs_mapping: dict[str, _MappingValue],
+        attrs_mapping: dict[str, Optional[str]],
         target: Any,  # noqa: ANN401
         custom_template: Optional[str],
     ) -> Optional[str]:
@@ -938,9 +937,9 @@ def deprecated_class(
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
     template_mgs: Optional[str] = None,
-    args_mapping: Optional[dict[str, _MappingValue]] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
-    attrs_mapping: Optional[dict[str, _MappingValue]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     _misconfigured_override: bool = False,

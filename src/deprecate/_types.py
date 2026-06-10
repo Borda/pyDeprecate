@@ -118,7 +118,7 @@ class TargetMode(Enum):
         cls,
         target: Any,  # noqa: ANN401
         *,
-        args_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
+        args_mapping: Optional[Mapping[str, Optional[str]]] = None,
         stacklevel: Optional[int] = 3,
     ) -> "Union[Callable[..., Any], TargetMode, None]":
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
@@ -190,7 +190,7 @@ class TargetMode(Enum):
         cls,
         mode: "TargetMode",
         source_name: str,
-        args_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
+        args_mapping: Optional[Mapping[str, Optional[str]]] = None,
         args_extra: Optional[dict[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
@@ -256,8 +256,8 @@ class TargetMode(Enum):
         cls,
         mode: "Union[TargetMode, Callable[..., Any], None]",
         source_name: str,
-        attrs_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
-        args_mapping: Optional[Mapping[str, "_MappingValue"]] = None,
+        attrs_mapping: Optional[Mapping[str, Optional[str]]] = None,
+        args_mapping: Optional[Mapping[str, Optional[str]]] = None,
         *,
         stacklevel: Optional[int] = 2,
     ) -> bool:
@@ -344,11 +344,6 @@ class TargetMode(Enum):
         return bool(messages)
 
 
-# Type alias for a single value in ``attrs_mapping`` / ``args_mapping``.
-# A plain ``str`` is a rename target; ``None`` means warn-only (no rename).
-_MappingValue = Optional[str]
-
-
 @dataclass(frozen=True)
 class DeprecationConfig:
     """Static deprecation metadata attached to deprecated callables as ``__deprecated__``.
@@ -398,12 +393,12 @@ class DeprecationConfig:
     remove_in: str = ""
     name: str = ""
     target: Optional[Union[Callable[..., Any], "TargetMode"]] = None
-    args_mapping: Optional[dict[str, _MappingValue]] = None
+    args_mapping: Optional[dict[str, Optional[str]]] = None
     args_extra: Optional[dict[str, Any]] = None
     misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     template_mgs: Optional[str] = None
-    attrs_mapping: Optional[dict[str, _MappingValue]] = None
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     incompatible_args_mapping: tuple[str, ...] = field(default_factory=tuple)
 
@@ -477,7 +472,7 @@ class _ProxyConfig:
     read_only: bool
     args_extra: Optional[dict[str, Any]] = None
     template_mgs: Optional[str] = None
-    attrs_mapping: Optional[dict[str, _MappingValue]] = None
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
 
@@ -555,5 +550,5 @@ class _CallPlan:
     short_circuit: bool
     original_kwargs: dict[str, Any]
     resolved_kwargs: dict[str, Any]
-    reason_argument: dict[str, _MappingValue] = field(default_factory=dict)
+    reason_argument: dict[str, Optional[str]] = field(default_factory=dict)
     target_func: Optional[Callable[..., Any]] = None
