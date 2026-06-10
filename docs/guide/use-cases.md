@@ -1009,6 +1009,37 @@ print(LegacyConfig.batch_size)  # silent — unlisted attribute
 
 Instantiation calls are also forwarded to `Config` — `LegacyConfig(lr=0.05)` returns a `Config` instance. The `attrs_mapping` applies only to class-level attribute access on the proxy, not to the returned instance.
 
+### Dataclass field renames
+
+When the wrapped class is a `@dataclass`, `deprecated_class(attrs_mapping=...)` automatically covers **both surfaces** in a single call: attribute access on an existing instance (`obj.old_field`) and constructor kwargs (`DC(old_field=5)`) both emit `FutureWarning`. The auto-expand copies each `attrs_mapping` entry whose redirect target is a dataclass field into `args_mapping`, so you do not need to set `args_mapping` separately for a pure field rename. Entries already present in an explicit `args_mapping` are never overwritten — explicit user values always win.
+
+```python
+from dataclasses import dataclass
+from deprecate import deprecated_class
+
+
+@dataclass
+class NewPoint:
+    x: float = 0.0
+    y: float = 0.0
+
+
+OldPoint = deprecated_class(
+    attrs_mapping={"px": "x", "py": "y"},
+    deprecated_in="2.0",
+    remove_in="3.0",
+    num_warns=-1,
+)(NewPoint)
+
+# Constructor kwarg warns: FutureWarning — "px" remapped to "x"
+pt = OldPoint(px=1.0)  # warns: FutureWarning
+assert pt.x == 1.0
+```
+
+### Class-type compatibility
+
+C-extension types, classes whose constructor accepts only positional-only parameters (e.g. `def __init__(self, val, /): ...`), and `tuple`/`frozenset` subclasses emit `UserWarning` at decoration time when `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. At call time the proxy falls back to `setattr` for those entries instead of passing the remapped name as a constructor kwarg, so the instance is created and then the field is patched in — which behaves correctly for regular dataclasses but may not suit all class types. Run `validate_mapping_compatibility(module)` in CI to surface these patterns before they reach users.
+
 ### Combining attribute and argument deprecation
 
 `attrs_mapping` and `args_mapping` operate on orthogonal surfaces: `attrs_mapping` intercepts class-level attribute access (`__getattr__` / `__setattr__` / `__delattr__` on the proxy), while `args_mapping` intercepts call arguments (`__call__`). Both can be combined on the same proxy when `target` is a callable class with renamed class attributes and a renamed constructor parameter.
