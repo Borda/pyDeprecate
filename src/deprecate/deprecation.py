@@ -722,9 +722,7 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join(
-        TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()
-    )
+    args_map = ", ".join(TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items())
     _raise_warn(
         stream,
         source,
@@ -890,9 +888,7 @@ def _build_call_plan(
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
-        kwargs = {
-            (dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip
-        }
+        kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
 
     if dep_cfg.args_extra and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         kwargs.update(dep_cfg.args_extra)

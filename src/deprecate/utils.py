@@ -137,9 +137,7 @@ def _get_incompatible_args_mapping_keys(
     if not positional_only:
         return ()
 
-    return tuple(
-        old_key for old_key, mapping_val in args_mapping.items() if mapping_val in positional_only
-    )
+    return tuple(old_key for old_key, mapping_val in args_mapping.items() if mapping_val in positional_only)
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:

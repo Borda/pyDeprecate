@@ -2041,6 +2041,7 @@ class TestDataclassAutoExpand:
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert "old_field" not in meta.args_mapping_auto_expanded
 
+
 # ---------------------------------------------------------------------------
 # Positional-only constructor guard + setattr fallback
 # ---------------------------------------------------------------------------
