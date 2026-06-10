@@ -18,23 +18,14 @@ import warnings
 
 import pytest
 
+from deprecate import DeprecationEntry
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
-
-# ---------------------------------------------------------------------------
-# Helpers used across test cases
-# ---------------------------------------------------------------------------
-
-
-class _V09Class:
-    """Target with two attributes deprecated at different versions."""
-
-    newer_attr: str = "value_new"  # replaces older_attr (deprecated in v0.9)
-    new_attr: str = "value_b"  # replaces old_attr (deprecated in v1.0)
-
-    def __init__(self, new_arg: int = 0) -> None:
-        """Construct _V09Class."""
-        self.new_arg = new_arg
-
+from tests.collection_deprecate import (
+    DeprecationEntryAttrProxy,
+    StackedAttrProxy,
+    depr_fn_with_entry_args_mapping,
+)
+from tests.collection_targets import V09TwoAttrClass as _V09Class
 
 # ---------------------------------------------------------------------------
 # Feature 1 & 2: Stacking two ATTRS_REMAP deprecated_class decorators
@@ -52,14 +43,7 @@ class TestStackedDeprecatedClass:
     @pytest.fixture
     def stacked_proxy(self) -> _DeprecatedProxy:
         """Two-layer stacked proxy with disjoint attrs_mapping and distinct version pairs."""
-
-        @deprecated_class(attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0", stream=None)
-        @deprecated_class(attrs_mapping={"older_attr": "newer_attr"}, deprecated_in="0.9", remove_in="1.0", stream=None)
-        class _Stacked(_V09Class):
-            older_attr: str = "value_new"  # deprecated alias for newer_attr
-            old_attr: str = "value_b"  # deprecated alias for new_attr
-
-        return _Stacked  # type: ignore[return-value]
+        return StackedAttrProxy  # type: ignore[return-value]
 
     def test_stacked_proxy_outer_attr_access(self, stacked_proxy: _DeprecatedProxy) -> None:
         """Outer layer: accessing ``old_attr`` returns the value from ``new_attr``.
@@ -159,8 +143,6 @@ class TestDeprecationEntry:
 
     def test_deprecation_entry_import(self) -> None:
         """``DeprecationEntry`` is importable from the public ``deprecate`` namespace."""
-        from deprecate import DeprecationEntry
-
         assert DeprecationEntry is not None
 
     def test_deprecation_entry_per_attr_version_in_warning(self) -> None:
@@ -171,7 +153,6 @@ class TestDeprecationEntry:
         proxy-level ``deprecated_in="1.0"`` fallback.
 
         """
-        from deprecate import DeprecationEntry
 
         class _Target:
             new_attr: str = "value"
@@ -196,7 +177,6 @@ class TestDeprecationEntry:
         plain-string key.
 
         """
-        from deprecate import DeprecationEntry
 
         class _Target:
             new_attr: str = "a"
@@ -220,7 +200,6 @@ class TestDeprecationEntry:
 
     def test_deprecation_entry_redirects_correctly(self) -> None:
         """``DeprecationEntry`` attribute redirect returns the canonical attribute value."""
-        from deprecate import DeprecationEntry
 
         class _Target:
             new_attr: str = "canonical"
@@ -245,7 +224,6 @@ class TestDeprecationEntry:
         frozen ``DeprecationConfig``.
 
         """
-        from deprecate import DeprecationEntry
 
         class _Target:
             new_attr: str = "x"
@@ -266,7 +244,6 @@ class TestDeprecationEntry:
         per-arg ``deprecated_in``, not the proxy-level fallback.
 
         """
-        from deprecate import DeprecationEntry
 
         class _Target:
             def __init__(self, new_arg: int = 0) -> None:
@@ -294,7 +271,6 @@ class TestDeprecationEntry:
         per-entry ``deprecated_in`` must appear in the warning even though no redirect happens.
 
         """
-        from deprecate import DeprecationEntry
 
         class _Target:
             size: int = 42
@@ -487,7 +463,6 @@ class TestStackingCombinations:
         ``deprecated_in="0.9"``.
 
         """
-        from deprecate import DeprecationEntry
 
         class _Base:
             canonical: str = "value"
@@ -553,3 +528,80 @@ class TestStackingCombinations:
 
         assert isinstance(inst, _Base)
         assert isinstance(inst, outer)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# Feature 3b: @deprecated with DeprecationEntry in args_mapping (non-proxy path)
+# ---------------------------------------------------------------------------
+
+
+class TestDeprFnWithEntryArgsMapping:
+    """``@deprecated(args_mapping=DeprecationEntry(...))`` on the non-proxy ``@deprecated`` path.
+
+    Verifies that ``_raise_warn_arguments`` emits per-entry ``deprecated_in``/``remove_in``
+    from the ``DeprecationEntry`` rather than the proxy-level fallback when a caller passes
+    the deprecated argument name.
+    """
+
+    def test_entry_per_arg_deprecated_in_in_warning(self) -> None:
+        """Warning carries per-entry ``deprecated_in`` from ``DeprecationEntry``, not proxy-level fallback.
+
+        ``depr_fn_with_entry_args_mapping`` maps ``old_arg`` to
+        ``DeprecationEntry("new_arg", deprecated_in="0.9", remove_in="1.0")``.
+        The proxy-level fallback is ``deprecated_in="0.9"`` / ``remove_in="2.0"``.
+        When calling with ``old_arg=``, the emitted warning must reference ``remove_in="1.0"``
+        (per-entry), not the proxy-level ``remove_in="2.0"``.
+        """
+        with pytest.warns(FutureWarning, match="1.0") as record:
+            result = depr_fn_with_entry_args_mapping(old_arg=42)  # type: ignore[call-arg]
+        assert result == 42
+        assert any("1.0" in str(w.message) for w in record if issubclass(w.category, FutureWarning))
+
+    def test_canonical_arg_no_warning(self) -> None:
+        """No warning when caller uses the canonical ``new_arg`` name."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = depr_fn_with_entry_args_mapping(new_arg=7)
+        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert future_warns == []
+        assert result == 7
+
+
+# ---------------------------------------------------------------------------
+# Audit integration: find_deprecation_wrappers with DeprecationEntry in attrs_mapping
+# ---------------------------------------------------------------------------
+
+
+class TestFindDeprecationWrappersWithEntry:
+    """``find_deprecation_wrappers()`` returns ``DeprecationEntry`` instances verbatim.
+
+    The CHANGELOG states: "DeprecationEntry values are stored verbatim in
+    ``__deprecated__.attrs_mapping`` and visible to audit tools."  This class validates
+    that claim through the public audit API.
+    """
+
+    def test_attrs_mapping_entry_survives_audit_round_trip(self) -> None:
+        """``find_deprecation_wrappers`` returns ``DeprecationEntry`` objects in ``attrs_mapping``.
+
+        ``DeprecationEntryAttrProxy`` wraps ``V09TwoAttrClass`` with two ``DeprecationEntry``
+        values in ``attrs_mapping``.  Scanning ``tests.collection_deprecate`` with
+        ``find_deprecation_wrappers`` must return an entry whose
+        ``deprecated_info.attrs_mapping["old_attr"]`` is a ``DeprecationEntry`` with the
+        expected per-entry ``deprecated_in``/``remove_in`` fields.
+        """
+        import tests.collection_deprecate as col
+        from deprecate.audit import find_deprecation_wrappers
+
+        results = find_deprecation_wrappers(col)
+        expected_mapping = DeprecationEntryAttrProxy.__deprecated__.attrs_mapping
+        entry_results = [r for r in results if r.deprecated_info.attrs_mapping == expected_mapping]
+        assert entry_results, "find_deprecation_wrappers did not surface DeprecationEntryAttrProxy in module scan"
+        info = entry_results[0]
+        mapping = info.deprecated_info.attrs_mapping
+        assert mapping is not None
+        old_attr_entry = mapping.get("old_attr")
+        assert isinstance(old_attr_entry, DeprecationEntry), (
+            f"Expected DeprecationEntry for 'old_attr', got {type(old_attr_entry)}"
+        )
+        assert old_attr_entry.deprecated_in == "1.0"
+        assert old_attr_entry.remove_in == "2.0"

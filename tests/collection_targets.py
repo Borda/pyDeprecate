@@ -499,3 +499,29 @@ class MutableAttrsList:
     def append(self, item: str) -> None:
         """Append an item to the backing list."""
         self.items.append(item)
+
+
+class V09TwoAttrClass:
+    """Target with two canonical attributes replacing deprecated aliases at different versions.
+
+    Wrapped by :mod:`tests.collection_deprecate` as ``StackedAttrProxy`` (two-layer
+    ``deprecated_class`` stack) and as ``DeprecationEntryAttrProxy`` (single proxy with
+    ``DeprecationEntry`` values in ``attrs_mapping``).
+    """
+
+    newer_attr: str = "value_new"  # canonical replacement for ``older_attr`` (deprecated in v0.9)
+    new_attr: str = "value_b"  # canonical replacement for ``old_attr`` (deprecated in v1.0)
+
+    def __init__(self, new_arg: int = 0) -> None:
+        """Construct V09TwoAttrClass."""
+        self.new_arg = new_arg
+
+
+def v09_func_new_arg(new_arg: int = 0) -> int:
+    """Target function for ``DeprecationEntry``-in-``args_mapping`` coverage.
+
+    Wrapped by :mod:`tests.collection_deprecate` as ``depr_fn_with_entry_args_mapping``
+    with ``old_arg`` mapped to a :class:`deprecate.DeprecationEntry` carrying per-entry
+    ``deprecated_in``/``remove_in`` overrides.
+    """
+    return new_arg

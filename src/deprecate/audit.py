@@ -429,7 +429,8 @@ def _detect_chain_type(
                 chain_type = ChainType.STACKED
     attrs_mapping = dep_info.attrs_mapping
     has_chained_attrs = attrs_mapping is not None and any(
-        new_attr is not None and new_attr in attrs_mapping for new_attr in attrs_mapping.values()
+        (resolved := _resolve_mapping_redirect(v)) is not None and resolved in attrs_mapping
+        for v in attrs_mapping.values()
     )
     if chain_type is None and has_chained_attrs:
         chain_type = ChainType.STACKED
