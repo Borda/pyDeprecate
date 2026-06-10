@@ -849,3 +849,34 @@ class TestFindDeprecationWrappersClassScan:
 
         names = [r.function for r in results]
         assert any("delete_only" in n for n in names)
+
+
+class TestValidateMappingCompatibility:
+    """``validate_mapping_compatibility`` surfaces positional-only incompatibilities."""
+
+    def test_finds_positional_only_wrapper(self) -> None:
+        """``DepPositionalOnly`` appears in ``validate_mapping_compatibility`` results.
+
+        The wrapper remaps ``old_val``→``new_val`` which is POSITIONAL_ONLY on
+        ``PositionalOnlyTarget``; the validator must surface it.
+        """
+        import tests.collection_deprecate as col
+        from deprecate import validate_mapping_compatibility
+
+        results = validate_mapping_compatibility(col, recursive=False)
+        names = [r.function for r in results]
+        assert "DepPositionalOnly" in names
+
+    def test_dataclass_auto_expanded_visible_in_audit(self) -> None:
+        """``find_deprecation_wrappers`` populates ``args_mapping_auto_expanded`` for ``DepAutoExpandDC``.
+
+        After auto-expand the ``DeprecationConfig`` stores the auto-copied keys; the
+        ``DeprecationWrapperInfo`` returned by the audit walk must reflect this.
+        """
+        import tests.collection_deprecate as col
+        from deprecate.audit import find_deprecation_wrappers
+
+        results = find_deprecation_wrappers(col, recursive=False)
+        dc_results = [r for r in results if r.function == "DepAutoExpandDC"]
+        assert dc_results, "DepAutoExpandDC not found by find_deprecation_wrappers"
+        assert "old_field" in dc_results[0].args_mapping_auto_expanded

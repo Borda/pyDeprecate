@@ -52,6 +52,8 @@ from sklearn.metrics import accuracy_score
 from deprecate import DeprecationEntry, TargetMode, deprecated, deprecated_class, deprecated_instance, void
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
+    AutoExpandDC,
+    AutoExpandReqDC,
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
@@ -65,6 +67,7 @@ from tests.collection_targets import (
     Palette,
     PaletteEnum,
     PaletteOld,
+    PositionalOnlyTarget,
     SomeTargetClass,
     TimerDecorator,
     V09TwoAttrClass,
@@ -1813,3 +1816,34 @@ def depr_fn_with_entry_args_mapping(old_arg: int = 0, new_arg: int = 0) -> int:
     independent of the wrapper-level ``deprecated_in="0.9"`` / ``remove_in="2.0"`` fallback.
     """
     return new_arg
+
+
+# ========== Dataclass dual-surface auto-expand fixtures ==========
+
+# attrs_mapping-only on a @dataclass — proxy auto-expands to also populate args_mapping
+# so both instance.old_field access and DC(old_field=5) constructor calls emit FutureWarning.
+DepAutoExpandDC = deprecated_class(
+    attrs_mapping={"old_field": "new_field"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(AutoExpandDC)
+
+# Same but with a required (no-default) dataclass field.
+DepAutoExpandReqDC = deprecated_class(
+    attrs_mapping={"old_field": "new_field"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(AutoExpandReqDC)
+
+# ========== Positional-only constructor guard fixture ==========
+
+# args_mapping remaps old_val → new_val, but new_val is POSITIONAL_ONLY on
+# PositionalOnlyTarget — proxy emits UserWarning at decoration time and falls
+# back to setattr at call time.  Suppress the decoration-time UserWarning here
+# so importing this module does not pollute test output.
+import warnings as _warnings_mod  # noqa: E402
+
+with _warnings_mod.catch_warnings():
+    _warnings_mod.simplefilter("ignore", UserWarning)
+    DepPositionalOnly = deprecated_class(
+        args_mapping={"old_val": "new_val"},
+        **_DEPRS_CASE_STD_INF_ARGS,
+    )(PositionalOnlyTarget)

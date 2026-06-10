@@ -605,3 +605,40 @@ class StackingArgsAttrsBase:
     def __init__(self, new_arg: int = 0) -> None:
         """Construct StackingArgsAttrsBase."""
         self.new_arg = new_arg
+
+
+@dataclass
+class AutoExpandDC:
+    """Dataclass target for attrs_mapping dual-surface auto-expand tests.
+
+    Wrapped by ``DepAutoExpandDC`` in :mod:`tests.collection_deprecate` with only
+    ``attrs_mapping={"old_field": "new_field"}`` — the proxy auto-expands into
+    ``args_mapping`` so both ``instance.old_field`` and ``DC(old_field=5)`` warn.
+    """
+
+    new_field: int = 0
+
+
+@dataclass
+class AutoExpandReqDC:
+    """Dataclass target with a required field for auto-expand regression tests.
+
+    ``new_field`` has no default; wrapped by ``DepAutoExpandReqDC`` to verify
+    auto-expansion on required fields.
+    """
+
+    new_field: int
+
+
+class PositionalOnlyTarget:
+    """Target with a POSITIONAL_ONLY constructor parameter for args_mapping compat tests.
+
+    ``new_val`` is declared positional-only so ``PositionalOnlyTarget(new_val=5)`` raises
+    ``TypeError``.  Wrapped by ``DepPositionalOnly`` in :mod:`tests.collection_deprecate`
+    to verify the proxy emits ``UserWarning`` at decoration time and falls back to
+    ``setattr`` at call time instead of crashing.
+    """
+
+    def __init__(self, new_val: int = 0, /) -> None:
+        """Store positional-only arg."""
+        self.new_val = new_val

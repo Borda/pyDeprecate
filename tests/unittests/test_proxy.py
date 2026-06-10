@@ -1969,3 +1969,159 @@ class TestAttrsMappingCombinations:
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
         assert user_warnings, "Expected a UserWarning from _validate_proxy but got none"
         assert user_warnings[0].filename == __file__
+
+
+# ---------------------------------------------------------------------------
+# Dataclass dual-surface auto-expand
+# ---------------------------------------------------------------------------
+
+
+class TestDataclassAutoExpand:
+    """attrs_mapping auto-expansion to args_mapping for ``@dataclass`` targets.
+
+    When ``deprecated_class`` is applied to a ``@dataclass`` with only ``attrs_mapping``
+    configured, the proxy must automatically expand into ``args_mapping`` so that both the
+    attribute-access surface (post-construction ``__getattr__``) and the constructor-call
+    surface (``DC(old_field=5)``) emit ``FutureWarning`` from a single decoration call.
+    """
+
+    def test_constructor_kwarg_warns_after_auto_expand(self) -> None:
+        """``DepAutoExpandDC(old_field=5)`` emits FutureWarning after auto-expand.
+
+        Before the fix, ``attrs_mapping``-only on a dataclass meant calling ``DC(old_field=5)``
+        raised ``TypeError``.  After auto-expand the proxy has ``args_mapping={"old_field":
+        "new_field"}`` and the FutureWarning fires; the instance is created with
+        ``new_field=5``.
+        """
+        from tests.collection_deprecate import DepAutoExpandDC
+
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandDC(old_field=5)  # type: ignore[call-arg]
+        assert instance.new_field == 5
+
+    def test_class_proxy_attribute_access_warns(self) -> None:
+        """Accessing the deprecated alias via the class proxy emits FutureWarning.
+
+        ``attrs_mapping`` operates at the class-proxy level: ``DepAutoExpandDC.old_field``
+        routes through the proxy's ``__getattr__``, emits FutureWarning, and returns the
+        value of the canonical field.  Instance-level attribute access is not proxied —
+        instances returned by the callable target are plain dataclass objects.
+        """
+        from tests.collection_deprecate import DepAutoExpandDC
+
+        with pytest.warns(FutureWarning):
+            _ = DepAutoExpandDC.old_field  # class-proxy access, not instance attr
+
+    def test_auto_expanded_keys_recorded_on_deprecated_meta(self) -> None:
+        """``args_mapping_auto_expanded`` on ``__deprecated__`` lists the auto-copied key.
+
+        Audit tools read ``DeprecationConfig.args_mapping_auto_expanded`` to distinguish
+        auto-generated entries from user-supplied ones.
+        """
+        from tests.collection_deprecate import DepAutoExpandDC
+
+        meta = object.__getattribute__(DepAutoExpandDC, "__deprecated__")
+        assert "old_field" in meta.args_mapping_auto_expanded
+
+    def test_explicit_args_mapping_not_overwritten(self) -> None:
+        """Explicit ``args_mapping`` entry for the same key is not overwritten.
+
+        When the user supplies ``args_mapping={"old_field": ...}`` explicitly, the auto-
+        expand skips that key so the user-supplied value always wins.
+        """
+        import dataclasses
+
+        from deprecate.proxy import deprecated_class
+
+        @dataclasses.dataclass
+        class _DC:
+            new_field: int = 0
+
+        proxy = deprecated_class(
+            attrs_mapping={"old_field": "new_field"},
+            args_mapping={"old_field": "new_field"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )(_DC)
+        meta = object.__getattribute__(proxy, "__deprecated__")
+        assert "old_field" not in meta.args_mapping_auto_expanded
+
+    def test_deprecation_entry_preserved_through_auto_expand(self) -> None:
+        """``DeprecationEntry`` in ``attrs_mapping`` survives auto-copy to ``args_mapping``.
+
+        Per-entry version metadata must not be lost during auto-expand — the same
+        ``DeprecationEntry`` instance must appear in both mappings.
+        """
+        import dataclasses
+
+        from deprecate import DeprecationEntry, deprecated_class
+
+        @dataclasses.dataclass
+        class _DC:
+            new_field: int = 0
+
+        entry = DeprecationEntry("new_field", deprecated_in="0.9", remove_in="1.5")
+        proxy = deprecated_class(
+            attrs_mapping={"old_field": entry},
+            deprecated_in="1.0",
+            remove_in="2.0",
+            num_warns=-1,
+        )(_DC)
+        meta = object.__getattribute__(proxy, "__deprecated__")
+        assert meta.args_mapping is not None
+        assert meta.args_mapping["old_field"] is entry
+
+
+# ---------------------------------------------------------------------------
+# Positional-only constructor guard + setattr fallback
+# ---------------------------------------------------------------------------
+
+
+class TestPositionalOnlyFallback:
+    """``args_mapping`` on a class with ``POSITIONAL_ONLY`` constructor parameters.
+
+    The proxy must emit ``UserWarning`` at decoration time, record
+    ``incompatible_args_mapping`` on ``DeprecationConfig``, and fall back to
+    ``setattr`` at call time instead of forwarding the remapped kwarg as a
+    positional-only keyword (which would raise ``TypeError``).
+    """
+
+    def test_decoration_emits_user_warning(self) -> None:
+        """Creating ``deprecated_class`` with ``args_mapping`` to a positional-only param warns.
+
+        The ``UserWarning`` must mention that the target parameter is positional-only so
+        developers know to use ``attrs_mapping`` instead.
+        """
+        from deprecate.proxy import deprecated_class
+        from tests.collection_targets import PositionalOnlyTarget
+
+        with pytest.warns(UserWarning, match="POSITIONAL_ONLY"):
+            deprecated_class(
+                args_mapping={"old_val": "new_val"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )(PositionalOnlyTarget)
+
+    def test_incompatible_key_recorded_on_deprecated_meta(self) -> None:
+        """``incompatible_args_mapping`` on ``__deprecated__`` lists the offending old key.
+
+        The field is populated at decoration time so audit tools can surface it without
+        re-inspecting the constructor signature at report time.
+        """
+        from tests.collection_deprecate import DepPositionalOnly
+
+        meta = object.__getattribute__(DepPositionalOnly, "__deprecated__")
+        assert "old_val" in meta.incompatible_args_mapping
+
+    def test_call_with_deprecated_kwarg_does_not_crash(self) -> None:
+        """``DepPositionalOnly(old_val=7)`` succeeds via ``setattr`` fallback.
+
+        Without the fallback, remapping ``old_val``→``new_val`` would produce
+        ``PositionalOnlyTarget(new_val=7)`` which raises ``TypeError``.  The proxy
+        must construct without the kwarg and use ``setattr`` to assign ``new_val=7``.
+        """
+        from tests.collection_deprecate import DepPositionalOnly
+
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnly(old_val=7)  # type: ignore[call-arg]
+        assert instance.new_val == 7
