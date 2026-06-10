@@ -1000,9 +1000,14 @@ def deprecated_class(
     """
 
     def decorator(cls: Union[type, "_DeprecatedProxy"]) -> "_DeprecatedProxy":
+        # When cls is a _DeprecatedProxy (stacking case), cls.__name__ triggers __getattr__
+        # which emits a spurious warning. Retrieve the name safely via the stored metadata.
+        cls_name = (
+            object.__getattribute__(cls, "__deprecated__").name if isinstance(cls, _DeprecatedProxy) else cls.__name__
+        )
         if stream is not None and not deprecated_in and not template_mgs:
             warnings.warn(
-                f"`@deprecated_class` on `{cls.__name__}` has no `deprecated_in` set."
+                f"`@deprecated_class` on `{cls_name}` has no `deprecated_in` set."
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
@@ -1010,7 +1015,7 @@ def deprecated_class(
             )
         proxy = _DeprecatedProxy(
             obj=cls,
-            name=cls.__name__,
+            name=cls_name,
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             num_warns=num_warns,
