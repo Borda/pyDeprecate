@@ -1761,7 +1761,7 @@ DeprecatedAttrsPaletteAllThree = deprecated_class(
 # selective set is consumed by the outer's __getattr__ before it reaches the inner.
 # ``DeprecatedAttrsPalette`` is a ``_DeprecatedProxy`` instance — the annotation now accepts
 # Union[type, _DeprecatedProxy] so no cast is needed.
-DeprecatedAttrsPaletteNested = deprecated_class(**_DEPRS_CASE_STD_ARGS, stream=None)(DeprecatedAttrsPalette)  # type: ignore[arg-type]
+DeprecatedAttrsPaletteNested = deprecated_class(**_DEPRS_CASE_STD_ARGS, stream=None)(DeprecatedAttrsPalette)
 
 
 # ========== DeprecationEntry stacking and per-entry version fixtures ==========
