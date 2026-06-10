@@ -813,10 +813,8 @@ class _DeprecatedProxy:
                     if r is not None
                 }
                 pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
-                instance = cfg.obj(*args, **mapped_kwargs)
                 for new_key, val in pending.items():
-                    object.__setattr__(instance, new_key, val)
-                return instance
+                    setattr(instance, new_key, val)
             return cfg.obj(*args, **mapped_kwargs)
         if callable(dep.target) and dep.args_mapping:
             mapping = dep.args_mapping or {}
@@ -838,9 +836,8 @@ class _DeprecatedProxy:
                     if r is not None
                 }
                 pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
-                instance = dep.target(*args, **mapped_kwargs)
                 for new_key, val in pending.items():
-                    object.__setattr__(instance, new_key, val)
+                    setattr(instance, new_key, val)
                 return instance
             return dep.target(*args, **mapped_kwargs)
         # Callable target without args_mapping: warn globally; still merge args_extra so

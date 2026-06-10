@@ -1824,13 +1824,13 @@ def depr_fn_with_entry_args_mapping(old_arg: int = 0, new_arg: int = 0) -> int:
 # so both instance.old_field access and DC(old_field=5) constructor calls emit FutureWarning.
 DepAutoExpandDC = deprecated_class(
     attrs_mapping={"old_field": "new_field"},
-    **_DEPRS_CASE_STD_INF_ARGS,
+    **_DEPRS_CASE_STD_INF_ARGS
 )(AutoExpandDC)
 
 # Same but with a required (no-default) dataclass field.
 DepAutoExpandReqDC = deprecated_class(
     attrs_mapping={"old_field": "new_field"},
-    **_DEPRS_CASE_STD_INF_ARGS,
+    **_DEPRS_CASE_STD_INF_ARGS
 )(AutoExpandReqDC)
 
 # ========== Positional-only constructor guard fixture ==========
@@ -1845,5 +1845,5 @@ with _warnings_mod.catch_warnings():
     _warnings_mod.simplefilter("ignore", UserWarning)
     DepPositionalOnly = deprecated_class(
         args_mapping={"old_val": "new_val"},
-        **_DEPRS_CASE_STD_INF_ARGS,
+        **_DEPRS_CASE_STD_INF_ARGS
     )(PositionalOnlyTarget)
