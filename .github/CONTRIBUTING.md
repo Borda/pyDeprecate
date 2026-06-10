@@ -523,7 +523,6 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 - `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `collection_deprecate.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
 
-
 **Docstrings in test collections:**
 
 Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collection_chains.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
