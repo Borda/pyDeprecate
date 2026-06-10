@@ -175,7 +175,7 @@ class TestDeprecationEntry:
             },
             deprecated_in="1.0",
             remove_in="2.0",
-            num_warns=-1
+            num_warns=-1,
         )(DeprEntryRedirectTarget)
 
         with pytest.warns(FutureWarning, match="0.9"):
