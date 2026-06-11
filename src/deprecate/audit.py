@@ -1272,7 +1272,9 @@ def validate_mapping_compatibility(
         'DepPositionalOnly'
 
     """
-    return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.args_mapping_positional_only]
+    return [
+        info for info in find_deprecation_wrappers(module, recursive=recursive) if info.args_mapping_positional_only
+    ]
 
 
 # ---------------------------------------------------------------------------
