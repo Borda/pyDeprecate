@@ -1698,7 +1698,7 @@ class Compute:
         return void(radius)
 
 
-print(Compute.surface(3.0))
+print(Compute.surface(3.0))  # warns: FutureWarning
 ```
 
 <details>
@@ -1733,7 +1733,7 @@ class Compute:
         return void(r, radius)
 
 
-print(Compute.surface(r=3.0))
+print(Compute.surface(r=3.0))  # warns: FutureWarning
 ```
 
 <details>

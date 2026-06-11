@@ -428,10 +428,10 @@ def _normalize_target(
                 func_name = getattr(target.__func__, "__name__", "target")
                 raise TypeError(
                     f"@deprecated(target=<classmethod descriptor>) on '{source.__name__}': "
-                    f"the underlying function expects 'cls' as its first argument, but "
-                    f"'{source.__name__}' has no 'cls' parameter. "
-                    f"Pass 'target={func_name}' after the class is defined, "
-                    f"or 'target={func_name}.__func__' explicitly."
+                    "descriptor targets require the source to accept a leading class argument "
+                    "(typically named 'cls') so it can be forwarded to the replacement. "
+                    f"Either make '{source.__name__}' a @classmethod, or pass a bound target like "
+                    f"'target=<YourClass>.{func_name}' after the class is defined."
                 )
         return target.__func__
 
