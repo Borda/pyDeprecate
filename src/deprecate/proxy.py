@@ -796,6 +796,9 @@ class _DeprecatedProxy:
           passed still warn at the callable level (class is deprecated); remap, merge ``args_extra``, and forward to
           target.
         - Callable target without ``args_mapping``: warn (global budget), merge ``args_extra``, and forward to target.
+        - :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`: governs attribute access only; ``args_extra`` is
+          intentionally not applied on ``__call__`` — :meth:`~deprecate._types.TargetMode._validate_proxy`
+          already warns about this misconfiguration at decoration time.
         - :attr:`~deprecate._types.TargetMode.NOTIFY`: always warn (global budget) and forward kwargs unchanged;
           ``args_extra`` is intentionally ignored (misconfig).
 
@@ -807,7 +810,7 @@ class _DeprecatedProxy:
         # callable warning. ATTRS_REMAP governs attribute access only; the call itself is not a deprecated
         # surface, so forwarding through the inner proxy avoids double-warning when both layers are active.
         if dep.target is TargetMode.ATTRS_REMAP and isinstance(cfg.obj, _DeprecatedProxy):
-            return cfg.obj(*args, **self._merge_args_extra(kwargs))
+            return cfg.obj(*args, **kwargs)
 
         if dep.target is TargetMode.ARGS_REMAP:
             mapping = dep.args_mapping or {}
@@ -853,6 +856,9 @@ class _DeprecatedProxy:
             return dep.target(*args, **self._merge_args_extra(kwargs))
         # NOTIFY: forward unchanged — args_extra is intentionally ignored (already warned at construction).
         if dep.target is TargetMode.NOTIFY:
+            return self._get_active()(*args, **kwargs)
+        # ATTRS_REMAP (non-stacking path): attribute access only — args_extra not applied.
+        if dep.target is TargetMode.ATTRS_REMAP:
             return self._get_active()(*args, **kwargs)
         # No target configured (e.g. deprecated_instance with no target): merge args_extra into the call so
         # wrappers can inject default kwargs even without a forwarding target.
