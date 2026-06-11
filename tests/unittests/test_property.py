@@ -282,10 +282,9 @@ class TestClassMethodDescriptorTarget:
 
         cm: classmethod = classmethod(_new_cm_fn)
 
-        with (
-            patch("deprecate.deprecation.inspect.signature", side_effect=ValueError("no sig")),
-            pytest.raises(TypeError, match="leading class argument"),
-        ):
+        with patch(
+            "deprecate.deprecation.inspect.signature", side_effect=ValueError("no sig")
+        ), pytest.raises(TypeError, match="leading class argument"):
 
             @deprecated(target=cm, deprecated_in="1.0", remove_in="2.0")
             def aaa(x: int) -> int:
