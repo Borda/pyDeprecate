@@ -1248,7 +1248,7 @@ def validate_mapping_compatibility(
 ) -> list[DeprecationWrapperInfo]:
     """Return wrappers whose ``args_mapping`` remaps deprecated names to POSITIONAL_ONLY constructor params.
 
-    A non-empty :attr:`~deprecate.audit.DeprecationWrapperInfo.incompatible_args_mapping` means the
+    A non-empty ``incompatible_args_mapping`` on the returned ``DeprecationWrapperInfo`` means the
     proxy falls back to ``setattr`` at call time instead of forwarding the remapped kwarg.  Use this
     validator in CI to detect :func:`~deprecate.proxy.deprecated_class` configurations that silently
     degrade to attribute assignment and may not behave as expected on all target class types.
@@ -1259,15 +1259,17 @@ def validate_mapping_compatibility(
         recursive: When ``True`` (default) recursively scan submodules.
 
     Returns:
-        List of :class:`~deprecate.audit.DeprecationWrapperInfo` whose
-        :attr:`~deprecate.audit.DeprecationWrapperInfo.incompatible_args_mapping` is non-empty.
+        List of ``DeprecationWrapperInfo`` instances whose ``incompatible_args_mapping`` field is
+        non-empty.  Returns an empty list when no incompatibilities are found.
 
-    Example:
+    Examples:
         >>> from deprecate import validate_mapping_compatibility
         >>> import tests.collection_deprecate as col
         >>> results = validate_mapping_compatibility(col, recursive=False)
-        >>> isinstance(results, list)
+        >>> len(results) > 0  # DepPositionalOnly remaps to a POSITIONAL_ONLY param
         True
+        >>> results[0].function
+        'DepPositionalOnly'
 
     """
     return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.incompatible_args_mapping]
