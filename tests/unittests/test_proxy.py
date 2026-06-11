@@ -2041,6 +2041,42 @@ class TestDataclassAutoExpand:
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert "old_field" not in meta.args_mapping_auto_expanded
 
+    def test_req_dc_constructor_kwarg_warns_after_auto_expand(self) -> None:
+        """``DepAutoExpandReqDC(old_field=5)`` emits FutureWarning and returns a correctly populated instance.
+
+        ``AutoExpandReqDC`` has a required (no-default) field ``new_field``.  After auto-expand
+        the proxy has ``args_mapping={"old_field": "new_field"}`` so calling with the deprecated
+        kwarg must (a) emit ``FutureWarning`` and (b) create an instance where ``new_field == 5``.
+        Without auto-expand the call would raise ``TypeError`` because ``new_field`` is required
+        and ``old_field`` is not recognised by the dataclass constructor.
+        """
+        from tests.collection_deprecate import DepAutoExpandReqDC
+
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandReqDC(old_field=5)  # type: ignore[call-arg]
+        assert instance.new_field == 5
+
+    def test_req_dc_class_proxy_attribute_access_warns_then_raises(self) -> None:
+        """Accessing ``DepAutoExpandReqDC.old_field`` emits FutureWarning then raises AttributeError.
+
+        ``AutoExpandReqDC`` has a required field ``new_field`` with no class-level default.
+        The proxy emits a ``FutureWarning`` (redirect from ``old_field`` → ``new_field``) before
+        attempting the attribute read; because there is no class-level sentinel value for a required
+        dataclass field, the lookup then raises ``AttributeError``.  Both signals must occur — the
+        warning fires first, the error follows.
+        """
+        import warnings as _warnings
+
+        from tests.collection_deprecate import DepAutoExpandReqDC
+
+        with _warnings.catch_warnings(record=True) as caught:
+            _warnings.simplefilter("always")
+            with pytest.raises(AttributeError):
+                _ = DepAutoExpandReqDC.old_field  # type: ignore[attr-defined]
+
+        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warns) >= 1, "FutureWarning must be emitted before AttributeError"
+
 
 # ---------------------------------------------------------------------------
 # Positional-only constructor guard + setattr fallback

@@ -880,3 +880,50 @@ class TestValidateMappingCompatibility:
         dc_results = [r for r in results if r.function == "DepAutoExpandDC"]
         assert dc_results, "DepAutoExpandDC not found by find_deprecation_wrappers"
         assert "old_field" in dc_results[0].args_mapping_auto_expanded
+
+    def test_returns_empty_list_for_module_without_positional_only_wrappers(self) -> None:
+        """``validate_mapping_compatibility`` returns [] when no wrapper targets POSITIONAL_ONLY params.
+
+        ``tests.collection_misconfigured`` contains only ``@deprecated``-decorated functions
+        (not ``deprecated_class`` proxies with ``args_mapping`` to positional-only constructor
+        params), so the validator must return an empty list — no false positives.
+        """
+        import tests.collection_misconfigured as clean_module
+        from deprecate import validate_mapping_compatibility
+
+        results = validate_mapping_compatibility(clean_module, recursive=False)
+        assert results == [], (
+            f"Expected no positional-only incompatibilities in collection_misconfigured; got: "
+            f"{[r.function for r in results]}"
+        )
+
+    def test_none_value_in_args_mapping_is_not_false_positive(self) -> None:
+        """A ``deprecated_class`` with ``args_mapping={old: None}`` must NOT appear in results.
+
+        ``args_mapping`` values of ``None`` denote warn-only (drop) entries — the proxy never
+        attempts to forward the key as a kwarg, so there is no positional-only incompatibility
+        to report.  ``_get_incompatible_args_mapping_keys`` correctly skips ``None`` values;
+        this test pins that behaviour so a future refactor cannot introduce a false positive.
+        """
+        import warnings
+
+        from deprecate.audit import validate_deprecation_wrapper
+        from deprecate.proxy import deprecated_class
+        from tests.collection_targets import PositionalOnlyTarget
+
+        # Construct the proxy with a warn-only (None) mapping to the positional-only param name.
+        # Suppress the decoration-time UserWarning that fires when a real remap key is positional-only;
+        # here "old_val" maps to None (drop), so no UserWarning fires — but wrap defensively.
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            proxy = deprecated_class(
+                args_mapping={"old_val": None},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )(PositionalOnlyTarget)
+
+        info = validate_deprecation_wrapper(proxy)
+        assert info.incompatible_args_mapping == [], (
+            f"args_mapping={{old_val: None}} must not produce incompatible_args_mapping; "
+            f"got: {info.incompatible_args_mapping}"
+        )

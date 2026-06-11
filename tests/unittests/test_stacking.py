@@ -277,6 +277,33 @@ class TestStackingCombinations:
 
         assert proxy.new_attr == "updated"
 
+    def test_three_layer_instantiation_emits_at_most_one_warning(self) -> None:
+        """Three stacked ATTRS_REMAP proxies: instantiation emits at most one FutureWarning.
+
+        Each proxy layer is ATTRS_REMAP (``attrs_mapping`` only, no callable target).  On
+        instantiation the outer proxy detects the wrapped object is itself a
+        ``_DeprecatedProxy`` and delegates without emitting its own global warning.  The
+        chain bottoms out at ``StackingLeafBase``, which emits exactly one warning.  The
+        count must stay at or below 1 regardless of chain depth.
+        """
+        proxy = deprecated_class(attrs_mapping={"a": "canonical"}, deprecated_in="1.2", remove_in="2.0", num_warns=-1)(
+            deprecated_class(attrs_mapping={"b": "canonical"}, deprecated_in="1.0", remove_in="2.0", num_warns=-1)(
+                deprecated_class(attrs_mapping={"c": "canonical"}, deprecated_in="0.8", remove_in="1.0", num_warns=-1)(
+                    StackingLeafBase
+                )
+            )
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy()
+
+        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warns) <= 1, (
+            f"Expected at most 1 FutureWarning on instantiation of three-layer ATTRS_REMAP stack; "
+            f"got {len(future_warns)}: {[str(w.message) for w in future_warns]}"
+        )
+
     def test_stacked_attrs_remap_outer_args_remap_inner(self) -> None:
         """ATTRS_REMAP outer + ARGS_REMAP inner: each layer warns only for its own concern.
 
@@ -309,6 +336,51 @@ class TestStackingCombinations:
 
         assert isinstance(inst, StackingArgsAttrsBase)
         assert isinstance(inst, outer)  # type: ignore[arg-type]
+
+
+class TestDeprecatedProxyNonTypeFallback:
+    """``_DeprecatedProxy`` wrapping a non-type object: ``__instancecheck__`` / ``__subclasscheck__`` fallback.
+
+    When ``_DeprecatedProxy._get_active()`` returns something that is neither a ``type`` nor a
+    ``_DeprecatedProxy``, both dunder methods must return ``False`` without raising.  This guards
+    against proxy misuse (e.g. wrapping a plain dict instance rather than a class) and ensures the
+    implementation short-circuits cleanly rather than forwarding to ``type.__instancecheck__``, which
+    would raise ``TypeError``.
+    """
+
+    def test_isinstance_returns_false_when_active_is_not_a_type(self) -> None:
+        """``isinstance(obj, proxy)`` returns ``False`` when the proxy wraps a non-type object.
+
+        ``_DeprecatedProxy`` with a plain dict as ``obj`` has no ``type`` to delegate to.
+        ``__instancecheck__`` must return ``False`` rather than raising ``TypeError``.
+        """
+        from deprecate.proxy import _DeprecatedProxy
+
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="legacy_dict",
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )
+        result = isinstance({}, proxy)  # type: ignore[arg-type]
+        assert result is False
+
+    def test_issubclass_returns_false_when_active_is_not_a_type(self) -> None:
+        """``issubclass(cls, proxy)`` returns ``False`` when the proxy wraps a non-type object.
+
+        ``_DeprecatedProxy`` with a plain dict as ``obj`` has no ``type`` to delegate to.
+        ``__subclasscheck__`` must return ``False`` rather than raising ``TypeError``.
+        """
+        from deprecate.proxy import _DeprecatedProxy
+
+        proxy = _DeprecatedProxy(
+            obj={},
+            name="legacy_dict",
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )
+        result = issubclass(int, proxy)  # type: ignore[arg-type]
+        assert result is False
 
 
 class TestCombinedSingleCallProxy:
