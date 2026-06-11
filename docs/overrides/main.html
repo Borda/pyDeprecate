@@ -292,6 +292,14 @@
             "@type": "Answer",
             "text": "Double-wrapping a deprecated property would emit two FutureWarning notices per access and fire the stacking guard three times, so pyDeprecate raises TypeError at decoration time to prevent the misconfiguration from reaching production. The error message names the offending property and points to supported alternatives. Fix: apply @deprecated once and use chain-style @value.setter / @value.deleter to add accessors — the outer-order subclass of property re-wraps the freshly-supplied accessor with the same packing config. Alternative: build the property explicitly via property(fget, fset, fdel) and wrap it once with @deprecated, which covers all three accessors in a single application."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does attrs_mapping auto-expand skip some fields on a dataclass with a custom __init__?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "deprecated_class() auto-expands attrs_mapping entries into args_mapping using inspect.signature — not dataclasses.fields(). Two cases are intentionally excluded: (1) field(init=False) fields are instance attributes set inside __init__ or __post_init__ but not valid constructor kwargs; (2) a custom __init__ may intentionally omit a dataclass field from its signature. Both surfaces still work independently — attrs_mapping redirects attribute access for all listed aliases including init=False fields, while args_mapping only covers names actually present in the constructor signature."
+          }
         }
       ]
     }

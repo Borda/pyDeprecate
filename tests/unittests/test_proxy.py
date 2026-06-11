@@ -2077,6 +2077,74 @@ class TestDataclassAutoExpand:
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert len(future_warns) >= 1, "FutureWarning must be emitted before AttributeError"
 
+    def test_init_false_field_excluded_from_auto_expand(self) -> None:
+        """``field(init=False)`` entries must not appear in ``args_mapping_auto_expanded``.
+
+        ``AutoExpandInitFalseDC`` has ``new_field`` (normal param) and ``computed_field``
+        (``init=False``).  Only ``old_field`` → ``new_field`` should be auto-expanded;
+        ``old_computed`` → ``computed_field`` must be excluded because ``computed_field``
+        is not a valid ``__init__`` kwarg — passing it to the constructor raises ``TypeError``.
+        """
+        from tests.collection_deprecate import DepAutoExpandInitFalseDC
+
+        meta = object.__getattribute__(DepAutoExpandInitFalseDC, "__deprecated__")
+        assert "old_field" in meta.args_mapping_auto_expanded
+        assert "old_computed" not in meta.args_mapping_auto_expanded
+
+    def test_init_false_field_constructor_not_erroring(self) -> None:
+        """Calling the proxy with the normal kwarg succeeds; init=False kwarg is not passed.
+
+        Before the fix, ``computed_field`` was included in ``args_mapping``, so passing
+        ``old_computed=5`` would remap it to ``computed_field=5`` and pass it to the
+        dataclass constructor, raising ``TypeError``.  After the fix the proxy never
+        adds ``computed_field`` to ``args_mapping``, so construction via the normal
+        param path succeeds.
+        """
+        from tests.collection_deprecate import DepAutoExpandInitFalseDC
+
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandInitFalseDC(old_field=3)  # type: ignore[call-arg]
+        assert instance.new_field == 3
+        assert instance.computed_field == 0  # default, not touched by constructor
+
+    def test_overridden_init_in_range_field_auto_expanded(self) -> None:
+        """Fields present in the overridden ``__init__`` signature are auto-expanded.
+
+        ``AutoExpandOverriddenInitDC`` overrides ``__init__`` to accept only ``new_field``.
+        ``old_field`` → ``new_field`` must appear in ``args_mapping_auto_expanded`` because
+        ``new_field`` is in ``inspect.signature``.
+        """
+        from tests.collection_deprecate import DepAutoExpandOverriddenInitDC
+
+        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
+        assert "old_field" in meta.args_mapping_auto_expanded
+
+    def test_overridden_init_absent_field_not_auto_expanded(self) -> None:
+        """Fields absent from the overridden ``__init__`` signature are not auto-expanded.
+
+        ``skipped_field`` is a dataclass field (``init=True`` by default in the ``@dataclass``
+        descriptor) but intentionally absent from the overridden ``__init__``.  Using
+        ``dataclasses.fields()`` would (incorrectly) include it; ``inspect.signature`` correctly
+        excludes it.  Passing ``old_skipped`` to the constructor must not raise ``TypeError``.
+        """
+        from tests.collection_deprecate import DepAutoExpandOverriddenInitDC
+
+        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
+        assert "old_skipped" not in meta.args_mapping_auto_expanded
+
+    def test_overridden_init_constructor_kwarg_warns(self) -> None:
+        """Calling ``DepAutoExpandOverriddenInitDC`` with the deprecated kwarg warns and constructs.
+
+        The old kwarg ``old_field`` is remapped to ``new_field`` via auto-expanded
+        ``args_mapping``; the instance is created by the overridden ``__init__`` which
+        accepts ``new_field``.
+        """
+        from tests.collection_deprecate import DepAutoExpandOverriddenInitDC
+
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandOverriddenInitDC(old_field=7)  # type: ignore[call-arg]
+        assert instance.new_field == 7
+
 
 # ---------------------------------------------------------------------------
 # Positional-only constructor guard + setattr fallback

@@ -316,11 +316,9 @@ class _DeprecatedProxy:
         if args_mapping is not None:
             args_mapping = dict(args_mapping)
         if attrs_mapping and _is_dataclass_target(_dc_check):
-            import dataclasses as _dc_mod
-
-            _dc_fields: set[str] = {f.name for f in _dc_mod.fields(_dc_check)}
+            _init_param_names: set[str] = set(inspect.signature(_dc_check).parameters)
             for _old_key, _mapping_val in attrs_mapping.items():
-                if _mapping_val in _dc_fields:
+                if _mapping_val in _init_param_names:
                     if args_mapping is None:
                         args_mapping = {}
                     if _old_key not in args_mapping:

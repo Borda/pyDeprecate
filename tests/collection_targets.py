@@ -8,7 +8,7 @@ import functools
 import time
 import warnings
 from collections.abc import AsyncIterator, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Optional
 
@@ -578,6 +578,39 @@ class AutoExpandReqDC:
     """
 
     new_field: int
+
+
+@dataclass
+class AutoExpandInitFalseDC:
+    """Dataclass with a mix of normal and ``init=False`` fields for auto-expand edge case tests.
+
+    ``new_field`` is a normal constructor parameter; ``computed_field`` is ``init=False`` and
+    must NOT be auto-expanded into ``args_mapping`` because it is not a valid ``__init__``
+    kwarg.  Wrapped by ``DepAutoExpandInitFalseDC`` in :mod:`tests.collection_deprecate`.
+    """
+
+    new_field: int = 0
+    computed_field: int = field(default=0, init=False)
+
+
+@dataclass
+class AutoExpandOverriddenInitDC:
+    """Dataclass with overridden ``__init__`` for signature-based auto-expand tests.
+
+    ``new_field`` is accepted by the overridden ``__init__``; ``skipped_field`` is declared
+    as a dataclass field but intentionally absent from the custom ``__init__``.  Auto-expand
+    must consult ``inspect.signature`` — not ``dataclasses.fields()`` — so only ``new_field``
+    is expanded into ``args_mapping``.  Wrapped by ``DepAutoExpandOverriddenInitDC`` in
+    :mod:`tests.collection_deprecate`.
+    """
+
+    new_field: int = 0
+    skipped_field: int = 0
+
+    def __init__(self, new_field: int = 0) -> None:
+        """Override __init__ to accept only new_field; set skipped_field to a sentinel."""
+        self.new_field = new_field
+        self.skipped_field = 99
 
 
 class PositionalOnlyTarget:

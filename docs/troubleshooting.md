@@ -663,6 +663,57 @@ print(my_func(3))
 
 ______________________________________________________________________
 
+## `attrs_mapping` auto-expand skips some fields on a dataclass with a custom `__init__`
+
+**Q:** I added `attrs_mapping` to a `deprecated_class()` wrapping a dataclass that overrides `__init__`. Some deprecated aliases aren't being auto-expanded into `args_mapping` — constructor calls with the old name raise `TypeError` instead of remapping. Why?
+
+**A:** When `deprecated_class()` detects a `@dataclass` target, it automatically copies `attrs_mapping` entries into `args_mapping` so that both attribute access (`proxy.old_field`) and constructor calls (`DC(old_field=5)`) emit `FutureWarning`. The auto-expand consults `inspect.signature` to determine which names are valid `__init__` kwargs.
+
+There are two cases where a field is intentionally excluded:
+
+1. **`field(init=False)`** — the field is an instance attribute set inside `__init__` (or `__post_init__`) but is not a constructor parameter. Passing it as a kwarg would raise `TypeError`.
+
+2. **Custom `__init__` that omits a dataclass field** — if the overridden `__init__` intentionally leaves a field out of its signature, that field is not a valid kwarg and is excluded from auto-expand.
+
+Both surfaces still work independently: `attrs_mapping` redirects attribute access for all listed aliases (including `init=False` fields), while `args_mapping` only covers fields present in the actual constructor signature.
+
+```python
+from dataclasses import dataclass, field
+from deprecate import deprecated_class
+
+
+@dataclass
+class Config:
+    timeout: int = 30
+    _cache: dict = field(default_factory=dict, init=False)  # not a constructor param
+
+
+DepConfig = deprecated_class(
+    attrs_mapping={"time_limit": "timeout", "store": "_cache"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(Config)
+
+meta = DepConfig.__deprecated__
+print("timeout auto-expanded:", "time_limit" in meta.args_mapping_auto_expanded)  # warns: FutureWarning
+print("_cache auto-expanded:", "store" in meta.args_mapping_auto_expanded)  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>meta.args_mapping_auto_expanded</code></summary>
+
+```
+timeout auto-expanded: True
+_cache auto-expanded: False
+```
+
+</details>
+
+`store` is excluded from `args_mapping` — calling `DepConfig(store={})` would raise `TypeError`. Use `attrs_mapping` for attribute access and leave the `init=False` field out of constructor calls.
+
+______________________________________________________________________
+
 ## My object mutated despite `read_only=True`
 
 **Q:** I passed `read_only=True` to `deprecated_instance()` but a method on my object still mutated its state. Why?

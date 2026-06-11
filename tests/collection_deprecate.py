@@ -53,6 +53,8 @@ from deprecate import TargetMode, deprecated, deprecated_class, deprecated_insta
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
     AutoExpandDC,
+    AutoExpandInitFalseDC,
+    AutoExpandOverriddenInitDC,
     AutoExpandReqDC,
     ColorEnum,
     CombinedAttrsArgsSource,
@@ -1795,6 +1797,21 @@ DepAutoExpandDC = deprecated_class(attrs_mapping={"old_field": "new_field"}, **_
 DepAutoExpandReqDC = deprecated_class(attrs_mapping={"old_field": "new_field"}, **_DEPRS_CASE_STD_INF_ARGS)(
     AutoExpandReqDC
 )
+
+# Mix of a normal field and an init=False field.  Only the normal field (new_field) must
+# appear in args_mapping_auto_expanded; computed_field (init=False) must be excluded because
+# it is not a valid __init__ kwarg and passing it to the constructor would raise TypeError.
+DepAutoExpandInitFalseDC = deprecated_class(
+    attrs_mapping={"old_field": "new_field", "old_computed": "computed_field"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(AutoExpandInitFalseDC)
+
+# Dataclass with overridden __init__: new_field is in the overridden signature, skipped_field
+# is a dataclass field but absent from __init__.  Only new_field must be auto-expanded.
+DepAutoExpandOverriddenInitDC = deprecated_class(
+    attrs_mapping={"old_field": "new_field", "old_skipped": "skipped_field"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(AutoExpandOverriddenInitDC)
 
 # ========== Positional-only constructor guard fixture ==========
 
