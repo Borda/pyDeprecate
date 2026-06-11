@@ -419,14 +419,19 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > def test_something(self) -> None:
 >     import warnings as _warnings
 >     from tests.collection_deprecate import DepAutoExpandReqDC
->     with _warnings.catch_warnings(record=True) as caught: ...
+>
+>     with _warnings.catch_warnings(record=True) as caught:
+>         ...
+>
 >
 > # ✓ correct — module-level imports
 > import warnings
 > from tests.collection_deprecate import DepAutoExpandReqDC
 >
+>
 > def test_something(self) -> None:
->     with warnings.catch_warnings(record=True) as caught: ...
+>     with warnings.catch_warnings(record=True) as caught:
+>         ...
 > ```
 
 > [!NOTE]
