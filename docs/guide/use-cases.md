@@ -1745,6 +1745,37 @@ print(Compute.surface(r=3.0))  # warns: FutureWarning
 
 </details>
 
+The same pattern works for `@classmethod`. Both the deprecated and the replacement must be classmethods — pyDeprecate enforces this symmetry at decoration time and raises `TypeError` if the source has no `cls` parameter.
+
+```python
+from deprecate import deprecated, void
+
+
+class Compute:
+    @classmethod
+    def area(cls, radius: float) -> float:
+        return 3.14159 * radius**2
+
+    # DEPRECATED — renamed from surface() to area()
+    @classmethod
+    @deprecated(target=area, deprecated_in="1.0", remove_in="2.0")
+    def surface(cls, radius: float) -> float:
+        """Deprecated — use area() instead."""
+        return void(radius)
+
+
+print(Compute.surface(3.0))  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>Compute.surface(3.0)</code></summary>
+
+```
+28.27431
+```
+
+</details>
+
 ## Properties and cached properties
 
 `@deprecated` works with `@property` and `@cached_property`. The decorator only adds a `FutureWarning` at access time — it does **not** forward reads or writes to another property. For a getter-only property, either decorator order is valid. To add a warning to all three accessors (`fget`, `fset`, `fdel`) so that read, write, **and** delete each fire `FutureWarning`, place `@deprecated` on the **outside** (`@deprecated @property` order, or explicit `deprecated(...)(property(fget, fset, fdel))`). The inner-first order (`@property @deprecated`) only adds a warning to `fget` — apply `@deprecated` to setter and deleter separately if you also need them to warn.
