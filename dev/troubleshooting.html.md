@@ -240,8 +240,17 @@ def old_func(old_arg: int, new_arg: int) -> int:
     pass
 
 
-assert isinstance(old_func(old_arg=1, new_arg=2), int)
+print(isinstance(old_func(old_arg=1, new_arg=2), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(old_func(old_arg=1, new_arg=2), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 **Option 2 — Rename the argument** (the target uses a different parameter name):
 
@@ -261,8 +270,17 @@ def old_func(old_name: int) -> int:
     pass
 
 
-assert isinstance(old_func(old_name=3), int)
+print(isinstance(old_func(old_name=3), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(old_func(old_name=3), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 **Option 3 — Use `TargetMode.ARGS_REMAP`** (deprecating an argument of the same function, not forwarding to a different one):
 
@@ -276,8 +294,17 @@ def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 
 
-assert isinstance(my_func(old_arg=1, new_arg=2), int)
+print(isinstance(my_func(old_arg=1, new_arg=2), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(my_func(old_arg=1, new_arg=2), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 ## TypeError: skip_if function must return bool
 
@@ -314,9 +341,19 @@ def old_func2():
     pass
 
 
-assert old_func1() == "Hi!"
-assert old_func2() == "Hi!"
+print(old_func1())
+print(old_func2())
 ```
+
+<details>
+  <summary>Output: <code>old_func1(), old_func2()</code></summary>
+
+```
+Hi!
+Hi!
+```
+
+</details>
 
 ## Deprecation notice not appearing
 
@@ -349,8 +386,17 @@ def old_func_warn_n_times():
     pass
 
 
-assert callable(old_func_always_warn) and callable(old_func_warn_n_times)
+print(callable(old_func_always_warn), callable(old_func_warn_n_times))
 ```
+
+<details>
+  <summary>Output: <code>callable(old_func_always_warn), callable(old_func_warn_n_times)</code></summary>
+
+```
+True True
+```
+
+</details>
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
 
@@ -575,8 +621,17 @@ def my_func(old_name: int = 0, new_name: int = 0) -> int:
     return new_name * 2
 
 
-assert isinstance(my_func(old_name=3), int)
+print(isinstance(my_func(old_name=3), int))
 ```
+
+<details>
+  <summary>Output: <code>isinstance(my_func(old_name=3), int)</code></summary>
+
+```
+True
+```
+
+</details>
 
 - **Warn callers with no forwarding or remapping** — use `TargetMode.NOTIFY` instead:
 
@@ -605,6 +660,57 @@ print(my_func(3))
 !!! danger "This misconfiguration will become a TypeError in v1.0"
 
     Migrate now to avoid a hard break on upgrade. Use the [audit tools](guide/audit.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
+
+______________________________________________________________________
+
+## `attrs_mapping` auto-expand skips some fields on a dataclass with a custom `__init__`
+
+**Q:** I added `attrs_mapping` to a `deprecated_class()` wrapping a dataclass that overrides `__init__`. Some deprecated aliases aren't being auto-expanded into `args_mapping` — constructor calls with the old name raise `TypeError` instead of remapping. Why?
+
+**A:** When `deprecated_class()` detects a `@dataclass` target, it automatically copies `attrs_mapping` entries into `args_mapping` so that both attribute access (`proxy.old_field`) and constructor calls (`DC(old_field=5)`) emit `FutureWarning`. The auto-expand consults `inspect.signature` to determine which names are valid `__init__` kwargs.
+
+There are two cases where a field is intentionally excluded:
+
+1. **`field(init=False)`** — the field is an instance attribute set inside `__init__` (or `__post_init__`) but is not a constructor parameter. Passing it as a kwarg would raise `TypeError`.
+
+2. **Custom `__init__` that omits a dataclass field** — if the overridden `__init__` intentionally leaves a field out of its signature, that field is not a valid kwarg and is excluded from auto-expand.
+
+Both surfaces still work independently: `attrs_mapping` redirects attribute access for all listed aliases (including `init=False` fields), while `args_mapping` only covers fields present in the actual constructor signature.
+
+```python
+from dataclasses import dataclass, field
+from deprecate import deprecated_class
+
+
+@dataclass
+class Config:
+    timeout: int = 30
+    _cache: dict = field(default_factory=dict, init=False)  # not a constructor param
+
+
+DepConfig = deprecated_class(
+    attrs_mapping={"time_limit": "timeout", "store": "_cache"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(Config)
+
+meta = DepConfig.__deprecated__
+print("timeout auto-expanded:", "time_limit" in meta.args_mapping_auto_expanded)
+print("_cache auto-expanded:", "store" in meta.args_mapping_auto_expanded)
+```
+
+<details>
+  <summary>Output: <code>meta.args_mapping_auto_expanded</code></summary>
+
+```
+timeout auto-expanded: True
+_cache auto-expanded: False
+```
+
+</details>
+
+`store` is excluded from `args_mapping` — calling `DepConfig(store={})` would raise `TypeError`. Use `attrs_mapping` for attribute access and leave the `init=False` field out of constructor calls.
 
 ______________________________________________________________________
 
@@ -923,8 +1029,17 @@ async def main():
     await asyncio.gather(*[old_fetch(u) for u in urls])
 
 
-assert asyncio.run(main()) is None
+print(asyncio.run(main()) is None)
 ```
+
+<details>
+  <summary>Output: <code>asyncio.run(main()) is None</code></summary>
+
+```
+True
+```
+
+</details>
 
 If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
 
@@ -958,10 +1073,7 @@ async def old_fetch(url: str) -> bytes:
 
 
 async def captured_correctly():
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        result = await old_fetch("https://example.com")  # warning fires here, inside block
-    assert len(w) == 1
+    result = await old_fetch("https://example.com")  # warns: FutureWarning
     return result
 
 
@@ -1304,6 +1416,39 @@ print(obj.value)
 </details>
 
 If you need to chain multiple migration steps across versions, the supported pattern is one `@deprecated` on the property plus chain-style accessors — not a second `@deprecated` on top.
+
+______________________________________________________________________
+
+## `@deprecated` crashes when the replacement target has POSITIONAL_ONLY parameters
+
+**Q:** I applied `@deprecated(target=new_fn)` and get `TypeError: new_fn() got some positional-only arguments passed as keyword argument` when calling the deprecated function. Why?
+
+**A:** `@deprecated` converts all intercepted arguments to kwargs before forwarding them to the target. If the target declares any parameter as positional-only (using `/` in the signature), that kwarg call raises `TypeError` because Python forbids passing positional-only params by name.
+
+```python
+def new_fn(x: int, /, y: int = 0) -> int:
+    return x + y
+
+
+# @deprecated(target=new_fn) then calling old_fn(5) internally does:
+#   new_fn(**{"x": 5})  →  TypeError: got positional-only argument as keyword argument
+```
+
+**Workaround**: wrap the target in a thin adapter that accepts the same params as ordinary keyword arguments:
+
+```python
+from deprecate import deprecated
+
+
+def _new_fn_compat(x: int, y: int = 0) -> int:
+    return new_fn(x, y)  # call new_fn positionally internally
+
+
+@deprecated(target=_new_fn_compat, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int, y: int = 0) -> int: ...
+```
+
+This limitation affects `@deprecated` on functions and methods only. `deprecated_class` is unaffected — the proxy has a `setattr` fallback for POSITIONAL_ONLY constructor parameters and emits a `UserWarning` at decoration time rather than crashing at call time.
 
 ______________________________________________________________________
 

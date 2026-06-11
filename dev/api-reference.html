@@ -1881,7 +1881,7 @@ Example: <code>"v%(deprecated_in)s: `%(source_name)s` was deprecated."</code></p
                 <code>args_mapping</code>
             </td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="deprecate.deprecation.ArgsMapping">ArgsMapping</span>]</code>
+                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Optional">Optional</span>[<span title="str">str</span>]]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2395,7 +2395,7 @@ doc engine at decoration time; <code>"rst"</code> emits a <code>.. deprecated::<
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Callable">Callable</span>[[<span title="type">type</span>], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="typing.Union">Union</span>[<span title="type">type</span>, <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3522,6 +3522,33 @@ that lack the introductory version metadata without crashing callers.</p>
 Possible values: <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass</code>, <code>dataclass attributes</code>,
 <code>data</code>, <code>class constructor</code>, <code>class constructor args</code>, <code>class method</code>, <code>class method args</code>,
 <code>classmethod</code>, <code>classmethod args</code>, <code>staticmethod</code>, <code>staticmethod args</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.args_mapping_auto_expanded">args_mapping_auto_expanded</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>args_mapping</code> keys that were automatically copied from <code>attrs_mapping</code>
+by the dataclass dual-surface expansion at decoration time.  Empty list when no auto-expansion
+occurred.  Read from :attr:<code>~deprecate._types.DeprecationConfig.args_mapping_auto_expanded</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.args_mapping_positional_only">args_mapping_positional_only</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>args_mapping</code> old-key names whose remapped target is a POSITIONAL_ONLY
+constructor parameter.  Non-empty list signals that the proxy falls back to <code>setattr</code> for those
+keys.  Use :func:<code>~deprecate.audit.validate_mapping_compatibility</code> to filter wrappers by this
+field.  Read from :attr:<code>~deprecate._types.DeprecationConfig.args_mapping_positional_only</code>.</p>
               </div>
             </td>
           </tr>
