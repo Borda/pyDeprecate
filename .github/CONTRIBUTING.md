@@ -411,6 +411,24 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > [!IMPORTANT]
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 
+> [!IMPORTANT]
+> **No local imports inside test functions.** All `import` and `from … import` statements must appear at module level, not inside test methods or helper functions. Import each fixture name at the top of the test file and use it directly in the test body.
+>
+> ```python
+> # ✗ wrong — local import inside a test method
+> def test_something(self) -> None:
+>     import warnings as _warnings
+>     from tests.collection_deprecate import DepAutoExpandReqDC
+>     with _warnings.catch_warnings(record=True) as caught: ...
+>
+> # ✓ correct — module-level imports
+> import warnings
+> from tests.collection_deprecate import DepAutoExpandReqDC
+>
+> def test_something(self) -> None:
+>     with warnings.catch_warnings(record=True) as caught: ...
+> ```
+
 > [!NOTE]
 > **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
 >

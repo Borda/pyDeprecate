@@ -1795,36 +1795,19 @@ def enforce_no_deprecation_chains():
 
 ### Detecting Positional-Only Incompatible Mappings
 
-`validate_mapping_compatibility()` finds `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. Those proxies cannot forward the remapped value as a keyword argument — they fall back to `setattr` after construction, which may silently produce wrong results on immutable types or classes without a matching `__setattr__`.
+The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. Those proxies fall back to `setattr` after construction, which may silently produce wrong results on immutable types or classes without a matching `__setattr__`.
 
-```python
-import pytest
-from deprecate import validate_mapping_compatibility
-
-# normally you would import your own package
-from tests import collection_deprecate as my_package
-
-
-def test_no_positional_only_mapping_conflicts():
-    """Ensure no deprecated_class proxy silently falls back to setattr."""
-    issues = validate_mapping_compatibility(my_package)
-
-    if issues:
-        lines = [
-            f"  - {i.function}: args_mapping remaps {list(i.args_mapping_positional_only)!r} to POSITIONAL_ONLY params"
-            for i in issues
-        ]
-        pytest.fail("Found incompatible args_mapping entries:
-" + "
-".join(lines))
+```bash
+pydeprecate check my_package
+# or as part of a full scan:
+pydeprecate all my_package
 ```
 
 > [!TIP]
 >
-> - Returns `list[DeprecationWrapperInfo]` — only entries where `args_mapping_positional_only` is non-empty
-> - The proxy still works at runtime via `setattr`, but the fallback is invisible; `validate_mapping_compatibility()` surfaces it at CI time
+> - The proxy still works at runtime via `setattr`, but the fallback is invisible; `pydeprecate check` surfaces it at CI time
 > - Fix: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
-> - Use `recursive=False` to scan only the top-level module
+> - For programmatic use: `validate_mapping_compatibility(module)` returns `list[DeprecationWrapperInfo]` where `args_mapping_positional_only` is non-empty
 
 ## 🧪 Testing Deprecated Code
 

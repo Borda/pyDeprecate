@@ -1161,51 +1161,60 @@ False
 `"gpu": "device"` warns and redirects the lookup to `Model.device`.
 Validation at decoration time requires that every `None`-value key exists on at least one of the two classes, so `cuda` must be defined on `LegacyModel` (or on `Model` if keeping it in the new API).
 
-#### Audit coverage for mapping compatibility
+!!! note "Audit tip — mapping compatibility"
+    After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg.
+    The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty.
+    See the [Audit guide](audit.md) for the full CI integration pattern.
 
-After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg, which may not behave correctly on all target types.
-The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty, giving you an actionable list before issues reach users.
-See the [Audit guide](audit.md) for the full CI integration pattern.
-
-**Choosing between a single call and stacking**
+#### Stacking `deprecated_class()` for multi-version deprecations
 
 Use a **single `deprecated_class()` call** when all attributes and arguments share the same `deprecated_in`/`remove_in` — it is the simplest form and keeps both mappings in one place.
 
-**Stack two `@deprecated_class()` decorators** when different attributes were deprecated at different versions and each mapping needs its own version pair:
+**Stack two `@deprecated_class()` decorators** when different attributes were deprecated at different releases and each rename needs its own version pair.
+A common scenario: a library renamed `steps` in v0.8 and `lr` in v1.0 — each rename carries its own removal deadline.
 
 ```python
 from deprecate import deprecated_class
 
 
+# outer layer: v1.0 rename (lr → learning_rate, remove in v2.0)
 @deprecated_class(
-    attrs_mapping={"old_attr": "new_attr"},
+    attrs_mapping={"lr": "learning_rate"},
     deprecated_in="1.0",
     remove_in="2.0",
 )
+# inner layer: v0.8 rename (steps → max_steps, remove in v1.0)
 @deprecated_class(
-    attrs_mapping={"older_attr": "newer_attr"},
-    deprecated_in="0.9",
+    attrs_mapping={"steps": "max_steps"},
+    deprecated_in="0.8",
     remove_in="1.0",
 )
-class MyClass:
-    newer_attr: str = "a"
-    new_attr: str = "b"
+class LegacyConfig:
+    lr: float = 1e-3            # deprecated since 1.0
+    learning_rate: float = 1e-3  # canonical
+    steps: int = 1000           # deprecated since 0.8
+    max_steps: int = 1000       # canonical
 
 
-obj = MyClass()
-print(isinstance(obj, MyClass))
+cfg = LegacyConfig()
+print(cfg.lr)                    # warns: FutureWarning (deprecated in 1.0, remove in 2.0)
+print(cfg.steps)                 # warns: FutureWarning (deprecated in 0.8, remove in 1.0)
+print(isinstance(cfg, LegacyConfig))
 ```
 
 <details>
-  <summary>Output: <code>isinstance(obj, MyClass)</code></summary>
+  <summary>Output: <code>cfg.lr; cfg.steps; isinstance(cfg, LegacyConfig)</code></summary>
 
 ```
+0.001
+1000
 True
 ```
 
 </details>
 
-Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, each layer emits its own version-accurate warning, and instantiation fires at most one global warning. When stacking two `ATTRS_REMAP` layers, only the innermost layer’s instantiation warning fires — the outer layer’s `deprecated_in`/`remove_in` are omitted from the instantiation notice (attribute-access warnings remain independent and fire for each layer).
+Each proxy layer carries its own `deprecated_in`/`remove_in`, so attribute-access warnings are version-accurate — `cfg.lr` reports the v1.0 deadline while `cfg.steps` reports the earlier v0.8 deadline.
+Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, and instantiation fires at most one global warning. When stacking two `ATTRS_REMAP` layers, only the innermost layer's instantiation warning fires — the outer layer's version pair appears only in attribute-access warnings for that layer's keys.
 
 ### Chained redirect
 

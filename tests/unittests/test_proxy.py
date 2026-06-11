@@ -1,5 +1,6 @@
 """Unit tests for _DeprecatedProxy internals and deprecated_class decorator behaviour."""
 
+import abc
 import inspect
 import warnings
 from collections.abc import Callable
@@ -11,6 +12,11 @@ from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
+    DepAutoExpandDC,
+    DepAutoExpandInitFalseDC,
+    DepAutoExpandOverriddenInitDC,
+    DepAutoExpandReqDC,
+    DepPositionalOnly,
     DeprecatedAttrsExplicitMode,
     DeprecatedAttrsLegacyTrue,
     DeprecatedAttrsNotifyOnly,
@@ -36,6 +42,7 @@ from tests.collection_deprecate import (
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
+    AutoExpandDC,
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
@@ -44,6 +51,8 @@ from tests.collection_targets import (
     Palette,
     PaletteEnum,
     PaletteOld,
+    PositionalOnlyTarget,
+    SomeTargetClass,
     WithInjected,
     _Pep702ProxyTarget,
 )
@@ -953,7 +962,6 @@ class TestTypeProtocol:
 
     def test_issubclass_respects_metaclass_semantics(self) -> None:
         """Issubclass uses the target metaclass logic (including virtual subclasses)."""
-        import abc
 
         class AbstractBase(metaclass=abc.ABCMeta):
             pass
@@ -1014,8 +1022,6 @@ class TestProxyArgsMappingBehavior:
 
     def test_callable_target_with_args_mapping_warns_on_new_arg(self) -> None:
         """Proxy forwarding to callable target always warns (class deprecated) even with new arg name."""
-        from tests.collection_targets import SomeTargetClass
-
         proxy = _DeprecatedProxy(
             obj=SomeTargetClass,
             name="SomeTargetClass",
@@ -1993,8 +1999,6 @@ class TestDataclassAutoExpand:
         "new_field"}`` and the FutureWarning fires; the instance is created with
         ``new_field=5``.
         """
-        from tests.collection_deprecate import DepAutoExpandDC
-
         with pytest.warns(FutureWarning):
             instance = DepAutoExpandDC(old_field=5)  # type: ignore[call-arg]
         assert instance.new_field == 5
@@ -2007,8 +2011,6 @@ class TestDataclassAutoExpand:
         value of the canonical field.  Instance-level attribute access is not proxied —
         instances returned by the callable target are plain dataclass objects.
         """
-        from tests.collection_deprecate import DepAutoExpandDC
-
         with pytest.warns(FutureWarning):
             _ = DepAutoExpandDC.old_field  # class-proxy access, not instance attr
 
@@ -2018,8 +2020,6 @@ class TestDataclassAutoExpand:
         Audit tools read ``DeprecationConfig.args_mapping_auto_expanded`` to distinguish
         auto-generated entries from user-supplied ones.
         """
-        from tests.collection_deprecate import DepAutoExpandDC
-
         meta = object.__getattribute__(DepAutoExpandDC, "__deprecated__")
         assert "old_field" in meta.args_mapping_auto_expanded
 
@@ -2029,9 +2029,6 @@ class TestDataclassAutoExpand:
         When the user supplies ``args_mapping={"old_field": ...}`` explicitly, the auto-
         expand skips that key so the user-supplied value always wins.
         """
-        from deprecate.proxy import deprecated_class
-        from tests.collection_targets import AutoExpandDC
-
         proxy = deprecated_class(
             attrs_mapping={"old_field": "new_field"},
             args_mapping={"old_field": "new_field"},
@@ -2050,8 +2047,6 @@ class TestDataclassAutoExpand:
         Without auto-expand the call would raise ``TypeError`` because ``new_field`` is required
         and ``old_field`` is not recognised by the dataclass constructor.
         """
-        from tests.collection_deprecate import DepAutoExpandReqDC
-
         with pytest.warns(FutureWarning):
             instance = DepAutoExpandReqDC(old_field=5)  # type: ignore[call-arg]
         assert instance.new_field == 5
@@ -2065,12 +2060,8 @@ class TestDataclassAutoExpand:
         dataclass field, the lookup then raises ``AttributeError``.  Both signals must occur — the
         warning fires first, the error follows.
         """
-        import warnings as _warnings
-
-        from tests.collection_deprecate import DepAutoExpandReqDC
-
-        with _warnings.catch_warnings(record=True) as caught:
-            _warnings.simplefilter("always")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             with pytest.raises(AttributeError):
                 _ = DepAutoExpandReqDC.old_field  # type: ignore[attr-defined]
 
@@ -2085,8 +2076,6 @@ class TestDataclassAutoExpand:
         ``old_computed`` → ``computed_field`` must be excluded because ``computed_field``
         is not a valid ``__init__`` kwarg — passing it to the constructor raises ``TypeError``.
         """
-        from tests.collection_deprecate import DepAutoExpandInitFalseDC
-
         meta = object.__getattribute__(DepAutoExpandInitFalseDC, "__deprecated__")
         assert "old_field" in meta.args_mapping_auto_expanded
         assert "old_computed" not in meta.args_mapping_auto_expanded
@@ -2100,8 +2089,6 @@ class TestDataclassAutoExpand:
         adds ``computed_field`` to ``args_mapping``, so construction via the normal
         param path succeeds.
         """
-        from tests.collection_deprecate import DepAutoExpandInitFalseDC
-
         with pytest.warns(FutureWarning):
             instance = DepAutoExpandInitFalseDC(old_field=3)  # type: ignore[call-arg]
         assert instance.new_field == 3
@@ -2114,8 +2101,6 @@ class TestDataclassAutoExpand:
         ``old_field`` → ``new_field`` must appear in ``args_mapping_auto_expanded`` because
         ``new_field`` is in ``inspect.signature``.
         """
-        from tests.collection_deprecate import DepAutoExpandOverriddenInitDC
-
         meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
         assert "old_field" in meta.args_mapping_auto_expanded
 
@@ -2127,8 +2112,6 @@ class TestDataclassAutoExpand:
         ``dataclasses.fields()`` would (incorrectly) include it; ``inspect.signature`` correctly
         excludes it.  Passing ``old_skipped`` to the constructor must not raise ``TypeError``.
         """
-        from tests.collection_deprecate import DepAutoExpandOverriddenInitDC
-
         meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
         assert "old_skipped" not in meta.args_mapping_auto_expanded
 
@@ -2139,8 +2122,6 @@ class TestDataclassAutoExpand:
         ``args_mapping``; the instance is created by the overridden ``__init__`` which
         accepts ``new_field``.
         """
-        from tests.collection_deprecate import DepAutoExpandOverriddenInitDC
-
         with pytest.warns(FutureWarning):
             instance = DepAutoExpandOverriddenInitDC(old_field=7)  # type: ignore[call-arg]
         assert instance.new_field == 7
@@ -2166,9 +2147,6 @@ class TestPositionalOnlyFallback:
         The ``UserWarning`` must mention that the target parameter is positional-only so
         developers know to use ``attrs_mapping`` instead.
         """
-        from deprecate.proxy import deprecated_class
-        from tests.collection_targets import PositionalOnlyTarget
-
         with pytest.warns(UserWarning, match="POSITIONAL_ONLY"):
             deprecated_class(
                 args_mapping={"old_val": "new_val"},
@@ -2182,8 +2160,6 @@ class TestPositionalOnlyFallback:
         The field is populated at decoration time so audit tools can surface it without
         re-inspecting the constructor signature at report time.
         """
-        from tests.collection_deprecate import DepPositionalOnly
-
         meta = object.__getattribute__(DepPositionalOnly, "__deprecated__")
         assert "old_val" in meta.args_mapping_positional_only
 
@@ -2194,8 +2170,6 @@ class TestPositionalOnlyFallback:
         ``PositionalOnlyTarget(new_val=7)`` which raises ``TypeError``.  The proxy
         must construct without the kwarg and use ``setattr`` to assign ``new_val=7``.
         """
-        from tests.collection_deprecate import DepPositionalOnly
-
         with pytest.warns(FutureWarning):
             instance = DepPositionalOnly(old_val=7)  # type: ignore[call-arg]
         assert instance.new_val == 7
