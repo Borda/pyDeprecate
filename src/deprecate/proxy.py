@@ -905,9 +905,9 @@ class _DeprecatedProxy:
         Allows a proxy used as a deprecated class alias to work transparently with ``isinstance`` without emitting a
         warning — type checks are structural, not a use of the deprecated API.
 
-        When the active object is itself a :class:`_DeprecatedProxy` (stacked proxy chain), the loop walks inward
-        until a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular
-        stack so this dunder never blocks.
+        When the active object is itself a :class:`_DeprecatedProxy` (stacked proxy chain), the loop walks inward until
+        a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular stack so
+        this dunder never blocks.
 
         Returns False when the active object is neither a type nor a proxy.
 
