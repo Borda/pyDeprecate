@@ -96,8 +96,16 @@ class _DeprecatedProxy:
         For proxy targets, validate against the same "active" object attribute access will ultimately reach (callable
         target when configured, otherwise the wrapped source).
 
+        Defensive cycle guard: stacked-proxy chains are linear in normal use (the frozen
+        :class:`~deprecate._types.DeprecationConfig` prevents reassignment of ``target`` after construction),
+        but the guard breaks the loop on the unlikely case of a circular chain so this helper never blocks.
+
         """
+        seen: set[int] = set()
         while isinstance(obj, _DeprecatedProxy):
+            if id(obj) in seen:
+                break
+            seen.add(id(obj))
             dep = object.__getattribute__(obj, "__deprecated__")
             cfg = object.__getattribute__(obj, "_DeprecatedProxy__config")
             target = dep.target
@@ -358,7 +366,12 @@ class _DeprecatedProxy:
         # stacklevel=4: caller → decorator(cls) → __init__ → _validate_proxy → warn
         # deprecated_class() itself is already off the stack when decorator(cls) runs.
         misconfigured |= TargetMode._validate_proxy(
-            target, name, attrs_mapping=attrs_mapping, args_mapping=args_mapping, stacklevel=4
+            target,
+            name,
+            attrs_mapping=attrs_mapping,
+            args_mapping=args_mapping,
+            args_extra=args_extra,
+            stacklevel=4,
         )
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object, extras to merge
         # after args_mapping at call time, optional custom warning template.
@@ -892,38 +905,46 @@ class _DeprecatedProxy:
         Allows a proxy used as a deprecated class alias to work transparently with ``isinstance`` without emitting a
         warning — type checks are structural, not a use of the deprecated API.
 
-        When the active object is itself a :class:`_DeprecatedProxy` (stacked proxy chain), the check is delegated to
-        the inner proxy so nested aliases resolve to the ultimate concrete class.
+        When the active object is itself a :class:`_DeprecatedProxy` (stacked proxy chain), the loop walks inward
+        until a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular
+        stack so this dunder never blocks.
 
         Returns False when the active object is neither a type nor a proxy.
 
         """
+        seen: set[int] = set()
         active = self._get_active()
+        while isinstance(active, _DeprecatedProxy):
+            if id(active) in seen:
+                return False
+            seen.add(id(active))
+            active = active._get_active()
         if isinstance(active, type):
             # Delegate via isinstance to preserve metaclass-defined instance checks.
             return isinstance(instance, active)
-        if isinstance(active, _DeprecatedProxy):
-            # Stacked proxy: delegate to the inner proxy so the chain resolves to the ultimate class.
-            return active.__instancecheck__(instance)
         return False
 
     def __subclasscheck__(self, subclass: type) -> bool:
         """Support ``issubclass(X, proxy)`` by delegating to the active class.
 
         Same rationale as :meth:`~deprecate.proxy._DeprecatedProxy.__instancecheck__` — no warning emitted.
-        Stacked proxy chains delegate to the inner proxy until a concrete type is reached.
+        Stacked proxy chains are walked iteratively until a concrete type is reached; a defensive cycle guard
+        breaks the loop on the unlikely case of a circular stack.
 
         Returns False when the active object is neither a type nor a proxy.
 
         """
+        seen: set[int] = set()
         active = self._get_active()
+        while isinstance(active, _DeprecatedProxy):
+            if id(active) in seen:
+                return False
+            seen.add(id(active))
+            active = active._get_active()
         if isinstance(active, type):
             # Delegate via issubclass so that any metaclass-defined
             # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
             return issubclass(subclass, active)
-        if isinstance(active, _DeprecatedProxy):
-            # Stacked proxy: delegate to the inner proxy.
-            return active.__subclasscheck__(subclass)
         return False
 
 

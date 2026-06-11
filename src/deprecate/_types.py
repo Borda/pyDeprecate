@@ -258,6 +258,7 @@ class TargetMode(Enum):
         source_name: str,
         attrs_mapping: Optional[Mapping[str, Optional[str]]] = None,
         args_mapping: Optional[Mapping[str, Optional[str]]] = None,
+        args_extra: Optional[dict[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
     ) -> bool:
@@ -276,6 +277,9 @@ class TargetMode(Enum):
                 ``None``.
             args_mapping: The ``args_mapping`` dict, forwarded here so we can detect the
                 ``ATTRS_REMAP + args_mapping`` combination.
+            args_extra: The ``args_extra`` dict, forwarded here so we can detect the
+                ``ATTRS_REMAP + args_extra`` combination — ``ATTRS_REMAP`` governs attribute access only and
+                does not honour call-time kwarg injection.
             stacklevel: Forwarded to :func:`warnings.warn`. Pass ``None`` to suppress warnings. Defaults to ``2``.
 
         Returns:
@@ -298,6 +302,11 @@ class TargetMode(Enum):
             >>> TargetMode._validate_proxy(
             ...     TargetMode.ATTRS_REMAP, "Cls",
             ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, stacklevel=None,
+            ... )
+            True
+            >>> TargetMode._validate_proxy(
+            ...     TargetMode.ATTRS_REMAP, "Cls",
+            ...     attrs_mapping={"a": "b"}, args_extra={"bias": 1}, stacklevel=None,
             ... )
             True
 
@@ -330,6 +339,13 @@ class TargetMode(Enum):
                 f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_mapping`. "
                 "`ATTRS_REMAP` only governs attribute access; argument renames on `__call__` are not applied. "
                 "Use `target=<class>` (with both mappings) or `TargetMode.ARGS_REMAP` (with `args_mapping` only). "
+                "This will be `TypeError` in `v1.0`."
+            )
+        if mode is cls.ATTRS_REMAP and args_extra:
+            messages.append(
+                f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_extra`. "
+                "`ATTRS_REMAP` only governs attribute access; call-time kwarg injection is not applied. "
+                "Use `target=<class>` to forward calls with extra arguments. "
                 "This will be `TypeError` in `v1.0`."
             )
         if attrs_mapping is not None and len(attrs_mapping) == 0:
