@@ -4,13 +4,14 @@ import types
 import warnings
 from functools import cached_property
 from typing import Optional
+from unittest.mock import patch
 
 import pytest
 
 from deprecate import TargetMode, deprecated
 from deprecate.audit import validate_deprecation_expiry
 from deprecate.deprecation import _DeprecatedProperty
-from tests.collection_deprecate import DelOnlyDeprecatedPropCls, InnerOrderDeprecatedPropCls
+from tests.collection_deprecate import DelOnlyDeprecatedPropCls, InnerOrderDeprecatedPropCls, ServiceCls
 
 
 class TestDescriptorOrderAgnostic:
@@ -110,6 +111,185 @@ class TestDescriptorOrderAgnostic:
                     return x
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+
+class TestStaticMethodDescriptorTarget:
+    """``target=<staticmethod descriptor>`` is accepted and unwrapped to the underlying function.
+
+    Inside a class body ``some_method`` is still the raw ``staticmethod`` descriptor (the descriptor
+    protocol has not yet bound it to the class).  Passing it directly as ``target=some_method`` used
+    to require the caller to write ``target=some_method.__func__``.  After the ``_normalize_target``
+    descriptor-unwrap fix, the raw descriptor is accepted and silently unwrapped — ``.__func__`` is no
+    longer needed.
+    """
+
+    def test_forwards_call(self) -> None:
+        """Calls are forwarded to the underlying static function; FutureWarning names the target.
+
+        ``ServiceCls.old_static_redirect`` passes the raw ``staticmethod`` descriptor as
+        ``target=static_compute`` inside the class body.  ``_normalize_target`` unwraps it to
+        ``static_compute.__func__``, so the call is redirected without ``.__func__`` in user code.
+        The warning message must include the target name — verifies ``_raise_warn_callable`` uses
+        the unwrapped callable for template selection on all Python versions.
+        """
+        with pytest.warns(FutureWarning, match="in favor of") as warning_info:
+            result = ServiceCls.old_static_redirect(5)
+        assert result == 10
+        assert "static_compute" in str(warning_info.list[0].message)
+
+    def test_with_args_mapping(self) -> None:
+        """``args_mapping`` renames the argument before forwarding to the descriptor target.
+
+        ``ServiceCls.old_static_redirect_mapped`` combines descriptor-target unwrapping with
+        ``args_mapping``: ``old_x`` is remapped to ``x`` before the forwarded call reaches
+        ``static_compute.__func__``.
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = ServiceCls.old_static_redirect_mapped(old_x=4)
+        assert result == 8
+
+    def test_no_decoration_time_warning(self) -> None:
+        """Descriptor unwrap is silent — no UserWarning fires when the class body is executed."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @staticmethod
+                def bbb(x: int) -> int:
+                    """New static implementation."""
+                    return x
+
+                @staticmethod
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
+                def aaa(x: int) -> int:
+                    """Deprecated."""
+                    return 0
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    def test_cross_class_descriptor_raises_type_error(self) -> None:
+        """Staticmethod descriptor from a different class is rejected by the cross-class guard.
+
+        ``_check_cross_class_method_target`` receives ``target.__func__`` (the unwrapped callable)
+        when the target is a raw ``staticmethod`` descriptor.  A descriptor whose ``__func__``
+        qualname prefix differs from the source's class is a cross-class forwarding attempt and
+        must raise ``TypeError`` — same as passing an already-bound method from a different class.
+        """
+
+        class ClassA:
+            @staticmethod
+            def target_fn(x: int) -> int:
+                """Target in a different class."""
+                return x
+
+        sm: staticmethod = ClassA.__dict__["target_fn"]  # raw descriptor (not yet bound)
+
+        with pytest.raises(TypeError, match="cross-class method forwarding"):
+
+            class ClassB:
+                @deprecated(target=sm, deprecated_in="1.0", remove_in="2.0")
+                def old_fn(self, x: int) -> int:
+                    """Deprecated — cross-class descriptor target."""
+                    return 0
+
+
+class TestClassMethodDescriptorTarget:
+    """``target=<classmethod descriptor>`` is accepted when source is also a classmethod.
+
+    The symmetric same-class case (both deprecated and replacement are classmethods) is the
+    supported pattern: ``cls`` is supplied by the caller and forwarded correctly via
+    ``_update_kwargs_with_args``.  Asymmetric usage (non-classmethod source targeting a
+    ``classmethod`` descriptor) raises ``TypeError`` at decoration time.
+    """
+
+    def test_forwards_call(self) -> None:
+        """Calls are forwarded to the underlying classmethod; FutureWarning names the target.
+
+        ``ServiceCls.old_class_redirect`` passes the raw ``classmethod`` descriptor as
+        ``target=class_compute`` inside the class body.  The symmetric pattern works because
+        the deprecated source is also a classmethod — ``cls`` is supplied by the caller and
+        forwarded to ``class_compute.__func__``.  Warning must name the target.
+        """
+        with pytest.warns(FutureWarning, match="in favor of") as warning_info:
+            result = ServiceCls.old_class_redirect(5)
+        assert result == 10
+        assert "class_compute" in str(warning_info.list[0].message)
+
+    def test_with_args_mapping(self) -> None:
+        """``args_mapping`` renames the argument before forwarding to the classmethod target.
+
+        ``ServiceCls.old_class_redirect_mapped`` combines descriptor-target unwrapping with
+        ``args_mapping``: ``old_x`` is remapped to ``x`` before the forwarded call reaches
+        ``class_compute.__func__``.
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = ServiceCls.old_class_redirect_mapped(old_x=4)
+        assert result == 8
+
+    def test_no_decoration_time_warning(self) -> None:
+        """Descriptor unwrap is silent — no UserWarning fires when the class body is executed."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @classmethod
+                def bbb(cls, x: int) -> int:
+                    """New classmethod implementation."""
+                    return x * 2
+
+                @classmethod
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
+                def aaa(cls, x: int) -> int:
+                    """Deprecated."""
+                    return 0
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    def test_asymmetric_raises_at_decoration_time(self) -> None:
+        """Asymmetric classmethod target raises TypeError at decoration time.
+
+        When source has no ``cls`` parameter, ``classmethod.__func__`` would be called without
+        its required first argument at call time.  The guard in ``_normalize_target`` detects
+        this at decoration time and raises ``TypeError`` with a descriptive message.
+        """
+        with pytest.raises(TypeError, match="leading class argument") as exc_info:
+
+            class _Cls:
+                @classmethod
+                def bbb(cls, x: int) -> int:
+                    """New classmethod."""
+                    return x * 2
+
+                @staticmethod
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
+                def aaa(x: int) -> int:
+                    """Deprecated — no cls param, should TypeError at decoration time."""
+                    return 0
+
+        assert "Either make" in str(exc_info.value)
+
+    def test_uninspectable_source_still_raises_at_decoration_time(self) -> None:
+        """Classmethod guard fires TypeError even when inspect.signature(source) raises.
+
+        The guard wraps ``inspect.signature(source)`` in ``try/except (ValueError, TypeError)``
+        and falls back to ``src_params = []`` on failure.  An empty params list means the
+        source cannot accept ``cls``, so the guard still raises ``TypeError``.  This covers
+        C-extension sources and other callables where signature introspection is unavailable.
+        """
+
+        def _new_cm_fn(cls: type, x: int) -> int:
+            return x
+
+        cm: classmethod = classmethod(_new_cm_fn)
+
+        with (
+            patch("deprecate.deprecation.inspect.signature", side_effect=ValueError("no sig")),
+            pytest.raises(TypeError, match="leading class argument"),
+        ):
+
+            @deprecated(target=cm, deprecated_in="1.0", remove_in="2.0")
+            def aaa(x: int) -> int:
+                return 0
 
 
 class TestPropertyOrderAgnostic:
