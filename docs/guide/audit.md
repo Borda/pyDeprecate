@@ -484,7 +484,7 @@ from deprecate import deprecated_class
 
 
 class Point:
-    def __init__(self, x: float, y: float, /) -> None:  # x and y are POSITIONAL_ONLY
+    def __init__(self, x: float = 0.0, y: float = 0.0, /) -> None:  # POSITIONAL_ONLY with defaults
         self.x = x
         self.y = y
 
@@ -495,11 +495,8 @@ OldPoint = deprecated_class(  # warns: UserWarning — px, py target POSITIONAL_
     remove_in="3.0",
     args_mapping={"px": "x", "py": "y"},
 )
-```
 
-At call time the proxy constructs `Point` without the incompatible kwargs, then assigns the remapped values via `setattr`:
-
-```python
+# Proxy strips incompatible kwargs, constructs Point() with defaults, then setattr:
 p = OldPoint(px=1.0, py=2.0)  # warns: FutureWarning
 print(p.x, p.y)
 ```
@@ -513,7 +510,7 @@ print(p.x, p.y)
 
 </details>
 
-The `setattr` fallback produces the correct result for `Point` above because `__init__` stores values in `self.x`/`self.y`. For classes where construction and post-construction assignment differ (immutable types, `__slots__` without a matching `__setattr__`, C extensions), the fallback may silently produce wrong values or raise an error. Prefer `attrs_mapping` when the target class exposes deprecated attribute names separately from its constructor kwargs, or restructure the target constructor to accept keyword arguments.
+The setattr fallback only works when the incompatible params have **defaults** — the proxy strips them from kwargs and calls the constructor without them, then patches the values in afterwards. If the POSITIONAL_ONLY params are required (no default), construction raises `TypeError` before `setattr` runs. This scenario is most likely to surface through the dataclass auto-expand path: when `attrs_mapping` on a dataclass wrapper auto-generates `args_mapping` entries and one of the target field names happens to map to a positional-only constructor param.
 
 ### Scanning for incompatible wrappers
 

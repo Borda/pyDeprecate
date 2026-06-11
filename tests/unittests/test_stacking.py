@@ -16,8 +16,9 @@ import warnings
 import pytest
 
 from deprecate.proxy import deprecated_class
-from tests.collection_deprecate import StackedAttrProxy
+from tests.collection_deprecate import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
 from tests.collection_targets import (
+    SelfDeprecatedModel,
     StackingArgsAttrsBase,
     StackingBlanketBase,
     StackingDeepBase,
@@ -308,3 +309,146 @@ class TestStackingCombinations:
 
         assert isinstance(inst, StackingArgsAttrsBase)
         assert isinstance(inst, outer)  # type: ignore[arg-type]
+
+
+class TestCombinedSingleCallProxy:
+    """Single ``deprecated_class()`` with both ``attrs_mapping`` and ``args_mapping`` active.
+
+    ``DepCombinedSingleCall`` wraps ``StackingArgsAttrsBase`` with a single proxy that deprecates
+    ``old_attr`` → ``new_attr`` (class-level attribute redirect) and ``old_arg`` → ``new_arg``
+    (constructor kwarg rename).  Both surfaces must warn independently and resolve to the correct
+    values without interfering with each other.
+
+    ``StackingArgsAttrsBase`` carries ``new_attr: str = "b"`` as a class attribute and accepts
+    ``new_arg: int = 0`` as its constructor keyword.  Both ``stream=None`` and ``num_warns=-1``
+    are set on the fixture so warning budgets do not accumulate across tests sharing the
+    module-level proxy constant.
+
+    """
+
+    def test_attr_redirect_warns_and_resolves(self) -> None:
+        """Accessing ``old_attr`` via the proxy warns and redirects to ``new_attr`` on the target.
+
+        The ``attrs_mapping`` surface intercepts ``__getattr__`` on the proxy and forwards the
+        lookup to ``StackingArgsAttrsBase.new_attr``.  The returned value must equal the canonical
+        class attribute; the warning must name the deprecated version pair.
+
+        """
+        with pytest.warns(FutureWarning, match="1.0"):
+            value = DepCombinedSingleCall.old_attr  # type: ignore[attr-defined]
+        assert value == StackingArgsAttrsBase.new_attr
+
+    def test_constructor_kwarg_rename_warns_and_forwards(self) -> None:
+        """Calling with deprecated kwarg ``old_arg`` warns and remaps to ``new_arg`` on the target.
+
+        The ``args_mapping`` surface intercepts the ``__call__`` path and rewrites ``old_arg``
+        to ``new_arg`` before forwarding the construction call to ``StackingArgsAttrsBase``.
+        The returned instance must carry the passed value under ``new_arg`` and be an instance
+        of the real target class.
+
+        """
+        with pytest.warns(FutureWarning, match="1.0"):
+            inst = DepCombinedSingleCall(old_arg=42)  # type: ignore[call-arg]
+        assert inst.new_arg == 42
+        assert isinstance(inst, StackingArgsAttrsBase)
+
+    def test_attr_and_call_surfaces_are_independent(self) -> None:
+        """Exhausting the attribute warning budget does not affect the call warning budget.
+
+        Each deprecated name maintains its own counter.  With ``num_warns=-1`` both budgets
+        are unlimited; with the default ``num_warns=1`` each deprecated name warns exactly once
+        independently.  This test constructs with the canonical kwarg (silent) then reads the
+        deprecated attribute (warns) to verify the call path leaves the attribute counter intact.
+
+        """
+        with pytest.warns(FutureWarning):
+            inst = DepCombinedSingleCall(new_arg=5)  # canonical kwarg: args_mapping silent, callable-target warns
+        with pytest.warns(FutureWarning, match="old_attr"):
+            value = DepCombinedSingleCall.old_attr  # type: ignore[attr-defined]
+        assert inst.new_arg == 5
+        assert value == StackingArgsAttrsBase.new_attr
+
+
+class TestCombinedNoTargetTwoLayer:
+    """Two stacked ``deprecated_class()`` decorators with no callable target on either layer.
+
+    ``DepSelfCombinedTwoLayer`` wraps ``SelfDeprecatedModel`` with two proxies, neither
+    forwarding to a different class.  The inner proxy (``args_mapping={"n_layers": "num_layers"}``,
+    auto-resolved to ``ARGS_REMAP``) renames a constructor kwarg in-place.  The outer proxy
+    (``attrs_mapping={"cuda": None, "gpu": "device"}``, auto-resolved to ``ATTRS_REMAP``)
+    deprecates class-level attributes in-place.  When the outer proxy's ``__call__`` is invoked
+    it detects the wrapped object is itself a ``_DeprecatedProxy`` and delegates directly,
+    so only the inner proxy's ``args_mapping`` logic fires — no double warning.
+
+    ``SelfDeprecatedModel`` carries ``cuda: bool = False`` and ``device: str = "cpu"`` as class
+    attributes and accepts ``num_layers: int = 4`` in its constructor.  Both layers use
+    ``num_warns=-1`` so warning budgets do not accumulate across tests sharing the module-level
+    fixture.
+
+    """
+
+    def test_cuda_warn_only_serves_value(self) -> None:
+        """Accessing ``cuda`` warns and still returns the class attribute value.
+
+        The outer ``attrs_mapping`` proxy intercepts ``cuda`` with a ``None`` redirect
+        (warn-only): the deprecated name is preserved on ``SelfDeprecatedModel`` and served
+        unchanged while emitting a ``FutureWarning`` about its upcoming removal.
+
+        """
+        with pytest.warns(FutureWarning, match="cuda"):
+            value = DepSelfCombinedTwoLayer.cuda  # type: ignore[attr-defined]
+        assert value == SelfDeprecatedModel.cuda
+
+    def test_gpu_redirects_to_device(self) -> None:
+        """Accessing ``gpu`` warns and returns the value of the replacement attribute ``device``.
+
+        The outer ``attrs_mapping`` proxy redirects ``gpu`` → ``device`` on the underlying
+        class.  The returned value must equal ``SelfDeprecatedModel.device``; the warning must
+        name the deprecated name.
+
+        """
+        with pytest.warns(FutureWarning, match="gpu"):
+            value = DepSelfCombinedTwoLayer.gpu  # type: ignore[attr-defined]
+        assert value == SelfDeprecatedModel.device
+
+    def test_constructor_kwarg_rename_warns_and_constructs(self) -> None:
+        """Calling with deprecated kwarg ``n_layers`` warns and remaps to ``num_layers``.
+
+        The inner ``args_mapping`` proxy intercepts ``__call__`` and rewrites ``n_layers``
+        → ``num_layers`` before constructing ``SelfDeprecatedModel``.  The returned instance
+        must carry the passed value under ``num_layers`` and be an instance of the real class.
+
+        """
+        with pytest.warns(FutureWarning, match="1.0"):
+            inst = DepSelfCombinedTwoLayer(n_layers=8)  # type: ignore[call-arg]
+        assert inst.num_layers == 8
+        assert isinstance(inst, SelfDeprecatedModel)
+
+    def test_canonical_call_is_silent(self) -> None:
+        """Constructing with the canonical kwarg emits no warning.
+
+        ``DepSelfCombinedTwoLayer(num_layers=3)`` bypasses both mapping surfaces:
+        the outer ``ATTRS_REMAP`` proxy delegates the call to the inner proxy without
+        firing a global warning, and the inner ``ARGS_REMAP`` proxy finds no match for
+        ``num_layers`` in its ``args_mapping`` keys, so construction is silent.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            inst = DepSelfCombinedTwoLayer(num_layers=3)
+        assert inst.num_layers == 3
+
+    def test_attr_and_call_surfaces_are_independent(self) -> None:
+        """Attribute and constructor warning surfaces are independent.
+
+        Accessing ``cuda`` after a silent canonical construction warns exactly once on
+        the attribute surface, confirming the call path left the attribute counter intact.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            inst = DepSelfCombinedTwoLayer(num_layers=5)
+        with pytest.warns(FutureWarning, match="cuda"):
+            value = DepSelfCombinedTwoLayer.cuda  # type: ignore[attr-defined]
+        assert inst.num_layers == 5
+        assert value == SelfDeprecatedModel.cuda

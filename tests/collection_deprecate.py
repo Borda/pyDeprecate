@@ -68,7 +68,9 @@ from tests.collection_targets import (
     PaletteEnum,
     PaletteOld,
     PositionalOnlyTarget,
+    SelfDeprecatedModel,
     SomeTargetClass,
+    StackingArgsAttrsBase,
     TimerDecorator,
     V09TwoAttrClass,
     WithInjected,
@@ -1805,3 +1807,33 @@ with catch_warnings():
     DepPositionalOnly = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
         PositionalOnlyTarget
     )
+
+
+# ========== Single-call combined attrs_mapping + args_mapping fixture ==========
+# Single deprecated_class() call with both attrs_mapping (class-level attribute redirect)
+# and args_mapping (constructor kwarg rename) on the same proxy — verifies the two surfaces
+# operate independently without interference when configured together in one call.
+DepCombinedSingleCall = deprecated_class(
+    target=StackingArgsAttrsBase,
+    attrs_mapping={"old_attr": "new_attr"},
+    args_mapping={"old_arg": "new_arg"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(StackingArgsAttrsBase)
+
+
+# ========== Two-decorator no-target self-deprecation fixture ==========
+# Two deprecated_class() calls stacked with no callable target on either layer.
+# Inner proxy: args_mapping={"n_layers": "num_layers"} auto-resolves to ARGS_REMAP —
+# renames constructor kwarg in-place without forwarding to a different class.
+# Outer proxy: attrs_mapping={"cuda": None, "gpu": "device"} auto-resolves to ATTRS_REMAP —
+# deprecates class-level attributes in-place; call delegation falls through to the inner proxy
+# (ATTRS_REMAP + inner-_DeprecatedProxy path — no global callable warning fired by outer).
+DepSelfCombinedTwoLayer = deprecated_class(
+    attrs_mapping={"cuda": None, "gpu": "device"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(
+    deprecated_class(
+        args_mapping={"n_layers": "num_layers"},
+        **_DEPRS_CASE_STD_INF_ARGS,
+    )(SelfDeprecatedModel)
+)

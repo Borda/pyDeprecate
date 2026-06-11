@@ -592,3 +592,21 @@ class PositionalOnlyTarget:
     def __init__(self, new_val: int = 0, /) -> None:
         """Store positional-only arg."""
         self.new_val = new_val
+
+
+class SelfDeprecatedModel:
+    """Target for two-decorator no-target self-deprecation stacking tests.
+
+    Carries ``cuda`` (warn-only deprecated attribute, still served from the class),
+    ``device`` (replacement for the deprecated ``gpu`` alias), and accepts
+    ``num_layers`` in its constructor (renamed from ``n_layers`` in the outer layer).
+    Wrapped by ``DepSelfCombinedTwoLayer`` in :mod:`tests.collection_deprecate` with two
+    stacked ``deprecated_class()`` calls — neither forwarding to a different class.
+    """
+
+    cuda: bool = False
+    device: str = "cpu"
+
+    def __init__(self, num_layers: int = 4) -> None:
+        """Construct SelfDeprecatedModel."""
+        self.num_layers = num_layers
