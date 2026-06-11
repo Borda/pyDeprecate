@@ -17,9 +17,7 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate import TargetMode as top_level_TargetMode
 from deprecate._types import _DeprecatedCallable
-from tests.collection_depr_legacy import (
-    depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs,
-)
+from tests.collection_depr_legacy import depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs
 from tests.collection_depr_legacy import (
     depr_target_mode_args_only_silent_when_new_arg_passed as legacy_silent_when_new_arg_passed,
 )
@@ -29,12 +27,8 @@ from tests.collection_depr_legacy import (
 from tests.collection_depr_legacy import (
     depr_target_mode_args_only_with_args_extra_injects_kwargs as depr_legacy_args_extra,
 )
-from tests.collection_depr_legacy import (
-    depr_target_mode_whole_executes_original_body as legacy_executes_original_body,
-)
-from tests.collection_depr_legacy import (
-    depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call,
-)
+from tests.collection_depr_legacy import depr_target_mode_whole_executes_original_body as legacy_executes_original_body
+from tests.collection_depr_legacy import depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call
 from tests.collection_deprecate import (
     depr_target_mode_args_only_remaps_kwargs,
     depr_target_mode_args_only_silent_when_new_arg_passed,
@@ -58,10 +52,11 @@ class TestTargetModeContract:
     """TargetMode enum public contract — membership and importability."""
 
     def test_members_exist(self) -> None:
-        """TargetMode exposes exactly NOTIFY and ARGS_REMAP members."""
+        """TargetMode exposes NOTIFY, ARGS_REMAP, and ATTRS_REMAP members."""
         assert hasattr(TargetMode, "NOTIFY")
         assert hasattr(TargetMode, "ARGS_REMAP")
-        assert len(list(TargetMode)) == 2
+        assert hasattr(TargetMode, "ATTRS_REMAP")
+        assert len(list(TargetMode)) == 3
 
     def test_importable_from_top_level(self) -> None:
         """TargetMode is part of the public API surface."""
@@ -440,10 +435,7 @@ class TestNotifyLegacyMessageParity:
     @pytest.fixture(autouse=True)
     def _reset_state(self) -> None:
         """Reset warned_calls before each test."""
-        for func in (
-            depr_target_mode_whole_warns_on_every_call,
-            legacy_warns_on_every_call,
-        ):
+        for func in (depr_target_mode_whole_warns_on_every_call, legacy_warns_on_every_call):
             state = cast(_DeprecatedCallable, func)._state
             state.warned_calls = 0
             state.warned_args.clear()

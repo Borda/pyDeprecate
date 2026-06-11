@@ -11,7 +11,9 @@ from typing import Union
 
 import pytest
 
-from deprecate import TargetMode, deprecated
+import tests.collection_deprecate as col
+import tests.collection_misconfigured as clean_module
+from deprecate import TargetMode, deprecated, validate_mapping_compatibility
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     ChainType,
@@ -23,7 +25,8 @@ from deprecate.audit import (
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
 )
-from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from tests.collection_targets import PositionalOnlyTarget
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
@@ -138,10 +141,7 @@ class TestHasDeprecationMeta:
 class TestParseVersion:
     """Tests for _parse_version — wraps packaging.version.Version with a ValueError on bad input."""
 
-    @pytest.mark.parametrize(
-        "version",
-        ["1.0", "2.3.4", "0.5.0a1", "1.0.0.post1", "1.0.0rc1"],
-    )
+    @pytest.mark.parametrize("version", ["1.0", "2.3.4", "0.5.0a1", "1.0.0.post1", "1.0.0rc1"])
     def test_parses_valid_pep440_strings(self, version: str) -> None:
         """All valid PEP 440 version strings parse without error."""
         parsed = _parse_version(version)
@@ -323,26 +323,26 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_callable_target_no_effect_false(self) -> None:
         """Proxy forwarding to a callable target is effective → no_effect=False."""
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
-            obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=TargetColorEnum, stream=None
+            obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.function == "old_enum"
-        assert result.deprecated_info.target is TargetColorEnum
+        assert result.deprecated_info.target is ColorEnum
         assert result.no_effect is False
 
     def test_proxy_with_args_mapping_skips_signature_validation(self) -> None:
         """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
             obj={},
             name="mapped",
             deprecated_in="1.0",
             remove_in="2.0",
-            target=TargetColorEnum,
+            target=ColorEnum,
             args_mapping={"old_key": "value"},
             stream=None,
         )
@@ -352,14 +352,14 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_identity_args_mapping_detected(self) -> None:
         """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
             obj={},
             name="identity_mapped",
             deprecated_in="1.0",
             remove_in="2.0",
-            target=TargetColorEnum,
+            target=ColorEnum,
             args_mapping={"value": "value"},
             stream=None,
         )
@@ -382,20 +382,39 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.invalid_args == []
         assert result.no_effect is False
 
+    def test_proxy_attrs_mapping_chain_detected_as_stacked_chain(self) -> None:
+        """Audit reports an ``attrs_mapping`` chain without decoration-time failure."""
+
+        class Palette:
+            a = 1
+            b = 2
+            c = 3
+
+        proxy = _DeprecatedProxy(
+            obj=Palette,
+            name="Palette",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            attrs_mapping={"a": "b", "b": "c"},
+            stream=None,
+        )
+        result = validate_deprecation_wrapper(proxy)
+        assert result.chain_type is ChainType.STACKED
+
     def test_proxy_function_name_from_dep_info(self) -> None:
         """Function field comes from dep_info.name, not from getattr(proxy, '__name__').
 
         Without this, getattr routes through __getattr__ and leaks the target's __name__.
 
         """
-        from tests.collection_targets import TargetColorEnum
+        from tests.collection_targets import ColorEnum
 
         proxy = _DeprecatedProxy(
-            obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=TargetColorEnum, stream=None
+            obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.function == "SourceName"
-        assert result.function != TargetColorEnum.__name__
+        assert result.function != ColorEnum.__name__
 
     def test_proxy_empty_args_mapping_true_when_no_args_mapping(self) -> None:
         """Proxy with args_mapping=None reports empty_args_mapping=True."""
@@ -524,9 +543,7 @@ class TestDwiCompatInit:
         """DeprecationWrapperInfo(empty_mapping=True) emits DeprecationWarning and sets empty_args_mapping."""
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
             info = DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
+                function="f", deprecated_info=DeprecationConfig(), empty_mapping=True
             )
         assert info.empty_args_mapping is True
 
@@ -534,9 +551,7 @@ class TestDwiCompatInit:
         """DeprecationWrapperInfo(identity_mapping=[...]) emits DeprecationWarning and sets identity_args_mapping."""
         with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
             info = DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                identity_mapping=["a"],
+                function="f", deprecated_info=DeprecationConfig(), identity_mapping=["a"]
             )
         assert info.identity_args_mapping == ["a"]
 
@@ -544,10 +559,7 @@ class TestDwiCompatInit:
         """Passing both old kwargs emits one DeprecationWarning per renamed field."""
         with pytest.warns(DeprecationWarning, match="renamed") as caught:
             DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
-                identity_mapping=["b"],
+                function="f", deprecated_info=DeprecationConfig(), empty_mapping=True, identity_mapping=["b"]
             )
         categories = [str(w.message) for w in caught.list if issubclass(w.category, DeprecationWarning)]
         assert any("empty_args_mapping" in m for m in categories)
@@ -557,10 +569,7 @@ class TestDwiCompatInit:
         """When both old and new names are supplied (as in replace()), old-name value is honoured."""
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
             info = DeprecationWrapperInfo(  # type: ignore[call-arg]
-                function="f",
-                deprecated_info=DeprecationConfig(),
-                empty_mapping=True,
-                empty_args_mapping=False,
+                function="f", deprecated_info=DeprecationConfig(), empty_mapping=True, empty_args_mapping=False
             )
         assert info.empty_args_mapping is True
 
@@ -572,11 +581,7 @@ class TestDwiCompatInit:
         auto-injected value, and honour the old-name value.
 
         """
-        base = DeprecationWrapperInfo(
-            function="f",
-            deprecated_info=DeprecationConfig(),
-            empty_args_mapping=False,
-        )
+        base = DeprecationWrapperInfo(function="f", deprecated_info=DeprecationConfig(), empty_args_mapping=False)
 
         with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
             result = dataclasses.replace(base, empty_mapping=True)  # type: ignore[call-arg]
@@ -847,3 +852,66 @@ class TestFindDeprecationWrappersClassScan:
 
         names = [r.function for r in results]
         assert any("delete_only" in n for n in names)
+
+
+class TestValidateMappingCompatibility:
+    """``validate_mapping_compatibility`` surfaces positional-only incompatibilities."""
+
+    def test_finds_positional_only_wrapper(self) -> None:
+        """``DepPositionalOnly`` appears in ``validate_mapping_compatibility`` results.
+
+        The wrapper remaps ``old_val``→``new_val`` which is POSITIONAL_ONLY on
+        ``PositionalOnlyTarget``; the validator must surface it.
+        """
+        results = validate_mapping_compatibility(col, recursive=False)
+        names = [r.function for r in results]
+        assert "DepPositionalOnly" in names
+
+    def test_dataclass_auto_expanded_visible_in_audit(self) -> None:
+        """``find_deprecation_wrappers`` populates ``args_mapping_auto_expanded`` for ``DepAutoExpandDC``.
+
+        After auto-expand the ``DeprecationConfig`` stores the auto-copied keys; the
+        ``DeprecationWrapperInfo`` returned by the audit walk must reflect this.
+        """
+        results = find_deprecation_wrappers(col, recursive=False)
+        dc_results = [r for r in results if r.function == "DepAutoExpandDC"]
+        assert dc_results, "DepAutoExpandDC not found by find_deprecation_wrappers"
+        assert "old_field" in dc_results[0].args_mapping_auto_expanded
+
+    def test_returns_empty_list_for_module_without_positional_only_wrappers(self) -> None:
+        """``validate_mapping_compatibility`` returns [] when no wrapper targets POSITIONAL_ONLY params.
+
+        ``tests.collection_misconfigured`` contains only ``@deprecated``-decorated functions
+        (not ``deprecated_class`` proxies with ``args_mapping`` to positional-only constructor
+        params), so the validator must return an empty list — no false positives.
+        """
+        results = validate_mapping_compatibility(clean_module, recursive=False)
+        assert results == [], (
+            f"Expected no positional-only incompatibilities in collection_misconfigured; got: "
+            f"{[r.function for r in results]}"
+        )
+
+    def test_none_value_in_args_mapping_is_not_false_positive(self) -> None:
+        """A ``deprecated_class`` with ``args_mapping={old: None}`` must NOT appear in results.
+
+        ``args_mapping`` values of ``None`` denote warn-only (drop) entries — the proxy never
+        attempts to forward the key as a kwarg, so there is no positional-only incompatibility
+        to report.  ``_get_args_mapping_positional_only_keys`` correctly skips ``None`` values;
+        this test pins that behaviour so a future refactor cannot introduce a false positive.
+        """
+        # Construct the proxy with a warn-only (None) mapping to the positional-only param name.
+        # Suppress the decoration-time UserWarning that fires when a real remap key is positional-only;
+        # here "old_val" maps to None (drop), so no UserWarning fires — but wrap defensively.
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            proxy = deprecated_class(
+                args_mapping={"old_val": None},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )(PositionalOnlyTarget)
+
+        info = validate_deprecation_wrapper(proxy)
+        assert info.args_mapping_positional_only == [], (
+            f"args_mapping={{old_val: None}} must not produce args_mapping_positional_only; "
+            f"got: {info.args_mapping_positional_only}"
+        )

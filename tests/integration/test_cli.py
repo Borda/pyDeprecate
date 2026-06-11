@@ -59,22 +59,14 @@ class TestCliInvocation:
 
     def test_no_args_shows_help(self) -> None:
         """CLI with no arguments prints help and exits 0 (Fire shows component help)."""
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-        )
+        result = subprocess.run([sys.executable, "-m", "deprecate"], capture_output=True, text=True, env=_cli_env())
         assert result.returncode == 0
         assert "check" in (result.stdout + result.stderr).lower()
 
     def test_help(self) -> None:
         """CLI --help exits 0 and lists subcommands."""
         result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "--help"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
+            [sys.executable, "-m", "deprecate", "--help"], capture_output=True, text=True, env=_cli_env()
         )
         assert result.returncode == 0
         combined = result.stdout + result.stderr
@@ -177,10 +169,7 @@ class TestCliSubcommands:
     def test_help_lists_subcommands(self) -> None:
         """'pydeprecate --help' output includes the five subcommand names."""
         result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "--help"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
+            [sys.executable, "-m", "deprecate", "--help"], capture_output=True, text=True, env=_cli_env()
         )
         assert result.returncode == 0
         combined = result.stdout + result.stderr
@@ -190,10 +179,7 @@ class TestCliSubcommands:
     def test_subcommand_help(self) -> None:
         """'pydeprecate expiry --help' shows expiry-specific options."""
         result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "expiry", "--help"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
+            [sys.executable, "-m", "deprecate", "expiry", "--help"], capture_output=True, text=True, env=_cli_env()
         )
         assert result.returncode == 0
         assert "version" in (result.stdout + result.stderr).lower()

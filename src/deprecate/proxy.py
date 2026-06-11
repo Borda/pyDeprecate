@@ -24,12 +24,17 @@ Example:
 
 """
 
+import inspect
 import types
 import warnings
 from collections.abc import Iterator
-from typing import Any, Callable, Literal, Optional, cast
+from typing import Any, Callable, Literal, Optional, Union, cast
 
-from deprecate._types import DeprecationConfig, TargetMode, _ProxyConfig
+from deprecate._types import (
+    DeprecationConfig,
+    TargetMode,
+    _ProxyConfig,
+)
 from deprecate.deprecation import (
     TEMPLATE_ARGUMENT_MAPPING,
     TEMPLATE_WARNING_ARGUMENTS,
@@ -39,6 +44,7 @@ from deprecate.deprecation import (
     deprecation_warning,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
+from deprecate.utils import _get_args_mapping_positional_only_keys, _is_dataclass_target
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
@@ -83,6 +89,173 @@ class _DeprecatedProxy:
 
     """
 
+    @staticmethod
+    def _get_static_attr_owner(obj: Any) -> Any:  # noqa: ANN401
+        """Return the object whose attributes should be validated without dynamic lookup.
+
+        For proxy targets, validate against the same "active" object attribute access will ultimately reach (callable
+        target when configured, otherwise the wrapped source).
+
+        Defensive cycle guard: stacked-proxy chains are linear in normal use (the frozen
+        :class:`~deprecate._types.DeprecationConfig` prevents reassignment of ``target`` after construction),
+        but the guard breaks the loop on the unlikely case of a circular chain so this helper never blocks.
+
+        """
+        seen: set[int] = set()
+        while isinstance(obj, _DeprecatedProxy):
+            if id(obj) in seen:
+                break
+            seen.add(id(obj))
+            dep = object.__getattribute__(obj, "__deprecated__")
+            cfg = object.__getattribute__(obj, "_DeprecatedProxy__config")
+            target = dep.target
+            obj = target if target is not None and not isinstance(target, TargetMode) else cfg.obj
+        return obj
+
+    @classmethod
+    def _has_static_attribute(cls, obj: Any, name: str) -> bool:  # noqa: ANN401
+        """Return whether *name* exists without invoking ``__getattr__`` or descriptors."""
+        try:
+            inspect.getattr_static(cls._get_static_attr_owner(obj), name)
+        except AttributeError:
+            return False
+        return True
+
+    @staticmethod
+    def _target_display_name(target: Any, fallback: str) -> str:  # noqa: ANN401
+        """Return a warning-display name without triggering proxy ``__getattr__``."""
+        target_owner = _DeprecatedProxy._get_static_attr_owner(target)
+        return getattr(target_owner, "__name__", fallback)
+
+    @staticmethod
+    def _validate_attrs_mapping(
+        attrs_mapping: dict[str, Optional[str]],
+        obj: Any,  # noqa: ANN401
+        attr_check_obj: Any,  # noqa: ANN401
+    ) -> None:
+        """Validate ``attrs_mapping`` at decoration time.
+
+        Runs three checks against the configured mapping:
+
+        1. Reject true cycles in the redirect chain.
+        2. Confirm every non-``None`` redirect target attribute exists on *attr_check_obj* so
+           accessing a deprecated alias never raises :class:`AttributeError` on the first warning.
+        3. Confirm every warn-only key (``None`` value) exists on at least one of *attr_check_obj*
+           or *obj* — a key on neither would always raise :class:`AttributeError` on access.
+
+        Args:
+            attrs_mapping: The redirect map from deprecated attribute names to canonical names
+                (or ``None`` for warn-only).
+            obj: The wrapped source object — used as a fallback for warn-only key existence.
+            attr_check_obj: The class against which redirect targets are validated; the caller
+                pre-computes this from a concrete callable target, falling back to *obj* for
+                ``TargetMode`` values and legacy boolean sentinels.
+
+        Raises:
+            ValueError: If *attrs_mapping* contains a cycle, a missing redirect target, or a
+                warn-only key absent from both classes.
+
+        """
+        # Reject true cycles in ``attrs_mapping`` at decoration time. Non-cyclic chains are allowed at runtime
+        # and surfaced by audit as mapping chains.
+        cycle_starters: list[str] = []
+        for start in attrs_mapping:
+            visited: set[str] = {start}
+            current = attrs_mapping[start]
+            while current is not None and current in attrs_mapping:
+                if current in visited:
+                    cycle_starters.append(start)
+                    break
+                visited.add(current)
+                current = attrs_mapping[current]
+        if cycle_starters:
+            raise ValueError(
+                f"`attrs_mapping` has circular redirects — the redirect chain starting from"
+                f" {sorted(set(cycle_starters))} loops back to a previously visited key."
+                " Redirect chains must terminate at an attribute name that does not loop."
+            )
+        _DeprecatedProxy._validate_attrs_redirect_targets(attrs_mapping, attr_check_obj)
+        _DeprecatedProxy._validate_attrs_warn_only_keys(attrs_mapping, obj, attr_check_obj)
+
+    @staticmethod
+    def _validate_attrs_redirect_targets(
+        attrs_mapping: dict[str, Optional[str]],
+        attr_check_obj: Any,  # noqa: ANN401
+    ) -> None:
+        """Validate that every non-``None`` redirect target attribute exists on the class.
+
+        Ensures that accessing a deprecated alias never raises :class:`AttributeError` on the
+        first warning — every redirect target must resolve to an existing attribute on
+        *attr_check_obj* at decoration time.
+
+        Args:
+            attrs_mapping: The redirect map from deprecated attribute names to canonical names
+                (or ``None`` for warn-only).
+            attr_check_obj: The class against which non-``None`` redirect targets are validated.
+
+        Raises:
+            ValueError: If any non-``None`` redirect target is absent from *attr_check_obj*.
+
+        """
+        # For @dataclass targets, required fields (no default) are not visible via getattr_static
+        # because they have no class-level value — but they DO exist as valid constructor params
+        # and instance attributes.  Check __dataclass_fields__ as a fallback.
+        _owner = _DeprecatedProxy._get_static_attr_owner(attr_check_obj)
+        _dc_field_names: set[str] = set(getattr(_owner, "__dataclass_fields__", {}))
+        _resolved_targets = list(attrs_mapping.items())
+        missing_targets = [
+            f"{k!r} -> {target!r}"
+            for k, target in _resolved_targets
+            if target is not None
+            and not _DeprecatedProxy._has_static_attribute(attr_check_obj, target)
+            and target not in _dc_field_names
+        ]
+        if missing_targets:
+            raise ValueError(
+                f"`attrs_mapping` redirect targets not found on the active class: {missing_targets}."
+                " Each non-None value must be an existing attribute name on the target class when `target` is"
+                " provided, or on the wrapped class otherwise."
+            )
+
+    @staticmethod
+    def _validate_attrs_warn_only_keys(
+        attrs_mapping: dict[str, Optional[str]],
+        obj: Any,  # noqa: ANN401
+        attr_check_obj: Any,  # noqa: ANN401
+    ) -> None:
+        """Validate that every warn-only key (``None``-value entry) exists on at least one class.
+
+        A ``None`` redirect means "warn but still serve the attribute value" — the attribute can
+        live on the target (same-name warning: kept in new API) or only on the source
+        (being-removed attribute that falls back to the source value in ``__getattr__``). Raise
+        only when absent from both classes; a key on neither would always raise
+        :class:`AttributeError` on access.
+
+        Args:
+            attrs_mapping: The redirect map from deprecated attribute names to canonical names
+                (or ``None`` for warn-only).
+            obj: The wrapped source object — used as a fallback for warn-only key existence.
+            attr_check_obj: The class against which warn-only keys are first checked before
+                falling back to *obj*.
+
+        Raises:
+            ValueError: If any warn-only key is absent from both *attr_check_obj* and *obj*.
+
+        """
+        missing_keys = [
+            k
+            for k, v in attrs_mapping.items()
+            if v is None
+            and not _DeprecatedProxy._has_static_attribute(attr_check_obj, k)
+            and not _DeprecatedProxy._has_static_attribute(obj, k)
+        ]
+        if missing_keys:
+            raise ValueError(
+                f"`attrs_mapping` warn-only keys not found on either class: {missing_keys}."
+                " Each key with a `None` value must be an existing attribute name on the target class"
+                " when `target` is provided, or on the wrapped class."
+            )
+
     def __init__(
         self,
         obj: Any,  # noqa: ANN401
@@ -91,6 +264,7 @@ class _DeprecatedProxy:
         target: Any = None,  # noqa: ANN401
         args_mapping: Optional[dict[str, Optional[str]]] = None,
         args_extra: Optional[dict[str, Any]] = None,
+        attrs_mapping: Optional[dict[str, Optional[str]]] = None,
         deprecated_in: str = "",
         remove_in: str = "",
         num_warns: int = 1,
@@ -117,17 +291,68 @@ class _DeprecatedProxy:
         in one place.
 
         """
-        # Probe ``template_mgs`` against every documented placeholder so typos and malformed
-        # conversion specifiers fail at decoration time instead of on the first proxy access.
+        # Probe ``template_mgs`` against every documented placeholder so typos and malformed conversion specifiers
+        # fail at decoration time instead of on the first proxy access.
         _validate_template_mgs(template_mgs)
+        # Reject true cycles in ``attrs_mapping`` at decoration time. Non-cyclic chains are allowed at runtime
+        # and surfaced by audit as mapping chains.
+        if attrs_mapping is not None:
+            attr_check_obj = target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
+            self._validate_attrs_mapping(attrs_mapping, obj, attr_check_obj)
         # Track whether the raw ``target=False`` sentinel was passed so audit can flag it. The override
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
         misconfigured = target is False or _misconfigured_override
         if isinstance(target, bool):
             target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
+        # Dataclass dual-surface auto-expand: when the target (or wrapped object) is a @dataclass,
+        # copy attrs_mapping entries whose redirect points to a dataclass field into args_mapping so
+        # that both `instance.old_field` (attribute access) and `DC(old_field=5)` (constructor kwarg)
+        # emit a FutureWarning from a single deprecated_class() call.  Keys already present in
+        # args_mapping are left untouched (explicit user values always win).
+        _auto_expanded: list[str] = []
+        _dc_check = _DeprecatedProxy._get_static_attr_owner(
+            target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
+        )
+        if args_mapping is not None:
+            args_mapping = dict(args_mapping)
+        if attrs_mapping and _is_dataclass_target(_dc_check):
+            _init_param_names: set[str] = set(inspect.signature(_dc_check).parameters)
+            for _old_key, _mapping_val in attrs_mapping.items():
+                if _mapping_val in _init_param_names:
+                    if args_mapping is None:
+                        args_mapping = {}
+                    if _old_key not in args_mapping:
+                        args_mapping[_old_key] = _mapping_val
+                        _auto_expanded.append(_old_key)
+        # When auto-expand produced a non-empty args_mapping and the user provided no explicit
+        # target, set target = obj (the dataclass itself) so that the callable-target + both-
+        # mappings path in __call__ and _validate_proxy activates both surfaces without
+        # triggering the ARGS_REMAP + attrs_mapping misconfiguration check.
+        if _auto_expanded and target is None:
+            target = obj
+        # Kwargs-compatibility guard: if args_mapping remaps old keys to POSITIONAL_ONLY constructor
+        # params, calling the proxy with those old names would TypeError after remapping.  Detect at
+        # decoration time, emit UserWarning, and record for audit + call-time fallback.
+        _incompatible: tuple[str, ...] = ()
+        if args_mapping and isinstance(_dc_check, type):
+            _incompatible = _get_args_mapping_positional_only_keys(_dc_check, args_mapping)
+            if _incompatible:
+                warnings.warn(
+                    f"`args_mapping` on `{name}` remaps {list(_incompatible)!r} to POSITIONAL_ONLY "
+                    f"constructor parameter(s) of `{_dc_check.__name__}`. "
+                    "Calls using those deprecated names will fall back to attribute assignment "
+                    "instead of constructor kwargs — consider using `attrs_mapping` instead.",
+                    UserWarning,
+                    stacklevel=4,
+                )
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
+        # Auto-resolve: no explicit target but attrs_mapping provided → ATTRS_REMAP
+        # Mirrors the args_mapping auto-resolve above: presence of the dict is the activation
+        # signal; explicit TargetMode.ATTRS_REMAP is the equivalent self-documenting form.
+        if target is None and attrs_mapping:
+            target = TargetMode.ATTRS_REMAP
         # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all four signals.
@@ -135,8 +360,19 @@ class _DeprecatedProxy:
             misconfigured |= TargetMode._validate(
                 target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4
             )
-        # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object,
-        # extras to merge after args_mapping at call time, optional custom warning template.
+        # Proxy-specific validation: attrs_mapping combinations not covered by _validate().
+        # stacklevel=4: caller → decorator(cls) → __init__ → _validate_proxy → warn
+        # deprecated_class() itself is already off the stack when decorator(cls) runs.
+        misconfigured |= TargetMode._validate_proxy(
+            target,
+            name,
+            attrs_mapping=attrs_mapping,
+            args_mapping=args_mapping,
+            args_extra=args_extra,
+            stacklevel=4,
+        )
+        # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object, extras to merge
+        # after args_mapping at call time, optional custom warning template.
         cfg = _ProxyConfig(
             obj=obj,
             stream=stream,
@@ -144,6 +380,7 @@ class _DeprecatedProxy:
             read_only=read_only,
             args_extra=args_extra,
             template_mgs=template_mgs,
+            attrs_mapping=attrs_mapping,
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
         # Static deprecation metadata stored as a dunder attribute — readable by audit tools via __deprecated__.
@@ -157,11 +394,13 @@ class _DeprecatedProxy:
             misconfigured=misconfigured,
             docstring_style=normalize_docstring_style(docstring_style),
             template_mgs=template_mgs,
+            attrs_mapping=attrs_mapping,
+            args_mapping_auto_expanded=tuple(_auto_expanded),
+            args_mapping_positional_only=_incompatible,
         )
         object.__setattr__(self, "__deprecated__", dep_meta)
-        # Expose the wrapped object's docstring as an instance attribute so
-        # that external tools (autodoc, mkdocstrings/griffe) see the source
-        # class's documentation rather than _DeprecatedProxy's own class docstring.
+        # Expose the wrapped object's docstring as an instance attribute so that external tools (autodoc,
+        # mkdocstrings/griffe) see the source class's documentation rather than _DeprecatedProxy's own class docstring.
         _doc = getattr(obj, "__doc__", None)
         if _doc:
             object.__setattr__(self, "__doc__", _doc)
@@ -190,6 +429,48 @@ class _DeprecatedProxy:
         """
         return cast(DeprecationConfig, object.__getattribute__(self, "__deprecated__"))
 
+    def _build_attr_warning_msg(
+        self,
+        arg_name: str,
+        dep: DeprecationConfig,
+        attrs_mapping: dict[str, Optional[str]],
+        target: Any,  # noqa: ANN401
+        custom_template: Optional[str],
+    ) -> Optional[str]:
+        """Build the warning message for a deprecated ``attrs_mapping`` attribute access.
+
+        Strips the ``"__attr__:"`` prefix from *arg_name* to recover the attribute name visible to
+        callers.  The prefix must be preserved in the *arg_name* passed by the caller so that the
+        per-attribute budget key in ``cfg.warned_args`` stays disjoint from any same-named
+        ``args_mapping`` key — this method intentionally does not reassign *arg_name*.
+
+        Returns:
+            The formatted warning string, or ``None`` when *attr_name* is not registered in
+            ``dep.attrs_mapping`` (caller should silently return without warning).
+
+        """
+        attr_name = arg_name[len("__attr__:") :]
+        if attr_name not in attrs_mapping:
+            return None
+        new_attr = attrs_mapping[attr_name]
+        if new_attr is not None:
+            owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
+            target_path = f"{owner}.{new_attr}"
+            template = custom_template or TEMPLATE_WARNING_CALLABLE
+            return template % {
+                "source_name": attr_name,
+                "deprecated_in": dep.deprecated_in,
+                "remove_in": dep.remove_in,
+                "target_name": new_attr,
+                "target_path": target_path,
+            }
+        template = custom_template or TEMPLATE_WARNING_NO_TARGET
+        return template % {
+            "source_name": attr_name,
+            "deprecated_in": dep.deprecated_in,
+            "remove_in": dep.remove_in,
+        }
+
     def _warn(self, *, arg_name: Optional[str] = None) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted.
 
@@ -217,14 +498,12 @@ class _DeprecatedProxy:
         dep = self._dep
         target: Any = dep.target
         args_mapping = dep.args_mapping
-        # ``cfg.template_mgs`` (when set) overrides the built-in template for every
-        # branch.  Fallback semantics mirror the decorator's ``_raise_warn_callable``
-        # and ``_raise_warn_arguments``: the built-in template appropriate for the
-        # active scenario is used when no override is configured.
+        # ``cfg.template_mgs`` (when set) overrides the built-in template for every branch.  Fallback semantics
+        # mirror the decorator's ``_raise_warn_callable`` and ``_raise_warn_arguments``: the built-in template
+        # appropriate for the active scenario is used when no override is configured.
         custom_template = cfg.template_mgs
-        # Per-argument warning: use the same template the decorator emits for
-        # `args_mapping` deprecations so callers see `old -> new` rather than a
-        # generic class-deprecation message.
+        # Per-argument warning: use the same template the decorator emits for `args_mapping` deprecations so callers
+        # see `old -> new` rather than a generic class-deprecation message.
         if arg_name is not None and args_mapping and arg_name in args_mapping:
             new_arg = args_mapping[arg_name]
             argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
@@ -235,6 +514,11 @@ class _DeprecatedProxy:
                 "remove_in": dep.remove_in,
                 "argument_map": argument_map,
             }
+        elif arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
+            _attr_msg = self._build_attr_warning_msg(arg_name, dep, dep.attrs_mapping, target, custom_template)
+            if _attr_msg is None:
+                return
+            msg = _attr_msg
         elif callable(target):
             target_name = target.__name__
             target_path = f"{target.__module__}.{target_name}"
@@ -253,9 +537,9 @@ class _DeprecatedProxy:
                 "deprecated_in": dep.deprecated_in,
                 "remove_in": dep.remove_in,
             }
-        # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the
-        # ``_raise_warn`` fallback in ``deprecation.py``: when ``stream`` does not accept a
-        # ``stacklevel`` kwarg (e.g. ``print``, custom callables), fall back to a positional call.
+        # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the ``_raise_warn`` fallback
+        # in ``deprecation.py``: when ``stream`` does not accept a ``stacklevel`` kwarg (e.g. ``print``, custom
+        # callables), fall back to a positional call.
         try:
             stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER)
         except TypeError:
@@ -298,6 +582,19 @@ class _DeprecatedProxy:
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
         return {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
 
+    @staticmethod
+    def _resolve_incompat_new_keys(dep: "DeprecationConfig") -> frozenset[str]:
+        """Return the set of remapped-to names whose original was POSITIONAL_ONLY."""
+        if not (dep.args_mapping_positional_only and dep.args_mapping):
+            return frozenset()
+        return frozenset(
+            r
+            for old in dep.args_mapping_positional_only
+            if old in dep.args_mapping
+            for r in (dep.args_mapping[old],)
+            if r is not None
+        )
+
     def _merge_args_extra(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; extra values win."""
         args_extra = self._cfg.args_extra
@@ -329,6 +626,17 @@ class _DeprecatedProxy:
         }
         return name in mutating_names
 
+    def _guard_read_only_mutator(self, attr: Any, name: str) -> Any:  # noqa: ANN401
+        """Return a guarded callable for standard mutators in read-only mode."""
+        if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
+
+            def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+                """Raise a read-only error when this mutating method is called."""
+                self._check_read_only(f"Calling mutating method '{name}'")
+
+            return _guarded_mutator
+        return attr
+
     # ------------------------------------------------------------------
     # Attribute access
     # ------------------------------------------------------------------
@@ -336,39 +644,96 @@ class _DeprecatedProxy:
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         """Forward attribute lookup to the active object, emitting a deprecation warning.
 
+        When ``attrs_mapping`` is configured, only attributes listed in the mapping emit a warning; all other accesses
+        are forwarded silently without a warning.  The redirect target name (value in the mapping) is used for the
+        actual attribute lookup when the value is a non-``None`` string; ``None`` means warn-only with no rename on the
+        active object.
+
         In read-only mode, common mutating methods on built-in collections (for example, ``append`` or ``update``) are
         wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
 
         """
-        self._warn()
+        attrs_mapping = self._cfg.attrs_mapping
+        if attrs_mapping is not None:
+            if name in attrs_mapping:
+                self._warn(arg_name=f"__attr__:{name}")
+                redirect = attrs_mapping[name]
+                active = self._get_active()
+                attr_name = redirect if redirect is not None else name
+                if redirect is None:
+                    try:
+                        attr = getattr(active, attr_name)
+                    except AttributeError:
+                        # Attribute absent from target — fall back to source. Covers the "being-removed" pattern where
+                        # the deprecated attribute still lives on the old class but was dropped from the new target.
+                        attr = getattr(self._cfg.obj, attr_name)
+                    return self._guard_read_only_mutator(attr, attr_name)
+                attr = getattr(active, attr_name)
+                return self._guard_read_only_mutator(attr, attr_name)
+            # Not a deprecated attr — silent passthrough, no warning.
+            attr = getattr(self._get_active(), name)
+            return self._guard_read_only_mutator(attr, name)
+        # ARGS_REMAP deprecates constructor argument names only; attribute access is unrelated
+        # to the deprecated call signature and must not emit a spurious global warning.
+        if self._dep.target is not TargetMode.ARGS_REMAP:
+            self._warn()
         attr = getattr(self._get_active(), name)
-        # In read-only mode, guard common mutating methods accessed via attribute lookup.
-        if self._cfg.read_only and callable(attr) and self._is_potential_mutator(name):
-
-            def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-                self._check_read_only(f"Calling mutating method '{name}'")
-
-            return _guarded_mutator
-        return attr
+        return self._guard_read_only_mutator(attr, name)
 
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
         """Forward attribute mutation to the active object, raising in read-only mode.
+
+        When ``attrs_mapping`` is configured and the attribute name is a deprecated alias, emits a warning and
+        redirects the write to the canonical attribute name.
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
 
         """
         self._check_read_only(f"Setting attribute '{name}'")
+        attrs_mapping = self._cfg.attrs_mapping
+        if attrs_mapping is not None and name in attrs_mapping:
+            self._warn(arg_name=f"__attr__:{name}")
+            redirect = attrs_mapping[name]
+            active = self._get_active()
+            attr_name = redirect if redirect is not None else name
+            if redirect is None:
+                # "Being-removed" pattern: attribute may live only on the source class.
+                # Mirror the __getattr__ fallback: prefer active, fall back to source.
+                owner = active if hasattr(active, attr_name) else self._cfg.obj
+                setattr(owner, attr_name, value)
+                return
+            setattr(active, attr_name, value)
+            return
         setattr(self._get_active(), name, value)
 
     def __delattr__(self, name: str) -> None:
         """Forward attribute deletion to the active object, raising in read-only mode.
+
+        When ``attrs_mapping`` is configured and the attribute name is a deprecated alias, emits a warning and
+        redirects the deletion to the canonical attribute name.
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
 
         """
         self._check_read_only(f"Deleting attribute '{name}'")
+        attrs_mapping = self._cfg.attrs_mapping
+        if attrs_mapping is not None and name in attrs_mapping:
+            self._warn(arg_name=f"__attr__:{name}")
+            redirect = attrs_mapping[name]
+            active = self._get_active()
+            attr_name = redirect if redirect is not None else name
+            if redirect is None:
+                # "Being-removed" pattern: attribute may live only on the source class.
+                # Mirror the __getattr__ fallback so delete behaviour is symmetric.
+                try:
+                    delattr(active, attr_name)
+                except AttributeError:
+                    delattr(self._cfg.obj, attr_name)
+                return
+            delattr(active, attr_name)
+            return
         delattr(self._get_active(), name)
 
     # ------------------------------------------------------------------
@@ -431,12 +796,21 @@ class _DeprecatedProxy:
           passed still warn at the callable level (class is deprecated); remap, merge ``args_extra``, and forward to
           target.
         - Callable target without ``args_mapping``: warn (global budget), merge ``args_extra``, and forward to target.
+        - :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`: governs attribute access only; ``args_extra`` is
+          intentionally not applied on ``__call__`` — :meth:`~deprecate._types.TargetMode._validate_proxy`
+          already warns about this misconfiguration at decoration time.
         - :attr:`~deprecate._types.TargetMode.NOTIFY`: always warn (global budget) and forward kwargs unchanged;
           ``args_extra`` is intentionally ignored (misconfig).
 
         """
         dep = object.__getattribute__(self, "__deprecated__")
         cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
+
+        # ATTRS_REMAP stacked over a proxy: delegate the call to the inner proxy without firing the global
+        # callable warning. ATTRS_REMAP governs attribute access only; the call itself is not a deprecated
+        # surface, so forwarding through the inner proxy avoids double-warning when both layers are active.
+        if dep.target is TargetMode.ATTRS_REMAP and isinstance(cfg.obj, _DeprecatedProxy):
+            return cfg.obj(*args, **kwargs)
 
         if dep.target is TargetMode.ARGS_REMAP:
             mapping = dep.args_mapping or {}
@@ -445,6 +819,16 @@ class _DeprecatedProxy:
                     self._warn(arg_name=old_key)
             mapped_kwargs = self._apply_args_mapping(kwargs)
             mapped_kwargs = self._merge_args_extra(mapped_kwargs)
+            # Positional-only fallback: after remapping, mapped_kwargs holds NEW keys; incompatible
+            # old keys have already been renamed to their POSITIONAL_ONLY target names.  Extract those
+            # new keys (cannot be forwarded as kwargs), construct the object, then setattr.
+            if dep.args_mapping_positional_only and dep.args_mapping:
+                _incompat_new = self._resolve_incompat_new_keys(dep)
+                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+                instance = cfg.obj(*args, **mapped_kwargs)
+                for new_key, val in pending.items():
+                    setattr(instance, new_key, val)
+                return instance
             return cfg.obj(*args, **mapped_kwargs)
         if callable(dep.target) and dep.args_mapping:
             mapping = dep.args_mapping or {}
@@ -456,6 +840,14 @@ class _DeprecatedProxy:
                 self._warn()
             mapped_kwargs = self._apply_args_mapping(kwargs)
             mapped_kwargs = self._merge_args_extra(mapped_kwargs)
+            # Positional-only fallback for callable target path.
+            if dep.args_mapping_positional_only and dep.args_mapping:
+                _incompat_new = self._resolve_incompat_new_keys(dep)
+                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+                instance = dep.target(*args, **mapped_kwargs)
+                for new_key, val in pending.items():
+                    setattr(instance, new_key, val)
+                return instance
             return dep.target(*args, **mapped_kwargs)
         # Callable target without args_mapping: warn globally; still merge args_extra so
         # injected defaults reach the target.
@@ -465,8 +857,11 @@ class _DeprecatedProxy:
         # NOTIFY: forward unchanged — args_extra is intentionally ignored (already warned at construction).
         if dep.target is TargetMode.NOTIFY:
             return self._get_active()(*args, **kwargs)
-        # No target configured (e.g. deprecated_instance with no target): merge args_extra
-        # into the call so wrappers can inject default kwargs even without a forwarding target.
+        # ATTRS_REMAP (non-stacking path): attribute access only — args_extra not applied.
+        if dep.target is TargetMode.ATTRS_REMAP:
+            return self._get_active()(*args, **kwargs)
+        # No target configured (e.g. deprecated_instance with no target): merge args_extra into the call so
+        # wrappers can inject default kwargs even without a forwarding target.
         return self._get_active()(*args, **self._merge_args_extra(kwargs))
 
     # ------------------------------------------------------------------
@@ -514,10 +909,20 @@ class _DeprecatedProxy:
         Allows a proxy used as a deprecated class alias to work transparently with ``isinstance`` without emitting a
         warning — type checks are structural, not a use of the deprecated API.
 
-        Returns False when the active object is not a type.
+        When the active object is itself a :class:`_DeprecatedProxy` (stacked proxy chain), the loop walks inward until
+        a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular stack so
+        this dunder never blocks.
+
+        Returns False when the active object is neither a type nor a proxy.
 
         """
+        seen: set[int] = set()
         active = self._get_active()
+        while isinstance(active, _DeprecatedProxy):
+            if id(active) in seen:
+                return False
+            seen.add(id(active))
+            active = active._get_active()
         if isinstance(active, type):
             # Delegate via isinstance to preserve metaclass-defined instance checks.
             return isinstance(instance, active)
@@ -527,11 +932,19 @@ class _DeprecatedProxy:
         """Support ``issubclass(X, proxy)`` by delegating to the active class.
 
         Same rationale as :meth:`~deprecate.proxy._DeprecatedProxy.__instancecheck__` — no warning emitted.
+        Stacked proxy chains are walked iteratively until a concrete type is reached; a defensive cycle guard
+        breaks the loop on the unlikely case of a circular stack.
 
-        Returns False when the active object is not a type.
+        Returns False when the active object is neither a type nor a proxy.
 
         """
+        seen: set[int] = set()
         active = self._get_active()
+        while isinstance(active, _DeprecatedProxy):
+            if id(active) in seen:
+                return False
+            seen.add(id(active))
+            active = active._get_active()
         if isinstance(active, type):
             # Delegate via issubclass so that any metaclass-defined
             # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
@@ -549,10 +962,11 @@ def deprecated_class(
     template_mgs: Optional[str] = None,
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     _misconfigured_override: bool = False,
-) -> Callable[[type], "_DeprecatedProxy"]:
+) -> Callable[[Union[type, "_DeprecatedProxy"]], "_DeprecatedProxy"]:
     r"""Decorator factory for deprecating class definitions with optional target redirection.
 
     Apply ``@deprecated_class(...)`` to an Enum or dataclass to wrap the class in a
@@ -592,6 +1006,41 @@ def deprecated_class(
             been applied.  Caller-supplied values override entries with the same key.  Ignored when ``target`` is
             :attr:`~deprecate._types.TargetMode.NOTIFY` (passing both emits a :class:`UserWarning` at decoration
             time; will be :class:`TypeError` in v1.0).
+        attrs_mapping: Optional dict mapping deprecated attribute names to canonical names (or ``None`` for
+            warn-only).  When set, only the listed attribute names emit a deprecation warning on access; all other
+            attributes are forwarded silently.  The redirect applies to reads (``__getattr__``), writes
+            (``__setattr__``), and deletes (``__delattr__``).  Every non-``None`` value must be an existing attribute
+            on the target class when ``target`` is provided, or on the wrapped source class otherwise.
+            ``None`` values keep the same attribute name but still resolve against the active class, so with
+            ``target=SomeClass`` a warn-only mapping such as ``{"size": None}`` reads, writes, and deletes
+            ``SomeClass.size``.
+            Redirect chains such as ``{"a": "b", "b": "c"}`` are allowed at decoration time and reported by audit as
+            :attr:`~deprecate.audit.ChainType.STACKED`. Cycles such as ``{"a": "b", "b": "a"}`` raise
+            :class:`ValueError` at decoration time.
+
+            Example: ``attrs_mapping={"color": "colour", "txt": "text"}`` warns on ``proxy.color`` access and
+            returns ``proxy.colour``; ``proxy.colour`` is forwarded silently.
+
+            When ``attrs_mapping`` is ``None`` (default), the existing behaviour is preserved: a warning is emitted
+            on every attribute access through the proxy.
+
+            **Callable target interaction**: when ``target=SomeClass`` is also provided, listed attribute aliases
+            resolve against ``SomeClass``.  A ``None`` mapping keeps the original attribute name on ``SomeClass``.
+            Unlisted attributes and calls continue to use the normal target-forwarding behaviour.
+
+            **Validation limitation**: attribute existence is checked using :func:`inspect.getattr_static`,
+            which detects class-level attributes and ``__slots__`` entries but not instance-only attributes
+            set in ``__init__`` via ``self.x = ...``.  For dataclass targets without defaults, the field
+            name appears in ``__dataclass_fields__`` but the attribute itself is instance-only —
+            decoration-time validation will raise :class:`ValueError` even though access would succeed at
+            runtime.  As a workaround, add a class-level default or use a ``None`` (warn-only) entry.
+
+            The mode can also be set explicitly as ``target=TargetMode.ATTRS_REMAP`` — both forms are equivalent;
+            the explicit form is self-documenting and enables validation at decoration time. Passing
+            ``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping``, or passing an empty ``attrs_mapping={}``,
+            emits a :class:`UserWarning` at decoration time (will be :class:`TypeError` in v1.0). Passing
+            ``attrs_mapping`` together with ``target=TargetMode.NOTIFY`` is also a misconfiguration and emits a
+            :class:`UserWarning` at decoration time.
         update_docstring: If ``True``, inject a deprecation notice into the class docstring at decoration time (same
             behaviour as ``@deprecated(update_docstring=True)``).
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the
@@ -628,12 +1077,34 @@ def deprecated_class(
         >>> LegacyConfig(time_limit=30).timeout  # old name — remapped to timeout
         30
 
+        Selective per-attribute deprecation via ``attrs_mapping``: only the listed attribute
+        aliases emit a warning; other attribute accesses pass through silently.
+
+        >>> @deprecated_class(
+        ...     attrs_mapping={"color": "colour"},
+        ...     deprecated_in="1.0",
+        ...     remove_in="2.0",
+        ...     stream=None,
+        ... )
+        ... class Palette:
+        ...     colour = "red"
+        ...     color = colour  # deprecated alias for ``colour``
+        >>> Palette.colour     # canonical name — silent passthrough
+        'red'
+        >>> Palette.color      # deprecated alias — warns (suppressed by ``stream=None``)
+        'red'
+
     """
 
-    def decorator(cls: type) -> "_DeprecatedProxy":
+    def decorator(cls: Union[type, "_DeprecatedProxy"]) -> "_DeprecatedProxy":
+        # When cls is a _DeprecatedProxy (stacking case), cls.__name__ triggers __getattr__
+        # which emits a spurious warning. Retrieve the name safely via the stored metadata.
+        cls_name = (
+            object.__getattribute__(cls, "__deprecated__").name if isinstance(cls, _DeprecatedProxy) else cls.__name__
+        )
         if stream is not None and not deprecated_in and not template_mgs:
             warnings.warn(
-                f"`@deprecated_class` on `{cls.__name__}` has no `deprecated_in` set."
+                f"`@deprecated_class` on `{cls_name}` has no `deprecated_in` set."
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
@@ -641,7 +1112,7 @@ def deprecated_class(
             )
         proxy = _DeprecatedProxy(
             obj=cls,
-            name=cls.__name__,
+            name=cls_name,
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             num_warns=num_warns,
@@ -651,13 +1122,13 @@ def deprecated_class(
             target=target,
             args_mapping=args_mapping,
             args_extra=args_extra,
+            attrs_mapping=attrs_mapping,
             docstring_style=docstring_style,
             _misconfigured_override=_misconfigured_override,
         )
         if update_docstring:
-            # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set
-            # __doc__ normally; then store the result on the proxy via object.__setattr__
-            # (bypassing the proxy's forwarding __setattr__).
+            # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set __doc__ normally; then store
+            # the result on the proxy via object.__setattr__ (bypassing the proxy's forwarding __setattr__).
             shim = types.SimpleNamespace(__doc__=object.__getattribute__(proxy, "__doc__"), __deprecated__=proxy._dep)
             _update_docstring_with_deprecation(shim)
             object.__setattr__(proxy, "__doc__", shim.__doc__)

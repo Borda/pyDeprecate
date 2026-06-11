@@ -90,6 +90,56 @@ def _get_signature(func: Callable) -> inspect.Signature:
         return inspect.signature(func)
 
 
+def _is_dataclass_target(cls: Any) -> bool:  # noqa: ANN401
+    """Return True if *cls* is a dataclass class (not an instance).
+
+    Used by :class:`~deprecate.proxy._DeprecatedProxy` to detect ``@dataclass`` targets that benefit from automatic
+    ``attrs_mapping`` → ``args_mapping`` expansion.
+
+    """
+    import dataclasses
+
+    return isinstance(cls, type) and dataclasses.is_dataclass(cls)
+
+
+def _get_args_mapping_positional_only_keys(
+    target_cls: Any,  # noqa: ANN401
+    args_mapping: dict[str, Any],
+) -> tuple[str, ...]:
+    """Return ``args_mapping`` keys whose redirect target is a POSITIONAL_ONLY constructor param.
+
+    When ``deprecated_class(args_mapping={"old": "new"}, ...)`` is applied to a target class whose
+    constructor declares ``new`` as positional-only (``def __init__(self, new, /): ...``), calling
+    the proxy with ``old=value`` would remap to ``new=value`` and then immediately raise
+    ``TypeError`` because ``new`` cannot be passed as a keyword argument.
+
+    This helper detects that mismatch at decoration time so the proxy can emit a ``UserWarning``
+    and store the incompatible keys on :class:`~deprecate._types.DeprecationConfig` for audit
+    surfacing.
+
+    Args:
+        target_cls: The resolved target class to inspect.
+        args_mapping: The ``args_mapping`` dict being validated.
+
+    Returns:
+        Tuple of ``args_mapping`` old-key names whose remapped target name is positional-only in
+        the target's constructor signature.  Empty tuple when no incompatibilities detected.
+
+    """
+    try:
+        sig = inspect.signature(target_cls)
+    except (TypeError, ValueError):
+        return ()
+
+    positional_only: set[str] = {
+        name for name, p in sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
+    }
+    if not positional_only:
+        return ()
+
+    return tuple(old_key for old_key, mapping_val in args_mapping.items() if mapping_val in positional_only)
+
+
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:
     """Convert list of warning messages to their string representations.
 

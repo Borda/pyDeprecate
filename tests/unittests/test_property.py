@@ -720,11 +720,7 @@ class TestPropertyErrorPaths:
                 property(_getter)  # type: ignore[arg-type]
             )
 
-    @pytest.mark.parametrize(
-        "target_val",
-        [TargetMode.ARGS_REMAP, True],
-        ids=["TargetMode.ARGS_REMAP", "True_legacy"],
-    )
+    @pytest.mark.parametrize("target_val", [TargetMode.ARGS_REMAP, True], ids=["TargetMode.ARGS_REMAP", "True_legacy"])
     def test_args_remap_target_with_property_raises(self, target_val: object) -> None:
         """Passing ``target=TargetMode.ARGS_REMAP`` or legacy ``True`` when decorating a ``property`` raises TypeError.
 

@@ -84,6 +84,7 @@ from deprecate.audit import (
     validate_deprecation_chains,
     validate_deprecation_expiry,
     validate_deprecation_wrapper,
+    validate_mapping_compatibility,
 )
 from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class, deprecated_instance
@@ -95,8 +96,8 @@ from deprecate.utils import (
 
 __all__ = [
     "ChainType",
-    "DeprecationWrapperInfo",
     "DeprecationStatus",
+    "DeprecationWrapperInfo",
     "TableStyle",
     "TargetMode",
     "assert_no_warnings",
@@ -108,5 +109,6 @@ __all__ = [
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
     "validate_deprecation_wrapper",
+    "validate_mapping_compatibility",
     "void",
 ]

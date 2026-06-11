@@ -310,8 +310,7 @@ class TestArgumentMapping:
         assert len(warns) == 2
         # Pin the warning category explicitly on each recorded entry.  ``pytest.warns(FutureWarning)``
         # only asserts that *at least one* matching warning fires — a regression that smuggled in a
-        # different category alongside the expected one would still pass.  Asserting on every entry
-        # closes that hole.
+        # different category alongside the expected one would still pass.  Asserting on every entry closes that hole.
         assert warns[0].category is FutureWarning
         assert warns[1].category is FutureWarning
 
@@ -435,11 +434,7 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     # Verify __deprecated__ is set WITHOUT calling the function (using decorated_sum from collection_deprecate)
     assert hasattr(decorated_sum, "__deprecated__")
     assert decorated_sum.__deprecated__ == DeprecationConfig(
-        deprecated_in="0.1",
-        remove_in="0.5",
-        name="decorated_sum",
-        target=base_sum_kwargs,
-        args_mapping=None,
+        deprecated_in="0.1", remove_in="0.5", name="decorated_sum", target=base_sum_kwargs, args_mapping=None
     )
 
 

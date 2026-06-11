@@ -44,22 +44,38 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from typing import Any, Callable
-from warnings import warn
+from warnings import catch_warnings, simplefilter, warn
 
 import typing_extensions
 from sklearn.metrics import accuracy_score
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
+from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
+    AutoExpandDC,
+    AutoExpandInitFalseDC,
+    AutoExpandOverriddenInitDC,
+    AutoExpandReqDC,
+    ColorEnum,
+    CombinedAttrsArgsSource,
+    CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
+    LegacyBoolAttrsSource,
+    MutableAttrsList,
     NewCls,
     NewDataClass,
     NewEnum,
     NewIntEnum,
+    Palette,
+    PaletteEnum,
+    PaletteOld,
+    PositionalOnlyTarget,
+    SelfDeprecatedModel,
     SomeTargetClass,
-    TargetColorEnum,
-    TargetWithInjected,
+    StackedAttrTarget,
+    StackingArgsAttrsBase,
     TimerDecorator,
+    WithInjected,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
     _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
@@ -91,8 +107,29 @@ _deprecation_warning = partial(warn, category=DeprecationWarning)
 _SHORT_MSG_FUNC = "`%(source_name)s` >> `%(target_name)s` in v%(deprecated_in)s rm v%(remove_in)s."
 _SHORT_MSG_ARGS = "Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s."
 
+# Reusable deprecation-version kwarg groups.  Each constant captures a (deprecated_in, remove_in
+# [, num_warns]) combination that is shared by 3+ inline @deprecated / @deprecated_class /
+# deprecated_instance / _DeprecatedProxy call sites in this file.  Splat with **NAME at the call
+# site to keep the shared values in one place.
+_DEPRS_CASE_PROXY_LEGACY_ARGS: dict[str, Any] = {"deprecated_in": "0.1", "remove_in": "0.2", "num_warns": -1}
+_DEPRS_CASE_CLS_FWD_ARGS: dict[str, Any] = {"deprecated_in": "0.2", "remove_in": "0.4"}
+_DEPRS_CASE_TGT_MODE_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in": "2.0"}
+_DEPRS_CASE_TGT_MODE_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in": "2.0", "num_warns": -1}
+_DEPRS_CASE_STD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
+_DEPRS_CASE_STD_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "num_warns": -1}
 
-@deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+# Shared deprecated_class() instances — used as both decorator and factory form in
+# form-equivalence and fixture groups below; defined here so all usages reference the
+# same config object.
+_class_deprecation_enum = deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
+_class_deprecation_dataclass = deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
+# H5 fixture: callable target + warn-only attrs_mapping — shared config for both application forms.
+_class_deprecation_notify_only_callable_target = deprecated_class(
+    target=Palette, attrs_mapping={"size": None}, **_DEPRS_CASE_STD_INF_ARGS
+)
+
+
+@deprecated_class(**_DEPRS_CASE_PROXY_LEGACY_ARGS)
 class DeprecatedEnum(Enum):
     """Deprecated enum for regression testing.
 
@@ -105,7 +142,7 @@ class DeprecatedEnum(Enum):
     BETA = "beta"
 
 
-@deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(**_DEPRS_CASE_PROXY_LEGACY_ARGS)
 class DeprecatedIntEnum(Enum):
     """Deprecated enum with integer values for regression testing.
 
@@ -118,7 +155,7 @@ class DeprecatedIntEnum(Enum):
     TWO = 2
 
 
-@deprecated_class(target=NewEnum, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(target=NewEnum, **_DEPRS_CASE_PROXY_LEGACY_ARGS)
 class RedirectedEnum(Enum):
     """Deprecated enum that forwards to a new enum.
 
@@ -131,13 +168,7 @@ class RedirectedEnum(Enum):
     BETA = "beta"
 
 
-@deprecated_class(
-    target=NewEnum,
-    deprecated_in="0.1",
-    remove_in="0.2",
-    num_warns=-1,
-    args_mapping={"old_value": "value"},
-)
+@deprecated_class(target=NewEnum, **_DEPRS_CASE_PROXY_LEGACY_ARGS, args_mapping={"old_value": "value"})
 class MappedEnum(Enum):
     """Deprecated enum with old_value->value mapping, where member names differ but values match NewEnum.
 
@@ -150,13 +181,7 @@ class MappedEnum(Enum):
     OLD_BETA = "beta"
 
 
-@deprecated_class(
-    target=NewIntEnum,
-    deprecated_in="0.1",
-    remove_in="0.2",
-    num_warns=-1,
-    args_mapping={"old_value": "value"},
-)
+@deprecated_class(target=NewIntEnum, **_DEPRS_CASE_PROXY_LEGACY_ARGS, args_mapping={"old_value": "value"})
 class MappedIntEnum(Enum):
     """Deprecated int enum mapping old_value->value where member names differ from NewIntEnum.
 
@@ -169,13 +194,7 @@ class MappedIntEnum(Enum):
     TWO = 2
 
 
-@deprecated_class(
-    target=NewEnum,
-    deprecated_in="0.1",
-    remove_in="0.2",
-    num_warns=-1,
-    args_mapping={"old_value": "value"},
-)
+@deprecated_class(target=NewEnum, **_DEPRS_CASE_PROXY_LEGACY_ARGS, args_mapping={"old_value": "value"})
 class MappedValueEnum(Enum):
     """Deprecated enum with old_value->value mapping, where member values differ from NewEnum's values.
 
@@ -201,11 +220,7 @@ class _SelfMappedEnum(Enum):
 
 
 SelfMappedEnum = deprecated_class(
-    target=_SelfMappedEnum,
-    deprecated_in="0.1",
-    remove_in="0.2",
-    num_warns=-1,
-    args_mapping={"old_value": "value"},
+    target=_SelfMappedEnum, **_DEPRS_CASE_PROXY_LEGACY_ARGS, args_mapping={"old_value": "value"}
 )(_SelfMappedEnum)
 
 
@@ -215,9 +230,6 @@ class _OriginalEnum(Enum):
 
     ALPHA = "alpha"
     BETA = "beta"
-
-
-_class_deprecation_enum = deprecated_class(target=NewEnum, deprecated_in="0.5", remove_in="1.0", num_warns=1)
 
 
 @_class_deprecation_enum
@@ -239,9 +251,6 @@ class _OriginalDataClass:
     total: int = 0
 
 
-_class_deprecation_dataclass = deprecated_class(target=NewDataClass, deprecated_in="0.5", remove_in="1.0", num_warns=1)
-
-
 @_class_deprecation_dataclass
 @dataclass
 class DecoratedDataClass:
@@ -254,7 +263,7 @@ class DecoratedDataClass:
 WrappedDataClass = _class_deprecation_dataclass(_OriginalDataClass)
 
 
-@deprecated_class(deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(**_DEPRS_CASE_PROXY_LEGACY_ARGS)
 @dataclass
 class DeprecatedDataClass:
     """Deprecated dataclass for regression testing.
@@ -268,7 +277,7 @@ class DeprecatedDataClass:
     total: int = 0
 
 
-@deprecated_class(target=NewDataClass, deprecated_in="0.1", remove_in="0.2", num_warns=-1)
+@deprecated_class(target=NewDataClass, **_DEPRS_CASE_PROXY_LEGACY_ARGS)
 @dataclass
 class RedirectedDataClass:
     """Deprecated dataclass forwarding to NewDataClass.
@@ -328,7 +337,7 @@ def decorated_sum(a: int, b: int = 5) -> int:
 wrapped_sum = _deprecation_sum(original_sum)
 
 
-@deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4")
+@deprecated(target=NewCls, **_DEPRS_CASE_CLS_FWD_ARGS)
 def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noqa: ANN401
     """Forward a deprecated factory function to a class constructor.
 
@@ -339,7 +348,7 @@ def depr_make_new_cls(c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noq
     return void(c, d, kwargs)
 
 
-@deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"})
+@deprecated(target=NewCls, **_DEPRS_CASE_CLS_FWD_ARGS, args_mapping={"old_c": "c"})
 def depr_make_new_cls_mapped(old_c: float, d: str = "abc", **kwargs: Any) -> NewCls:  # noqa: ANN401
     """Forward a deprecated factory function to a class constructor with argument renaming.
 
@@ -425,62 +434,38 @@ def decorated_sum_msg(a: int, b: int = 5) -> int:
 wrapped_sum_msg = _deprecation_sum_msg(original_sum)
 
 
-@deprecated(
-    target=TargetMode.NOTIFY,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    num_warns=-1,
-)
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_TGT_MODE_INF_ARGS)
 def depr_target_mode_whole_warns_on_every_call(x: int) -> int:
     """TargetMode.NOTIFY wrapper used by integration tests."""
     return double_value(x)
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.2", remove_in="2.0")
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_TGT_MODE_ARGS)
 def depr_target_mode_whole_executes_original_body(x: int) -> int:
     """TargetMode.NOTIFY wrapper that records body execution."""
     return tracked_identity(x)
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old_x": "x"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_x": "x"})
 def depr_target_mode_args_only_warns_when_old_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_REMAP wrapper used when callers pass the old name."""
     return increment_value(x)
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old_x": "x"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_x": "x"})
 def depr_target_mode_args_only_silent_when_new_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_REMAP wrapper used when callers already use the new name."""
     return increment_value(x)
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"coef": "new_coef"},
-)
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"coef": "new_coef"})
 def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0, coef: float = 1.0) -> float:
     """TargetMode.ARGS_REMAP wrapper that remaps kwargs before executing."""
     return power_with_new_coef(base, new_coef)
 
 
 @deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old_x": "x"},
-    args_extra={"y": 10},
+    target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_x": "x"}, args_extra={"y": 10}
 )
 def depr_target_mode_args_only_with_args_extra_injects_kwargs(x: int = 0, y: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_REMAP wrapper that injects extra keyword arguments."""
@@ -490,7 +475,7 @@ def depr_target_mode_args_only_with_args_extra_injects_kwargs(x: int = 0, y: int
 def make_target_mode_args_only_without_args_mapping_warns() -> Callable[[int], int]:
     """Build a TargetMode.ARGS_REMAP wrapper that warns about missing args_mapping."""
 
-    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0")
+    @deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS)
     def noop(x: int) -> int:
         return identity_value(x)
 
@@ -500,12 +485,7 @@ def make_target_mode_args_only_without_args_mapping_warns() -> Callable[[int], i
 def make_target_mode_whole_with_args_mapping_warns() -> Callable[[int], int]:
     """Build a TargetMode.NOTIFY wrapper that warns about ignored args_mapping."""
 
-    @deprecated(
-        target=TargetMode.NOTIFY,
-        deprecated_in="1.2",
-        remove_in="2.0",
-        args_mapping={"a": "b"},
-    )
+    @deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"a": "b"})
     def fn(b: int) -> int:
         return return_b(b)
 
@@ -515,31 +495,20 @@ def make_target_mode_whole_with_args_mapping_warns() -> Callable[[int], int]:
 def make_target_mode_whole_with_args_extra_warns() -> Callable[[int], int]:
     """Build a TargetMode.NOTIFY wrapper that warns about ignored args_extra."""
 
-    @deprecated(
-        target=TargetMode.NOTIFY,
-        deprecated_in="1.2",
-        remove_in="2.0",
-        args_extra={"z": 1},
-    )
+    @deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_TGT_MODE_ARGS, args_extra={"z": 1})
     def fn(z: int = 0) -> int:
         return return_z(z)
 
     return fn
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_INF_ARGS)
 def depr_class_whole_mode_warns_on_call(x: int) -> int:
     """TargetMode.NOTIFY wrapper used by class integration tests."""
     return double_value(x)
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP,
-    deprecated_in="1.0",
-    remove_in="2.0",
-    args_mapping={"old_x": "x"},
-    num_warns=-1,
-)
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_STD_INF_ARGS, args_mapping={"old_x": "x"})
 def depr_class_args_only_mode_warns_on_deprecated_arg(x: int = 0, old_x: int = 0) -> int:
     """TargetMode.ARGS_REMAP wrapper used by class integration tests."""
     return double_value(x)
@@ -882,7 +851,7 @@ def depr_accuracy_target(preds: list, truth: tuple = (0, 1, 1, 2)) -> float:
 
 
 # Deprecate a function-based timing wrapper in favor of the improved timing_wrapper
-@deprecated(target=timing_wrapper, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=timing_wrapper, **_DEPRS_CASE_STD_ARGS)
 def depr_timing_wrapper(func: Callable) -> Callable:
     """Deprecating a decorator/wrapper function.
 
@@ -904,7 +873,7 @@ class DeprecatedTimerDecorator(TimerDecorator):
 
     """
 
-    @deprecated(target=TimerDecorator, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TimerDecorator, **_DEPRS_CASE_STD_ARGS)
     def __init__(self, func: Callable) -> None:
         """Initialize deprecated timer."""
         void(func)
@@ -943,7 +912,7 @@ def depr_func_no_remove_in(x: int) -> int:
 class PastCls(NewCls):
     """Deprecated class forwarding to NewCls with DeprecationWarning."""
 
-    @deprecated(target=NewCls, deprecated_in="0.2", remove_in="0.4", stream=_deprecation_warning)
+    @deprecated(target=NewCls, **_DEPRS_CASE_CLS_FWD_ARGS, stream=_deprecation_warning)
     def __init__(self, c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
         """Initialize PastCls."""
         super().__init__(c)
@@ -952,9 +921,7 @@ class PastCls(NewCls):
 class PastClsMapped(NewCls):
     """Deprecated class forwarding to NewCls with argument renaming via args_mapping."""
 
-    @deprecated(
-        target=NewCls, deprecated_in="0.2", remove_in="0.4", args_mapping={"old_c": "c"}, stream=_deprecation_warning
-    )
+    @deprecated(target=NewCls, **_DEPRS_CASE_CLS_FWD_ARGS, args_mapping={"old_c": "c"}, stream=_deprecation_warning)
     def __init__(self, old_c: int, d: str = "efg", **kwargs: Any) -> None:  # noqa: ANN401
         """Initialize PastClsMapped."""
         super().__init__(old_c)
@@ -1012,7 +979,7 @@ class ServiceCls:
         """Current staticmethod implementation."""
         return x * 2
 
-    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
     @classmethod
     def old_class_method(cls, x: int) -> int:
         """Deprecated classmethod — warns only, body still executes.
@@ -1023,12 +990,7 @@ class ServiceCls:
         """
         return cls.class_compute(x)
 
-    @deprecated(
-        target=TargetMode.ARGS_REMAP,
-        args_mapping={"old_x": "x"},
-        deprecated_in="1.0",
-        remove_in="2.0",
-    )
+    @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
     @classmethod
     def old_class_method_args(cls, old_x: int = 0, x: int = 0) -> int:
         """Deprecated classmethod with argument rename.
@@ -1039,7 +1001,7 @@ class ServiceCls:
         """
         return cls.class_compute(x)
 
-    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
     @staticmethod
     def old_static_method(x: int) -> int:
         """Deprecated staticmethod — warns only, body still executes.
@@ -1050,12 +1012,7 @@ class ServiceCls:
         """
         return x * 2
 
-    @deprecated(
-        target=TargetMode.ARGS_REMAP,
-        args_mapping={"old_x": "x"},
-        deprecated_in="1.0",
-        remove_in="2.0",
-    )
+    @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
     @staticmethod
     def old_static_method_args(old_x: int = 0, x: int = 0) -> int:
         """Deprecated staticmethod with argument rename.
@@ -1135,6 +1092,7 @@ class ServiceCls:
         return void(old_x, x)
 
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
     def old_warn_method(self, x: int) -> int:
         """Deprecated — warns only, body still executes.
 
@@ -1145,7 +1103,7 @@ class ServiceCls:
         """
         return self.compute(x)
 
-    @deprecated(target=compute, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=compute, **_DEPRS_CASE_STD_ARGS)
     def old_redirect_method(self, x: int) -> int:
         """Deprecated — forwards to compute().
 
@@ -1156,12 +1114,7 @@ class ServiceCls:
         """
         return void(x)
 
-    @deprecated(
-        target=compute_scaled,
-        deprecated_in="1.0",
-        remove_in="2.0",
-        args_mapping={"x": "value"},
-    )
+    @deprecated(target=compute_scaled, **_DEPRS_CASE_STD_ARGS, args_mapping={"x": "value"})
     def old_mapped_method(self, x: int) -> int:
         """Deprecated — args_mapping renames x->value when forwarding to compute_scaled().
 
@@ -1172,12 +1125,7 @@ class ServiceCls:
         """
         return void(x)
 
-    @deprecated(
-        target=TargetMode.ARGS_REMAP,
-        deprecated_in="1.0",
-        remove_in="2.0",
-        args_mapping={"old_x": "x"},
-    )
+    @deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_STD_ARGS, args_mapping={"old_x": "x"})
     def self_renamed_method(self, old_x: int = 0, x: int = 0) -> int:
         """Deprecated argument renamed within the same method (TargetMode.ARGS_REMAP).
 
@@ -1196,7 +1144,7 @@ class CrossGuardSameClass:
         """Current implementation on the same class."""
         return x * 2
 
-    @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=new_method, **_DEPRS_CASE_STD_ARGS)
     def old_method(self, x: int) -> int:
         """Deprecated method that forwards to `new_method`."""
         return void(x)
@@ -1205,7 +1153,7 @@ class CrossGuardSameClass:
 class CrossGuardModuleLevel:
     """Class used by cross-class guard tests for module-level function forwarding."""
 
-    @deprecated(target=cross_guard_standalone_increment, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=cross_guard_standalone_increment, **_DEPRS_CASE_STD_ARGS)
     def old_method(self, x: int) -> int:
         """Deprecated method that forwards to module-level function target."""
         return void(x)
@@ -1214,7 +1162,7 @@ class CrossGuardModuleLevel:
 class CrossGuardOldClass(CrossGuardClassTargetNew):
     """Class used by cross-class guard tests for constructor-to-constructor forwarding."""
 
-    @deprecated(target=CrossGuardClassTargetNew, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=CrossGuardClassTargetNew, **_DEPRS_CASE_STD_ARGS)
     def __init__(self, x: int) -> None:
         """Deprecated constructor forwarding to `CrossGuardClassTargetNew.__init__`."""
         void(x)
@@ -1227,29 +1175,27 @@ class CrossGuardOldClass(CrossGuardClassTargetNew):
 _DEPR_CONFIG_DICT = {"threshold": 0.5, "enabled": True}
 
 # deprecated config dict for integration tests (name auto-inferred as "dict")
-depr_config_dict = deprecated_instance(
-    _DEPR_CONFIG_DICT.copy(),
-    deprecated_in="1.0",
-    remove_in="2.0",
-    num_warns=-1,
-)
+depr_config_dict = deprecated_instance(_DEPR_CONFIG_DICT.copy(), **_DEPRS_CASE_STD_INF_ARGS)
 
 # read-only deprecated config dict — rejects mutations
-depr_config_dict_read_only = deprecated_instance(
-    _DEPR_CONFIG_DICT.copy(),
-    deprecated_in="1.0",
-    remove_in="2.0",
-    num_warns=-1,
+depr_config_dict_read_only = deprecated_instance(_DEPR_CONFIG_DICT.copy(), **_DEPRS_CASE_STD_INF_ARGS, read_only=True)
+
+depr_read_only_attrs_list = _DeprecatedProxy(
+    obj=MutableAttrsList(),
+    name="legacy_mutable_attrs_list",
+    **_DEPRS_CASE_STD_INF_ARGS,
+    stream=None,
     read_only=True,
+    attrs_mapping={"push": "append"},
 )
 
 
-@deprecated_class(target=TargetColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated_class(target=ColorEnum, **_DEPRS_CASE_STD_INF_ARGS)
 class DeprecatedColorEnum(Enum):
-    """Deprecated color enum forwarding to TargetColorEnum via deprecated_class.
+    """Deprecated color enum forwarding to ColorEnum via deprecated_class.
 
     Example:
-        A user calling DeprecatedColorEnum.RED receives TargetColorEnum.RED.
+        A user calling DeprecatedColorEnum.RED receives ColorEnum.RED.
 
     """
 
@@ -1257,7 +1203,7 @@ class DeprecatedColorEnum(Enum):
     BLUE = 2
 
 
-@deprecated_class(target=NewDataClass, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated_class(target=NewDataClass, **_DEPRS_CASE_STD_INF_ARGS)
 @dataclass
 class DeprecatedColorDataClass:
     """Deprecated dataclass forwarding to NewDataClass via deprecated_class.
@@ -1271,7 +1217,7 @@ class DeprecatedColorDataClass:
     total: int = 0
 
 
-@deprecated_class(deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated_class(**_DEPRS_CASE_STD_INF_ARGS)
 class WarnOnlyColorEnum(Enum):
     """Deprecated enum with no forwarding target — warns on access only.
 
@@ -1283,18 +1229,12 @@ class WarnOnlyColorEnum(Enum):
     A = "a"
 
 
-@deprecated_class(
-    target=TargetColorEnum,
-    deprecated_in="1.0",
-    remove_in="2.0",
-    num_warns=-1,
-    args_mapping={"val": "value"},
-)
+@deprecated_class(target=ColorEnum, **_DEPRS_CASE_STD_INF_ARGS, args_mapping={"val": "value"})
 class MappedColorEnum(Enum):
     """Deprecated enum with args_mapping: remaps 'val' kwarg to 'value' when called.
 
     Example:
-        A user calling MappedColorEnum(val=1) receives TargetColorEnum.RED.
+        A user calling MappedColorEnum(val=1) receives ColorEnum.RED.
 
     """
 
@@ -1302,13 +1242,7 @@ class MappedColorEnum(Enum):
     BLUE = 2
 
 
-@deprecated_class(
-    target=NewDataClass,
-    deprecated_in="1.0",
-    remove_in="2.0",
-    num_warns=-1,
-    args_mapping={"name": "label", "count": "total"},
-)
+@deprecated_class(target=NewDataClass, **_DEPRS_CASE_STD_INF_ARGS, args_mapping={"name": "label", "count": "total"})
 @dataclass
 class MappedDataClass:
     """Deprecated dataclass with args_mapping: remaps 'name'->'label' and 'count'->'total'.
@@ -1322,13 +1256,7 @@ class MappedDataClass:
     total: int = 0
 
 
-@deprecated_class(
-    target=NewDataClass,
-    deprecated_in="1.0",
-    remove_in="2.0",
-    num_warns=-1,
-    args_mapping={"legacy_flag": None, "name": "label"},
-)
+@deprecated_class(target=NewDataClass, **_DEPRS_CASE_STD_INF_ARGS, args_mapping={"legacy_flag": None, "name": "label"})
 @dataclass
 class MappedDropArgDataClass:
     """Deprecated dataclass with args_mapping: drops 'legacy_flag', remaps 'name'->'label'.
@@ -1349,27 +1277,20 @@ class MappedDropArgDataClass:
 
 
 # Proxy: auto ARGS_REMAP via args_mapping only (no explicit target)
-ProxyArgsRemapAuto = deprecated_class(
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old_key": "new_key"},
-)(SomeTargetClass)
+ProxyArgsRemapAuto = deprecated_class(**_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_key": "new_key"})(SomeTargetClass)
 
 # Proxy: callable target + args_mapping
 ProxyCallableWithArgsMapping = deprecated_class(
-    deprecated_in="1.2",
-    remove_in="2.0",
-    target=SomeTargetClass,
-    args_mapping={"old_key": "new_key"},
+    **_DEPRS_CASE_TGT_MODE_ARGS, target=SomeTargetClass, args_mapping={"old_key": "new_key"}
 )(SomeTargetClass)
 
 
-@deprecated_class(target=DeprecatedColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+@deprecated_class(target=DeprecatedColorEnum, **_DEPRS_CASE_STD_INF_ARGS)
 class ChainedProxyColorEnum(Enum):
     """Deprecated color enum whose target is itself a deprecated proxy (proxy→proxy chain).
 
     Example:
-        This creates a two-hop chain: ChainedProxyColorEnum → DeprecatedColorEnum → TargetColorEnum.
+        This creates a two-hop chain: ChainedProxyColorEnum → DeprecatedColorEnum → ColorEnum.
         Used to test that validate_deprecation_chains detects proxy-to-proxy chains.
 
     """
@@ -1378,7 +1299,7 @@ class ChainedProxyColorEnum(Enum):
     BLUE = 2
 
 
-@deprecated(target=DeprecatedColorEnum, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=DeprecatedColorEnum, **_DEPRS_CASE_STD_ARGS)
 def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
     """Deprecated function whose target is a deprecated proxy (function→proxy chain).
 
@@ -1403,11 +1324,9 @@ def make_class_target_notify_with_args() -> type:
 
     @deprecated(
         target=TargetMode.NOTIFY,
-        deprecated_in="1.2",
-        remove_in="2.0",
+        **_DEPRS_CASE_TGT_MODE_INF_ARGS,
         args_mapping={"old_key": "new_key"},
         args_extra={"injected": "x"},
-        num_warns=-1,
     )
     class NotifyMisconfiguredClass:
         """Source class — deprecated_class delegates to this body unchanged."""
@@ -1426,13 +1345,7 @@ def make_class_target_args_remap() -> type:
 
     """
 
-    @deprecated(
-        target=TargetMode.ARGS_REMAP,
-        deprecated_in="1.2",
-        remove_in="2.0",
-        args_mapping={"old_key": "new_key"},
-        num_warns=-1,
-    )
+    @deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_INF_ARGS, args_mapping={"old_key": "new_key"})
     class ArgsRemapClass:
         """Source class with old/new keyword for ARGS_REMAP forwarding."""
 
@@ -1444,31 +1357,18 @@ def make_class_target_args_remap() -> type:
 
 # Proxy: deprecated_class(target=NewCls, args_extra={...}) (Fix 3 fixture)
 ProxyClassWithArgsExtra = deprecated_class(
-    deprecated_in="1.2",
-    remove_in="2.0",
-    target=TargetWithInjected,
-    args_extra={"injected": "from-extra"},
-    num_warns=-1,
+    **_DEPRS_CASE_TGT_MODE_INF_ARGS, target=WithInjected, args_extra={"injected": "from-extra"}
 )(SomeTargetClass)
 
 
 # Proxy: deprecated_class(target=ARGS_REMAP, args_mapping=...) for per-arg warning template (Fix 4 fixture)
 ProxyArgsRemapForArgWarnMessage = deprecated_class(
-    deprecated_in="1.2",
-    remove_in="2.0",
-    target=TargetMode.ARGS_REMAP,
-    args_mapping={"old_key": "new_key"},
-    num_warns=-1,
+    **_DEPRS_CASE_TGT_MODE_INF_ARGS, target=TargetMode.ARGS_REMAP, args_mapping={"old_key": "new_key"}
 )(SomeTargetClass)
 
 
 # Function with both old and new params + args_mapping (Fix 5 fixture)
-@deprecated(
-    target=both_old_new_target,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old": "new"},
-)
+@deprecated(target=both_old_new_target, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old": "new"})
 def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
     """Source has both old and new params; collision triggered when caller passes old=X.
 
@@ -1482,12 +1382,7 @@ def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
 # ========== Regression fixtures: Fix 1 + Fix 2 ==========
 
 
-@deprecated(
-    target=fn_with_default,
-    args_mapping={"old_arg": "new_arg"},
-    deprecated_in="1.0",
-    remove_in="2.0",
-)
+@deprecated(target=fn_with_default, args_mapping={"old_arg": "new_arg"}, **_DEPRS_CASE_STD_ARGS)
 def fn_old_default(old_arg: int = 1, new_arg: int = 99) -> int:
     """Source whose stale default for the deprecated arg shadows the target's default.
 
@@ -1504,8 +1399,7 @@ def fn_old_default(old_arg: int = 1, new_arg: int = 99) -> int:
     target=TargetMode.ARGS_REMAP,
     args_mapping={"old_arg": "new_arg"},
     args_extra={"injected": 100},
-    deprecated_in="1.0",
-    remove_in="2.0",
+    **_DEPRS_CASE_STD_ARGS,
 )
 def fn_remap_with_extra(old_arg: int = 0, new_arg: int = 0, injected: int = 0) -> int:
     """ARGS_REMAP source body using both a remapped arg and an injected extra arg.
@@ -1530,7 +1424,7 @@ def make_default_target_with_versions() -> Callable[[int], int]:
 
     """
 
-    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @deprecated(**_DEPRS_CASE_STD_ARGS)
     def fn(x: int) -> int:
         return tracked_identity(x)
 
@@ -1685,20 +1579,15 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
 #: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
 #: Uses default ``num_warns=1``; warning fires once per call via ``_build_call_plan``.
 #: Tests reset ``warned_calls`` between parametrize cases — see ``_reset_gen_state`` fixture.
-gen_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(gen_target)
+gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(gen_target)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
-gen_args_remap = deprecated(
-    target=TargetMode.ARGS_REMAP,
-    args_mapping={"old_x": "x"},
-    deprecated_in="1.0",
-    remove_in="2.0",
-)(_gen_source_remap)
-#: Callable-target mode — call forwarded to ``gen_target``; source body never executes.
-gen_callable = deprecated(target=gen_target, deprecated_in="1.0", remove_in="2.0")(_gen_source_callable)
-#: NOTIFY mode with ``num_warns=-1`` (warn on every call); used to test unlimited-warning behaviour.
-gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)(
-    gen_target
+gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
+    _gen_source_remap
 )
+#: Callable-target mode — call forwarded to ``gen_target``; source body never executes.
+gen_callable = deprecated(target=gen_target, **_DEPRS_CASE_STD_ARGS)(_gen_source_callable)
+#: NOTIFY mode with ``num_warns=-1`` (warn on every call); used to test unlimited-warning behaviour.
+gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_INF_ARGS)(gen_target)
 
 
 # ========== async callable kind fixtures ==========
@@ -1740,16 +1629,13 @@ async def _async_source_callable(x: int = 0) -> int:
 
 #: NOTIFY mode — source body runs unchanged (warning-only). Uses default ``num_warns=1``;
 #: warning fires once per call. Tests reset ``warned_calls`` between parametrize cases.
-async_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_source_notify)
+async_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_source_notify)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
-async_args_remap = deprecated(
-    target=TargetMode.ARGS_REMAP,
-    args_mapping={"old_x": "x"},
-    deprecated_in="1.0",
-    remove_in="2.0",
-)(_async_source_remap)
+async_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
+    _async_source_remap
+)
 #: Callable-target mode — call forwarded to ``async_target``; source body never executes.
-async_callable = deprecated(target=async_target, deprecated_in="1.0", remove_in="2.0")(_async_source_callable)
+async_callable = deprecated(target=async_target, **_DEPRS_CASE_STD_ARGS)(_async_source_callable)
 
 
 # ========== async generator callable kind fixtures ==========
@@ -1796,18 +1682,13 @@ async def _async_gen_source_callable(x: int = 0) -> AsyncIterator[int]:
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  Uses default ``num_warns=1``; warning fires once
 #: per call.  Tests reset ``warned_calls`` between parametrize cases — see ``_reset_async_gen_state`` fixture.
-async_gen_notify = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_gen_source_notify)
+async_gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_gen_source_notify)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
-async_gen_args_remap = deprecated(
-    target=TargetMode.ARGS_REMAP,
-    args_mapping={"old_x": "x"},
-    deprecated_in="1.0",
-    remove_in="2.0",
-)(_async_gen_source_remap)
-#: Callable-target mode — call forwarded to ``async_gen_target``; source body never executes.
-async_gen_callable = deprecated(target=async_gen_target, deprecated_in="1.0", remove_in="2.0")(
-    _async_gen_source_callable
+async_gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
+    _async_gen_source_remap
 )
+#: Callable-target mode — call forwarded to ``async_gen_target``; source body never executes.
+async_gen_callable = deprecated(target=async_gen_target, **_DEPRS_CASE_STD_ARGS)(_async_gen_source_callable)
 
 
 # ========== Inner-order @property @deprecated regression fixtures (H2) ==========
@@ -1827,7 +1708,7 @@ class InnerOrderDeprecatedPropCls(_InnerOrderPropTarget):
     """
 
     @property
-    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @deprecated(**_DEPRS_CASE_STD_ARGS)
     def value(self) -> int:
         """Inner-order deprecated property: only the getter is wrapped."""
         return self._value
@@ -1858,6 +1739,187 @@ class DelOnlyDeprecatedPropCls(_DelOnlyPropTarget):
 
     """
 
-    delete_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(  # type: ignore[assignment]
+    delete_only: property = deprecated(**_DEPRS_CASE_STD_ARGS)(  # type: ignore[assignment]
         property(None, None, del_only_prop_fdel)  # type: ignore[arg-type]
     )
+
+
+# ========== attrs_mapping fixtures (selective per-attribute deprecation) ==========
+# Wrap ``Palette`` and ``PaletteEnum`` to expose deprecated attribute aliases
+# (``color``→``colour``, ``txt``→``text``, etc.).  ``stream=None`` is used on most fixtures
+# so reads/writes/deletes do not emit warnings during fixture import and can be controlled
+# per-test via the WithStream variant below.
+
+
+# Read-redirect: ``color``→``colour`` and ``txt``→``text``.  Used by tests that exercise
+# per-attribute warning budgets and silent passthrough of non-listed attribute names.
+DeprecatedAttrsPalette = deprecated_class(
+    attrs_mapping={"color": "colour", "txt": "text"}, **_DEPRS_CASE_STD_ARGS, stream=None
+)(Palette)
+
+
+# Warn-only: ``size`` is registered with redirect target ``None``, so reads warn but the
+# canonical attribute name is unchanged (no rename).
+DeprecatedAttrsNotifyOnly = deprecated_class(attrs_mapping={"size": None}, **_DEPRS_CASE_STD_ARGS, stream=None)(Palette)
+
+
+# Enum variant: deprecated alias ``COLOR`` redirects to canonical enum member ``COLOUR``.
+DeprecatedAttrsPaletteEnum = deprecated_class(attrs_mapping={"COLOR": "COLOUR"}, **_DEPRS_CASE_STD_ARGS, stream=None)(
+    PaletteEnum
+)
+
+
+# Stream-enabled variant used by warning-message content tests: this fixture must NOT use
+# ``stream=None`` because the tests assert the FutureWarning text emitted on access.
+DeprecatedAttrsPaletteWithStream = deprecated_class(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)(Palette)
+
+
+# H4 fixture: callable target + attrs_mapping.  Wraps ``PaletteOld`` with
+# ``target=Palette``.  Listed attr redirects resolve against ``Palette``; unlisted attrs
+# and calls still use normal target-forwarding behaviour.
+DeprecatedAttrsPaletteCallableTarget = deprecated_class(
+    target=Palette, attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS, stream=None
+)(PaletteOld)
+
+
+@_class_deprecation_notify_only_callable_target
+class DeprecatedAttrsNotifyOnlyCallableTargetDecorated:
+    """Decorator-form: replacement target owns the warn-only attribute."""
+
+    color: str = "source_red"
+    colour: str = "source_colour"
+
+
+DeprecatedAttrsNotifyOnlyCallableTargetWrapped = _class_deprecation_notify_only_callable_target(PaletteOld)
+
+
+# ========== Combination fixtures: deprecated_class() config matrix ==========
+# These fixtures cover the valid combinations for ATTRS_REMAP (additive alias added in v0.10):
+# - C1: Explicit ``target=TargetMode.ATTRS_REMAP`` + ``attrs_mapping`` (equivalent to implicit auto-resolve)
+# - C3: Callable target + ``attrs_mapping`` + ``args_mapping`` (three disjoint surfaces active)
+# - Nested: ``deprecated_class`` wrapping another proxy (blanket-warn outer, ATTRS_REMAP inner)
+
+# C1: Explicit TargetMode.ATTRS_REMAP form — semantically identical to the implicit
+# ``DeprecatedAttrsPalette`` fixture above. Used to verify both forms are equivalent.
+DeprecatedAttrsExplicitMode = deprecated_class(
+    target=TargetMode.ATTRS_REMAP, attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS, stream=None
+)(Palette)
+
+
+# Legacy bool sentinel regression: before validation normalisation, ``target=True`` must
+# validate ``attrs_mapping`` against the wrapped source class instead of the bool object.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+    DeprecatedAttrsLegacyTrue = deprecated_class(
+        target=True, attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS, stream=None
+    )(LegacyBoolAttrsSource)
+
+
+# C3: Callable target + attrs_mapping + args_mapping — three independent surfaces.
+# ``attrs_mapping`` handles ``__getattr__``/``__setattr__``/``__delattr__`` for ``colour`` redirects;
+# ``args_mapping`` handles ``__call__`` (``old_arg`` -> ``new_arg`` kwarg rename); the callable
+# target ``CombinedAttrsArgsTarget`` receives the forwarded construction call.
+DeprecatedAttrsPaletteAllThree = deprecated_class(
+    target=CombinedAttrsArgsTarget,
+    attrs_mapping={"color": "colour"},
+    args_mapping={"old_arg": "new_arg"},
+    **_DEPRS_CASE_STD_ARGS,
+    stream=None,
+)(CombinedAttrsArgsSource)
+
+
+# Nested fixture: ``deprecated_class`` (blanket-warn outer) wraps another ``deprecated_class``
+# proxy (ATTRS_REMAP inner). Used to verify nested proxy semantics: the outer blanket proxy
+# warns on every attribute access; the inner selective proxy forwards silently because its
+# selective set is consumed by the outer's __getattr__ before it reaches the inner.
+# ``DeprecatedAttrsPalette`` is a ``_DeprecatedProxy`` instance — the annotation now accepts
+# Union[type, _DeprecatedProxy] so no cast is needed.
+DeprecatedAttrsPaletteNested = deprecated_class(**_DEPRS_CASE_STD_ARGS, stream=None)(DeprecatedAttrsPalette)
+
+
+# ========== ATTRS_REMAP stacking fixture ==========
+# Two-layer ATTRS_REMAP stacked proxy: each layer carries a distinct version pair.
+# Outer proxy maps old_attr -> new_attr (deprecated_in="1.0").
+# Inner proxy maps older_attr -> newer_attr (deprecated_in="0.9").
+StackedAttrProxy = deprecated_class(
+    attrs_mapping={"old_attr": "new_attr"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+    stream=None,
+)(
+    deprecated_class(
+        attrs_mapping={"older_attr": "newer_attr"},
+        deprecated_in="0.9",
+        remove_in="1.0",
+        stream=None,
+    )(StackedAttrTarget)
+)
+
+
+# ========== Dataclass dual-surface auto-expand fixtures ==========
+
+# attrs_mapping-only on a @dataclass — proxy auto-expands to also populate args_mapping
+# so both instance.old_field access and DC(old_field=5) constructor calls emit FutureWarning.
+DepAutoExpandDC = deprecated_class(attrs_mapping={"old_field": "new_field"}, **_DEPRS_CASE_STD_INF_ARGS)(AutoExpandDC)
+
+# Same but with a required (no-default) dataclass field.
+DepAutoExpandReqDC = deprecated_class(attrs_mapping={"old_field": "new_field"}, **_DEPRS_CASE_STD_INF_ARGS)(
+    AutoExpandReqDC
+)
+
+# Mix of a normal field and an init=False field.  Only the normal field (new_field) must
+# appear in args_mapping_auto_expanded; computed_field (init=False) must be excluded because
+# it is not a valid __init__ kwarg and passing it to the constructor would raise TypeError.
+DepAutoExpandInitFalseDC = deprecated_class(
+    attrs_mapping={"old_field": "new_field", "old_computed": "computed_field"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(AutoExpandInitFalseDC)
+
+# Dataclass with overridden __init__: new_field is in the overridden signature, skipped_field
+# is a dataclass field but absent from __init__.  Only new_field must be auto-expanded.
+DepAutoExpandOverriddenInitDC = deprecated_class(
+    attrs_mapping={"old_field": "new_field", "old_skipped": "skipped_field"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(AutoExpandOverriddenInitDC)
+
+# ========== Positional-only constructor guard fixture ==========
+
+# args_mapping remaps old_val → new_val, but new_val is POSITIONAL_ONLY on
+# PositionalOnlyTarget — proxy emits UserWarning at decoration time and falls
+# back to setattr at call time.  Suppress the decoration-time UserWarning here
+# so importing this module does not pollute test output.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+    DepPositionalOnly = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
+        PositionalOnlyTarget
+    )
+
+
+# ========== Single-call combined attrs_mapping + args_mapping fixture ==========
+# Single deprecated_class() call with both attrs_mapping (class-level attribute redirect)
+# and args_mapping (constructor kwarg rename) on the same proxy — verifies the two surfaces
+# operate independently without interference when configured together in one call.
+DepCombinedSingleCall = deprecated_class(
+    target=StackingArgsAttrsBase,
+    attrs_mapping={"old_attr": "new_attr"},
+    args_mapping={"old_arg": "new_arg"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(StackingArgsAttrsBase)
+
+
+# ========== Two-decorator no-target self-deprecation fixture ==========
+# Two deprecated_class() calls stacked with no callable target on either layer.
+# Inner proxy: args_mapping={"n_layers": "num_layers"} auto-resolves to ARGS_REMAP —
+# renames constructor kwarg in-place without forwarding to a different class.
+# Outer proxy: attrs_mapping={"cuda": None, "gpu": "device"} auto-resolves to ATTRS_REMAP —
+# deprecates class-level attributes in-place; call delegation falls through to the inner proxy
+# (ATTRS_REMAP + inner-_DeprecatedProxy path — no global callable warning fired by outer).
+DepSelfCombinedTwoLayer = deprecated_class(
+    attrs_mapping={"cuda": None, "gpu": "device"},
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(
+    deprecated_class(
+        args_mapping={"n_layers": "num_layers"},
+        **_DEPRS_CASE_STD_INF_ARGS,
+    )(SelfDeprecatedModel)
+)

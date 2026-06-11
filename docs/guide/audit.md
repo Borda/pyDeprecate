@@ -99,8 +99,8 @@ if result.no_effect:
   <summary>Output: <code>"Warning: This wrapper configuration has zero impact!"</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False)
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=()), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[])
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=()), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[])
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -372,7 +372,7 @@ A deprecated wrapper whose `target` is itself another deprecated function create
 Two chain types are reported:
 
 - `ChainType.TARGET` — the target is a deprecated callable that forwards to another function. Fix by pointing directly to the final (non-deprecated) implementation.
-- `ChainType.STACKED` — argument mappings chain through multiple hops and must be composed. This covers both the case where a callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming), and the case where multiple `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators are stacked on the same function without being merged.
+- `ChainType.STACKED` — mappings chain through multiple hops and must be composed. This covers callable argument chains, stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators, and `deprecated_class(attrs_mapping=...)` entries where one deprecated attribute key maps to a value that is itself another key in the same mapping (a multi-hop rename chain such as `{"a": "b", "b": "c"}`).
 
 The example below shows both bad patterns and the correct direct form:
 
@@ -468,6 +468,77 @@ def enforce_no_deprecation_chains():
 ```
 
 Use `recursive=False` to restrict scanning to the top-level module only, which can speed up large codebases when you know submodules are clean.
+
+## Detecting Mapping Incompatibilities
+
+`deprecated_class(args_mapping=...)` remaps deprecated argument names to their replacements before forwarding the call to the target constructor. That forwarding works only when the replacement name is a regular keyword parameter. When the replacement name is `POSITIONAL_ONLY` (i.e. declared with a `/` in the constructor signature), Python rejects it as a keyword argument. The proxy detects this at decoration time, emits a `UserWarning`, and falls back to `setattr` at call time instead of passing as a constructor kwarg — which works for most plain classes and dataclasses but silently degrades for C-extension types, `tuple`/`frozenset` subclasses, and any class where post-construction attribute assignment diverges from constructor initialisation.
+
+`validate_mapping_compatibility()` surfaces every wrapper whose `args_mapping_positional_only` field is non-empty so you can review and fix these configurations before they reach users.
+
+### The problem: POSITIONAL_ONLY remap target
+
+A class whose constructor uses the `/` positional-only separator:
+
+```python
+from deprecate import deprecated_class
+
+
+class Point:
+    def __init__(self, x: float = 0.0, y: float = 0.0, /) -> None:  # POSITIONAL_ONLY with defaults
+        self.x = x
+        self.y = y
+
+
+OldPoint = deprecated_class(  # warns: UserWarning — px, py target POSITIONAL_ONLY params
+    deprecated_in="2.0",
+    remove_in="3.0",
+    args_mapping={"px": "x", "py": "y"},
+)(Point)
+
+# Proxy strips incompatible kwargs, constructs Point() with defaults, then setattr:
+p = OldPoint(px=1.0, py=2.0)  # warns: FutureWarning
+print(p.x, p.y)
+```
+
+<details>
+  <summary>Output: <code>p.x, p.y</code></summary>
+
+```
+1.0 2.0
+```
+
+</details>
+
+The setattr fallback only works when the incompatible params have **defaults** — the proxy strips them from kwargs and calls the constructor without them, then patches the values in afterwards. If the POSITIONAL_ONLY params are required (no default), construction raises `TypeError` before `setattr` runs. This scenario is most likely to surface through the dataclass auto-expand path: when `attrs_mapping` on a dataclass wrapper auto-generates `args_mapping` entries and one of the target field names happens to map to a positional-only constructor param.
+
+### Scanning for incompatible wrappers
+
+```python
+from deprecate import validate_mapping_compatibility
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+issues = validate_mapping_compatibility(my_package)
+print(f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities")
+
+for info in issues:
+    print(f"  {info.module}.{info.function}: incompatible keys = {list(info.args_mapping_positional_only)}")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
+
+```
+Found 1 wrappers with POSITIONAL_ONLY mapping incompatibilities
+  tests.collection_deprecate.DepPositionalOnly: incompatible keys = ['old_val']
+```
+
+</details>
+
+The function accepts the same `module` and `recursive` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module.
+
+Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, an incompatible mapping is graceful degradation — the wrapper still works via `setattr`. Prefer `pydeprecate check` for advisory CI reporting; positional-only mapping findings are advisory warnings (exit `0`) — only hard config errors such as invalid argument mappings cause exit `1`. See the [CLI Reference](cli.md) for flags and exit codes.
 
 ## Pre-commit Integration
 
@@ -613,10 +684,8 @@ def create_session(host: str, timeout: int = 30) -> dict:
 
 
 def make_test_session(host: str = "localhost") -> dict:
-    """Test fixture helper — calls deprecated API silently."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", FutureWarning)
-        return create_session(host, timeout=5)
+    """Test fixture helper — calls deprecated API."""
+    return create_session(host, timeout=5)  # warns: FutureWarning
 
 
 # The helper works without emitting warnings:

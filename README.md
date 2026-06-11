@@ -2,7 +2,7 @@
 
 **Simple tooling for marking deprecated functions or classes and re-routing to their successors.**
 
-> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility.
+> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility. Designed around three principles: **simplicity** (single decorator, no config files), **robustness** (works with any Python callable), and **flexibility** (forward, remap, or notify — your choice).
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
@@ -253,7 +253,7 @@ Not sure which API to reach for? Start here.
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 
 > [!TIP]
-> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
+> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `attrs_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
 > `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
@@ -912,6 +912,93 @@ True
 (3, 4)
 (3.25, 4.75)
 ```
+
+</details>
+
+<br>
+
+<details>
+<summary>Example: selective attribute deprecation with <code>attrs_mapping</code></summary>
+
+Use `attrs_mapping` to deprecate only specific attribute names — other attributes pass through silently. Covers renames, misspelling corrections, warn-only notices, and Enum member aliases.
+Non-`None` mapping values must exist on the `target` class when `target=` is provided, or on the wrapped class otherwise.
+Entries mapped to `None` keep the same attribute name but still resolve on the active class, so `target=NewClass` with `attrs_mapping={"size": None}` warns and then reads, writes, or deletes `NewClass.size`.
+Non-cyclic chains are allowed at decoration time and reported by audit; cycles raise immediately.
+
+**Decorator syntax** — apply `@deprecated_class(attrs_mapping=...)` at class definition time:
+
+```python
+from deprecate import deprecated_class
+
+
+@deprecated_class(
+    attrs_mapping={"color": "colour"},  # "color" is the deprecated spelling
+    deprecated_in="2.0",
+    remove_in="3.0",
+)
+class Palette:
+    colour: str = "red"  # canonical name
+    size: int = 10  # unlisted — passes through silently
+
+
+print(Palette.color)  # warns: FutureWarning — redirected to colour → "red"
+print(Palette.colour)  # silent
+print(Palette.size)  # silent
+```
+
+<details>
+  <summary>Output: <code>Palette.color; Palette.colour; Palette.size</code></summary>
+
+```
+red
+red
+10
+```
+
+</details>
+
+**Wrapper form** — equivalent, useful when wrapping an existing class:
+
+```python
+from deprecate import deprecated_class
+
+
+class Config:
+    colour: str = "red"
+    size: int = 42
+    timeout: int = 30
+
+
+# "color" → "colour" rename; "size" warn-only (None = no rename, just warn)
+DeprecatedConfig = deprecated_class(
+    attrs_mapping={"color": "colour", "size": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)(Config)
+
+print(DeprecatedConfig.color)  # warns: FutureWarning — redirected to colour → "red"
+print(DeprecatedConfig.colour)  # silent
+print(DeprecatedConfig.timeout)  # silent
+```
+
+<details>
+  <summary>Output: <code>DeprecatedConfig.color; DeprecatedConfig.colour; DeprecatedConfig.timeout</code></summary>
+
+```
+red
+red
+30
+```
+
+</details>
+
+Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
+
+**Dataclass auto-expand** — when the wrapped class is a `@dataclass`, a single `deprecated_class(attrs_mapping={"old": "new"})` call automatically warns on both attribute access (`obj.old`) and constructor kwargs (`DC(old=5)`). No need to set `args_mapping` separately for a field rename. For non-`@dataclass` targets, `attrs_mapping` covers attribute access only — also set `args_mapping` to cover constructor kwargs.
+
+**Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Three misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.NOTIFY` + `attrs_mapping=...` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only.
+
+To deprecate attributes at different library versions, stack two `@deprecated_class()` decorators — each layer carries its own version pair and `isinstance()`/`issubclass()` resolve correctly through the proxy chain.
 
 </details>
 
@@ -1700,10 +1787,27 @@ def enforce_no_deprecation_chains():
 > - The function scans all deprecated functions found by `find_deprecation_wrappers()`
 > - Returns `list[DeprecationWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
 > - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
-> - `ChainType.STACKED` — arg mappings chain through multiple hops and must be composed; two sub-cases:
+> - `ChainType.STACKED` — mappings chain through multiple hops and must be composed; includes:
 >   - Callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming) — mappings compose across hops
 >   - Stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
+>   - `deprecated_class(attrs_mapping=...)` where one deprecated attribute redirects to another deprecated attribute alias
 > - Use `recursive=False` to scan only the top-level module
+
+### Detecting Positional-Only Incompatible Mappings
+
+The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. Those proxies fall back to `setattr` after construction, which may silently produce wrong results on immutable types or classes without a matching `__setattr__`.
+
+```bash
+pydeprecate check my_package
+# or as part of a full scan:
+pydeprecate all my_package
+```
+
+> [!TIP]
+>
+> - The proxy still works at runtime via `setattr`, but the fallback is invisible; `pydeprecate check` surfaces it at CI time
+> - Fix: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
+> - For programmatic use: `validate_mapping_compatibility(module)` returns `list[DeprecationWrapperInfo]` where `args_mapping_positional_only` is non-empty
 
 ## 🧪 Testing Deprecated Code
 
@@ -2005,8 +2109,17 @@ def old_func_warn_n_times():
     pass
 
 
-assert callable(old_func_warn_n_times)
+print(callable(old_func_warn_n_times))
 ```
+
+<details>
+  <summary>Output: <code>callable(old_func_warn_n_times)</code></summary>
+
+```
+True
+```
+
+</details>
 
 </details>
 

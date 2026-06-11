@@ -16,6 +16,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
+from collections.abc import Mapping
 from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
@@ -56,8 +57,6 @@ TEMPLATE_WARNING_NO_TARGET = (
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 deprecation_warning = partial(warn, category=FutureWarning)
-
-ArgsMapping = dict[str, Optional[str]]
 
 #: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
 #: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
@@ -217,8 +216,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
 
     """
     # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
-    # including across different classes, because PastCls inherits NewCls so `self`
-    # is a valid NewCls instance.
+    # including across different classes, because PastCls inherits NewCls so `self` is a valid NewCls instance.
     if source.__name__ == "__init__" and getattr(target, "__name__", "") == "__init__":
         return
     src_qualname = getattr(source, "__qualname__", "")
@@ -241,8 +239,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     #   2: enclosing class body (where `@deprecated(...)` is written)
     # The final-segment bracket filter rejects lambda/comprehension/genexp scopes
     # (whose qualname's last component is ``<lambda>`` / ``<listcomp>`` / etc.); class
-    # bodies always end in a plain identifier, even when nested inside a function
-    # (e.g. ``"outer.<locals>.MyClass"``).
+    # bodies always end in a plain identifier, even when nested inside a function (e.g. ``"outer.<locals>.MyClass"``).
     try:
         frame_qn = sys._getframe(2).f_locals.get("__qualname__", "")
         if frame_qn and not frame_qn.rsplit(".", 1)[-1].startswith("<"):
@@ -715,7 +712,7 @@ def _raise_warn_callable(
 def _raise_warn_arguments(
     stream: Callable,
     source: Callable,
-    arguments: ArgsMapping,
+    arguments: Mapping[str, Optional[str]],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -757,7 +754,7 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
+    args_map = ", ".join(TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items())
     _raise_warn(
         stream,
         source,
@@ -900,7 +897,7 @@ def _build_call_plan(
         if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
             _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
             caller_keys = set(kwargs)
-            rename_targets = {v for v in _am.values() if v}
+            rename_targets: set[str] = {r for r in _am.values() if r is not None}
             rename_sources = set(_am)
             # For ARGS_REMAP, source IS the target; Python applies its own default
             # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
@@ -952,7 +949,7 @@ def deprecated(
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
     template_mgs: Optional[str] = None,
-    args_mapping: Optional[ArgsMapping] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
@@ -1112,6 +1109,12 @@ def deprecated(
                     f"`target=TargetMode.ARGS_REMAP` (or legacy `True`) is not supported when decorating a `property`."
                     f" Got: {target!r}. Use `TargetMode.NOTIFY` or omit `target`."
                 )
+            if target is TargetMode.ATTRS_REMAP:
+                raise TypeError(
+                    "`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on a `property`."
+                    " `TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
+                    "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
+                )
             # Guard against pre-deprecated individual accessors fed into property(...) then
             # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
             # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
@@ -1138,6 +1141,7 @@ def deprecated(
             _accessor_sl = _stacklevel + 1
 
             def _wrap_accessor(fn: Callable) -> Callable:
+                """Apply packing to a property accessor with the adjusted stacklevel."""
                 return packing(fn, _accessor_sl)
 
             return _DeprecatedProperty(  # type: ignore[return-value]
@@ -1237,6 +1241,15 @@ def deprecated(
         if callable(_guard_target) and not inspect.isclass(_guard_target):
             _check_cross_class_method_target(source, _guard_target)
         _target = _normalize_target(source, target)
+        # ATTRS_REMAP is a proxy-only mode — it is meaningless on @deprecated functions/methods
+        # because there is no attribute-access surface to intercept. Raise at decoration time
+        # rather than silently producing a wrapper whose stored target has no runtime effect.
+        if _target is TargetMode.ATTRS_REMAP:
+            raise TypeError(
+                f"`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on `{source.__name__}`. "
+                "`TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
+                "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
+            )
 
         if _has_deprecation_meta(source):
             _source_is_stacked = True

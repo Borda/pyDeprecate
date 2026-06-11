@@ -29,7 +29,11 @@ import re
 import sys
 from typing import Literal, Optional, cast
 
-from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
+from deprecate._types import (
+    DeprecationConfig,
+    TargetMode,
+    _has_deprecation_meta,
+)
 
 #: Default templates for documentation with deprecated callable — RST/Sphinx style
 TEMPLATE_DOC_DEPRECATED_RST = [

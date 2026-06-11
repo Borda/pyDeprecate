@@ -223,10 +223,7 @@ class TestUpdateDocstringIdempotent:
             return old
 
         config = DeprecationConfig(
-            deprecated_in="1.0",
-            remove_in="2.0",
-            target=TargetMode.ARGS_REMAP,
-            args_mapping={"old": None},
+            deprecated_in="1.0", remove_in="2.0", target=TargetMode.ARGS_REMAP, args_mapping={"old": None}
         )
         cast(_DeprecatedCallable, my_fn).__deprecated__ = config
         _update_docstring_with_deprecation(my_fn)
@@ -247,10 +244,7 @@ class TestUpdateDocstringIdempotent:
             return old
 
         config = DeprecationConfig(
-            deprecated_in="1.0",
-            remove_in="2.0",
-            target=TargetMode.ARGS_REMAP,
-            args_mapping={"old": None},
+            deprecated_in="1.0", remove_in="2.0", target=TargetMode.ARGS_REMAP, args_mapping={"old": None}
         )
         cast(_DeprecatedCallable, my_fn).__deprecated__ = config
         _update_docstring_with_deprecation(my_fn)

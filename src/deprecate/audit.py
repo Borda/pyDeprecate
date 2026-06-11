@@ -15,7 +15,7 @@ All three are designed to be called from pytest or a CI script against an import
 **Chain detection** (:func:`~deprecate.audit.validate_deprecation_chains`):
     Detect wrappers whose ``target`` is itself a deprecated callable, forming a chain that users traverse
     unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`: ``TARGET`` (forwarding chain)
-    and ``STACKED`` (composed argument mappings).
+    and ``STACKED`` (composed argument or attribute mappings).
 
 **Report generation** (:func:`~deprecate.audit.generate_deprecation_table`):
     Generate a docs-friendly markdown summary from wrapper metadata.
@@ -215,6 +215,7 @@ class ChainType(Enum):
             caller's mapping feeds into the target's self-renaming, so both hops must be
             collapsed into one. (b) Multiple ``@deprecated(True, args_mapping=...)`` decorators
             are stacked on the same function and should be merged into a single decorator.
+            Also used when ``attrs_mapping`` values point at another deprecated attribute alias.
 
     """
 
@@ -256,6 +257,13 @@ class DeprecationWrapperInfo:
             Possible values: ``callable``, ``args``, ``class``, ``dataclass``, ``dataclass attributes``,
             ``data``, ``class constructor``, ``class constructor args``, ``class method``, ``class method args``,
             ``classmethod``, ``classmethod args``, ``staticmethod``, ``staticmethod args``.
+        args_mapping_auto_expanded: ``args_mapping`` keys that were automatically copied from ``attrs_mapping``
+            by the dataclass dual-surface expansion at decoration time.  Empty list when no auto-expansion
+            occurred.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_auto_expanded`.
+        args_mapping_positional_only: ``args_mapping`` old-key names whose remapped target is a POSITIONAL_ONLY
+            constructor parameter.  Non-empty list signals that the proxy falls back to ``setattr`` for those
+            keys.  Use :func:`~deprecate.audit.validate_mapping_compatibility` to filter wrappers by this
+            field.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_positional_only`.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -285,6 +293,8 @@ class DeprecationWrapperInfo:
     chain_type: Optional[ChainType] = None
     empty_deprecated_in: bool = field(init=False, default=False)
     api_type: str = field(repr=False, default="")
+    args_mapping_auto_expanded: list[str] = field(default_factory=list)
+    args_mapping_positional_only: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
@@ -403,6 +413,49 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
     return sorted(members, key=_member_name_key)
 
 
+def _detect_chain_type(
+    dep_info: DeprecationConfig,
+    func: Callable,
+    target: Any,  # noqa: ANN401
+    _is_args_remap: bool,
+) -> Optional[ChainType]:
+    """Return the chain type when target or attrs_mapping forms a deprecation chain, else None."""
+    chain_type: Optional[ChainType] = None
+    if callable(target) and _has_deprecation_meta(target):
+        wrp_depr_tgt = target.__deprecated__.target
+        chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET
+    elif _is_args_remap:
+        wrapped = getattr(func, "__wrapped__", None)
+        if wrapped is not None and _has_deprecation_meta(wrapped):
+            erp_depr_tgt = wrapped.__deprecated__.target
+            if erp_depr_tgt is True or erp_depr_tgt is TargetMode.ARGS_REMAP:
+                chain_type = ChainType.STACKED
+    attrs_mapping = dep_info.attrs_mapping
+    has_chained_attrs = attrs_mapping is not None and any(
+        v is not None and v in attrs_mapping for v in attrs_mapping.values()
+    )
+    if chain_type is None and has_chained_attrs:
+        chain_type = ChainType.STACKED
+    return chain_type
+
+
+def _validate_args_mapping(
+    func: Callable,
+    args_mapping: Optional[dict[str, Optional[str]]],
+) -> tuple[list[str], list[str], bool]:
+    """Return (invalid_args, identity_args_mapping, all_identity) for the given mapping."""
+    if not args_mapping:
+        return [], [], False
+    if isinstance(func, _DeprecatedProxy):
+        invalid_args: list[str] = []
+    else:
+        func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
+        invalid_args = [arg for arg in args_mapping if arg not in func_args]
+    identity_args_mapping = [arg for arg, val in args_mapping.items() if arg == val]
+    all_identity = len(identity_args_mapping) == len(args_mapping) > 0
+    return invalid_args, identity_args_mapping, all_identity
+
+
 def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     """Validate if a deprecated wrapper configuration is effective.
 
@@ -468,7 +521,6 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         Invalid configurations won't cause runtime errors but will silently have no effect.
 
     """
-    # Extract configuration from __deprecated__ attribute
     if not _has_deprecation_meta(func):
         raise ValueError(
             f"Function {getattr(func, '__name__', func)} has missing or invalid `__deprecated__` metadata. "
@@ -478,59 +530,21 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     dep_info = func.__deprecated__
     args_mapping = dep_info.args_mapping
     target = dep_info.target
-
-    invalid_args: list[str] = []
-    empty_args_mapping = not args_mapping
-    identity_args_mapping: list[str] = []
-    self_reference = target is func if target is not None else False
-    # chain_type distinguishes two chain problems:
-    # - ChainType.TARGET: target is a deprecated callable that itself forwards to another function
-    #   (i.e. target.__deprecated__.target is not a supported stacking mode). Fix: point directly
-    #   to the final target.
-    # - ChainType.STACKED: supported decorator stacking. Two sub-cases:
-    #   (a) target is a deprecated callable whose own target=ARGS_REMAP (self-deprecation with renaming).
-    #   (b) target=True but __wrapped__ also has target=True (stacked @deprecated(True) decorators).
     _is_args_remap = target is TargetMode.ARGS_REMAP
     _is_notify = target is TargetMode.NOTIFY
 
-    chain_type: Optional[ChainType] = None
-    if callable(target) and _has_deprecation_meta(target):
-        wrp_depr_tgt = target.__deprecated__.target
-        # STACKED: inner is ARGS_REMAP (mappings compose)
-        # TARGET: inner is NOTIFY or another callable (actual forwarding chain — should point to final target directly)
-        is_stacked = wrp_depr_tgt is TargetMode.ARGS_REMAP
-        chain_type = ChainType.STACKED if is_stacked else ChainType.TARGET
-    elif _is_args_remap:
-        wrapped = getattr(func, "__wrapped__", None)
-        if wrapped is not None and _has_deprecation_meta(wrapped):
-            erp_depr_tgt = wrapped.__deprecated__.target
-            if erp_depr_tgt is True or erp_depr_tgt is TargetMode.ARGS_REMAP:
-                chain_type = ChainType.STACKED  # stacked self-deprecation decorators
+    self_reference = target is func if target is not None else False
+    empty_args_mapping = not args_mapping
+    chain_type = _detect_chain_type(dep_info, func, target, _is_args_remap)
+    invalid_args, identity_args_mapping, all_identity = _validate_args_mapping(func, args_mapping)
 
-    all_identity = False
-    if args_mapping:
-        if isinstance(func, _DeprecatedProxy):
-            invalid_args = []  # proxy __call__ is (*args, **kwargs); skip signature check
-        else:
-            func_args = [arg[0] for arg in get_func_arguments_types_defaults(func)]
-            invalid_args = [arg for arg in args_mapping if arg not in func_args]
-        identity_args_mapping = [arg for arg, val in args_mapping.items() if arg == val]
-        # Check if ALL mappings are identity (complete no-op)
-        all_identity = len(identity_args_mapping) == len(args_mapping) and len(args_mapping) > 0
-
-    # Wrapper has no effect if it provides no call forwarding, arg mapping, or warning:
-    # - Self-reference (forwards to itself — no meaningful forwarding)
-    # - ARGS_REMAP (target=True) AND (empty mapping OR all identity mappings)
-    #   → no forwarding, no meaningful arg remapping
-    # Note: NOTIFY (target=None) is NOT no_effect — it still emits deprecation warnings.
-    # Note: When target is a different function, there's ALWAYS an effect (forwarding).
+    # NOTIFY (target=None) is NOT no_effect — it still emits deprecation warnings.
+    # When target is a different function, there's ALWAYS an effect (forwarding).
     is_self_deprecation = _is_args_remap or self_reference
     no_effect = self_reference or (is_self_deprecation and (empty_args_mapping or all_identity))
 
-    # Misconfigured: target+args combination is invalid regardless of whether it has effect.
     # Construction-time `target=False` is captured in DeprecationConfig.misconfigured by the
-    # decorator/proxy before normalisation; combine that with the runtime checks below.
-    # NOTIFY ignores args_mapping; ARGS_REMAP needs args_mapping.
+    # decorator/proxy before normalisation; NOTIFY ignores args_mapping; ARGS_REMAP needs args_mapping.
     misconfigured_target = (
         bool(getattr(dep_info, "misconfigured", False))
         or (_is_notify and bool(args_mapping))
@@ -550,6 +564,8 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         misconfigured_target=misconfigured_target,
         all_identity=all_identity,
         chain_type=chain_type,
+        args_mapping_auto_expanded=list(getattr(dep_info, "args_mapping_auto_expanded", ())),
+        args_mapping_positional_only=list(getattr(dep_info, "args_mapping_positional_only", ())),
     )
 
 
@@ -978,9 +994,10 @@ def _classify_wrapper_api_type(
         return "class method args" if has_mapping else "class method"
 
     if isinstance(wrapped_obj, _DeprecatedProxy):
-        source_obj = wrapped_obj.wrapped
-        if inspect.isclass(source_obj):
-            if is_dataclass(source_obj):
+        while isinstance(wrapped_obj, _DeprecatedProxy):
+            wrapped_obj = wrapped_obj.wrapped
+        if inspect.isclass(wrapped_obj):
+            if is_dataclass(wrapped_obj):
                 return "dataclass attributes" if has_mapping else "dataclass"
             return "class"
         return "data"
@@ -1223,6 +1240,41 @@ def validate_deprecation_chains(
 
     """
     return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.chain_type is not None]
+
+
+def validate_mapping_compatibility(
+    module: Union[Any, str],  # noqa: ANN401
+    recursive: bool = True,
+) -> list[DeprecationWrapperInfo]:
+    """Return wrappers whose ``args_mapping`` remaps deprecated names to POSITIONAL_ONLY constructor params.
+
+    A non-empty ``args_mapping_positional_only`` on the returned ``DeprecationWrapperInfo`` means the
+    proxy falls back to ``setattr`` at call time instead of forwarding the remapped kwarg.  Use this
+    validator in CI to detect :func:`~deprecate.proxy.deprecated_class` configurations that silently
+    degrade to attribute assignment and may not behave as expected on all target class types.
+
+    Args:
+        module: A Python module or package to scan.  Accepts an imported module object or a dotted
+            module path string.
+        recursive: When ``True`` (default) recursively scan submodules.
+
+    Returns:
+        List of ``DeprecationWrapperInfo`` instances whose ``args_mapping_positional_only`` field is
+        non-empty.  Returns an empty list when no incompatibilities are found.
+
+    Examples:
+        >>> from deprecate import validate_mapping_compatibility
+        >>> import tests.collection_deprecate as col
+        >>> results = validate_mapping_compatibility(col, recursive=False)
+        >>> len(results) > 0  # DepPositionalOnly remaps to a POSITIONAL_ONLY param
+        True
+        >>> results[0].function
+        'DepPositionalOnly'
+
+    """
+    return [
+        info for info in find_deprecation_wrappers(module, recursive=recursive) if info.args_mapping_positional_only
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,14 @@
 
 pyDeprecate is a lightweight Python library providing decorator-based deprecation for functions, methods, and classes with automatic call forwarding. Python 3.9+, zero runtime dependencies.
 
+## 🎯 Design Principles
+
+- **Simplicity**: the API surface must be learnable in minutes; a single decorator covers the common case with no config files required.
+- **Robustness**: deprecated code is on the removal path; correctness must hold regardless of call order or framework integration; audit tools must surface all live deprecations.
+- **Flexibility**: work with any Python callable — functions, class methods, async, properties, dataclasses, enums — without special-casing the caller.
+
+When a proposed feature conflicts with simplicity, complexity wins only when robustness or flexibility requires it.
+
 ## ⚓ Before Any Work: Anchor with Repository Context
 
 > [!IMPORTANT]
@@ -122,8 +130,10 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Three-layer separation**: targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, test logic in `test_*.py`
 - **Do not** define targets or `@deprecated` wrappers directly in test files
+- **No local imports inside test functions** — all `import` / `from … import` statements at module level; never inside a test method or helper function
 - **No redundant naming** — test method names must not repeat the class name; in `TestFooBar` write `test_returns_value` not `test_foo_bar_returns_value` (see [CONTRIBUTING.md: Tests and quality assurance](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
 - **Scenario description required** — every non-trivial test method docstring must include a prose paragraph describing the real-world situation being tested; a one-line summary alone is not sufficient (see [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
+- **Unification pattern**: when 3+ call sites share the same `(deprecated_in, remove_in[, num_warns])` combo, extract to `_DEPRS_CASE_<SLUG>_ARGS: dict[str, Any]` and splat with `**`. Hoist `_class_deprecation_*` shared instances to the top constants block. No trailing commas before `)` in test files. See [Unification pattern](.github/CONTRIBUTING.md#unification-pattern--shared-version-kwargs-and-hoisted-instances) for full rules.
 - See [Test Organization](.github/CONTRIBUTING.md#test-organization) for details
 
 ### Documentation Site
@@ -146,6 +156,8 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Commit sensitive information (`.env`, API keys)
 - Use bare `except:` clauses
 - Define deprecated wrappers inside test files
+- Use `with warnings.catch_warnings(...)` in any `.md` documentation example in any form — neither `simplefilter("always")` for capturing nor `simplefilter("ignore", ...)` for suppressing; annotate the call with `# warns: FutureWarning` or `# warns: UserWarning` instead; output blocks show only return values
+- Use bare `assert` statements in `.md` documentation examples (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output
 - Skip test coverage for new features or bug fixes
 - Implement features without maintainer approval
 - Start work without first reading config files and guidelines

@@ -123,7 +123,7 @@ class TestValidateDeprecatedWrapper:
         # Confirm the proxy leaks the wrong __name__ via __getattr__:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assert proxy_module.DeprecatedColorEnum.__name__ == "TargetColorEnum"
+            assert proxy_module.DeprecatedColorEnum.__name__ == "ColorEnum"
         assert result.function != getattr(result.deprecated_info.target, "__name__", None)
 
     def test_no_deprecated_attr(self) -> None:
@@ -153,10 +153,7 @@ class TestMisconfiguredTarget:
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
         assert result.misconfigured_target is True
 
-    @pytest.mark.parametrize(
-        "func_name",
-        ["whole_clean_deprecation", "args_only_clean_deprecation"],
-    )
+    @pytest.mark.parametrize("func_name", ["whole_clean_deprecation", "args_only_clean_deprecation"])
     def test_misconfigured_target_false_for_valid_configs(self, func_name: str) -> None:
         """Correctly configured TargetMode wrappers have misconfigured_target=False."""
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
@@ -179,7 +176,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
     @pytest.mark.parametrize(
         ("proxy_obj", "fn_name", "target_name"),
         [
-            (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", "TargetColorEnum"),
+            (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", "ColorEnum"),
             (proxy_module.DeprecatedColorDataClass, "DeprecatedColorDataClass", "NewDataClass"),
         ],
     )
@@ -199,13 +196,8 @@ class TestValidateDeprecatedWrapperCallableProxy:
     @pytest.mark.parametrize(
         ("proxy_obj", "fn_name", "expected_mapping", "target_name"),
         [
-            (proxy_module.MappedColorEnum, "MappedColorEnum", {"val": "value"}, "TargetColorEnum"),
-            (
-                proxy_module.MappedDataClass,
-                "MappedDataClass",
-                {"name": "label", "count": "total"},
-                "NewDataClass",
-            ),
+            (proxy_module.MappedColorEnum, "MappedColorEnum", {"val": "value"}, "ColorEnum"),
+            (proxy_module.MappedDataClass, "MappedDataClass", {"name": "label", "count": "total"}, "NewDataClass"),
             (
                 proxy_module.MappedDropArgDataClass,
                 "MappedDropArgDataClass",
@@ -336,7 +328,7 @@ class TestFindDeprecatedWrappers:
         by_name = {r.function: r for r in find_deprecation_wrappers(proxy_module, recursive=False)}
         assert "depr_config_dict" in by_name
         assert "DeprecatedColorEnum" in by_name
-        assert getattr(by_name["DeprecatedColorEnum"].deprecated_info.target, "__name__", None) == "TargetColorEnum"
+        assert getattr(by_name["DeprecatedColorEnum"].deprecated_info.target, "__name__", None) == "ColorEnum"
         assert by_name["MappedColorEnum"].deprecated_info.args_mapping == {"val": "value"}
         # deprecated_class on dataclass
         assert getattr(by_name["DeprecatedColorDataClass"].deprecated_info.target, "__name__", None) == "NewDataClass"
@@ -463,8 +455,7 @@ class TestValidateDeprecationChains:
         assert "caller_three_hop_sum" in by_name, "Three-hop chain fixture must be discovered by the audit"
         assert by_name["caller_three_hop_sum"].chain_type is ChainType.TARGET
         # Every intermediate hop is independently a deprecation chain — the audit reports
-        # all three (outer, middle, and inner-via-decorated_sum already covered) when
-        # scanning the module.
+        # all three (outer, middle, and inner-via-decorated_sum already covered) when scanning the module.
         assert "caller_sum_via_depr_sum" in by_name, "Middle hop must also be flagged as TARGET chain"
 
     @pytest.mark.parametrize(
@@ -936,9 +927,7 @@ class TestBackwardCompatShims:
         with warnings.catch_warnings(record=True) as recorded:
             warnings.simplefilter("always")
             info = DeprecatedCallableInfo(  # type: ignore[call-arg]
-                module="tests",
-                function="f",
-                deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
+                module="tests", function="f", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
             )
         shim_warns = [w for w in recorded if "DeprecatedCallableInfo" in str(w.message)]
         assert shim_warns, "Calling DeprecatedCallableInfo(...) must emit FutureWarning about its own deprecation"

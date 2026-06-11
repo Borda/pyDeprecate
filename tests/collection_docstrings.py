@@ -83,13 +83,7 @@ def old_no_target_function(a: int, b: str = "old") -> str:
     return f"old {a} {b}"
 
 
-@deprecated(
-    target=new_function,
-    deprecated_in="0.1",
-    remove_in="0.3",
-    update_docstring=True,
-    docstring_style="mkdocs",
-)
+@deprecated(target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True, docstring_style="mkdocs")
 def old_mkdocs_style_function(a: int, b: str = "old") -> str:
     """An old MkDocs-style function.
 
@@ -105,11 +99,7 @@ def old_mkdocs_style_function(a: int, b: str = "old") -> str:
 
 
 @deprecated(
-    target=new_function,
-    deprecated_in="0.1",
-    remove_in="0.3",
-    update_docstring=True,
-    docstring_style="markdown",
+    target=new_function, deprecated_in="0.1", remove_in="0.3", update_docstring=True, docstring_style="markdown"
 )
 def old_markdown_alias_function(a: int, b: str = "old") -> str:
     """An old function using the ``markdown`` style alias.
