@@ -1793,6 +1793,39 @@ def enforce_no_deprecation_chains():
 >   - `deprecated_class(attrs_mapping=...)` where one deprecated attribute redirects to another deprecated attribute alias
 > - Use `recursive=False` to scan only the top-level module
 
+### Detecting Positional-Only Incompatible Mappings
+
+`validate_mapping_compatibility()` finds `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. Those proxies cannot forward the remapped value as a keyword argument — they fall back to `setattr` after construction, which may silently produce wrong results on immutable types or classes without a matching `__setattr__`.
+
+```python
+import pytest
+from deprecate import validate_mapping_compatibility
+
+# normally you would import your own package
+from tests import collection_deprecate as my_package
+
+
+def test_no_positional_only_mapping_conflicts():
+    """Ensure no deprecated_class proxy silently falls back to setattr."""
+    issues = validate_mapping_compatibility(my_package)
+
+    if issues:
+        lines = [
+            f"  - {i.function}: args_mapping remaps {list(i.incompatible_args_mapping)!r} to POSITIONAL_ONLY params"
+            for i in issues
+        ]
+        pytest.fail("Found incompatible args_mapping entries:
+" + "
+".join(lines))
+```
+
+> [!TIP]
+>
+> - Returns `list[DeprecationWrapperInfo]` — only entries where `incompatible_args_mapping` is non-empty
+> - The proxy still works at runtime via `setattr`, but the fallback is invisible; `validate_mapping_compatibility()` surfaces it at CI time
+> - Fix: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
+> - Use `recursive=False` to scan only the top-level module
+
 ## 🧪 Testing Deprecated Code
 
 pyDeprecate provides utilities to help you test deprecated code properly:
