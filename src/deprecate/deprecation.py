@@ -362,6 +362,15 @@ def _warn_stacking_misconfiguration(source: _HasDeprecationMeta, outer_target: U
         )
 
 
+def _unwrap_descriptor_target(
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
+) -> Union[bool, None, Callable, TargetMode]:
+    """Return ``target.__func__`` when *target* is a descriptor; pass through otherwise."""
+    if isinstance(target, (staticmethod, classmethod)):
+        return target.__func__
+    return target
+
+
 def _normalize_target(
     source: Callable,
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
@@ -394,6 +403,12 @@ def _normalize_target(
       accepts ``cls`` as its first positional parameter.  Asymmetric usage (non-classmethod source targeting a
       ``classmethod`` descriptor) raises :exc:`TypeError` at decoration time because ``cls`` would be missing at
       call time otherwise.
+
+    Note on the ``classmethod`` guard: the check ``src_params[0] != "cls"`` relies on the Python convention that
+    classmethods name their first parameter ``cls`` (PEP 8 / all major linters enforce this).  If your classmethod
+    uses an unconventional name (e.g. ``klass``) or ``source`` is a ``functools.partial`` whose first argument is
+    already bound, the guard may raise spuriously.  In that case pass the unwrapped target explicitly:
+    ``target=your_classmethod.__func__``.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
@@ -688,8 +703,7 @@ def _raise_warn_callable(
     # the warning can name the class rather than __init__.  For descriptor targets,
     # callable(staticmethod(fn)) is False on Python 3.9 and callable(classmethod(fn))
     # is always False, so without this unwrap the no-target template fires incorrectly.
-    if isinstance(target, (staticmethod, classmethod)):
-        target = target.__func__
+    target = _unwrap_descriptor_target(target)
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
@@ -1237,7 +1251,7 @@ def deprecated(
         # constructor forwarding (target=NewCls on __init__) is always valid.
         # Descriptor targets: unwrap __func__ so the guard can inspect the qualname;
         # raw staticmethod/classmethod descriptors lack __qualname__ on the instance.
-        _guard_target = target.__func__ if isinstance(target, (staticmethod, classmethod)) else target
+        _guard_target = _unwrap_descriptor_target(target)
         if callable(_guard_target) and not inspect.isclass(_guard_target):
             _check_cross_class_method_target(source, _guard_target)
         _target = _normalize_target(source, target)
@@ -1276,6 +1290,8 @@ def deprecated(
             stored_target: Any = TargetMode._from_legacy(target, stacklevel=None)
         elif isinstance(target, TargetMode):
             stored_target = target
+        elif isinstance(target, (staticmethod, classmethod)):
+            stored_target = target.__func__  # audit sees the function, not the descriptor
         else:
             stored_target = target
         misconfigured = target is False or _function_misconfigured

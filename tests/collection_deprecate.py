@@ -1091,7 +1091,6 @@ class ServiceCls:
         """
         return void(old_x, x)
 
-    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     @deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
     def old_warn_method(self, x: int) -> int:
         """Deprecated — warns only, body still executes.
