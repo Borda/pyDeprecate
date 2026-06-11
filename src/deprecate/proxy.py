@@ -44,7 +44,7 @@ from deprecate.deprecation import (
     deprecation_warning,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.utils import _get_incompatible_args_mapping_keys, _is_dataclass_target
+from deprecate.utils import _get_args_mapping_positional_only_keys, _is_dataclass_target
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
@@ -335,7 +335,7 @@ class _DeprecatedProxy:
         # decoration time, emit UserWarning, and record for audit + call-time fallback.
         _incompatible: tuple[str, ...] = ()
         if args_mapping and isinstance(_dc_check, type):
-            _incompatible = _get_incompatible_args_mapping_keys(_dc_check, args_mapping)
+            _incompatible = _get_args_mapping_positional_only_keys(_dc_check, args_mapping)
             if _incompatible:
                 warnings.warn(
                     f"`args_mapping` on `{name}` remaps {list(_incompatible)!r} to POSITIONAL_ONLY "
@@ -396,7 +396,7 @@ class _DeprecatedProxy:
             template_mgs=template_mgs,
             attrs_mapping=attrs_mapping,
             args_mapping_auto_expanded=tuple(_auto_expanded),
-            incompatible_args_mapping=_incompatible,
+            args_mapping_positional_only=_incompatible,
         )
         object.__setattr__(self, "__deprecated__", dep_meta)
         # Expose the wrapped object's docstring as an instance attribute so that external tools (autodoc,
@@ -585,11 +585,11 @@ class _DeprecatedProxy:
     @staticmethod
     def _resolve_incompat_new_keys(dep: "DeprecationConfig") -> frozenset[str]:
         """Return the set of remapped-to names whose original was POSITIONAL_ONLY."""
-        if not (dep.incompatible_args_mapping and dep.args_mapping):
+        if not (dep.args_mapping_positional_only and dep.args_mapping):
             return frozenset()
         return frozenset(
             r
-            for old in dep.incompatible_args_mapping
+            for old in dep.args_mapping_positional_only
             if old in dep.args_mapping
             for r in (dep.args_mapping[old],)
             if r is not None
@@ -819,7 +819,7 @@ class _DeprecatedProxy:
             # Positional-only fallback: after remapping, mapped_kwargs holds NEW keys; incompatible
             # old keys have already been renamed to their POSITIONAL_ONLY target names.  Extract those
             # new keys (cannot be forwarded as kwargs), construct the object, then setattr.
-            if dep.incompatible_args_mapping and dep.args_mapping:
+            if dep.args_mapping_positional_only and dep.args_mapping:
                 _incompat_new = self._resolve_incompat_new_keys(dep)
                 pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
                 instance = cfg.obj(*args, **mapped_kwargs)
@@ -838,7 +838,7 @@ class _DeprecatedProxy:
             mapped_kwargs = self._apply_args_mapping(kwargs)
             mapped_kwargs = self._merge_args_extra(mapped_kwargs)
             # Positional-only fallback for callable target path.
-            if dep.incompatible_args_mapping and dep.args_mapping:
+            if dep.args_mapping_positional_only and dep.args_mapping:
                 _incompat_new = self._resolve_incompat_new_keys(dep)
                 pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
                 instance = dep.target(*args, **mapped_kwargs)

@@ -902,7 +902,7 @@ class TestValidateMappingCompatibility:
 
         ``args_mapping`` values of ``None`` denote warn-only (drop) entries — the proxy never
         attempts to forward the key as a kwarg, so there is no positional-only incompatibility
-        to report.  ``_get_incompatible_args_mapping_keys`` correctly skips ``None`` values;
+        to report.  ``_get_args_mapping_positional_only_keys`` correctly skips ``None`` values;
         this test pins that behaviour so a future refactor cannot introduce a false positive.
         """
         import warnings
@@ -923,7 +923,7 @@ class TestValidateMappingCompatibility:
             )(PositionalOnlyTarget)
 
         info = validate_deprecation_wrapper(proxy)
-        assert info.incompatible_args_mapping == [], (
-            f"args_mapping={{old_val: None}} must not produce incompatible_args_mapping; "
-            f"got: {info.incompatible_args_mapping}"
+        assert info.args_mapping_positional_only == [], (
+            f"args_mapping={{old_val: None}} must not produce args_mapping_positional_only; "
+            f"got: {info.args_mapping_positional_only}"
         )

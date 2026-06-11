@@ -1164,7 +1164,7 @@ Validation at decoration time requires that every `None`-value key exists on at 
 #### Audit coverage for mapping compatibility
 
 After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg, which may not behave correctly on all target types.
-The function returns a list of `DeprecationWrapperInfo` objects whose `incompatible_args_mapping` field is non-empty, giving you an actionable list before issues reach users.
+The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty, giving you an actionable list before issues reach users.
 See the [Audit guide](audit.md) for the full CI integration pattern.
 
 **Choosing between a single call and stacking**

@@ -1419,6 +1419,36 @@ If you need to chain multiple migration steps across versions, the supported pat
 
 ______________________________________________________________________
 
+## `@deprecated` crashes when the replacement target has POSITIONAL_ONLY parameters
+
+**Q:** I applied `@deprecated(target=new_fn)` and get `TypeError: new_fn() got some positional-only arguments passed as keyword argument` when calling the deprecated function. Why?
+
+**A:** `@deprecated` converts all intercepted arguments to kwargs before forwarding them to the target. If the target declares any parameter as positional-only (using `/` in the signature), that kwarg call raises `TypeError` because Python forbids passing positional-only params by name.
+
+```python
+def new_fn(x: int, /, y: int = 0) -> int:
+    return x + y
+
+
+# @deprecated(target=new_fn) then calling old_fn(5) internally does:
+#   new_fn(**{"x": 5})  →  TypeError: got positional-only argument as keyword argument
+```
+
+**Workaround**: wrap the target in a thin adapter that accepts the same params as ordinary keyword arguments:
+
+```python
+def _new_fn_compat(x: int, y: int = 0) -> int:
+    return new_fn(x, y)  # call new_fn positionally internally
+
+
+@deprecated(target=_new_fn_compat, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int, y: int = 0) -> int: ...
+```
+
+This limitation affects `@deprecated` on functions and methods only. `deprecated_class` is unaffected — the proxy has a `setattr` fallback for POSITIONAL_ONLY constructor parameters and emits a `UserWarning` at decoration time rather than crashing at call time.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

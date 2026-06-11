@@ -2155,7 +2155,7 @@ class TestPositionalOnlyFallback:
     """``args_mapping`` on a class with ``POSITIONAL_ONLY`` constructor parameters.
 
     The proxy must emit ``UserWarning`` at decoration time, record
-    ``incompatible_args_mapping`` on ``DeprecationConfig``, and fall back to
+    ``args_mapping_positional_only`` on ``DeprecationConfig``, and fall back to
     ``setattr`` at call time instead of forwarding the remapped kwarg as a
     positional-only keyword (which would raise ``TypeError``).
     """
@@ -2177,7 +2177,7 @@ class TestPositionalOnlyFallback:
             )(PositionalOnlyTarget)
 
     def test_incompatible_key_recorded_on_deprecated_meta(self) -> None:
-        """``incompatible_args_mapping`` on ``__deprecated__`` lists the offending old key.
+        """``args_mapping_positional_only`` on ``__deprecated__`` lists the offending old key.
 
         The field is populated at decoration time so audit tools can surface it without
         re-inspecting the constructor signature at report time.
@@ -2185,7 +2185,7 @@ class TestPositionalOnlyFallback:
         from tests.collection_deprecate import DepPositionalOnly
 
         meta = object.__getattribute__(DepPositionalOnly, "__deprecated__")
-        assert "old_val" in meta.incompatible_args_mapping
+        assert "old_val" in meta.args_mapping_positional_only
 
     def test_call_with_deprecated_kwarg_does_not_crash(self) -> None:
         """``DepPositionalOnly(old_val=7)`` succeeds via ``setattr`` fallback.

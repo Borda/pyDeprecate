@@ -1811,7 +1811,7 @@ def test_no_positional_only_mapping_conflicts():
 
     if issues:
         lines = [
-            f"  - {i.function}: args_mapping remaps {list(i.incompatible_args_mapping)!r} to POSITIONAL_ONLY params"
+            f"  - {i.function}: args_mapping remaps {list(i.args_mapping_positional_only)!r} to POSITIONAL_ONLY params"
             for i in issues
         ]
         pytest.fail("Found incompatible args_mapping entries:
@@ -1821,7 +1821,7 @@ def test_no_positional_only_mapping_conflicts():
 
 > [!TIP]
 >
-> - Returns `list[DeprecationWrapperInfo]` — only entries where `incompatible_args_mapping` is non-empty
+> - Returns `list[DeprecationWrapperInfo]` — only entries where `args_mapping_positional_only` is non-empty
 > - The proxy still works at runtime via `setattr`, but the fallback is invisible; `validate_mapping_compatibility()` surfaces it at CI time
 > - Fix: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
 > - Use `recursive=False` to scan only the top-level module

@@ -99,8 +99,8 @@ if result.no_effect:
   <summary>Output: <code>"Warning: This wrapper configuration has zero impact!"</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), incompatible_args_mapping=()), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], incompatible_args_mapping=[])
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), incompatible_args_mapping=()), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], incompatible_args_mapping=[])
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=()), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[])
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=()), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[])
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -473,7 +473,7 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
 `deprecated_class(args_mapping=...)` remaps deprecated argument names to their replacements before forwarding the call to the target constructor. That forwarding works only when the replacement name is a regular keyword parameter. When the replacement name is `POSITIONAL_ONLY` (i.e. declared with a `/` in the constructor signature), Python rejects it as a keyword argument. The proxy detects this at decoration time, emits a `UserWarning`, and falls back to `setattr` at call time instead of passing as a constructor kwarg — which works for most plain classes and dataclasses but silently degrades for C-extension types, `tuple`/`frozenset` subclasses, and any class where post-construction attribute assignment diverges from constructor initialisation.
 
-`validate_mapping_compatibility()` surfaces every wrapper whose `incompatible_args_mapping` field is non-empty so you can review and fix these configurations before they reach users.
+`validate_mapping_compatibility()` surfaces every wrapper whose `args_mapping_positional_only` field is non-empty so you can review and fix these configurations before they reach users.
 
 ### The problem: POSITIONAL_ONLY remap target
 
@@ -524,7 +524,7 @@ issues = validate_mapping_compatibility(my_package)
 print(f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities")
 
 for info in issues:
-    print(f"  {info.module}.{info.function}: incompatible keys = {info.incompatible_args_mapping}")
+    print(f"  {info.module}.{info.function}: incompatible keys = {info.args_mapping_positional_only}")
 ```
 
 <details>
@@ -538,7 +538,7 @@ Found 0 wrappers with POSITIONAL_ONLY mapping incompatibilities
 
 The function accepts the same `module` and `recursive` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module.
 
-Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, an incompatible mapping is graceful degradation — the wrapper still works via `setattr`. Prefer `pydeprecate check` for advisory CI reporting; it exits `1` when any wrapper has a non-empty `incompatible_args_mapping`. See the [CLI Reference](cli.md) for flags and exit codes.
+Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, an incompatible mapping is graceful degradation — the wrapper still works via `setattr`. Prefer `pydeprecate check` for advisory CI reporting; it exits `1` when any wrapper has a non-empty `args_mapping_positional_only`. See the [CLI Reference](cli.md) for flags and exit codes.
 
 ## Pre-commit Integration
 

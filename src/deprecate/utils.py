@@ -102,7 +102,7 @@ def _is_dataclass_target(cls: Any) -> bool:  # noqa: ANN401
     return isinstance(cls, type) and dataclasses.is_dataclass(cls)
 
 
-def _get_incompatible_args_mapping_keys(
+def _get_args_mapping_positional_only_keys(
     target_cls: Any,  # noqa: ANN401
     args_mapping: dict[str, Any],
 ) -> tuple[str, ...]:

@@ -397,7 +397,7 @@ class DeprecationConfig:
             :class:`~deprecate.proxy._DeprecatedProxy`.  Empty tuple when no auto-expansion occurred.
             Populated at decoration time; read by audit tools to distinguish user-supplied mappings from
             auto-generated ones.
-        incompatible_args_mapping: ``args_mapping`` old-key names whose remapped target name is a
+        args_mapping_positional_only: ``args_mapping`` old-key names whose remapped target name is a
             POSITIONAL_ONLY parameter in the target class constructor.  Calling the proxy with such
             keys as keyword arguments would raise ``TypeError`` without the runtime fallback.  Empty
             tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
@@ -416,7 +416,7 @@ class DeprecationConfig:
     template_mgs: Optional[str] = None
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
-    incompatible_args_mapping: tuple[str, ...] = field(default_factory=tuple)
+    args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
 
 
 @runtime_checkable

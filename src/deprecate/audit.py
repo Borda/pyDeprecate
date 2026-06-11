@@ -260,10 +260,10 @@ class DeprecationWrapperInfo:
         args_mapping_auto_expanded: ``args_mapping`` keys that were automatically copied from ``attrs_mapping``
             by the dataclass dual-surface expansion at decoration time.  Empty list when no auto-expansion
             occurred.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_auto_expanded`.
-        incompatible_args_mapping: ``args_mapping`` old-key names whose remapped target is a POSITIONAL_ONLY
+        args_mapping_positional_only: ``args_mapping`` old-key names whose remapped target is a POSITIONAL_ONLY
             constructor parameter.  Non-empty list signals that the proxy falls back to ``setattr`` for those
             keys.  Use :func:`~deprecate.audit.validate_mapping_compatibility` to filter wrappers by this
-            field.  Read from :attr:`~deprecate._types.DeprecationConfig.incompatible_args_mapping`.
+            field.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_positional_only`.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -294,7 +294,7 @@ class DeprecationWrapperInfo:
     empty_deprecated_in: bool = field(init=False, default=False)
     api_type: str = field(repr=False, default="")
     args_mapping_auto_expanded: list[str] = field(default_factory=list)
-    incompatible_args_mapping: list[str] = field(default_factory=list)
+    args_mapping_positional_only: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
@@ -565,7 +565,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         all_identity=all_identity,
         chain_type=chain_type,
         args_mapping_auto_expanded=list(getattr(dep_info, "args_mapping_auto_expanded", ())),
-        incompatible_args_mapping=list(getattr(dep_info, "incompatible_args_mapping", ())),
+        args_mapping_positional_only=list(getattr(dep_info, "args_mapping_positional_only", ())),
     )
 
 
@@ -1248,7 +1248,7 @@ def validate_mapping_compatibility(
 ) -> list[DeprecationWrapperInfo]:
     """Return wrappers whose ``args_mapping`` remaps deprecated names to POSITIONAL_ONLY constructor params.
 
-    A non-empty ``incompatible_args_mapping`` on the returned ``DeprecationWrapperInfo`` means the
+    A non-empty ``args_mapping_positional_only`` on the returned ``DeprecationWrapperInfo`` means the
     proxy falls back to ``setattr`` at call time instead of forwarding the remapped kwarg.  Use this
     validator in CI to detect :func:`~deprecate.proxy.deprecated_class` configurations that silently
     degrade to attribute assignment and may not behave as expected on all target class types.
@@ -1259,7 +1259,7 @@ def validate_mapping_compatibility(
         recursive: When ``True`` (default) recursively scan submodules.
 
     Returns:
-        List of ``DeprecationWrapperInfo`` instances whose ``incompatible_args_mapping`` field is
+        List of ``DeprecationWrapperInfo`` instances whose ``args_mapping_positional_only`` field is
         non-empty.  Returns an empty list when no incompatibilities are found.
 
     Examples:
@@ -1272,7 +1272,7 @@ def validate_mapping_compatibility(
         'DepPositionalOnly'
 
     """
-    return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.incompatible_args_mapping]
+    return [info for info in find_deprecation_wrappers(module, recursive=recursive) if info.args_mapping_positional_only]
 
 
 # ---------------------------------------------------------------------------
