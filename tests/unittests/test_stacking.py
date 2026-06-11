@@ -15,7 +15,7 @@ import warnings
 
 import pytest
 
-from deprecate.proxy import deprecated_class
+from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from tests.collection_deprecate import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
 from tests.collection_targets import (
     SelfDeprecatedModel,
@@ -352,8 +352,6 @@ class TestDeprecatedProxyNonTypeFallback:
         ``_DeprecatedProxy`` with a plain dict as ``obj`` has no ``type`` to delegate to.
         ``__instancecheck__`` must return ``False`` rather than raising ``TypeError``.
         """
-        from deprecate.proxy import _DeprecatedProxy
-
         proxy = _DeprecatedProxy(
             obj={},
             name="legacy_dict",
@@ -369,8 +367,6 @@ class TestDeprecatedProxyNonTypeFallback:
         ``_DeprecatedProxy`` with a plain dict as ``obj`` has no ``type`` to delegate to.
         ``__subclasscheck__`` must return ``False`` rather than raising ``TypeError``.
         """
-        from deprecate.proxy import _DeprecatedProxy
-
         proxy = _DeprecatedProxy(
             obj={},
             name="legacy_dict",

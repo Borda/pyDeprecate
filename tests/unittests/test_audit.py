@@ -11,7 +11,9 @@ from typing import Union
 
 import pytest
 
-from deprecate import TargetMode, deprecated
+import tests.collection_deprecate as col
+import tests.collection_misconfigured as clean_module
+from deprecate import TargetMode, deprecated, validate_mapping_compatibility
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     ChainType,
@@ -23,7 +25,8 @@ from deprecate.audit import (
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
 )
-from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from tests.collection_targets import PositionalOnlyTarget
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
@@ -860,9 +863,6 @@ class TestValidateMappingCompatibility:
         The wrapper remaps ``old_val``→``new_val`` which is POSITIONAL_ONLY on
         ``PositionalOnlyTarget``; the validator must surface it.
         """
-        import tests.collection_deprecate as col
-        from deprecate import validate_mapping_compatibility
-
         results = validate_mapping_compatibility(col, recursive=False)
         names = [r.function for r in results]
         assert "DepPositionalOnly" in names
@@ -873,9 +873,6 @@ class TestValidateMappingCompatibility:
         After auto-expand the ``DeprecationConfig`` stores the auto-copied keys; the
         ``DeprecationWrapperInfo`` returned by the audit walk must reflect this.
         """
-        import tests.collection_deprecate as col
-        from deprecate.audit import find_deprecation_wrappers
-
         results = find_deprecation_wrappers(col, recursive=False)
         dc_results = [r for r in results if r.function == "DepAutoExpandDC"]
         assert dc_results, "DepAutoExpandDC not found by find_deprecation_wrappers"
@@ -888,9 +885,6 @@ class TestValidateMappingCompatibility:
         (not ``deprecated_class`` proxies with ``args_mapping`` to positional-only constructor
         params), so the validator must return an empty list — no false positives.
         """
-        import tests.collection_misconfigured as clean_module
-        from deprecate import validate_mapping_compatibility
-
         results = validate_mapping_compatibility(clean_module, recursive=False)
         assert results == [], (
             f"Expected no positional-only incompatibilities in collection_misconfigured; got: "
@@ -905,12 +899,6 @@ class TestValidateMappingCompatibility:
         to report.  ``_get_args_mapping_positional_only_keys`` correctly skips ``None`` values;
         this test pins that behaviour so a future refactor cannot introduce a false positive.
         """
-        import warnings
-
-        from deprecate.audit import validate_deprecation_wrapper
-        from deprecate.proxy import deprecated_class
-        from tests.collection_targets import PositionalOnlyTarget
-
         # Construct the proxy with a warn-only (None) mapping to the positional-only param name.
         # Suppress the decoration-time UserWarning that fires when a real remap key is positional-only;
         # here "old_val" maps to None (drop), so no UserWarning fires — but wrap defensively.
