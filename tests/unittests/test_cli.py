@@ -6,16 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deprecate._cli import (
-    _print,
-    _Reporter,
-    cli,
-    cmd_all,
-    cmd_chains,
-    cmd_check,
-    cmd_expiry,
-    cmd_status,
-)
+from deprecate._cli import _print, _Reporter, cli, cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_status
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
 
@@ -427,10 +418,7 @@ class TestCmdAll:
     @patch("deprecate._cli._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_packaging_missing_skips_expiry_continues(
-        self,
-        mock_find: MagicMock,
-        mock_expiry: MagicMock,
-        capsys: pytest.CaptureFixture[str],
+        self, mock_find: MagicMock, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Missing packaging library skips expiry with warning; other checks still run."""
         mock_find.return_value = [DeprecationWrapperInfo(module="mod", function="fn")]
@@ -485,11 +473,7 @@ class TestReportChains:
         ],
     )
     def test_chain_type_label_in_output(
-        self,
-        capsys: pytest.CaptureFixture[str],
-        chain_type: ChainType,
-        expected_label: str,
-        has_rich: bool,
+        self, capsys: pytest.CaptureFixture[str], chain_type: ChainType, expected_label: str, has_rich: bool
     ) -> None:
         """Chain type label appears in both rich and plain output."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", chain_type=chain_type)]
@@ -534,9 +518,7 @@ class TestReportIssues:
         ("results", "expected"),
         [
             pytest.param(
-                [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])],
-                True,
-                id="invalid-args",
+                [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])], True, id="invalid-args"
             ),
             pytest.param(
                 [DeprecationWrapperInfo(module="mod", function="fn", identity_args_mapping=["a"])],
@@ -568,11 +550,7 @@ class TestReportIssues:
                 True,
                 id="chain-stacked",
             ),
-            pytest.param(
-                [DeprecationWrapperInfo(module="mod", function="fn")],
-                False,
-                id="no-issues",
-            ),
+            pytest.param([DeprecationWrapperInfo(module="mod", function="fn")], False, id="no-issues"),
         ],
     )
     def test_flag(self, results: list, expected: bool, has_rich: bool) -> None:
@@ -733,10 +711,7 @@ class TestCheckExpiryForCallables:
 class TestHasRichFalse:
     """Tests for the plain-text fallback path when ``_HAS_RICH`` is ``False``."""
 
-    @pytest.mark.parametrize(
-        ("stderr", "stream"),
-        [(False, "out"), (True, "err")],
-    )
+    @pytest.mark.parametrize(("stderr", "stream"), [(False, "out"), (True, "err")])
     def test_print_routes_to_builtin_print(self, capsys: pytest.CaptureFixture[str], stderr: bool, stream: str) -> None:
         """``_print()`` falls back to built-in ``print()`` when rich is unavailable."""
         with patch("deprecate._cli._Reporter._HAS_RICH", False):
@@ -783,11 +758,7 @@ class TestCmdStatus:
     @patch("deprecate._cli.generate_deprecation_table", return_value="| A | B |\n| :--- | :--- |\n| `fn` | callable |")
     @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
     def test_exits_0_and_prints_table(
-        self,
-        mock_find: MagicMock,
-        mock_gen: MagicMock,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
+        self, mock_find: MagicMock, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """cmd_status exits 0 and prints the generated table to stdout."""
         pkg = tmp_path / "mypkg"
@@ -802,10 +773,7 @@ class TestCmdStatus:
 
     @patch("deprecate._cli.generate_deprecation_table", return_value="| A |")
     def test_pre_scanned_wrappers_skip_scan(
-        self,
-        mock_gen: MagicMock,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
+        self, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Providing _wrappers bypasses find_deprecation_wrappers."""
         wrappers = [DeprecationWrapperInfo(module="m", function="f")]
@@ -824,11 +792,7 @@ class TestCmdStatus:
     @patch("deprecate._cli.generate_deprecation_table", return_value="| A |")
     @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
     def test_invalid_style_falls_back_to_compact(
-        self,
-        mock_find: MagicMock,
-        mock_gen: MagicMock,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
+        self, mock_find: MagicMock, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Unknown style value falls back to compact with a stderr warning and exits 0."""
         pkg = tmp_path / "mypkg"
@@ -844,11 +808,7 @@ class TestCmdStatus:
     @patch("deprecate._cli.generate_deprecation_table", return_value="| Col |\n| :--- |\n| `fn` |")
     @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
     def test_output_writes_to_file(
-        self,
-        mock_find: MagicMock,
-        mock_gen: MagicMock,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
+        self, mock_find: MagicMock, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """--output writes the markdown to a file in addition to stdout."""
         pkg = tmp_path / "mypkg"

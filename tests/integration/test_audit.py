@@ -153,10 +153,7 @@ class TestMisconfiguredTarget:
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
         assert result.misconfigured_target is True
 
-    @pytest.mark.parametrize(
-        "func_name",
-        ["whole_clean_deprecation", "args_only_clean_deprecation"],
-    )
+    @pytest.mark.parametrize("func_name", ["whole_clean_deprecation", "args_only_clean_deprecation"])
     def test_misconfigured_target_false_for_valid_configs(self, func_name: str) -> None:
         """Correctly configured TargetMode wrappers have misconfigured_target=False."""
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
@@ -200,12 +197,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         ("proxy_obj", "fn_name", "expected_mapping", "target_name"),
         [
             (proxy_module.MappedColorEnum, "MappedColorEnum", {"val": "value"}, "ColorEnum"),
-            (
-                proxy_module.MappedDataClass,
-                "MappedDataClass",
-                {"name": "label", "count": "total"},
-                "NewDataClass",
-            ),
+            (proxy_module.MappedDataClass, "MappedDataClass", {"name": "label", "count": "total"}, "NewDataClass"),
             (
                 proxy_module.MappedDropArgDataClass,
                 "MappedDropArgDataClass",
@@ -935,9 +927,7 @@ class TestBackwardCompatShims:
         with warnings.catch_warnings(record=True) as recorded:
             warnings.simplefilter("always")
             info = DeprecatedCallableInfo(  # type: ignore[call-arg]
-                module="tests",
-                function="f",
-                deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
+                module="tests", function="f", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
             )
         shim_warns = [w for w in recorded if "DeprecatedCallableInfo" in str(w.message)]
         assert shim_warns, "Calling DeprecatedCallableInfo(...) must emit FutureWarning about its own deprecation"

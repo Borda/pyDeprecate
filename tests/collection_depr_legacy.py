@@ -42,12 +42,7 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 # Legacy sentinel coverage: parallels ``decorated_pow_self`` using ``target=True`` directly.
 # The FutureWarning emitted by ``TargetMode._from_legacy(True)`` is suppressed via the targeted
 # ``filterwarnings`` entry in pyproject.toml (scoped by message + ``deprecate._types`` module).
-@deprecated(
-    target=True,
-    deprecated_in="0.1",
-    remove_in="0.5",
-    args_mapping={"coef": "new_coef"},
-)
+@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
 def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """Legacy sentinel coverage: self-deprecation using ``target=True`` directly."""
     return base**new_coef
@@ -67,12 +62,7 @@ class ServiceCls:
         return self.compute(x)
 
     # Legacy sentinel coverage: parallels ``self_renamed_method`` using ``target=True`` directly.
-    @deprecated(
-        target=True,
-        deprecated_in="1.0",
-        remove_in="2.0",
-        args_mapping={"old_x": "x"},
-    )
+    @deprecated(target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_x": "x"})
     def self_renamed_method(self, old_x: int = 0, x: int = 0) -> int:
         """Legacy sentinel coverage: self-deprecation method using ``target=True`` directly."""
         return self.compute(x)
@@ -80,13 +70,7 @@ class ServiceCls:
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_with_args_extra_injects_kwargs``
 # using ``target=True`` directly (instead of ``TargetMode.ARGS_REMAP``).
-@deprecated(
-    target=True,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old_x": "x"},
-    args_extra={"y": 10},
-)
+@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"old_x": "x"}, args_extra={"y": 10})
 def depr_target_mode_args_only_with_args_extra_injects_kwargs(x: int = 0, y: int = 0, old_x: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP wrapper that injects extra kwargs using ``target=True``."""
     return add_values(x, y)
@@ -107,36 +91,21 @@ def depr_target_mode_whole_executes_original_body(x: int) -> int:
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_warns_when_old_arg_passed`` using ``target=True``.
-@deprecated(
-    target=True,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old_x": "x"},
-)
+@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"old_x": "x"})
 def depr_target_mode_args_only_warns_when_old_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP wrapper used when callers pass the old name."""
     return increment_value(x)
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_silent_when_new_arg_passed`` using ``target=True``.
-@deprecated(
-    target=True,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"old_x": "x"},
-)
+@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"old_x": "x"})
 def depr_target_mode_args_only_silent_when_new_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP wrapper used when callers already use the new name."""
     return increment_value(x)
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_remaps_kwargs`` using ``target=True``.
-@deprecated(
-    target=True,
-    deprecated_in="1.2",
-    remove_in="2.0",
-    args_mapping={"coef": "new_coef"},
-)
+@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"coef": "new_coef"})
 def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0, coef: float = 1.0) -> float:
     """Legacy sentinel coverage: ARGS_REMAP wrapper that remaps kwargs before executing."""
     return power_with_new_coef(base, new_coef)
@@ -155,11 +124,7 @@ def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float =
 
 # Legacy sentinel coverage: parallels ``fn_remap_with_extra`` using ``target=True`` directly.
 @deprecated(
-    target=True,
-    args_mapping={"old_arg": "new_arg"},
-    args_extra={"injected": 100},
-    deprecated_in="1.0",
-    remove_in="2.0",
+    target=True, args_mapping={"old_arg": "new_arg"}, args_extra={"injected": 100}, deprecated_in="1.0", remove_in="2.0"
 )
 def fn_remap_with_extra(old_arg: int = 0, new_arg: int = 0, injected: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP source body merging remap with extra kwargs using ``target=True``."""
@@ -170,11 +135,7 @@ class ThisCls(NewCls):
     """Legacy sentinel coverage: class with deprecated ``__init__`` remapping argument using ``target=True``."""
 
     @deprecated(
-        target=True,
-        deprecated_in="0.3",
-        remove_in="0.5",
-        args_mapping={"c": "nc"},
-        stream=_deprecation_warning,
+        target=True, deprecated_in="0.3", remove_in="0.5", args_mapping={"c": "nc"}, stream=_deprecation_warning
     )
     def __init__(self, c: int = 3, nc: int = 5) -> None:
         """Initialize ThisCls (legacy sentinel variant)."""

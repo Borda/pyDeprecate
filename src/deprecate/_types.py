@@ -6,6 +6,7 @@ catch schema mismatches at analysis time rather than silently returning ``None``
 """
 
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Union, runtime_checkable
@@ -117,7 +118,7 @@ class TargetMode(Enum):
         cls,
         target: Any,  # noqa: ANN401
         *,
-        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        args_mapping: Optional[Mapping[str, Optional[str]]] = None,
         stacklevel: Optional[int] = 3,
     ) -> "Union[Callable[..., Any], TargetMode, None]":
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
@@ -189,7 +190,7 @@ class TargetMode(Enum):
         cls,
         mode: "TargetMode",
         source_name: str,
-        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        args_mapping: Optional[Mapping[str, Optional[str]]] = None,
         args_extra: Optional[dict[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
@@ -255,8 +256,9 @@ class TargetMode(Enum):
         cls,
         mode: "Union[TargetMode, Callable[..., Any], None]",
         source_name: str,
-        attrs_mapping: Optional[dict[str, Optional[str]]] = None,
-        args_mapping: Optional[dict[str, Optional[str]]] = None,
+        attrs_mapping: Optional[Mapping[str, Optional[str]]] = None,
+        args_mapping: Optional[Mapping[str, Optional[str]]] = None,
+        args_extra: Optional[dict[str, Any]] = None,
         *,
         stacklevel: Optional[int] = 2,
     ) -> bool:
@@ -275,6 +277,9 @@ class TargetMode(Enum):
                 ``None``.
             args_mapping: The ``args_mapping`` dict, forwarded here so we can detect the
                 ``ATTRS_REMAP + args_mapping`` combination.
+            args_extra: The ``args_extra`` dict, forwarded here so we can detect the
+                ``ATTRS_REMAP + args_extra`` combination — ``ATTRS_REMAP`` governs attribute access only and
+                does not honour call-time kwarg injection.
             stacklevel: Forwarded to :func:`warnings.warn`. Pass ``None`` to suppress warnings. Defaults to ``2``.
 
         Returns:
@@ -297,6 +302,11 @@ class TargetMode(Enum):
             >>> TargetMode._validate_proxy(
             ...     TargetMode.ATTRS_REMAP, "Cls",
             ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, stacklevel=None,
+            ... )
+            True
+            >>> TargetMode._validate_proxy(
+            ...     TargetMode.ATTRS_REMAP, "Cls",
+            ...     attrs_mapping={"a": "b"}, args_extra={"bias": 1}, stacklevel=None,
             ... )
             True
 
@@ -331,6 +341,13 @@ class TargetMode(Enum):
                 "Use `target=<class>` (with both mappings) or `TargetMode.ARGS_REMAP` (with `args_mapping` only). "
                 "This will be `TypeError` in `v1.0`."
             )
+        if mode is cls.ATTRS_REMAP and args_extra:
+            messages.append(
+                f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_extra`. "
+                "`ATTRS_REMAP` only governs attribute access; call-time kwarg injection is not applied. "
+                "Use `target=<class>` to forward calls with extra arguments. "
+                "This will be `TypeError` in `v1.0`."
+            )
         if attrs_mapping is not None and len(attrs_mapping) == 0:
             messages.append(
                 f"`deprecated_class` on `{source_name}` received `attrs_mapping={{}}` (empty dict). "
@@ -358,7 +375,6 @@ class DeprecationConfig:
             :attr:`~deprecate._types.TargetMode.ARGS_REMAP`, :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`,
             or a callable. Legacy sentinels (``True``/``False``) are normalised at decoration time and never
             stored verbatim.
-        args_mapping: Optional dict remapping argument names; values may be ``None`` to drop the argument entirely.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
         misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.
             Audit tools surface this via
@@ -369,11 +385,23 @@ class DeprecationConfig:
             Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated` for the
             available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
-            ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when selective per-attribute
-            deprecation is enabled.  Non-``None`` values must be terminal attribute names on the target class when
-            ``target`` is provided, or on the wrapped source class otherwise.  Non-cyclic chains are stored and
-            surfaced by audit tooling.  ``None`` (default) means the proxy uses its blanket-warning behaviour (every
-            attribute access emits a warning).
+            ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when
+            selective per-attribute deprecation is enabled.  Non-``None`` redirect targets must be existing attribute
+            names on the target class when ``target`` is provided, or on the wrapped source class otherwise.
+            Non-cyclic chains are stored and surfaced by audit tooling.  ``None`` (default) means the proxy uses its
+            blanket-warning behaviour (every attribute access emits a warning).
+        args_mapping: Optional dict remapping argument names; values are a plain string (new argument name) or
+            ``None`` (drop the argument).
+        args_mapping_auto_expanded: Keys that were automatically copied from ``attrs_mapping`` into
+            ``args_mapping`` by the dataclass dual-surface expansion in
+            :class:`~deprecate.proxy._DeprecatedProxy`.  Empty tuple when no auto-expansion occurred.
+            Populated at decoration time; read by audit tools to distinguish user-supplied mappings from
+            auto-generated ones.
+        args_mapping_positional_only: ``args_mapping`` old-key names whose remapped target name is a
+            POSITIONAL_ONLY parameter in the target class constructor.  Calling the proxy with such
+            keys as keyword arguments would raise ``TypeError`` without the runtime fallback.  Empty
+            tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
+            surfaced by :func:`~deprecate.audit.validate_mapping_compatibility`.
 
     """
 
@@ -387,6 +415,8 @@ class DeprecationConfig:
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     template_mgs: Optional[str] = None
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
+    args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
+    args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
 
 
 @runtime_checkable

@@ -6,7 +6,7 @@ Provides two entry points for scanning Python code for misconfigured ``@deprecat
 - ``python -m deprecate <subcommand> <path>`` — module invocation of the same CLI
 
 Subcommands:
-    check   — Validate wrapper configuration and flag misconfigured or chain-forming wrappers.
+    check   — Validate wrapper configuration and flag misconfigured, chain-forming, or positional-only-arg wrappers.
     expiry  — Check for deprecated wrappers that have passed their scheduled ``remove_in`` deadline.
     chains  — Detect deprecated wrappers whose ``target`` is itself a deprecated callable.
     all     — Run all three checks in a single scan pass.
@@ -267,14 +267,30 @@ class _Reporter:
                 _print(f"\t- {msg}")
 
     @staticmethod
+    def positional_only_args(items: list[DeprecationWrapperInfo]) -> None:
+        """Report wrappers whose ``args_mapping`` remaps a kwarg to a POSITIONAL_ONLY constructor parameter."""
+        _Reporter._render_table(
+            "Positional-Only Constructor Args in args_mapping",
+            "Positional-Only Args",
+            title_style="bold yellow",
+            col_style="yellow",
+            rows=[(r.module, r.function, ", ".join(r.args_mapping_positional_only)) for r in items],
+            plain_prefix=(
+                "[WARNING] Found args_mapping entries targeting POSITIONAL_ONLY constructor parameters"
+                " (proxy falls back to setattr for these entries):"
+            ),
+        )
+
+    @staticmethod
     def issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bool = False) -> bool:
         """Print categorised diagnostics and return whether any issues were found."""
         invalid_args = [r for r in results if r.invalid_args]
         identity_args_mappings = [r for r in results if r.identity_args_mapping]
         no_effect = [r for r in results if r.no_effect]
         chains = [r for r in results if r.chain_type is not None]
+        positional_only = [r for r in results if r.args_mapping_positional_only]
 
-        if not (invalid_args or identity_args_mappings or no_effect or chains):
+        if not (invalid_args or identity_args_mappings or no_effect or chains or positional_only):
             return False
 
         if invalid_args:
@@ -285,6 +301,8 @@ class _Reporter:
             _Reporter.no_effect(no_effect)
         if chains:
             _Reporter.chains(chains, error=error_on_chains)
+        if positional_only:
+            _Reporter.positional_only_args(positional_only)
 
         return True
 
@@ -370,8 +388,9 @@ def cmd_check(
     """Scan Python code for misconfigured ``@deprecated`` wrappers and deprecation chains.
 
     Reports invalid argument mappings (exit 1), identity mappings, no-effect wrappers,
-    and deprecation chains (advisory warnings only, exit 0). Use the ``chains``
-    subcommand for a dedicated hard-error chain check.
+    deprecation chains, and ``args_mapping`` entries targeting POSITIONAL_ONLY constructor
+    parameters (all advisory warnings only, exit 0). Use the ``chains`` subcommand for a
+    dedicated hard-error chain check.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.

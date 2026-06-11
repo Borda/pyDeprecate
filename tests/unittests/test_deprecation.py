@@ -927,9 +927,7 @@ class TestEmptyVersionGuardSymmetry:
                 pass
 
             @deprecated(
-                target=TargetMode.ARGS_REMAP,
-                args_mapping={"a": "b"},
-                template_mgs="%(source_name)s arg 'a' renamed.",
+                target=TargetMode.ARGS_REMAP, args_mapping={"a": "b"}, template_mgs="%(source_name)s arg 'a' renamed."
             )
             def old_fn_remap(a: int = 0, b: int = 0) -> int:
                 return b
@@ -990,10 +988,7 @@ class TestTemplateMgsValidation:
 
         with pytest.raises(ValueError, match="Invalid template_mgs"):
             deprecated(
-                target=base_sum_kwargs,
-                deprecated_in="0.8",
-                remove_in="1.0",
-                template_mgs="bad %(unknown_key)s",
+                target=base_sum_kwargs, deprecated_in="0.8", remove_in="1.0", template_mgs="bad %(unknown_key)s"
             )(base_sum_kwargs)
 
     def test_valid_template_accepted_at_decoration(self) -> None:

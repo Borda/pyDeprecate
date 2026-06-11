@@ -16,6 +16,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
+from collections.abc import Mapping
 from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
@@ -56,8 +57,6 @@ TEMPLATE_WARNING_NO_TARGET = (
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
 deprecation_warning = partial(warn, category=FutureWarning)
-
-ArgsMapping = dict[str, Optional[str]]
 
 #: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
 #: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
@@ -678,7 +677,7 @@ def _raise_warn_callable(
 def _raise_warn_arguments(
     stream: Callable,
     source: Callable,
-    arguments: ArgsMapping,
+    arguments: Mapping[str, Optional[str]],
     deprecated_in: str,
     remove_in: str,
     template_mgs: Optional[str] = None,
@@ -720,7 +719,7 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join([TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items()])
+    args_map = ", ".join(TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items())
     _raise_warn(
         stream,
         source,
@@ -863,7 +862,7 @@ def _build_call_plan(
         if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
             _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
             caller_keys = set(kwargs)
-            rename_targets = {v for v in _am.values() if v}
+            rename_targets: set[str] = {r for r in _am.values() if r is not None}
             rename_sources = set(_am)
             # For ARGS_REMAP, source IS the target; Python applies its own default
             # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
@@ -915,7 +914,7 @@ def deprecated(
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
     template_mgs: Optional[str] = None,
-    args_mapping: Optional[ArgsMapping] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,

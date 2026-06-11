@@ -1009,6 +1009,46 @@ print(LegacyConfig.batch_size)  # silent — unlisted attribute
 
 Instantiation calls are also forwarded to `Config` — `LegacyConfig(lr=0.05)` returns a `Config` instance. The `attrs_mapping` applies only to class-level attribute access on the proxy, not to the returned instance.
 
+### Dataclass field renames
+
+When the wrapped class is a `@dataclass`, `deprecated_class(attrs_mapping=...)` automatically covers **both surfaces** in a single call: attribute access on an existing instance (`obj.old_field`) and constructor kwargs (`DC(old_field=5)`) both emit `FutureWarning`. The auto-expand copies each `attrs_mapping` entry whose redirect target is a dataclass field into `args_mapping`, so you do not need to set `args_mapping` separately for a pure field rename. Entries already present in an explicit `args_mapping` are never overwritten — explicit user values always win.
+
+```python
+from dataclasses import dataclass
+from deprecate import deprecated_class
+
+
+@dataclass
+class NewPoint:
+    x: float = 0.0
+    y: float = 0.0
+
+
+OldPoint = deprecated_class(
+    attrs_mapping={"px": "x", "py": "y"},
+    deprecated_in="2.0",
+    remove_in="3.0",
+    num_warns=-1,
+)(NewPoint)
+
+# Constructor kwarg warns: FutureWarning — "px" remapped to "x"
+pt = OldPoint(px=1.0)  # warns: FutureWarning
+print(pt.x)
+```
+
+<details>
+  <summary>Output: <code>pt.x</code></summary>
+
+```
+1.0
+```
+
+</details>
+
+### Class-type compatibility
+
+C-extension types, classes whose constructor accepts only positional-only parameters (e.g. `def __init__(self, val, /): ...`), and `tuple`/`frozenset` subclasses emit `UserWarning` at decoration time when `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. At call time the proxy falls back to `setattr` for those entries instead of passing the remapped name as a constructor kwarg, so the instance is created and then the field is patched in — which behaves correctly for regular dataclasses but may not suit all class types. Run `validate_mapping_compatibility(module)` in CI to surface these patterns before they reach users.
+
 ### Combining attribute and argument deprecation
 
 `attrs_mapping` and `args_mapping` operate on orthogonal surfaces: `attrs_mapping` intercepts class-level attribute access (`__getattr__` / `__setattr__` / `__delattr__` on the proxy), while `args_mapping` intercepts call arguments (`__call__`). Both can be combined on the same proxy when `target` is a callable class with renamed class attributes and a renamed constructor parameter.
@@ -1059,9 +1099,123 @@ print(default_epochs)  # value from NewTrainer.epochs
 
 The two warning budgets are independent — exhausting one does not affect the other. Each deprecated name (argument or attribute) maintains its own counter, so `num_warns=1` (the default) allows each old name to warn exactly once before silencing.
 
-!!! warning "Use one `deprecated_class()` call — do not stack two decorators"
+#### Mixed redirect and warn-only entries
 
-    Applying two separate `@deprecated_class()` decorators to the same class — one for `args_mapping` and one for `attrs_mapping` — appears to work at first but has concrete defects: `isinstance()` returns `False` for the resulting proxy, `__deprecated__` exposes only the outer layer (inner layer invisible to audit tools), and a spurious `FutureWarning` fires during the inner-class decoration. Always use a **single** `deprecated_class()` call with both mappings and an explicit `target=<NewClass>` — as shown in the example above. Omitting `target` when both mappings are present emits a `UserWarning` (planned `TypeError` in v1.0).
+`attrs_mapping` values can be a string (redirect to a new name) or `None` (warn but keep the same attribute name, no rename).
+Both forms can appear in the same mapping alongside `args_mapping`, making a single proxy the authoritative record for every deprecated surface on the class.
+
+The example below deprecates a `Model` class that renamed its `gpu` attribute to `device` and retired the `cuda` flag entirely.
+The constructor kwarg `n_layers` was also renamed to `num_layers`:
+
+```python
+from deprecate import deprecated_class
+
+
+class Model:
+    device: str = "cpu"
+    num_layers: int = 4
+
+    def __init__(self, num_layers: int = 4, device: str = "cpu") -> None:
+        self.num_layers = num_layers
+        self.device = device
+
+
+@deprecated_class(
+    target=Model,
+    attrs_mapping={
+        "cuda": None,  # warn-only — flag is being removed, still served from LegacyModel
+        "gpu": "device",  # redirect — old name "gpu" resolves to Model.device
+    },
+    args_mapping={"n_layers": "num_layers"},  # constructor kwarg rename
+    deprecated_in="3.0",
+    remove_in="4.0",
+    num_warns=-1,
+)
+class LegacyModel:
+    cuda: bool = False  # being-removed attribute; must live on LegacyModel for warn-only validation
+
+
+# 1. Constructor — args_mapping fires: "n_layers" remapped to "num_layers"
+m = LegacyModel(n_layers=8)  # warns: FutureWarning
+print(m.num_layers)
+
+# 2. Attribute redirect — attrs_mapping "gpu" -> "device" fires
+print(LegacyModel.gpu)  # warns: FutureWarning
+
+# 3. Warn-only — "cuda" warns but is still served from LegacyModel.cuda
+print(LegacyModel.cuda)  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>m.num_layers; LegacyModel.gpu; LegacyModel.cuda</code></summary>
+
+```
+8
+cpu
+False
+```
+
+</details>
+
+`"cuda": None` emits a `FutureWarning` on every access but serves the value from `LegacyModel.cuda` (the source class) because `Model` does not define `cuda`.
+`"gpu": "device"` warns and redirects the lookup to `Model.device`.
+Validation at decoration time requires that every `None`-value key exists on at least one of the two classes, so `cuda` must be defined on `LegacyModel` (or on `Model` if keeping it in the new API).
+
+!!! note "Audit tip — mapping compatibility"
+
+    After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg.
+    The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty.
+    See the [Audit guide](audit.md) for the full CI integration pattern.
+
+#### Stacking `deprecated_class()` for multi-version deprecations
+
+Use a **single `deprecated_class()` call** when all attributes and arguments share the same `deprecated_in`/`remove_in` — it is the simplest form and keeps both mappings in one place.
+
+**Stack two `@deprecated_class()` decorators** when different attributes were deprecated at different releases and each rename needs its own version pair.
+A common scenario: a library renamed `steps` in v0.8 and `lr` in v1.0 — each rename carries its own removal deadline.
+
+```python
+from deprecate import deprecated_class
+
+
+# outer layer: v1.0 rename (lr → learning_rate, remove in v2.0)
+@deprecated_class(
+    attrs_mapping={"lr": "learning_rate"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+# inner layer: v0.8 rename (steps → max_steps, remove in v1.0)
+@deprecated_class(
+    attrs_mapping={"steps": "max_steps"},
+    deprecated_in="0.8",
+    remove_in="1.0",
+)
+class LegacyConfig:
+    lr: float = 1e-3  # deprecated since 1.0
+    learning_rate: float = 1e-3  # canonical
+    steps: int = 1000  # deprecated since 0.8
+    max_steps: int = 1000  # canonical
+
+
+cfg = LegacyConfig()
+print(cfg.lr)  # warns: FutureWarning (deprecated in 1.0, remove in 2.0)
+print(cfg.steps)  # warns: FutureWarning (deprecated in 0.8, remove in 1.0)
+print(isinstance(cfg, LegacyConfig))
+```
+
+<details>
+  <summary>Output: <code>cfg.lr; cfg.steps; isinstance(cfg, LegacyConfig)</code></summary>
+
+```
+0.001
+1000
+True
+```
+
+</details>
+
+Each proxy layer carries its own `deprecated_in`/`remove_in`, so attribute-access warnings are version-accurate — `cfg.lr` reports the v1.0 deadline while `cfg.steps` reports the earlier v0.8 deadline.
+Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, and instantiation fires at most one global warning. When stacking two `ATTRS_REMAP` layers, only the innermost layer's instantiation warning fires — the outer layer's version pair appears only in attribute-access warnings for that layer's keys.
 
 ### Chained redirect
 
@@ -1436,13 +1590,9 @@ def create_client(host: str, port: int = 443) -> dict:
     return void(host, port)
 
 
-# In test fixtures you need the forwarding result but not the warning noise.
-# Use warnings.catch_warnings to suppress, then assert_no_warnings for new code:
 def make_test_client() -> dict:
-    """Test helper that calls the deprecated API without emitting warnings."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", FutureWarning)
-        return create_client("localhost", 8080)
+    """Test helper that calls the deprecated API."""
+    return create_client("localhost", 8080)  # warns: FutureWarning
 
 
 # The helper works silently:

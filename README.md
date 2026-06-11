@@ -2,7 +2,7 @@
 
 **Simple tooling for marking deprecated functions or classes and re-routing to their successors.**
 
-> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility.
+> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility. Designed around three principles: **simplicity** (single decorator, no config files), **robustness** (works with any Python callable), and **flexibility** (forward, remap, or notify — your choice).
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
@@ -994,7 +994,11 @@ red
 
 Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
 
+**Dataclass auto-expand** — when the wrapped class is a `@dataclass`, a single `deprecated_class(attrs_mapping={"old": "new"})` call automatically warns on both attribute access (`obj.old`) and constructor kwargs (`DC(old=5)`). No need to set `args_mapping` separately for a field rename. For non-`@dataclass` targets, `attrs_mapping` covers attribute access only — also set `args_mapping` to cover constructor kwargs.
+
 **Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Three misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.NOTIFY` + `attrs_mapping=...` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only.
+
+To deprecate attributes at different library versions, stack two `@deprecated_class()` decorators — each layer carries its own version pair and `isinstance()`/`issubclass()` resolve correctly through the proxy chain.
 
 </details>
 
@@ -1789,6 +1793,22 @@ def enforce_no_deprecation_chains():
 >   - `deprecated_class(attrs_mapping=...)` where one deprecated attribute redirects to another deprecated attribute alias
 > - Use `recursive=False` to scan only the top-level module
 
+### Detecting Positional-Only Incompatible Mappings
+
+The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. Those proxies fall back to `setattr` after construction, which may silently produce wrong results on immutable types or classes without a matching `__setattr__`.
+
+```bash
+pydeprecate check my_package
+# or as part of a full scan:
+pydeprecate all my_package
+```
+
+> [!TIP]
+>
+> - The proxy still works at runtime via `setattr`, but the fallback is invisible; `pydeprecate check` surfaces it at CI time
+> - Fix: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
+> - For programmatic use: `validate_mapping_compatibility(module)` returns `list[DeprecationWrapperInfo]` where `args_mapping_positional_only` is non-empty
+
 ## 🧪 Testing Deprecated Code
 
 pyDeprecate provides utilities to help you test deprecated code properly:
@@ -2089,8 +2109,17 @@ def old_func_warn_n_times():
     pass
 
 
-assert callable(old_func_warn_n_times)
+print(callable(old_func_warn_n_times))
 ```
+
+<details>
+  <summary>Output: <code>callable(old_func_warn_n_times)</code></summary>
+
+```
+True
+```
+
+</details>
 
 </details>
 

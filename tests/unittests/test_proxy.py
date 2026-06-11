@@ -1,5 +1,6 @@
 """Unit tests for _DeprecatedProxy internals and deprecated_class decorator behaviour."""
 
+import abc
 import inspect
 import warnings
 from collections.abc import Callable
@@ -11,6 +12,11 @@ from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
+    DepAutoExpandDC,
+    DepAutoExpandInitFalseDC,
+    DepAutoExpandOverriddenInitDC,
+    DepAutoExpandReqDC,
+    DepPositionalOnly,
     DeprecatedAttrsExplicitMode,
     DeprecatedAttrsLegacyTrue,
     DeprecatedAttrsNotifyOnly,
@@ -36,6 +42,7 @@ from tests.collection_deprecate import (
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
+    AutoExpandDC,
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
@@ -44,6 +51,8 @@ from tests.collection_targets import (
     Palette,
     PaletteEnum,
     PaletteOld,
+    PositionalOnlyTarget,
+    SomeTargetClass,
     WithInjected,
     _Pep702ProxyTarget,
 )
@@ -121,13 +130,7 @@ class TestProxyWarnBehavior:
 
     def test_warn_message_includes_target_path_for_callable_target(self) -> None:
         """Warnings include replacement path when target is callable."""
-        proxy = _DeprecatedProxy(
-            obj={},
-            name="old_color",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            target=ColorEnum,
-        )
+        proxy = _DeprecatedProxy(obj={}, name="old_color", deprecated_in="1.0", remove_in="2.0", target=ColorEnum)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             proxy._warn()
@@ -225,11 +228,7 @@ class TestProxyTemplateMgs:
     def test_template_mgs_stored_on_deprecation_config(self) -> None:
         """``template_mgs`` is recorded on ``DeprecationConfig`` for audit/introspection."""
         proxy = _DeprecatedProxy(
-            obj={},
-            name="legacy_obj",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            template_mgs="CUSTOM %(source_name)s",
+            obj={}, name="legacy_obj", deprecated_in="1.0", remove_in="2.0", template_mgs="CUSTOM %(source_name)s"
         )
         dep = object.__getattribute__(proxy, "__deprecated__")
         assert dep.template_mgs == "CUSTOM %(source_name)s"
@@ -260,11 +259,7 @@ class TestProxyTemplateMgs:
     def test_deprecated_instance_custom_template_applied(self) -> None:
         """``deprecated_instance(template_mgs=...)`` propagates the override to ``_warn``."""
         proxy = deprecated_instance(
-            {"k": 1},
-            name="legacy_cfg",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            template_mgs="OVERRIDE %(source_name)s",
+            {"k": 1}, name="legacy_cfg", deprecated_in="1.0", remove_in="2.0", template_mgs="OVERRIDE %(source_name)s"
         )
         with pytest.warns(FutureWarning) as caught:
             _ = proxy["k"]
@@ -422,14 +417,7 @@ class TestProxyNoWarnMethods:
 
     def test_len_uses_target_when_set(self) -> None:
         """__len__ reflects the target when a target is configured."""
-        proxy = _DeprecatedProxy(
-            obj=[1],
-            target=[1, 2, 3],
-            name="x",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
-        )
+        proxy = _DeprecatedProxy(obj=[1], target=[1, 2, 3], name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
         assert len(proxy) == 3
 
     def test_contains_no_warn(self) -> None:
@@ -444,12 +432,7 @@ class TestProxyNoWarnMethods:
     def test_contains_uses_target_when_set(self) -> None:
         """__contains__ reflects the target when a target is configured."""
         proxy = _DeprecatedProxy(
-            obj={"old": 1},
-            target={"new": 2},
-            name="x",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
+            obj={"old": 1}, target={"new": 2}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None
         )
         assert "new" in proxy
         assert "old" not in proxy
@@ -571,20 +554,12 @@ class TestDecoratorFactory:
         ],
     )
     def test_boolean_target_is_normalized_and_class_access_still_works(
-        self,
-        raw_target: bool,
-        warning_category: type[Warning],
-        warning_message: str,
+        self, raw_target: bool, warning_category: type[Warning], warning_message: str
     ) -> None:
         """Legacy boolean targets are normalized before proxy metadata and access use them."""
         with pytest.warns(warning_category) as caught:
 
-            @deprecated_class(
-                target=raw_target,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=None,
-            )
+            @deprecated_class(target=raw_target, deprecated_in="1.0", remove_in="2.0", stream=None)
             class OldClass:
                 def method(self) -> str:
                     return "ok"
@@ -603,11 +578,7 @@ class TestDecoratorFactory:
         with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP") as caught:
 
             @deprecated_class(
-                target=True,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                args_mapping={"old_attr": "new_attr"},
-                stream=None,
+                target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_attr": "new_attr"}, stream=None
             )
             class OldClass:
                 def method(self) -> str:
@@ -688,10 +659,7 @@ class TestArgsMapping:
         deprecation template (``old -> new``) — matching the decorator's argument-deprecation form.
 
         """
-        with pytest.warns(
-            FutureWarning,
-            match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`",
-        ):
+        with pytest.warns(FutureWarning, match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`"):
             result = MappedDataClass(**kwargs)  # type: ignore[arg-type]
         assert isinstance(result, NewDataClass)
         assert result.label == expected_label
@@ -705,8 +673,7 @@ class TestArgsMapping:
 
         """
         with pytest.warns(
-            FutureWarning,
-            match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`",
+            FutureWarning, match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`"
         ):
             result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
@@ -724,10 +691,7 @@ class TestArgsMapping:
         decorator's argument-deprecation form.
 
         """
-        with pytest.warns(
-            FutureWarning,
-            match=r"`MappedColorEnum` uses deprecated arguments: `val` -> `value`",
-        ):
+        with pytest.warns(FutureWarning, match=r"`MappedColorEnum` uses deprecated arguments: `val` -> `value`"):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is ColorEnum.RED
 
@@ -998,7 +962,6 @@ class TestTypeProtocol:
 
     def test_issubclass_respects_metaclass_semantics(self) -> None:
         """Issubclass uses the target metaclass logic (including virtual subclasses)."""
-        import abc
 
         class AbstractBase(metaclass=abc.ABCMeta):
             pass
@@ -1059,8 +1022,6 @@ class TestProxyArgsMappingBehavior:
 
     def test_callable_target_with_args_mapping_warns_on_new_arg(self) -> None:
         """Proxy forwarding to callable target always warns (class deprecated) even with new arg name."""
-        from tests.collection_targets import SomeTargetClass
-
         proxy = _DeprecatedProxy(
             obj=SomeTargetClass,
             name="SomeTargetClass",
@@ -1078,10 +1039,7 @@ class TestProxyArgsMappingBehavior:
         with pytest.warns(UserWarning, match="args_mapping"):
 
             @deprecated_class(
-                deprecated_in="1.2",
-                remove_in="2.0",
-                target=TargetMode.NOTIFY,
-                args_mapping={"old_key": "new_key"},
+                deprecated_in="1.2", remove_in="2.0", target=TargetMode.NOTIFY, args_mapping={"old_key": "new_key"}
             )
             class _ProxyNotifyWithArgsMapping:
                 pass
@@ -1090,11 +1048,7 @@ class TestProxyArgsMappingBehavior:
         """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match="args_mapping"):
 
-            @deprecated_class(
-                deprecated_in="1.2",
-                remove_in="2.0",
-                target=TargetMode.ARGS_REMAP,
-            )
+            @deprecated_class(deprecated_in="1.2", remove_in="2.0", target=TargetMode.ARGS_REMAP)
             class _ProxyArgsRemapNoMapping:
                 pass
 
@@ -1153,10 +1107,12 @@ class TestPEP702ProxyStackingRegression:
 class TestCombinedArgAttrsMapping:
     """Single ``deprecated_class()`` call combining ``args_mapping`` and ``attrs_mapping``.
 
-    Stacking two separate ``@deprecated_class()`` decorators (one per mapping) is NOT supported — it silently
-    breaks ``isinstance()``, hides the inner layer from audit tools, and emits a stray ``FutureWarning`` during
-    the outer decoration.  The canonical pattern is one ``deprecated_class()`` call with both mappings and an
-    explicit ``target=<NewClass>`` argument.  These tests pin the combined single-call contract.
+    The canonical pattern for combining arg-rename and attr-rename deprecation is one ``deprecated_class()``
+    call with both mappings and an explicit ``target=<NewClass>`` argument.  These tests pin that contract.
+
+    Two decorators may also be stacked (see :class:`TestStackedDeprecatedClass` in ``test_stacking.py``)
+    when each mapping layer needs an independent ``deprecated_in``/``remove_in`` version pair — e.g.
+    ``old_attr`` deprecated in v1.0 while ``older_attr`` was deprecated earlier in v0.9.
 
     """
 
@@ -1216,11 +1172,11 @@ class TestCombinedArgAttrsMapping:
         assert value == 10
 
     def test_combined_isinstance_passes_through(self) -> None:
-        """``isinstance()`` returns ``True`` for the combined single-call form (single proxy layer).
+        """``isinstance()`` returns ``True`` for the combined single-call form.
 
-        Unlike stacking two ``@deprecated_class()`` decorators (which breaks ``isinstance()`` because the inner
-        proxy becomes the ``active`` target), a single-call combined proxy has exactly one ``_DeprecatedProxy``
-        layer, so ``__instancecheck__`` correctly resolves to the real class.
+        A single-call combined proxy has exactly one ``_DeprecatedProxy`` layer so ``__instancecheck__``
+        resolves directly to the real class without recursion.  Stacked two-decorator forms also support
+        ``isinstance()`` — see :class:`TestStackedDeprecatedClass` in ``test_stacking.py``.
 
         """
 
@@ -1335,11 +1291,7 @@ class TestDeprecatedAttrs:
 
         """
         # Use a fresh proxy with stream enabled because DeprecatedAttrsNotifyOnly suppresses warnings.
-        proxy = deprecated_class(
-            attrs_mapping={"size": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(Palette)
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -1355,12 +1307,9 @@ class TestDeprecatedAttrs:
         pointing at a nonexistent replacement attribute.
 
         """
-        proxy = deprecated_class(
-            target=Palette,
-            attrs_mapping={"size": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(target=Palette, attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(
+            Palette
+        )
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -1450,10 +1399,7 @@ class TestDeprecatedAttrs:
 
         """
         proxy = deprecated_class(
-            attrs_mapping={"color": "colour", "txt": "text"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=1,
+            attrs_mapping={"color": "colour", "txt": "text"}, deprecated_in="1.0", remove_in="2.0", num_warns=1
         )(Palette)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -1477,12 +1423,9 @@ class TestDeprecatedAttrs:
         ``warned_args.get(key, 0) >= num_warns`` at the budget limit.
 
         """
-        proxy = deprecated_class(
-            attrs_mapping={"color": "colour"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=2,
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0", num_warns=2)(
+            Palette
+        )
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             _ = proxy.color  # type: ignore[attr-defined]
@@ -1515,11 +1458,7 @@ class TestDeprecatedAttrs:
 
         """
         # Use a fresh stream-enabled proxy so we can assert on the FutureWarning.
-        proxy = deprecated_class(
-            attrs_mapping={"COLOR": "COLOUR"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(PaletteEnum)
+        proxy = deprecated_class(attrs_mapping={"COLOR": "COLOUR"}, deprecated_in="1.0", remove_in="2.0")(PaletteEnum)
         with pytest.warns(FutureWarning, match="COLOR"):
             value = proxy.COLOR  # type: ignore[attr-defined]
         assert value is PaletteEnum.COLOUR
@@ -1550,11 +1489,7 @@ class TestDeprecatedAttrs:
         """
         with pytest.raises(ValueError, match="circular redirects"):
 
-            @deprecated_class(
-                attrs_mapping={"a": "b", "b": "a"},
-                deprecated_in="1.0",
-                remove_in="2.0",
-            )
+            @deprecated_class(attrs_mapping={"a": "b", "b": "a"}, deprecated_in="1.0", remove_in="2.0")
             class _Circular:
                 a = 1
                 b = 2
@@ -1567,12 +1502,7 @@ class TestDeprecatedAttrs:
 
         """
 
-        @deprecated_class(
-            attrs_mapping={"a": "b", "b": "c"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=None,
-        )
+        @deprecated_class(attrs_mapping={"a": "b", "b": "c"}, deprecated_in="1.0", remove_in="2.0", stream=None)
         class _Chained:
             a = 1
             b = 2
@@ -1626,10 +1556,7 @@ class TestDeprecatedAttrs:
             canonical = "target_canonical"
 
         target_proxy = deprecated_class(
-            attrs_mapping={"alias": "canonical"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-            num_warns=1,
+            attrs_mapping={"alias": "canonical"}, deprecated_in="1.0", remove_in="2.0", num_warns=1
         )(TargetAlias)
         target_cfg = object.__getattribute__(target_proxy, "_DeprecatedProxy__config")
         target_cfg.warned_args.clear()
@@ -1640,12 +1567,9 @@ class TestDeprecatedAttrs:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            deprecated_class(
-                target=target_proxy,
-                attrs_mapping={"old": "alias"},
-                deprecated_in="1.0",
-                remove_in="2.0",
-            )(SourceAlias)
+            deprecated_class(target=target_proxy, attrs_mapping={"old": "alias"}, deprecated_in="1.0", remove_in="2.0")(
+                SourceAlias
+            )
         assert not caught
         assert target_cfg.warned_args == {}
 
@@ -1659,11 +1583,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(Palette, "colour", Palette.colour)
-        proxy = deprecated_class(
-            attrs_mapping={"color": "colour"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
         with pytest.warns(FutureWarning, match="color"):
             del proxy.color  # type: ignore[attr-defined]
         assert not hasattr(Palette, "colour")
@@ -1678,11 +1598,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(Palette, "size", Palette.size)
-        proxy = deprecated_class(
-            attrs_mapping={"size": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(Palette)
+        proxy = deprecated_class(attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(Palette)
         with pytest.warns(FutureWarning, match="size"):
             del proxy.size  # type: ignore[attr-defined]
         assert not hasattr(Palette, "size")
@@ -1698,12 +1614,9 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
-        proxy = deprecated_class(
-            target=Palette,
-            attrs_mapping={"color": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(PaletteOld)
+        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, deprecated_in="1.0", remove_in="2.0")(
+            PaletteOld
+        )
         assert not hasattr(Palette, "color")
         original = PaletteOld.color
 
@@ -1725,12 +1638,9 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
-        proxy = deprecated_class(
-            target=Palette,
-            attrs_mapping={"color": None},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(PaletteOld)
+        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, deprecated_in="1.0", remove_in="2.0")(
+            PaletteOld
+        )
         assert not hasattr(Palette, "color")
 
         with pytest.warns(FutureWarning, match="color"):
@@ -1750,11 +1660,7 @@ class TestDeprecatedAttrs:
         """
         with pytest.raises(ValueError, match="warn-only keys not found on either class"):
 
-            @deprecated_class(
-                attrs_mapping={"nonexistent": None},
-                deprecated_in="1.0",
-                remove_in="2.0",
-            )
+            @deprecated_class(attrs_mapping={"nonexistent": None}, deprecated_in="1.0", remove_in="2.0")
             class _MissingWarnOnly:
                 colour: str = "red"
 
@@ -1956,12 +1862,9 @@ class TestAttrsMappingCombinations:
             colour = "red"
 
         with pytest.warns(UserWarning, match="ATTRS_REMAP.*requires.*`attrs_mapping`"):
-            proxy = deprecated_class(
-                target=TargetMode.ATTRS_REMAP,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=None,
-            )(_AttrsRemapMissingMapping)
+            proxy = deprecated_class(target=TargetMode.ATTRS_REMAP, deprecated_in="1.0", remove_in="2.0", stream=None)(
+                _AttrsRemapMissingMapping
+            )
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert meta.misconfigured is True
 
@@ -1978,12 +1881,9 @@ class TestAttrsMappingCombinations:
             colour = "red"
 
         with pytest.warns(UserWarning, match="empty dict"):
-            proxy = deprecated_class(
-                attrs_mapping={},
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=None,
-            )(_EmptyAttrsMapping)
+            proxy = deprecated_class(attrs_mapping={}, deprecated_in="1.0", remove_in="2.0", stream=None)(
+                _EmptyAttrsMapping
+            )
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert meta.misconfigured is True
 
@@ -2075,3 +1975,201 @@ class TestAttrsMappingCombinations:
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
         assert user_warnings, "Expected a UserWarning from _validate_proxy but got none"
         assert user_warnings[0].filename == __file__
+
+
+# ---------------------------------------------------------------------------
+# Dataclass dual-surface auto-expand
+# ---------------------------------------------------------------------------
+
+
+class TestDataclassAutoExpand:
+    """attrs_mapping auto-expansion to args_mapping for ``@dataclass`` targets.
+
+    When ``deprecated_class`` is applied to a ``@dataclass`` with only ``attrs_mapping``
+    configured, the proxy must automatically expand into ``args_mapping`` so that both the
+    attribute-access surface (post-construction ``__getattr__``) and the constructor-call
+    surface (``DC(old_field=5)``) emit ``FutureWarning`` from a single decoration call.
+    """
+
+    def test_constructor_kwarg_warns_after_auto_expand(self) -> None:
+        """``DepAutoExpandDC(old_field=5)`` emits FutureWarning after auto-expand.
+
+        Before the fix, ``attrs_mapping``-only on a dataclass meant calling ``DC(old_field=5)``
+        raised ``TypeError``.  After auto-expand the proxy has ``args_mapping={"old_field":
+        "new_field"}`` and the FutureWarning fires; the instance is created with
+        ``new_field=5``.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandDC(old_field=5)  # type: ignore[call-arg]
+        assert instance.new_field == 5
+
+    def test_class_proxy_attribute_access_warns(self) -> None:
+        """Accessing the deprecated alias via the class proxy emits FutureWarning.
+
+        ``attrs_mapping`` operates at the class-proxy level: ``DepAutoExpandDC.old_field``
+        routes through the proxy's ``__getattr__``, emits FutureWarning, and returns the
+        value of the canonical field.  Instance-level attribute access is not proxied —
+        instances returned by the callable target are plain dataclass objects.
+        """
+        with pytest.warns(FutureWarning):
+            _ = DepAutoExpandDC.old_field  # class-proxy access, not instance attr
+
+    def test_auto_expanded_keys_recorded_on_deprecated_meta(self) -> None:
+        """``args_mapping_auto_expanded`` on ``__deprecated__`` lists the auto-copied key.
+
+        Audit tools read ``DeprecationConfig.args_mapping_auto_expanded`` to distinguish
+        auto-generated entries from user-supplied ones.
+        """
+        meta = object.__getattribute__(DepAutoExpandDC, "__deprecated__")
+        assert "old_field" in meta.args_mapping_auto_expanded
+
+    def test_explicit_args_mapping_not_overwritten(self) -> None:
+        """Explicit ``args_mapping`` entry for the same key is not overwritten.
+
+        When the user supplies ``args_mapping={"old_field": ...}`` explicitly, the auto-
+        expand skips that key so the user-supplied value always wins.
+        """
+        proxy = deprecated_class(
+            attrs_mapping={"old_field": "new_field"},
+            args_mapping={"old_field": "new_field"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )(AutoExpandDC)
+        meta = object.__getattribute__(proxy, "__deprecated__")
+        assert "old_field" not in meta.args_mapping_auto_expanded
+
+    def test_req_dc_constructor_kwarg_warns_after_auto_expand(self) -> None:
+        """``DepAutoExpandReqDC(old_field=5)`` emits FutureWarning and returns a correctly populated instance.
+
+        ``AutoExpandReqDC`` has a required (no-default) field ``new_field``.  After auto-expand
+        the proxy has ``args_mapping={"old_field": "new_field"}`` so calling with the deprecated
+        kwarg must (a) emit ``FutureWarning`` and (b) create an instance where ``new_field == 5``.
+        Without auto-expand the call would raise ``TypeError`` because ``new_field`` is required
+        and ``old_field`` is not recognised by the dataclass constructor.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandReqDC(old_field=5)  # type: ignore[call-arg]
+        assert instance.new_field == 5
+
+    def test_req_dc_class_proxy_attribute_access_warns_then_raises(self) -> None:
+        """Accessing ``DepAutoExpandReqDC.old_field`` emits FutureWarning then raises AttributeError.
+
+        ``AutoExpandReqDC`` has a required field ``new_field`` with no class-level default.
+        The proxy emits a ``FutureWarning`` (redirect from ``old_field`` → ``new_field``) before
+        attempting the attribute read; because there is no class-level sentinel value for a required
+        dataclass field, the lookup then raises ``AttributeError``.  Both signals must occur — the
+        warning fires first, the error follows.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(AttributeError):
+                _ = DepAutoExpandReqDC.old_field  # type: ignore[attr-defined]
+
+        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warns) >= 1, "FutureWarning must be emitted before AttributeError"
+
+    def test_init_false_field_excluded_from_auto_expand(self) -> None:
+        """``field(init=False)`` entries must not appear in ``args_mapping_auto_expanded``.
+
+        ``AutoExpandInitFalseDC`` has ``new_field`` (normal param) and ``computed_field``
+        (``init=False``).  Only ``old_field`` → ``new_field`` should be auto-expanded;
+        ``old_computed`` → ``computed_field`` must be excluded because ``computed_field``
+        is not a valid ``__init__`` kwarg — passing it to the constructor raises ``TypeError``.
+        """
+        meta = object.__getattribute__(DepAutoExpandInitFalseDC, "__deprecated__")
+        assert "old_field" in meta.args_mapping_auto_expanded
+        assert "old_computed" not in meta.args_mapping_auto_expanded
+
+    def test_init_false_field_constructor_not_erroring(self) -> None:
+        """Calling the proxy with the normal kwarg succeeds; init=False kwarg is not passed.
+
+        Before the fix, ``computed_field`` was included in ``args_mapping``, so passing
+        ``old_computed=5`` would remap it to ``computed_field=5`` and pass it to the
+        dataclass constructor, raising ``TypeError``.  After the fix the proxy never
+        adds ``computed_field`` to ``args_mapping``, so construction via the normal
+        param path succeeds.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandInitFalseDC(old_field=3)  # type: ignore[call-arg]
+        assert instance.new_field == 3
+        assert instance.computed_field == 0  # default, not touched by constructor
+
+    def test_overridden_init_in_range_field_auto_expanded(self) -> None:
+        """Fields present in the overridden ``__init__`` signature are auto-expanded.
+
+        ``AutoExpandOverriddenInitDC`` overrides ``__init__`` to accept only ``new_field``.
+        ``old_field`` → ``new_field`` must appear in ``args_mapping_auto_expanded`` because
+        ``new_field`` is in ``inspect.signature``.
+        """
+        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
+        assert "old_field" in meta.args_mapping_auto_expanded
+
+    def test_overridden_init_absent_field_not_auto_expanded(self) -> None:
+        """Fields absent from the overridden ``__init__`` signature are not auto-expanded.
+
+        ``skipped_field`` is a dataclass field (``init=True`` by default in the ``@dataclass``
+        descriptor) but intentionally absent from the overridden ``__init__``.  Using
+        ``dataclasses.fields()`` would (incorrectly) include it; ``inspect.signature`` correctly
+        excludes it.  Passing ``old_skipped`` to the constructor must not raise ``TypeError``.
+        """
+        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
+        assert "old_skipped" not in meta.args_mapping_auto_expanded
+
+    def test_overridden_init_constructor_kwarg_warns(self) -> None:
+        """Calling ``DepAutoExpandOverriddenInitDC`` with the deprecated kwarg warns and constructs.
+
+        The old kwarg ``old_field`` is remapped to ``new_field`` via auto-expanded
+        ``args_mapping``; the instance is created by the overridden ``__init__`` which
+        accepts ``new_field``.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandOverriddenInitDC(old_field=7)  # type: ignore[call-arg]
+        assert instance.new_field == 7
+
+
+# ---------------------------------------------------------------------------
+# Positional-only constructor guard + setattr fallback
+# ---------------------------------------------------------------------------
+
+
+class TestPositionalOnlyFallback:
+    """``args_mapping`` on a class with ``POSITIONAL_ONLY`` constructor parameters.
+
+    The proxy must emit ``UserWarning`` at decoration time, record
+    ``args_mapping_positional_only`` on ``DeprecationConfig``, and fall back to
+    ``setattr`` at call time instead of forwarding the remapped kwarg as a
+    positional-only keyword (which would raise ``TypeError``).
+    """
+
+    def test_decoration_emits_user_warning(self) -> None:
+        """Creating ``deprecated_class`` with ``args_mapping`` to a positional-only param warns.
+
+        The ``UserWarning`` must mention that the target parameter is positional-only so
+        developers know to use ``attrs_mapping`` instead.
+        """
+        with pytest.warns(UserWarning, match="POSITIONAL_ONLY"):
+            deprecated_class(
+                args_mapping={"old_val": "new_val"},
+                deprecated_in="1.0",
+                remove_in="2.0",
+            )(PositionalOnlyTarget)
+
+    def test_incompatible_key_recorded_on_deprecated_meta(self) -> None:
+        """``args_mapping_positional_only`` on ``__deprecated__`` lists the offending old key.
+
+        The field is populated at decoration time so audit tools can surface it without
+        re-inspecting the constructor signature at report time.
+        """
+        meta = object.__getattribute__(DepPositionalOnly, "__deprecated__")
+        assert "old_val" in meta.args_mapping_positional_only
+
+    def test_call_with_deprecated_kwarg_does_not_crash(self) -> None:
+        """``DepPositionalOnly(old_val=7)`` succeeds via ``setattr`` fallback.
+
+        Without the fallback, remapping ``old_val``→``new_val`` would produce
+        ``PositionalOnlyTarget(new_val=7)`` which raises ``TypeError``.  The proxy
+        must construct without the kwarg and use ``setattr`` to assign ``new_val=7``.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnly(old_val=7)  # type: ignore[call-arg]
+        assert instance.new_val == 7

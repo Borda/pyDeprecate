@@ -280,6 +280,14 @@ git push origin fix/123-your-bug-description
 
 ## 📋 Coding Standards
 
+### Design Principles
+
+- **Simplicity**: the API surface must be learnable in minutes; prefer patterns users already know; do not introduce a new concept unless it solves a real gap that existing primitives cannot address.
+- **Robustness**: deprecated code is on the removal path; correctness must hold regardless of call order or framework integration; audit tools must surface all live deprecations so nothing slips through to a breaking release.
+- **Flexibility**: work with any Python callable — functions, class methods, async, properties, dataclasses, enums — without special-casing the caller; the library adapts to the user's code, not the other way around.
+
+When a proposed feature conflicts with simplicity, complexity wins only when robustness or flexibility requires it.
+
 ### Style & Formatting
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
@@ -384,7 +392,11 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
-> **Docs examples should be explicit.** For all `docs/**/*.md` blocks that execute code, prefer `print()` with an example output block (as above), or a deterministic assertion of behavior. Avoid placeholders that do not validate behavior.
+> **Docs examples must use `print()` + output blocks — no `assert`.** For all `docs/**/*.md` blocks that execute code:
+>
+> - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
+> - Do **not** use bare `assert` statements (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`.
+> - Avoid placeholders that do not validate behavior.
 
 > [!NOTE]
 > **Some docs examples use collection modules as fixtures and report hardcoded counts.** `docs/guide/audit.md` embeds expected output from scanning `tests.collection_misconfigured` with hardcoded numbers (wrappers scanned, empty mappings, etc.). When you add or remove entries from any `collection_*.py` module:
@@ -398,6 +410,29 @@ Tests live in `tests/` and follow a **three-layer separation**:
 
 > [!IMPORTANT]
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
+
+> [!IMPORTANT]
+> **No local imports inside test functions.** All `import` and `from … import` statements must appear at module level, not inside test methods or helper functions. Import each fixture name at the top of the test file and use it directly in the test body.
+>
+> ```python
+> # ✗ wrong — local import inside a test method
+> def test_something(self) -> None:
+>     import warnings as _warnings
+>     from tests.collection_deprecate import DepAutoExpandReqDC
+>
+>     with _warnings.catch_warnings(record=True) as caught:
+>         ...
+>
+>
+> # ✓ correct — module-level imports
+> import warnings
+> from tests.collection_deprecate import DepAutoExpandReqDC
+>
+>
+> def test_something(self) -> None:
+>     with warnings.catch_warnings(record=True) as caught:
+>         ...
+> ```
 
 > [!NOTE]
 > **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
@@ -485,6 +520,39 @@ WrappedWidget = _class_deprecation_widget(_OriginalWidget)
 ```
 
 > **Rule**: when a `Decorated<Name>` / `Wrapped<Name>` pair exists, both **must** share a single `_class_deprecation_<name>` instance. Duplicating the `deprecated_class(...)` kwargs is a bug — a silent config drift will cause the parametrized test to compare two different deprecations instead of the same one in two application forms.
+
+**Unification pattern — shared version kwargs and hoisted instances:**
+
+When three or more `@deprecated(...)` or `@deprecated_class(...)` call sites share the same `(deprecated_in, remove_in[, num_warns])` combination, extract the repeated kwargs into a named `dict` constant and splat it at each call site. This eliminates silent version drift and makes bulk version-bump changes a one-line edit.
+
+Naming convention: `_DEPRS_CASE_<SLUG>_ARGS` where `<SLUG>` is an ALL_CAPS descriptor of the usage context (e.g. `PROXY_LEGACY`, `TGT_MODE`, `STD_INF`). Type-annotate as `dict[str, Any]` to avoid mypy narrowing complaints on heterogeneous values.
+
+```python
+from typing import Any
+
+# Reusable deprecation-version kwarg groups.
+_DEPRS_CASE_PROXY_LEGACY_ARGS: dict[str, Any] = {"deprecated_in": "0.1", "remove_in": "0.2", "num_warns": -1}
+_DEPRS_CASE_TGT_MODE_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in": "2.0"}
+
+
+@deprecated_class(**_DEPRS_CASE_PROXY_LEGACY_ARGS)
+class DeprecatedEnum(Enum): ...
+
+
+@deprecated_class(target=NewEnum, **_DEPRS_CASE_PROXY_LEGACY_ARGS)
+class RedirectedEnum(Enum): ...
+
+
+@deprecated(**_DEPRS_CASE_TGT_MODE_ARGS, target=TargetMode.NOTIFY, num_warns=-1)
+def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
+```
+
+**Rules:**
+
+- Minimum **3 call sites** before extracting — two occurrences stay inline.
+- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
+- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `collection_deprecate.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
+- When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
 
 **Docstrings in test collections:**
 
