@@ -882,6 +882,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Class methods and static methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#forwarding-a-static-method-to-another-static-method-in-the-same-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forwarding a static method to another static method in the same class
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1824,6 +1841,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Class methods and static methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#forwarding-a-static-method-to-another-static-method-in-the-same-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forwarding a static method to another static method in the same class
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3529,31 +3563,117 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
 <p class="admonition-title">Prefer <code>@classmethod @deprecated</code> (deprecated closer to <code>def</code>)</p>
 <p>The inner-first order is the conventional Python style — outer decorators apply last. Follow this pattern for consistency if your team has no existing convention.</p>
 </div>
+<h3 id="forwarding-a-static-method-to-another-static-method-in-the-same-class">Forwarding a static method to another static method in the same class<a class="headerlink" href="#forwarding-a-static-method-to-another-static-method-in-the-same-class" title="Permanent link">🔗</a></h3>
+<p>When renaming a <code>@staticmethod</code> or <code>@classmethod</code> within the same class, pass the new method directly as <code>target=new_method</code> — no <code>.__func__</code> suffix needed. Inside the class body <code>new_method</code> is still the raw descriptor (not yet bound); pyDeprecate unwraps it automatically.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-73-2" name="__codelineno-73-2" href="#__codelineno-73-2"></a>
+<a id="__codelineno-73-3" name="__codelineno-73-3" href="#__codelineno-73-3"></a>
+<a id="__codelineno-73-4" name="__codelineno-73-4" href="#__codelineno-73-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Compute</span><span class="p">:</span>
+<a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a>    <span class="nd">@staticmethod</span>
+<a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">area</span><span class="p">(</span><span class="n">radius</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a>        <span class="k">return</span> <span class="mf">3.14159</span> <span class="o">*</span> <span class="n">radius</span><span class="o">**</span><span class="mi">2</span>
+<a id="__codelineno-73-8" name="__codelineno-73-8" href="#__codelineno-73-8"></a>
+<a id="__codelineno-73-9" name="__codelineno-73-9" href="#__codelineno-73-9"></a>    <span class="c1"># DEPRECATED — renamed from surface() to area()</span>
+<a id="__codelineno-73-10" name="__codelineno-73-10" href="#__codelineno-73-10"></a>    <span class="nd">@staticmethod</span>
+<a id="__codelineno-73-11" name="__codelineno-73-11" href="#__codelineno-73-11"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">area</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-12" name="__codelineno-73-12" href="#__codelineno-73-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">surface</span><span class="p">(</span><span class="n">radius</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-73-13" name="__codelineno-73-13" href="#__codelineno-73-13"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated — use area() instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-73-14" name="__codelineno-73-14" href="#__codelineno-73-14"></a>        <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span>
+<a id="__codelineno-73-15" name="__codelineno-73-15" href="#__codelineno-73-15"></a>
+<a id="__codelineno-73-16" name="__codelineno-73-16" href="#__codelineno-73-16"></a>
+<a id="__codelineno-73-17" name="__codelineno-73-17" href="#__codelineno-73-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">Compute</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="mf">3.0</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>Compute.surface(3.0)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a>28.27431
+</code></pre></div>
+
+</details>
+
+<p>Combine with <code>args_mapping</code> when a parameter was also renamed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-75-2" name="__codelineno-75-2" href="#__codelineno-75-2"></a>
+<a id="__codelineno-75-3" name="__codelineno-75-3" href="#__codelineno-75-3"></a>
+<a id="__codelineno-75-4" name="__codelineno-75-4" href="#__codelineno-75-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Compute</span><span class="p">:</span>
+<a id="__codelineno-75-5" name="__codelineno-75-5" href="#__codelineno-75-5"></a>    <span class="nd">@staticmethod</span>
+<a id="__codelineno-75-6" name="__codelineno-75-6" href="#__codelineno-75-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">area</span><span class="p">(</span><span class="n">radius</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-75-7" name="__codelineno-75-7" href="#__codelineno-75-7"></a>        <span class="k">return</span> <span class="mf">3.14159</span> <span class="o">*</span> <span class="n">radius</span><span class="o">**</span><span class="mi">2</span>
+<a id="__codelineno-75-8" name="__codelineno-75-8" href="#__codelineno-75-8"></a>
+<a id="__codelineno-75-9" name="__codelineno-75-9" href="#__codelineno-75-9"></a>    <span class="nd">@staticmethod</span>
+<a id="__codelineno-75-10" name="__codelineno-75-10" href="#__codelineno-75-10"></a>    <span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-75-11" name="__codelineno-75-11" href="#__codelineno-75-11"></a>        <span class="n">target</span><span class="o">=</span><span class="n">area</span><span class="p">,</span>
+<a id="__codelineno-75-12" name="__codelineno-75-12" href="#__codelineno-75-12"></a>        <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="s2">&quot;radius&quot;</span><span class="p">},</span>
+<a id="__codelineno-75-13" name="__codelineno-75-13" href="#__codelineno-75-13"></a>        <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-75-14" name="__codelineno-75-14" href="#__codelineno-75-14"></a>        <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-75-15" name="__codelineno-75-15" href="#__codelineno-75-15"></a>    <span class="p">)</span>
+<a id="__codelineno-75-16" name="__codelineno-75-16" href="#__codelineno-75-16"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">surface</span><span class="p">(</span><span class="n">r</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-75-17" name="__codelineno-75-17" href="#__codelineno-75-17"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated — use area(radius=...) instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-75-18" name="__codelineno-75-18" href="#__codelineno-75-18"></a>        <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">radius</span><span class="p">)</span>
+<a id="__codelineno-75-19" name="__codelineno-75-19" href="#__codelineno-75-19"></a>
+<a id="__codelineno-75-20" name="__codelineno-75-20" href="#__codelineno-75-20"></a>
+<a id="__codelineno-75-21" name="__codelineno-75-21" href="#__codelineno-75-21"></a><span class="nb">print</span><span class="p">(</span><span class="n">Compute</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="n">r</span><span class="o">=</span><span class="mf">3.0</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>Compute.surface(r=3.0)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a>28.27431
+</code></pre></div>
+
+</details>
+
+<p>The same pattern works for <code>@classmethod</code>. Both the deprecated and the replacement must be classmethods — pyDeprecate enforces this symmetry at decoration time and raises <code>TypeError</code> if the source has no <code>cls</code> parameter.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-77-2" name="__codelineno-77-2" href="#__codelineno-77-2"></a>
+<a id="__codelineno-77-3" name="__codelineno-77-3" href="#__codelineno-77-3"></a>
+<a id="__codelineno-77-4" name="__codelineno-77-4" href="#__codelineno-77-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Compute</span><span class="p">:</span>
+<a id="__codelineno-77-5" name="__codelineno-77-5" href="#__codelineno-77-5"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-77-6" name="__codelineno-77-6" href="#__codelineno-77-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">area</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-77-7" name="__codelineno-77-7" href="#__codelineno-77-7"></a>        <span class="k">return</span> <span class="mf">3.14159</span> <span class="o">*</span> <span class="n">radius</span><span class="o">**</span><span class="mi">2</span>
+<a id="__codelineno-77-8" name="__codelineno-77-8" href="#__codelineno-77-8"></a>
+<a id="__codelineno-77-9" name="__codelineno-77-9" href="#__codelineno-77-9"></a>    <span class="c1"># DEPRECATED — renamed from surface() to area()</span>
+<a id="__codelineno-77-10" name="__codelineno-77-10" href="#__codelineno-77-10"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-77-11" name="__codelineno-77-11" href="#__codelineno-77-11"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">area</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-77-12" name="__codelineno-77-12" href="#__codelineno-77-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">surface</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">radius</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-77-13" name="__codelineno-77-13" href="#__codelineno-77-13"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated — use area() instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-77-14" name="__codelineno-77-14" href="#__codelineno-77-14"></a>        <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span>
+<a id="__codelineno-77-15" name="__codelineno-77-15" href="#__codelineno-77-15"></a>
+<a id="__codelineno-77-16" name="__codelineno-77-16" href="#__codelineno-77-16"></a>
+<a id="__codelineno-77-17" name="__codelineno-77-17" href="#__codelineno-77-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">Compute</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="mf">3.0</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>Compute.surface(3.0)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-78-1" name="__codelineno-78-1" href="#__codelineno-78-1"></a>28.27431
+</code></pre></div>
+
+</details>
+
 <h2 id="properties-and-cached-properties">Properties and cached properties<a class="headerlink" href="#properties-and-cached-properties" title="Permanent link">🔗</a></h2>
 <p><code>@deprecated</code> works with <code>@property</code> and <code>@cached_property</code>. The decorator only adds a <code>FutureWarning</code> at access time — it does <strong>not</strong> forward reads or writes to another property. For a getter-only property, either decorator order is valid. To add a warning to all three accessors (<code>fget</code>, <code>fset</code>, <code>fdel</code>) so that read, write, <strong>and</strong> delete each fire <code>FutureWarning</code>, place <code>@deprecated</code> on the <strong>outside</strong> (<code>@deprecated @property</code> order, or explicit <code>deprecated(...)(property(fget, fset, fdel))</code>). The inner-first order (<code>@property @deprecated</code>) only adds a warning to <code>fget</code> — apply <code>@deprecated</code> to setter and deleter separately if you also need them to warn.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cached_property</span>
-<a id="__codelineno-73-2" name="__codelineno-73-2" href="#__codelineno-73-2"></a>
-<a id="__codelineno-73-3" name="__codelineno-73-3" href="#__codelineno-73-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-73-4" name="__codelineno-73-4" href="#__codelineno-73-4"></a>
-<a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a>
-<a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
-<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a>    <span class="nd">@property</span>
-<a id="__codelineno-73-8" name="__codelineno-73-8" href="#__codelineno-73-8"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-73-9" name="__codelineno-73-9" href="#__codelineno-73-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-73-10" name="__codelineno-73-10" href="#__codelineno-73-10"></a>        <span class="k">return</span> <span class="mi">30</span>
-<a id="__codelineno-73-11" name="__codelineno-73-11" href="#__codelineno-73-11"></a>
-<a id="__codelineno-73-12" name="__codelineno-73-12" href="#__codelineno-73-12"></a>    <span class="nd">@cached_property</span>
-<a id="__codelineno-73-13" name="__codelineno-73-13" href="#__codelineno-73-13"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-73-14" name="__codelineno-73-14" href="#__codelineno-73-14"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">base_url</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-73-15" name="__codelineno-73-15" href="#__codelineno-73-15"></a>        <span class="k">return</span> <span class="s2">&quot;https://example.com&quot;</span>
-<a id="__codelineno-73-16" name="__codelineno-73-16" href="#__codelineno-73-16"></a>
-<a id="__codelineno-73-17" name="__codelineno-73-17" href="#__codelineno-73-17"></a>
-<a id="__codelineno-73-18" name="__codelineno-73-18" href="#__codelineno-73-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">Config</span><span class="p">()</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cached_property</span>
+<a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a>
+<a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-79-4" name="__codelineno-79-4" href="#__codelineno-79-4"></a>
+<a id="__codelineno-79-5" name="__codelineno-79-5" href="#__codelineno-79-5"></a>
+<a id="__codelineno-79-6" name="__codelineno-79-6" href="#__codelineno-79-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+<a id="__codelineno-79-7" name="__codelineno-79-7" href="#__codelineno-79-7"></a>    <span class="nd">@property</span>
+<a id="__codelineno-79-8" name="__codelineno-79-8" href="#__codelineno-79-8"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-79-9" name="__codelineno-79-9" href="#__codelineno-79-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-79-10" name="__codelineno-79-10" href="#__codelineno-79-10"></a>        <span class="k">return</span> <span class="mi">30</span>
+<a id="__codelineno-79-11" name="__codelineno-79-11" href="#__codelineno-79-11"></a>
+<a id="__codelineno-79-12" name="__codelineno-79-12" href="#__codelineno-79-12"></a>    <span class="nd">@cached_property</span>
+<a id="__codelineno-79-13" name="__codelineno-79-13" href="#__codelineno-79-13"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-79-14" name="__codelineno-79-14" href="#__codelineno-79-14"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">base_url</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-79-15" name="__codelineno-79-15" href="#__codelineno-79-15"></a>        <span class="k">return</span> <span class="s2">&quot;https://example.com&quot;</span>
+<a id="__codelineno-79-16" name="__codelineno-79-16" href="#__codelineno-79-16"></a>
+<a id="__codelineno-79-17" name="__codelineno-79-17" href="#__codelineno-79-17"></a>
+<a id="__codelineno-79-18" name="__codelineno-79-18" href="#__codelineno-79-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">Config</span><span class="p">()</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>Config().timeout</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a>30
+<div class="highlight"><pre><span></span><code><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a>30
 </code></pre></div>
 
 </details>
@@ -3565,37 +3685,37 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
 </div>
 <h3 id="deprecating-a-property-with-a-setter-or-deleter">Deprecating a property with a setter or deleter<a class="headerlink" href="#deprecating-a-property-with-a-setter-or-deleter" title="Permanent link">🔗</a></h3>
 <p>When the property being deprecated has a setter or deleter, all three accessors (<code>fget</code>, <code>fset</code>, <code>fdel</code>) are wrapped automatically — each fires a <code>FutureWarning</code>. Both the chain-style decorator pattern and the explicit construction pattern work:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-75-2" name="__codelineno-75-2" href="#__codelineno-75-2"></a>
-<a id="__codelineno-75-3" name="__codelineno-75-3" href="#__codelineno-75-3"></a>
-<a id="__codelineno-75-4" name="__codelineno-75-4" href="#__codelineno-75-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
-<a id="__codelineno-75-5" name="__codelineno-75-5" href="#__codelineno-75-5"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-75-6" name="__codelineno-75-6" href="#__codelineno-75-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
-<a id="__codelineno-75-7" name="__codelineno-75-7" href="#__codelineno-75-7"></a>
-<a id="__codelineno-75-8" name="__codelineno-75-8" href="#__codelineno-75-8"></a>    <span class="c1"># Outer order required: @deprecated @property wraps fget, fset, and fdel</span>
-<a id="__codelineno-75-9" name="__codelineno-75-9" href="#__codelineno-75-9"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-75-10" name="__codelineno-75-10" href="#__codelineno-75-10"></a>    <span class="nd">@property</span>
-<a id="__codelineno-75-11" name="__codelineno-75-11" href="#__codelineno-75-11"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-75-12" name="__codelineno-75-12" href="#__codelineno-75-12"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
-<a id="__codelineno-75-13" name="__codelineno-75-13" href="#__codelineno-75-13"></a>
-<a id="__codelineno-75-14" name="__codelineno-75-14" href="#__codelineno-75-14"></a>    <span class="nd">@timeout</span><span class="o">.</span><span class="n">setter</span>
-<a id="__codelineno-75-15" name="__codelineno-75-15" href="#__codelineno-75-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-75-16" name="__codelineno-75-16" href="#__codelineno-75-16"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">value</span>
-<a id="__codelineno-75-17" name="__codelineno-75-17" href="#__codelineno-75-17"></a>
-<a id="__codelineno-75-18" name="__codelineno-75-18" href="#__codelineno-75-18"></a>    <span class="nd">@timeout</span><span class="o">.</span><span class="n">deleter</span>
-<a id="__codelineno-75-19" name="__codelineno-75-19" href="#__codelineno-75-19"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-75-20" name="__codelineno-75-20" href="#__codelineno-75-20"></a>        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
-<a id="__codelineno-75-21" name="__codelineno-75-21" href="#__codelineno-75-21"></a>
-<a id="__codelineno-75-22" name="__codelineno-75-22" href="#__codelineno-75-22"></a>
-<a id="__codelineno-75-23" name="__codelineno-75-23" href="#__codelineno-75-23"></a><span class="n">cfg</span> <span class="o">=</span> <span class="n">Config</span><span class="p">()</span>
-<a id="__codelineno-75-24" name="__codelineno-75-24" href="#__codelineno-75-24"></a><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="mi">10</span>  <span class="c1"># FutureWarning: write</span>
-<a id="__codelineno-75-25" name="__codelineno-75-25" href="#__codelineno-75-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>  <span class="c1"># FutureWarning: read; prints 10</span>
-<a id="__codelineno-75-26" name="__codelineno-75-26" href="#__codelineno-75-26"></a><span class="k">del</span> <span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span>  <span class="c1"># FutureWarning: delete</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>
+<a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a>
+<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+<a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
+<a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a>
+<a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a>    <span class="c1"># Outer order required: @deprecated @property wraps fget, fset, and fdel</span>
+<a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a>    <span class="nd">@property</span>
+<a id="__codelineno-81-11" name="__codelineno-81-11" href="#__codelineno-81-11"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-81-12" name="__codelineno-81-12" href="#__codelineno-81-12"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
+<a id="__codelineno-81-13" name="__codelineno-81-13" href="#__codelineno-81-13"></a>
+<a id="__codelineno-81-14" name="__codelineno-81-14" href="#__codelineno-81-14"></a>    <span class="nd">@timeout</span><span class="o">.</span><span class="n">setter</span>
+<a id="__codelineno-81-15" name="__codelineno-81-15" href="#__codelineno-81-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-81-16" name="__codelineno-81-16" href="#__codelineno-81-16"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">value</span>
+<a id="__codelineno-81-17" name="__codelineno-81-17" href="#__codelineno-81-17"></a>
+<a id="__codelineno-81-18" name="__codelineno-81-18" href="#__codelineno-81-18"></a>    <span class="nd">@timeout</span><span class="o">.</span><span class="n">deleter</span>
+<a id="__codelineno-81-19" name="__codelineno-81-19" href="#__codelineno-81-19"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-81-20" name="__codelineno-81-20" href="#__codelineno-81-20"></a>        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
+<a id="__codelineno-81-21" name="__codelineno-81-21" href="#__codelineno-81-21"></a>
+<a id="__codelineno-81-22" name="__codelineno-81-22" href="#__codelineno-81-22"></a>
+<a id="__codelineno-81-23" name="__codelineno-81-23" href="#__codelineno-81-23"></a><span class="n">cfg</span> <span class="o">=</span> <span class="n">Config</span><span class="p">()</span>
+<a id="__codelineno-81-24" name="__codelineno-81-24" href="#__codelineno-81-24"></a><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="mi">10</span>  <span class="c1"># FutureWarning: write</span>
+<a id="__codelineno-81-25" name="__codelineno-81-25" href="#__codelineno-81-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>  <span class="c1"># FutureWarning: read; prints 10</span>
+<a id="__codelineno-81-26" name="__codelineno-81-26" href="#__codelineno-81-26"></a><span class="k">del</span> <span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span>  <span class="c1"># FutureWarning: delete</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>cfg.timeout</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a>10
+<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a>10
 </code></pre></div>
 
 </details>
@@ -3610,26 +3730,26 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
 <p>Each accessor (<code>fget</code>, <code>fset</code>, <code>fdel</code>) has its own warning counter — assert read, write, and delete warnings in separate <code>pytest.warns</code> blocks, or use <code>num_warns=-1</code> to disable per-accessor deduplication.</p>
 </div>
 <p>The explicit <code>property(fget, fset[, fdel])</code> construction also works:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-77-2" name="__codelineno-77-2" href="#__codelineno-77-2"></a>
-<a id="__codelineno-77-3" name="__codelineno-77-3" href="#__codelineno-77-3"></a>
-<a id="__codelineno-77-4" name="__codelineno-77-4" href="#__codelineno-77-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_timeout_fget</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-77-5" name="__codelineno-77-5" href="#__codelineno-77-5"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
-<a id="__codelineno-77-6" name="__codelineno-77-6" href="#__codelineno-77-6"></a>
-<a id="__codelineno-77-7" name="__codelineno-77-7" href="#__codelineno-77-7"></a>
-<a id="__codelineno-77-8" name="__codelineno-77-8" href="#__codelineno-77-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_timeout_fset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-77-9" name="__codelineno-77-9" href="#__codelineno-77-9"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">value</span>
-<a id="__codelineno-77-10" name="__codelineno-77-10" href="#__codelineno-77-10"></a>
-<a id="__codelineno-77-11" name="__codelineno-77-11" href="#__codelineno-77-11"></a>
-<a id="__codelineno-77-12" name="__codelineno-77-12" href="#__codelineno-77-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">_timeout_fdel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-77-13" name="__codelineno-77-13" href="#__codelineno-77-13"></a>    <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
-<a id="__codelineno-77-14" name="__codelineno-77-14" href="#__codelineno-77-14"></a>
-<a id="__codelineno-77-15" name="__codelineno-77-15" href="#__codelineno-77-15"></a>
-<a id="__codelineno-77-16" name="__codelineno-77-16" href="#__codelineno-77-16"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
-<a id="__codelineno-77-17" name="__codelineno-77-17" href="#__codelineno-77-17"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-77-18" name="__codelineno-77-18" href="#__codelineno-77-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
-<a id="__codelineno-77-19" name="__codelineno-77-19" href="#__codelineno-77-19"></a>
-<a id="__codelineno-77-20" name="__codelineno-77-20" href="#__codelineno-77-20"></a>    <span class="n">timeout</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)(</span><span class="nb">property</span><span class="p">(</span><span class="n">_timeout_fget</span><span class="p">,</span> <span class="n">_timeout_fset</span><span class="p">,</span> <span class="n">_timeout_fdel</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a>
+<a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a>
+<a id="__codelineno-83-4" name="__codelineno-83-4" href="#__codelineno-83-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_timeout_fget</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-83-5" name="__codelineno-83-5" href="#__codelineno-83-5"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
+<a id="__codelineno-83-6" name="__codelineno-83-6" href="#__codelineno-83-6"></a>
+<a id="__codelineno-83-7" name="__codelineno-83-7" href="#__codelineno-83-7"></a>
+<a id="__codelineno-83-8" name="__codelineno-83-8" href="#__codelineno-83-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_timeout_fset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-83-9" name="__codelineno-83-9" href="#__codelineno-83-9"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">value</span>
+<a id="__codelineno-83-10" name="__codelineno-83-10" href="#__codelineno-83-10"></a>
+<a id="__codelineno-83-11" name="__codelineno-83-11" href="#__codelineno-83-11"></a>
+<a id="__codelineno-83-12" name="__codelineno-83-12" href="#__codelineno-83-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">_timeout_fdel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-83-13" name="__codelineno-83-13" href="#__codelineno-83-13"></a>    <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span>
+<a id="__codelineno-83-14" name="__codelineno-83-14" href="#__codelineno-83-14"></a>
+<a id="__codelineno-83-15" name="__codelineno-83-15" href="#__codelineno-83-15"></a>
+<a id="__codelineno-83-16" name="__codelineno-83-16" href="#__codelineno-83-16"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+<a id="__codelineno-83-17" name="__codelineno-83-17" href="#__codelineno-83-17"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-83-18" name="__codelineno-83-18" href="#__codelineno-83-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
+<a id="__codelineno-83-19" name="__codelineno-83-19" href="#__codelineno-83-19"></a>
+<a id="__codelineno-83-20" name="__codelineno-83-20" href="#__codelineno-83-20"></a>    <span class="n">timeout</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)(</span><span class="nb">property</span><span class="p">(</span><span class="n">_timeout_fget</span><span class="p">,</span> <span class="n">_timeout_fset</span><span class="p">,</span> <span class="n">_timeout_fdel</span><span class="p">))</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Audit discoverability with explicit construction</p>
@@ -3638,63 +3758,63 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
 <h3 id="deprecated-property-alias-on-a-dataclass">Deprecated property alias on a dataclass<a class="headerlink" href="#deprecated-property-alias-on-a-dataclass" title="Permanent link">🔗</a></h3>
 <p>When a dataclass field is renamed, define a property with the old name that delegates to the new field in its accessor body. <code>@deprecated</code> adds a <code>FutureWarning</code> to each accessor — the delegation itself is plain Python in the method body, not something the library provides.</p>
 <p><strong>Read-only alias (warns on read only):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-78-1" name="__codelineno-78-1" href="#__codelineno-78-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-<a id="__codelineno-78-2" name="__codelineno-78-2" href="#__codelineno-78-2"></a>
-<a id="__codelineno-78-3" name="__codelineno-78-3" href="#__codelineno-78-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-78-4" name="__codelineno-78-4" href="#__codelineno-78-4"></a>
-<a id="__codelineno-78-5" name="__codelineno-78-5" href="#__codelineno-78-5"></a>
-<a id="__codelineno-78-6" name="__codelineno-78-6" href="#__codelineno-78-6"></a><span class="nd">@dataclass</span>
-<a id="__codelineno-78-7" name="__codelineno-78-7" href="#__codelineno-78-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
-<a id="__codelineno-78-8" name="__codelineno-78-8" href="#__codelineno-78-8"></a>    <span class="n">timeout_ms</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30_000</span>  <span class="c1"># renamed from `timeout`</span>
-<a id="__codelineno-78-9" name="__codelineno-78-9" href="#__codelineno-78-9"></a>
-<a id="__codelineno-78-10" name="__codelineno-78-10" href="#__codelineno-78-10"></a>    <span class="nd">@property</span>
-<a id="__codelineno-78-11" name="__codelineno-78-11" href="#__codelineno-78-11"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-78-12" name="__codelineno-78-12" href="#__codelineno-78-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-78-13" name="__codelineno-78-13" href="#__codelineno-78-13"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated — use ``timeout_ms`` instead.&quot;&quot;&quot;</span>
-<a id="__codelineno-78-14" name="__codelineno-78-14" href="#__codelineno-78-14"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timeout_ms</span> <span class="o">//</span> <span class="mi">1000</span>
-<a id="__codelineno-78-15" name="__codelineno-78-15" href="#__codelineno-78-15"></a>
-<a id="__codelineno-78-16" name="__codelineno-78-16" href="#__codelineno-78-16"></a>
-<a id="__codelineno-78-17" name="__codelineno-78-17" href="#__codelineno-78-17"></a><span class="n">cfg</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">timeout_ms</span><span class="o">=</span><span class="mi">5_000</span><span class="p">)</span>
-<a id="__codelineno-78-18" name="__codelineno-78-18" href="#__codelineno-78-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>  <span class="c1"># FutureWarning fired; prints 5</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<a id="__codelineno-84-2" name="__codelineno-84-2" href="#__codelineno-84-2"></a>
+<a id="__codelineno-84-3" name="__codelineno-84-3" href="#__codelineno-84-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-84-4" name="__codelineno-84-4" href="#__codelineno-84-4"></a>
+<a id="__codelineno-84-5" name="__codelineno-84-5" href="#__codelineno-84-5"></a>
+<a id="__codelineno-84-6" name="__codelineno-84-6" href="#__codelineno-84-6"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-84-7" name="__codelineno-84-7" href="#__codelineno-84-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+<a id="__codelineno-84-8" name="__codelineno-84-8" href="#__codelineno-84-8"></a>    <span class="n">timeout_ms</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30_000</span>  <span class="c1"># renamed from `timeout`</span>
+<a id="__codelineno-84-9" name="__codelineno-84-9" href="#__codelineno-84-9"></a>
+<a id="__codelineno-84-10" name="__codelineno-84-10" href="#__codelineno-84-10"></a>    <span class="nd">@property</span>
+<a id="__codelineno-84-11" name="__codelineno-84-11" href="#__codelineno-84-11"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-84-12" name="__codelineno-84-12" href="#__codelineno-84-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-84-13" name="__codelineno-84-13" href="#__codelineno-84-13"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Deprecated — use ``timeout_ms`` instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-84-14" name="__codelineno-84-14" href="#__codelineno-84-14"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timeout_ms</span> <span class="o">//</span> <span class="mi">1000</span>
+<a id="__codelineno-84-15" name="__codelineno-84-15" href="#__codelineno-84-15"></a>
+<a id="__codelineno-84-16" name="__codelineno-84-16" href="#__codelineno-84-16"></a>
+<a id="__codelineno-84-17" name="__codelineno-84-17" href="#__codelineno-84-17"></a><span class="n">cfg</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">timeout_ms</span><span class="o">=</span><span class="mi">5_000</span><span class="p">)</span>
+<a id="__codelineno-84-18" name="__codelineno-84-18" href="#__codelineno-84-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>  <span class="c1"># FutureWarning fired; prints 5</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>cfg.timeout</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a>5
+<div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a>5
 </code></pre></div>
 
 </details>
 
 <p><strong>Read-write alias (warns on read and write):</strong> use the outer order and chain <code>.setter</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-<a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a>
-<a id="__codelineno-80-3" name="__codelineno-80-3" href="#__codelineno-80-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-80-4" name="__codelineno-80-4" href="#__codelineno-80-4"></a>
-<a id="__codelineno-80-5" name="__codelineno-80-5" href="#__codelineno-80-5"></a>
-<a id="__codelineno-80-6" name="__codelineno-80-6" href="#__codelineno-80-6"></a><span class="nd">@dataclass</span>
-<a id="__codelineno-80-7" name="__codelineno-80-7" href="#__codelineno-80-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
-<a id="__codelineno-80-8" name="__codelineno-80-8" href="#__codelineno-80-8"></a>    <span class="n">timeout_ms</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30_000</span>  <span class="c1"># renamed from `timeout`</span>
-<a id="__codelineno-80-9" name="__codelineno-80-9" href="#__codelineno-80-9"></a>
-<a id="__codelineno-80-10" name="__codelineno-80-10" href="#__codelineno-80-10"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-80-11" name="__codelineno-80-11" href="#__codelineno-80-11"></a>    <span class="nd">@property</span>
-<a id="__codelineno-80-12" name="__codelineno-80-12" href="#__codelineno-80-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-80-13" name="__codelineno-80-13" href="#__codelineno-80-13"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timeout_ms</span> <span class="o">//</span> <span class="mi">1000</span>
-<a id="__codelineno-80-14" name="__codelineno-80-14" href="#__codelineno-80-14"></a>
-<a id="__codelineno-80-15" name="__codelineno-80-15" href="#__codelineno-80-15"></a>    <span class="nd">@timeout</span><span class="o">.</span><span class="n">setter</span>
-<a id="__codelineno-80-16" name="__codelineno-80-16" href="#__codelineno-80-16"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-80-17" name="__codelineno-80-17" href="#__codelineno-80-17"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">timeout_ms</span> <span class="o">=</span> <span class="n">value</span> <span class="o">*</span> <span class="mi">1000</span>
-<a id="__codelineno-80-18" name="__codelineno-80-18" href="#__codelineno-80-18"></a>
-<a id="__codelineno-80-19" name="__codelineno-80-19" href="#__codelineno-80-19"></a>
-<a id="__codelineno-80-20" name="__codelineno-80-20" href="#__codelineno-80-20"></a><span class="n">cfg</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">timeout_ms</span><span class="o">=</span><span class="mi">5_000</span><span class="p">)</span>
-<a id="__codelineno-80-21" name="__codelineno-80-21" href="#__codelineno-80-21"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>  <span class="c1"># FutureWarning fired; prints 5</span>
-<a id="__codelineno-80-22" name="__codelineno-80-22" href="#__codelineno-80-22"></a><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="mi">10</span>  <span class="c1"># FutureWarning fired; sets timeout_ms = 10_000</span>
-<a id="__codelineno-80-23" name="__codelineno-80-23" href="#__codelineno-80-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout_ms</span><span class="p">)</span>  <span class="c1"># prints 10_000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<a id="__codelineno-86-2" name="__codelineno-86-2" href="#__codelineno-86-2"></a>
+<a id="__codelineno-86-3" name="__codelineno-86-3" href="#__codelineno-86-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-86-4" name="__codelineno-86-4" href="#__codelineno-86-4"></a>
+<a id="__codelineno-86-5" name="__codelineno-86-5" href="#__codelineno-86-5"></a>
+<a id="__codelineno-86-6" name="__codelineno-86-6" href="#__codelineno-86-6"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-86-7" name="__codelineno-86-7" href="#__codelineno-86-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+<a id="__codelineno-86-8" name="__codelineno-86-8" href="#__codelineno-86-8"></a>    <span class="n">timeout_ms</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30_000</span>  <span class="c1"># renamed from `timeout`</span>
+<a id="__codelineno-86-9" name="__codelineno-86-9" href="#__codelineno-86-9"></a>
+<a id="__codelineno-86-10" name="__codelineno-86-10" href="#__codelineno-86-10"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-86-11" name="__codelineno-86-11" href="#__codelineno-86-11"></a>    <span class="nd">@property</span>
+<a id="__codelineno-86-12" name="__codelineno-86-12" href="#__codelineno-86-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-86-13" name="__codelineno-86-13" href="#__codelineno-86-13"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timeout_ms</span> <span class="o">//</span> <span class="mi">1000</span>
+<a id="__codelineno-86-14" name="__codelineno-86-14" href="#__codelineno-86-14"></a>
+<a id="__codelineno-86-15" name="__codelineno-86-15" href="#__codelineno-86-15"></a>    <span class="nd">@timeout</span><span class="o">.</span><span class="n">setter</span>
+<a id="__codelineno-86-16" name="__codelineno-86-16" href="#__codelineno-86-16"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-86-17" name="__codelineno-86-17" href="#__codelineno-86-17"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">timeout_ms</span> <span class="o">=</span> <span class="n">value</span> <span class="o">*</span> <span class="mi">1000</span>
+<a id="__codelineno-86-18" name="__codelineno-86-18" href="#__codelineno-86-18"></a>
+<a id="__codelineno-86-19" name="__codelineno-86-19" href="#__codelineno-86-19"></a>
+<a id="__codelineno-86-20" name="__codelineno-86-20" href="#__codelineno-86-20"></a><span class="n">cfg</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(</span><span class="n">timeout_ms</span><span class="o">=</span><span class="mi">5_000</span><span class="p">)</span>
+<a id="__codelineno-86-21" name="__codelineno-86-21" href="#__codelineno-86-21"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span><span class="p">)</span>  <span class="c1"># FutureWarning fired; prints 5</span>
+<a id="__codelineno-86-22" name="__codelineno-86-22" href="#__codelineno-86-22"></a><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="mi">10</span>  <span class="c1"># FutureWarning fired; sets timeout_ms = 10_000</span>
+<a id="__codelineno-86-23" name="__codelineno-86-23" href="#__codelineno-86-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout_ms</span><span class="p">)</span>  <span class="c1"># prints 10_000</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>cfg.timeout; cfg.timeout_ms</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a>5
-<a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>10000
+<div class="highlight"><pre><span></span><code><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a>5
+<a id="__codelineno-87-2" name="__codelineno-87-2" href="#__codelineno-87-2"></a>10000
 </code></pre></div>
 
 </details>
@@ -3712,99 +3832,99 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
 <h2 id="deprecating-generator-functions">Deprecating generator functions<a class="headerlink" href="#deprecating-generator-functions" title="Permanent link">🔗</a></h2>
 <p>Generator functions — any function that contains <code>yield</code> — are fully supported by <code>@deprecated</code>. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you <strong>call</strong> the generator function, not when you first iterate the result.</p>
 <p>This is the right behavior. It keeps generator deprecations consistent with regular function deprecations. If the warning fired on the first <code>next()</code> call instead, you could easily miss it: someone might call the generator, pass it around, and iterate it elsewhere — the warning would appear far from the actual deprecated call site.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
-<a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a>
-<a id="__codelineno-82-3" name="__codelineno-82-3" href="#__codelineno-82-3"></a>
-<a id="__codelineno-82-4" name="__codelineno-82-4" href="#__codelineno-82-4"></a><span class="c1"># NEW/FUTURE API — new name, same semantics</span>
-<a id="__codelineno-82-5" name="__codelineno-82-5" href="#__codelineno-82-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">generate_ids</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<a id="__codelineno-82-6" name="__codelineno-82-6" href="#__codelineno-82-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Yield `count` sequential IDs starting from `start`.&quot;&quot;&quot;</span>
-<a id="__codelineno-82-7" name="__codelineno-82-7" href="#__codelineno-82-7"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span>
-<a id="__codelineno-82-8" name="__codelineno-82-8" href="#__codelineno-82-8"></a>        <span class="k">yield</span> <span class="n">start</span> <span class="o">+</span> <span class="n">i</span>
-<a id="__codelineno-82-9" name="__codelineno-82-9" href="#__codelineno-82-9"></a>
-<a id="__codelineno-82-10" name="__codelineno-82-10" href="#__codelineno-82-10"></a>
-<a id="__codelineno-82-11" name="__codelineno-82-11" href="#__codelineno-82-11"></a><span class="c1"># DEPRECATED API — `iter_ids` was the old name before the rename</span>
-<a id="__codelineno-82-12" name="__codelineno-82-12" href="#__codelineno-82-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">generate_ids</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-82-13" name="__codelineno-82-13" href="#__codelineno-82-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">iter_ids</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<a id="__codelineno-82-14" name="__codelineno-82-14" href="#__codelineno-82-14"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — use generate_ids() instead.&quot;&quot;&quot;</span>
-<a id="__codelineno-82-15" name="__codelineno-82-15" href="#__codelineno-82-15"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">count</span><span class="p">)</span>
-<a id="__codelineno-82-16" name="__codelineno-82-16" href="#__codelineno-82-16"></a>
-<a id="__codelineno-82-17" name="__codelineno-82-17" href="#__codelineno-82-17"></a>
-<a id="__codelineno-82-18" name="__codelineno-82-18" href="#__codelineno-82-18"></a><span class="c1"># The warning fires here — at call time, before any iteration</span>
-<a id="__codelineno-82-19" name="__codelineno-82-19" href="#__codelineno-82-19"></a><span class="n">gen</span> <span class="o">=</span> <span class="n">iter_ids</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-<a id="__codelineno-82-20" name="__codelineno-82-20" href="#__codelineno-82-20"></a><span class="c1"># FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.</span>
-<a id="__codelineno-82-21" name="__codelineno-82-21" href="#__codelineno-82-21"></a><span class="c1">#                It will be removed in v1.0.</span>
-<a id="__codelineno-82-22" name="__codelineno-82-22" href="#__codelineno-82-22"></a>
-<a id="__codelineno-82-23" name="__codelineno-82-23" href="#__codelineno-82-23"></a><span class="c1"># Iteration proceeds normally — you already got the warning</span>
-<a id="__codelineno-82-24" name="__codelineno-82-24" href="#__codelineno-82-24"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">gen</span><span class="p">))</span>  <span class="c1"># [10, 11, 12]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-88-2" name="__codelineno-88-2" href="#__codelineno-88-2"></a>
+<a id="__codelineno-88-3" name="__codelineno-88-3" href="#__codelineno-88-3"></a>
+<a id="__codelineno-88-4" name="__codelineno-88-4" href="#__codelineno-88-4"></a><span class="c1"># NEW/FUTURE API — new name, same semantics</span>
+<a id="__codelineno-88-5" name="__codelineno-88-5" href="#__codelineno-88-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">generate_ids</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<a id="__codelineno-88-6" name="__codelineno-88-6" href="#__codelineno-88-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Yield `count` sequential IDs starting from `start`.&quot;&quot;&quot;</span>
+<a id="__codelineno-88-7" name="__codelineno-88-7" href="#__codelineno-88-7"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span>
+<a id="__codelineno-88-8" name="__codelineno-88-8" href="#__codelineno-88-8"></a>        <span class="k">yield</span> <span class="n">start</span> <span class="o">+</span> <span class="n">i</span>
+<a id="__codelineno-88-9" name="__codelineno-88-9" href="#__codelineno-88-9"></a>
+<a id="__codelineno-88-10" name="__codelineno-88-10" href="#__codelineno-88-10"></a>
+<a id="__codelineno-88-11" name="__codelineno-88-11" href="#__codelineno-88-11"></a><span class="c1"># DEPRECATED API — `iter_ids` was the old name before the rename</span>
+<a id="__codelineno-88-12" name="__codelineno-88-12" href="#__codelineno-88-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">generate_ids</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-88-13" name="__codelineno-88-13" href="#__codelineno-88-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">iter_ids</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<a id="__codelineno-88-14" name="__codelineno-88-14" href="#__codelineno-88-14"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — use generate_ids() instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-88-15" name="__codelineno-88-15" href="#__codelineno-88-15"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">count</span><span class="p">)</span>
+<a id="__codelineno-88-16" name="__codelineno-88-16" href="#__codelineno-88-16"></a>
+<a id="__codelineno-88-17" name="__codelineno-88-17" href="#__codelineno-88-17"></a>
+<a id="__codelineno-88-18" name="__codelineno-88-18" href="#__codelineno-88-18"></a><span class="c1"># The warning fires here — at call time, before any iteration</span>
+<a id="__codelineno-88-19" name="__codelineno-88-19" href="#__codelineno-88-19"></a><span class="n">gen</span> <span class="o">=</span> <span class="n">iter_ids</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<a id="__codelineno-88-20" name="__codelineno-88-20" href="#__codelineno-88-20"></a><span class="c1"># FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.</span>
+<a id="__codelineno-88-21" name="__codelineno-88-21" href="#__codelineno-88-21"></a><span class="c1">#                It will be removed in v1.0.</span>
+<a id="__codelineno-88-22" name="__codelineno-88-22" href="#__codelineno-88-22"></a>
+<a id="__codelineno-88-23" name="__codelineno-88-23" href="#__codelineno-88-23"></a><span class="c1"># Iteration proceeds normally — you already got the warning</span>
+<a id="__codelineno-88-24" name="__codelineno-88-24" href="#__codelineno-88-24"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">gen</span><span class="p">))</span>  <span class="c1"># [10, 11, 12]</span>
 </code></pre></div>
 <p>All three TargetModes work with generator functions:</p>
 <p><strong><code>TargetMode.NOTIFY</code> — warn and keep the generator body:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a>
-<a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a>
-<a id="__codelineno-83-4" name="__codelineno-83-4" href="#__codelineno-83-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-83-5" name="__codelineno-83-5" href="#__codelineno-83-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_pipeline</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
-<a id="__codelineno-83-6" name="__codelineno-83-6" href="#__codelineno-83-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;This generator is going away; no replacement yet.&quot;&quot;&quot;</span>
-<a id="__codelineno-83-7" name="__codelineno-83-7" href="#__codelineno-83-7"></a>    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
-<a id="__codelineno-83-8" name="__codelineno-83-8" href="#__codelineno-83-8"></a>        <span class="k">yield</span> <span class="n">item</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-<a id="__codelineno-83-9" name="__codelineno-83-9" href="#__codelineno-83-9"></a>
-<a id="__codelineno-83-10" name="__codelineno-83-10" href="#__codelineno-83-10"></a>
-<a id="__codelineno-83-11" name="__codelineno-83-11" href="#__codelineno-83-11"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">old_pipeline</span><span class="p">([</span><span class="s2">&quot;a &quot;</span><span class="p">,</span> <span class="s2">&quot;b &quot;</span><span class="p">])))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a>
+<a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a>
+<a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_pipeline</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
+<a id="__codelineno-89-6" name="__codelineno-89-6" href="#__codelineno-89-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;This generator is going away; no replacement yet.&quot;&quot;&quot;</span>
+<a id="__codelineno-89-7" name="__codelineno-89-7" href="#__codelineno-89-7"></a>    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+<a id="__codelineno-89-8" name="__codelineno-89-8" href="#__codelineno-89-8"></a>        <span class="k">yield</span> <span class="n">item</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<a id="__codelineno-89-9" name="__codelineno-89-9" href="#__codelineno-89-9"></a>
+<a id="__codelineno-89-10" name="__codelineno-89-10" href="#__codelineno-89-10"></a>
+<a id="__codelineno-89-11" name="__codelineno-89-11" href="#__codelineno-89-11"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">old_pipeline</span><span class="p">([</span><span class="s2">&quot;a &quot;</span><span class="p">,</span> <span class="s2">&quot;b &quot;</span><span class="p">])))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>list(old_pipeline(["a ", "b "]))</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a>[&#39;a&#39;, &#39;b&#39;]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a>[&#39;a&#39;, &#39;b&#39;]
 </code></pre></div>
 
 </details>
 
 <p>Warning fires at call time (when the generator object is created), before any iteration. Unlike regular functions where the body runs immediately after the warning, the generator body executes lazily as the caller iterates.</p>
 <p><strong><code>TargetMode.ARGS_REMAP</code> — rename an argument within the same generator:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a>
-<a id="__codelineno-85-3" name="__codelineno-85-3" href="#__codelineno-85-3"></a>
-<a id="__codelineno-85-4" name="__codelineno-85-4" href="#__codelineno-85-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-85-5" name="__codelineno-85-5" href="#__codelineno-85-5"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-85-6" name="__codelineno-85-6" href="#__codelineno-85-6"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;n&quot;</span><span class="p">:</span> <span class="s2">&quot;count&quot;</span><span class="p">},</span>
-<a id="__codelineno-85-7" name="__codelineno-85-7" href="#__codelineno-85-7"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span>
-<a id="__codelineno-85-8" name="__codelineno-85-8" href="#__codelineno-85-8"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
-<a id="__codelineno-85-9" name="__codelineno-85-9" href="#__codelineno-85-9"></a><span class="p">)</span>
-<a id="__codelineno-85-10" name="__codelineno-85-10" href="#__codelineno-85-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">repeat_value</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
-<a id="__codelineno-85-11" name="__codelineno-85-11" href="#__codelineno-85-11"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated argument `n` renamed to `count`.&quot;&quot;&quot;</span>
-<a id="__codelineno-85-12" name="__codelineno-85-12" href="#__codelineno-85-12"></a>    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span>
-<a id="__codelineno-85-13" name="__codelineno-85-13" href="#__codelineno-85-13"></a>        <span class="k">yield</span> <span class="n">value</span>
-<a id="__codelineno-85-14" name="__codelineno-85-14" href="#__codelineno-85-14"></a>
-<a id="__codelineno-85-15" name="__codelineno-85-15" href="#__codelineno-85-15"></a>
-<a id="__codelineno-85-16" name="__codelineno-85-16" href="#__codelineno-85-16"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">repeat_value</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="mi">2</span><span class="p">)))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-91-2" name="__codelineno-91-2" href="#__codelineno-91-2"></a>
+<a id="__codelineno-91-3" name="__codelineno-91-3" href="#__codelineno-91-3"></a>
+<a id="__codelineno-91-4" name="__codelineno-91-4" href="#__codelineno-91-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-91-5" name="__codelineno-91-5" href="#__codelineno-91-5"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-91-6" name="__codelineno-91-6" href="#__codelineno-91-6"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;n&quot;</span><span class="p">:</span> <span class="s2">&quot;count&quot;</span><span class="p">},</span>
+<a id="__codelineno-91-7" name="__codelineno-91-7" href="#__codelineno-91-7"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span>
+<a id="__codelineno-91-8" name="__codelineno-91-8" href="#__codelineno-91-8"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-91-9" name="__codelineno-91-9" href="#__codelineno-91-9"></a><span class="p">)</span>
+<a id="__codelineno-91-10" name="__codelineno-91-10" href="#__codelineno-91-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">repeat_value</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<a id="__codelineno-91-11" name="__codelineno-91-11" href="#__codelineno-91-11"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated argument `n` renamed to `count`.&quot;&quot;&quot;</span>
+<a id="__codelineno-91-12" name="__codelineno-91-12" href="#__codelineno-91-12"></a>    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span>
+<a id="__codelineno-91-13" name="__codelineno-91-13" href="#__codelineno-91-13"></a>        <span class="k">yield</span> <span class="n">value</span>
+<a id="__codelineno-91-14" name="__codelineno-91-14" href="#__codelineno-91-14"></a>
+<a id="__codelineno-91-15" name="__codelineno-91-15" href="#__codelineno-91-15"></a>
+<a id="__codelineno-91-16" name="__codelineno-91-16" href="#__codelineno-91-16"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">repeat_value</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="mi">2</span><span class="p">)))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>list(repeat_value(value=1, count=2))</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a>[1, 1]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a>[1, 1]
 </code></pre></div>
 
 </details>
 
 <p><strong><code>target=&lt;callable&gt;</code> — forward to a replacement generator:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
-<a id="__codelineno-87-2" name="__codelineno-87-2" href="#__codelineno-87-2"></a>
-<a id="__codelineno-87-3" name="__codelineno-87-3" href="#__codelineno-87-3"></a>
-<a id="__codelineno-87-4" name="__codelineno-87-4" href="#__codelineno-87-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_range</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stop</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<a id="__codelineno-87-5" name="__codelineno-87-5" href="#__codelineno-87-5"></a>    <span class="k">yield from</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
-<a id="__codelineno-87-6" name="__codelineno-87-6" href="#__codelineno-87-6"></a>
-<a id="__codelineno-87-7" name="__codelineno-87-7" href="#__codelineno-87-7"></a>
-<a id="__codelineno-87-8" name="__codelineno-87-8" href="#__codelineno-87-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_range</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-87-9" name="__codelineno-87-9" href="#__codelineno-87-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_range</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stop</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<a id="__codelineno-87-10" name="__codelineno-87-10" href="#__codelineno-87-10"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
-<a id="__codelineno-87-11" name="__codelineno-87-11" href="#__codelineno-87-11"></a>
-<a id="__codelineno-87-12" name="__codelineno-87-12" href="#__codelineno-87-12"></a>
-<a id="__codelineno-87-13" name="__codelineno-87-13" href="#__codelineno-87-13"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">old_range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-93-2" name="__codelineno-93-2" href="#__codelineno-93-2"></a>
+<a id="__codelineno-93-3" name="__codelineno-93-3" href="#__codelineno-93-3"></a>
+<a id="__codelineno-93-4" name="__codelineno-93-4" href="#__codelineno-93-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_range</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stop</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<a id="__codelineno-93-5" name="__codelineno-93-5" href="#__codelineno-93-5"></a>    <span class="k">yield from</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
+<a id="__codelineno-93-6" name="__codelineno-93-6" href="#__codelineno-93-6"></a>
+<a id="__codelineno-93-7" name="__codelineno-93-7" href="#__codelineno-93-7"></a>
+<a id="__codelineno-93-8" name="__codelineno-93-8" href="#__codelineno-93-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_range</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-93-9" name="__codelineno-93-9" href="#__codelineno-93-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_range</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stop</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<a id="__codelineno-93-10" name="__codelineno-93-10" href="#__codelineno-93-10"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
+<a id="__codelineno-93-11" name="__codelineno-93-11" href="#__codelineno-93-11"></a>
+<a id="__codelineno-93-12" name="__codelineno-93-12" href="#__codelineno-93-12"></a>
+<a id="__codelineno-93-13" name="__codelineno-93-13" href="#__codelineno-93-13"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">old_range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>list(old_range(1, 4))</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a>[1, 2, 3]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a>[1, 2, 3]
 </code></pre></div>
 
 </details>
@@ -3817,74 +3937,74 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
 <p><code>@deprecated</code> works on <code>async def</code> functions natively. The wrapper produced is itself <code>async def</code>, so <code>inspect.iscoroutinefunction(wrapper)</code> returns <code>True</code> and callers can <code>await</code> it as expected.</p>
 <p>All three TargetModes work with async functions. The deprecation warning fires when the coroutine is awaited — not when it is created by calling the wrapper — because the warning logic runs inside the <code>async def</code> body. This differs from sync and generator wrappers where the warning fires eagerly at call time.</p>
 <p><strong><code>TargetMode.NOTIFY</code> — warn and keep the async body:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a>
-<a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a>
-<a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-89-6" name="__codelineno-89-6" href="#__codelineno-89-6"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_data</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
-<a id="__codelineno-89-7" name="__codelineno-89-7" href="#__codelineno-89-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — no replacement yet; remove call sites.&quot;&quot;&quot;</span>
-<a id="__codelineno-89-8" name="__codelineno-89-8" href="#__codelineno-89-8"></a>    <span class="k">return</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span>
-<a id="__codelineno-89-9" name="__codelineno-89-9" href="#__codelineno-89-9"></a>
-<a id="__codelineno-89-10" name="__codelineno-89-10" href="#__codelineno-89-10"></a>
-<a id="__codelineno-89-11" name="__codelineno-89-11" href="#__codelineno-89-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">fetch_data</span><span class="p">(</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">)))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-95-2" name="__codelineno-95-2" href="#__codelineno-95-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-95-3" name="__codelineno-95-3" href="#__codelineno-95-3"></a>
+<a id="__codelineno-95-4" name="__codelineno-95-4" href="#__codelineno-95-4"></a>
+<a id="__codelineno-95-5" name="__codelineno-95-5" href="#__codelineno-95-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-95-6" name="__codelineno-95-6" href="#__codelineno-95-6"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_data</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-95-7" name="__codelineno-95-7" href="#__codelineno-95-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — no replacement yet; remove call sites.&quot;&quot;&quot;</span>
+<a id="__codelineno-95-8" name="__codelineno-95-8" href="#__codelineno-95-8"></a>    <span class="k">return</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span>
+<a id="__codelineno-95-9" name="__codelineno-95-9" href="#__codelineno-95-9"></a>
+<a id="__codelineno-95-10" name="__codelineno-95-10" href="#__codelineno-95-10"></a>
+<a id="__codelineno-95-11" name="__codelineno-95-11" href="#__codelineno-95-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">fetch_data</span><span class="p">(</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">)))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>asyncio.run(fetch_data("https://example.com"))</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a>b&#39;&#39;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-96-1" name="__codelineno-96-1" href="#__codelineno-96-1"></a>b&#39;&#39;
 </code></pre></div>
 
 </details>
 
 <p><strong><code>TargetMode.ARGS_REMAP</code> — rename an argument within the same async function:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-91-2" name="__codelineno-91-2" href="#__codelineno-91-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-91-3" name="__codelineno-91-3" href="#__codelineno-91-3"></a>
-<a id="__codelineno-91-4" name="__codelineno-91-4" href="#__codelineno-91-4"></a>
-<a id="__codelineno-91-5" name="__codelineno-91-5" href="#__codelineno-91-5"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-91-6" name="__codelineno-91-6" href="#__codelineno-91-6"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-91-7" name="__codelineno-91-7" href="#__codelineno-91-7"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;url&quot;</span><span class="p">},</span>
-<a id="__codelineno-91-8" name="__codelineno-91-8" href="#__codelineno-91-8"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span>
-<a id="__codelineno-91-9" name="__codelineno-91-9" href="#__codelineno-91-9"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
-<a id="__codelineno-91-10" name="__codelineno-91-10" href="#__codelineno-91-10"></a><span class="p">)</span>
-<a id="__codelineno-91-11" name="__codelineno-91-11" href="#__codelineno-91-11"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_data</span><span class="p">(</span><span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
-<a id="__codelineno-91-12" name="__codelineno-91-12" href="#__codelineno-91-12"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated argument `endpoint` renamed to `url`.&quot;&quot;&quot;</span>
-<a id="__codelineno-91-13" name="__codelineno-91-13" href="#__codelineno-91-13"></a>    <span class="k">return</span> <span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
-<a id="__codelineno-91-14" name="__codelineno-91-14" href="#__codelineno-91-14"></a>
-<a id="__codelineno-91-15" name="__codelineno-91-15" href="#__codelineno-91-15"></a>
-<a id="__codelineno-91-16" name="__codelineno-91-16" href="#__codelineno-91-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">fetch_data</span><span class="p">(</span><span class="n">endpoint</span><span class="o">=</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">)))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-97-1" name="__codelineno-97-1" href="#__codelineno-97-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-97-2" name="__codelineno-97-2" href="#__codelineno-97-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-97-3" name="__codelineno-97-3" href="#__codelineno-97-3"></a>
+<a id="__codelineno-97-4" name="__codelineno-97-4" href="#__codelineno-97-4"></a>
+<a id="__codelineno-97-5" name="__codelineno-97-5" href="#__codelineno-97-5"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-97-6" name="__codelineno-97-6" href="#__codelineno-97-6"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-97-7" name="__codelineno-97-7" href="#__codelineno-97-7"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s2">&quot;url&quot;</span><span class="p">},</span>
+<a id="__codelineno-97-8" name="__codelineno-97-8" href="#__codelineno-97-8"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span>
+<a id="__codelineno-97-9" name="__codelineno-97-9" href="#__codelineno-97-9"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-97-10" name="__codelineno-97-10" href="#__codelineno-97-10"></a><span class="p">)</span>
+<a id="__codelineno-97-11" name="__codelineno-97-11" href="#__codelineno-97-11"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_data</span><span class="p">(</span><span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-97-12" name="__codelineno-97-12" href="#__codelineno-97-12"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated argument `endpoint` renamed to `url`.&quot;&quot;&quot;</span>
+<a id="__codelineno-97-13" name="__codelineno-97-13" href="#__codelineno-97-13"></a>    <span class="k">return</span> <span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<a id="__codelineno-97-14" name="__codelineno-97-14" href="#__codelineno-97-14"></a>
+<a id="__codelineno-97-15" name="__codelineno-97-15" href="#__codelineno-97-15"></a>
+<a id="__codelineno-97-16" name="__codelineno-97-16" href="#__codelineno-97-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">fetch_data</span><span class="p">(</span><span class="n">endpoint</span><span class="o">=</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">)))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>asyncio.run(fetch_data(endpoint="https://example.com"))</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a>b&#39;https://example.com&#39;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-98-1" name="__codelineno-98-1" href="#__codelineno-98-1"></a>b&#39;https://example.com&#39;
 </code></pre></div>
 
 </details>
 
 <p><strong><code>target=&lt;callable&gt;</code> — forward to a replacement async function:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-93-2" name="__codelineno-93-2" href="#__codelineno-93-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
-<a id="__codelineno-93-3" name="__codelineno-93-3" href="#__codelineno-93-3"></a>
-<a id="__codelineno-93-4" name="__codelineno-93-4" href="#__codelineno-93-4"></a>
-<a id="__codelineno-93-5" name="__codelineno-93-5" href="#__codelineno-93-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">download</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
-<a id="__codelineno-93-6" name="__codelineno-93-6" href="#__codelineno-93-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;New async API.&quot;&quot;&quot;</span>
-<a id="__codelineno-93-7" name="__codelineno-93-7" href="#__codelineno-93-7"></a>    <span class="k">return</span> <span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
-<a id="__codelineno-93-8" name="__codelineno-93-8" href="#__codelineno-93-8"></a>
-<a id="__codelineno-93-9" name="__codelineno-93-9" href="#__codelineno-93-9"></a>
-<a id="__codelineno-93-10" name="__codelineno-93-10" href="#__codelineno-93-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">download</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-93-11" name="__codelineno-93-11" href="#__codelineno-93-11"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
-<a id="__codelineno-93-12" name="__codelineno-93-12" href="#__codelineno-93-12"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — use download() instead.&quot;&quot;&quot;</span>
-<a id="__codelineno-93-13" name="__codelineno-93-13" href="#__codelineno-93-13"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
-<a id="__codelineno-93-14" name="__codelineno-93-14" href="#__codelineno-93-14"></a>
-<a id="__codelineno-93-15" name="__codelineno-93-15" href="#__codelineno-93-15"></a>
-<a id="__codelineno-93-16" name="__codelineno-93-16" href="#__codelineno-93-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">fetch</span><span class="p">(</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">)))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-99-1" name="__codelineno-99-1" href="#__codelineno-99-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-99-2" name="__codelineno-99-2" href="#__codelineno-99-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-99-3" name="__codelineno-99-3" href="#__codelineno-99-3"></a>
+<a id="__codelineno-99-4" name="__codelineno-99-4" href="#__codelineno-99-4"></a>
+<a id="__codelineno-99-5" name="__codelineno-99-5" href="#__codelineno-99-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">download</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-99-6" name="__codelineno-99-6" href="#__codelineno-99-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;New async API.&quot;&quot;&quot;</span>
+<a id="__codelineno-99-7" name="__codelineno-99-7" href="#__codelineno-99-7"></a>    <span class="k">return</span> <span class="n">url</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<a id="__codelineno-99-8" name="__codelineno-99-8" href="#__codelineno-99-8"></a>
+<a id="__codelineno-99-9" name="__codelineno-99-9" href="#__codelineno-99-9"></a>
+<a id="__codelineno-99-10" name="__codelineno-99-10" href="#__codelineno-99-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">download</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-99-11" name="__codelineno-99-11" href="#__codelineno-99-11"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<a id="__codelineno-99-12" name="__codelineno-99-12" href="#__codelineno-99-12"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — use download() instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-99-13" name="__codelineno-99-13" href="#__codelineno-99-13"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<a id="__codelineno-99-14" name="__codelineno-99-14" href="#__codelineno-99-14"></a>
+<a id="__codelineno-99-15" name="__codelineno-99-15" href="#__codelineno-99-15"></a>
+<a id="__codelineno-99-16" name="__codelineno-99-16" href="#__codelineno-99-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">fetch</span><span class="p">(</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">)))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>asyncio.run(fetch("https://example.com"))</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a>b&#39;https://example.com&#39;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-100-1" name="__codelineno-100-1" href="#__codelineno-100-1"></a>b&#39;https://example.com&#39;
 </code></pre></div>
 
 </details>
@@ -3897,75 +4017,75 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
 <h2 id="async-generators">Async generators<a class="headerlink" href="#async-generators" title="Permanent link">🔗</a></h2>
 <p><code>@deprecated</code> works on async generator functions (<code>async def</code> + <code>yield</code>) too. The wrapper is a <strong>sync</strong> callable that fires the deprecation warning eagerly at call time and returns the underlying async generator object; callers iterate the result with <code>async for</code>. All three TargetModes — <code>NOTIFY</code>, <code>ARGS_REMAP</code>, and <code>target=&lt;callable&gt;</code> — work the same way they do for sync generators.</p>
 <p><strong><code>TargetMode.NOTIFY</code> — warn and keep the async generator body:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-95-2" name="__codelineno-95-2" href="#__codelineno-95-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
-<a id="__codelineno-95-3" name="__codelineno-95-3" href="#__codelineno-95-3"></a>
-<a id="__codelineno-95-4" name="__codelineno-95-4" href="#__codelineno-95-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-95-5" name="__codelineno-95-5" href="#__codelineno-95-5"></a>
-<a id="__codelineno-95-6" name="__codelineno-95-6" href="#__codelineno-95-6"></a>
-<a id="__codelineno-95-7" name="__codelineno-95-7" href="#__codelineno-95-7"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-95-8" name="__codelineno-95-8" href="#__codelineno-95-8"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_lines</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-95-9" name="__codelineno-95-9" href="#__codelineno-95-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — no replacement yet; remove call sites.&quot;&quot;&quot;</span>
-<a id="__codelineno-95-10" name="__codelineno-95-10" href="#__codelineno-95-10"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">3</span><span class="p">):</span>
-<a id="__codelineno-95-11" name="__codelineno-95-11" href="#__codelineno-95-11"></a>        <span class="k">yield</span> <span class="n">i</span>
-<a id="__codelineno-95-12" name="__codelineno-95-12" href="#__codelineno-95-12"></a>
-<a id="__codelineno-95-13" name="__codelineno-95-13" href="#__codelineno-95-13"></a>
-<a id="__codelineno-95-14" name="__codelineno-95-14" href="#__codelineno-95-14"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-95-15" name="__codelineno-95-15" href="#__codelineno-95-15"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">item</span> <span class="k">async</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stream_lines</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
-<a id="__codelineno-95-16" name="__codelineno-95-16" href="#__codelineno-95-16"></a>
-<a id="__codelineno-95-17" name="__codelineno-95-17" href="#__codelineno-95-17"></a>
-<a id="__codelineno-95-18" name="__codelineno-95-18" href="#__codelineno-95-18"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-101-1" name="__codelineno-101-1" href="#__codelineno-101-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-101-2" name="__codelineno-101-2" href="#__codelineno-101-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
+<a id="__codelineno-101-3" name="__codelineno-101-3" href="#__codelineno-101-3"></a>
+<a id="__codelineno-101-4" name="__codelineno-101-4" href="#__codelineno-101-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-101-5" name="__codelineno-101-5" href="#__codelineno-101-5"></a>
+<a id="__codelineno-101-6" name="__codelineno-101-6" href="#__codelineno-101-6"></a>
+<a id="__codelineno-101-7" name="__codelineno-101-7" href="#__codelineno-101-7"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-101-8" name="__codelineno-101-8" href="#__codelineno-101-8"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_lines</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-101-9" name="__codelineno-101-9" href="#__codelineno-101-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — no replacement yet; remove call sites.&quot;&quot;&quot;</span>
+<a id="__codelineno-101-10" name="__codelineno-101-10" href="#__codelineno-101-10"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">3</span><span class="p">):</span>
+<a id="__codelineno-101-11" name="__codelineno-101-11" href="#__codelineno-101-11"></a>        <span class="k">yield</span> <span class="n">i</span>
+<a id="__codelineno-101-12" name="__codelineno-101-12" href="#__codelineno-101-12"></a>
+<a id="__codelineno-101-13" name="__codelineno-101-13" href="#__codelineno-101-13"></a>
+<a id="__codelineno-101-14" name="__codelineno-101-14" href="#__codelineno-101-14"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-101-15" name="__codelineno-101-15" href="#__codelineno-101-15"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">item</span> <span class="k">async</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stream_lines</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
+<a id="__codelineno-101-16" name="__codelineno-101-16" href="#__codelineno-101-16"></a>
+<a id="__codelineno-101-17" name="__codelineno-101-17" href="#__codelineno-101-17"></a>
+<a id="__codelineno-101-18" name="__codelineno-101-18" href="#__codelineno-101-18"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 <p><strong><code>TargetMode.ARGS_REMAP</code> — rename an argument within the same async generator:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-96-1" name="__codelineno-96-1" href="#__codelineno-96-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-96-2" name="__codelineno-96-2" href="#__codelineno-96-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
-<a id="__codelineno-96-3" name="__codelineno-96-3" href="#__codelineno-96-3"></a>
-<a id="__codelineno-96-4" name="__codelineno-96-4" href="#__codelineno-96-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-96-5" name="__codelineno-96-5" href="#__codelineno-96-5"></a>
-<a id="__codelineno-96-6" name="__codelineno-96-6" href="#__codelineno-96-6"></a>
-<a id="__codelineno-96-7" name="__codelineno-96-7" href="#__codelineno-96-7"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-96-8" name="__codelineno-96-8" href="#__codelineno-96-8"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-96-9" name="__codelineno-96-9" href="#__codelineno-96-9"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;begin&quot;</span><span class="p">:</span> <span class="s2">&quot;start&quot;</span><span class="p">},</span>
-<a id="__codelineno-96-10" name="__codelineno-96-10" href="#__codelineno-96-10"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span>
-<a id="__codelineno-96-11" name="__codelineno-96-11" href="#__codelineno-96-11"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
-<a id="__codelineno-96-12" name="__codelineno-96-12" href="#__codelineno-96-12"></a><span class="p">)</span>
-<a id="__codelineno-96-13" name="__codelineno-96-13" href="#__codelineno-96-13"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_lines</span><span class="p">(</span><span class="n">begin</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-96-14" name="__codelineno-96-14" href="#__codelineno-96-14"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated argument `begin` renamed to `start`.&quot;&quot;&quot;</span>
-<a id="__codelineno-96-15" name="__codelineno-96-15" href="#__codelineno-96-15"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">3</span><span class="p">):</span>
-<a id="__codelineno-96-16" name="__codelineno-96-16" href="#__codelineno-96-16"></a>        <span class="k">yield</span> <span class="n">i</span>
-<a id="__codelineno-96-17" name="__codelineno-96-17" href="#__codelineno-96-17"></a>
-<a id="__codelineno-96-18" name="__codelineno-96-18" href="#__codelineno-96-18"></a>
-<a id="__codelineno-96-19" name="__codelineno-96-19" href="#__codelineno-96-19"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-96-20" name="__codelineno-96-20" href="#__codelineno-96-20"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">item</span> <span class="k">async</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stream_lines</span><span class="p">(</span><span class="n">begin</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
-<a id="__codelineno-96-21" name="__codelineno-96-21" href="#__codelineno-96-21"></a>
-<a id="__codelineno-96-22" name="__codelineno-96-22" href="#__codelineno-96-22"></a>
-<a id="__codelineno-96-23" name="__codelineno-96-23" href="#__codelineno-96-23"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-102-1" name="__codelineno-102-1" href="#__codelineno-102-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-102-2" name="__codelineno-102-2" href="#__codelineno-102-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
+<a id="__codelineno-102-3" name="__codelineno-102-3" href="#__codelineno-102-3"></a>
+<a id="__codelineno-102-4" name="__codelineno-102-4" href="#__codelineno-102-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-102-5" name="__codelineno-102-5" href="#__codelineno-102-5"></a>
+<a id="__codelineno-102-6" name="__codelineno-102-6" href="#__codelineno-102-6"></a>
+<a id="__codelineno-102-7" name="__codelineno-102-7" href="#__codelineno-102-7"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-102-8" name="__codelineno-102-8" href="#__codelineno-102-8"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-102-9" name="__codelineno-102-9" href="#__codelineno-102-9"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;begin&quot;</span><span class="p">:</span> <span class="s2">&quot;start&quot;</span><span class="p">},</span>
+<a id="__codelineno-102-10" name="__codelineno-102-10" href="#__codelineno-102-10"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span>
+<a id="__codelineno-102-11" name="__codelineno-102-11" href="#__codelineno-102-11"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-102-12" name="__codelineno-102-12" href="#__codelineno-102-12"></a><span class="p">)</span>
+<a id="__codelineno-102-13" name="__codelineno-102-13" href="#__codelineno-102-13"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_lines</span><span class="p">(</span><span class="n">begin</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-102-14" name="__codelineno-102-14" href="#__codelineno-102-14"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated argument `begin` renamed to `start`.&quot;&quot;&quot;</span>
+<a id="__codelineno-102-15" name="__codelineno-102-15" href="#__codelineno-102-15"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">3</span><span class="p">):</span>
+<a id="__codelineno-102-16" name="__codelineno-102-16" href="#__codelineno-102-16"></a>        <span class="k">yield</span> <span class="n">i</span>
+<a id="__codelineno-102-17" name="__codelineno-102-17" href="#__codelineno-102-17"></a>
+<a id="__codelineno-102-18" name="__codelineno-102-18" href="#__codelineno-102-18"></a>
+<a id="__codelineno-102-19" name="__codelineno-102-19" href="#__codelineno-102-19"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-102-20" name="__codelineno-102-20" href="#__codelineno-102-20"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">item</span> <span class="k">async</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stream_lines</span><span class="p">(</span><span class="n">begin</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
+<a id="__codelineno-102-21" name="__codelineno-102-21" href="#__codelineno-102-21"></a>
+<a id="__codelineno-102-22" name="__codelineno-102-22" href="#__codelineno-102-22"></a>
+<a id="__codelineno-102-23" name="__codelineno-102-23" href="#__codelineno-102-23"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 <p><strong><code>target=&lt;callable&gt;</code> — forward to a replacement async generator:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-97-1" name="__codelineno-97-1" href="#__codelineno-97-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-97-2" name="__codelineno-97-2" href="#__codelineno-97-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
-<a id="__codelineno-97-3" name="__codelineno-97-3" href="#__codelineno-97-3"></a>
-<a id="__codelineno-97-4" name="__codelineno-97-4" href="#__codelineno-97-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-97-5" name="__codelineno-97-5" href="#__codelineno-97-5"></a>
-<a id="__codelineno-97-6" name="__codelineno-97-6" href="#__codelineno-97-6"></a>
-<a id="__codelineno-97-7" name="__codelineno-97-7" href="#__codelineno-97-7"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-97-8" name="__codelineno-97-8" href="#__codelineno-97-8"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;New async generator API.&quot;&quot;&quot;</span>
-<a id="__codelineno-97-9" name="__codelineno-97-9" href="#__codelineno-97-9"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">3</span><span class="p">):</span>
-<a id="__codelineno-97-10" name="__codelineno-97-10" href="#__codelineno-97-10"></a>        <span class="k">yield</span> <span class="n">i</span>
-<a id="__codelineno-97-11" name="__codelineno-97-11" href="#__codelineno-97-11"></a>
-<a id="__codelineno-97-12" name="__codelineno-97-12" href="#__codelineno-97-12"></a>
-<a id="__codelineno-97-13" name="__codelineno-97-13" href="#__codelineno-97-13"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">stream</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-97-14" name="__codelineno-97-14" href="#__codelineno-97-14"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_legacy</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-97-15" name="__codelineno-97-15" href="#__codelineno-97-15"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — use stream() instead.&quot;&quot;&quot;</span>
-<a id="__codelineno-97-16" name="__codelineno-97-16" href="#__codelineno-97-16"></a>    <span class="k">if</span> <span class="kc">False</span><span class="p">:</span>  <span class="c1"># pragma: no cover — body unreachable; target forwards every call</span>
-<a id="__codelineno-97-17" name="__codelineno-97-17" href="#__codelineno-97-17"></a>        <span class="k">yield</span> <span class="mi">0</span>
-<a id="__codelineno-97-18" name="__codelineno-97-18" href="#__codelineno-97-18"></a>
-<a id="__codelineno-97-19" name="__codelineno-97-19" href="#__codelineno-97-19"></a>
-<a id="__codelineno-97-20" name="__codelineno-97-20" href="#__codelineno-97-20"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-97-21" name="__codelineno-97-21" href="#__codelineno-97-21"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">item</span> <span class="k">async</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stream_legacy</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
-<a id="__codelineno-97-22" name="__codelineno-97-22" href="#__codelineno-97-22"></a>
-<a id="__codelineno-97-23" name="__codelineno-97-23" href="#__codelineno-97-23"></a>
-<a id="__codelineno-97-24" name="__codelineno-97-24" href="#__codelineno-97-24"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-103-1" name="__codelineno-103-1" href="#__codelineno-103-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-103-2" name="__codelineno-103-2" href="#__codelineno-103-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
+<a id="__codelineno-103-3" name="__codelineno-103-3" href="#__codelineno-103-3"></a>
+<a id="__codelineno-103-4" name="__codelineno-103-4" href="#__codelineno-103-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-103-5" name="__codelineno-103-5" href="#__codelineno-103-5"></a>
+<a id="__codelineno-103-6" name="__codelineno-103-6" href="#__codelineno-103-6"></a>
+<a id="__codelineno-103-7" name="__codelineno-103-7" href="#__codelineno-103-7"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-103-8" name="__codelineno-103-8" href="#__codelineno-103-8"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;New async generator API.&quot;&quot;&quot;</span>
+<a id="__codelineno-103-9" name="__codelineno-103-9" href="#__codelineno-103-9"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">3</span><span class="p">):</span>
+<a id="__codelineno-103-10" name="__codelineno-103-10" href="#__codelineno-103-10"></a>        <span class="k">yield</span> <span class="n">i</span>
+<a id="__codelineno-103-11" name="__codelineno-103-11" href="#__codelineno-103-11"></a>
+<a id="__codelineno-103-12" name="__codelineno-103-12" href="#__codelineno-103-12"></a>
+<a id="__codelineno-103-13" name="__codelineno-103-13" href="#__codelineno-103-13"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">stream</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.9&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-103-14" name="__codelineno-103-14" href="#__codelineno-103-14"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_legacy</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-103-15" name="__codelineno-103-15" href="#__codelineno-103-15"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Deprecated — use stream() instead.&quot;&quot;&quot;</span>
+<a id="__codelineno-103-16" name="__codelineno-103-16" href="#__codelineno-103-16"></a>    <span class="k">if</span> <span class="kc">False</span><span class="p">:</span>  <span class="c1"># pragma: no cover — body unreachable; target forwards every call</span>
+<a id="__codelineno-103-17" name="__codelineno-103-17" href="#__codelineno-103-17"></a>        <span class="k">yield</span> <span class="mi">0</span>
+<a id="__codelineno-103-18" name="__codelineno-103-18" href="#__codelineno-103-18"></a>
+<a id="__codelineno-103-19" name="__codelineno-103-19" href="#__codelineno-103-19"></a>
+<a id="__codelineno-103-20" name="__codelineno-103-20" href="#__codelineno-103-20"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-103-21" name="__codelineno-103-21" href="#__codelineno-103-21"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">item</span> <span class="k">async</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stream_legacy</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
+<a id="__codelineno-103-22" name="__codelineno-103-22" href="#__codelineno-103-22"></a>
+<a id="__codelineno-103-23" name="__codelineno-103-23" href="#__codelineno-103-23"></a>
+<a id="__codelineno-103-24" name="__codelineno-103-24" href="#__codelineno-103-24"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">The wrapper itself is sync, not an async generator</p>
@@ -4002,7 +4122,7 @@ Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</c
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 11, 2026 11:56:52 UTC">2026-06-11</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 11, 2026 23:12:26 UTC">2026-06-11</span>
   </span>
 
     
