@@ -501,7 +501,7 @@ class MutableAttrsList:
         self.items.append(item)
 
 
-class V09TwoAttrClass:
+class StackedAttrTarget:
     """Target with two canonical attributes replacing deprecated aliases at different versions.
 
     Wrapped by :mod:`tests.collection_deprecate` as ``StackedAttrProxy`` (two-layer
@@ -513,7 +513,7 @@ class V09TwoAttrClass:
     new_attr: str = "value_b"  # canonical replacement for ``old_attr`` (deprecated in v1.0)
 
     def __init__(self, new_arg: int = 0) -> None:
-        """Construct V09TwoAttrClass."""
+        """Construct StackedAttrTarget."""
         self.new_arg = new_arg
 
 

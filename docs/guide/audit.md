@@ -490,11 +490,10 @@ class Point:
 
 
 OldPoint = deprecated_class(  # warns: UserWarning — px, py target POSITIONAL_ONLY params
-    Point,
     deprecated_in="2.0",
     remove_in="3.0",
     args_mapping={"px": "x", "py": "y"},
-)
+)(Point)
 
 # Proxy strips incompatible kwargs, constructs Point() with defaults, then setattr:
 p = OldPoint(px=1.0, py=2.0)  # warns: FutureWarning
@@ -524,14 +523,15 @@ issues = validate_mapping_compatibility(my_package)
 print(f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities")
 
 for info in issues:
-    print(f"  {info.module}.{info.function}: incompatible keys = {info.args_mapping_positional_only}")
+    print(f"  {info.module}.{info.function}: incompatible keys = {list(info.args_mapping_positional_only)}")
 ```
 
 <details>
   <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
 
 ```
-Found 0 wrappers with POSITIONAL_ONLY mapping incompatibilities
+Found 1 wrappers with POSITIONAL_ONLY mapping incompatibilities
+  tests.collection_deprecate.DepPositionalOnly: incompatible keys = ['old_val']
 ```
 
 </details>

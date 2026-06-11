@@ -26,9 +26,7 @@ from tests.collection_targets import (
     StackingMutableBase,
     StackingSilentBase,
 )
-from tests.collection_targets import (
-    V09TwoAttrClass as _V09Class,
-)
+from tests.collection_targets import StackedAttrTarget as _StackedAttrTarget
 
 # ---------------------------------------------------------------------------
 # Feature 1 & 2: Stacking two ATTRS_REMAP deprecated_class decorators
@@ -80,7 +78,7 @@ class TestStackedDeprecatedClass:
 
         """
         instance = StackedAttrProxy()
-        assert isinstance(instance, _V09Class)
+        assert isinstance(instance, _StackedAttrTarget)
         assert isinstance(instance, StackedAttrProxy)  # type: ignore[arg-type]  # <-- this is the Blocker 1 assertion
 
     def test_stacked_proxy_no_double_warn_on_instantiation(self) -> None:
@@ -94,7 +92,7 @@ class TestStackedDeprecatedClass:
         """
         outer_proxy = deprecated_class(attrs_mapping={"old_attr": "new_attr"}, deprecated_in="1.0", remove_in="2.0")(
             deprecated_class(attrs_mapping={"older_attr": "newer_attr"}, deprecated_in="0.9", remove_in="1.0")(
-                _V09Class
+                _StackedAttrTarget
             )
         )
 
@@ -121,7 +119,7 @@ class TestStackedDeprecatedClass:
         )(
             deprecated_class(
                 attrs_mapping={"older_attr": "newer_attr"}, deprecated_in="0.9", remove_in="1.0", num_warns=-1
-            )(_V09Class)
+            )(_StackedAttrTarget)
         )
 
         with pytest.warns(FutureWarning, match="1.0"):

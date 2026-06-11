@@ -1437,6 +1437,9 @@ def new_fn(x: int, /, y: int = 0) -> int:
 **Workaround**: wrap the target in a thin adapter that accepts the same params as ordinary keyword arguments:
 
 ```python
+from deprecate import deprecated
+
+
 def _new_fn_compat(x: int, y: int = 0) -> int:
     return new_fn(x, y)  # call new_fn positionally internally
 

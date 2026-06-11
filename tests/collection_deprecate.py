@@ -72,9 +72,9 @@ from tests.collection_targets import (
     PositionalOnlyTarget,
     SelfDeprecatedModel,
     SomeTargetClass,
+    StackedAttrTarget,
     StackingArgsAttrsBase,
     TimerDecorator,
-    V09TwoAttrClass,
     WithInjected,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
     _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
@@ -1783,7 +1783,7 @@ StackedAttrProxy = deprecated_class(
         deprecated_in="0.9",
         remove_in="1.0",
         stream=None,
-    )(V09TwoAttrClass)
+    )(StackedAttrTarget)
 )
 
 
