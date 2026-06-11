@@ -4,6 +4,7 @@ import types
 import warnings
 from functools import cached_property
 from typing import Optional
+from unittest.mock import patch
 
 import pytest
 
@@ -166,6 +167,31 @@ class TestStaticMethodDescriptorTarget:
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
 
+    def test_cross_class_descriptor_raises_type_error(self) -> None:
+        """Staticmethod descriptor from a different class is rejected by the cross-class guard.
+
+        ``_check_cross_class_method_target`` receives ``target.__func__`` (the unwrapped callable)
+        when the target is a raw ``staticmethod`` descriptor.  A descriptor whose ``__func__``
+        qualname prefix differs from the source's class is a cross-class forwarding attempt and
+        must raise ``TypeError`` — same as passing an already-bound method from a different class.
+        """
+
+        class ClassA:
+            @staticmethod
+            def target_fn(x: int) -> int:
+                """Target in a different class."""
+                return x
+
+        sm: staticmethod = ClassA.__dict__["target_fn"]  # raw descriptor (not yet bound)
+
+        with pytest.raises(TypeError, match="cross-class method forwarding"):
+
+            class ClassB:
+                @deprecated(target=sm, deprecated_in="1.0", remove_in="2.0")
+                def old_fn(self, x: int) -> int:
+                    """Deprecated — cross-class descriptor target."""
+                    return 0
+
 
 class TestClassMethodDescriptorTarget:
     """``target=<classmethod descriptor>`` is accepted when source is also a classmethod.
@@ -226,7 +252,7 @@ class TestClassMethodDescriptorTarget:
         its required first argument at call time.  The guard in ``_normalize_target`` detects
         this at decoration time and raises ``TypeError`` with a descriptive message.
         """
-        with pytest.raises(TypeError, match="'cls' as its first argument"):
+        with pytest.raises(TypeError, match="leading class argument") as exc_info:
 
             class _Cls:
                 @classmethod
@@ -239,6 +265,31 @@ class TestClassMethodDescriptorTarget:
                 def aaa(x: int) -> int:
                     """Deprecated — no cls param, should TypeError at decoration time."""
                     return 0
+
+        assert "Either make" in str(exc_info.value)
+
+    def test_uninspectable_source_still_raises_at_decoration_time(self) -> None:
+        """Classmethod guard fires TypeError even when inspect.signature(source) raises.
+
+        The guard wraps ``inspect.signature(source)`` in ``try/except (ValueError, TypeError)``
+        and falls back to ``src_params = []`` on failure.  An empty params list means the
+        source cannot accept ``cls``, so the guard still raises ``TypeError``.  This covers
+        C-extension sources and other callables where signature introspection is unavailable.
+        """
+
+        def _new_cm_fn(cls: type, x: int) -> int:
+            return x
+
+        cm: classmethod = classmethod(_new_cm_fn)
+
+        with (
+            patch("deprecate.deprecation.inspect.signature", side_effect=ValueError("no sig")),
+            pytest.raises(TypeError, match="leading class argument"),
+        ):
+
+            @deprecated(target=cm, deprecated_in="1.0", remove_in="2.0")
+            def aaa(x: int) -> int:
+                return 0
 
 
 class TestPropertyOrderAgnostic:
