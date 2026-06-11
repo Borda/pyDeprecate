@@ -696,8 +696,8 @@ DepConfig = deprecated_class(
 )(Config)
 
 meta = DepConfig.__deprecated__
-print("timeout auto-expanded:", "time_limit" in meta.args_mapping_auto_expanded)  # warns: FutureWarning
-print("_cache auto-expanded:", "store" in meta.args_mapping_auto_expanded)  # warns: FutureWarning
+print("timeout auto-expanded:", "time_limit" in meta.args_mapping_auto_expanded)
+print("_cache auto-expanded:", "store" in meta.args_mapping_auto_expanded)
 ```
 
 <details>

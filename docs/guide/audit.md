@@ -538,7 +538,7 @@ Found 1 wrappers with POSITIONAL_ONLY mapping incompatibilities
 
 The function accepts the same `module` and `recursive` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module.
 
-Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, an incompatible mapping is graceful degradation — the wrapper still works via `setattr`. Prefer `pydeprecate check` for advisory CI reporting; it exits `1` when any wrapper has a non-empty `args_mapping_positional_only`. See the [CLI Reference](cli.md) for flags and exit codes.
+Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, an incompatible mapping is graceful degradation — the wrapper still works via `setattr`. Prefer `pydeprecate check` for advisory CI reporting; positional-only mapping findings are advisory warnings (exit `0`) — only hard config errors such as invalid argument mappings cause exit `1`. See the [CLI Reference](cli.md) for flags and exit codes.
 
 ## Pre-commit Integration
 
