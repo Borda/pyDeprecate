@@ -81,6 +81,7 @@ from tests.collection_targets import (
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
     async_gen_target,
+    async_positional_only_target,
     async_target,
     base_pow_args,
     base_sum_kwargs,
@@ -96,6 +97,7 @@ from tests.collection_targets import (
     increment_value,
     pep702_target,
     positional_only_target,
+    positional_only_two_params_target,
     power_with_new_coef,
     return_b,
     return_z,
@@ -1938,4 +1940,42 @@ with catch_warnings():
     @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")
     def deprecated_positional_only_source(x: int, y: int = 0) -> int:
         """Deprecated wrapper forwarding to a target with a POSITIONAL_ONLY parameter."""
+        return 0
+
+
+# ========== Async POSITIONAL_ONLY fixture ==========
+
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=async_positional_only_target, deprecated_in="1.0", remove_in="2.0")
+    async def deprecated_async_positional_only_source(x: int, y: int = 0) -> int:
+        """Deprecated async wrapper forwarding to an async target with a POSITIONAL_ONLY parameter."""
+        return 0
+
+
+# ========== Two POSITIONAL_ONLY params ordering fixture ==========
+
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=positional_only_two_params_target, deprecated_in="1.0", remove_in="2.0")
+    def deprecated_positional_only_two_params_source(a: int, b: int, c: int = 0) -> int:
+        """Deprecated wrapper forwarding to a target with two POSITIONAL_ONLY parameters."""
+        return 0
+
+
+# ========== args_mapping + POSITIONAL_ONLY fixture ==========
+
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(
+        target=positional_only_target,
+        deprecated_in="1.0",
+        remove_in="2.0",
+        args_mapping={"old_x": "x"},
+    )
+    def deprecated_positional_only_with_args_mapping_source(old_x: int, y: int = 0) -> int:
+        """Deprecated wrapper using args_mapping to rename 'old_x' to 'x' before positional-only split."""
         return 0

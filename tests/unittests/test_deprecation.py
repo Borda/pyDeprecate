@@ -34,13 +34,21 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    deprecated_async_positional_only_source,
     deprecated_positional_only_source,
+    deprecated_positional_only_two_params_source,
+    deprecated_positional_only_with_args_mapping_source,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
     pep702_stacked,
 )
-from tests.collection_targets import KeywordCallTarget, call_signature_source, positional_only_target
+from tests.collection_targets import (
+    KeywordCallTarget,
+    call_signature_source,
+    positional_only_target,
+    positional_only_two_params_target,
+)
 
 
 class TestGetPositionalParams:
@@ -1273,3 +1281,82 @@ class TestPositionalOnlyTarget:
         """
         with pytest.warns(FutureWarning, match=r"deprecated_positional_only_source"):
             deprecated_positional_only_source(1)
+
+    @pytest.mark.asyncio
+    async def test_async_dispatch_forwards_positional_correctly(self) -> None:
+        """The async dispatch path forwards POSITIONAL_ONLY params without TypeError.
+
+        An async deprecated wrapper targeting an async function with a positional-only
+        parameter must not call ``await target_func(**resolved_kwargs)`` — that raises
+        ``TypeError``.  The split-dispatch path must fire in ``async_wrapped_fn`` so the
+        async call succeeds and returns the correct value.
+        """
+        with pytest.warns(FutureWarning):
+            result = await deprecated_async_positional_only_source(7)
+        assert result == 7
+
+    def test_two_positional_only_params_forwarded_in_order(self) -> None:
+        """Two POSITIONAL_ONLY params are forwarded in declaration order.
+
+        When ``positional_only_two_params_target`` is the target and both ``a`` and ``b``
+        are positional-only, the split-dispatch must iterate parameters in declaration order
+        (``a`` first, then ``b``) so ``deprecated_positional_only_two_params_source(10, 3)``
+        returns the same value as ``positional_only_two_params_target(10, 3)`` — not a
+        swapped or alphabetically-sorted dispatch.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_two_params_source(10, 3)
+        assert result == positional_only_two_params_target(10, 3)
+        assert result == 13
+
+    def test_args_mapping_renames_before_positional_split(self) -> None:
+        """args_mapping remap is applied before the POSITIONAL_ONLY split.
+
+        A user calling ``deprecated_positional_only_with_args_mapping_source(old_x=5)``
+        passes the deprecated argument name ``old_x``.  The wrapper must rename it to ``x``
+        via ``args_mapping`` first, then split ``x`` out of ``resolved_kwargs`` and forward
+        it positionally to ``positional_only_target``.  If the rename and split are reordered,
+        ``x`` will not be in ``resolved_kwargs`` at split time and the call will fail with
+        ``TypeError``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_with_args_mapping_source(old_x=5)
+        assert result == 5
+
+    def test_stream_none_suppresses_warnings_but_call_still_forwards(self) -> None:
+        """stream=None suppresses all warnings but split dispatch still forwards correctly.
+
+        When ``@deprecated`` is configured with ``stream=None``, no ``UserWarning`` fires
+        at decoration time and no ``FutureWarning`` fires at call time.  The underlying
+        split dispatch must still execute so ``positional_only_target`` is called with ``x``
+        as a positional arg (not as a kwarg), returning the correct value.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", stream=None)
+            def silent_old_fn(x: int, y: int = 0) -> int: ...
+
+        result = silent_old_fn(5)
+        assert result == 5
+
+    def test_call_succeeds_after_warning_quota_exhausted(self) -> None:
+        """Split dispatch still forwards correctly after the FutureWarning quota is exhausted.
+
+        With ``num_warns=1``, the first call emits ``FutureWarning``; the second call
+        must still forward ``x`` positionally (the split dispatch must not be gated on
+        the warning being emitted).  A caller silently migrating after the quota exhausts
+        should not receive ``TypeError``.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", num_warns=1)
+            def quota_old_fn(x: int, y: int = 0) -> int: ...
+
+        with pytest.warns(FutureWarning):
+            result1 = quota_old_fn(5)
+        assert result1 == 5
+
+        result2 = quota_old_fn(10)  # no warning — quota exhausted
+        assert result2 == 10

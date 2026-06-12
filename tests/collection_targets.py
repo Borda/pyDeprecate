@@ -638,6 +638,26 @@ def positional_only_target(x: int, /, y: int = 0) -> int:
     return x + y
 
 
+async def async_positional_only_target(x: int, /, y: int = 0) -> int:
+    """Async target with one POSITIONAL_ONLY param for async dispatch tests.
+
+    ``x`` is positional-only. Wrapped by
+    ``deprecated_async_positional_only_source`` in
+    :mod:`tests.collection_deprecate`.
+    """
+    return x + y
+
+
+def positional_only_two_params_target(a: int, b: int, /, c: int = 0) -> int:
+    """Target with two POSITIONAL_ONLY params for ordering tests.
+
+    Both ``a`` and ``b`` are positional-only. Wrapped by
+    ``deprecated_positional_only_two_params_source`` in
+    :mod:`tests.collection_deprecate`.
+    """
+    return a + b + c
+
+
 class SelfDeprecatedModel:
     """Target for two-decorator no-target self-deprecation stacking tests.
 
