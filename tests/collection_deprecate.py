@@ -95,6 +95,7 @@ from tests.collection_targets import (
     identity_value,
     increment_value,
     pep702_target,
+    positional_only_target,
     power_with_new_coef,
     return_b,
     return_z,
@@ -1922,3 +1923,19 @@ DepSelfCombinedTwoLayer = deprecated_class(
         **_DEPRS_CASE_STD_INF_ARGS,
     )(SelfDeprecatedModel)
 )
+
+
+# ========== Function-decorator POSITIONAL_ONLY target fixture ==========
+
+# positional_only_target declares `x` as POSITIONAL_ONLY — calling it with
+# x=value as a kwarg raises TypeError.  After the fix, @deprecated detects this
+# at decoration time (UserWarning) and splits the dispatch at call time.
+# Suppress the decoration-time UserWarning here so importing this module does
+# not pollute test output.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")
+    def deprecated_positional_only_source(x: int, y: int = 0) -> int:
+        """Deprecated wrapper forwarding to a target with a POSITIONAL_ONLY parameter."""
+        return 0

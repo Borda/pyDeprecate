@@ -402,6 +402,12 @@ class DeprecationConfig:
             keys as keyword arguments would raise ``TypeError`` without the runtime fallback.  Empty
             tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
             surfaced by :func:`~deprecate.audit.validate_mapping_compatibility`.
+        target_positional_only: Names of POSITIONAL_ONLY parameters on the forwarding target callable
+            used with :func:`~deprecate.deprecated`.  Non-empty when a ``@deprecated(target=fn)``
+            call found ``fn`` declares at least one positional-only parameter.  The call dispatcher
+            splits these out of ``resolved_kwargs`` and forwards them positionally so the target call
+            does not raise ``TypeError``.  Empty frozenset for proxy targets (see
+            :attr:`args_mapping_positional_only`) and for non-callable targets.
 
     """
 
@@ -417,6 +423,7 @@ class DeprecationConfig:
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
+    target_positional_only: frozenset[str] = field(default_factory=frozenset)
 
 
 @runtime_checkable

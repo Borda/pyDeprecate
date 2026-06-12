@@ -34,12 +34,13 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    deprecated_positional_only_source,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
     pep702_stacked,
 )
-from tests.collection_targets import KeywordCallTarget, call_signature_source
+from tests.collection_targets import KeywordCallTarget, call_signature_source, positional_only_target
 
 
 class TestGetPositionalParams:
@@ -1222,3 +1223,68 @@ class TestStackedNotifyCallable:
             warnings.simplefilter("always")
             fn(2.0, scale=3.0)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+
+class TestPositionalOnlyTarget:
+    """``@deprecated`` with a callable target that declares POSITIONAL_ONLY parameters.
+
+    When a target function declares ``def fn(x, /): ...``, the wrapper must not
+    blindly call ``target(**kwargs)`` — Python raises ``TypeError`` because ``x``
+    cannot be passed as a keyword argument.  The decorator should detect this at
+    decoration time (``UserWarning``) and split the dispatch at call time so
+    positional-only params are forwarded positionally and remaining params as kwargs.
+    """
+
+    def test_decoration_emits_user_warning(self) -> None:
+        """Applying @deprecated to a callable target with POSITIONAL_ONLY params warns at decoration time.
+
+        A developer deprecating ``old_fn`` in favour of ``positional_only_target`` (whose
+        first parameter ``x`` is declared positional-only) should receive a ``UserWarning``
+        at the ``@deprecated(...)`` line — before any call is made — so the incompatibility
+        is surfaced early rather than crashing on first use.
+        """
+        with pytest.warns(UserWarning, match=r"POSITIONAL_ONLY") as record:
+            deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")(lambda x, y=0: None)
+        assert record[0].filename.endswith("test_deprecation.py")
+
+    def test_call_with_positional_arg_succeeds(self) -> None:
+        """Calling the deprecated wrapper with a positional arg forwards correctly.
+
+        A caller passing ``deprecated_positional_only_source(5)`` should receive the
+        return value from ``positional_only_target(5)`` — the positional-only param
+        ``x`` is forwarded positionally, not as a kwarg, so no ``TypeError`` is raised.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_source(5)
+        assert result == 5
+
+    def test_call_with_keyword_arg_succeeds(self) -> None:
+        """Calling the deprecated wrapper with a keyword arg for a positional-only target succeeds.
+
+        A caller using ``deprecated_positional_only_source(x=5)`` passes ``x`` as a
+        kwarg to the *source* (where ``x`` is a normal parameter).  The wrapper maps
+        it through ``resolved_kwargs`` and must split it back to a positional arg when
+        forwarding to the target, so the call succeeds transparently.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_source(x=5)
+        assert result == 5
+
+    def test_call_with_both_args_succeeds(self) -> None:
+        """Forwarding both the positional-only and a regular kwarg succeeds.
+
+        ``deprecated_positional_only_source(3, y=4)`` must pass ``x=3`` positionally
+        and ``y=4`` as a kwarg to ``positional_only_target``, returning ``7``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_source(3, y=4)
+        assert result == 7
+
+    def test_future_warning_fires_on_call(self) -> None:
+        """The standard FutureWarning is still emitted on the positional-only dispatch path.
+
+        The positional-only split must not suppress the deprecation warning —
+        callers should still see ``FutureWarning`` so they know to migrate.
+        """
+        with pytest.warns(FutureWarning, match=r"deprecated_positional_only_source"):
+            deprecated_positional_only_source(1)

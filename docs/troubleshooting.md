@@ -1419,36 +1419,40 @@ If you need to chain multiple migration steps across versions, the supported pat
 
 ______________________________________________________________________
 
-## `@deprecated` crashes when the replacement target has POSITIONAL_ONLY parameters
+## `@deprecated` and targets with POSITIONAL_ONLY parameters
 
-**Q:** I applied `@deprecated(target=new_fn)` and get `TypeError: new_fn() got some positional-only arguments passed as keyword argument` when calling the deprecated function. Why?
+**Q:** I applied `@deprecated(target=new_fn)` where `new_fn` has a positional-only parameter — does it work?
 
-**A:** `@deprecated` converts all intercepted arguments to kwargs before forwarding them to the target. If the target declares any parameter as positional-only (using `/` in the signature), that kwarg call raises `TypeError` because Python forbids passing positional-only params by name.
-
-```python
-def new_fn(x: int, /, y: int = 0) -> int:
-    return x + y
-
-
-# @deprecated(target=new_fn) then calling old_fn(5) internally does:
-#   new_fn(**{"x": 5})  →  TypeError: got positional-only argument as keyword argument
-```
-
-**Workaround**: wrap the target in a thin adapter that accepts the same params as ordinary keyword arguments:
+**A:** Yes, fully supported since `v0.10`. The decorator detects POSITIONAL_ONLY parameters at decoration time, emits a `UserWarning` advising you to remove `/` from the target signature if possible, and automatically splits the dispatch so positional-only values are forwarded positionally rather than as kwargs.
 
 ```python
 from deprecate import deprecated
 
 
+def new_fn(x: int, /, y: int = 0) -> int:
+    return x + y
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")  # warns: UserWarning (POSITIONAL_ONLY detected)
+def old_fn(x: int, y: int = 0) -> int: ...
+
+old_fn(5)       # returns 5 — x forwarded positionally
+old_fn(x=5)    # also returns 5 — wrapper remaps to positional automatically
+old_fn(3, y=4)  # returns 7
+```
+
+The thin-adapter pattern shown below still works and avoids the decoration-time `UserWarning` — use it when you want to silence the warning or keep the target signature unambiguous:
+
+```python
 def _new_fn_compat(x: int, y: int = 0) -> int:
-    return new_fn(x, y)  # call new_fn positionally internally
+    return new_fn(x, y)
 
 
 @deprecated(target=_new_fn_compat, deprecated_in="1.0", remove_in="2.0")
 def old_fn(x: int, y: int = 0) -> int: ...
 ```
 
-This limitation affects `@deprecated` on functions and methods only. `deprecated_class` is unaffected — the proxy has a `setattr` fallback for POSITIONAL_ONLY constructor parameters and emits a `UserWarning` at decoration time rather than crashing at call time.
+`deprecated_class` is unaffected — the proxy has a `setattr` fallback for POSITIONAL_ONLY constructor parameters and emits a `UserWarning` at decoration time.
 
 ______________________________________________________________________
 

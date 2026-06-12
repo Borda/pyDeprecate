@@ -627,6 +627,17 @@ class PositionalOnlyTarget:
         self.new_val = new_val
 
 
+def positional_only_target(x: int, /, y: int = 0) -> int:
+    """Target with one POSITIONAL_ONLY param for function-decorator compat tests.
+
+    ``x`` is positional-only so ``positional_only_target(x=5)`` raises ``TypeError``.
+    Wrapped by ``deprecated_positional_only_source`` in :mod:`tests.collection_deprecate`
+    to verify the function decorator emits ``UserWarning`` at decoration time and
+    forwards calls correctly at call time.
+    """
+    return x + y
+
+
 class SelfDeprecatedModel:
     """Target for two-decorator no-target self-deprecation stacking tests.
 
