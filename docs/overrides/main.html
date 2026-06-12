@@ -303,10 +303,10 @@
         },
         {
           "@type": "Question",
-          "name": "Why does @deprecated crash with TypeError when my target function uses positional-only parameters?",
+          "name": "How does @deprecated handle target functions with positional-only parameters?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The @deprecated decorator converts all intercepted arguments to kwargs before forwarding to the target (target_func(**resolved_kwargs)). If the target declares any parameter as positional-only using the / syntax — for example def new_fn(x, /, y=0) — passing x as a keyword argument raises TypeError. Workaround: wrap the target in a thin adapter def _compat(x, y=0): return new_fn(x, y) and use that as the target instead. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
+            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(x, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(x, y=0): return new_fn(x, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
           }
         }
       ]
