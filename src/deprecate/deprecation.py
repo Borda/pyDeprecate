@@ -597,7 +597,7 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
 
 
 def _split_positional_only_kwargs(
-    target_func: Callable[..., Any],
+    param_order: tuple[str, ...],
     resolved_kwargs: dict[str, Any],
     positional_only: frozenset[str],
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -607,22 +607,20 @@ def _split_positional_only_kwargs(
     so they can be forwarded positionally.  Remaining entries stay in the returned kwargs dict.
 
     Args:
-        target_func: Callable whose signature provides declaration order.
+        param_order: Pre-computed parameter-name sequence of the target callable in declaration order.
+            Stored on :attr:`~deprecate._types.DeprecationConfig.target_positional_only_order` to avoid
+            re-calling ``inspect.signature`` on every dispatch.
         resolved_kwargs: Full kwargs dict assembled by :func:`_build_call_plan`.
-        positional_only: Names of POSITIONAL_ONLY parameters on ``target_func``.
+        positional_only: Names of POSITIONAL_ONLY parameters — O(1) membership check.
 
     Returns:
         Tuple of ``(pos_args, kw_args)`` where ``pos_args`` contains values for positional-only
         params in declaration order and ``kw_args`` contains the remaining kwargs.
 
     """
-    try:
-        param_names = list(inspect.signature(target_func).parameters.keys())
-    except (TypeError, ValueError):
-        return [], dict(resolved_kwargs)
     kw_args = dict(resolved_kwargs)
     pos_args: list[Any] = []
-    for name in param_names:
+    for name in param_order:
         if name in positional_only and name in kw_args:
             pos_args.append(kw_args.pop(name))
     return pos_args, kw_args
@@ -1319,6 +1317,7 @@ def deprecated(
         # When found: emit UserWarning (mirrors proxy behaviour) and record names so
         # the call dispatcher can split them out of kwargs and pass positionally.
         _target_positional_only: frozenset[str] = frozenset()
+        _target_positional_only_order: tuple[str, ...] = ()
         if callable(_target):
             try:
                 _tgt_sig = inspect.signature(_target)
@@ -1330,6 +1329,8 @@ def deprecated(
                     for name, p in _tgt_sig.parameters.items()
                     if p.kind is inspect.Parameter.POSITIONAL_ONLY and name not in {"self", "cls"}
                 )
+                if _target_positional_only:
+                    _target_positional_only_order = tuple(_tgt_sig.parameters.keys())
             if _target_positional_only and stream is not None:
                 warnings.warn(
                     f"`@deprecated(target={getattr(_target, '__name__', repr(_target))!r})` on"
@@ -1364,6 +1365,7 @@ def deprecated(
             docstring_style=normalized_docstring_style,
             template_mgs=template_mgs,
             target_positional_only=_target_positional_only,
+            target_positional_only_order=_target_positional_only_order,
         )
         _dep_cfg = dep_meta
 
@@ -1417,7 +1419,7 @@ def deprecated(
                 # API in one step without forcing every legacy target to be redeclared ``async def``.
                 if _dep_cfg.target_positional_only:
                     _pos_args, _kw_args = _split_positional_only_kwargs(
-                        plan.target_func, plan.resolved_kwargs, _dep_cfg.target_positional_only
+                        _dep_cfg.target_positional_only_order, plan.resolved_kwargs, _dep_cfg.target_positional_only
                     )
                     if inspect.iscoroutinefunction(plan.target_func):
                         return await plan.target_func(*_pos_args, **_kw_args)
@@ -1483,7 +1485,7 @@ def deprecated(
                 )
             if _dep_cfg.target_positional_only:
                 _pos_args, _kw_args = _split_positional_only_kwargs(
-                    plan.target_func, plan.resolved_kwargs, _dep_cfg.target_positional_only
+                    _dep_cfg.target_positional_only_order, plan.resolved_kwargs, _dep_cfg.target_positional_only
                 )
                 return plan.target_func(*_pos_args, **_kw_args)
             return plan.target_func(**plan.resolved_kwargs)

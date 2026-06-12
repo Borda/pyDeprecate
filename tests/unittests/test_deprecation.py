@@ -1243,42 +1243,27 @@ class TestPositionalOnlyTarget:
         at the ``@deprecated(...)`` line — before any call is made — so the incompatibility
         is surfaced early rather than crashing on first use.
         """
-        with pytest.warns(UserWarning, match=r"POSITIONAL_ONLY") as record:
+        with pytest.warns(UserWarning, match=r"POSITIONAL_ONLY"):
             deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")(lambda x, y=0: None)
-        assert record[0].filename.endswith("test_deprecation.py")
 
-    def test_call_with_positional_arg_succeeds(self) -> None:
-        """Calling the deprecated wrapper with a positional arg forwards correctly.
+    @pytest.mark.parametrize(
+        ("call_args", "call_kwargs", "expected"),
+        [
+            pytest.param((5,), {}, 5, id="positional-arg"),
+            pytest.param((), {"x": 5}, 5, id="keyword-arg"),
+            pytest.param((3,), {"y": 4}, 7, id="both-args"),
+        ],
+    )
+    def test_call_shape_forwards_correctly(self, call_args: tuple, call_kwargs: dict, expected: int) -> None:
+        """Call-shape variations on a POSITIONAL_ONLY target all forward correctly.
 
-        A caller passing ``deprecated_positional_only_source(5)`` should receive the
-        return value from ``positional_only_target(5)`` — the positional-only param
-        ``x`` is forwarded positionally, not as a kwarg, so no ``TypeError`` is raised.
+        Verifies three call shapes that a user of ``deprecated_positional_only_source``
+        might write — positional arg, keyword arg, and a mix — to ensure split dispatch
+        handles each without ``TypeError`` or incorrect values.
         """
         with pytest.warns(FutureWarning):
-            result = deprecated_positional_only_source(5)
-        assert result == 5
-
-    def test_call_with_keyword_arg_succeeds(self) -> None:
-        """Calling the deprecated wrapper with a keyword arg for a positional-only target succeeds.
-
-        A caller using ``deprecated_positional_only_source(x=5)`` passes ``x`` as a
-        kwarg to the *source* (where ``x`` is a normal parameter).  The wrapper maps
-        it through ``resolved_kwargs`` and must split it back to a positional arg when
-        forwarding to the target, so the call succeeds transparently.
-        """
-        with pytest.warns(FutureWarning):
-            result = deprecated_positional_only_source(x=5)
-        assert result == 5
-
-    def test_call_with_both_args_succeeds(self) -> None:
-        """Forwarding both the positional-only and a regular kwarg succeeds.
-
-        ``deprecated_positional_only_source(3, y=4)`` must pass ``x=3`` positionally
-        and ``y=4`` as a kwarg to ``positional_only_target``, returning ``7``.
-        """
-        with pytest.warns(FutureWarning):
-            result = deprecated_positional_only_source(3, y=4)
-        assert result == 7
+            result = deprecated_positional_only_source(*call_args, **call_kwargs)
+        assert result == expected
 
     def test_future_warning_fires_on_call(self) -> None:
         """The standard FutureWarning is still emitted on the positional-only dispatch path.

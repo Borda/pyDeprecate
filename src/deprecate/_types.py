@@ -408,6 +408,11 @@ class DeprecationConfig:
             splits these out of ``resolved_kwargs`` and forwards them positionally so the target call
             does not raise ``TypeError``.  Empty frozenset for proxy targets (see
             :attr:`args_mapping_positional_only`) and for non-callable targets.
+        target_positional_only_order: Full parameter-name sequence of the forwarding target callable,
+            in declaration order.  Pre-computed at decoration time alongside
+            :attr:`target_positional_only` so the call dispatcher can iterate in declaration order
+            without calling ``inspect.signature`` on every dispatch.  Not included in ``repr``.
+            Empty tuple when ``target_positional_only`` is empty.
 
     """
 
@@ -424,6 +429,7 @@ class DeprecationConfig:
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
     target_positional_only: frozenset[str] = field(default_factory=frozenset)
+    target_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
 
 
 @runtime_checkable
