@@ -1445,6 +1445,13 @@ old_fn(3, y=4)  # returns 7
 The thin-adapter pattern shown below still works and avoids the decoration-time `UserWarning` — use it when you want to silence the warning or keep the target signature unambiguous:
 
 ```python
+from deprecate import deprecated
+
+
+def new_fn(x: int, /, y: int = 0) -> int:
+    return x + y
+
+
 def _new_fn_compat(x: int, y: int = 0) -> int:
     return new_fn(x, y)
 
