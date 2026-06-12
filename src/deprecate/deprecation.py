@@ -1326,7 +1326,9 @@ def deprecated(
                 pass
             else:
                 _target_positional_only = frozenset(
-                    name for name, p in _tgt_sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
+                    name
+                    for name, p in _tgt_sig.parameters.items()
+                    if p.kind is inspect.Parameter.POSITIONAL_ONLY and name not in {"self", "cls"}
                 )
             if _target_positional_only and stream is not None:
                 warnings.warn(
