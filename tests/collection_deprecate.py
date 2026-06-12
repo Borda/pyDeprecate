@@ -1979,3 +1979,21 @@ with catch_warnings():
     def deprecated_positional_only_with_args_mapping_source(old_x: int, y: int = 0) -> int:
         """Deprecated wrapper using args_mapping to rename 'old_x' to 'x' before positional-only split."""
         return 0
+
+
+# ========== Constructor-forwarding POSITIONAL_ONLY fixture ==========
+
+# @deprecated applied to OldPositionalOnlyClass.__init__ with target=PositionalOnlyTarget
+# (a class).  _normalize_target() maps this to PositionalOnlyTarget.__init__ (unbound),
+# whose param_order includes "self".  _split_positional_only_kwargs() must pop "self" into
+# pos_args before "new_val" so the unbound __init__ call succeeds.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    class OldPositionalOnlyClass:
+        """Deprecated class whose constructor forwards to PositionalOnlyTarget."""
+
+        @deprecated(target=PositionalOnlyTarget, deprecated_in="1.0", remove_in="2.0")
+        def __init__(self, new_val: int = 0) -> None:
+            """Constructor deprecated in favour of PositionalOnlyTarget."""
+            self.new_val = new_val

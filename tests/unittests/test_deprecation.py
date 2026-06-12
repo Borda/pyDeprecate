@@ -34,6 +34,7 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    OldPositionalOnlyClass,
     deprecated_async_positional_only_source,
     deprecated_positional_only_source,
     deprecated_positional_only_two_params_source,
@@ -1362,3 +1363,18 @@ class TestPositionalOnlyTarget:
 
         result2 = quota_old_fn(10)  # no warning — quota exhausted
         assert result2 == 10
+
+    def test_constructor_forwarding_positional_only_succeeds(self) -> None:
+        """Constructor-forwarding path sets attribute correctly when target __init__ has a POSITIONAL_ONLY param.
+
+        When ``@deprecated`` is applied to ``OldPositionalOnlyClass.__init__`` with
+        ``target=PositionalOnlyTarget``, ``_normalize_target`` maps the class target to
+        ``PositionalOnlyTarget.__init__`` (unbound).  The dispatch must include ``self`` in
+        ``pos_args`` before ``new_val`` so that the unbound call
+        ``PositionalOnlyTarget.__init__(instance, 5)`` succeeds — without the fix, ``5`` lands
+        in the ``self`` slot positionally and ``self`` is also passed as a kwarg, raising
+        ``TypeError: positional-only arguments passed as keyword arguments: 'self'``.
+        """
+        with pytest.warns(FutureWarning):
+            obj = OldPositionalOnlyClass(5)
+        assert obj.new_val == 5
