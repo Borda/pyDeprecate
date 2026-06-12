@@ -1436,8 +1436,9 @@ def new_fn(x: int, /, y: int = 0) -> int:
 @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")  # warns: UserWarning (POSITIONAL_ONLY detected)
 def old_fn(x: int, y: int = 0) -> int: ...
 
-old_fn(5)       # returns 5 — x forwarded positionally
-old_fn(x=5)    # also returns 5 — wrapper remaps to positional automatically
+
+old_fn(5)  # returns 5 — x forwarded positionally
+old_fn(x=5)  # also returns 5 — wrapper remaps to positional automatically
 old_fn(3, y=4)  # returns 7
 ```
 
