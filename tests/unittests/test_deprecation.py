@@ -1335,7 +1335,8 @@ class TestPositionalOnlyTarget:
             warnings.simplefilter("ignore", UserWarning)
 
             @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", stream=None)
-            def silent_old_fn(x: int, y: int = 0) -> int: ...
+            def silent_old_fn(x: int, y: int = 0) -> int:
+                return 0
 
         result = silent_old_fn(5)
         assert result == 5
@@ -1352,7 +1353,8 @@ class TestPositionalOnlyTarget:
             warnings.simplefilter("ignore", UserWarning)
 
             @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", num_warns=1)
-            def quota_old_fn(x: int, y: int = 0) -> int: ...
+            def quota_old_fn(x: int, y: int = 0) -> int:
+                return 0
 
         with pytest.warns(FutureWarning):
             result1 = quota_old_fn(5)
