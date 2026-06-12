@@ -71,6 +71,7 @@ from tests.collection_targets import (
     PaletteOld,
     PositionalOnlyTarget,
     SelfDeprecatedModel,
+    SelfOnlyPositionalOnlyTarget,
     SomeTargetClass,
     StackedAttrTarget,
     StackingArgsAttrsBase,
@@ -1997,3 +1998,21 @@ with catch_warnings():
         def __init__(self, new_val: int = 0) -> None:
             """Constructor deprecated in favour of PositionalOnlyTarget."""
             self.new_val = new_val
+
+
+# ========== self-only POSITIONAL_ONLY constructor fixture ==========
+
+# @deprecated on OldSelfOnlyClass.__init__ with target=SelfOnlyPositionalOnlyTarget.
+# _normalize_target() maps the class target to SelfOnlyPositionalOnlyTarget.__init__
+# (unbound), whose only POSITIONAL_ONLY param is self.  Before the fix, self was
+# excluded from target_positional_only, leaving the set empty → split gate never fired
+# → target_func(**{'self': instance}) → TypeError.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    class OldSelfOnlyClass:
+        """Deprecated class forwarding to SelfOnlyPositionalOnlyTarget."""
+
+        @deprecated(target=SelfOnlyPositionalOnlyTarget, deprecated_in="1.0", remove_in="2.0")
+        def __init__(self) -> None:
+            """Constructor deprecated in favour of SelfOnlyPositionalOnlyTarget."""

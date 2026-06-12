@@ -627,6 +627,19 @@ class PositionalOnlyTarget:
         self.new_val = new_val
 
 
+class SelfOnlyPositionalOnlyTarget:
+    """Target where ``self`` is the only POSITIONAL_ONLY parameter.
+
+    Exercises the edge case where ``target_positional_only`` would be an empty
+    frozenset if ``self`` were excluded — causing the split-dispatch gate to
+    never fire and ``target_func(**{'self': instance})`` to raise ``TypeError``.
+    Wrapped by ``OldSelfOnlyClass`` in :mod:`tests.collection_deprecate`.
+    """
+
+    def __init__(self, /) -> None:
+        """Construct with no user arguments; self is explicitly positional-only."""
+
+
 def positional_only_target(x: int, /, y: int = 0) -> int:
     """Target with one POSITIONAL_ONLY param for function-decorator compat tests.
 

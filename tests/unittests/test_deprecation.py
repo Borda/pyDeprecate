@@ -35,6 +35,7 @@ from tests.collection_deprecate import (
     CrossGuardOldClass,
     CrossGuardSameClass,
     OldPositionalOnlyClass,
+    OldSelfOnlyClass,
     deprecated_async_positional_only_source,
     deprecated_positional_only_source,
     deprecated_positional_only_two_params_source,
@@ -1378,3 +1379,18 @@ class TestPositionalOnlyTarget:
         with pytest.warns(FutureWarning):
             obj = OldPositionalOnlyClass(5)
         assert obj.new_val == 5
+
+    def test_self_only_positional_only_constructor_succeeds(self) -> None:
+        """Constructor does not raise when self is the only POSITIONAL_ONLY target param.
+
+        When ``@deprecated`` is applied to ``OldSelfOnlyClass.__init__`` with
+        ``target=SelfOnlyPositionalOnlyTarget``, the target's only POSITIONAL_ONLY param
+        is ``self``.  Before the fix, ``target_positional_only`` excluded ``self`` and was
+        therefore an empty frozenset — the split-dispatch gate never fired, so the dispatcher
+        called ``target_func(**{'self': instance})``, raising ``TypeError: positional-only
+        arguments passed as keyword arguments: 'self'``.  The fix includes ``self``/``cls``
+        in the stored set so the gate fires and the instance is forwarded positionally.
+        """
+        with pytest.warns(FutureWarning):
+            obj = OldSelfOnlyClass()
+        assert isinstance(obj, OldSelfOnlyClass)

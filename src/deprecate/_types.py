@@ -403,10 +403,14 @@ class DeprecationConfig:
             tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
             surfaced by :func:`~deprecate.audit.validate_mapping_compatibility`.
         target_positional_only: Names of POSITIONAL_ONLY parameters on the forwarding target callable
-            used with :func:`~deprecate.deprecated`.  Non-empty when a ``@deprecated(target=fn)``
-            call found ``fn`` declares at least one positional-only parameter.  The call dispatcher
-            splits these out of ``resolved_kwargs`` and forwards them positionally so the target call
-            does not raise ``TypeError``.  Empty frozenset for proxy targets (see
+            used with :func:`~deprecate.deprecated`, including ``self`` and ``cls`` when they are
+            declared positional-only.  Non-empty when a ``@deprecated(target=fn)`` call found ``fn``
+            declares at least one positional-only parameter.  ``self`` and ``cls`` are excluded from
+            the :class:`UserWarning` message but included here so the split-dispatch gate fires even
+            when the only positional-only parameter is the instance or class receiver (e.g.
+            ``def __init__(self, /): ...``).  The call dispatcher splits these out of
+            ``resolved_kwargs`` and forwards them positionally so the target call does not raise
+            ``TypeError``.  Empty frozenset for proxy targets (see
             :attr:`args_mapping_positional_only`) and for non-callable targets.
         target_positional_only_order: Full parameter-name sequence of the forwarding target callable,
             in declaration order.  Pre-computed at decoration time alongside

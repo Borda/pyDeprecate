@@ -1328,17 +1328,16 @@ def deprecated(
                 pass
             else:
                 _target_positional_only = frozenset(
-                    name
-                    for name, p in _tgt_sig.parameters.items()
-                    if p.kind is inspect.Parameter.POSITIONAL_ONLY and name not in {"self", "cls"}
+                    name for name, p in _tgt_sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
                 )
                 if _target_positional_only:
                     _target_positional_only_order = tuple(_tgt_sig.parameters.keys())
-            if _target_positional_only and stream is not None:
+            _warn_positional_only = _target_positional_only - {"self", "cls"}
+            if _warn_positional_only and stream is not None:
                 warnings.warn(
                     f"`@deprecated(target={getattr(_target, '__name__', repr(_target))!r})` on"
                     f" `{source.__name__}`: target parameter(s)"
-                    f" {sorted(_target_positional_only)!r} are POSITIONAL_ONLY and cannot be"
+                    f" {sorted(_warn_positional_only)!r} are POSITIONAL_ONLY and cannot be"
                     " forwarded as kwargs. Calls will pass these values positionally."
                     " Consider removing `/` from the target signature.",
                     UserWarning,
@@ -1346,8 +1345,9 @@ def deprecated(
                 )
 
         # Enum-normalised target stored so audit does not re-derive from raw sentinel.
-        # Class targets kept verbatim: the class→__init__ remap is call-time only;
-        # audit and docstring consumers expect the user-facing class, not __init__.
+        # Class targets kept verbatim: _normalize_target() remaps class→__init__ at
+        # decoration time for the wrapper closure, but stored_target keeps the user-facing
+        # class so audit and docstring consumers see the original target.
         if target is None or isinstance(target, bool):
             stored_target: Any = TargetMode._from_legacy(target, stacklevel=None)
         elif isinstance(target, TargetMode):
