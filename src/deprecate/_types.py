@@ -402,6 +402,21 @@ class DeprecationConfig:
             keys as keyword arguments would raise ``TypeError`` without the runtime fallback.  Empty
             tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
             surfaced by :func:`~deprecate.audit.validate_mapping_compatibility`.
+        target_positional_only: Names of POSITIONAL_ONLY parameters on the forwarding target callable
+            used with :func:`~deprecate.deprecated`, including ``self`` and ``cls`` when they are
+            declared positional-only.  Non-empty when a ``@deprecated(target=fn)`` call found ``fn``
+            declares at least one positional-only parameter.  ``self`` and ``cls`` are excluded from
+            the :class:`UserWarning` message but included here so the split-dispatch gate fires even
+            when the only positional-only parameter is the instance or class receiver (e.g.
+            ``def __init__(self, /): ...``).  The call dispatcher splits these out of
+            ``resolved_kwargs`` and forwards them positionally so the target call does not raise
+            ``TypeError``.  Empty frozenset for proxy targets (see
+            :attr:`args_mapping_positional_only`) and for non-callable targets.
+        target_positional_only_order: Full parameter-name sequence of the forwarding target callable,
+            in declaration order.  Pre-computed at decoration time alongside
+            :attr:`target_positional_only` so the call dispatcher can iterate in declaration order
+            without calling ``inspect.signature`` on every dispatch.  Not included in ``repr``.
+            Empty tuple when ``target_positional_only`` is empty.
 
     """
 
@@ -417,6 +432,8 @@ class DeprecationConfig:
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
+    target_positional_only: frozenset[str] = field(default_factory=frozenset)
+    target_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
 
 
 @runtime_checkable

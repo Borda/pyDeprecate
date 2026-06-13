@@ -34,12 +34,25 @@ from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
+    OldPositionalOnlyClass,
+    OldSelfOnlyClass,
+    deprecated_async_positional_only_source,
+    deprecated_positional_only_source,
+    deprecated_positional_only_stream_none,
+    deprecated_positional_only_two_params_source,
+    deprecated_positional_only_with_args_mapping_source,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
+    make_deprecated_positional_only_num_warns_one,
     pep702_stacked,
 )
-from tests.collection_targets import KeywordCallTarget, call_signature_source
+from tests.collection_targets import (
+    KeywordCallTarget,
+    call_signature_source,
+    positional_only_target,
+    positional_only_two_params_target,
+)
 
 
 class TestGetPositionalParams:
@@ -1222,3 +1235,155 @@ class TestStackedNotifyCallable:
             warnings.simplefilter("always")
             fn(2.0, scale=3.0)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+
+class TestPositionalOnlyTarget:
+    """``@deprecated`` with a callable target that declares POSITIONAL_ONLY parameters.
+
+    When a target function declares ``def fn(x, /): ...``, the wrapper must not
+    blindly call ``target(**kwargs)`` — Python raises ``TypeError`` because ``x``
+    cannot be passed as a keyword argument.  The decorator should detect this at
+    decoration time (``UserWarning``) and split the dispatch at call time so
+    positional-only params are forwarded positionally and remaining params as kwargs.
+    """
+
+    def test_decoration_emits_user_warning(self) -> None:
+        """Applying @deprecated to a callable target with POSITIONAL_ONLY params warns at decoration time.
+
+        A developer deprecating ``old_fn`` in favour of ``positional_only_target`` (whose
+        first parameter ``x`` is declared positional-only) should receive a ``UserWarning``
+        at the ``@deprecated(...)`` line — before any call is made — so the incompatibility
+        is surfaced early rather than crashing on first use.
+        """
+        with pytest.warns(UserWarning, match=r"POSITIONAL_ONLY"):
+            deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")(lambda x, y=0: None)
+
+    @pytest.mark.parametrize(
+        ("call_args", "call_kwargs", "expected"),
+        [
+            pytest.param((5,), {}, 5, id="positional-arg"),
+            pytest.param((), {"x": 5}, 5, id="keyword-arg"),
+            pytest.param((3,), {"y": 4}, 7, id="both-args"),
+        ],
+    )
+    def test_call_shape_forwards_correctly(self, call_args: tuple, call_kwargs: dict, expected: int) -> None:
+        """Call-shape variations on a POSITIONAL_ONLY target all forward correctly.
+
+        Verifies three call shapes that a user of ``deprecated_positional_only_source``
+        might write — positional arg, keyword arg, and a mix — to ensure split dispatch
+        handles each without ``TypeError`` or incorrect values.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_source(*call_args, **call_kwargs)
+        assert result == expected
+
+    def test_future_warning_fires_on_call(self) -> None:
+        """The standard FutureWarning is still emitted on the positional-only dispatch path.
+
+        The positional-only split must not suppress the deprecation warning —
+        callers should still see ``FutureWarning`` so they know to migrate.
+        """
+        with pytest.warns(FutureWarning, match=r"deprecated_positional_only_source"):
+            deprecated_positional_only_source(1)
+
+    @pytest.mark.asyncio
+    async def test_async_dispatch_forwards_positional_correctly(self) -> None:
+        """The async dispatch path forwards POSITIONAL_ONLY params without TypeError.
+
+        An async deprecated wrapper targeting an async function with a positional-only
+        parameter must not call ``await target_func(**resolved_kwargs)`` — that raises
+        ``TypeError``.  The split-dispatch path must fire in ``async_wrapped_fn`` so the
+        async call succeeds and returns the correct value.
+        """
+        with pytest.warns(FutureWarning):
+            result = await deprecated_async_positional_only_source(7)
+        assert result == 7
+
+    def test_two_positional_only_params_forwarded_in_order(self) -> None:
+        """Two POSITIONAL_ONLY params are forwarded in declaration order.
+
+        When ``positional_only_two_params_target`` is the target and both ``a`` and ``b``
+        are positional-only, the split-dispatch must iterate parameters in declaration order
+        (``a`` first, then ``b``) so ``deprecated_positional_only_two_params_source(10, 3)``
+        returns the same value as ``positional_only_two_params_target(10, 3)`` — not a
+        swapped or alphabetically-sorted dispatch.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_two_params_source(10, 3)
+        assert result == positional_only_two_params_target(10, 3)
+        assert result == 13
+
+    def test_args_mapping_renames_before_positional_split(self) -> None:
+        """args_mapping remap is applied before the POSITIONAL_ONLY split.
+
+        A user calling ``deprecated_positional_only_with_args_mapping_source(old_x=5)``
+        passes the deprecated argument name ``old_x``.  The wrapper must rename it to ``x``
+        via ``args_mapping`` first, then split ``x`` out of ``resolved_kwargs`` and forward
+        it positionally to ``positional_only_target``.  If the rename and split are reordered,
+        ``x`` will not be in ``resolved_kwargs`` at split time and the call will fail with
+        ``TypeError``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_positional_only_with_args_mapping_source(old_x=5)
+        assert result == 5
+
+    def test_stream_none_suppresses_warnings_but_call_still_forwards(self) -> None:
+        """stream=None suppresses all warnings but split dispatch still forwards correctly.
+
+        When ``@deprecated`` is configured with ``stream=None``, no ``UserWarning`` fires
+        at decoration time and no ``FutureWarning`` fires at call time.  The underlying
+        split dispatch must still execute so ``positional_only_target`` is called with ``x``
+        as a positional arg (not as a kwarg), returning the correct value.
+        ``deprecated_positional_only_stream_none`` is defined in ``collection_deprecate.py``
+        with ``stream=None`` so no warnings are emitted at decoration time or call time.
+        """
+        result = deprecated_positional_only_stream_none(5)
+        assert result == 5
+
+    def test_call_succeeds_after_warning_quota_exhausted(self) -> None:
+        """Split dispatch still forwards correctly after the FutureWarning quota is exhausted.
+
+        With ``num_warns=1``, the first call emits ``FutureWarning``; the second call
+        must still forward ``x`` positionally (the split dispatch must not be gated on
+        the warning being emitted).  A caller silently migrating after the quota exhausts
+        should not receive ``TypeError``.
+        ``deprecated_positional_only_num_warns_one`` is defined in ``collection_deprecate.py``
+        with ``num_warns=1`` so the warning fires exactly once.
+        """
+        quota_fn = make_deprecated_positional_only_num_warns_one()
+        with pytest.warns(FutureWarning):
+            result1 = quota_fn(5)
+        assert result1 == 5
+
+        result2 = quota_fn(10)  # no warning — quota exhausted
+        assert result2 == 10
+
+    def test_constructor_forwarding_positional_only_succeeds(self) -> None:
+        """Constructor-forwarding path sets attribute correctly when target __init__ has a POSITIONAL_ONLY param.
+
+        When ``@deprecated`` is applied to ``OldPositionalOnlyClass.__init__`` with
+        ``target=PositionalOnlyTarget``, ``_normalize_target`` maps the class target to
+        ``PositionalOnlyTarget.__init__`` (unbound).  The dispatch must include ``self`` in
+        ``pos_args`` before ``new_val`` so that the unbound call
+        ``PositionalOnlyTarget.__init__(instance, 5)`` succeeds — without the fix, ``5`` lands
+        in the ``self`` slot positionally and ``self`` is also passed as a kwarg, raising
+        ``TypeError: positional-only arguments passed as keyword arguments: 'self'``.
+        """
+        with pytest.warns(FutureWarning):
+            obj = OldPositionalOnlyClass(5)
+        assert obj.new_val == 5
+
+    def test_self_only_positional_only_constructor_succeeds(self) -> None:
+        """Constructor does not raise when self is the only POSITIONAL_ONLY target param.
+
+        When ``@deprecated`` is applied to ``OldSelfOnlyClass.__init__`` with
+        ``target=SelfOnlyPositionalOnlyTarget``, the target's only POSITIONAL_ONLY param
+        is ``self``.  Before the fix, ``target_positional_only`` excluded ``self`` and was
+        therefore an empty frozenset — the split-dispatch gate never fired, so the dispatcher
+        called ``target_func(**{'self': instance})``, raising ``TypeError: positional-only
+        arguments passed as keyword arguments: 'self'``.  The fix includes ``self``/``cls``
+        in the stored set so the gate fires and the instance is forwarded positionally.
+        """
+        with pytest.warns(FutureWarning):
+            obj = OldSelfOnlyClass()
+        assert isinstance(obj, OldSelfOnlyClass)

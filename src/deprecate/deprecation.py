@@ -596,6 +596,41 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
     return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
+def _split_positional_only_kwargs(
+    param_order: tuple[str, ...],
+    resolved_kwargs: dict[str, Any],
+    positional_only: frozenset[str],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Split ``resolved_kwargs`` into positional args and remaining kwargs for a target with POSITIONAL_ONLY params.
+
+    Extracts values for ``positional_only`` names from ``resolved_kwargs`` in parameter-declaration order
+    so they can be forwarded positionally.  Also extracts ``self``/``cls`` when they are the *first*
+    parameter in ``param_order`` and present in ``resolved_kwargs``, so that unbound ``__init__`` /
+    classmethod targets receive the instance in the first positional slot rather than as a keyword
+    argument.  The first-parameter restriction avoids incorrectly extracting a non-receiver parameter
+    that happens to be named ``self`` or ``cls``.  Remaining entries stay in the returned kwargs dict.
+
+    Args:
+        param_order: Pre-computed parameter-name sequence of the target callable in declaration order.
+            Stored on :attr:`~deprecate._types.DeprecationConfig.target_positional_only_order` to avoid
+            re-calling ``inspect.signature`` on every dispatch.
+        resolved_kwargs: Full kwargs dict assembled by :func:`_build_call_plan`.
+        positional_only: Names of POSITIONAL_ONLY parameters — O(1) membership check.
+
+    Returns:
+        Tuple of ``(pos_args, kw_args)`` where ``pos_args`` contains the instance (``self``/``cls``,
+        when present) followed by positional-only param values in declaration order, and ``kw_args``
+        contains the remaining kwargs.
+
+    """
+    kw_args = dict(resolved_kwargs)
+    pos_args: list[Any] = []
+    for i, name in enumerate(param_order):
+        if name in kw_args and (name in positional_only or (i == 0 and name in {"self", "cls"})):
+            pos_args.append(kw_args.pop(name))
+    return pos_args, kw_args
+
+
 def _raise_warn(
     stream: Callable,
     source: Callable,
@@ -780,7 +815,7 @@ def _raise_warn_arguments(
     )
 
 
-def _build_call_plan(
+def _build_call_plan(  # noqa: C901, PLR0912
     wrapper_fn: Callable[..., Any],
     source: Callable[..., Any],
     target: Union[bool, None, Callable[..., Any], TargetMode, staticmethod, classmethod],
@@ -956,7 +991,7 @@ def _build_call_plan(
     )
 
 
-def deprecated(
+def deprecated(  # noqa: C901
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod] = TargetMode.NOTIFY,
     deprecated_in: str = "",
     remove_in: str = "",
@@ -1086,7 +1121,7 @@ def deprecated(
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
-    def packing(
+    def packing(  # noqa: C901, PLR0912
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
         _stacklevel: int = 2,
     ) -> Callable:
@@ -1283,9 +1318,38 @@ def deprecated(
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
 
+        # Detect POSITIONAL_ONLY params on the callable target at decoration time.
+        # When found: emit UserWarning (mirrors proxy behaviour) and record names so
+        # the call dispatcher can split them out of kwargs and pass positionally.
+        _target_positional_only: frozenset[str] = frozenset()
+        _target_positional_only_order: tuple[str, ...] = ()
+        if callable(_target):
+            try:
+                _tgt_sig = inspect.signature(_target)
+            except (TypeError, ValueError):
+                pass
+            else:
+                _target_positional_only = frozenset(
+                    name for name, p in _tgt_sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
+                )
+                if _target_positional_only:
+                    _target_positional_only_order = tuple(_tgt_sig.parameters.keys())
+            _warn_positional_only = _target_positional_only - {"self", "cls"}
+            if _warn_positional_only and stream is not None:
+                warnings.warn(
+                    f"`@deprecated(target={getattr(_target, '__name__', repr(_target))!r})` on"
+                    f" `{source.__name__}`: target parameter(s)"
+                    f" {sorted(_warn_positional_only)!r} are POSITIONAL_ONLY and cannot be"
+                    " forwarded as kwargs. Calls will pass these values positionally."
+                    " Consider removing `/` from the target signature.",
+                    UserWarning,
+                    stacklevel=_stacklevel,
+                )
+
         # Enum-normalised target stored so audit does not re-derive from raw sentinel.
-        # Class targets kept verbatim: the class→__init__ remap is call-time only;
-        # audit and docstring consumers expect the user-facing class, not __init__.
+        # Class targets kept verbatim: _normalize_target() remaps class→__init__ at
+        # decoration time for the wrapper closure, but stored_target keeps the user-facing
+        # class so audit and docstring consumers see the original target.
         if target is None or isinstance(target, bool):
             stored_target: Any = TargetMode._from_legacy(target, stacklevel=None)
         elif isinstance(target, TargetMode):
@@ -1305,6 +1369,8 @@ def deprecated(
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
             template_mgs=template_mgs,
+            target_positional_only=_target_positional_only,
+            target_positional_only_order=_target_positional_only_order,
         )
         _dep_cfg = dep_meta
 
@@ -1356,6 +1422,13 @@ def deprecated(
                     return await source(**plan.resolved_kwargs)
                 # Sync target under async source: invoke directly so callers can migrate from a sync to async
                 # API in one step without forcing every legacy target to be redeclared ``async def``.
+                if _dep_cfg.target_positional_only:
+                    _pos_args, _kw_args = _split_positional_only_kwargs(
+                        _dep_cfg.target_positional_only_order, plan.resolved_kwargs, _dep_cfg.target_positional_only
+                    )
+                    if inspect.iscoroutinefunction(plan.target_func):
+                        return await plan.target_func(*_pos_args, **_kw_args)
+                    return plan.target_func(*_pos_args, **_kw_args)
                 if inspect.iscoroutinefunction(plan.target_func):
                     return await plan.target_func(**plan.resolved_kwargs)
                 return plan.target_func(**plan.resolved_kwargs)
@@ -1415,6 +1488,11 @@ def deprecated(
                     f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
                     f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
                 )
+            if _dep_cfg.target_positional_only:
+                _pos_args, _kw_args = _split_positional_only_kwargs(
+                    _dep_cfg.target_positional_only_order, plan.resolved_kwargs, _dep_cfg.target_positional_only
+                )
+                return plan.target_func(*_pos_args, **_kw_args)
             return plan.target_func(**plan.resolved_kwargs)
 
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)

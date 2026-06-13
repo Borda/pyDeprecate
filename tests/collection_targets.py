@@ -627,6 +627,50 @@ class PositionalOnlyTarget:
         self.new_val = new_val
 
 
+class SelfOnlyPositionalOnlyTarget:
+    """Target where ``self`` is the only POSITIONAL_ONLY parameter.
+
+    Exercises the edge case where ``target_positional_only`` would be an empty
+    frozenset if ``self`` were excluded — causing the split-dispatch gate to
+    never fire and ``target_func(**{'self': instance})`` to raise ``TypeError``.
+    Wrapped by ``OldSelfOnlyClass`` in :mod:`tests.collection_deprecate`.
+    """
+
+    def __init__(self, /) -> None:
+        """Construct with no user arguments; self is explicitly positional-only."""
+
+
+def positional_only_target(x: int, /, y: int = 0) -> int:
+    """Target with one POSITIONAL_ONLY param for function-decorator compat tests.
+
+    ``x`` is positional-only so ``positional_only_target(x=5)`` raises ``TypeError``.
+    Wrapped by ``deprecated_positional_only_source`` in :mod:`tests.collection_deprecate`
+    to verify the function decorator emits ``UserWarning`` at decoration time and
+    forwards calls correctly at call time.
+    """
+    return x + y
+
+
+async def async_positional_only_target(x: int, /, y: int = 0) -> int:
+    """Async target with one POSITIONAL_ONLY param for async dispatch tests.
+
+    ``x`` is positional-only. Wrapped by
+    ``deprecated_async_positional_only_source`` in
+    :mod:`tests.collection_deprecate`.
+    """
+    return x + y
+
+
+def positional_only_two_params_target(a: int, b: int, /, c: int = 0) -> int:
+    """Target with two POSITIONAL_ONLY params for ordering tests.
+
+    Both ``a`` and ``b`` are positional-only. Wrapped by
+    ``deprecated_positional_only_two_params_source`` in
+    :mod:`tests.collection_deprecate`.
+    """
+    return a + b + c
+
+
 class SelfDeprecatedModel:
     """Target for two-decorator no-target self-deprecation stacking tests.
 

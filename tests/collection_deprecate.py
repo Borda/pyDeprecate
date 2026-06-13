@@ -71,6 +71,7 @@ from tests.collection_targets import (
     PaletteOld,
     PositionalOnlyTarget,
     SelfDeprecatedModel,
+    SelfOnlyPositionalOnlyTarget,
     SomeTargetClass,
     StackedAttrTarget,
     StackingArgsAttrsBase,
@@ -81,6 +82,7 @@ from tests.collection_targets import (
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
     async_gen_target,
+    async_positional_only_target,
     async_target,
     base_pow_args,
     base_sum_kwargs,
@@ -95,6 +97,8 @@ from tests.collection_targets import (
     identity_value,
     increment_value,
     pep702_target,
+    positional_only_target,
+    positional_only_two_params_target,
     power_with_new_coef,
     return_b,
     return_z,
@@ -1922,3 +1926,137 @@ DepSelfCombinedTwoLayer = deprecated_class(
         **_DEPRS_CASE_STD_INF_ARGS,
     )(SelfDeprecatedModel)
 )
+
+
+# ========== Function-decorator POSITIONAL_ONLY target fixture ==========
+
+# positional_only_target declares `x` as POSITIONAL_ONLY — calling it with
+# x=value as a kwarg raises TypeError.  After the fix, @deprecated detects this
+# at decoration time (UserWarning) and splits the dispatch at call time.
+# Suppress the decoration-time UserWarning here so importing this module does
+# not pollute test output.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")
+    def deprecated_positional_only_source(x: int, y: int = 0) -> int:
+        """Deprecated wrapper forwarding to a target with a POSITIONAL_ONLY parameter."""
+        return 0
+
+
+# ========== Async POSITIONAL_ONLY fixture ==========
+
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=async_positional_only_target, deprecated_in="1.0", remove_in="2.0")
+    async def deprecated_async_positional_only_source(x: int, y: int = 0) -> int:
+        """Deprecated async wrapper forwarding to an async target with a POSITIONAL_ONLY parameter."""
+        return 0
+
+
+# ========== Two POSITIONAL_ONLY params ordering fixture ==========
+
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=positional_only_two_params_target, deprecated_in="1.0", remove_in="2.0")
+    def deprecated_positional_only_two_params_source(a: int, b: int, c: int = 0) -> int:
+        """Deprecated wrapper forwarding to a target with two POSITIONAL_ONLY parameters."""
+        return 0
+
+
+# ========== args_mapping + POSITIONAL_ONLY fixture ==========
+
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(
+        target=positional_only_target,
+        deprecated_in="1.0",
+        remove_in="2.0",
+        args_mapping={"old_x": "x"},
+    )
+    def deprecated_positional_only_with_args_mapping_source(old_x: int, y: int = 0) -> int:
+        """Deprecated wrapper using args_mapping to rename 'old_x' to 'x' before positional-only split."""
+        return 0
+
+
+# ========== Constructor-forwarding POSITIONAL_ONLY fixture ==========
+
+# @deprecated applied to OldPositionalOnlyClass.__init__ with target=PositionalOnlyTarget
+# (a class).  _normalize_target() maps this to PositionalOnlyTarget.__init__ (unbound),
+# whose param_order includes "self".  _split_positional_only_kwargs() must pop "self" into
+# pos_args before "new_val" so the unbound __init__ call succeeds.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    class OldPositionalOnlyClass:
+        """Deprecated class whose constructor forwards to PositionalOnlyTarget."""
+
+        @deprecated(target=PositionalOnlyTarget, deprecated_in="1.0", remove_in="2.0")
+        def __init__(self, new_val: int = 0) -> None:
+            """Constructor deprecated in favour of PositionalOnlyTarget."""
+            self.new_val = new_val
+
+
+# ========== self-only POSITIONAL_ONLY constructor fixture ==========
+
+# @deprecated on OldSelfOnlyClass.__init__ with target=SelfOnlyPositionalOnlyTarget.
+# _normalize_target() maps the class target to SelfOnlyPositionalOnlyTarget.__init__
+# (unbound), whose only POSITIONAL_ONLY param is self.  Before the fix, self was
+# excluded from target_positional_only, leaving the set empty → split gate never fired
+# → target_func(**{'self': instance}) → TypeError.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    class OldSelfOnlyClass:
+        """Deprecated class forwarding to SelfOnlyPositionalOnlyTarget."""
+
+        @deprecated(target=SelfOnlyPositionalOnlyTarget, deprecated_in="1.0", remove_in="2.0")
+        def __init__(self) -> None:
+            """Constructor deprecated in favour of SelfOnlyPositionalOnlyTarget."""
+
+
+# ========== stream=None POSITIONAL_ONLY fixture ==========
+
+# stream=None suppresses both the decoration-time UserWarning (via the
+# `stream is not None` guard in packing()) and the call-time FutureWarning,
+# so no catch_warnings block is needed here.
+
+
+@deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", stream=None)
+def deprecated_positional_only_stream_none(x: int, y: int = 0) -> int:
+    """Deprecated wrapper forwarding to positional_only_target with stream=None (no warnings emitted)."""
+    return 0
+
+
+# ========== num_warns=1 POSITIONAL_ONLY fixture ==========
+
+# Factory — not a singleton — because num_warns=1 gives the wrapper a stateful quota
+# counter.  A module-level singleton would have the quota depleted after the first test
+# call, causing subsequent test runs to fail on `pytest.warns(FutureWarning)`.
+# Each test that needs a fresh quota calls `make_deprecated_positional_only_num_warns_one()`
+# to get a new wrapper with warn_count reset to 0.
+
+
+def make_deprecated_positional_only_num_warns_one() -> "Callable[..., int]":
+    """Return a fresh deprecated wrapper for positional_only_target with num_warns=1.
+
+    The wrapper emits ``FutureWarning`` on the first call only.  A fresh wrapper is
+    returned each call so the quota counter starts at zero regardless of prior test
+    activity — a module-level singleton would be depleted after the first test run.
+
+    Returns:
+        A new ``@deprecated`` wrapper around :func:`~tests.collection_targets.positional_only_target`
+        configured with ``num_warns=1`` and the decoration-time ``UserWarning`` suppressed.
+    """
+    with catch_warnings():
+        simplefilter("ignore", UserWarning)
+
+        @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        def _deprecated_positional_only_num_warns_one(x: int, y: int = 0) -> int:
+            """Deprecated wrapper forwarding to positional_only_target; FutureWarning emitted once only."""
+            return 0
+
+    return _deprecated_positional_only_num_warns_one
