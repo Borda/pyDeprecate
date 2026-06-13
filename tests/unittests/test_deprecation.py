@@ -1264,7 +1264,7 @@ class TestPositionalOnlyTarget:
             pytest.param((5,), {}, 5, id="positional-arg"),
             pytest.param((), {"x": 5}, 5, id="keyword-arg"),
             pytest.param((3,), {"y": 4}, 7, id="both-args"),
-        ]
+        ],
     )
     def test_call_shape_forwards_correctly(self, call_args: tuple, call_kwargs: dict, expected: int) -> None:
         """Call-shape variations on a POSITIONAL_ONLY target all forward correctly.
