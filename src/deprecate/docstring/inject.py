@@ -447,7 +447,72 @@ def _build_general_notice_lines(dep_info: DeprecationConfig) -> list[str]:
     return result
 
 
-def _update_docstring_with_deprecation(wrapped_fn: object) -> None:  # noqa: C901, PLR0912
+def _has_deprecation_block(doc_lines: list[str], block_lines: list[str]) -> bool:
+    """Return True if ``block_lines`` appears as a contiguous block in ``doc_lines``.
+
+    Lines are compared using ``.strip()`` to ignore leading/trailing whitespace.
+
+    """
+    if not block_lines:
+        return False
+    max_start = len(doc_lines) - len(block_lines)
+    if max_start < 0:
+        return False
+    first = block_lines[0].strip()
+    for start in range(max_start + 1):
+        if doc_lines[start].strip() != first:
+            continue
+        if all(doc_lines[start + offset].strip() == block_lines[offset].strip() for offset in range(len(block_lines))):
+            return True
+    return False
+
+
+def _inject_args_mapping_section(lines: list[str], dep_info: DeprecationConfig) -> tuple[list[str], bool]:
+    """Apply per-argument inline deprecation notes to docstring lines.
+
+    Returns ``(updated_lines, all_args_found)`` where ``all_args_found`` is ``True`` when every key in
+    ``dep_info.args_mapping`` was located in the docstring.
+
+    """
+    all_args_found = True
+    for arg_name, new_arg in dep_info.args_mapping.items():  # type: ignore[union-attr]
+        note = _build_arg_deprecation_note(new_arg, dep_info.deprecated_in, dep_info.remove_in)
+        lines, found = _annotate_google_style_arg(lines, arg_name, note)
+        if not found:
+            lines, found = _annotate_sphinx_style_arg(lines, arg_name, note)
+        if not found:
+            all_args_found = False
+    return lines, all_args_found
+
+
+def _append_notice_after_inline_args(lines: list[str], body_indent: str, deprecation_lines: list[str]) -> list[str]:
+    """Append general deprecation notice after inline per-arg annotations."""
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines.append("")
+    lines.extend(body_indent + ln for ln in deprecation_lines)
+    return lines
+
+
+def _insert_notice_before_section(lines: list[str], body_indent: str, deprecation_lines: list[str]) -> str:
+    """Insert general deprecation notice before the first Google/NumPy section header."""
+    indented = [body_indent + ln for ln in deprecation_lines]
+    insert_idx = find_docstring_insertion_index(lines)
+    prefix = lines[:insert_idx]
+    suffix = lines[insert_idx:]
+    if prefix and prefix[-1].strip():
+        prefix.append("")
+    prefix.extend(indented)
+    if suffix:
+        while suffix and not suffix[-1].strip():  # Python 3.13 may leave trailing blanks
+            suffix.pop()
+        if suffix and suffix[0].strip():
+            prefix.append("")
+        prefix.extend(suffix)
+    return "\n".join(prefix)
+
+
+def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
     """Annotate a function's docstring with deprecation information.
 
     Two paths are taken depending on whether ``args_mapping`` is set:
@@ -538,14 +603,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:  # noqa: C90
     dep_info = wrapped_fn.__deprecated__
 
     if dep_info.args_mapping:
-        all_args_found = True
-        for arg_name, new_arg in dep_info.args_mapping.items():
-            note = _build_arg_deprecation_note(new_arg, dep_info.deprecated_in, dep_info.remove_in)
-            lines, found = _annotate_google_style_arg(lines, arg_name, note)
-            if not found:
-                lines, found = _annotate_sphinx_style_arg(lines, arg_name, note)
-            if not found:
-                all_args_found = False  # missing arg → general notice still needed
+        lines, all_args_found = _inject_args_mapping_section(lines, dep_info)
         # ARGS_REMAP (or legacy target=True) means only individual args are deprecated,
         # not the function itself.
         if all_args_found and dep_info.target is TargetMode.ARGS_REMAP:
@@ -553,27 +611,6 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:  # noqa: C90
             return
 
     deprecation_lines = _build_general_notice_lines(dep_info)
-
-    def _has_deprecation_block(doc_lines: list[str], block_lines: list[str]) -> bool:
-        """Return True if ``block_lines`` appears as a contiguous block in ``doc_lines``.
-
-        Lines are compared using ``.strip()`` to ignore leading/trailing whitespace.
-
-        """
-        if not block_lines:
-            return False
-        max_start = len(doc_lines) - len(block_lines)
-        if max_start < 0:
-            return False
-        first = block_lines[0].strip()
-        for start in range(max_start + 1):
-            if doc_lines[start].strip() != first:
-                continue
-            if all(
-                doc_lines[start + offset].strip() == block_lines[offset].strip() for offset in range(len(block_lines))
-            ):
-                return True
-        return False
 
     # Guard idempotency by checking for the full deprecation block, not just the marker line.
     if _has_deprecation_block(lines, deprecation_lines):
@@ -583,25 +620,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:  # noqa: C90
         "",
     )
     if dep_info.args_mapping:
-        # Append after inline arg notes to preserve existing section order.
-        while lines and not lines[-1].strip():
-            lines.pop()
-        lines.append("")
-        lines.extend(body_indent + ln for ln in deprecation_lines)
+        lines = _append_notice_after_inline_args(lines, body_indent, deprecation_lines)
         wrapped_fn.__doc__ = inspect.cleandoc("\n".join(lines))
     else:
-        # Insert before the first section so doc parsers see the notice first.
-        deprecation_lines = [body_indent + ln for ln in deprecation_lines]
-        insert_idx = find_docstring_insertion_index(lines)
-        prefix = lines[:insert_idx]
-        suffix = lines[insert_idx:]
-        if prefix and prefix[-1].strip():
-            prefix.append("")
-        prefix.extend(deprecation_lines)
-        if suffix:
-            while suffix and not suffix[-1].strip():  # Python 3.13 may leave trailing blanks
-                suffix.pop()
-            if suffix and suffix[0].strip():
-                prefix.append("")
-            prefix.extend(suffix)
-        wrapped_fn.__doc__ = inspect.cleandoc("\n".join(prefix))
+        wrapped_fn.__doc__ = inspect.cleandoc(_insert_notice_before_section(lines, body_indent, deprecation_lines))

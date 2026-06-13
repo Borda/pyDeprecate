@@ -256,7 +256,7 @@ class _DeprecatedProxy:
                 " when `target` is provided, or on the wrapped class."
             )
 
-    def __init__(  # noqa: C901, PLR0912
+    def __init__(
         self,
         obj: Any,  # noqa: ANN401
         name: str,
@@ -304,47 +304,20 @@ class _DeprecatedProxy:
         misconfigured = target is False or _misconfigured_override
         if isinstance(target, bool):
             target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
-        # Dataclass dual-surface auto-expand: when the target (or wrapped object) is a @dataclass,
-        # copy attrs_mapping entries whose redirect points to a dataclass field into args_mapping so
-        # that both `instance.old_field` (attribute access) and `DC(old_field=5)` (constructor kwarg)
-        # emit a FutureWarning from a single deprecated_class() call.  Keys already present in
-        # args_mapping are left untouched (explicit user values always win).
-        _auto_expanded: list[str] = []
         _dc_check = _DeprecatedProxy._get_static_attr_owner(
             target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
         )
         if args_mapping is not None:
             args_mapping = dict(args_mapping)
-        if attrs_mapping and _is_dataclass_target(_dc_check):
-            _init_param_names: set[str] = set(inspect.signature(_dc_check).parameters)
-            for _old_key, _mapping_val in attrs_mapping.items():
-                if _mapping_val in _init_param_names:
-                    if args_mapping is None:
-                        args_mapping = {}
-                    if _old_key not in args_mapping:
-                        args_mapping[_old_key] = _mapping_val
-                        _auto_expanded.append(_old_key)
+        # Dataclass dual-surface auto-expand: copy attrs_mapping entries that name a dataclass field
+        # into args_mapping so both attribute access and constructor kwarg paths emit a FutureWarning.
+        args_mapping, _auto_expanded = _expand_dc_attrs_to_args(_dc_check, attrs_mapping, args_mapping)
         # When auto-expand produced a non-empty args_mapping and the user provided no explicit
-        # target, set target = obj (the dataclass itself) so that the callable-target + both-
-        # mappings path in __call__ and _validate_proxy activates both surfaces without
-        # triggering the ARGS_REMAP + attrs_mapping misconfiguration check.
+        # target, set target = obj so the callable-target + both-mappings path activates both surfaces.
         if _auto_expanded and target is None:
             target = obj
-        # Kwargs-compatibility guard: if args_mapping remaps old keys to POSITIONAL_ONLY constructor
-        # params, calling the proxy with those old names would TypeError after remapping.  Detect at
-        # decoration time, emit UserWarning, and record for audit + call-time fallback.
-        _incompatible: tuple[str, ...] = ()
-        if args_mapping and isinstance(_dc_check, type):
-            _incompatible = _get_args_mapping_positional_only_keys(_dc_check, args_mapping)
-            if _incompatible:
-                warnings.warn(
-                    f"`args_mapping` on `{name}` remaps {list(_incompatible)!r} to POSITIONAL_ONLY "
-                    f"constructor parameter(s) of `{_dc_check.__name__}`. "
-                    "Calls using those deprecated names will fall back to attribute assignment "
-                    "instead of constructor kwargs — consider using `attrs_mapping` instead.",
-                    UserWarning,
-                    stacklevel=4,
-                )
+        # Kwargs-compatibility guard: detect args_mapping keys that remap to POSITIONAL_ONLY params.
+        _incompatible = _detect_proxy_positional_only(_dc_check, name, args_mapping)
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
@@ -471,7 +444,7 @@ class _DeprecatedProxy:
             "remove_in": dep.remove_in,
         }
 
-    def _warn(self, *, arg_name: Optional[str] = None) -> None:  # noqa: C901, PLR0912
+    def _warn(self, *, arg_name: Optional[str] = None) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted.
 
         Args:
@@ -487,56 +460,15 @@ class _DeprecatedProxy:
         if not stream:
             return
         if arg_name is not None:
-            # Per-argument warning budget
             arg_count = cfg.warned_args.get(arg_name, 0)
             if cfg.num_warns >= 0 and arg_count >= cfg.num_warns:
                 return
-        else:
-            # Global warning budget
-            if cfg.num_warns >= 0 and cfg.warned >= cfg.num_warns:
-                return
+        elif cfg.num_warns >= 0 and cfg.warned >= cfg.num_warns:
+            return
         dep = self._dep
-        target: Any = dep.target
-        args_mapping = dep.args_mapping
-        # ``cfg.template_mgs`` (when set) overrides the built-in template for every branch.  Fallback semantics
-        # mirror the decorator's ``_raise_warn_callable`` and ``_raise_warn_arguments``: the built-in template
-        # appropriate for the active scenario is used when no override is configured.
-        custom_template = cfg.template_mgs
-        # Per-argument warning: use the same template the decorator emits for `args_mapping` deprecations so callers
-        # see `old -> new` rather than a generic class-deprecation message.
-        if arg_name is not None and args_mapping and arg_name in args_mapping:
-            new_arg = args_mapping[arg_name]
-            argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
-            template = custom_template or TEMPLATE_WARNING_ARGUMENTS
-            msg = template % {
-                "source_name": dep.name,
-                "deprecated_in": dep.deprecated_in,
-                "remove_in": dep.remove_in,
-                "argument_map": argument_map,
-            }
-        elif arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
-            _attr_msg = self._build_attr_warning_msg(arg_name, dep, dep.attrs_mapping, target, custom_template)
-            if _attr_msg is None:
-                return
-            msg = _attr_msg
-        elif callable(target):
-            target_name = target.__name__
-            target_path = f"{target.__module__}.{target_name}"
-            template = custom_template or TEMPLATE_WARNING_CALLABLE
-            msg = template % {
-                "source_name": dep.name,
-                "deprecated_in": dep.deprecated_in,
-                "remove_in": dep.remove_in,
-                "target_name": target_name,
-                "target_path": target_path,
-            }
-        else:
-            template = custom_template or TEMPLATE_WARNING_NO_TARGET
-            msg = template % {
-                "source_name": dep.name,
-                "deprecated_in": dep.deprecated_in,
-                "remove_in": dep.remove_in,
-            }
+        msg = _build_proxy_warn_msg(self, arg_name, dep, cfg)
+        if msg is None:
+            return
         # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the ``_raise_warn`` fallback
         # in ``deprecation.py``: when ``stream`` does not accept a ``stacklevel`` kwarg (e.g. ``print``, custom
         # callables), fall back to a positional call.
@@ -786,7 +718,7 @@ class _DeprecatedProxy:
     # Callable protocol
     # ------------------------------------------------------------------
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, C901, PLR0912
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the active object, emitting a deprecation warning conditionally based on target mode.
 
         Branching logic:
@@ -811,44 +743,10 @@ class _DeprecatedProxy:
         # surface, so forwarding through the inner proxy avoids double-warning when both layers are active.
         if dep.target is TargetMode.ATTRS_REMAP and isinstance(cfg.obj, _DeprecatedProxy):
             return cfg.obj(*args, **kwargs)
-
         if dep.target is TargetMode.ARGS_REMAP:
-            mapping = dep.args_mapping or {}
-            for old_key in mapping:
-                if old_key in kwargs:
-                    self._warn(arg_name=old_key)
-            mapped_kwargs = self._apply_args_mapping(kwargs)
-            mapped_kwargs = self._merge_args_extra(mapped_kwargs)
-            # Positional-only fallback: after remapping, mapped_kwargs holds NEW keys; incompatible
-            # old keys have already been renamed to their POSITIONAL_ONLY target names.  Extract those
-            # new keys (cannot be forwarded as kwargs), construct the object, then setattr.
-            if dep.args_mapping_positional_only and dep.args_mapping:
-                _incompat_new = self._resolve_incompat_new_keys(dep)
-                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
-                instance = cfg.obj(*args, **mapped_kwargs)
-                for new_key, val in pending.items():
-                    setattr(instance, new_key, val)
-                return instance
-            return cfg.obj(*args, **mapped_kwargs)
+            return _proxy_call_args_remap(self, dep, cfg, args, kwargs)
         if callable(dep.target) and dep.args_mapping:
-            mapping = dep.args_mapping or {}
-            for old_key in mapping:
-                if old_key in kwargs:
-                    self._warn(arg_name=old_key)
-            if not any(old_key in kwargs for old_key in mapping):
-                # No old-style args — still warn because the class itself is deprecated
-                self._warn()
-            mapped_kwargs = self._apply_args_mapping(kwargs)
-            mapped_kwargs = self._merge_args_extra(mapped_kwargs)
-            # Positional-only fallback for callable target path.
-            if dep.args_mapping_positional_only and dep.args_mapping:
-                _incompat_new = self._resolve_incompat_new_keys(dep)
-                pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
-                instance = dep.target(*args, **mapped_kwargs)
-                for new_key, val in pending.items():
-                    setattr(instance, new_key, val)
-                return instance
-            return dep.target(*args, **mapped_kwargs)
+            return _proxy_call_callable_with_mapping(self, dep, dep.target, args, kwargs)
         # Callable target without args_mapping: warn globally; still merge args_extra so
         # injected defaults reach the target.
         self._warn()
@@ -950,6 +848,159 @@ class _DeprecatedProxy:
             # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
             return issubclass(subclass, active)
         return False
+
+
+def _proxy_call_args_remap(
+    proxy: _DeprecatedProxy,
+    dep: DeprecationConfig,
+    cfg: _ProxyConfig,
+    args: tuple,
+    kwargs: dict,
+) -> Any:  # noqa: ANN401
+    """Handle ``TargetMode.ARGS_REMAP`` branch of ``__call__``: warn per deprecated kwarg, remap, call obj."""
+    mapping = dep.args_mapping or {}
+    for old_key in mapping:
+        if old_key in kwargs:
+            proxy._warn(arg_name=old_key)
+    mapped_kwargs = proxy._apply_args_mapping(kwargs)
+    mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
+    if dep.args_mapping_positional_only and dep.args_mapping:
+        _incompat_new = proxy._resolve_incompat_new_keys(dep)
+        pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+        instance = cfg.obj(*args, **mapped_kwargs)
+        for new_key, val in pending.items():
+            setattr(instance, new_key, val)
+        return instance
+    return cfg.obj(*args, **mapped_kwargs)
+
+
+def _proxy_call_callable_with_mapping(
+    proxy: _DeprecatedProxy,
+    dep: DeprecationConfig,
+    target_fn: Callable[..., Any],
+    args: tuple,
+    kwargs: dict,
+) -> Any:  # noqa: ANN401
+    """Handle callable-target + args_mapping branch of ``__call__``: warn per kwarg, remap, forward."""
+    mapping = dep.args_mapping or {}
+    for old_key in mapping:
+        if old_key in kwargs:
+            proxy._warn(arg_name=old_key)
+    if not any(old_key in kwargs for old_key in mapping):
+        proxy._warn()
+    mapped_kwargs = proxy._apply_args_mapping(kwargs)
+    mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
+    if dep.args_mapping_positional_only and dep.args_mapping:
+        _incompat_new = proxy._resolve_incompat_new_keys(dep)
+        pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
+        instance = target_fn(*args, **mapped_kwargs)
+        for new_key, val in pending.items():
+            setattr(instance, new_key, val)
+        return instance
+    return target_fn(*args, **mapped_kwargs)
+
+
+def _expand_dc_attrs_to_args(
+    dc_check: Any,  # noqa: ANN401
+    attrs_mapping: Optional[dict[str, Optional[str]]],
+    args_mapping: Optional[dict[str, Optional[str]]],
+) -> tuple[Optional[dict[str, Optional[str]]], list[str]]:
+    """Auto-expand ``attrs_mapping`` entries into ``args_mapping`` for dataclass dual-surface deprecation.
+
+    When the target (or wrapped object) is a ``@dataclass``, copies ``attrs_mapping`` entries whose redirect value names
+    a dataclass ``__init__`` parameter into ``args_mapping`` so that both ``instance.old_field`` (attribute access) and
+    ``DC(old_field=5)`` (constructor kwarg) emit a ``FutureWarning`` from a single ``deprecated_class()`` call.
+
+    Returns ``(updated_args_mapping, auto_expanded_keys)``.  Returns the original ``args_mapping`` unchanged (possibly
+    ``None``) when ``attrs_mapping`` is empty/``None`` or ``dc_check`` is not a dataclass.  Keys already present in
+    ``args_mapping`` are never overwritten.
+
+    """
+    if not (attrs_mapping and _is_dataclass_target(dc_check)):
+        return args_mapping, []
+    auto_expanded: list[str] = []
+    _init_param_names: set[str] = set(inspect.signature(dc_check).parameters)
+    for _old_key, _mapping_val in attrs_mapping.items():
+        if _mapping_val in _init_param_names:
+            if args_mapping is None:
+                args_mapping = {}
+            if _old_key not in args_mapping:
+                args_mapping[_old_key] = _mapping_val
+                auto_expanded.append(_old_key)
+    return args_mapping, auto_expanded
+
+
+def _detect_proxy_positional_only(
+    dc_check: Any,  # noqa: ANN401
+    name: str,
+    args_mapping: Optional[dict[str, Optional[str]]],
+) -> tuple[str, ...]:
+    """Detect ``args_mapping`` keys that remap to POSITIONAL_ONLY constructor parameters.
+
+    Emits a ``UserWarning`` at decoration time and returns the incompatible old-key names so they can be recorded in
+    :class:`~deprecate._types.DeprecationConfig` for audit and call-time fallback. Returns an empty tuple when no
+    incompatibilities are found.
+
+    """
+    if not (args_mapping and isinstance(dc_check, type)):
+        return ()
+    incompatible = _get_args_mapping_positional_only_keys(dc_check, args_mapping)
+    if incompatible:
+        warnings.warn(
+            f"`args_mapping` on `{name}` remaps {list(incompatible)!r} to POSITIONAL_ONLY "
+            f"constructor parameter(s) of `{dc_check.__name__}`. "
+            "Calls using those deprecated names will fall back to attribute assignment "
+            "instead of constructor kwargs — consider using `attrs_mapping` instead.",
+            UserWarning,
+            stacklevel=5,  # caller → decorator(cls) → __init__ → _detect_proxy_positional_only → warn
+        )
+    return incompatible
+
+
+def _build_proxy_warn_msg(
+    proxy: _DeprecatedProxy,
+    arg_name: Optional[str],
+    dep: DeprecationConfig,
+    cfg: _ProxyConfig,
+) -> Optional[str]:
+    """Build the warning message string for a proxy warning emission.
+
+    Returns ``None`` when the warning should be suppressed (``attrs_mapping`` lookup miss).
+
+    """
+    target: Any = dep.target
+    args_mapping = dep.args_mapping
+    custom_template = cfg.template_mgs
+
+    if arg_name is not None and args_mapping and arg_name in args_mapping:
+        new_arg = args_mapping[arg_name]
+        argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
+        template = custom_template or TEMPLATE_WARNING_ARGUMENTS
+        return template % {
+            "source_name": dep.name,
+            "deprecated_in": dep.deprecated_in,
+            "remove_in": dep.remove_in,
+            "argument_map": argument_map,
+        }
+    if arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
+        return proxy._build_attr_warning_msg(arg_name, dep, dep.attrs_mapping, target, custom_template)
+    if callable(target):
+        target_name = target.__name__
+        target_path = f"{target.__module__}.{target_name}"
+        template = custom_template or TEMPLATE_WARNING_CALLABLE
+        return template % {
+            "source_name": dep.name,
+            "deprecated_in": dep.deprecated_in,
+            "remove_in": dep.remove_in,
+            "target_name": target_name,
+            "target_path": target_path,
+        }
+    template = custom_template or TEMPLATE_WARNING_NO_TARGET
+    return template % {
+        "source_name": dep.name,
+        "deprecated_in": dep.deprecated_in,
+        "remove_in": dep.remove_in,
+    }
 
 
 def deprecated_class(

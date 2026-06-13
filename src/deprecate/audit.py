@@ -772,7 +772,76 @@ def validate_deprecation_expiry(
     )
 
 
-def find_deprecation_wrappers(  # noqa: C901
+def _scan_callable(
+    obj: Any,  # noqa: ANN401
+    module_name: str,
+    qualified_name: str,
+    results: list[DeprecationWrapperInfo],
+    *,
+    member_name: Optional[str] = None,
+    descriptor_kind: Optional[str] = None,
+) -> None:
+    """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
+    if _has_deprecation_meta(obj):
+        info = validate_deprecation_wrapper(obj)
+        api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
+        info = replace(info, module=module_name, function=qualified_name, api_type=api_type)
+        results.append(info)
+
+
+def _scan_class(cls: Any, module_name: str, cls_name: str, results: list[DeprecationWrapperInfo]) -> None:  # noqa: ANN401
+    """Scan class members, peeking through descriptors."""
+    try:
+        members = _getmembers_static_compat(cls)
+    except (AttributeError, TypeError):
+        return
+    for attr_name, obj in members:
+        if attr_name.startswith("_") and attr_name != "__init__":
+            continue
+        qualified = f"{cls_name}.{attr_name}"
+        if isinstance(obj, (classmethod, staticmethod)):
+            kind = "classmethod" if isinstance(obj, classmethod) else "staticmethod"
+            _scan_callable(obj.__func__, module_name, qualified, results, member_name=attr_name, descriptor_kind=kind)
+        elif isinstance(obj, property):
+            _prop_accessor = next(
+                (a for a in (obj.fget, obj.fset, obj.fdel) if a is not None and _has_deprecation_meta(a)),
+                None,
+            )
+            if _prop_accessor is not None:
+                _scan_callable(_prop_accessor, module_name, qualified, results, member_name=attr_name)
+        elif isinstance(obj, cached_property):
+            _scan_callable(obj.func, module_name, qualified, results, member_name=attr_name)
+        else:
+            _scan_callable(obj, module_name, qualified, results, member_name=attr_name)
+
+
+def _scan_module(
+    mod: Any,  # noqa: ANN401
+    results: list[DeprecationWrapperInfo],
+    *,
+    include_members: bool,
+) -> None:
+    """Scan a single module for deprecated functions and class members."""
+    try:
+        members = _getmembers_static_compat(mod)
+    except (AttributeError, TypeError, ImportError):
+        return
+
+    mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
+    for name, obj in members:
+        if name.startswith("_"):
+            continue
+
+        if _has_deprecation_meta(obj):
+            info = validate_deprecation_wrapper(obj)
+            api_type = _classify_wrapper_api_type(obj, info)
+            info = replace(info, module=mod_name, function=name, api_type=api_type)
+            results.append(info)
+        elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
+            _scan_class(obj, mod_name, name, results)
+
+
+def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
     include_members: bool = True,
@@ -834,76 +903,8 @@ def find_deprecation_wrappers(  # noqa: C901
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    def _scan_callable(
-        obj: Any,  # noqa: ANN401
-        module_name: str,
-        qualified_name: str,
-        *,
-        member_name: Optional[str] = None,
-        descriptor_kind: Optional[str] = None,
-    ) -> None:
-        """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
-        if _has_deprecation_meta(obj):
-            info = validate_deprecation_wrapper(obj)
-            api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
-            info = replace(info, module=module_name, function=qualified_name, api_type=api_type)
-            results.append(info)
+    _scan_module(module, results, include_members=include_members)
 
-    def _scan_class(cls: Any, module_name: str, cls_name: str) -> None:  # noqa: ANN401
-        """Scan class members, peeking through descriptors."""
-        try:
-            members = _getmembers_static_compat(cls)
-        except (AttributeError, TypeError):
-            return
-        for attr_name, obj in members:
-            if attr_name.startswith("_") and attr_name != "__init__":
-                continue
-            qualified = f"{cls_name}.{attr_name}"
-            # Peek through descriptors to find the underlying function.
-            if isinstance(obj, (classmethod, staticmethod)):
-                kind = "classmethod" if isinstance(obj, classmethod) else "staticmethod"
-                _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
-            elif isinstance(obj, property):
-                # Scan the first accessor that carries deprecation metadata.
-                # fset/fdel provide fallback for setter-only or deleter-only properties
-                # (fget=None) and explicit property(non_deprecated_fget, deprecated_fset) forms.
-                _prop_accessor = next(
-                    (a for a in (obj.fget, obj.fset, obj.fdel) if a is not None and _has_deprecation_meta(a)),
-                    None,
-                )
-                if _prop_accessor is not None:
-                    _scan_callable(_prop_accessor, module_name, qualified, member_name=attr_name)
-            elif isinstance(obj, cached_property):
-                _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
-            else:
-                _scan_callable(obj, module_name, qualified, member_name=attr_name)
-
-    def _scan_module(mod: Any) -> None:  # noqa: ANN401
-        """Scan a single module for deprecated functions and class members."""
-        try:
-            # Static inspection avoids dynamic getattr/descriptor evaluation while scanning.
-            members = _getmembers_static_compat(mod)
-        except (AttributeError, TypeError, ImportError):
-            return
-
-        mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
-        for name, obj in members:
-            # Skip private/magic attributes and imports from other modules
-            if name.startswith("_"):
-                continue
-
-            if _has_deprecation_meta(obj):
-                info = validate_deprecation_wrapper(obj)
-                api_type = _classify_wrapper_api_type(obj, info)
-                info = replace(info, module=mod_name, function=name, api_type=api_type)
-                results.append(info)
-            elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
-                _scan_class(obj, mod_name, name)
-
-    # Scan the main module
-    _scan_module(module)
-
-    # Recursively scan submodules if requested
     if recursive and hasattr(module, "__path__"):
         try:
             packages = list(
@@ -915,7 +916,7 @@ def find_deprecation_wrappers(  # noqa: C901
         for _importer, modname, _ispkg in packages:
             with suppress(ImportError, ModuleNotFoundError):
                 submod = importlib.import_module(modname)
-                _scan_module(submod)
+                _scan_module(submod, results, include_members=include_members)
 
     return results
 
@@ -974,7 +975,18 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
     return str(target)
 
 
-def _classify_wrapper_api_type(  # noqa: C901
+def _classify_member_api_type(member_name: str, descriptor_kind: Optional[str], has_mapping: bool) -> str:
+    """Classify the API type for a deprecated class member (method, constructor, descriptor)."""
+    if member_name == "__init__":
+        return "class constructor args" if has_mapping else "class constructor"
+    if descriptor_kind == "classmethod":
+        return "classmethod args" if has_mapping else "classmethod"
+    if descriptor_kind == "staticmethod":
+        return "staticmethod args" if has_mapping else "staticmethod"
+    return "class method args" if has_mapping else "class method"
+
+
+def _classify_wrapper_api_type(
     wrapped_obj: Any,  # noqa: ANN401
     info: DeprecationWrapperInfo,
     *,
@@ -985,13 +997,7 @@ def _classify_wrapper_api_type(  # noqa: C901
     has_mapping = bool(info.deprecated_info.args_mapping)
 
     if member_name is not None:
-        if member_name == "__init__":
-            return "class constructor args" if has_mapping else "class constructor"
-        if descriptor_kind == "classmethod":
-            return "classmethod args" if has_mapping else "classmethod"
-        if descriptor_kind == "staticmethod":
-            return "staticmethod args" if has_mapping else "staticmethod"
-        return "class method args" if has_mapping else "class method"
+        return _classify_member_api_type(member_name, descriptor_kind, has_mapping)
 
     if isinstance(wrapped_obj, _DeprecatedProxy):
         while isinstance(wrapped_obj, _DeprecatedProxy):
@@ -1076,7 +1082,25 @@ def _get_deprecation_status(info: DeprecationWrapperInfo, current_version: Optio
     return DeprecationStatus.ACTIVE_WARNING
 
 
-def generate_deprecation_table(  # noqa: C901
+def _format_matrix_row(info: DeprecationWrapperInfo, col_idx: dict[str, int], n_versions: int) -> str:
+    """Format one matrix-style table row for a deprecated wrapper."""
+    markers: list[str] = [" "] * n_versions
+    dep_in = info.deprecated_info.deprecated_in
+    rem_in = info.deprecated_info.remove_in
+    if dep_in and dep_in in col_idx:
+        markers[col_idx[dep_in]] = "D"
+    if rem_in and rem_in in col_idx:
+        i = col_idx[rem_in]
+        markers[i] = "R" if markers[i] == " " else "D/R"
+    return (
+        "| "
+        f"`{_format_report_symbol(info)}` | "
+        f"{_format_report_api_type(info)} | "
+        f"`{_format_report_target(info.deprecated_info.target)}` | " + " | ".join(markers) + " |"
+    )
+
+
+def generate_deprecation_table(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
@@ -1175,20 +1199,7 @@ def generate_deprecation_table(  # noqa: C901
         rows = [header_row, divider_row]
 
         for info in wrappers:
-            markers: list[str] = [" "] * n_versions
-            dep_in = info.deprecated_info.deprecated_in
-            rem_in = info.deprecated_info.remove_in
-            if dep_in and dep_in in col_idx:
-                markers[col_idx[dep_in]] = "D"
-            if rem_in and rem_in in col_idx:
-                i = col_idx[rem_in]
-                markers[i] = "R" if markers[i] == " " else "D/R"
-            rows.append(
-                "| "
-                f"`{_format_report_symbol(info)}` | "
-                f"{_format_report_api_type(info)} | "
-                f"`{_format_report_target(info.deprecated_info.target)}` | " + " | ".join(markers) + " |"
-            )
+            rows.append(_format_matrix_row(info, col_idx, n_versions))
 
     if resolved_version is not None:
         rows.insert(0, f"<!-- Current version: {resolved_version} -->")
