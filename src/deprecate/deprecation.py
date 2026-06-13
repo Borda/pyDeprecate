@@ -17,6 +17,7 @@ import inspect
 import sys
 import warnings
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
@@ -991,7 +992,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
     )
 
 
-def _packing_descriptor(  # noqa: C901
+def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel validation + TypeError raises) are one coherent story; splitting further adds indirection without reducing real complexity
     source: Union[Callable, classmethod, staticmethod, "property", cached_property],
     packing_fn: Callable,
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
@@ -1112,19 +1113,25 @@ def _packing_descriptor(  # noqa: C901
     return None
 
 
+@dataclass(frozen=True)
+class _PackingClassArgs:
+    """Grouped keyword arguments for :func:`~deprecate.deprecation._packing_class_source`."""
+
+    deprecated_in: str
+    remove_in: str
+    num_warns: int
+    stream: Optional[Callable]
+    args_mapping: Optional[dict[str, Optional[str]]]
+    args_extra: Optional[dict[str, Any]]
+    update_docstring: bool
+    docstring_style: str
+    _stacklevel: int
+
+
 def _packing_class_source(
     source: type,
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
-    *,
-    deprecated_in: str,
-    remove_in: str,
-    num_warns: int,
-    stream: Optional[Callable],
-    args_mapping: Optional[dict[str, Optional[str]]],
-    args_extra: Optional[dict[str, Any]],
-    update_docstring: bool,
-    docstring_style: str,
-    _stacklevel: int,
+    pack_args: _PackingClassArgs,
 ) -> Callable:
     """Delegate class-source deprecation to :func:`~deprecate.proxy.deprecated_class`.
 
@@ -1136,21 +1143,24 @@ def _packing_class_source(
     Args:
         source: The class being decorated with ``@deprecated``.
         target: Raw ``target`` argument from ``@deprecated``.
-        deprecated_in: Passed through to ``deprecated_class``.
-        remove_in: Passed through to ``deprecated_class``.
-        num_warns: Passed through to ``deprecated_class``.
-        stream: Warning stream; controls whether the class-deprecation ``UserWarning`` fires.
-        args_mapping: Passed through to ``deprecated_class`` when applicable.
-        args_extra: Passed through to ``deprecated_class`` when applicable.
-        update_docstring: Passed through to ``deprecated_class``.
-        docstring_style: Passed through to ``deprecated_class``.
-        _stacklevel: Stacklevel for ``warnings.warn`` calls; caller passes
-            ``packing``'s ``_stacklevel + 1`` to account for the extra frame.
+        pack_args: Grouped keyword arguments passed through to ``deprecated_class`` plus the
+            stacklevel for ``warnings.warn`` calls; caller passes ``packing``'s
+            ``_stacklevel + 1`` to account for the extra frame.
 
     Returns:
         Result of ``deprecated_class(...)(source)``.
 
     """
+    deprecated_in = pack_args.deprecated_in
+    remove_in = pack_args.remove_in
+    num_warns = pack_args.num_warns
+    stream = pack_args.stream
+    args_mapping = pack_args.args_mapping
+    args_extra = pack_args.args_extra
+    update_docstring = pack_args.update_docstring
+    docstring_style = pack_args.docstring_style
+    _stacklevel = pack_args._stacklevel
+
     import importlib
 
     proxy_module = importlib.import_module("deprecate.proxy")
@@ -1304,7 +1314,7 @@ async def _invoke_async(
     plan: _CallPlan,
     dep_cfg: DeprecationConfig,
     source_has_var_positional: bool,
-    args: tuple,
+    args: tuple[Any, ...],
 ) -> Any:  # noqa: ANN401
     """Dispatch async call after :func:`_build_call_plan` has resolved the outcome."""
     if plan.short_circuit:
@@ -1335,7 +1345,7 @@ def _invoke_sync(
     plan: _CallPlan,
     dep_cfg: DeprecationConfig,
     source_has_var_positional: bool,
-    args: tuple,
+    args: tuple[Any, ...],
 ) -> Any:  # noqa: ANN401
     """Dispatch sync call after :func:`_build_call_plan` has resolved the outcome."""
     if plan.short_circuit:
@@ -1500,8 +1510,10 @@ def deprecated(  # noqa: C901
         # mypy narrowing: _packing_descriptor handles all descriptor types via early return;
         # remaining code (including captured closures) only executes for plain Callable.
         # isinstance guard is required — cast() does not propagate narrowing into closure bodies.
-        if isinstance(source, (classmethod, staticmethod, property, cached_property)):
-            raise AssertionError(f"unreachable: {type(source)!r} was not handled by _packing_descriptor")
+        if isinstance(source, (classmethod, staticmethod, property, cached_property)):  # pragma: no cover
+            raise AssertionError(  # pragma: no cover
+                f"unreachable: {type(source)!r} was not handled by _packing_descriptor"
+            )
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
@@ -1519,15 +1531,17 @@ def deprecated(  # noqa: C901
             return _packing_class_source(
                 source,
                 target,
-                deprecated_in=deprecated_in,
-                remove_in=remove_in,
-                num_warns=num_warns,
-                stream=stream,
-                args_mapping=args_mapping,
-                args_extra=args_extra,
-                update_docstring=update_docstring,
-                docstring_style=docstring_style,
-                _stacklevel=_stacklevel + 1,
+                _PackingClassArgs(
+                    deprecated_in=deprecated_in,
+                    remove_in=remove_in,
+                    num_warns=num_warns,
+                    stream=stream,
+                    args_mapping=args_mapping,
+                    args_extra=args_extra,
+                    update_docstring=update_docstring,
+                    docstring_style=docstring_style,
+                    _stacklevel=_stacklevel + 1,
+                ),
             )
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
