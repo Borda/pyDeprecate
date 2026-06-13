@@ -4,6 +4,7 @@ import abc
 import inspect
 import warnings
 from collections.abc import Callable
+from dataclasses import dataclass as dc_decorator
 from typing import Any, cast
 
 import pytest
@@ -150,6 +151,38 @@ class TestProxyWarnBehavior:
         # ``_DeprecatedProxy._warn`` forwards ``stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER`` to ``stream``
         # so the warning is attributed to this test file rather than ``proxy.py``.
         assert caught[0].filename.endswith("test_proxy.py")
+
+    def test_warn_filename_points_to_caller_on_args_remap_path(self) -> None:
+        """_proxy_call_args_remap path attributes FutureWarning to the caller's frame.
+
+        When a proxy with TargetMode.ARGS_REMAP receives a deprecated kwarg, it routes
+        through ``_proxy_call_args_remap``. The extra call frame introduced by the helper
+        must be compensated by ``_extra_frames=1`` so the warning attributes to this test
+        file rather than ``proxy.py``.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ProxyArgsRemapForArgWarnMessage(old_key=5)  # deprecated kwarg via ARGS_REMAP
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert future_warnings, "Expected FutureWarning from ARGS_REMAP path"
+        assert future_warnings[0].filename.endswith("test_proxy.py")
+
+    def test_warn_filename_points_to_caller_on_callable_with_mapping_path(self) -> None:
+        """_proxy_call_callable_with_mapping path attributes FutureWarning to the caller's frame.
+
+        When a proxy with a callable target and args_mapping receives a deprecated kwarg,
+        it routes through ``_proxy_call_callable_with_mapping``. The extra call frame must
+        be compensated by ``_extra_frames=1`` so the warning attributes to this test file
+        rather than ``proxy.py``.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            MappedColorEnum(val=1)  # type: ignore[call-arg]  # deprecated kwarg via callable+args_mapping
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert future_warnings, "Expected FutureWarning from callable+args_mapping path"
+        assert future_warnings[0].filename.endswith("test_proxy.py")
 
 
 class TestProxyTemplateMgs:
@@ -2037,6 +2070,28 @@ class TestDataclassAutoExpand:
         )(AutoExpandDC)
         meta = object.__getattribute__(proxy, "__deprecated__")
         assert "old_field" not in meta.args_mapping_auto_expanded
+
+    def test_drop_mapping_entry_not_auto_expanded(self) -> None:
+        """attrs_mapping={'field': None} (drop-mapping) is not auto-expanded into args_mapping.
+
+        Drop entries (value=None) signal attribute removal, not renaming to a dataclass field.
+        Auto-expansion only applies when the redirect value names a dataclass __init__ parameter.
+        A None value has no target field name, so expansion must be skipped for that entry.
+
+        """
+
+        @dc_decorator
+        class _Target:
+            field: int = 0
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            proxy = deprecated_class(
+                target=_Target, deprecated_in="1.0", remove_in="2.0", attrs_mapping={"field": None}
+            )(_Target)
+        # Drop-mapping entry must not appear in args_mapping (no auto-expansion for None values)
+        dep = object.__getattribute__(proxy, "__deprecated__")
+        assert dep.args_mapping is None or "field" not in (dep.args_mapping or {})
 
     def test_req_dc_constructor_kwarg_warns_after_auto_expand(self) -> None:
         """``DepAutoExpandReqDC(old_field=5)`` emits FutureWarning and returns a correctly populated instance.

@@ -48,7 +48,8 @@ from deprecate.utils import _get_args_mapping_positional_only_keys, _is_dataclas
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
-#: From ``warnings.warn`` upwards: ``1=_warn``, ``2=accessor`` (e.g. ``__getattr__``), ``3=caller``.
+#: From ``warnings.warn`` upwards: ``1=_warn``, ``2=accessor``, ``3=caller``.
+#: Helpers one level deeper (e.g. ``_proxy_call_args_remap``) pass ``_extra_frames=1``.
 _DEFAULT_STACKLEVEL_TO_CALLER: int = 3
 
 
@@ -444,7 +445,7 @@ class _DeprecatedProxy:
             "remove_in": dep.remove_in,
         }
 
-    def _warn(self, *, arg_name: Optional[str] = None) -> None:
+    def _warn(self, *, arg_name: Optional[str] = None, _extra_frames: int = 0) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted.
 
         Args:
@@ -453,6 +454,7 @@ class _DeprecatedProxy:
                 ``cfg.num_warns``.  When provided alongside an ``args_mapping`` entry, the emitted message uses the
                 per-argument template (`old -> new`) rather than the generic callable template — matching the
                 decorator's argument-deprecation form.
+            _extra_frames: Additional Python helper frames between the public accessor and ``_warn``.
 
         """
         cfg = self._cfg
@@ -473,7 +475,7 @@ class _DeprecatedProxy:
         # in ``deprecation.py``: when ``stream`` does not accept a ``stacklevel`` kwarg (e.g. ``print``, custom
         # callables), fall back to a positional call.
         try:
-            stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER)
+            stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER + _extra_frames)
         except TypeError:
             stream(msg)
         if arg_name is not None:
@@ -854,14 +856,14 @@ def _proxy_call_args_remap(
     proxy: _DeprecatedProxy,
     dep: DeprecationConfig,
     cfg: _ProxyConfig,
-    args: tuple,
-    kwargs: dict,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
 ) -> Any:  # noqa: ANN401
     """Handle ``TargetMode.ARGS_REMAP`` branch of ``__call__``: warn per deprecated kwarg, remap, call obj."""
     mapping = dep.args_mapping or {}
     for old_key in mapping:
         if old_key in kwargs:
-            proxy._warn(arg_name=old_key)
+            proxy._warn(arg_name=old_key, _extra_frames=1)
     mapped_kwargs = proxy._apply_args_mapping(kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     if dep.args_mapping_positional_only and dep.args_mapping:
@@ -878,16 +880,16 @@ def _proxy_call_callable_with_mapping(
     proxy: _DeprecatedProxy,
     dep: DeprecationConfig,
     target_fn: Callable[..., Any],
-    args: tuple,
-    kwargs: dict,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
 ) -> Any:  # noqa: ANN401
     """Handle callable-target + args_mapping branch of ``__call__``: warn per kwarg, remap, forward."""
     mapping = dep.args_mapping or {}
     for old_key in mapping:
         if old_key in kwargs:
-            proxy._warn(arg_name=old_key)
+            proxy._warn(arg_name=old_key, _extra_frames=1)
     if not any(old_key in kwargs for old_key in mapping):
-        proxy._warn()
+        proxy._warn(_extra_frames=1)
     mapped_kwargs = proxy._apply_args_mapping(kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     if dep.args_mapping_positional_only and dep.args_mapping:
