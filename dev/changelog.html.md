@@ -18,6 +18,8 @@
 
 ### Fixed
 
+- **`@deprecated` now correctly forwards calls to targets with POSITIONAL_ONLY parameters.** When a callable `target` declares any parameter as positional-only (`def new_fn(x, /): ...`), the decorator previously raised `TypeError` at call time because all arguments were forwarded as kwargs. The decorator now detects POSITIONAL_ONLY params at decoration time, emits a `UserWarning` naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally. `args_mapping` remaps applied before the split — remapped names that land on a POSITIONAL_ONLY target param are handled correctly. The thin-adapter pattern (`def new_fn_compat(x): return new_fn(x)` as `target`) remains valid and suppresses the `UserWarning`. ([#194](https://github.com/Borda/pyDeprecate/pull/194))
+
 ______________________________________________________________________
 
 ## [0.9.0] — 2026-06-05 — Generators, async, & markdown audit tables

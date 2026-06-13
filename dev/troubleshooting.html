@@ -261,10 +261,10 @@
         },
         {
           "@type": "Question",
-          "name": "Why does @deprecated crash with TypeError when my target function uses positional-only parameters?",
+          "name": "How does @deprecated handle target functions with positional-only parameters?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The @deprecated decorator converts all intercepted arguments to kwargs before forwarding to the target (target_func(**resolved_kwargs)). If the target declares any parameter as positional-only using the / syntax — for example def new_fn(x, /, y=0) — passing x as a keyword argument raises TypeError. Workaround: wrap the target in a thin adapter def _compat(x, y=0): return new_fn(x, y) and use that as the target instead. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
+            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(x, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(x, y=0): return new_fn(x, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
           }
         }
       ]
@@ -1148,10 +1148,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#deprecated-crashes-when-the-replacement-target-has-positional_only-parameters" class="md-nav__link">
+  <a href="#deprecated-and-targets-with-positional_only-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
-        @deprecated crashes when the replacement target has POSITIONAL_ONLY parameters
+        @deprecated and targets with POSITIONAL_ONLY parameters
       
     </span>
   </a>
@@ -1605,10 +1605,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#deprecated-crashes-when-the-replacement-target-has-positional_only-parameters" class="md-nav__link">
+  <a href="#deprecated-and-targets-with-positional_only-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
-        @deprecated crashes when the replacement target has POSITIONAL_ONLY parameters
+        @deprecated and targets with POSITIONAL_ONLY parameters
       
     </span>
   </a>
@@ -2828,28 +2828,49 @@
 
 <p>If you need to chain multiple migration steps across versions, the supported pattern is one <code>@deprecated</code> on the property plus chain-style accessors — not a second <code>@deprecated</code> on top.</p>
 <hr />
-<h2 id="deprecated-crashes-when-the-replacement-target-has-positional_only-parameters"><code>@deprecated</code> crashes when the replacement target has POSITIONAL_ONLY parameters<a class="headerlink" href="#deprecated-crashes-when-the-replacement-target-has-positional_only-parameters" title="Permanent link">🔗</a></h2>
-<p><strong>Q:</strong> I applied <code>@deprecated(target=new_fn)</code> and get <code>TypeError: new_fn() got some positional-only arguments passed as keyword argument</code> when calling the deprecated function. Why?</p>
-<p><strong>A:</strong> <code>@deprecated</code> converts all intercepted arguments to kwargs before forwarding them to the target. If the target declares any parameter as positional-only (using <code>/</code> in the signature), that kwarg call raises <code>TypeError</code> because Python forbids passing positional-only params by name.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+<h2 id="deprecated-and-targets-with-positional_only-parameters"><code>@deprecated</code> and targets with POSITIONAL_ONLY parameters<a class="headerlink" href="#deprecated-and-targets-with-positional_only-parameters" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I applied <code>@deprecated(target=new_fn)</code> where <code>new_fn</code> has a positional-only parameter — does it work?</p>
+<p><strong>A:</strong> Yes, fully supported since <code>v0.10</code>. The decorator detects POSITIONAL_ONLY parameters at decoration time, emits a <code>UserWarning</code> advising you to remove <code>/</code> from the target signature if possible, and automatically splits the dispatch so positional-only values are forwarded positionally rather than as kwargs.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a>
 <a id="__codelineno-71-3" name="__codelineno-71-3" href="#__codelineno-71-3"></a>
-<a id="__codelineno-71-4" name="__codelineno-71-4" href="#__codelineno-71-4"></a>
-<a id="__codelineno-71-5" name="__codelineno-71-5" href="#__codelineno-71-5"></a><span class="c1"># @deprecated(target=new_fn) then calling old_fn(5) internally does:</span>
-<a id="__codelineno-71-6" name="__codelineno-71-6" href="#__codelineno-71-6"></a><span class="c1">#   new_fn(**{&quot;x&quot;: 5})  →  TypeError: got positional-only argument as keyword argument</span>
+<a id="__codelineno-71-4" name="__codelineno-71-4" href="#__codelineno-71-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-71-5" name="__codelineno-71-5" href="#__codelineno-71-5"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+<a id="__codelineno-71-6" name="__codelineno-71-6" href="#__codelineno-71-6"></a>
+<a id="__codelineno-71-7" name="__codelineno-71-7" href="#__codelineno-71-7"></a>
+<a id="__codelineno-71-8" name="__codelineno-71-8" href="#__codelineno-71-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>  <span class="c1"># warns: UserWarning (POSITIONAL_ONLY detected)</span>
+<a id="__codelineno-71-9" name="__codelineno-71-9" href="#__codelineno-71-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-71-10" name="__codelineno-71-10" href="#__codelineno-71-10"></a>
+<a id="__codelineno-71-11" name="__codelineno-71-11" href="#__codelineno-71-11"></a>
+<a id="__codelineno-71-12" name="__codelineno-71-12" href="#__codelineno-71-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-71-13" name="__codelineno-71-13" href="#__codelineno-71-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">5</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-71-14" name="__codelineno-71-14" href="#__codelineno-71-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">4</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
 </code></pre></div>
-<p><strong>Workaround</strong>: wrap the target in a thin adapter that accepts the same params as ordinary keyword arguments:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a>
-<a id="__codelineno-72-3" name="__codelineno-72-3" href="#__codelineno-72-3"></a>
-<a id="__codelineno-72-4" name="__codelineno-72-4" href="#__codelineno-72-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_new_fn_compat</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-72-5" name="__codelineno-72-5" href="#__codelineno-72-5"></a>    <span class="k">return</span> <span class="n">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>  <span class="c1"># call new_fn positionally internally</span>
-<a id="__codelineno-72-6" name="__codelineno-72-6" href="#__codelineno-72-6"></a>
-<a id="__codelineno-72-7" name="__codelineno-72-7" href="#__codelineno-72-7"></a>
-<a id="__codelineno-72-8" name="__codelineno-72-8" href="#__codelineno-72-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_new_fn_compat</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-72-9" name="__codelineno-72-9" href="#__codelineno-72-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<details><summary>Output: <code>5 · 5 · 7</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a>5
+<a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a>5
+<a id="__codelineno-72-3" name="__codelineno-72-3" href="#__codelineno-72-3"></a>7
 </code></pre></div>
-<p>This limitation affects <code>@deprecated</code> on functions and methods only. <code>deprecated_class</code> is unaffected — the proxy has a <code>setattr</code> fallback for POSITIONAL_ONLY constructor parameters and emits a <code>UserWarning</code> at decoration time rather than crashing at call time.</p>
+
+</details>
+
+<p>The thin-adapter pattern shown below still works and avoids the decoration-time <code>UserWarning</code> — use it when you want to silence the warning or keep the target signature unambiguous:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-73-2" name="__codelineno-73-2" href="#__codelineno-73-2"></a>
+<a id="__codelineno-73-3" name="__codelineno-73-3" href="#__codelineno-73-3"></a>
+<a id="__codelineno-73-4" name="__codelineno-73-4" href="#__codelineno-73-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+<a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a>
+<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a>
+<a id="__codelineno-73-8" name="__codelineno-73-8" href="#__codelineno-73-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_new_fn_compat</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-73-9" name="__codelineno-73-9" href="#__codelineno-73-9"></a>    <span class="k">return</span> <span class="n">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<a id="__codelineno-73-10" name="__codelineno-73-10" href="#__codelineno-73-10"></a>
+<a id="__codelineno-73-11" name="__codelineno-73-11" href="#__codelineno-73-11"></a>
+<a id="__codelineno-73-12" name="__codelineno-73-12" href="#__codelineno-73-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_new_fn_compat</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-13" name="__codelineno-73-13" href="#__codelineno-73-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p><code>deprecated_class</code> is unaffected — the proxy has a <code>setattr</code> fallback for POSITIONAL_ONLY constructor parameters and emits a <code>UserWarning</code> at decoration time.</p>
 <hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
@@ -2878,7 +2899,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 11, 2026 11:56:52 UTC">2026-06-11</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 13, 2026 01:03:58 UTC">2026-06-13</span>
   </span>
 
     
