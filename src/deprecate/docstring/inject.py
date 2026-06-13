@@ -475,7 +475,7 @@ def _inject_args_mapping_section(lines: list[str], dep_info: DeprecationConfig) 
 
     """
     all_args_found = True
-    for arg_name, new_arg in dep_info.args_mapping.items():  # type: ignore[union-attr]
+    for arg_name, new_arg in (dep_info.args_mapping or {}).items():
         note = _build_arg_deprecation_note(new_arg, dep_info.deprecated_in, dep_info.remove_in)
         lines, found = _annotate_google_style_arg(lines, arg_name, note)
         if not found:
