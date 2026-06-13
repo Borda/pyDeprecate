@@ -1033,7 +1033,7 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # Order-agnostic: unwrap → deprecate inner function → rewrap.
         # Both @classmethod orders produce classmethod(deprecated_wrapper);
         # both @staticmethod orders produce staticmethod(deprecated_wrapper).
-        wrapped_inner = packing_fn(source.__func__, _stacklevel + 1)
+        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2)
         return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
 
     if isinstance(source, property):
@@ -1092,23 +1092,23 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # blocked above by TypeError guards and are never reachable here.
         # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
         # accessor is raw — silently dropping the deprecation warning on attribute writes.
-        _accessor_sl = _stacklevel + 1
+        _accessor_sl = _stacklevel + 2
 
         def _wrap_accessor(fn: Callable) -> Callable:
             """Apply packing_fn to a property accessor with the adjusted stacklevel."""
             return packing_fn(fn, _accessor_sl)
 
         return _DeprecatedProperty(  # type: ignore[return-value]
-            packing_fn(source.fget, _stacklevel + 1) if source.fget is not None else None,
-            packing_fn(source.fset, _stacklevel + 1) if source.fset is not None else None,
-            packing_fn(source.fdel, _stacklevel + 1) if source.fdel is not None else None,
+            packing_fn(source.fget, _stacklevel + 2) if source.fget is not None else None,
+            packing_fn(source.fset, _stacklevel + 2) if source.fset is not None else None,
+            packing_fn(source.fdel, _stacklevel + 2) if source.fdel is not None else None,
             explicit_doc,
             _wrap=_wrap_accessor,
         )
 
     if isinstance(source, cached_property):
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
-        return cached_property(packing_fn(source.func, _stacklevel + 1))  # type: ignore[return-value]
+        return cached_property(packing_fn(source.func, _stacklevel + 2))  # type: ignore[return-value]
 
     return None
 

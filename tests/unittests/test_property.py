@@ -810,3 +810,102 @@ class TestPropertyErrorPaths:
             property(_getter)  # type: ignore[arg-type]
         )
         assert isinstance(result, _DeprecatedProperty)
+
+
+class TestDescriptorStacklevel:
+    """Decoration-time warnings from the _packing_descriptor paths attribute to the caller.
+
+    ``_packing_descriptor`` recursively calls ``packing_fn`` after unwrapping the descriptor.
+    That recursive call adds two frames to the call stack (one for the outer ``packing()`` and
+    one for ``_packing_descriptor`` itself), so the forwarded stacklevel must be ``+2`` not
+    ``+1``.  Each test below triggers the "no ``deprecated_in`` set" UserWarning at decoration
+    time and asserts that ``warning.filename`` ends with this test file's name, confirming the
+    warning points at the ``@deprecated`` application line rather than an internal helper frame.
+    """
+
+    def test_warn_filename_points_to_caller_on_classmethod_path(self) -> None:
+        """Classmethod path: decoration-time UserWarning attributes to caller's frame.
+
+        A developer applies ``@deprecated(remove_in="2.0")`` to a classmethod without
+        providing ``deprecated_in``.  ``_packing_descriptor`` unwraps the classmethod,
+        recursively calls ``packing_fn`` with ``_stacklevel + 2``, and the "missing
+        deprecated_in" UserWarning must point to the ``@deprecated`` line in the caller's
+        file — not to an internal frame inside ``deprecation.py``.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @deprecated(remove_in="2.0")
+                @classmethod
+                def old_method(cls) -> None:
+                    """Old classmethod."""
+
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
+        assert user_warnings, "Expected UserWarning for missing deprecated_in on classmethod path"
+        assert user_warnings[0].filename.endswith("test_property.py")
+
+    def test_warn_filename_points_to_caller_on_staticmethod_path(self) -> None:
+        """Staticmethod path: decoration-time UserWarning attributes to caller's frame.
+
+        A developer applies ``@deprecated(remove_in="2.0")`` to a staticmethod without
+        providing ``deprecated_in``.  The same recursive-packing path as the classmethod
+        case fires, and the UserWarning must attribute to the decorator application line
+        in this test file rather than to an internal frame.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @deprecated(remove_in="2.0")
+                @staticmethod
+                def old_method() -> None:
+                    """Old staticmethod."""
+
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
+        assert user_warnings, "Expected UserWarning for missing deprecated_in on staticmethod path"
+        assert user_warnings[0].filename.endswith("test_property.py")
+
+    def test_warn_filename_points_to_caller_on_property_path(self) -> None:
+        """Property path: decoration-time UserWarning attributes to caller's frame.
+
+        A developer applies ``@deprecated(remove_in="2.0")`` to a property without providing
+        ``deprecated_in``.  ``_packing_descriptor`` wraps ``fget`` by calling
+        ``packing_fn(source.fget, _stacklevel + 2)``; the resulting UserWarning must point to
+        the ``@deprecated`` application line in this test file.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @deprecated(remove_in="2.0")  # type: ignore[arg-type, prop-decorator]
+                @property
+                def old_prop(self) -> int:
+                    """Old property."""
+                    return 0
+
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
+        assert user_warnings, "Expected UserWarning for missing deprecated_in on property path"
+        assert user_warnings[0].filename.endswith("test_property.py")
+
+    def test_warn_filename_points_to_caller_on_cached_property_path(self) -> None:
+        """cached_property path: decoration-time UserWarning attributes to caller's frame.
+
+        A developer applies ``@deprecated(remove_in="2.0")`` to a cached_property without
+        providing ``deprecated_in``.  ``_packing_descriptor`` calls
+        ``packing_fn(source.func, _stacklevel + 2)``; the UserWarning must attribute to the
+        ``@deprecated`` line in this test file, not to an internal frame.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class _Cls:
+                @deprecated(remove_in="2.0")  # type: ignore[arg-type, prop-decorator]
+                @cached_property
+                def old_prop(self) -> int:
+                    """Old cached property."""
+                    return 0
+
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
+        assert user_warnings, "Expected UserWarning for missing deprecated_in on cached_property path"
+        assert user_warnings[0].filename.endswith("test_property.py")
