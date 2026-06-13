@@ -604,9 +604,11 @@ def _split_positional_only_kwargs(
     """Split ``resolved_kwargs`` into positional args and remaining kwargs for a target with POSITIONAL_ONLY params.
 
     Extracts values for ``positional_only`` names from ``resolved_kwargs`` in parameter-declaration order
-    so they can be forwarded positionally.  Also extracts ``self``/``cls`` when present in ``resolved_kwargs``
-    so that unbound ``__init__`` / classmethod targets receive the instance in the first positional slot rather
-    than as a keyword argument.  Remaining entries stay in the returned kwargs dict.
+    so they can be forwarded positionally.  Also extracts ``self``/``cls`` when they are the *first*
+    parameter in ``param_order`` and present in ``resolved_kwargs``, so that unbound ``__init__`` /
+    classmethod targets receive the instance in the first positional slot rather than as a keyword
+    argument.  The first-parameter restriction avoids incorrectly extracting a non-receiver parameter
+    that happens to be named ``self`` or ``cls``.  Remaining entries stay in the returned kwargs dict.
 
     Args:
         param_order: Pre-computed parameter-name sequence of the target callable in declaration order.
@@ -623,8 +625,8 @@ def _split_positional_only_kwargs(
     """
     kw_args = dict(resolved_kwargs)
     pos_args: list[Any] = []
-    for name in param_order:
-        if name in kw_args and (name in positional_only or name in {"self", "cls"}):
+    for i, name in enumerate(param_order):
+        if name in kw_args and (name in positional_only or (i == 0 and name in {"self", "cls"})):
             pos_args.append(kw_args.pop(name))
     return pos_args, kw_args
 

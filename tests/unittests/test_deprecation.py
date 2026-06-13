@@ -38,11 +38,13 @@ from tests.collection_deprecate import (
     OldSelfOnlyClass,
     deprecated_async_positional_only_source,
     deprecated_positional_only_source,
+    deprecated_positional_only_stream_none,
     deprecated_positional_only_two_params_source,
     deprecated_positional_only_with_args_mapping_source,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
+    make_deprecated_positional_only_num_warns_one,
     pep702_stacked,
 )
 from tests.collection_targets import (
@@ -1332,15 +1334,10 @@ class TestPositionalOnlyTarget:
         at decoration time and no ``FutureWarning`` fires at call time.  The underlying
         split dispatch must still execute so ``positional_only_target`` is called with ``x``
         as a positional arg (not as a kwarg), returning the correct value.
+        ``deprecated_positional_only_stream_none`` is defined in ``collection_deprecate.py``
+        with ``stream=None`` so no warnings are emitted at decoration time or call time.
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-
-            @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", stream=None)
-            def silent_old_fn(x: int, y: int = 0) -> int:
-                return 0
-
-        result = silent_old_fn(5)
+        result = deprecated_positional_only_stream_none(5)
         assert result == 5
 
     def test_call_succeeds_after_warning_quota_exhausted(self) -> None:
@@ -1350,19 +1347,15 @@ class TestPositionalOnlyTarget:
         must still forward ``x`` positionally (the split dispatch must not be gated on
         the warning being emitted).  A caller silently migrating after the quota exhausts
         should not receive ``TypeError``.
+        ``deprecated_positional_only_num_warns_one`` is defined in ``collection_deprecate.py``
+        with ``num_warns=1`` so the warning fires exactly once.
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-
-            @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", num_warns=1)
-            def quota_old_fn(x: int, y: int = 0) -> int:
-                return 0
-
+        quota_fn = make_deprecated_positional_only_num_warns_one()
         with pytest.warns(FutureWarning):
-            result1 = quota_old_fn(5)
+            result1 = quota_fn(5)
         assert result1 == 5
 
-        result2 = quota_old_fn(10)  # no warning — quota exhausted
+        result2 = quota_fn(10)  # no warning — quota exhausted
         assert result2 == 10
 
     def test_constructor_forwarding_positional_only_succeeds(self) -> None:

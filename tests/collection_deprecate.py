@@ -2016,3 +2016,47 @@ with catch_warnings():
         @deprecated(target=SelfOnlyPositionalOnlyTarget, deprecated_in="1.0", remove_in="2.0")
         def __init__(self) -> None:
             """Constructor deprecated in favour of SelfOnlyPositionalOnlyTarget."""
+
+
+# ========== stream=None POSITIONAL_ONLY fixture ==========
+
+# stream=None suppresses both the decoration-time UserWarning (via the
+# `stream is not None` guard in packing()) and the call-time FutureWarning,
+# so no catch_warnings block is needed here.
+
+
+@deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", stream=None)
+def deprecated_positional_only_stream_none(x: int, y: int = 0) -> int:
+    """Deprecated wrapper forwarding to positional_only_target with stream=None (no warnings emitted)."""
+    return 0
+
+
+# ========== num_warns=1 POSITIONAL_ONLY fixture ==========
+
+# Factory — not a singleton — because num_warns=1 gives the wrapper a stateful quota
+# counter.  A module-level singleton would have the quota depleted after the first test
+# call, causing subsequent test runs to fail on `pytest.warns(FutureWarning)`.
+# Each test that needs a fresh quota calls `make_deprecated_positional_only_num_warns_one()`
+# to get a new wrapper with warn_count reset to 0.
+
+
+def make_deprecated_positional_only_num_warns_one() -> "Callable[..., int]":
+    """Return a fresh deprecated wrapper for positional_only_target with num_warns=1.
+
+    The wrapper emits ``FutureWarning`` on the first call only.  A fresh wrapper is
+    returned each call so the quota counter starts at zero regardless of prior test
+    activity — a module-level singleton would be depleted after the first test run.
+
+    Returns:
+        A new ``@deprecated`` wrapper around :func:`~tests.collection_targets.positional_only_target`
+        configured with ``num_warns=1`` and the decoration-time ``UserWarning`` suppressed.
+    """
+    with catch_warnings():
+        simplefilter("ignore", UserWarning)
+
+        @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        def _deprecated_positional_only_num_warns_one(x: int, y: int = 0) -> int:
+            """Deprecated wrapper forwarding to positional_only_target; FutureWarning emitted once only."""
+            return 0
+
+    return _deprecated_positional_only_num_warns_one
