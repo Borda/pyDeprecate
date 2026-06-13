@@ -815,7 +815,7 @@ def _raise_warn_arguments(
     )
 
 
-def _build_call_plan(
+def _build_call_plan(  # noqa: C901, PLR0912
     wrapper_fn: Callable[..., Any],
     source: Callable[..., Any],
     target: Union[bool, None, Callable[..., Any], TargetMode, staticmethod, classmethod],
@@ -991,7 +991,7 @@ def _build_call_plan(
     )
 
 
-def deprecated(
+def deprecated(  # noqa: C901
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod] = TargetMode.NOTIFY,
     deprecated_in: str = "",
     remove_in: str = "",
@@ -1121,7 +1121,7 @@ def deprecated(
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
-    def packing(
+    def packing(  # noqa: C901, PLR0912
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
         _stacklevel: int = 2,
     ) -> Callable:

@@ -447,7 +447,7 @@ def _build_general_notice_lines(dep_info: DeprecationConfig) -> list[str]:
     return result
 
 
-def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
+def _update_docstring_with_deprecation(wrapped_fn: object) -> None:  # noqa: C901, PLR0912
     """Annotate a function's docstring with deprecation information.
 
     Two paths are taken depending on whether ``args_mapping`` is set:

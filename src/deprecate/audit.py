@@ -772,7 +772,7 @@ def validate_deprecation_expiry(
     )
 
 
-def find_deprecation_wrappers(
+def find_deprecation_wrappers(  # noqa: C901
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
     include_members: bool = True,
@@ -974,7 +974,7 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
     return str(target)
 
 
-def _classify_wrapper_api_type(
+def _classify_wrapper_api_type(  # noqa: C901
     wrapped_obj: Any,  # noqa: ANN401
     info: DeprecationWrapperInfo,
     *,
@@ -1076,7 +1076,7 @@ def _get_deprecation_status(info: DeprecationWrapperInfo, current_version: Optio
     return DeprecationStatus.ACTIVE_WARNING
 
 
-def generate_deprecation_table(
+def generate_deprecation_table(  # noqa: C901
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,

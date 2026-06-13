@@ -1437,10 +1437,20 @@ def new_fn(x: int, /, y: int = 0) -> int:
 def old_fn(x: int, y: int = 0) -> int: ...
 
 
-old_fn(5)  # warns: FutureWarning — returns 5 (x forwarded positionally)
-old_fn(x=5)  # warns: FutureWarning — returns 5 (wrapper remaps to positional)
-old_fn(3, y=4)  # warns: FutureWarning — returns 7
+print(old_fn(5))  # warns: FutureWarning
+print(old_fn(x=5))  # warns: FutureWarning
+print(old_fn(3, y=4))  # warns: FutureWarning
 ```
+
+<details><summary>Output: <code>5 · 5 · 7</code></summary>
+
+```
+5
+5
+7
+```
+
+</details>
 
 The thin-adapter pattern shown below still works and avoids the decoration-time `UserWarning` — use it when you want to silence the warning or keep the target signature unambiguous:
 

@@ -256,7 +256,7 @@ class _DeprecatedProxy:
                 " when `target` is provided, or on the wrapped class."
             )
 
-    def __init__(
+    def __init__(  # noqa: C901, PLR0912
         self,
         obj: Any,  # noqa: ANN401
         name: str,
@@ -471,7 +471,7 @@ class _DeprecatedProxy:
             "remove_in": dep.remove_in,
         }
 
-    def _warn(self, *, arg_name: Optional[str] = None) -> None:
+    def _warn(self, *, arg_name: Optional[str] = None) -> None:  # noqa: C901, PLR0912
         """Emit a deprecation warning if the warn budget is not exhausted.
 
         Args:
@@ -786,7 +786,7 @@ class _DeprecatedProxy:
     # Callable protocol
     # ------------------------------------------------------------------
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, C901, PLR0912
         """Call the active object, emitting a deprecation warning conditionally based on target mode.
 
         Branching logic:
