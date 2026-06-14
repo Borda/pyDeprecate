@@ -14,6 +14,7 @@ from deprecate.docstring.inject import (
     _find_google_arg_line,
     _find_google_args_section,
     _get_google_arg_indents,
+    _has_deprecation_block,
     _update_docstring_with_deprecation,
 )
 
@@ -42,6 +43,14 @@ class TestBuildArgDeprecationNote:
         note = _build_arg_deprecation_note(None, "1.8", "")
         assert "Will be removed" not in note
         assert "Deprecated since v1.8" in note
+
+
+class TestHasDeprecationBlock:
+    """Tests for _has_deprecation_block — detects already-injected notices."""
+
+    def test_empty_block_lines_returns_false(self) -> None:
+        """Empty block_lines triggers fast-return False regardless of doc_lines content."""
+        assert not _has_deprecation_block(["some content", "more content"], [])
 
 
 class TestFindGoogleArgLine:

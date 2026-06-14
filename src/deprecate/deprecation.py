@@ -17,6 +17,7 @@ import inspect
 import sys
 import warnings
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import cached_property, partial, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
@@ -991,6 +992,369 @@ def _build_call_plan(  # noqa: C901, PLR0912
     )
 
 
+def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel validation + TypeError raises) are one coherent story; splitting further adds indirection without reducing real complexity
+    source: Union[Callable, classmethod, staticmethod, "property", cached_property],
+    packing_fn: Callable,
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
+    args_mapping: Optional[dict[str, Optional[str]]],
+    args_extra: Optional[dict[str, Any]],
+    _stacklevel: int,
+) -> Optional[Callable]:
+    """Wrap descriptor sources (classmethod/staticmethod/property/cached_property).
+
+    Handles order-agnostic descriptor dispatch: unwraps the descriptor, applies
+    *packing_fn* to the underlying callable, and rewraps in the same descriptor type.
+    The ``property`` path validates that incompatible ``@deprecated`` options are not
+    mixed with property decoration.
+
+    Args:
+        source: The callable or descriptor being decorated.
+        packing_fn: The ``packing`` closure from the enclosing ``deprecated()`` call.
+            Passed explicitly so this module-level helper can recurse without capturing
+            a closure variable.
+        target: Raw ``target`` argument from ``@deprecated``; used for ``property``
+            validation guards only.
+        args_mapping: Raw ``args_mapping`` argument; used for ``property`` validation only.
+        args_extra: Raw ``args_extra`` argument; used for ``property`` validation only.
+        _stacklevel: Threaded through to recursive *packing_fn* calls so the decoration-site
+            stacklevel stays correct across nesting levels.
+
+    Returns:
+        Wrapped descriptor when *source* is a descriptor, or ``None`` when *source* is a
+        plain callable (caller should continue to the regular callable path).
+
+    Raises:
+        TypeError: When incompatible ``@deprecated`` options are combined with a ``property``
+            source, or when ``@deprecated`` is applied twice to an already-deprecated
+            property or accessor.
+
+    """
+    if isinstance(source, (classmethod, staticmethod)):
+        # Order-agnostic: unwrap → deprecate inner function → rewrap.
+        # Both @classmethod orders produce classmethod(deprecated_wrapper);
+        # both @staticmethod orders produce staticmethod(deprecated_wrapper).
+        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2)
+        return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
+
+    if isinstance(source, property):
+        # Order-agnostic @property: unwrap → deprecate fget/fset/fdel → rewrap preserving doc.
+        # All three accessors are wrapped so attribute read, write, and delete each fire the warning.
+        if isinstance(source, _DeprecatedProperty):
+            # Double-decorating an already-deprecated property would wrap every accessor twice,
+            # emitting two FutureWarnings per access and triggering _warn_stacking_misconfiguration
+            # three times. Raise early with a clear message instead of silently double-wrapping.
+            _accessor = source.fget or source.fset or source.fdel
+            _src_name = _accessor.__qualname__ if _accessor is not None else "<property>"
+            raise TypeError(
+                f"`@deprecated` cannot be applied twice to the already-deprecated property `{_src_name}`."
+                " Apply `@deprecated(...)` once; use `.setter()`/`.deleter()` rebinding for additional accessors."
+            )
+        if args_mapping:
+            raise TypeError(f"`args_mapping` is not supported when decorating a `property`. Got: {args_mapping!r}.")
+        if args_extra:
+            raise TypeError(f"`args_extra` is not supported when decorating a `property`. Got: {args_extra!r}.")
+        if callable(target):
+            raise TypeError(
+                f"`target` as a callable is not supported when decorating a `property`. Got: {target!r}."
+                " Use `TargetMode.NOTIFY` or omit `target`."
+            )
+        if target is True or target is TargetMode.ARGS_REMAP:
+            raise TypeError(
+                f"`target=TargetMode.ARGS_REMAP` (or legacy `True`) is not supported when decorating a `property`."
+                f" Got: {target!r}. Use `TargetMode.NOTIFY` or omit `target`."
+            )
+        if target is TargetMode.ATTRS_REMAP:
+            raise TypeError(
+                "`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on a `property`."
+                " `TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
+                "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
+            )
+        # Guard against pre-deprecated individual accessors fed into property(...) then
+        # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
+        # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
+        # catches property-objects that are themselves already _DeprecatedProperty instances.
+        for _acc_name, _acc in (("fget", source.fget), ("fset", source.fset), ("fdel", source.fdel)):
+            if _acc is not None and _has_deprecation_meta(_acc):
+                raise TypeError(
+                    f"`@deprecated` cannot wrap accessor `{getattr(_acc, '__qualname__', repr(_acc))}` of property"
+                    f" `{_acc_name}` — it is already decorated with `@deprecated`."
+                    " Apply `@deprecated` once per accessor."
+                )
+        # Preserve explicit doc only when it differs from fget's doc (author override)
+        # or when fget is absent (setter/deleter-only property with doc= supplied).
+        # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
+        explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
+
+        # Closure captured on the returned ``_DeprecatedProperty`` so chain-style
+        # ``@value.setter`` / ``@value.deleter`` can re-wrap freshly-supplied accessors
+        # with the same packing config (template_mgs, stream, deprecated_in, remove_in,
+        # num_warns, skip_if, stacklevel). args_mapping / args_extra / callable target are
+        # blocked above by TypeError guards and are never reachable here.
+        # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
+        # accessor is raw — silently dropping the deprecation warning on attribute writes.
+        _accessor_sl = _stacklevel + 2
+
+        def _wrap_accessor(fn: Callable) -> Callable:
+            """Apply packing_fn to a property accessor with the adjusted stacklevel."""
+            return packing_fn(fn, _accessor_sl)
+
+        return _DeprecatedProperty(  # type: ignore[return-value]
+            packing_fn(source.fget, _stacklevel + 2) if source.fget is not None else None,
+            packing_fn(source.fset, _stacklevel + 2) if source.fset is not None else None,
+            packing_fn(source.fdel, _stacklevel + 2) if source.fdel is not None else None,
+            explicit_doc,
+            _wrap=_wrap_accessor,
+        )
+
+    if isinstance(source, cached_property):
+        # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
+        return cached_property(packing_fn(source.func, _stacklevel + 2))  # type: ignore[return-value]
+
+    return None
+
+
+@dataclass
+class _PackingClassArgs:
+    """Grouped keyword arguments for :func:`~deprecate.deprecation._packing_class_source`."""
+
+    deprecated_in: str
+    remove_in: str
+    num_warns: int
+    stream: Optional[Callable]
+    args_mapping: Optional[dict[str, Optional[str]]]
+    args_extra: Optional[dict[str, Any]]
+    update_docstring: bool
+    docstring_style: str
+    _stacklevel: int
+
+
+def _packing_class_source(
+    source: type,
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
+    pack_args: _PackingClassArgs,
+) -> Callable:
+    """Delegate class-source deprecation to :func:`~deprecate.proxy.deprecated_class`.
+
+    Handles legacy ``target`` sentinel resolution, misconfig detection, and the
+    ``UserWarning`` emitted when ``@deprecated`` is applied directly to a class
+    (deprecated itself since v0.6.0). Extracted from the ``inspect.isclass(source)``
+    branch of ``packing``.
+
+    Args:
+        source: The class being decorated with ``@deprecated``.
+        target: Raw ``target`` argument from ``@deprecated``.
+        pack_args: Grouped keyword arguments passed through to ``deprecated_class`` plus the
+            stacklevel for ``warnings.warn`` calls; caller passes ``packing``'s
+            ``_stacklevel + 1`` to account for the extra frame.
+
+    Returns:
+        Result of ``deprecated_class(...)(source)``.
+
+    """
+    import importlib
+
+    proxy_module = importlib.import_module("deprecate.proxy")
+    deprecated_class_fn = proxy_module.deprecated_class
+
+    message = (
+        f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
+        " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release."
+    )
+    if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
+        message += (
+            " Note: non-class `target` values are ignored when deprecating classes;"
+            " use `@deprecated_class(target=...)` instead."
+        )
+    if pack_args.stream is not None:
+        warnings.warn(message, UserWarning, stacklevel=pack_args._stacklevel)
+
+    # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
+    # ``misconfigured`` from its own ``target is False`` check — by that point
+    # the original sentinel is already gone.
+    class_misconfigured = target is False
+    if isinstance(target, TargetMode):
+        forward_target: Any = target
+    elif callable(target) and inspect.isclass(target):
+        forward_target = target
+    elif target is None or isinstance(target, bool):
+        # None/True/False on a class is a class-misconfiguration, not a callable
+        # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
+        forward_target = TargetMode._from_legacy(target, stacklevel=pack_args._stacklevel + 1)
+    else:
+        forward_target = TargetMode.NOTIFY
+
+    # Capture misconfig signals *before* nulling args_mapping/args_extra — NOTIFY + either
+    # field is a misconfig the proxy can no longer detect once we strip those fields.
+    notify_misconfig = forward_target is TargetMode.NOTIFY and bool(pack_args.args_mapping or pack_args.args_extra)
+    force_misconfigured = class_misconfigured or notify_misconfig
+
+    if forward_target is TargetMode.NOTIFY:
+        TargetMode._validate(
+            forward_target,
+            source.__name__,
+            args_mapping=pack_args.args_mapping,
+            args_extra=pack_args.args_extra,
+            stacklevel=pack_args._stacklevel + 1,
+        )
+        pack_args.args_mapping = None
+        pack_args.args_extra = None
+
+    return deprecated_class_fn(
+        target=forward_target,
+        deprecated_in=pack_args.deprecated_in,
+        remove_in=pack_args.remove_in,
+        num_warns=pack_args.num_warns,
+        stream=pack_args.stream,
+        args_mapping=pack_args.args_mapping,
+        args_extra=pack_args.args_extra,
+        update_docstring=pack_args.update_docstring,
+        docstring_style=pack_args.docstring_style,
+        _misconfigured_override=force_misconfigured,
+    )(source)
+
+
+def _detect_positional_only(
+    target: Union[Callable, TargetMode],
+    source: Callable,
+    stream: Optional[Callable],
+    warn_stacklevel: int,
+) -> tuple[frozenset[str], tuple[str, ...]]:
+    """Inspect *target* for POSITIONAL_ONLY parameters and emit a ``UserWarning`` when found.
+
+    Called at decoration time so the warning fires once and the results are stored in
+    :class:`~deprecate._types.DeprecationConfig` for the call-time dispatcher.
+
+    Args:
+        target: Normalised target from :func:`_normalize_target` — may be a
+            :class:`TargetMode` or a callable.  Non-callables return empty results immediately.
+        source: The decorated callable; used only in the warning message.
+        stream: Warning stream; when ``None`` the warning is suppressed.
+        warn_stacklevel: ``stacklevel`` forwarded to ``warnings.warn``.  Caller passes
+            ``packing``'s ``_stacklevel + 1`` to account for the extra frame.
+
+    Returns:
+        Tuple of ``(target_positional_only, target_positional_only_order)`` where
+        ``target_positional_only`` is the frozenset of POSITIONAL_ONLY param names and
+        ``target_positional_only_order`` is the full parameter-name tuple in declaration order.
+
+    """
+    if not callable(target):
+        return frozenset(), ()
+    try:
+        tgt_sig = inspect.signature(target)
+    except (TypeError, ValueError):
+        return frozenset(), ()
+    target_positional_only = frozenset(
+        name for name, p in tgt_sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
+    )
+    target_positional_only_order: tuple[str, ...] = tuple(tgt_sig.parameters.keys()) if target_positional_only else ()
+    warn_set = target_positional_only - {"self", "cls"}
+    if warn_set and stream is not None:
+        warnings.warn(
+            f"`@deprecated(target={getattr(target, '__name__', repr(target))!r})` on"
+            f" `{source.__name__}`: target parameter(s)"
+            f" {sorted(warn_set)!r} are POSITIONAL_ONLY and cannot be"
+            " forwarded as kwargs. Calls will pass these values positionally."
+            " Consider removing `/` from the target signature.",
+            UserWarning,
+            stacklevel=warn_stacklevel,
+        )
+    return target_positional_only, target_positional_only_order
+
+
+def _resolve_stored_target(
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
+) -> Union[TargetMode, Callable]:
+    """Normalise *target* for storage in :class:`~deprecate._types.DeprecationConfig`.
+
+    Converts legacy bool/None sentinels to :class:`TargetMode` members and strips
+    descriptor wrappers so audit tools see the underlying callable rather than a raw
+    descriptor object.
+
+    Args:
+        target: Raw ``target`` argument from ``@deprecated``.
+
+    Returns:
+        Normalised value suitable for ``DeprecationConfig.target``.
+
+    Note:
+        Class targets are kept verbatim — :func:`_normalize_target` remaps
+        ``class → __init__`` at decoration time for the wrapper closure, but the stored
+        value must preserve the user-facing class so audit and docstring consumers see
+        the original target.
+
+    """
+    if target is None or isinstance(target, bool):
+        # Enum-normalised target stored so audit does not re-derive from raw sentinel.
+        return TargetMode._from_legacy(target, stacklevel=None)
+    if isinstance(target, TargetMode):
+        return target
+    if isinstance(target, (staticmethod, classmethod)):
+        return target.__func__  # audit sees the function, not the descriptor
+    return target
+
+
+async def _invoke_async(
+    source: Callable,
+    plan: _CallPlan,
+    dep_cfg: DeprecationConfig,
+    source_has_var_positional: bool,
+    args: tuple[Any, ...],
+) -> Any:  # noqa: ANN401
+    """Dispatch async call after :func:`_build_call_plan` has resolved the outcome."""
+    if plan.short_circuit:
+        if source_has_var_positional:
+            return await source(*args, **plan.original_kwargs)
+        return await source(**plan.resolved_kwargs)
+    if plan.target_func is None:
+        if source_has_var_positional:
+            call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
+            return await source(*args, **call_kwargs)
+        return await source(**plan.resolved_kwargs)
+    # Sync target under async source: invoke directly so callers can migrate without forcing
+    # every legacy target to be redeclared ``async def``.
+    if dep_cfg.target_positional_only:
+        _pos_args, _kw_args = _split_positional_only_kwargs(
+            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
+        )
+        if inspect.iscoroutinefunction(plan.target_func):
+            return await plan.target_func(*_pos_args, **_kw_args)
+        return plan.target_func(*_pos_args, **_kw_args)
+    if inspect.iscoroutinefunction(plan.target_func):
+        return await plan.target_func(**plan.resolved_kwargs)
+    return plan.target_func(**plan.resolved_kwargs)
+
+
+def _invoke_sync(
+    source: Callable,
+    plan: _CallPlan,
+    dep_cfg: DeprecationConfig,
+    source_has_var_positional: bool,
+    args: tuple[Any, ...],
+) -> Any:  # noqa: ANN401
+    """Dispatch sync call after :func:`_build_call_plan` has resolved the outcome."""
+    if plan.short_circuit:
+        if source_has_var_positional:
+            return source(*args, **plan.original_kwargs)
+        return source(**plan.resolved_kwargs)
+    if plan.target_func is None:
+        if source_has_var_positional:
+            call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
+            return source(*args, **call_kwargs)
+        return source(**plan.resolved_kwargs)
+    if inspect.iscoroutinefunction(plan.target_func):
+        raise TypeError(
+            f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
+            f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
+        )
+    if dep_cfg.target_positional_only:
+        _pos_args, _kw_args = _split_positional_only_kwargs(
+            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
+        )
+        return plan.target_func(*_pos_args, **_kw_args)
+    return plan.target_func(**plan.resolved_kwargs)
+
+
 def deprecated(  # noqa: C901
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod] = TargetMode.NOTIFY,
     deprecated_in: str = "",
@@ -1121,88 +1485,20 @@ def deprecated(  # noqa: C901
     """
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
-    def packing(  # noqa: C901, PLR0912
+    def packing(  # noqa: C901
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
         _stacklevel: int = 2,
     ) -> Callable:
-        # Order-agnostic @classmethod/@staticmethod: unwrap → deprecate inner function → rewrap.
-        # Both @classmethod orders produce classmethod(deprecated_wrapper);
-        # both @staticmethod orders produce staticmethod(deprecated_wrapper).
-        if isinstance(source, (classmethod, staticmethod)):
-            wrapped_inner = packing(source.__func__, _stacklevel + 1)
-            return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
-        # Order-agnostic @property: unwrap → deprecate fget/fset/fdel → rewrap preserving doc.
-        # All three accessors are wrapped so attribute read, write, and delete each fire the warning.
-        if isinstance(source, property):
-            if isinstance(source, _DeprecatedProperty):
-                # Double-decorating an already-deprecated property would wrap every accessor twice,
-                # emitting two FutureWarnings per access and triggering _warn_stacking_misconfiguration
-                # three times. Raise early with a clear message instead of silently double-wrapping.
-                _accessor = source.fget or source.fset or source.fdel
-                _src_name = _accessor.__qualname__ if _accessor is not None else "<property>"
-                raise TypeError(
-                    f"`@deprecated` cannot be applied twice to the already-deprecated property `{_src_name}`."
-                    " Apply `@deprecated(...)` once; use `.setter()`/`.deleter()` rebinding for additional accessors."
-                )
-            if args_mapping:
-                raise TypeError(f"`args_mapping` is not supported when decorating a `property`. Got: {args_mapping!r}.")
-            if args_extra:
-                raise TypeError(f"`args_extra` is not supported when decorating a `property`. Got: {args_extra!r}.")
-            if callable(target):
-                raise TypeError(
-                    f"`target` as a callable is not supported when decorating a `property`. Got: {target!r}."
-                    " Use `TargetMode.NOTIFY` or omit `target`."
-                )
-            if target is True or target is TargetMode.ARGS_REMAP:
-                raise TypeError(
-                    f"`target=TargetMode.ARGS_REMAP` (or legacy `True`) is not supported when decorating a `property`."
-                    f" Got: {target!r}. Use `TargetMode.NOTIFY` or omit `target`."
-                )
-            if target is TargetMode.ATTRS_REMAP:
-                raise TypeError(
-                    "`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on a `property`."
-                    " `TargetMode.ATTRS_REMAP` is a proxy-only mode — use "
-                    "`deprecated_class(attrs_mapping=...)` to deprecate class attribute names."
-                )
-            # Guard against pre-deprecated individual accessors fed into property(...) then
-            # decorated again: property(deprecated_fget) wrapped with @deprecated would double-wrap
-            # fget, emitting two FutureWarnings per read. The _DeprecatedProperty guard above only
-            # catches property-objects that are themselves already _DeprecatedProperty instances.
-            for _acc_name, _acc in (("fget", source.fget), ("fset", source.fset), ("fdel", source.fdel)):
-                if _acc is not None and _has_deprecation_meta(_acc):
-                    raise TypeError(
-                        f"`@deprecated` cannot wrap accessor `{getattr(_acc, '__qualname__', repr(_acc))}` of property"
-                        f" `{_acc_name}` — it is already decorated with `@deprecated`."
-                        " Apply `@deprecated` once per accessor."
-                    )
-            # Preserve explicit doc only when it differs from fget's doc (author override)
-            # or when fget is absent (setter/deleter-only property with doc= supplied).
-            # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
-            explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
-
-            # Closure captured on the returned ``_DeprecatedProperty`` so chain-style
-            # ``@value.setter`` / ``@value.deleter`` can re-wrap freshly-supplied accessors
-            # with the same packing config (template_mgs, stream, deprecated_in, remove_in,
-            # num_warns, skip_if, stacklevel). args_mapping / args_extra / callable target are
-            # blocked above by TypeError guards and are never reachable here.
-            # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
-            # accessor is raw — silently dropping the deprecation warning on attribute writes.
-            _accessor_sl = _stacklevel + 1
-
-            def _wrap_accessor(fn: Callable) -> Callable:
-                """Apply packing to a property accessor with the adjusted stacklevel."""
-                return packing(fn, _accessor_sl)
-
-            return _DeprecatedProperty(  # type: ignore[return-value]
-                packing(source.fget, _stacklevel + 1) if source.fget is not None else None,
-                packing(source.fset, _stacklevel + 1) if source.fset is not None else None,
-                packing(source.fdel, _stacklevel + 1) if source.fdel is not None else None,
-                explicit_doc,
-                _wrap=_wrap_accessor,
+        _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra, _stacklevel)
+        if _descriptor_result is not None:
+            return _descriptor_result
+        # mypy narrowing: _packing_descriptor handles all descriptor types via early return;
+        # remaining code (including captured closures) only executes for plain Callable.
+        # isinstance guard is required — cast() does not propagate narrowing into closure bodies.
+        if isinstance(source, (classmethod, staticmethod, property, cached_property)):  # pragma: no cover
+            raise AssertionError(  # pragma: no cover
+                f"unreachable: {type(source)!r} was not handled by _packing_descriptor"
             )
-        # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
-        if isinstance(source, cached_property):
-            return cached_property(packing(source.func, _stacklevel + 1))  # type: ignore[return-value]
         # Probe ``template_mgs`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
         _validate_template_mgs(template_mgs)
@@ -1217,71 +1513,21 @@ def deprecated(  # noqa: C901
                 stacklevel=_stacklevel,
             )
         if inspect.isclass(source):
-            import importlib
-
-            proxy_module = importlib.import_module("deprecate.proxy")
-            deprecated_class = proxy_module.deprecated_class
-
-            message = (
-                f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
-                " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release."
-            )
-            if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
-                message += (
-                    " Note: non-class `target` values are ignored when deprecating classes;"
-                    " use `@deprecated_class(target=...)` instead."
-                )
-            if stream is not None:
-                warnings.warn(message, UserWarning, stacklevel=_stacklevel)
-
-            # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
-            # ``misconfigured`` from its own ``target is False`` check — by that point
-            # the original sentinel is already gone.
-            class_misconfigured = target is False
-            if isinstance(target, TargetMode):
-                forward_target: Any = target
-            elif callable(target) and inspect.isclass(target):
-                forward_target = target
-            elif target is None or isinstance(target, bool):
-                # None/True/False on a class is a class-misconfiguration, not a callable
-                # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
-                forward_target = TargetMode._from_legacy(target, stacklevel=_stacklevel + 1)
-            else:
-                forward_target = TargetMode.NOTIFY
-
-            # Capture all misconfig signals *before* rewriting forward_args_mapping / forward_args_extra
-            # so we can forward them via ``_misconfigured_override`` instead of mutating the frozen
-            # ``DeprecationConfig`` after construction. NOTIFY + (args_mapping or args_extra) is the
-            # second misconfig source the proxy can no longer detect once we strip those fields.
-            notify_misconfig = forward_target is TargetMode.NOTIFY and bool(args_mapping or args_extra)
-            force_misconfigured = class_misconfigured or notify_misconfig
-
-            # Proxy metadata is immutable after construction; stale mapping persists to audit tools.
-            forward_args_mapping = args_mapping
-            forward_args_extra = args_extra
-            if forward_target is TargetMode.NOTIFY:
-                TargetMode._validate(
-                    forward_target,
-                    source.__name__,
+            return _packing_class_source(
+                source,
+                target,
+                _PackingClassArgs(
+                    deprecated_in=deprecated_in,
+                    remove_in=remove_in,
+                    num_warns=num_warns,
+                    stream=stream,
                     args_mapping=args_mapping,
                     args_extra=args_extra,
-                    stacklevel=_stacklevel + 1,
-                )
-                forward_args_mapping = None
-                forward_args_extra = None
-
-            return deprecated_class(
-                target=forward_target,
-                deprecated_in=deprecated_in,
-                remove_in=remove_in,
-                num_warns=num_warns,
-                stream=stream,
-                args_mapping=forward_args_mapping,
-                args_extra=forward_args_extra,
-                update_docstring=update_docstring,
-                docstring_style=docstring_style,
-                _misconfigured_override=force_misconfigured,
-            )(source)
+                    update_docstring=update_docstring,
+                    docstring_style=docstring_style,
+                    _stacklevel=_stacklevel + 1,
+                ),
+            )
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
         # Descriptor targets: unwrap __func__ so the guard can inspect the qualname;
@@ -1318,46 +1564,11 @@ def deprecated(  # noqa: C901
             param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
         )
 
-        # Detect POSITIONAL_ONLY params on the callable target at decoration time.
-        # When found: emit UserWarning (mirrors proxy behaviour) and record names so
-        # the call dispatcher can split them out of kwargs and pass positionally.
-        _target_positional_only: frozenset[str] = frozenset()
-        _target_positional_only_order: tuple[str, ...] = ()
-        if callable(_target):
-            try:
-                _tgt_sig = inspect.signature(_target)
-            except (TypeError, ValueError):
-                pass
-            else:
-                _target_positional_only = frozenset(
-                    name for name, p in _tgt_sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
-                )
-                if _target_positional_only:
-                    _target_positional_only_order = tuple(_tgt_sig.parameters.keys())
-            _warn_positional_only = _target_positional_only - {"self", "cls"}
-            if _warn_positional_only and stream is not None:
-                warnings.warn(
-                    f"`@deprecated(target={getattr(_target, '__name__', repr(_target))!r})` on"
-                    f" `{source.__name__}`: target parameter(s)"
-                    f" {sorted(_warn_positional_only)!r} are POSITIONAL_ONLY and cannot be"
-                    " forwarded as kwargs. Calls will pass these values positionally."
-                    " Consider removing `/` from the target signature.",
-                    UserWarning,
-                    stacklevel=_stacklevel,
-                )
+        _target_positional_only, _target_positional_only_order = _detect_positional_only(
+            _target, source, stream, _stacklevel + 1
+        )
 
-        # Enum-normalised target stored so audit does not re-derive from raw sentinel.
-        # Class targets kept verbatim: _normalize_target() remaps class→__init__ at
-        # decoration time for the wrapper closure, but stored_target keeps the user-facing
-        # class so audit and docstring consumers see the original target.
-        if target is None or isinstance(target, bool):
-            stored_target: Any = TargetMode._from_legacy(target, stacklevel=None)
-        elif isinstance(target, TargetMode):
-            stored_target = target
-        elif isinstance(target, (staticmethod, classmethod)):
-            stored_target = target.__func__  # audit sees the function, not the descriptor
-        else:
-            stored_target = target
+        stored_target = _resolve_stored_target(target)
         misconfigured = target is False or _function_misconfigured
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
@@ -1410,28 +1621,7 @@ def deprecated(  # noqa: C901
                     source_is_stacked=_source_is_stacked,
                 )
 
-                if plan.short_circuit:
-                    if source_has_var_positional:
-                        return await source(*args, **plan.original_kwargs)
-                    return await source(**plan.resolved_kwargs)
-
-                if plan.target_func is None:
-                    if source_has_var_positional:
-                        call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
-                        return await source(*args, **call_kwargs)
-                    return await source(**plan.resolved_kwargs)
-                # Sync target under async source: invoke directly so callers can migrate from a sync to async
-                # API in one step without forcing every legacy target to be redeclared ``async def``.
-                if _dep_cfg.target_positional_only:
-                    _pos_args, _kw_args = _split_positional_only_kwargs(
-                        _dep_cfg.target_positional_only_order, plan.resolved_kwargs, _dep_cfg.target_positional_only
-                    )
-                    if inspect.iscoroutinefunction(plan.target_func):
-                        return await plan.target_func(*_pos_args, **_kw_args)
-                    return plan.target_func(*_pos_args, **_kw_args)
-                if inspect.iscoroutinefunction(plan.target_func):
-                    return await plan.target_func(**plan.resolved_kwargs)
-                return plan.target_func(**plan.resolved_kwargs)
+                return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
 
             async_wrapped_fn_typed = cast(_DeprecatedCallable, async_wrapped_fn)
             async_wrapped_fn_typed.__deprecated__ = dep_meta
@@ -1473,27 +1663,7 @@ def deprecated(  # noqa: C901
                 source_is_stacked=_source_is_stacked,
             )
 
-            if plan.short_circuit:
-                if source_has_var_positional:
-                    return source(*args, **plan.original_kwargs)
-                return source(**plan.resolved_kwargs)
-
-            if plan.target_func is None:
-                if source_has_var_positional:
-                    call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
-                    return source(*args, **call_kwargs)
-                return source(**plan.resolved_kwargs)
-            if inspect.iscoroutinefunction(plan.target_func):
-                raise TypeError(
-                    f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
-                    f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
-                )
-            if _dep_cfg.target_positional_only:
-                _pos_args, _kw_args = _split_positional_only_kwargs(
-                    _dep_cfg.target_positional_only_order, plan.resolved_kwargs, _dep_cfg.target_positional_only
-                )
-                return plan.target_func(*_pos_args, **_kw_args)
-            return plan.target_func(**plan.resolved_kwargs)
+            return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
 
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta

@@ -19,6 +19,7 @@ from deprecate.audit import (
     ChainType,
     DeprecationStatus,
     DeprecationWrapperInfo,
+    _classify_member_api_type,
     _get_deprecation_status,
     _get_package_version,
     _parse_version,
@@ -587,6 +588,18 @@ class TestDwiCompatInit:
             result = dataclasses.replace(base, empty_mapping=True)  # type: ignore[call-arg]
 
         assert result.empty_args_mapping is True
+
+
+class TestClassifyMemberApiType:
+    """Tests for _classify_member_api_type — labels class-member audit rows."""
+
+    def test_init_without_mapping_returns_class_constructor(self) -> None:
+        """member_name='__init__' with has_mapping=False returns 'class constructor'."""
+        assert _classify_member_api_type("__init__", None, False) == "class constructor"
+
+    def test_init_with_mapping_returns_class_constructor_args(self) -> None:
+        """member_name='__init__' with has_mapping=True returns 'class constructor args'."""
+        assert _classify_member_api_type("__init__", None, True) == "class constructor args"
 
 
 class TestFindDeprecationWrappersClassScan:
