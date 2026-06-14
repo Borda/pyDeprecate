@@ -106,9 +106,7 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 | Sphinx Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 | MkDocs Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 
-✍️ = possible but requires manual implementation
-</br>
-† `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
+✍️ = possible but requires manual implementation </br> † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 

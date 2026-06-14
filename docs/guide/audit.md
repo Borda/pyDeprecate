@@ -150,10 +150,7 @@ tests.collection_deprecate.DecoratedDataClass: no_effect=False
 
 ### Scanning a misconfigured collection
 
-`tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references,
-and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
-The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 15 bindings even though there are
-14 unique function objects.
+`tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references, and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place. The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 15 bindings even though there are 14 unique function objects.
 
 ```python
 from deprecate import find_deprecation_wrappers
