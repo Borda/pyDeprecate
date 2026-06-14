@@ -30,18 +30,18 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 from deprecate import deprecated
 
 
-def detect_objects(value: int) -> int:
+def new_func(value: int) -> int:
     return value + 1
 
 
 @deprecated(
-    target=detect_objects,
+    target=new_func,
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `detect` was deprecated since v1.2 in favor of `detect_objects`. It will be removed in v2.0."
+    # FutureWarning: "The `old_func` was deprecated since v1.2 in favor of `new_func`. It will be removed in v2.0."
 )
-def detect(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
+def old_func(value: int) -> int:
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 ```
 
 ### Rename an argument
@@ -52,13 +52,13 @@ from deprecate import TargetMode, deprecated
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    args_mapping={"lr": "learning_rate"},
+    args_mapping={"old_arg": "new_arg"},
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `configure` uses deprecated arguments: `lr` -> `learning_rate`. They were deprecated since v1.2 and will be removed in v2.0."
+    # FutureWarning: "The `api` uses deprecated arguments: `old_arg` -> `new_arg`. They were deprecated since v1.2 and will be removed in v2.0."
 )
-def configure(*, learning_rate: float) -> float:
-    return learning_rate
+def api(*, new_arg: float) -> float:
+    return new_arg
 ```
 
 ### Warn only

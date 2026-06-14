@@ -580,15 +580,18 @@ from deprecate import deprecated, assert_no_warnings, void
 import pytest
 
 
+# NEW API — doubles the input value
 def score_predictions(x: int) -> int:
     return x * 2
 
 
+# DEPRECATED API — `score` replaced by `score_predictions`
 @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
 def score(x: int) -> int:
     pass
 
 
+# DEPRECATED API — `score_v2` replaced by `score_predictions`
 @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
 def score_v2(x: int) -> int:
     return void(x)
@@ -671,10 +674,12 @@ import warnings
 from deprecate import deprecated, assert_no_warnings, void
 
 
+# NEW API — creates a session dict with host and timeout
 def new_create_session(host: str, timeout: int = 30) -> dict:
     return {"host": host, "timeout": timeout}
 
 
+# DEPRECATED API — `create_session` replaced by `new_create_session`
 @deprecated(target=new_create_session, deprecated_in="1.0", remove_in="2.0")
 def create_session(host: str, timeout: int = 30) -> dict:
     return void(host, timeout)

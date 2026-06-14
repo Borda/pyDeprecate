@@ -24,6 +24,7 @@ If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDepr
 `void(...)` appears as the return expression of a deprecated wrapper. The call to `add` is forwarded to `add_values` immediately — the `return void(a, b)` line is never reached, but it tells the IDE that `a` and `b` are intentionally accepted and ignored.
 
 ```python
+# NEW API — adds two integers and returns the sum
 def add_values(a: int, b: int) -> int:
     return a + b
 
@@ -33,6 +34,7 @@ def add_values(a: int, b: int) -> int:
 from deprecate import deprecated, void
 
 
+# DEPRECATED API — `add` replaced by `add_values`
 @deprecated(target=add_values, deprecated_in="1.0", remove_in="2.0")
 def add(a: int, b: int) -> int:
     return void(a, b)  # Tells IDE: "Yes, I know these parameters aren't used"
@@ -70,10 +72,12 @@ Simplest approach. Clear, idiomatic Python for "do nothing". IDEs may still flag
 from deprecate import deprecated
 
 
+# NEW API — evaluates the sum of two integers
 def evaluate(x: int, y: int) -> int:
     return x + y
 
 
+# DEPRECATED API — `compute` replaced by `evaluate`
 @deprecated(target=evaluate, deprecated_in="1.0", remove_in="2.0")
 def compute(x: int, y: int) -> int:
     pass
@@ -99,10 +103,12 @@ A docstring alone is a valid function body. Useful when you want to document wha
 from deprecate import deprecated
 
 
+# NEW API — evaluates the sum of two integers
 def evaluate(x: int, y: int) -> int:
     return x + y
 
 
+# DEPRECATED API — `compute` replaced by `evaluate`
 @deprecated(target=evaluate, deprecated_in="1.0", remove_in="2.0")
 def compute(x: int, y: int) -> int:
     """Previously computed x + y. Use evaluate() directly."""
@@ -128,10 +134,12 @@ References all parameters explicitly, silencing "unused parameter" warnings in P
 from deprecate import deprecated, void
 
 
+# NEW API — evaluates the sum of two integers
 def evaluate(x: int, y: int) -> int:
     return x + y
 
 
+# DEPRECATED API — `compute` replaced by `evaluate`
 @deprecated(target=evaluate, deprecated_in="1.0", remove_in="2.0")
 def compute(x: int, y: int) -> int:
     return void(x, y)
@@ -211,17 +219,20 @@ from deprecate import deprecated, void
 from typing import Any, cast
 
 
+# NEW API — doubles the input value; replaces the deprecated score wrappers
 def score_predictions(x: int) -> int:
     return x * 2
 
 
 # Option A: Use `pass` instead (no return statement at all)
+# DEPRECATED API — `transform_a` replaced by `score_predictions`
 @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
 def transform_a(x: int) -> int:
     pass  # type: ignore[return-value]
 
 
 # Option B: Cast the void return (technically dead code)
+# DEPRECATED API — `transform_b` replaced by `score_predictions`
 @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
 def transform_b(x: int) -> int:
     return cast(int, void(x))
@@ -256,11 +267,13 @@ These two utilities solve completely different problems. Their names might sugge
 from deprecate import deprecated, void, assert_no_warnings
 
 
+# NEW API — doubles the input value
 def score_predictions(x: int) -> int:
     return x * 2
 
 
 # void() — used in the deprecated function body (decoration-time concern)
+# DEPRECATED API — `score` replaced by `score_predictions`
 @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
 def score(x: int) -> int:
     return void(x)

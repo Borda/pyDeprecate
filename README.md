@@ -1226,6 +1226,7 @@ b'https://example.com'
 When using `@deprecated` with a `target` function, the deprecated function's body is never executed—all calls are automatically forwarded. However, your IDE might complain about "unused parameters". The `void()` helper function silences these warnings:
 
 ```python
+# NEW API — adds two integers and returns the sum
 def add_values(a: int, b: int) -> int:
     return a + b
 
@@ -1235,6 +1236,7 @@ def add_values(a: int, b: int) -> int:
 from deprecate import deprecated, void
 
 
+# DEPRECATED API — `add` replaced by `add_values`
 @deprecated(target=add_values, deprecated_in="1.0", remove_in="2.0")
 def add(a: int, b: int) -> int:
     return void(a, b)  # Tells IDE: "Yes, I know these parameters aren't used"
@@ -1818,15 +1820,18 @@ from deprecate import deprecated, assert_no_warnings, void
 import pytest
 
 
+# NEW API — doubles the input value
 def score_predictions(x: int) -> int:
     return x * 2
 
 
+# DEPRECATED API — `score` replaced by `score_predictions`
 @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
 def score(x: int) -> int:
     pass
 
 
+# DEPRECATED API — `score_v2` replaced by `score_predictions`
 @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
 def score_v2(x: int) -> int:
     return void(x)

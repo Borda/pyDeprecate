@@ -36,7 +36,7 @@ def new_function(value: int) -> int:
 
 @deprecated(target=new_function, deprecated_in="1.0", remove_in="2.0")
 def old_function(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate.")
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 ```
 
 ### Argument rename

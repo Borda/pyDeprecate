@@ -47,10 +47,12 @@ Custom templates use Python `%`-style formatting (`%(key)s`). Available placehol
 from deprecate import TargetMode, deprecated
 
 
+# NEW API — detects objects and returns a scaled count
 def detect_objects(x: int) -> int:
     return x * 10
 
 
+# DEPRECATED API — `detect` replaced by `detect_objects`
 @deprecated(
     target=detect_objects,
     deprecated_in="2.0",
@@ -162,10 +164,12 @@ from deprecate import deprecated
 logging.basicConfig(level=logging.WARNING)
 
 
+# NEW API — sorts a list and returns the sorted copy
 def sort_items(data: list) -> list:
     return sorted(data)
 
 
+# DEPRECATED API — `process_batch` replaced by `sort_items`
 @deprecated(
     target=sort_items,
     deprecated_in="1.0",
@@ -209,6 +213,7 @@ For quick debugging or scripts where you want immediate stdout output without th
 from deprecate import deprecated
 
 
+# NEW API — formats a greeting string for the given name
 def say_hello(name: str) -> str:
     return f"Hello, {name}!"
 
@@ -216,6 +221,7 @@ def say_hello(name: str) -> str:
 say_hello.__module__ = "your_module"
 
 
+# DEPRECATED API — `greet` replaced by `say_hello`
 @deprecated(target=say_hello, deprecated_in="1.0", remove_in="2.0", stream=print)
 def greet(name: str) -> str:
     pass
@@ -251,6 +257,7 @@ def collector(msg: str) -> None:
     collected_warnings.append(msg)
 
 
+# NEW API — doubles the input value
 def target_fn(x: int) -> int:
     return x * 2
 
@@ -258,6 +265,7 @@ def target_fn(x: int) -> int:
 target_fn.__module__ = "your_module"
 
 
+# DEPRECATED API — `source_fn` replaced by `target_fn`
 @deprecated(target=target_fn, deprecated_in="1.0", remove_in="2.0", stream=collector)
 def source_fn(x: int) -> int:
     pass

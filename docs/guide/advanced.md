@@ -186,10 +186,12 @@ import warnings
 from deprecate import deprecated, assert_no_warnings, void
 
 
+# NEW API — creates a client connection dict from host and port
 def new_create_client(host: str, port: int = 443) -> dict:
     return {"host": host, "port": port}
 
 
+# DEPRECATED API — `create_client` replaced by `new_create_client`
 @deprecated(target=new_create_client, deprecated_in="1.0", remove_in="2.0")
 def create_client(host: str, port: int = 443) -> dict:
     return void(host, port)
@@ -391,14 +393,14 @@ This is the right behavior. It keeps generator deprecations consistent with regu
 from deprecate import deprecated, void
 
 
-# NEW/FUTURE API — new name, same semantics
+# NEW API — yields sequential integer IDs starting from a given value
 def generate_ids(start: int, count: int):
     """Yield `count` sequential IDs starting from `start`."""
     for i in range(count):
         yield start + i
 
 
-# DEPRECATED API — `iter_ids` was the old name before the rename
+# DEPRECATED API — `iter_ids` replaced by `generate_ids`
 @deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
 def iter_ids(start: int, count: int):
     """Deprecated — use generate_ids() instead."""
@@ -479,10 +481,12 @@ print(list(repeat_value(value=1, count=2)))
 from deprecate import deprecated, void
 
 
+# NEW API — yields integers from start (inclusive) to stop (exclusive)
 def new_range(start: int, stop: int):
     yield from range(start, stop)
 
 
+# DEPRECATED API — `old_range` replaced by `new_range`
 @deprecated(target=new_range, deprecated_in="0.9", remove_in="1.0")
 def old_range(start: int, stop: int):
     return void(start, stop)

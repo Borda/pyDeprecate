@@ -60,7 +60,7 @@ def detect_objects(value: int) -> int:
     # FutureWarning: "The `detect` was deprecated since v1.2 in favor of `detect_objects`. It will be removed in v2.0."
 )
 def detect(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate.")
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 
 
 print(detect(1))
@@ -127,7 +127,7 @@ def detect_objects(value: int) -> int:
     # FutureWarning: "The `detect` was deprecated since v1.2 in favor of `detect_objects`. It will be removed in v2.0."
 )
 def detect(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 
 
 print(detect(1))

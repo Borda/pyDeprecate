@@ -28,7 +28,7 @@ def detect_objects(value: int) -> int:
 
 @deprecated(target=detect_objects, deprecated_in="1.2", remove_in="2.0")
 def detect(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate.")
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 ```
 
 ## Argument rename
