@@ -108,19 +108,19 @@ Symptoms of the old behaviour:
 from deprecate import deprecated
 
 
-class NewClass:
+class Renderer:
     pass
 
 
-@deprecated(target=NewClass, deprecated_in="1.0", remove_in="2.0")
-class OldClass:
+@deprecated(target=Renderer, deprecated_in="1.0", remove_in="2.0")
+class Formatter:
     class_attr = 42
 
 
-obj = OldClass()
-isinstance(obj, OldClass)  # TypeError or False — OldClass is now a function
-issubclass(OldClass, object)  # TypeError — same reason
-OldClass.class_attr  # AttributeError — wrapper function has no class attributes
+obj = Formatter()
+isinstance(obj, Formatter)  # TypeError or False — Formatter is now a function
+issubclass(Formatter, object)  # TypeError — same reason
+Formatter.class_attr  # AttributeError — wrapper function has no class attributes
 ```
 
 The replacement is `@deprecated_class()`, which wraps the class in a `_DeprecatedProxy`. The proxy forwards all attribute access, item access, calls, and type checks to the target class — so `isinstance` and `issubclass` work correctly, class attributes remain accessible, and existing subclasses continue to work.
@@ -129,20 +129,20 @@ The replacement is `@deprecated_class()`, which wraps the class in a `_Deprecate
 from deprecate import deprecated_class
 
 
-class NewCalculator:
+class MathCalculator:
     def add(self, a: int, b: int) -> int:
         return a + b
 
 
-@deprecated_class(target=NewCalculator, deprecated_in="1.0", remove_in="2.0")
-class OldCalculator:
+@deprecated_class(target=MathCalculator, deprecated_in="1.0", remove_in="2.0")
+class Calculator:
     pass
 
 
-obj = OldCalculator()
-print(isinstance(obj, NewCalculator))  # True — proxy forwards isinstance checks
-print(issubclass(OldCalculator, object))  # True — type checks pass through
-print(obj.add(1, 2))  # 3 — forwarded to NewCalculator
+obj = Calculator()
+print(isinstance(obj, MathCalculator))  # True — proxy forwards isinstance checks
+print(issubclass(Calculator, object))  # True — type checks pass through
+print(obj.add(1, 2))  # 3 — forwarded to MathCalculator
 ```
 
 <details>
@@ -163,20 +163,20 @@ from enum import Enum
 from deprecate import deprecated_class
 
 
-class Color(Enum):
+class ColorPalette(Enum):
     RED = 1
     BLUE = 2
 
 
-OldColor = deprecated_class(target=Color, deprecated_in="1.5", remove_in="2.0")(Color)
+Color = deprecated_class(target=ColorPalette, deprecated_in="1.5", remove_in="2.0")(ColorPalette)
 
-print(OldColor.RED is Color.RED)  # True
-print(OldColor(1) is Color.RED)  # True
-print(OldColor["RED"] is Color.RED)  # True
+print(Color.RED is ColorPalette.RED)  # True
+print(Color(1) is ColorPalette.RED)  # True
+print(Color["RED"] is ColorPalette.RED)  # True
 ```
 
 <details>
-  <summary>Output: <code>OldColor["RED"] is Color.RED</code></summary>
+  <summary>Output: <code>Color["RED"] is ColorPalette.RED</code></summary>
 
 ```
 True
@@ -316,7 +316,7 @@ pyDeprecate enforces the return type strictly so that the conditional skip behav
 
 ```python
 # Minimal replacement function for examples
-def new_func() -> str:
+def get_status() -> str:
     return "Hi!"
 
 
@@ -330,23 +330,23 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=new_func, skip_if=should_skip)
-def old_func1():
+@deprecated(target=get_status, skip_if=should_skip)
+def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=new_func, skip_if=lambda: False)
-def old_func2():
+@deprecated(target=get_status, skip_if=lambda: False)
+def infer_v2():
     pass
 
 
-print(old_func1())
-print(old_func2())
+print(infer())
+print(infer_v2())
 ```
 
 <details>
-  <summary>Output: <code>old_func1(), old_func2()</code></summary>
+  <summary>Output: <code>infer(), infer_v2()</code></summary>
 
 ```
 Hi!
@@ -365,7 +365,7 @@ For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_RE
 
 ```python
 # Minimal replacement function for examples
-def new_func(x: int) -> int:
+def score_predictions(x: int) -> int:
     return x * 2
 
 
@@ -375,22 +375,22 @@ from deprecate import deprecated
 
 
 # Show warning every time
-@deprecated(target=new_func, num_warns=-1)  # -1 means unlimited
-def old_func_always_warn():
+@deprecated(target=score_predictions, num_warns=-1)
+def predict():
     pass
 
 
 # Show warning N times total
-@deprecated(target=new_func, num_warns=5)  # Show 5 times
-def old_func_warn_n_times():
+@deprecated(target=score_predictions, num_warns=5)
+def predict_batch():
     pass
 
 
-print(callable(old_func_always_warn), callable(old_func_warn_n_times))
+print(callable(predict), callable(predict_batch))
 ```
 
 <details>
-  <summary>Output: <code>callable(old_func_always_warn), callable(old_func_warn_n_times)</code></summary>
+  <summary>Output: <code>callable(predict), callable(predict_batch)</code></summary>
 
 ```
 True True

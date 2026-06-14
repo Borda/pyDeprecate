@@ -1184,7 +1184,7 @@ async def fetch(url: str) -> bytes:
 
 # 2) TargetMode.NOTIFY — warn callers; the async body still runs
 @deprecated(deprecated_in="0.9", remove_in="1.0")
-async def legacy_ping() -> str:
+async def ping() -> str:
     """Deprecated — going away; remove call sites."""
     return "pong"
 
@@ -1202,7 +1202,7 @@ async def fetch_data(endpoint: str = "", url: str = "") -> bytes:
 
 
 asyncio.run(fetch("https://example.com"))
-asyncio.run(legacy_ping())
+asyncio.run(ping())
 print(asyncio.run(fetch_data(endpoint="https://example.com")))
 ```
 
@@ -1226,7 +1226,7 @@ b'https://example.com'
 When using `@deprecated` with a `target` function, the deprecated function's body is never executed—all calls are automatically forwarded. However, your IDE might complain about "unused parameters". The `void()` helper function silences these warnings:
 
 ```python
-def new_add(a: int, b: int) -> int:
+def add_values(a: int, b: int) -> int:
     return a + b
 
 
@@ -1235,24 +1235,24 @@ def new_add(a: int, b: int) -> int:
 from deprecate import deprecated, void
 
 
-@deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
-def old_add(a: int, b: int) -> int:
+@deprecated(target=add_values, deprecated_in="1.0", remove_in="2.0")
+def add(a: int, b: int) -> int:
     return void(a, b)  # Tells IDE: "Yes, I know these parameters aren't used"
-    # This line is never reached - call is forwarded to new_add
+    # call is forwarded to add_values
 
 
 # Alternative: You can also use pass or just a docstring
-@deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
-def old_add_v2(a: int, b: int) -> int:
+@deprecated(target=add_values, deprecated_in="1.0", remove_in="2.0")
+def add_v1(a: int, b: int) -> int:
     """Just a docstring works too."""
     pass  # This also works
 
 
-print(old_add_v2(2, 3))
+print(add_v1(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>old_add_v2(2, 3)</code></summary>
+  <summary>Output: <code>add_v1(2, 3)</code></summary>
 
 ```
 5
@@ -1818,31 +1818,31 @@ from deprecate import deprecated, assert_no_warnings, void
 import pytest
 
 
-def new_func(x: int) -> int:
+def score_predictions(x: int) -> int:
     return x * 2
 
 
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def score(x: int) -> int:
     pass
 
 
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func2(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def score_v2(x: int) -> int:
     return void(x)
 
 
 def test_deprecated_function_shows_warning():
     """Verify the deprecation warning is shown."""
-    with pytest.warns(FutureWarning, match="old_func.*deprecated"):
-        result = old_func(42)
+    with pytest.warns(FutureWarning, match="score.*deprecated"):
+        result = score(42)
     assert result == 84
 
 
 def test_new_function_no_warning():
     """Verify new function doesn't trigger warnings."""
     with assert_no_warnings(FutureWarning):
-        result = new_func(42)
+        result = score_predictions(42)
     assert result == 84
 
 
@@ -1850,11 +1850,11 @@ def test_no_warning_after_first_call():
     """By default, warnings are shown only once per function."""
     # First call shows warning
     with pytest.warns(FutureWarning):
-        old_func2(1)
+        score_v2(1)
 
     # Subsequent calls don't show warning (by default num_warns=1)
     with assert_no_warnings(FutureWarning):
-        old_func2(2)
+        score_v2(2)
 
 
 # call the tests for CI demonstration/validation
@@ -1868,7 +1868,7 @@ test_no_warning_after_first_call()
 
 ```python
 # Minimal replacement implementation used in examples
-def new_func(x: int) -> int:
+def score_predictions(x: int) -> int:
     return x * 2
 
 
@@ -1878,24 +1878,24 @@ from deprecate import deprecated
 
 
 # Show warning every time (useful for critical deprecations)
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
-def old_func_always_warn(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+def predict(x: int) -> int:
     pass
 
 
 # Show warning N times total
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
-def old_func_warn_n_times(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=5)
+def predict_batch(x: int) -> int:
     pass
 
 
-print(old_func_warn_n_times(1))
+print(predict_batch(1))
 ```
 
 </details>
 
 <details>
-  <summary>Output: <code>old_func_warn_n_times(1)</code></summary>
+  <summary>Output: <code>predict_batch(1)</code></summary>
 
 ```
 2
@@ -2034,7 +2034,7 @@ print(MyClass(42).x)
 
 ```python
 # Minimal replacement function for examples
-def new_func() -> str:
+def get_status() -> str:
     return "Hi!"
 
 
@@ -2048,24 +2048,24 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=new_func, skip_if=should_skip)
-def old_func1():
+@deprecated(target=get_status, skip_if=should_skip)
+def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=new_func, skip_if=lambda: False)
-def old_func2():
+@deprecated(target=get_status, skip_if=lambda: False)
+def infer_v2():
     pass
 
 
-print(old_func2())
+print(infer_v2())
 ```
 
 </details>
 
 <details>
-  <summary>Output: <code>old_func2()</code></summary>
+  <summary>Output: <code>infer_v2()</code></summary>
 
 ```
 Hi!
@@ -2088,7 +2088,7 @@ has its own warning counter, meaning warnings for different arguments are tracke
 
 ```python
 # Minimal replacement function for examples
-def new_func(x: int) -> int:
+def score_predictions(x: int) -> int:
     return x * 2
 
 
@@ -2098,22 +2098,22 @@ from deprecate import deprecated
 
 
 # Show warning every time
-@deprecated(target=new_func, num_warns=-1)  # -1 means unlimited
-def old_func_always_warn():
+@deprecated(target=score_predictions, num_warns=-1)  # -1 means unlimited
+def predict():
     pass
 
 
 # Show warning N times total
-@deprecated(target=new_func, num_warns=5)  # Show 5 times
-def old_func_warn_n_times():
+@deprecated(target=score_predictions, num_warns=5)  # Show 5 times
+def predict_batch():
     pass
 
 
-print(callable(old_func_warn_n_times))
+print(callable(predict_batch))
 ```
 
 <details>
-  <summary>Output: <code>callable(old_func_warn_n_times)</code></summary>
+  <summary>Output: <code>callable(predict_batch)</code></summary>
 
 ```
 True

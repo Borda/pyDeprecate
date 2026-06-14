@@ -55,25 +55,25 @@ print(my_func(2))
 from deprecate import deprecated
 
 
-@deprecated(target=True, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
-def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
-    return new_arg * 2
+@deprecated(target=True, args_mapping={"lr": "learning_rate"}, deprecated_in="1.0", remove_in="2.0")
+def my_func(lr: float = 0.0, learning_rate: float = 0.0) -> float:
+    return learning_rate * 2
 
 
 # Modern form
 from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
-def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
-    return new_arg * 2
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"lr": "learning_rate"}, deprecated_in="1.0", remove_in="2.0")
+def my_func(lr: float = 0.0, learning_rate: float = 0.0) -> float:
+    return learning_rate * 2
 
 
-print(my_func(old_arg=1, new_arg=2))
+print(my_func(lr=1, learning_rate=2))
 ```
 
 <details>
-  <summary>Output: <code>my_func(old_arg=1, new_arg=2)</code></summary>
+  <summary>Output: <code>my_func(lr=1, learning_rate=2)</code></summary>
 
 ```
 4

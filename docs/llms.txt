@@ -30,17 +30,17 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 from deprecate import deprecated
 
 
-def new_api(value: int) -> int:
+def detect_objects(value: int) -> int:
     return value + 1
 
 
 @deprecated(
-    target=new_api,
+    target=detect_objects,
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
+    # FutureWarning: "The `detect` was deprecated since v1.2 in favor of `detect_objects`. It will be removed in v2.0."
 )
-def old_api(value: int) -> int:
+def detect(value: int) -> int:
     raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
 ```
 
@@ -52,13 +52,13 @@ from deprecate import TargetMode, deprecated
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    args_mapping={"old_name": "new_name"},
+    args_mapping={"lr": "learning_rate"},
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `configure` uses deprecated arguments: `old_name` -> `new_name`. They were deprecated since v1.2 and will be removed in v2.0."
+    # FutureWarning: "The `configure` uses deprecated arguments: `lr` -> `learning_rate`. They were deprecated since v1.2 and will be removed in v2.0."
 )
-def configure(*, new_name: str) -> str:
-    return new_name
+def configure(*, learning_rate: float) -> float:
+    return learning_rate
 ```
 
 ### Warn only

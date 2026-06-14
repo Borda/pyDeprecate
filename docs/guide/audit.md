@@ -583,31 +583,31 @@ from deprecate import deprecated, assert_no_warnings, void
 import pytest
 
 
-def new_func(x: int) -> int:
+def score_predictions(x: int) -> int:
     return x * 2
 
 
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def score(x: int) -> int:
     pass
 
 
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func2(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def score_v2(x: int) -> int:
     return void(x)
 
 
 def test_deprecated_function_shows_warning():
     """Verify the deprecation warning is shown."""
-    with pytest.warns(FutureWarning, match="old_func.*deprecated"):
-        result = old_func(42)
+    with pytest.warns(FutureWarning, match="score.*deprecated"):
+        result = score(42)
     assert result == 84
 
 
 def test_new_function_no_warning():
     """Verify new function doesn't trigger warnings."""
     with assert_no_warnings(FutureWarning):
-        result = new_func(42)
+        result = score_predictions(42)
     assert result == 84
 
 
@@ -615,11 +615,11 @@ def test_no_warning_after_first_call():
     """By default, warnings are shown only once per function."""
     # First call shows warning
     with pytest.warns(FutureWarning):
-        old_func2(1)
+        score_v2(1)
 
     # Subsequent calls don't show warning (by default num_warns=1)
     with assert_no_warnings(FutureWarning):
-        old_func2(2)
+        score_v2(2)
 
 
 # call the tests for CI demonstration/validation
@@ -632,7 +632,7 @@ When a deprecation must be impossible to miss, set `num_warns=-1` to fire on eve
 
 ```python
 # Minimal replacement implementation used in examples
-def new_func(x: int) -> int:
+def score_predictions(x: int) -> int:
     return x * 2
 
 
@@ -642,22 +642,22 @@ from deprecate import deprecated
 
 
 # Show warning every time (useful for critical deprecations)
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
-def old_func_always_warn(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+def predict(x: int) -> int:
     pass
 
 
 # Show warning N times total
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0", num_warns=5)
-def old_func_warn_n_times(x: int) -> int:
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=5)
+def predict_batch(x: int) -> int:
     pass
 
 
-print(old_func_warn_n_times(1))
+print(predict_batch(1))
 ```
 
 <details>
-  <summary>Output: <code>old_func_warn_n_times(1)</code></summary>
+  <summary>Output: <code>predict_batch(1)</code></summary>
 
 ```
 2

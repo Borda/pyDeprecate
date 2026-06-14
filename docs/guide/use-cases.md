@@ -19,19 +19,19 @@ The two most common reasons to deprecate something are renaming a function and r
     from deprecate import deprecated, void
 
 
-    def new_func(x: int) -> int:
+    def score_predictions(x: int) -> int:
         return x * 2
 
 
-    # WRONG — new_func(x) is never reached; the decorator forwards before the body runs
-    @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-    def old_func(x: int) -> int:
-        return new_func(x)
+    # WRONG — score_predictions(x) is never reached; the decorator forwards before the body runs
+    @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+    def score(x: int) -> int:
+        return score_predictions(x)
 
 
     # CORRECT — body is empty; pyDeprecate handles all forwarding automatically
-    @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-    def old_func(x: int) -> int:
+    @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+    def score(x: int) -> int:
         return void(x)  # or: pass  or: """Original function description."""
     ```
 
@@ -226,23 +226,23 @@ from typing import Optional
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    args_mapping={"legacy_param": None},
+    args_mapping={"num_workers": None},
     deprecated_in="1.8",
     remove_in="1.9",
 )
-def my_func(value: int, legacy_param: Optional[str] = None) -> int:
-    """legacy_param is no longer used; pass None or omit it."""
+def my_func(value: int, num_workers: Optional[int] = None) -> int:
+    """num_workers is no longer used; omit it (auto-detected)."""
     return value * 2
 
 
 # Passing the removed argument triggers a warning and the argument is silently discarded:
-#   The `my_func` uses deprecated arguments: `legacy_param` -> `None`.
+#   The `my_func` uses deprecated arguments: `num_workers` -> `None`.
 #   They were deprecated since v1.8 and will be removed in v1.9.
-print(my_func(value=42, legacy_param="old"))
+print(my_func(value=42, num_workers=4))
 ```
 
 <details>
-  <summary>Output: <code>my_func(value=42, legacy_param="old")</code></summary>
+  <summary>Output: <code>my_func(value=42, num_workers=4)</code></summary>
 
 ```
 84
@@ -2025,17 +2025,17 @@ from deprecate import deprecated
 
 
 @deprecated(deprecated_in="0.9", remove_in="1.0")
-def old_pipeline(items):
+def run_pipeline(items):
     """This generator is going away; no replacement yet."""
     for item in items:
         yield item.strip()
 
 
-print(list(old_pipeline(["a ", "b "])))
+print(list(run_pipeline(["a ", "b "])))
 ```
 
 <details>
-  <summary>Output: <code>list(old_pipeline(["a ", "b "]))</code></summary>
+  <summary>Output: <code>list(run_pipeline(["a ", "b "]))</code></summary>
 
 ```
 ['a', 'b']
