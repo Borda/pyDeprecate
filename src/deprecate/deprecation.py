@@ -1113,7 +1113,7 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
     return None
 
 
-@dataclass(frozen=True)
+@dataclass
 class _PackingClassArgs:
     """Grouped keyword arguments for :func:`~deprecate.deprecation._packing_class_source`."""
 
@@ -1151,16 +1151,6 @@ def _packing_class_source(
         Result of ``deprecated_class(...)(source)``.
 
     """
-    deprecated_in = pack_args.deprecated_in
-    remove_in = pack_args.remove_in
-    num_warns = pack_args.num_warns
-    stream = pack_args.stream
-    args_mapping = pack_args.args_mapping
-    args_extra = pack_args.args_extra
-    update_docstring = pack_args.update_docstring
-    docstring_style = pack_args.docstring_style
-    _stacklevel = pack_args._stacklevel
-
     import importlib
 
     proxy_module = importlib.import_module("deprecate.proxy")
@@ -1175,8 +1165,8 @@ def _packing_class_source(
             " Note: non-class `target` values are ignored when deprecating classes;"
             " use `@deprecated_class(target=...)` instead."
         )
-    if stream is not None:
-        warnings.warn(message, UserWarning, stacklevel=_stacklevel)
+    if pack_args.stream is not None:
+        warnings.warn(message, UserWarning, stacklevel=pack_args._stacklevel)
 
     # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
     # ``misconfigured`` from its own ``target is False`` check — by that point
@@ -1189,41 +1179,36 @@ def _packing_class_source(
     elif target is None or isinstance(target, bool):
         # None/True/False on a class is a class-misconfiguration, not a callable
         # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
-        forward_target = TargetMode._from_legacy(target, stacklevel=_stacklevel + 1)
+        forward_target = TargetMode._from_legacy(target, stacklevel=pack_args._stacklevel + 1)
     else:
         forward_target = TargetMode.NOTIFY
 
-    # Capture all misconfig signals *before* rewriting forward_args_mapping / forward_args_extra
-    # so we can forward them via ``_misconfigured_override`` instead of mutating the frozen
-    # ``DeprecationConfig`` after construction. NOTIFY + (args_mapping or args_extra) is the
-    # second misconfig source the proxy can no longer detect once we strip those fields.
-    notify_misconfig = forward_target is TargetMode.NOTIFY and bool(args_mapping or args_extra)
+    # Capture misconfig signals *before* nulling args_mapping/args_extra — NOTIFY + either
+    # field is a misconfig the proxy can no longer detect once we strip those fields.
+    notify_misconfig = forward_target is TargetMode.NOTIFY and bool(pack_args.args_mapping or pack_args.args_extra)
     force_misconfigured = class_misconfigured or notify_misconfig
 
-    # Proxy metadata is immutable after construction; stale mapping persists to audit tools.
-    forward_args_mapping = args_mapping
-    forward_args_extra = args_extra
     if forward_target is TargetMode.NOTIFY:
         TargetMode._validate(
             forward_target,
             source.__name__,
-            args_mapping=args_mapping,
-            args_extra=args_extra,
-            stacklevel=_stacklevel + 1,
+            args_mapping=pack_args.args_mapping,
+            args_extra=pack_args.args_extra,
+            stacklevel=pack_args._stacklevel + 1,
         )
-        forward_args_mapping = None
-        forward_args_extra = None
+        pack_args.args_mapping = None
+        pack_args.args_extra = None
 
     return deprecated_class_fn(
         target=forward_target,
-        deprecated_in=deprecated_in,
-        remove_in=remove_in,
-        num_warns=num_warns,
-        stream=stream,
-        args_mapping=forward_args_mapping,
-        args_extra=forward_args_extra,
-        update_docstring=update_docstring,
-        docstring_style=docstring_style,
+        deprecated_in=pack_args.deprecated_in,
+        remove_in=pack_args.remove_in,
+        num_warns=pack_args.num_warns,
+        stream=pack_args.stream,
+        args_mapping=pack_args.args_mapping,
+        args_extra=pack_args.args_extra,
+        update_docstring=pack_args.update_docstring,
+        docstring_style=pack_args.docstring_style,
         _misconfigured_override=force_misconfigured,
     )(source)
 
