@@ -220,8 +220,7 @@ True
 
 Use `attrs_mapping` on `deprecated_class()` to deprecate only specific attribute names — all other attributes pass through silently. This covers attribute renames, misspelling corrections (e.g. `color` → `colour`), and warn-only notices on individual attributes.
 
-The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and resolve against the active class. Non-listed attribute names pass through without any warning.
-Non-`None` values must exist on the `target` class when `target=` is provided, or on the wrapped source class otherwise. Redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise immediately.
+The mapping keys are the deprecated attribute names; values are either the canonical replacement name (string) or `None` for a warn-only notice with no rename. Reads, writes, and deletes on deprecated attribute names all warn and resolve against the active class. Non-listed attribute names pass through without any warning. Non-`None` values must exist on the `target` class when `target=` is provided, or on the wrapped source class otherwise. Redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise immediately.
 
 ### Decorator syntax — attribute rename
 
@@ -628,11 +627,9 @@ The two warning budgets are independent — exhausting one does not affect the o
 
 #### Mixed redirect and warn-only entries
 
-`attrs_mapping` values can be a string (redirect to a new name) or `None` (warn but keep the same attribute name, no rename).
-Both forms can appear in the same mapping alongside `args_mapping`, making a single proxy the authoritative record for every deprecated surface on the class.
+`attrs_mapping` values can be a string (redirect to a new name) or `None` (warn but keep the same attribute name, no rename). Both forms can appear in the same mapping alongside `args_mapping`, making a single proxy the authoritative record for every deprecated surface on the class.
 
-The example below deprecates a `Model` class that renamed its `gpu` attribute to `device` and retired the `cuda` flag entirely.
-The constructor kwarg `n_layers` was also renamed to `num_layers`:
+The example below deprecates a `Model` class that renamed its `gpu` attribute to `device` and retired the `cuda` flag entirely. The constructor kwarg `n_layers` was also renamed to `num_layers`:
 
 ```python
 from deprecate import deprecated_class
@@ -684,22 +681,17 @@ False
 
 </details>
 
-`"cuda": None` emits a `FutureWarning` on every access but serves the value from `LegacyModel.cuda` (the source class) because `Model` does not define `cuda`.
-`"gpu": "device"` warns and redirects the lookup to `Model.device`.
-Validation at decoration time requires that every `None`-value key exists on at least one of the two classes, so `cuda` must be defined on `LegacyModel` (or on `Model` if keeping it in the new API).
+`"cuda": None` emits a `FutureWarning` on every access but serves the value from `LegacyModel.cuda` (the source class) because `Model` does not define `cuda`. `"gpu": "device"` warns and redirects the lookup to `Model.device`. Validation at decoration time requires that every `None`-value key exists on at least one of the two classes, so `cuda` must be defined on `LegacyModel` (or on `Model` if keeping it in the new API).
 
 !!! note "Audit tip — mapping compatibility"
 
-    After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg.
-    The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty.
-    See the [Audit guide](audit.md) for the full CI integration pattern.
+    After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg. The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty. See the [Audit guide](audit.md) for the full CI integration pattern.
 
 #### Stacking `deprecated_class()` for multi-version deprecations
 
 Use a **single `deprecated_class()` call** when all attributes and arguments share the same `deprecated_in`/`remove_in` — it is the simplest form and keeps both mappings in one place.
 
-**Stack two `@deprecated_class()` decorators** when different attributes were deprecated at different releases and each rename needs its own version pair.
-A common scenario: a library renamed `steps` in v0.8 and `lr` in v1.0 — each rename carries its own removal deadline.
+**Stack two `@deprecated_class()` decorators** when different attributes were deprecated at different releases and each rename needs its own version pair. A common scenario: a library renamed `steps` in v0.8 and `lr` in v1.0 — each rename carries its own removal deadline.
 
 ```python
 from deprecate import deprecated_class
@@ -741,8 +733,7 @@ True
 
 </details>
 
-Each proxy layer carries its own `deprecated_in`/`remove_in`, so attribute-access warnings are version-accurate — `cfg.lr` reports the v1.0 deadline while `cfg.steps` reports the earlier v0.8 deadline.
-Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, and instantiation fires at most one global warning. When stacking two `ATTRS_REMAP` layers, only the innermost layer's instantiation warning fires — the outer layer's version pair appears only in attribute-access warnings for that layer's keys.
+Each proxy layer carries its own `deprecated_in`/`remove_in`, so attribute-access warnings are version-accurate — `cfg.lr` reports the v1.0 deadline while `cfg.steps` reports the earlier v0.8 deadline. Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, and instantiation fires at most one global warning. When stacking two `ATTRS_REMAP` layers, only the innermost layer's instantiation warning fires — the outer layer's version pair appears only in attribute-access warnings for that layer's keys.
 
 ### Chained redirect
 
