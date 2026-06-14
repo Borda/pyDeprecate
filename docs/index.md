@@ -106,7 +106,7 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 | Sphinx Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 | MkDocs Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
 
-✍️ = possible but requires manual implementation </br> † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
+✍️ = possible but requires manual implementation <br /> † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
 
 _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
@@ -122,7 +122,7 @@ _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDep
 ## Where to go next
 
 - [Getting Started](getting-started.md) — install, write your first deprecation, see the full API at a glance.
-- [Use Cases](guide/use-cases.md) — thirteen real-world deprecation patterns with worked examples.
+- [Use Cases](guide/use-cases.md) — overview of all deprecation patterns with links to each topic page.
 - [Customization](guide/customization.md) — custom message templates and output redirection to loggers.
 - [void() Helper](guide/void-helper.md) — sentinel function for self-documenting deprecated stubs.
 - [Audit Tools](guide/audit.md) — enforce removal deadlines and catch deprecation chains in CI.

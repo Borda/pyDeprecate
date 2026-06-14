@@ -31,15 +31,15 @@ When you provide `template_mgs`, your custom template replaces whichever default
 
 Custom templates use Python `%`-style formatting (`%(key)s`). Available placeholders depend on the deprecation type:
 
-| Placeholder     | Available when                              | Value                                              |
-| --------------- | ------------------------------------------- | -------------------------------------------------- |
-| `source_name`   | Always                                      | Name of the deprecated function (e.g. `"score"`)   |
-| `source_path`   | Always                                      | Fully qualified path (e.g. `"mypackage.old_func"`) |
-| `target_name`   | `target` is callable                        | Name of the replacement function                   |
-| `target_path`   | `target` is callable                        | Fully qualified path of the replacement            |
-| `deprecated_in` | Always                                      | Value of `deprecated_in` parameter                 |
-| `remove_in`     | Always                                      | Value of `remove_in` parameter                     |
-| `argument_map`  | `TargetMode.ARGS_REMAP` with `args_mapping` | Formatted string like `` `old` -> `new` ``         |
+| Placeholder     | Available when                              | Value                                            |
+| --------------- | ------------------------------------------- | ------------------------------------------------ |
+| `source_name`   | Always                                      | Name of the deprecated function (e.g. `"score"`) |
+| `source_path`   | Always                                      | Fully qualified path (e.g. `"mypackage.score"`)  |
+| `target_name`   | `target` is callable                        | Name of the replacement function                 |
+| `target_path`   | `target` is callable                        | Fully qualified path of the replacement          |
+| `deprecated_in` | Always                                      | Value of `deprecated_in` parameter               |
+| `remove_in`     | Always                                      | Value of `remove_in` parameter                   |
+| `argument_map`  | `TargetMode.ARGS_REMAP` with `args_mapping` | Formatted string like `` `old` -> `new` ``       |
 
 ### Custom template example
 
