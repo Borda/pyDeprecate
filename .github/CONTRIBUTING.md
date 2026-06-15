@@ -746,8 +746,8 @@ Two audiences read the docs examples — name accordingly.
 
 **Orientation comments** — every paired example (new API + deprecated wrapper) opens with:
 
-- `# NEW API — <one-line purpose>` above the replacement function
-- `# DEPRECATED API — \`old_name\` replaced by \`new_name\`\` above the deprecated decorator
+- '# NEW API — <one-line purpose>' above the replacement function
+- '# DEPRECATED API — `old_name` replaced by `new_name`' above the deprecated decorator
 
 Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.
 
