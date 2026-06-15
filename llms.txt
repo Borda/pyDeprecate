@@ -30,18 +30,18 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 from deprecate import deprecated
 
 
-def new_api(value: int) -> int:
+def new_func(value: int) -> int:
     return value + 1
 
 
 @deprecated(
-    target=new_api,
+    target=new_func,
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
+    # FutureWarning: "The `old_func` was deprecated since v1.2 in favor of `new_func`. It will be removed in v2.0."
 )
-def old_api(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
+def old_func(value: int) -> int:
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 ```
 
 ### Rename an argument
@@ -52,13 +52,13 @@ from deprecate import TargetMode, deprecated
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    args_mapping={"old_name": "new_name"},
+    args_mapping={"old_arg": "new_arg"},
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `configure` uses deprecated arguments: `old_name` -> `new_name`. They were deprecated since v1.2 and will be removed in v2.0."
+    # FutureWarning: "The `api` uses deprecated arguments: `old_arg` -> `new_arg`. They were deprecated since v1.2 and will be removed in v2.0."
 )
-def configure(*, new_name: str) -> str:
-    return new_name
+def api(*, new_arg: float) -> float:
+    return new_arg
 ```
 
 ### Warn only
@@ -329,10 +329,10 @@ Warning timing quick reference — all callable kinds:
 - [Use Cases](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
 - [Python deprecation decorator](https://borda.github.io/pyDeprecate/stable/getting-started.html)
 - [Replace warnings.warn](https://borda.github.io/pyDeprecate/stable/guide/migration.html)
-- [Deprecate arguments](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
+- [Deprecate arguments](https://borda.github.io/pyDeprecate/stable/guide/functions.html)
 - [API migration CI](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
 - [Agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html)
-- [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
+- [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/guide/classes.html)
 - [Compare Python deprecation tools](https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html)
 - [Audit tools](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
 - [CLI](https://borda.github.io/pyDeprecate/stable/guide/cli.html)
@@ -342,6 +342,11 @@ Warning timing quick reference — all callable kinds:
 
 - [Getting Started Markdown](https://borda.github.io/pyDeprecate/stable/getting-started.html.md)
 - [Use Cases Markdown](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html.md)
+- [Functions Markdown](https://borda.github.io/pyDeprecate/stable/guide/functions.html.md)
+- [Classes Markdown](https://borda.github.io/pyDeprecate/stable/guide/classes.html.md)
+- [Properties Markdown](https://borda.github.io/pyDeprecate/stable/guide/properties.html.md)
+- [Async Markdown](https://borda.github.io/pyDeprecate/stable/guide/async.html.md)
+- [Advanced Markdown](https://borda.github.io/pyDeprecate/stable/guide/advanced.html.md)
 - [Audit Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit.html.md)
 - [CLI Markdown](https://borda.github.io/pyDeprecate/stable/guide/cli.html.md)
 - [Migration Markdown](https://borda.github.io/pyDeprecate/stable/guide/migration.html.md)
