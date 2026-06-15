@@ -22,6 +22,7 @@ def transform(x: int) -> int:
     return x * 2
 
 
+# doc-example only: forces realistic path in warning; real modules set __module__ automatically
 transform.__module__ = "your_module"
 
 
@@ -86,6 +87,7 @@ def transform(x: int) -> int:
     return x * 2
 
 
+# doc-example only: forces realistic path in warning; real modules set __module__ automatically
 transform.__module__ = "your_module"
 
 

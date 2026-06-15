@@ -218,6 +218,7 @@ def say_hello(name: str) -> str:
     return f"Hello, {name}!"
 
 
+# doc-example only: forces realistic path in warning; real modules set __module__ automatically
 say_hello.__module__ = "your_module"
 
 
@@ -262,6 +263,7 @@ def target_fn(x: int) -> int:
     return x * 2
 
 
+# doc-example only: forces realistic path in warning; real modules set __module__ automatically
 target_fn.__module__ = "your_module"
 
 
