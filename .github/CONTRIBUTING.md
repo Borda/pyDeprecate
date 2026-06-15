@@ -742,7 +742,7 @@ Two audiences read the docs examples — name accordingly.
 
 **Human-facing docs** (`docs/guide/*.md`, `README.md`, `docs/index.md`) — domain-realistic, story-telling names (e.g. `score` → `score_predictions`, `detect` → `detect_objects`). Readers understand *why* the rename happened. Never use generic placeholders like `old_func` / `new_func`.
 
-**AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in `docs/guide/` or `README.md`.
+**AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in `docs/guide/`, `README.md`, or `docs/index.md`.
 
 **Orientation comments** — every paired example (new API + deprecated wrapper) opens with:
 
