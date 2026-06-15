@@ -57,3 +57,5 @@ Advanced patterns: injecting a deprecation notice into the docstring at import t
 - [void() Helper](void-helper.md) — when and why the deprecated function body should call `void()`
 - [Audit Tools](audit.md) — enforce removal deadlines and detect deprecation chains in CI
 - [Troubleshooting](../troubleshooting.md) — common errors and fixes for `@deprecated` configuration
+- [Compare Python Deprecation Tools](compare-python-deprecation-tools.md) — how pyDeprecate compares to `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`
+- [Agent Recipes](agent-recipes.md) — copy-paste patterns for AI coding assistants generating deprecation code

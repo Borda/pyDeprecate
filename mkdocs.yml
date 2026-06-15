@@ -68,21 +68,23 @@ validation:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - User Guide:
-      - Use Cases:
-          - Overview: guide/use-cases.md
-          - Functions: guide/functions.md
-          - Classes: guide/classes.md
-          - Properties: guide/properties.md
-          - Async: guide/async.md
-          - Advanced: guide/advanced.md
-      - Compare Python Deprecation Tools: guide/compare-python-deprecation-tools.md
-      - Agent Recipes: guide/agent-recipes.md
-      - void() Helper: guide/void-helper.md
+  - Use Cases:
+      - Overview: guide/use-cases.md
+      - Functions: guide/functions.md
+      - Classes: guide/classes.md
+      - Properties: guide/properties.md
+      - Async: guide/async.md
+      - Advanced: guide/advanced.md
+  - Tools:
       - Audit Tools: guide/audit.md
       - CLI: guide/cli.md
+      - void() Helper: guide/void-helper.md
+  - Configuration:
       - Customization: guide/customization.md
       - Migration Guide: guide/migration.md
+  - Adoption:
+      - Compare Python Deprecation Tools: guide/compare-python-deprecation-tools.md
+      - Agent Recipes: guide/agent-recipes.md
   - API Reference: api-reference.md
   - Troubleshooting: troubleshooting.md
   - Changelog: changelog.md
