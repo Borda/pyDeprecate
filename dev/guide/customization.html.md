@@ -13,11 +13,11 @@ pyDeprecate picks a deprecation message template automatically based on how you 
 
 Three built-in templates cover the common scenarios:
 
-| Template                     | When it fires                                                                           | Example output                                                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                            | `The 'old_func' was deprecated since v1.0 in favor of 'pkg.new_func'. It will be removed in v2.0.`                              |
-| `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_REMAP` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'old_arg' -> 'new_arg'. They were deprecated since v1.0 and will be removed in v2.0.` |
-| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.NOTIFY` (notice-only, no forwarding)                                        | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                      |
+| Template                     | When it fires                                                                           | Example output                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                            | `The 'score' was deprecated since v1.0 in favor of 'pkg.score_predictions'. It will be removed in v2.0.`                         |
+| `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_REMAP` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'lr' -> 'learning_rate'. They were deprecated since v1.0 and will be removed in v2.0.` |
+| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.NOTIFY` (notice-only, no forwarding)                                        | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                       |
 
 The selection logic is:
 
@@ -31,15 +31,15 @@ When you provide `template_mgs`, your custom template replaces whichever default
 
 Custom templates use Python `%`-style formatting (`%(key)s`). Available placeholders depend on the deprecation type:
 
-| Placeholder     | Available when                              | Value                                               |
-| --------------- | ------------------------------------------- | --------------------------------------------------- |
-| `source_name`   | Always                                      | Name of the deprecated function (e.g. `"old_func"`) |
-| `source_path`   | Always                                      | Fully qualified path (e.g. `"mypackage.old_func"`)  |
-| `target_name`   | `target` is callable                        | Name of the replacement function                    |
-| `target_path`   | `target` is callable                        | Fully qualified path of the replacement             |
-| `deprecated_in` | Always                                      | Value of `deprecated_in` parameter                  |
-| `remove_in`     | Always                                      | Value of `remove_in` parameter                      |
-| `argument_map`  | `TargetMode.ARGS_REMAP` with `args_mapping` | Formatted string like `` `old` -> `new` ``          |
+| Placeholder     | Available when                              | Value                                            |
+| --------------- | ------------------------------------------- | ------------------------------------------------ |
+| `source_name`   | Always                                      | Name of the deprecated function (e.g. `"score"`) |
+| `source_path`   | Always                                      | Fully qualified path (e.g. `"mypackage.score"`)  |
+| `target_name`   | `target` is callable                        | Name of the replacement function                 |
+| `target_path`   | `target` is callable                        | Fully qualified path of the replacement          |
+| `deprecated_in` | Always                                      | Value of `deprecated_in` parameter               |
+| `remove_in`     | Always                                      | Value of `remove_in` parameter                   |
+| `argument_map`  | `TargetMode.ARGS_REMAP` with `args_mapping` | Formatted string like `` `old` -> `new` ``       |
 
 ### Custom template example
 
@@ -47,27 +47,29 @@ Custom templates use Python `%`-style formatting (`%(key)s`). Available placehol
 from deprecate import TargetMode, deprecated
 
 
-def new_api(x: int) -> int:
+# NEW API — detects objects and returns a scaled count
+def detect_objects(x: int) -> int:
     return x * 10
 
 
+# DEPRECATED API — `detect` replaced by `detect_objects`
 @deprecated(
-    target=new_api,
+    target=detect_objects,
     deprecated_in="2.0",
     remove_in="3.0",
     template_mgs=("[MIGRATION] `%(source_name)s` is removed in v%(remove_in)s. Switch to `%(target_path)s`."),
 )
-def old_api(x: int) -> int:
+def detect(x: int) -> int:
     pass
 
 
-# Emits: [MIGRATION] `old_api` is removed in v3.0. Switch to `your_module.new_api`.
-result = old_api(5)
+# Emits: [MIGRATION] `detect` is removed in v3.0. Switch to `your_module.detect_objects`.
+result = detect(5)
 print(result)
 ```
 
 <details>
-  <summary>Output: <code>old_api(5)</code></summary>
+  <summary>Output: <code>detect(5)</code></summary>
 
 ```
 50
@@ -129,21 +131,21 @@ Pass `stream=None` to disable all deprecation output for a specific function. Ca
 from deprecate import deprecated
 
 
-def new_internal(x: int) -> int:
+def _compute(x: int) -> int:
     return x + 1
 
 
-@deprecated(target=new_internal, deprecated_in="1.0", remove_in="2.0", stream=None)
-def old_internal(x: int) -> int:
+@deprecated(target=_compute, deprecated_in="1.0", remove_in="2.0", stream=None)
+def _compute_raw(x: int) -> int:
     pass
 
 
-# No warning emitted, but call is still forwarded to new_internal
-print(old_internal(5))
+# No warning emitted, but call is still forwarded to _compute
+print(_compute_raw(5))
 ```
 
 <details>
-  <summary>Output: <code>old_internal(5)</code></summary>
+  <summary>Output: <code>_compute_raw(5)</code></summary>
 
 ```
 6
@@ -162,28 +164,30 @@ from deprecate import deprecated
 logging.basicConfig(level=logging.WARNING)
 
 
-def new_process(data: list) -> list:
+# NEW API — sorts a list and returns the sorted copy
+def sort_items(data: list) -> list:
     return sorted(data)
 
 
+# DEPRECATED API — `process_batch` replaced by `sort_items`
 @deprecated(
-    target=new_process,
+    target=sort_items,
     deprecated_in="1.0",
     remove_in="2.0",
     stream=logging.warning,
 )
-def old_process(data: list) -> list:
+def process_batch(data: list) -> list:
     pass
 
 
 # Instead of a FutureWarning, this emits a WARNING-level log line:
-#   WARNING:root:The `old_process` was deprecated since v1.0 in favor of `your_module.new_process`.
+#   WARNING:root:The `process_batch` was deprecated since v1.0 in favor of `your_module.sort_items`.
 #   It will be removed in v2.0.
-print(old_process([3, 1, 2]))
+print(process_batch([3, 1, 2]))
 ```
 
 <details>
-  <summary>Output: <code>old_process([3, 1, 2])</code></summary>
+  <summary>Output: <code>process_batch([3, 1, 2])</code></summary>
 
 ```
 [1, 2, 3]
@@ -209,29 +213,32 @@ For quick debugging or scripts where you want immediate stdout output without th
 from deprecate import deprecated
 
 
-def new_greet(name: str) -> str:
+# NEW API — formats a greeting string for the given name
+def say_hello(name: str) -> str:
     return f"Hello, {name}!"
 
 
-new_greet.__module__ = "your_module"
+# doc-example only: forces realistic path in warning; real modules set __module__ automatically
+say_hello.__module__ = "your_module"
 
 
-@deprecated(target=new_greet, deprecated_in="1.0", remove_in="2.0", stream=print)
-def old_greet(name: str) -> str:
+# DEPRECATED API — `greet` replaced by `say_hello`
+@deprecated(target=say_hello, deprecated_in="1.0", remove_in="2.0", stream=print)
+def greet(name: str) -> str:
     pass
 
 
 # Prints directly to stdout:
-#   The `old_greet` was deprecated since v1.0 in favor of `your_module.new_greet`.
+#   The `greet` was deprecated since v1.0 in favor of `your_module.say_hello`.
 #   It will be removed in v2.0.
-print(old_greet("World"))
+print(greet("World"))
 ```
 
 <details>
-  <summary>Output: <code>old_greet("World")</code></summary>
+  <summary>Output: <code>greet("World")</code></summary>
 
 ```
-The `old_greet` was deprecated since v1.0 in favor of `your_module.new_greet`. It will be removed in v2.0.
+The `greet` was deprecated since v1.0 in favor of `your_module.say_hello`. It will be removed in v2.0.
 Hello, World!
 ```
 
@@ -251,13 +258,16 @@ def collector(msg: str) -> None:
     collected_warnings.append(msg)
 
 
+# NEW API — doubles the input value
 def target_fn(x: int) -> int:
     return x * 2
 
 
+# doc-example only: forces realistic path in warning; real modules set __module__ automatically
 target_fn.__module__ = "your_module"
 
 
+# DEPRECATED API — `source_fn` replaced by `target_fn`
 @deprecated(target=target_fn, deprecated_in="1.0", remove_in="2.0", stream=collector)
 def source_fn(x: int) -> int:
     pass

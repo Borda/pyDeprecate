@@ -22,13 +22,13 @@ This page is for coding assistants that need to add a correct deprecation cycle 
 from deprecate import deprecated
 
 
-def new_api(value: int) -> int:
+def detect_objects(value: int) -> int:
     return value + 1
 
 
-@deprecated(target=new_api, deprecated_in="1.2", remove_in="2.0")
-def old_api(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate.")
+@deprecated(target=detect_objects, deprecated_in="1.2", remove_in="2.0")
+def detect(value: int) -> int:
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 ```
 
 ## Argument rename

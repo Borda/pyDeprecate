@@ -36,8 +36,8 @@ Use `warnings.deprecated`/`typing_extensions.deprecated` for static-checker-only
 from typing_extensions import deprecated
 
 
-@deprecated("Use new_api instead.")
-def old_api() -> None:
+@deprecated("Use detect_objects instead.")
+def detect() -> None:
     pass
 ```
 
@@ -49,25 +49,25 @@ Use pyDeprecate when old callers must keep working while receiving a deprecation
 from deprecate import deprecated
 
 
-def new_api(value: int) -> int:
+def detect_objects(value: int) -> int:
     return value + 1
 
 
 @deprecated(
-    target=new_api,
+    target=detect_objects,
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
+    # FutureWarning: "The `detect` was deprecated since v1.2 in favor of `detect_objects`. It will be removed in v2.0."
 )
-def old_api(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate.")
+def detect(value: int) -> int:
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 
 
-print(old_api(1))
+print(detect(1))
 ```
 
 <details>
-  <summary>Output: <code>old_api(1)</code></summary>
+  <summary>Output: <code>detect(1)</code></summary>
 
 ```
 2
@@ -85,24 +85,24 @@ Replace manual forwarding boilerplate with a single decorator.
 import warnings
 
 
-def new_api(value: int) -> int:
+def detect_objects(value: int) -> int:
     return value + 1
 
 
-def old_api(value: int) -> int:
+def detect(value: int) -> int:
     warnings.warn(
-        "old_api is deprecated; use new_api instead.",
+        "detect is deprecated; use detect_objects instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return new_api(value)
+    return detect_objects(value)
 
 
-print(old_api(1))
+print(detect(1))
 ```
 
 <details>
-  <summary>Output: <code>old_api(1)</code></summary>
+  <summary>Output: <code>detect(1)</code></summary>
 
 ```
 2
@@ -116,25 +116,25 @@ print(old_api(1))
 from deprecate import deprecated
 
 
-def new_api(value: int) -> int:
+def detect_objects(value: int) -> int:
     return value + 1
 
 
 @deprecated(
-    target=new_api,
+    target=detect_objects,
     deprecated_in="1.2",
     remove_in="2.0",
-    # FutureWarning: "The `old_api` was deprecated since v1.2 in favor of `new_api`. It will be removed in v2.0."
+    # FutureWarning: "The `detect` was deprecated since v1.2 in favor of `detect_objects`. It will be removed in v2.0."
 )
-def old_api(value: int) -> int:
-    raise RuntimeError("Forwarded by pyDeprecate; this body is not used.")
+def detect(value: int) -> int:
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
 
 
-print(old_api(1))
+print(detect(1))
 ```
 
 <details>
-  <summary>Output: <code>old_api(1)</code></summary>
+  <summary>Output: <code>detect(1)</code></summary>
 
 ```
 2
