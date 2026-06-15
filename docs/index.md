@@ -126,6 +126,8 @@ _Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDep
 - [Customization](guide/customization.md) — custom message templates and output redirection to loggers.
 - [void() Helper](guide/void-helper.md) — sentinel function for self-documenting deprecated stubs.
 - [Audit Tools](guide/audit.md) — enforce removal deadlines and catch deprecation chains in CI.
+- [Compare Python Deprecation Tools](guide/compare-python-deprecation-tools.md) — detailed feature matrix against `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`.
+- [Agent Recipes](guide/agent-recipes.md) — copy-paste patterns for AI coding assistants.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
 - [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.
 
