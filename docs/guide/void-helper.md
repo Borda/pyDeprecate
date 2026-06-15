@@ -21,10 +21,11 @@ If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDepr
 
 ## Basic usage
 
-`void(...)` appears as the return expression of a deprecated wrapper. The call to `old_add` is forwarded to `new_add` immediately — the `return void(a, b)` line is never reached, but it tells the IDE that `a` and `b` are intentionally accepted and ignored.
+`void(...)` appears as the return expression of a deprecated wrapper. The call to `add` is forwarded to `add_values` immediately — the `return void(a, b)` line is never reached, but it tells the IDE that `a` and `b` are intentionally accepted and ignored.
 
 ```python
-def new_add(a: int, b: int) -> int:
+# NEW API — adds two integers and returns the sum
+def add_values(a: int, b: int) -> int:
     return a + b
 
 
@@ -33,24 +34,25 @@ def new_add(a: int, b: int) -> int:
 from deprecate import deprecated, void
 
 
-@deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
-def old_add(a: int, b: int) -> int:
+# DEPRECATED API — `add` replaced by `add_values`
+@deprecated(target=add_values, deprecated_in="1.0", remove_in="2.0")
+def add(a: int, b: int) -> int:
     return void(a, b)  # Tells IDE: "Yes, I know these parameters aren't used"
-    # This line is never reached - call is forwarded to new_add
+    # This line is never reached - call is forwarded to add_values
 
 
 # Alternative: You can also use pass or just a docstring
-@deprecated(target=new_add, deprecated_in="1.0", remove_in="2.0")
-def old_add_v2(a: int, b: int) -> int:
+@deprecated(target=add_values, deprecated_in="1.0", remove_in="2.0")
+def add_v1(a: int, b: int) -> int:
     """Just a docstring works too."""
     pass  # This also works
 
 
-print(old_add_v2(2, 3))
+print(add_v1(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>old_add_v2(2, 3)</code></summary>
+  <summary>Output: <code>add_v1(2, 3)</code></summary>
 
 ```
 5
@@ -70,20 +72,22 @@ Simplest approach. Clear, idiomatic Python for "do nothing". IDEs may still flag
 from deprecate import deprecated
 
 
-def new_compute(x: int, y: int) -> int:
+# NEW API — evaluates the sum of two integers
+def evaluate(x: int, y: int) -> int:
     return x + y
 
 
-@deprecated(target=new_compute, deprecated_in="1.0", remove_in="2.0")
-def old_compute(x: int, y: int) -> int:
+# DEPRECATED API — `compute` replaced by `evaluate`
+@deprecated(target=evaluate, deprecated_in="1.0", remove_in="2.0")
+def compute(x: int, y: int) -> int:
     pass
 
 
-print(old_compute(2, 3))
+print(compute(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>old_compute(2, 3)</code></summary>
+  <summary>Output: <code>compute(2, 3)</code></summary>
 
 ```
 5
@@ -99,20 +103,22 @@ A docstring alone is a valid function body. Useful when you want to document wha
 from deprecate import deprecated
 
 
-def new_compute(x: int, y: int) -> int:
+# NEW API — evaluates the sum of two integers
+def evaluate(x: int, y: int) -> int:
     return x + y
 
 
-@deprecated(target=new_compute, deprecated_in="1.0", remove_in="2.0")
-def old_compute(x: int, y: int) -> int:
-    """Previously computed x + y. Use new_compute() directly."""
+# DEPRECATED API — `compute` replaced by `evaluate`
+@deprecated(target=evaluate, deprecated_in="1.0", remove_in="2.0")
+def compute(x: int, y: int) -> int:
+    """Previously computed x + y. Use evaluate() directly."""
 
 
-print(old_compute(2, 3))
+print(compute(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>old_compute(2, 3)</code></summary>
+  <summary>Output: <code>compute(2, 3)</code></summary>
 
 ```
 5
@@ -128,20 +134,22 @@ References all parameters explicitly, silencing "unused parameter" warnings in P
 from deprecate import deprecated, void
 
 
-def new_compute(x: int, y: int) -> int:
+# NEW API — evaluates the sum of two integers
+def evaluate(x: int, y: int) -> int:
     return x + y
 
 
-@deprecated(target=new_compute, deprecated_in="1.0", remove_in="2.0")
-def old_compute(x: int, y: int) -> int:
+# DEPRECATED API — `compute` replaced by `evaluate`
+@deprecated(target=evaluate, deprecated_in="1.0", remove_in="2.0")
+def compute(x: int, y: int) -> int:
     return void(x, y)
 
 
-print(old_compute(2, 3))
+print(compute(2, 3))
 ```
 
 <details>
-  <summary>Output: <code>old_compute(2, 3)</code></summary>
+  <summary>Output: <code>compute(2, 3)</code></summary>
 
 ```
 5
@@ -211,27 +219,30 @@ from deprecate import deprecated, void
 from typing import Any, cast
 
 
-def new_func(x: int) -> int:
+# NEW API — doubles the input value; replaces the deprecated score wrappers
+def score_predictions(x: int) -> int:
     return x * 2
 
 
 # Option A: Use `pass` instead (no return statement at all)
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func_a(x: int) -> int:
+# DEPRECATED API — `transform_a` replaced by `score_predictions`
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def transform_a(x: int) -> int:
     pass  # type: ignore[return-value]
 
 
 # Option B: Cast the void return (technically dead code)
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func_b(x: int) -> int:
+# DEPRECATED API — `transform_b` replaced by `score_predictions`
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def transform_b(x: int) -> int:
     return cast(int, void(x))
 
 
-print(old_func_b(2))
+print(transform_b(2))
 ```
 
 <details>
-  <summary>Output: <code>old_func_b(2)</code></summary>
+  <summary>Output: <code>transform_b(2)</code></summary>
 
 ```
 4
@@ -256,25 +267,27 @@ These two utilities solve completely different problems. Their names might sugge
 from deprecate import deprecated, void, assert_no_warnings
 
 
-def new_func(x: int) -> int:
+# NEW API — doubles the input value
+def score_predictions(x: int) -> int:
     return x * 2
 
 
 # void() — used in the deprecated function body (decoration-time concern)
-@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
-def old_func(x: int) -> int:
+# DEPRECATED API — `score` replaced by `score_predictions`
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def score(x: int) -> int:
     return void(x)
 
 
 # assert_no_warnings — used in tests (runtime assertion concern)
 with assert_no_warnings(FutureWarning):
     # Verify that calling the NEW function does not trigger any deprecation warning
-    result = new_func(42)
+    result = score_predictions(42)
 print(result)
 ```
 
 <details>
-  <summary>Output: <code>new_func(42)</code></summary>
+  <summary>Output: <code>score_predictions(42)</code></summary>
 
 ```
 84

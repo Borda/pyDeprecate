@@ -35,6 +35,8 @@ jobs:
             --no-progress
             --cache
             --max-cache-age 1d
+            --accept '100..=103,200..=299,429'
+            --cache-exclude-status 429
             './**/*.md'
             './**/*.rst'
             './**/*.py'

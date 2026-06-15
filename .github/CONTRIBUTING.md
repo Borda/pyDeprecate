@@ -736,6 +736,21 @@ When making changes, keep all surfaces in sync:
 5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
 6. **AI crawler policy** — when a new mainstream AI crawler is released, add a `User-agent: <bot> / Allow: /` pair to `docs/robots.txt`. The comment line referencing `docs/llms.txt` must stay current if the llms.txt URL changes.
 
+### Code Example Conventions
+
+Two audiences read the docs examples — name accordingly.
+
+**Human-facing docs** (`docs/guide/*.md`, `README.md`, `docs/index.md`) — domain-realistic, story-telling names (e.g. `score` → `score_predictions`, `detect` → `detect_objects`). Readers understand *why* the rename happened. Never use generic placeholders like `old_func` / `new_func`.
+
+**AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in `docs/guide/`, `README.md`, or `docs/index.md`.
+
+**Orientation comments** — every paired example (new API + deprecated wrapper) opens with:
+
+- '# NEW API — <one-line purpose>' above the replacement function
+- '# DEPRECATED API — `old_name` replaced by `new_name`' above the deprecated decorator
+
+Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.
+
 ### Keeping AI-agent documentation in sync
 
 `docs/llms.txt` is a machine-readable contract. AI coding assistants and agent frameworks fetch it before generating any pyDeprecate code. An inaccuracy there propagates into every AI-generated snippet at scale.

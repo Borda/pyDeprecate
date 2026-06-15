@@ -3,10 +3,6 @@
 > [!IMPORTANT]
 > **For detailed coding standards, testing requirements, and contribution workflows**, see the [Contributing Guide](.github/CONTRIBUTING.md). This file provides agent-specific behavioral instructions and quick reference only.
 
-## Overview
-
-pyDeprecate is a lightweight Python library providing decorator-based deprecation for functions, methods, and classes with automatic call forwarding. Python 3.9+, zero runtime dependencies.
-
 ## 🎯 Design Principles
 
 - **Simplicity**: the API surface must be learnable in minutes; a single decorator covers the common case with no config files required.
@@ -19,9 +15,6 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 
 > [!IMPORTANT]
 > **Before starting any work, agents MUST anchor themselves with the repository context.** Read these files in order:
-
-> [!NOTE]
-> **Anchor Links**: GitHub generates anchors from section headers. Sections with emojis (e.g., `## 🚀 Quick Start`) become `#-quick-start` (emoji → dash). Subsections without emojis (e.g., `### Test Organization`) become `#test-organization` (no dash). All links follow this convention and are correct.
 
 1. **Configuration files** (source of truth):
 
@@ -52,53 +45,6 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 Write a clear explanation linking to both sources, then let maintainers decide on the update action:
 
 *"I notice [CONTRIBUTING.md:45](.github/CONTRIBUTING.md#L45) mentions using black for formatting, but [pyproject.toml:23](pyproject.toml#L23) actually configures ruff. The config file should be considered correct. Should the documentation be updated to reflect that ruff handles formatting?"*
-
-## 🧠 Agent Roles
-
-### Engineer
-
-**Scope**: Core logic, CI/CD, and Python compatibility
-
-**Responsibilities**:
-
-- Review PRs modifying `src/` code
-- Validate deprecation warnings and function/class deprecations
-- Ensure Python patterns for backwards compatibility
-- Monitor CI/CD pipeline health
-
-**Guidelines**:
-
-- Follow [Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
-- Follow [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
-- Use [Branch Naming Convention](.github/CONTRIBUTING.md#-branch-naming-convention)
-
-### Community-Scribe
-
-**Scope**: Documentation and communication
-
-**Responsibilities**:
-
-- Maintain README (PyPI cover page) and docs site topic pages (`docs/`)
-- Draft follow-ups after releases or PR merges
-- Help onboard new contributors
-- Ensure deprecation examples are documented in both README and `docs/guide/use-cases.md`
-- Keep `docs/troubleshooting.md` and its FAQPage JSON-LD in `docs/overrides/main.html` in sync
-- Every `docs/**/*.md` code block containing `print()` must be followed by a `<details><summary>Output: <code>…</code></summary>` block with verified output (see [Docs examples](.github/CONTRIBUTING.md#test-organization))
-
-**Guidelines**:
-
-- Follow [Documentation Guidelines](.github/CONTRIBUTING.md#-coding-standards)
-- See [Ways to Contribute](.github/CONTRIBUTING.md#-ways-to-contribute)
-
-### Security-Watcher
-
-**Scope**: Security monitoring and vulnerability assessment
-
-**Responsibilities**:
-
-- Monitor dependencies for vulnerabilities
-- Review PRs for security issues
-- Follow [Security Policy](.github/SECURITY.md)
 
 ## 🧭 Agent Behavioral Rules
 
@@ -138,8 +84,6 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 ### Documentation Site
 
-- **Local build**: `pip install -r docs/requirements.txt && python3 -m mkdocs build --strict`
-- **Live preview**: `python3 -m mkdocs serve` → http://127.0.0.1:8000
 - **README ≠ docs/index.md** — README is the PyPI page (do not copy it to docs); `docs/index.md` is a curated overview
 - **Never add `cp README.md docs/index.md` to CI** — `docs/index.md` is tracked in git directly
 - **After any API change**: update `README.md` AND the relevant `docs/guide/` page
@@ -178,15 +122,17 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times. Apply this sync table on every relevant change:
 
-  | Change made                              | Also update                                                                                                                                                                                                       |
-  | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Public API behavior change               | affected module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
-  | New deprecation pattern                  | `docs/llms.txt` Decision Flowchart · `docs/guide/use-cases.md`                                                                                                                                                    |
-  | New anti-pattern discovered              | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md`                                                                                                                                                       |
-  | `TargetMode` enum value added or removed | `docs/llms.txt` Critical Mental Model · Decision Flowchart · `docs/guide/use-cases.md`                                                                                                                            |
-  | New mainstream AI crawler released       | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                      |
+  | Change made                              | Also update                                                                                                                                                                                                                   |
+  | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Public API behavior change               | affected module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes |
+  | New deprecation pattern                  | `docs/llms.txt` Decision Flowchart · relevant `docs/guide/*.md` topic page (functions, classes, properties, async, or advanced)                                                                                               |
+  | New anti-pattern discovered              | `docs/llms.txt` § Anti-Patterns · relevant `docs/guide/*.md` topic page                                                                                                                                                       |
+  | `TargetMode` enum value added or removed | `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/guide/*.md` topic page                                                                                                                            |
+  | New mainstream AI crawler released       | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                                  |
 
   `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale. `docs/robots.txt` is the access gateway — an unlisted bot gets the wildcard `Allow: /` but explicit entries signal intent to AI platforms.
+
+- **Follow code example naming conventions** — human-facing docs (`docs/guide/*.md`, `README.md`) use domain-realistic story-telling names; AI-facing docs (`docs/llms.txt`, `docs/llms-full.txt`) use generic names (`old_func`/`new_func`, `old_arg`/`new_arg`); every paired example carries `# NEW API —` / `# DEPRECATED API —` orientation comments. See [Code Example Conventions](.github/CONTRIBUTING.md#code-example-conventions).
 
 - Ensure pre-commit hooks are installed (they run automatically on commit)
 
