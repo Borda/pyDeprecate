@@ -132,6 +132,8 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
   `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale. `docs/robots.txt` is the access gateway — an unlisted bot gets the wildcard `Allow: /` but explicit entries signal intent to AI platforms.
 
+- **Follow code example naming conventions** — human-facing docs (`docs/guide/*.md`, `README.md`) use domain-realistic story-telling names; AI-facing docs (`docs/llms.txt`, `docs/llms-full.txt`) use generic names (`old_func`/`new_func`, `old_arg`/`new_arg`); every paired example carries `# NEW API —` / `# DEPRECATED API —` orientation comments. See [Code Example Conventions](.github/CONTRIBUTING.md#code-example-conventions).
+
 - Ensure pre-commit hooks are installed (they run automatically on commit)
 
 - Provide `deprecated_in` and `remove_in` versions
