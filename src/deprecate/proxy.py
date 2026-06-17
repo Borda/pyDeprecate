@@ -509,7 +509,12 @@ class _DeprecatedProxy:
         return self._cfg.obj
 
     def _apply_args_mapping(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """Apply args_mapping to *kwargs*, renaming or dropping keys as configured."""
+        """Apply args_mapping to *kwargs*, renaming or dropping keys as configured.
+
+        When both the old key and its mapped new-name key are present in *kwargs*, the explicit new-name value wins over
+        the renamed old-name value.
+
+        """
         args_mapping = self._dep.args_mapping
         if not args_mapping or not kwargs:
             return kwargs
@@ -518,7 +523,7 @@ class _DeprecatedProxy:
         explicit_new = {
             new_k: kwargs[new_k]
             for old_k, new_k in args_mapping.items()
-            if new_k is not None and old_k in kwargs and new_k in kwargs
+            if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_to_drop
         }
         result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
         result.update(explicit_new)

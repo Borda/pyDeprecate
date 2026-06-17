@@ -857,6 +857,8 @@ def _build_call_plan(  # noqa: C901, PLR0912
         kwargs: The keyword arguments the caller passed to the wrapper.
         dep_cfg: The frozen :class:`DeprecationConfig` for this wrapper.  ``args_mapping``, ``args_extra``,
             ``deprecated_in``, ``remove_in``, and ``template_mgs`` are all read from this object.
+            Precedence when keys collide: explicit new-name kwarg wins over the remapped old-name value;
+            ``args_extra`` wins over both (it is merged last).
         stream: Warning stream (typically :func:`warnings.warn` partial), or ``None`` to suppress.
         num_warns: Maximum number of times to emit the warning per wrapper / per renamed argument.
         source_has_var_positional: ``True`` when ``source`` declares ``*args`` — affects fast-path dispatch in the
@@ -974,7 +976,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
         _explicit_new = {
             new_k: kwargs[new_k]
             for old_k, new_k in dep_cfg.args_mapping.items()
-            if new_k is not None and old_k in kwargs and new_k in kwargs
+            if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_skip
         }
         kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
         if _explicit_new:
