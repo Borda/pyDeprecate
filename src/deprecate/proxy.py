@@ -514,7 +514,15 @@ class _DeprecatedProxy:
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
-        return {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
+        # Snapshot explicit new-name values before remap; new-name always wins over the renamed old value.
+        explicit_new = {
+            new_k: kwargs[new_k]
+            for old_k, new_k in args_mapping.items()
+            if new_k is not None and old_k in kwargs and new_k in kwargs
+        }
+        result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
+        result.update(explicit_new)
+        return result
 
     @staticmethod
     def _resolve_incompat_new_keys(dep: "DeprecationConfig") -> frozenset[str]:

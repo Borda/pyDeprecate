@@ -222,6 +222,7 @@ class TestArgumentMapping:
         """Reset deprecation state for functions with chained or multiple deprecations."""
         for func in (
             decorated_pow_self,
+            depr_collision_old_new,
             depr_pow_self_double,
             depr_pow_self_twice,
             wrapped_pow_self,
@@ -331,6 +332,27 @@ class TestArgumentMapping:
             warnings.simplefilter("ignore", FutureWarning)
             result = depr_collision_old_new(old=42)
         assert result == 42
+
+    def test_new_kwarg_wins_when_both_old_and_new_provided_old_first(self) -> None:
+        """When old and new kwarg both passed (old first), the explicit new-name value wins.
+
+        ``depr_collision_old_new(old=5, new=6)`` must forward ``new=6`` to the callable target;
+        the remapped ``old→new=5`` must not overwrite the explicitly passed ``new=6``.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new(old=5, new=6)
+        assert result == 6
+
+    def test_new_kwarg_wins_when_both_old_and_new_provided_new_first(self) -> None:
+        """New-name value wins regardless of whether old or new kwarg is listed first in the call.
+
+        Before the precedence fix, ``depr_collision_old_new(new=6, old=5)`` returned ``5``
+        because the dict-comprehension last-write-wins caused the ``old→new`` rename to
+        overwrite the explicitly passed ``new=6``.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new(new=6, old=5)
+        assert result == 6
 
 
 @pytest.mark.parametrize(

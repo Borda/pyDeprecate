@@ -739,6 +739,28 @@ class TestArgsMapping:
         assert "new_key" in msg
         assert "->" in msg
 
+    def test_args_remap_new_key_wins_when_both_old_and_new_provided_old_first(self) -> None:
+        """ARGS_REMAP proxy: explicit new-name value wins when both old and new kwargs passed (old first).
+
+        ``proxy(old_key=5, new_key=6)`` must construct with ``new_key=6``; the remapped
+        ``old_key→new_key=5`` must not overwrite the explicitly passed ``new_key=6``.
+        """
+        with pytest.warns(FutureWarning):
+            instance = ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)  # type: ignore[call-arg]
+        assert instance.new_key == 6
+
+    def test_args_remap_new_key_wins_regardless_of_argument_order(self) -> None:
+        """ARGS_REMAP proxy: new-name value wins regardless of whether old or new kwarg is listed first.
+
+        Before the precedence fix, ``proxy(new_key=6, old_key=5)`` produced ``new_key=5``
+        because the dict-comprehension last-write-wins in ``_apply_args_mapping`` caused the
+        ``old_key→new_key`` rename to overwrite the explicit ``new_key=6`` entry.
+        This path exercises ``_proxy_call_args_remap`` (no callable target, ARGS_REMAP mode).
+        """
+        with pytest.warns(FutureWarning):
+            instance = ProxyArgsRemapForArgWarnMessage(new_key=6, old_key=5)  # type: ignore[call-arg]
+        assert instance.new_key == 6
+
 
 class TestArgsExtra:
     """args_extra injects additional kwargs into deprecated_class() and deprecated_instance() forwarded calls."""
@@ -2180,6 +2202,38 @@ class TestDataclassAutoExpand:
         with pytest.warns(FutureWarning):
             instance = DepAutoExpandOverriddenInitDC(old_field=7)  # type: ignore[call-arg]
         assert instance.new_field == 7
+
+    def test_positional_arg_warns_on_deprecated_class_construction(self) -> None:
+        """``DepAutoExpandDC(5)`` warns because the class is deprecated even with no deprecated kwarg.
+
+        The class itself is deprecated; the proxy always emits FutureWarning on construction,
+        regardless of whether the caller uses the old or new field names.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandDC(5)
+        assert instance.new_field == 5
+
+    def test_new_kwarg_wins_when_both_old_and_new_provided(self) -> None:
+        """When old and new kwarg both passed (old first), the explicit new-name value wins.
+
+        ``DepAutoExpandDC(old_field=5, new_field=6)`` must use ``new_field=6`` after
+        remapping ``old_field`` to ``new_field``; the explicit new-name value takes precedence
+        over the remapped old-field value.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandDC(old_field=5, new_field=6)  # type: ignore[call-arg]
+        assert instance.new_field == 6
+
+    def test_new_kwarg_wins_regardless_of_argument_order(self) -> None:
+        """New-name value wins regardless of whether old or new kwarg is listed first in the call.
+
+        Before the precedence fix, ``DepAutoExpandDC(new_field=6, old_field=5)`` produced
+        ``new_field=5`` because the dict-comprehension last-write-wins caused the
+        ``old_field → new_field`` rename to overwrite the explicitly passed ``new_field=6``.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepAutoExpandDC(new_field=6, old_field=5)  # type: ignore[call-arg]
+        assert instance.new_field == 6
 
 
 # ---------------------------------------------------------------------------

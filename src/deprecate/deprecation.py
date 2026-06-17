@@ -970,7 +970,15 @@ def _build_call_plan(  # noqa: C901, PLR0912
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
+        # Snapshot explicit new-name values before remap; new-name always wins over the renamed old value.
+        _explicit_new = {
+            new_k: kwargs[new_k]
+            for old_k, new_k in dep_cfg.args_mapping.items()
+            if new_k is not None and old_k in kwargs and new_k in kwargs
+        }
         kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
+        if _explicit_new:
+            kwargs.update(_explicit_new)
 
     if dep_cfg.args_extra and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         kwargs.update(dep_cfg.args_extra)
