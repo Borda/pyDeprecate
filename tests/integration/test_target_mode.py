@@ -261,7 +261,7 @@ class TestArgsRemapMode:
             result = depr_target_mode_args_only_warns_when_old_arg_passed(old_x=5, x=6)
         assert result == 7
 
-    def test_new_kwarg_wins_regardless_of_argument_order(self) -> None:
+    def test_new_kwarg_wins_when_both_old_and_new_provided_new_first(self) -> None:
         """ARGS_REMAP: new-name value wins regardless of whether old or new kwarg is listed first.
 
         Before the precedence fix, ``fn(x=6, old_x=5)`` returned ``6`` (increment of 5) instead

@@ -749,7 +749,7 @@ class TestArgsMapping:
             instance = ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)  # type: ignore[call-arg]
         assert instance.new_key == 6
 
-    def test_args_remap_new_key_wins_regardless_of_argument_order(self) -> None:
+    def test_args_remap_new_key_wins_when_both_old_and_new_provided_new_first(self) -> None:
         """ARGS_REMAP proxy: new-name value wins regardless of whether old or new kwarg is listed first.
 
         Before the precedence fix, ``proxy(new_key=6, old_key=5)`` produced ``new_key=5``
@@ -2213,7 +2213,7 @@ class TestDataclassAutoExpand:
             instance = DepAutoExpandDC(5)
         assert instance.new_field == 5
 
-    def test_new_kwarg_wins_when_both_old_and_new_provided(self) -> None:
+    def test_new_kwarg_wins_when_both_old_and_new_provided_old_first(self) -> None:
         """When old and new kwarg both passed (old first), the explicit new-name value wins.
 
         ``DepAutoExpandDC(old_field=5, new_field=6)`` must use ``new_field=6`` after
@@ -2224,7 +2224,7 @@ class TestDataclassAutoExpand:
             instance = DepAutoExpandDC(old_field=5, new_field=6)  # type: ignore[call-arg]
         assert instance.new_field == 6
 
-    def test_new_kwarg_wins_regardless_of_argument_order(self) -> None:
+    def test_new_kwarg_wins_when_both_old_and_new_provided_new_first(self) -> None:
         """New-name value wins regardless of whether old or new kwarg is listed first in the call.
 
         Before the precedence fix, ``DepAutoExpandDC(new_field=6, old_field=5)`` produced
