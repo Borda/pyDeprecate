@@ -602,6 +602,73 @@ To emit a deprecation notice for every instantiation regardless of which argumen
 
 ______________________________________________________________________
 
+## I passed both the old and new argument names at the same time — which value wins?
+
+**Q:** My function is decorated with `@deprecated(args_mapping={"old_x": "x"}, ...)`. A caller accidentally passes both `old_x=5` and `x=6` in the same call. Which value does the target receive for `x`?
+
+**A:** The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping, then restores it afterwards. `x=6` is what the target (or source body under `TargetMode.ARGS_REMAP`) receives — the remapped `old_x→x=5` is discarded. This holds regardless of the order the caller listed the arguments.
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+def new_api(x: int = 0) -> int:
+    return x
+
+
+@deprecated(target=new_api, args_mapping={"old_x": "x"}, deprecated_in="1.0", remove_in="2.0")
+def old_api(old_x: int = 0, x: int = 0) -> int:
+    return x
+
+
+print(old_api(old_x=5, x=6))  # warns: old_x deprecated
+print(old_api(x=6, old_x=5))  # warns: same result regardless of order
+```
+
+<details>
+  <summary>Output: <code>old_api(...)</code></summary>
+
+```
+6
+6
+```
+
+</details>
+
+**Precedence hierarchy (highest to lowest):**
+
+1. `args_extra` values — merged last; unconditionally overwrite all caller-supplied values including the explicit new-name kwarg.
+2. Explicit new-name kwarg — wins over the remapped old-name value.
+3. Remapped old-name value — wins over source defaults.
+
+```python
+@deprecated(
+    target=new_api,
+    args_mapping={"old_x": "x"},
+    args_extra={"x": 99},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def old_api_with_extra(old_x: int = 0, x: int = 0) -> int:
+    return x
+
+
+print(old_api_with_extra(old_x=5, x=6))  # args_extra wins — result is 99, not 6
+```
+
+<details>
+  <summary>Output: <code>old_api_with_extra(old_x=5, x=6)</code></summary>
+
+```
+99
+```
+
+</details>
+
+This applies equally to `@deprecated` with `target=TargetMode.ARGS_REMAP` or a callable `target`, and to `deprecated_class()` / `deprecated_instance()` with `args_mapping`.
+
+______________________________________________________________________
+
 ## UserWarning when using `TargetMode.ARGS_REMAP` without `args_mapping`
 
 **Q:** I applied `@deprecated(target=TargetMode.ARGS_REMAP, ...)` and got the warning `UserWarning: @deprecated(target=TargetMode.ARGS_REMAP) on my_func requires args_mapping ...`. Why, and how do I fix it?
