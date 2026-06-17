@@ -1089,6 +1089,47 @@ class TestProxyArgsMappingBehavior:
         with pytest.warns(FutureWarning):
             proxy(new_key=1)
 
+    def test_callable_target_new_kwarg_wins_when_both_old_and_new_provided_old_first(self) -> None:
+        """Callable-target proxy: explicit new-name value wins when both old and new kwargs passed (old first).
+
+        A fresh proxy with ``target=SomeTargetClass`` and ``args_mapping={"old_key": "new_key"}`` is
+        instantiated with ``old_key=5, new_key=6``; the remapped ``old_key→new_key=5`` must not
+        overwrite the explicitly passed ``new_key=6``. Exercises ``_proxy_call_callable_with_mapping``.
+        """
+        proxy = _DeprecatedProxy(
+            obj=SomeTargetClass,
+            name="SomeTargetClass",
+            deprecated_in="1.2",
+            remove_in="2.0",
+            num_warns=-1,
+            target=SomeTargetClass,
+            args_mapping={"old_key": "new_key"},
+        )
+        with pytest.warns(FutureWarning):
+            instance = proxy(old_key=5, new_key=6)
+        assert instance.new_key == 6
+
+    def test_callable_target_new_kwarg_wins_when_both_old_and_new_provided_new_first(self) -> None:
+        """Callable-target proxy: new-name value wins regardless of whether old or new kwarg is listed first.
+
+        Before the precedence fix, calling with ``new_key=6, old_key=5`` produced ``new_key=5``
+        because the dict-comprehension last-write-wins in ``_apply_args_mapping`` caused
+        the ``old_key→new_key`` rename to overwrite the explicit ``new_key=6`` entry.
+        Exercises ``_proxy_call_callable_with_mapping`` (has a callable target, not ARGS_REMAP mode).
+        """
+        proxy = _DeprecatedProxy(
+            obj=SomeTargetClass,
+            name="SomeTargetClass",
+            deprecated_in="1.2",
+            remove_in="2.0",
+            num_warns=-1,
+            target=SomeTargetClass,
+            args_mapping={"old_key": "new_key"},
+        )
+        with pytest.warns(FutureWarning):
+            instance = proxy(new_key=6, old_key=5)
+        assert instance.new_key == 6
+
     def test_notify_with_args_mapping_emits_misconfig_warning(self) -> None:
         """NOTIFY + args_mapping on proxy emits UserWarning at decoration time."""
         with pytest.warns(UserWarning, match="args_mapping"):

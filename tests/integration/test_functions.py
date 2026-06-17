@@ -40,6 +40,7 @@ from tests.collection_deprecate import (
     depr_accuracy_map,
     depr_accuracy_skip,
     depr_collision_old_new,
+    depr_collision_old_new_extra_wins,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_pow_args,
@@ -353,6 +354,28 @@ class TestArgumentMapping:
         with pytest.warns(FutureWarning):
             result = depr_collision_old_new(new=6, old=5)
         assert result == 6
+
+    def test_new_kwarg_wins_when_old_passed_positionally(self) -> None:
+        """New-name value wins when old name passed positionally and new name passed as kwarg.
+
+        ``depr_collision_old_new(5, new=6)`` resolves positional ``5`` to ``old=5`` via
+        ``_update_kwargs_with_args`` before ``_build_call_plan`` computes ``_explicit_new``;
+        the fix then fires identically to the kwarg-only collision case.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new(5, new=6)
+        assert result == 6
+
+    def test_args_extra_wins_over_explicit_new_kwarg(self) -> None:
+        """args_extra overwrites explicit new-name kwarg — args_extra merge runs last and always wins.
+
+        ``depr_collision_old_new_extra_wins(old=5, new=6)`` has ``args_extra={"new": 99}``;
+        the ``args_extra`` merge runs after the ``explicit_new`` restore, so the target always
+        receives ``new=99`` regardless of what the caller passed, pinning the priority contract.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new_extra_wins(old=5, new=6)
+        assert result == 99
 
 
 @pytest.mark.parametrize(

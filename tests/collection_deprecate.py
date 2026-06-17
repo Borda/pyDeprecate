@@ -1382,6 +1382,19 @@ def depr_collision_old_new(old: int = 0, new: int = 0) -> int:
     return void(old, new)
 
 
+@deprecated(
+    target=both_old_new_target, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old": "new"}, args_extra={"new": 99}
+)
+def depr_collision_old_new_extra_wins(old: int = 0, new: int = 0) -> int:
+    """Source with args_extra={"new": 99}; args_extra always wins over explicit new-name kwarg.
+
+    Caller-supplied ``new`` is overwritten by ``args_extra`` merge that runs after the
+    ``explicit_new`` restore, so the target always receives ``new=99`` regardless of what
+    the caller passed.
+    """
+    return void(old, new)
+
+
 # ========== Regression fixtures: Fix 1 + Fix 2 ==========
 
 
