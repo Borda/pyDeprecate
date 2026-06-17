@@ -642,6 +642,13 @@ print(old_api(x=6, old_x=5))  # warns: same result regardless of order
 3. Remapped old-name value — wins over source defaults.
 
 ```python
+from deprecate import deprecated
+
+
+def new_api(x: int = 0) -> int:
+    return x
+
+
 @deprecated(
     target=new_api,
     args_mapping={"old_x": "x"},
