@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-06-15"
+  "dateModified": "2026-06-18"
 }
 </script>
 
@@ -1565,20 +1565,20 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">score_predictions</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">score_predictions</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">return</span> <span class="n">val</span> <span class="o">*</span> <span class="mi">2</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># WRONG — score_predictions(x) is never reached; the decorator forwards before the body runs</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># WRONG — score_predictions(val) is never reached; the decorator forwards before the body runs</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">score_predictions</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="k">return</span> <span class="n">score_predictions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="k">return</span> <span class="n">score_predictions</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># CORRECT — body is empty; pyDeprecate handles all forwarding automatically</span>
 <a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">score_predictions</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># or: pass  or: &quot;&quot;&quot;Original function description.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>  <span class="c1"># or: pass  or: &quot;&quot;&quot;Original function description.&quot;&quot;&quot;</span>
 </code></pre></div>
 </div>
 <p>Apply <code>@deprecated(target=&lt;callable&gt;)</code> to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. Under normal forwarding the body is dead code, so leave it empty or put a docstring there (see also <a href="void-helper.html">void() helper</a> for a null-forwarding idiom). The one exception is <code>skip_if=True</code> at call time — see the danger admonition above — where the source body executes as a fallback; keep a working body when combining <code>target=&lt;callable&gt;</code> with <code>skip_if</code>.</p>
@@ -1681,6 +1681,13 @@
 <a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="c1">#   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`</span>
 <a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">depr_accuracy</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="mf">1.23</span><span class="p">))</span>
 </code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">Passing both old and new argument names at once</p>
+<p>If a caller supplies both the deprecated name and its replacement in the same call (e.g. <code>fn(val=5, new_val=6)</code>), the explicit new-name value always wins. The remapped old-name value is silently discarded. To make this visible, pyDeprecate also emits a <code>UserWarning</code> alongside the regular <code>FutureWarning</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>UserWarning: Both `val` (deprecated) and `new_val` were supplied to `fn()`; `val` is ignored.
+</code></pre></div>
+<p>Clean up the call site by removing the deprecated argument name.</p>
+</div>
 <h2 id="notice-only-deprecation">Notice-only deprecation<a class="headerlink" href="#notice-only-deprecation" title="Permanent link">🔗</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">The function body still executes with <code>TargetMode.NOTIFY</code> — keep a working implementation</p>
@@ -1688,83 +1695,83 @@
 </div>
 <p>Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.</p>
 <p>Since <code>target</code> defaults to <code>TargetMode.NOTIFY</code>, you can omit it entirely:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.1&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.5&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_sum</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;My deprecated function which still has to have implementation.&quot;&quot;&quot;</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># calling this function will raise a deprecation warning:</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="c1">#   The `my_sum` was deprecated since v0.1. It will be removed in v0.5.</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">my_sum</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.1&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.5&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_sum</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;My deprecated function which still has to have implementation.&quot;&quot;&quot;</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># calling this function will raise a deprecation warning:</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="c1">#   The `my_sum` was deprecated since v0.1. It will be removed in v0.5.</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">my_sum</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>my_sum(1, 2)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>3
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>3
 </code></pre></div>
 
 </details>
 
 <h2 id="self-argument-mapping">Self argument mapping<a class="headerlink" href="#self-argument-mapping" title="Permanent link">🔗</a></h2>
 <p>Use <code>TargetMode.ARGS_REMAP</code> to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="c1"># define as deprecation some self argument - mapping</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;coef&quot;</span><span class="p">:</span> <span class="s2">&quot;new_coef&quot;</span><span class="p">},</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="c1"># common version info</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.2&quot;</span><span class="p">,</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.4&quot;</span><span class="p">,</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="p">)</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">any_pow</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">coef</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">new_coef</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;My function with deprecated argument `coef` mapped to `new_coef`.&quot;&quot;&quot;</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">new_coef</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="c1"># calling this function will raise a deprecation warning:</span>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="c1">#   The `any_pow` uses deprecated arguments: `coef` -&gt; `new_coef`.</span>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="c1">#   They were deprecated since v0.2 and will be removed in v0.4.</span>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">any_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="c1"># define as deprecation some self argument - mapping</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;coef&quot;</span><span class="p">:</span> <span class="s2">&quot;new_coef&quot;</span><span class="p">},</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="c1"># common version info</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.2&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.4&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="p">)</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">any_pow</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">coef</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">new_coef</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;My function with deprecated argument `coef` mapped to `new_coef`.&quot;&quot;&quot;</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">new_coef</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="c1"># calling this function will raise a deprecation warning:</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="c1">#   The `any_pow` uses deprecated arguments: `coef` -&gt; `new_coef`.</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="c1">#   They were deprecated since v0.2 and will be removed in v0.4.</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">any_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>any_pow(2, 3)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>8
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>8
 </code></pre></div>
 
 </details>
 
 <p>To drop an argument entirely, map it to <code>None</code>. The decorator emits a deprecation notice when the argument is passed and then discards it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_workers&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.8&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.9&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="p">)</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">num_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;num_workers is no longer used; omit it (auto-detected).&quot;&quot;&quot;</span>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    <span class="k">return</span> <span class="n">value</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>
-<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>
-<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="c1"># Passing the removed argument triggers a warning and the argument is silently discarded:</span>
-<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="c1">#   The `my_func` uses deprecated arguments: `num_workers` -&gt; `None`.</span>
-<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="c1">#   They were deprecated since v1.8 and will be removed in v1.9.</span>
-<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">my_func</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">num_workers</span><span class="o">=</span><span class="mi">4</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_workers&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.8&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.9&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="p">)</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">num_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;num_workers is no longer used; omit it (auto-detected).&quot;&quot;&quot;</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>    <span class="k">return</span> <span class="n">value</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="c1"># Passing the removed argument triggers a warning and the argument is silently discarded:</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="c1">#   The `my_func` uses deprecated arguments: `num_workers` -&gt; `None`.</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="c1">#   They were deprecated since v1.8 and will be removed in v1.9.</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">my_func</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">num_workers</span><span class="o">=</span><span class="mi">4</span><span class="p">))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>my_func(value=42, num_workers=4)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>84
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>84
 </code></pre></div>
 
 </details>
@@ -1850,24 +1857,24 @@
 <li><strong><code>TargetMode.ARGS_REMAP</code> + <code>args_mapping</code></strong> — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.</li>
 </ul>
 <h3 id="example-notice-the-difference-in-warning-behaviour">Example — notice the difference in warning behaviour<a class="headerlink" href="#example-notice-the-difference-in-warning-behaviour" title="Permanent link">🔗</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># TargetMode.NOTIFY: warns once by default (num_warns=1)</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">going_away</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="k">return</span> <span class="n">x</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="c1"># TargetMode.ARGS_REMAP: warns only when the old argument name is passed</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;old_x&quot;</span><span class="p">:</span> <span class="s2">&quot;x&quot;</span><span class="p">},</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">renamed_arg</span><span class="p">(</span><span class="n">old_x</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>    <span class="k">return</span> <span class="n">x</span>
-<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>
-<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>
-<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="n">going_away</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning — &quot;going_away was deprecated since v1.0 …&quot;</span>
-<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="n">renamed_arg</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># silent — new name used, no deprecated arg present</span>
-<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="n">renamed_arg</span><span class="p">(</span><span class="n">old_x</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning — &quot;renamed_arg uses deprecated arguments: `old_x` → `x` …&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># TargetMode.NOTIFY: warns once by default (num_warns=1)</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">going_away</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="k">return</span> <span class="n">val</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="c1"># TargetMode.ARGS_REMAP: warns only when the old argument name is passed</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;val&quot;</span><span class="p">:</span> <span class="s2">&quot;new_val&quot;</span><span class="p">},</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">renamed_arg</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">new_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>    <span class="k">return</span> <span class="n">new_val</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="n">going_away</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning — &quot;going_away was deprecated since v1.0 …&quot;</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="n">renamed_arg</span><span class="p">(</span><span class="n">new_val</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># silent — new name used, no deprecated arg present</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="n">renamed_arg</span><span class="p">(</span><span class="n">val</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning — &quot;renamed_arg uses deprecated arguments: `val` → `new_val` …&quot;</span>
 </code></pre></div>
 <div class="admonition danger">
 <p class="admonition-title"><code>target=True</code> (or <code>TargetMode.ARGS_REMAP</code>) without <code>args_mapping</code> is a misconfiguration</p>
@@ -1881,36 +1888,36 @@
 </div>
 <h3 id="pattern-1-multi-step-argument-renames-args_remap-args_remap">Pattern 1 — multi-step argument renames (ARGS_REMAP + ARGS_REMAP)<a class="headerlink" href="#pattern-1-multi-step-argument-renames-args_remap-args_remap" title="Permanent link">🔗</a></h3>
 <p>When an argument is renamed more than once across releases, stack one <code>@deprecated(TargetMode.ARGS_REMAP, ...)</code> per rename. Each decorator operates on its own version range and emits a separate notice, giving callers version-specific migration guidance.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.6&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">c1</span><span class="o">=</span><span class="s2">&quot;nc1&quot;</span><span class="p">),</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="p">)</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>    <span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.4&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">nc1</span><span class="o">=</span><span class="s2">&quot;nc2&quot;</span><span class="p">),</span>
-<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="p">)</span>
-<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="k">def</span><span class="w"> </span><span class="nf">any_pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">c1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc2</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">nc2</span>
-<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>
-<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a>
-<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a><span class="c1"># calling this function will raise deprecation warnings:</span>
-<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a><span class="c1">#   FutureWarning(&#39;Depr: v0.3 rm v0.6 for args: `c1` -&gt; `nc1`.&#39;)</span>
-<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a><span class="c1">#   FutureWarning(&#39;Depr: v0.4 rm v0.7 for args: `nc1` -&gt; `nc2`.&#39;)</span>
-<a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">any_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.6&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">c1</span><span class="o">=</span><span class="s2">&quot;nc1&quot;</span><span class="p">),</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="p">)</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>    <span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.4&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">nc1</span><span class="o">=</span><span class="s2">&quot;nc2&quot;</span><span class="p">),</span>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="p">)</span>
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="k">def</span><span class="w"> </span><span class="nf">any_pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">c1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc2</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">nc2</span>
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>
+<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>
+<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a><span class="c1"># calling this function will raise deprecation warnings:</span>
+<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a><span class="c1">#   FutureWarning(&#39;Depr: v0.3 rm v0.6 for args: `c1` -&gt; `nc1`.&#39;)</span>
+<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a><span class="c1">#   FutureWarning(&#39;Depr: v0.4 rm v0.7 for args: `nc1` -&gt; `nc2`.&#39;)</span>
+<a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">any_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>any_pow(2, 3)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>8
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>8
 </code></pre></div>
 
 </details>
@@ -1918,23 +1925,23 @@
 <h3 id="pattern-2-lifecycle-migration-args_remap-notify">Pattern 2 — lifecycle migration (ARGS_REMAP + NOTIFY)<a class="headerlink" href="#pattern-2-lifecycle-migration-args_remap-notify" title="Permanent link">🔗</a></h3>
 <p>The most common real-world lifecycle: an argument is renamed in an early release (<code>ARGS_REMAP</code>), then the entire function is deprecated in a later release once a complete replacement exists (<code>NOTIFY</code>). Put <code>ARGS_REMAP</code> outermost (top decorator) and <code>NOTIFY</code> below it.</p>
 <p>Callers still using the old argument name receive <strong>both</strong> warnings — the arg-rename notice and the function-deprecated notice. Callers already using the new name receive only the function-deprecated notice.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;factor&quot;</span><span class="p">:</span> <span class="s2">&quot;scale&quot;</span><span class="p">})</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">compute_power</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">scale</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">compute_power</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>  <span class="c1"># → 2 warnings (arg rename + function deprecated)</span>
-<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">compute_power</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>  <span class="c1"># → 1 warning  (function deprecated only)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;factor&quot;</span><span class="p">:</span> <span class="s2">&quot;scale&quot;</span><span class="p">})</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">compute_power</span><span class="p">(</span><span class="n">base</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">scale</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">compute_power</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>  <span class="c1"># → 2 warnings (arg rename + function deprecated)</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">compute_power</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>  <span class="c1"># → 1 warning  (function deprecated only)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>compute_power(2, factor=3); compute_power(2, scale=3)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>8
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>8
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>8
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>8
 </code></pre></div>
 
 </details>
@@ -2013,22 +2020,22 @@
 <h3 id="n-level-stacking">N-level stacking<a class="headerlink" href="#n-level-stacking" title="Permanent link">🔗</a></h3>
 <p>Any sequence of supported adjacent pairs stacks transitively. The guard inspects only one hop at a time — as long as each adjacent pair is a supported combination, the full stack is accepted silently.</p>
 <p><strong>Example — three-level lifecycle migration:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.6&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;c1&quot;</span><span class="p">:</span> <span class="s2">&quot;nc1&quot;</span><span class="p">})</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.4&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;nc1&quot;</span><span class="p">:</span> <span class="s2">&quot;nc2&quot;</span><span class="p">})</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">any_pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">c1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc2</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">nc2</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">any_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.6&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;c1&quot;</span><span class="p">:</span> <span class="s2">&quot;nc1&quot;</span><span class="p">})</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.4&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;nc1&quot;</span><span class="p">:</span> <span class="s2">&quot;nc2&quot;</span><span class="p">})</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">any_pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">c1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc2</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">nc2</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">any_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>any_pow(2)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>4
 </code></pre></div>
 
 </details>
@@ -2041,34 +2048,34 @@
 <p>Use <a href="audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a> in CI to catch accidental deprecated-to-deprecated chains automatically.</p>
 <h2 id="conditional-skip">Conditional skip<a class="headerlink" href="#conditional-skip" title="Permanent link">🔗</a></h2>
 <p><code>skip_if</code> accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to <code>True</code>, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">FAKE_VERSION</span> <span class="o">=</span> <span class="mi">1</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">version_greater_1</span><span class="p">():</span>
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    <span class="k">return</span> <span class="n">FAKE_VERSION</span> <span class="o">&gt;</span> <span class="mi">1</span>
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
-<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="s2">&quot;0.3&quot;</span><span class="p">,</span> <span class="s2">&quot;0.6&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">c1</span><span class="o">=</span><span class="s2">&quot;nc1&quot;</span><span class="p">),</span> <span class="n">skip_if</span><span class="o">=</span><span class="n">version_greater_1</span><span class="p">)</span>
-<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">skip_pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">c1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nc1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>    <span class="k">return</span> <span class="n">base</span> <span class="o">**</span> <span class="p">(</span><span class="n">c1</span> <span class="o">-</span> <span class="n">nc1</span><span class="p">)</span>
-<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>
-<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="c1"># calling this function will raise a deprecation warning</span>
-<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">skip_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
-<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>
-<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a><span class="c1"># change the fake versions</span>
-<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a><span class="n">FAKE_VERSION</span> <span class="o">=</span> <span class="mi">2</span>
-<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a>
-<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a><span class="c1"># will not raise any warning</span>
-<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a><span class="nb">print</span><span class="p">(</span><span class="n">skip_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">FAKE_VERSION</span> <span class="o">=</span> <span class="mi">1</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">version_greater_1</span><span class="p">():</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>    <span class="k">return</span> <span class="n">FAKE_VERSION</span> <span class="o">&gt;</span> <span class="mi">1</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="s2">&quot;0.3&quot;</span><span class="p">,</span> <span class="s2">&quot;0.6&quot;</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">c1</span><span class="o">=</span><span class="s2">&quot;nc1&quot;</span><span class="p">),</span> <span class="n">skip_if</span><span class="o">=</span><span class="n">version_greater_1</span><span class="p">)</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">skip_pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">c1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nc1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a>    <span class="k">return</span> <span class="n">base</span> <span class="o">**</span> <span class="p">(</span><span class="n">c1</span> <span class="o">-</span> <span class="n">nc1</span><span class="p">)</span>
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a>
+<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a>
+<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="c1"># calling this function will raise a deprecation warning</span>
+<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">skip_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<a id="__codelineno-20-17" name="__codelineno-20-17" href="#__codelineno-20-17"></a>
+<a id="__codelineno-20-18" name="__codelineno-20-18" href="#__codelineno-20-18"></a><span class="c1"># change the fake versions</span>
+<a id="__codelineno-20-19" name="__codelineno-20-19" href="#__codelineno-20-19"></a><span class="n">FAKE_VERSION</span> <span class="o">=</span> <span class="mi">2</span>
+<a id="__codelineno-20-20" name="__codelineno-20-20" href="#__codelineno-20-20"></a>
+<a id="__codelineno-20-21" name="__codelineno-20-21" href="#__codelineno-20-21"></a><span class="c1"># will not raise any warning</span>
+<a id="__codelineno-20-22" name="__codelineno-20-22" href="#__codelineno-20-22"></a><span class="nb">print</span><span class="p">(</span><span class="n">skip_pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>skip_pow(2, 3)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>0.25
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>0.25
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>4
 </code></pre></div>
 
 </details>
@@ -2109,7 +2116,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 15, 2026 10:12:29 UTC">2026-06-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 18, 2026 18:45:13 UTC">2026-06-18</span>
   </span>
 
     

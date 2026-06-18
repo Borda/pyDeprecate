@@ -2593,9 +2593,10 @@ actually used</strong> in the call, matching the per-argument warning behaviour 
             <td>
               <div class="doc-md-description">
                 <p>Optional dict of extra keyword arguments merged into the forwarded call after <code>args_mapping</code> has
-been applied.  Caller-supplied values override entries with the same key.  Ignored when <code>target</code> is
-:attr:<code>~deprecate._types.TargetMode.NOTIFY</code> (passing both emits a :class:<code>UserWarning</code> at decoration
-time; will be :class:<code>TypeError</code> in v1.0).</p>
+been applied.  <code>args_extra</code> values win over any caller-supplied value with the same key (i.e.
+<code>args_extra</code> &gt; explicit new-name kwarg &gt; remapped old-name value &gt; source defaults).  Ignored when
+<code>target</code> is :attr:<code>~deprecate._types.TargetMode.NOTIFY</code> (passing both emits a :class:<code>UserWarning</code> at
+decoration time; will be :class:<code>TypeError</code> in v1.0).</p>
               </div>
             </td>
             <td>
@@ -2930,7 +2931,7 @@ Custom method names (e.g. <code>register()</code>, <code>reload()</code>, <code>
             <td>
               <div class="doc-md-description">
                 <p>Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
-Caller-supplied values override entries with the same key.</p>
+<code>args_extra</code> values win over any caller-supplied value with the same key.</p>
               </div>
             </td>
             <td>
