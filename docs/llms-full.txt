@@ -128,7 +128,7 @@ pydeprecate all src/
 - Do not use `target=None`; use `TargetMode.NOTIFY` or omit `target`.
 - Do not reimplement forwarding by calling the new function inside the old function when `target=<callable>` is already configured.
 - Do not replace pyDeprecate with raw `warnings.warn` when callers need compatibility forwarding.
-- Do not assume dict last-write-wins ordering when both old and new argument names are passed simultaneously (e.g. `fn(old_x=5, x=6)`). Explicit new-name kwarg always wins over remapped old-name value. `args_extra` wins over both. Precedence: `args_extra` > explicit new-name kwarg > remapped old-name value > source defaults.
+- Do not assume dict last-write-wins ordering when both old and new argument names are passed simultaneously (e.g. `fn(val=5, new_val=6)`). Explicit new-name kwarg always wins over remapped old-name value. `args_extra` wins over both. Precedence: `args_extra` > explicit new-name kwarg > remapped old-name value > source defaults.
 
 ## When Not To Use pyDeprecate
 

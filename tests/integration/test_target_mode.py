@@ -272,6 +272,17 @@ class TestArgsRemapMode:
             result = depr_target_mode_args_only_warns_when_old_arg_passed(x=6, old_x=5)
         assert result == 7
 
+    def test_user_warning_emitted_when_both_old_and_new_provided(self) -> None:
+        """ARGS_REMAP: UserWarning fires naming the ignored argument when both old and new kwarg are passed.
+
+        Calling ``fn(old_x=5, x=6)`` must emit a ``UserWarning`` whose text identifies ``old_x`` as
+        the ignored argument, in addition to the normal ``FutureWarning`` deprecation notice.  This
+        prevents silent data loss when a caller accidentally passes both names.
+
+        """
+        with pytest.warns(UserWarning, match=r"`old_x`.*is ignored"):
+            depr_target_mode_args_only_warns_when_old_arg_passed(old_x=5, x=6)
+
 
 class TestDefaultTarget:
     """Omitting `target` defaults to TargetMode.NOTIFY — warn-only, no forwarding."""

@@ -627,8 +627,8 @@ def old_api(val: int = 0, new_val: int = 0) -> int:
     return new_val
 
 
-print(old_api(val=5, new_val=6))  # warns: FutureWarning + UserWarning (val ignored)
-print(old_api(new_val=6, val=5))  # warns: FutureWarning + UserWarning (same result)
+print(old_api(val=5, new_val=6))  # warns: FutureWarning (UserWarning also fires: val ignored)
+print(old_api(new_val=6, val=5))  # warns: FutureWarning (UserWarning also fires: same result)
 ```
 
 <details>

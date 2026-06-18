@@ -761,6 +761,18 @@ class TestArgsMapping:
             instance = ProxyArgsRemapForArgWarnMessage(new_key=6, old_key=5)  # type: ignore[call-arg]
         assert instance.new_key == 6
 
+    def test_args_remap_user_warning_emitted_when_both_old_and_new_provided(self) -> None:
+        """ARGS_REMAP proxy: UserWarning fires naming the ignored argument when both old and new kwargs are passed.
+
+        Calling ``ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)`` must emit a ``UserWarning`` whose
+        message identifies ``old_key`` as the ignored argument, in addition to the normal ``FutureWarning``.
+        This test verifies parity between the ``@deprecated`` decorator path (which already emitted ``UserWarning``)
+        and the ``deprecated_class`` proxy path after the proxy-path collision guard was added.
+
+        """
+        with pytest.warns(UserWarning, match=r"`old_key`.*is ignored"):
+            ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)  # type: ignore[call-arg]
+
 
 class TestArgsExtra:
     """args_extra injects additional kwargs into deprecated_class() and deprecated_instance() forwarded calls."""

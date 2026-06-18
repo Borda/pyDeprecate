@@ -525,6 +525,15 @@ class _DeprecatedProxy:
             for old_k, new_k in args_mapping.items()
             if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_to_drop
         }
+        if explicit_new and self._cfg.stream:
+            for old_k, new_k in args_mapping.items():
+                if new_k is not None and new_k in explicit_new:
+                    warnings.warn(
+                        f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{self._dep.name}()`;"
+                        f" `{old_k}` is ignored.",
+                        UserWarning,
+                        stacklevel=4,
+                    )
         result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
         result.update(explicit_new)
         return result
@@ -1069,9 +1078,10 @@ def deprecated_class(
             (will be :class:`TypeError` in v1.0).  Similarly, ``target=TargetMode.ARGS_REMAP`` without
             ``args_mapping`` emits a :class:`UserWarning` at decoration time.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call after ``args_mapping`` has
-            been applied.  Caller-supplied values override entries with the same key.  Ignored when ``target`` is
-            :attr:`~deprecate._types.TargetMode.NOTIFY` (passing both emits a :class:`UserWarning` at decoration
-            time; will be :class:`TypeError` in v1.0).
+            been applied.  ``args_extra`` values win over any caller-supplied value with the same key (i.e.
+            ``args_extra`` > explicit new-name kwarg > remapped old-name value > source defaults).  Ignored when
+            ``target`` is :attr:`~deprecate._types.TargetMode.NOTIFY` (passing both emits a :class:`UserWarning` at
+            decoration time; will be :class:`TypeError` in v1.0).
         attrs_mapping: Optional dict mapping deprecated attribute names to canonical names (or ``None`` for
             warn-only).  When set, only the listed attribute names emit a deprecation warning on access; all other
             attributes are forwarded silently.  The redirect applies to reads (``__getattr__``), writes
@@ -1238,7 +1248,7 @@ def deprecated_instance(
             ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
             Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
-            Caller-supplied values override entries with the same key.
+            ``args_extra`` values win over any caller-supplied value with the same key.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*.
