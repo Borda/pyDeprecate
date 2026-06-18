@@ -519,21 +519,21 @@ class _DeprecatedProxy:
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
-        # Snapshot explicit new-name values before remap; new-name always wins over the renamed old value.
-        explicit_new = {
-            new_k: kwargs[new_k]
+        # Pairs where both old and new name were supplied; new-name value wins over the remapped old value.
+        collision_pairs = [
+            (old_k, new_k)
             for old_k, new_k in args_mapping.items()
             if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_to_drop
-        }
-        if explicit_new and self._cfg.stream:
-            for old_k, new_k in args_mapping.items():
-                if new_k is not None and new_k in explicit_new:
-                    warnings.warn(
-                        f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{self._dep.name}()`;"
-                        f" `{old_k}` is ignored.",
-                        UserWarning,
-                        stacklevel=4,
-                    )
+        ]
+        explicit_new = {new_k: kwargs[new_k] for _, new_k in collision_pairs}
+        if collision_pairs and self._cfg.stream:
+            for old_k, new_k in collision_pairs:
+                warnings.warn(
+                    f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{self._dep.name}()`;"
+                    f" `{old_k}` is ignored.",
+                    UserWarning,
+                    stacklevel=4,
+                )
         result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
         result.update(explicit_new)
         return result
