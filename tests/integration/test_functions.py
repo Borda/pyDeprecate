@@ -377,6 +377,18 @@ class TestArgumentMapping:
             result = depr_collision_old_new_extra_wins(old=5, new=6)
         assert result == 99
 
+    def test_user_warning_emitted_when_both_old_and_new_supplied(self) -> None:
+        """Supplying both old and new names emits a UserWarning naming the ignored old arg.
+
+        When a caller passes both the deprecated ``old`` kwarg and the replacement ``new``
+        kwarg, the deprecation machinery silently drops ``old`` in favour of ``new``.
+        Without an explicit signal the caller has no way to know their ``old`` value was
+        discarded.  This test pins that a ``UserWarning`` identifying the ignored argument
+        is always emitted alongside the normal ``FutureWarning``.
+        """
+        with pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`.*`old` is ignored"):
+            depr_collision_old_new(old=5, new=6)
+
 
 @pytest.mark.parametrize(
     "func",

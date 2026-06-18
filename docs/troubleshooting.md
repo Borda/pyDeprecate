@@ -608,6 +608,12 @@ ______________________________________________________________________
 
 **A:** The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping, then restores it afterwards. `x=6` is what the target (or source body under `TargetMode.ARGS_REMAP`) receives — the remapped `old_x→x=5` is discarded. This holds regardless of the order the caller listed the arguments.
 
+In addition to the normal `FutureWarning` about the deprecated argument, pyDeprecate emits a `UserWarning` naming the ignored old argument so the caller can clean up the call site:
+
+```
+UserWarning: Both `old_x` (deprecated) and `x` were supplied to `old_api()`; `old_x` is ignored.
+```
+
 ```python
 from deprecate import TargetMode, deprecated
 
@@ -621,8 +627,8 @@ def old_api(old_x: int = 0, x: int = 0) -> int:
     return x
 
 
-print(old_api(old_x=5, x=6))  # warns: old_x deprecated
-print(old_api(x=6, old_x=5))  # warns: same result regardless of order
+print(old_api(old_x=5, x=6))  # warns: FutureWarning + UserWarning (old_x ignored)
+print(old_api(x=6, old_x=5))  # warns: FutureWarning + UserWarning (same result)
 ```
 
 <details>

@@ -147,6 +147,16 @@ def depr_accuracy(preds: list, target: list, blabla: float) -> float:
 print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 ```
 
+!!! warning "Passing both old and new argument names at once"
+
+    If a caller supplies both the deprecated name and its replacement in the same call (e.g. `fn(old_x=5, x=6)`), the explicit new-name value always wins. The remapped old-name value is silently discarded. To make this visible, pyDeprecate also emits a `UserWarning` alongside the regular `FutureWarning`:
+
+    ```
+    UserWarning: Both `old_x` (deprecated) and `x` were supplied to `fn()`; `old_x` is ignored.
+    ```
+
+    Clean up the call site by removing the deprecated argument name.
+
 ## Notice-only deprecation
 
 !!! warning "The function body still executes with `TargetMode.NOTIFY` — keep a working implementation"

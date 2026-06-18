@@ -218,7 +218,7 @@
           "name": "When I pass both the old and new argument names at the same time, which value wins?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping and restores it afterwards — the remapped old-name value is discarded. The order the caller lists the arguments does not affect the result. If args_extra is configured, it wins over both — args_extra is merged last and unconditionally overwrites all caller-supplied values. This applies to @deprecated with target=TargetMode.ARGS_REMAP or a callable target, and to deprecated_class() / deprecated_instance() with args_mapping."
+            "text": "The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping and restores it afterwards — the remapped old-name value is discarded. The order the caller lists the arguments does not affect the result. In addition to the regular FutureWarning, pyDeprecate also emits a UserWarning naming the ignored old argument: \"Both `old_x` (deprecated) and `x` were supplied to `fn()`; `old_x` is ignored.\" If args_extra is configured, it wins over both — args_extra is merged last and unconditionally overwrites all caller-supplied values. This applies to @deprecated with target=TargetMode.ARGS_REMAP or a callable target, and to deprecated_class() / deprecated_instance() with args_mapping."
           }
         },
         {
