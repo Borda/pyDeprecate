@@ -33,7 +33,7 @@ from deprecate._types import (
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.utils import _get_signature, get_func_arguments_types_defaults
+from deprecate.utils import _apply_args_mapping_collisions, _get_signature, get_func_arguments_types_defaults
 
 _V1_BREAK_VERSION = "v1.0"
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
@@ -972,21 +972,10 @@ def _build_call_plan(  # noqa: C901, PLR0912
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
-        # Collect (old, new) pairs where caller supplied both names; new-name always wins.
-        _collisions = [
-            (old_k, new_k)
-            for old_k, new_k in dep_cfg.args_mapping.items()
-            if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_skip
-        ]
-        _explicit_new = {new_k: kwargs[new_k] for _, new_k in _collisions}
-        if _collisions and stream:
-            for old_k, new_k in _collisions:
-                warnings.warn(
-                    f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{source.__name__}()`;"
-                    f" `{old_k}` is ignored.",
-                    UserWarning,
-                    stacklevel=3,  # caller → wrapper_fn → _build_call_plan → warn
-                )
+        # caller → wrapper_fn → _build_call_plan → _apply_args_mapping_collisions → warn = stacklevel 4
+        _explicit_new = _apply_args_mapping_collisions(
+            dep_cfg.args_mapping, kwargs, args_skip, source.__name__, stream, stacklevel=4
+        )
         kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
         if _explicit_new:
             kwargs.update(_explicit_new)

@@ -44,7 +44,7 @@ from deprecate.deprecation import (
     deprecation_warning,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.utils import _get_args_mapping_positional_only_keys, _is_dataclass_target
+from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
@@ -519,21 +519,10 @@ class _DeprecatedProxy:
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
-        # Pairs where both old and new name were supplied; new-name value wins over the remapped old value.
-        collision_pairs = [
-            (old_k, new_k)
-            for old_k, new_k in args_mapping.items()
-            if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_to_drop
-        ]
-        explicit_new = {new_k: kwargs[new_k] for _, new_k in collision_pairs}
-        if collision_pairs and self._cfg.stream:
-            for old_k, new_k in collision_pairs:
-                warnings.warn(
-                    f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{self._dep.name}()`;"
-                    f" `{old_k}` is ignored.",
-                    UserWarning,
-                    stacklevel=4,
-                )
+        # caller → __call__ → _proxy_call_* → _apply_args_mapping → _apply_args_mapping_collisions → warn = stacklevel 5
+        explicit_new = _apply_args_mapping_collisions(
+            args_mapping, kwargs, args_to_drop, self._dep.name, self._cfg.stream, stacklevel=5
+        )
         result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
         result.update(explicit_new)
         return result
