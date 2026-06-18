@@ -19,20 +19,20 @@ This page covers all deprecation patterns for Python functions and methods: forw
     from deprecate import deprecated, void
 
 
-    def score_predictions(x: int) -> int:
-        return x * 2
+    def score_predictions(val: int) -> int:
+        return val * 2
 
 
-    # WRONG — score_predictions(x) is never reached; the decorator forwards before the body runs
+    # WRONG — score_predictions(val) is never reached; the decorator forwards before the body runs
     @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
-    def score(x: int) -> int:
-        return score_predictions(x)
+    def score(val: int) -> int:
+        return score_predictions(val)
 
 
     # CORRECT — body is empty; pyDeprecate handles all forwarding automatically
     @deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
-    def score(x: int) -> int:
-        return void(x)  # or: pass  or: """Original function description."""
+    def score(val: int) -> int:
+        return void(val)  # or: pass  or: """Original function description."""
     ```
 
 Apply `@deprecated(target=<callable>)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. Under normal forwarding the body is dead code, so leave it empty or put a docstring there (see also [void() helper](void-helper.md) for a null-forwarding idiom). The one exception is `skip_if=True` at call time — see the danger admonition above — where the source body executes as a fallback; keep a working body when combining `target=<callable>` with `skip_if`.
@@ -149,10 +149,10 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 !!! warning "Passing both old and new argument names at once"
 
-    If a caller supplies both the deprecated name and its replacement in the same call (e.g. `fn(old_x=5, x=6)`), the explicit new-name value always wins. The remapped old-name value is silently discarded. To make this visible, pyDeprecate also emits a `UserWarning` alongside the regular `FutureWarning`:
+    If a caller supplies both the deprecated name and its replacement in the same call (e.g. `fn(val=5, new_val=6)`), the explicit new-name value always wins. The remapped old-name value is silently discarded. To make this visible, pyDeprecate also emits a `UserWarning` alongside the regular `FutureWarning`:
 
     ```
-    UserWarning: Both `old_x` (deprecated) and `x` were supplied to `fn()`; `old_x` is ignored.
+    UserWarning: Both `val` (deprecated) and `new_val` were supplied to `fn()`; `val` is ignored.
     ```
 
     Clean up the call site by removing the deprecated argument name.
@@ -298,19 +298,19 @@ from deprecate import TargetMode, deprecated
 
 # TargetMode.NOTIFY: warns once by default (num_warns=1)
 @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-def going_away(x: int) -> int:
-    return x
+def going_away(val: int) -> int:
+    return val
 
 
 # TargetMode.ARGS_REMAP: warns only when the old argument name is passed
-@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, deprecated_in="1.0", remove_in="2.0")
-def renamed_arg(old_x: int = 0, x: int = 0) -> int:
-    return x
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"val": "new_val"}, deprecated_in="1.0", remove_in="2.0")
+def renamed_arg(val: int = 0, new_val: int = 0) -> int:
+    return new_val
 
 
 going_away(1)  # warns: FutureWarning — "going_away was deprecated since v1.0 …"
-renamed_arg(x=1)  # silent — new name used, no deprecated arg present
-renamed_arg(old_x=1)  # warns: FutureWarning — "renamed_arg uses deprecated arguments: `old_x` → `x` …"
+renamed_arg(new_val=1)  # silent — new name used, no deprecated arg present
+renamed_arg(val=1)  # warns: FutureWarning — "renamed_arg uses deprecated arguments: `val` → `new_val` …"
 ```
 
 !!! danger "`target=True` (or `TargetMode.ARGS_REMAP`) without `args_mapping` is a misconfiguration"

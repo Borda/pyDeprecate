@@ -218,7 +218,7 @@
           "name": "When I pass both the old and new argument names at the same time, which value wins?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping and restores it afterwards — the remapped old-name value is discarded. The order the caller lists the arguments does not affect the result. In addition to the regular FutureWarning, pyDeprecate also emits a UserWarning naming the ignored old argument: \"Both `old_x` (deprecated) and `x` were supplied to `fn()`; `old_x` is ignored.\" If args_extra is configured, it wins over both — args_extra is merged last and unconditionally overwrites all caller-supplied values. This applies to @deprecated with target=TargetMode.ARGS_REMAP or a callable target, and to deprecated_class() / deprecated_instance() with args_mapping."
+            "text": "The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping and restores it afterwards — the remapped old-name value is discarded. The order the caller lists the arguments does not affect the result. In addition to the regular FutureWarning, pyDeprecate also emits a UserWarning naming the ignored old argument: \"Both `val` (deprecated) and `new_val` were supplied to `fn()`; `val` is ignored.\" If args_extra is configured, it wins over both — args_extra is merged last and unconditionally overwrites all caller-supplied values. This applies to @deprecated with target=TargetMode.ARGS_REMAP or a callable target, and to deprecated_class() / deprecated_instance() with args_mapping."
           }
         },
         {
@@ -282,7 +282,7 @@
           "name": "Why does my deprecated async def warning not appear in CI or test output?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. coro = old_fn(x=1) produces no warning; await coro fires it. Common silent-loss scenarios: asyncio.create_task or tasks scheduled via fixtures/library hooks — the warning fires when the event loop executes the coroutine, which may be outside any active catch_warnings context (e.g., in background workers or test setup code); third-party schedulers (Celery, arq, anyio) run the coroutine in a different context; pytest.warns() wrapping only the call captures nothing. Fix 1 (recommended): use stream=logging.warning — logging bypasses Python warning filters and always appears in CI logs. Fix 2 (tests): wrap the await, not just the call, inside pytest.warns(FutureWarning)."
+            "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. coro = old_fn(val=1) produces no warning; await coro fires it. Common silent-loss scenarios: asyncio.create_task or tasks scheduled via fixtures/library hooks — the warning fires when the event loop executes the coroutine, which may be outside any active catch_warnings context (e.g., in background workers or test setup code); third-party schedulers (Celery, arq, anyio) run the coroutine in a different context; pytest.warns() wrapping only the call captures nothing. Fix 1 (recommended): use stream=logging.warning — logging bypasses Python warning filters and always appears in CI logs. Fix 2 (tests): wrap the await, not just the call, inside pytest.warns(FutureWarning)."
           }
         },
         {
@@ -314,7 +314,7 @@
           "name": "How does @deprecated handle target functions with positional-only parameters?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(x, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(x, y=0): return new_fn(x, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
+            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
           }
         }
       ]
