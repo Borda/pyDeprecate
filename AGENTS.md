@@ -122,13 +122,11 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times. Apply this sync table on every relevant change:
 
-  | Change made                              | Also update                                                                                                                                                                                                                   |
-  | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Public API behavior change               | affected module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes |
-  | New deprecation pattern                  | `docs/llms.txt` Decision Flowchart · relevant `docs/guide/*.md` topic page (functions, classes, properties, async, or advanced)                                                                                               |
-  | New anti-pattern discovered              | `docs/llms.txt` § Anti-Patterns · relevant `docs/guide/*.md` topic page                                                                                                                                                       |
-  | `TargetMode` enum value added or removed | `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/guide/*.md` topic page                                                                                                                            |
-  | New mainstream AI crawler released       | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                                  |
+  - **Public API behavior change** — affected module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes · `docs/troubleshooting.md` (add or update Q&A) · FAQPage JSON-LD in `docs/overrides/main.html`
+  - **New deprecation pattern** — `docs/llms.txt` Decision Flowchart · relevant `docs/guide/*.md` topic page (functions, classes, properties, async, or advanced)
+  - **New anti-pattern discovered** — `docs/llms.txt` § Anti-Patterns · relevant `docs/guide/*.md` topic page
+  - **`TargetMode` enum value added or removed** — `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/guide/*.md` topic page
+  - **New mainstream AI crawler released** — `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)
 
   `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale. `docs/robots.txt` is the access gateway — an unlisted bot gets the wildcard `Allow: /` but explicit entries signal intent to AI platforms.
 

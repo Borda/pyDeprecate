@@ -74,15 +74,15 @@ from deprecate import TargetMode, deprecated
 
 class MyClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-    def __init__(self, x: int) -> None:
-        self.x = x  # body still executes; warning fires on every new MyClass(...)
+    def __init__(self, val: int) -> None:
+        self.val = val  # body still executes; warning fires on every new MyClass(...)
 
 
-print(MyClass(5).x)
+print(MyClass(5).val)
 ```
 
 <details>
-  <summary>Output: <code>MyClass(5).x</code></summary>
+  <summary>Output: <code>MyClass(5).val</code></summary>
 
 ```
 5
@@ -365,8 +365,8 @@ For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_RE
 
 ```python
 # Minimal replacement function for examples
-def score_predictions(x: int) -> int:
-    return x * 2
+def score_predictions(val: int) -> int:
+    return val * 2
 
 
 # ---------------------------
@@ -602,6 +602,86 @@ To emit a deprecation notice for every instantiation regardless of which argumen
 
 ______________________________________________________________________
 
+## I passed both the old and new argument names at the same time — which value wins?
+
+**Q:** My function is decorated with `@deprecated(args_mapping={"val": "new_val"}, ...)`. A caller accidentally passes both `val=5` and `new_val=6` in the same call. Which value does the target receive for `new_val`?
+
+**A:** The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping, then restores it afterwards. `new_val=6` is what the target (or source body under `TargetMode.ARGS_REMAP`) receives — the remapped `val→new_val=5` is discarded. This holds regardless of the order the caller listed the arguments.
+
+In addition to the normal `FutureWarning` about the deprecated argument, pyDeprecate emits a `UserWarning` naming the ignored old argument so the caller can clean up the call site:
+
+```
+UserWarning: Both `val` (deprecated) and `new_val` were supplied to `old_api()`; `val` is ignored.
+```
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+def new_api(new_val: int = 0) -> int:
+    return new_val
+
+
+@deprecated(target=new_api, args_mapping={"val": "new_val"}, deprecated_in="1.0", remove_in="2.0")
+def old_api(val: int = 0, new_val: int = 0) -> int:
+    return new_val
+
+
+print(old_api(val=5, new_val=6))  # warns: FutureWarning (UserWarning also fires: val ignored)
+print(old_api(new_val=6, val=5))  # warns: FutureWarning (UserWarning also fires: same result)
+```
+
+<details>
+  <summary>Output: <code>old_api(...)</code></summary>
+
+```
+6
+6
+```
+
+</details>
+
+**Precedence hierarchy (highest to lowest):**
+
+1. `args_extra` values — merged last; unconditionally overwrite all caller-supplied values including the explicit new-name kwarg.
+2. Explicit new-name kwarg — wins over the remapped old-name value.
+3. Remapped old-name value — wins over source defaults.
+
+```python
+from deprecate import deprecated
+
+
+def new_api(new_val: int = 0) -> int:
+    return new_val
+
+
+@deprecated(
+    target=new_api,
+    args_mapping={"val": "new_val"},
+    args_extra={"new_val": 99},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def old_api_with_extra(val: int = 0, new_val: int = 0) -> int:
+    return new_val
+
+
+print(old_api_with_extra(val=5, new_val=6))  # args_extra wins — result is 99, not 6
+```
+
+<details>
+  <summary>Output: <code>old_api_with_extra(val=5, new_val=6)</code></summary>
+
+```
+99
+```
+
+</details>
+
+This applies equally to `@deprecated` with `target=TargetMode.ARGS_REMAP` or a callable `target`, and to `deprecated_class()` / `deprecated_instance()` with `args_mapping`.
+
+______________________________________________________________________
+
 ## UserWarning when using `TargetMode.ARGS_REMAP` without `args_mapping`
 
 **Q:** I applied `@deprecated(target=TargetMode.ARGS_REMAP, ...)` and got the warning `UserWarning: @deprecated(target=TargetMode.ARGS_REMAP) on my_func requires args_mapping ...`. Why, and how do I fix it?
@@ -640,9 +720,9 @@ from deprecate import TargetMode, deprecated
 
 
 @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-def my_func(x: int) -> int:
+def my_func(val: int) -> int:
     """Going away — remove all call sites."""
-    return x * 2
+    return val * 2
 
 
 print(my_func(3))
@@ -765,12 +845,12 @@ from deprecate import deprecated
 
 
 class MyService:
-    def execute(self, x: int) -> int:
-        return x * 2
+    def execute(self, val: int) -> int:
+        return val * 2
 
     # Correct: target is on the same class
     @deprecated(target=execute, deprecated_in="1.0", remove_in="2.0")
-    def run(self, x: int) -> int:
+    def run(self, val: int) -> int:
         pass
 
 
@@ -947,7 +1027,7 @@ class Foo:
     # Works — @deprecated outside @classmethod is transparently rescued
     @deprecated(deprecated_in="1.0", remove_in="2.0")
     @classmethod
-    def old_method(cls, x): ...
+    def old_method(cls, val): ...
 
 
 print(Foo.old_method(1))
@@ -970,15 +1050,15 @@ The preferred order is still `@classmethod` outermost with `@deprecated` applied
 from deprecate import deprecated
 
 
-def new_impl(cls, x):
-    return x * 2
+def new_impl(cls, val):
+    return val * 2
 
 
 class Foo:
     # Preferred — @deprecated applied to the raw function, @classmethod wraps the result
     @classmethod
     @deprecated(target=new_impl, deprecated_in="1.0", remove_in="2.0")
-    def old_method(cls, x):
+    def old_method(cls, val):
         pass
 
 
@@ -1049,11 +1129,11 @@ ______________________________________________________________________
 
 **Q:** I decorated an `async def` function with `@deprecated` but the deprecation notice never shows up in my CI logs or test output. Why, and how do I fix it?
 
-**A:** For `async def` functions, the deprecation warning fires when the coroutine is **awaited**, not when the wrapper is called. Creating the coroutine object — `coro = old_fn(x=1)` — produces no warning; `await coro` is what triggers it.
+**A:** For `async def` functions, the deprecation warning fires when the coroutine is **awaited**, not when the wrapper is called. Creating the coroutine object — `coro = old_fn(val=1)` — produces no warning; `await coro` is what triggers it.
 
 This means warnings can be silently lost in these common scenarios:
 
-- **`asyncio.create_task(old_fn(x=1))`** or **tasks scheduled via fixtures or library hooks** — the warning fires when the event loop executes the coroutine, which may happen outside any active `catch_warnings` context (e.g., in application startup code, background workers, or test fixtures that schedule work on the event loop).
+- **`asyncio.create_task(old_fn(val=1))`** or **tasks scheduled via fixtures or library hooks** — the warning fires when the event loop executes the coroutine, which may happen outside any active `catch_warnings` context (e.g., in application startup code, background workers, or test fixtures that schedule work on the event loop).
 - **Third-party schedulers** (Celery, arq, anyio task groups) — the coroutine is handed off and the warning fires in the scheduler's execution context, not the caller's, and may be routed to a different warning filter.
 - **`pytest.warns(FutureWarning)` wrapping only the call** — `with pytest.warns(FutureWarning): coro = old_fn()` captures nothing because no warning fires at call time. The block must wrap the `await`.
 
@@ -1429,16 +1509,16 @@ ______________________________________________________________________
 from deprecate import deprecated
 
 
-def new_fn(x: int, /, y: int = 0) -> int:
-    return x + y
+def new_fn(val: int, /, y: int = 0) -> int:
+    return val + y
 
 
 @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")  # warns: UserWarning (POSITIONAL_ONLY detected)
-def old_fn(x: int, y: int = 0) -> int: ...
+def old_fn(val: int, y: int = 0) -> int: ...
 
 
 print(old_fn(5))  # warns: FutureWarning
-print(old_fn(x=5))  # warns: FutureWarning
+print(old_fn(val=5))  # warns: FutureWarning
 print(old_fn(3, y=4))  # warns: FutureWarning
 ```
 
@@ -1458,16 +1538,16 @@ The thin-adapter pattern shown below still works and avoids the decoration-time 
 from deprecate import deprecated
 
 
-def new_fn(x: int, /, y: int = 0) -> int:
-    return x + y
+def new_fn(val: int, /, y: int = 0) -> int:
+    return val + y
 
 
-def _new_fn_compat(x: int, y: int = 0) -> int:
-    return new_fn(x, y)
+def _new_fn_compat(val: int, y: int = 0) -> int:
+    return new_fn(val, y)
 
 
 @deprecated(target=_new_fn_compat, deprecated_in="1.0", remove_in="2.0")
-def old_fn(x: int, y: int = 0) -> int: ...
+def old_fn(val: int, y: int = 0) -> int: ...
 ```
 
 `deprecated_class` is unaffected — the proxy has a `setattr` fallback for POSITIONAL_ONLY constructor parameters and emits a `UserWarning` at decoration time.

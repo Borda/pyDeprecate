@@ -386,3 +386,22 @@ async def test_async_gen_warning_stacklevel(wrapper: object, call_kwargs: dict) 
     assert deprecation_warnings, "Async generator wrapper must emit a deprecation warning"
     w = deprecation_warnings[0]
     assert w.filename.endswith("test_callable_kinds.py"), f"Expected caller file, got {w.filename}"
+
+
+@pytest.mark.asyncio
+async def test_async_args_remap_user_warning_emitted_when_both_old_and_new_provided() -> None:
+    """Collision guard fires UserWarning when both old and new kwarg names are passed to an async ARGS_REMAP wrapper.
+
+    ``async_args_remap`` wraps ``_async_source_remap`` with ``args_mapping={"old_x": "x"}`` and source body
+    ``return x * 2``.  When called as ``await async_args_remap(old_x=5, x=6)`` the explicit ``x=6`` wins over the
+    remapped ``old_x→x=5`` (new-name precedence), so the result is ``12``.  The collision guard must also emit a
+    ``UserWarning`` naming the ignored argument, matching the behaviour of the ``@deprecated`` decorator path.
+
+    """
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        result = await async_args_remap(old_x=5, x=6)
+    user_warns = [w for w in warned if w.category is UserWarning]
+    assert user_warns, "UserWarning must fire when both old and new kwarg names are passed"
+    assert "is ignored" in str(user_warns[0].message)
+    assert result == 12

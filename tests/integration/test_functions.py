@@ -40,6 +40,7 @@ from tests.collection_deprecate import (
     depr_accuracy_map,
     depr_accuracy_skip,
     depr_collision_old_new,
+    depr_collision_old_new_extra_wins,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_pow_args,
@@ -222,6 +223,7 @@ class TestArgumentMapping:
         """Reset deprecation state for functions with chained or multiple deprecations."""
         for func in (
             decorated_pow_self,
+            depr_collision_old_new,
             depr_pow_self_double,
             depr_pow_self_twice,
             wrapped_pow_self,
@@ -331,6 +333,61 @@ class TestArgumentMapping:
             warnings.simplefilter("ignore", FutureWarning)
             result = depr_collision_old_new(old=42)
         assert result == 42
+
+    def test_new_kwarg_wins_when_both_old_and_new_provided_old_first(self) -> None:
+        """When old and new kwarg both passed (old first), the explicit new-name value wins.
+
+        ``depr_collision_old_new(old=5, new=6)`` must forward ``new=6`` to the callable target;
+        the remapped ``old→new=5`` must not overwrite the explicitly passed ``new=6``.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new(old=5, new=6)
+        assert result == 6
+
+    def test_new_kwarg_wins_when_both_old_and_new_provided_new_first(self) -> None:
+        """New-name value wins regardless of whether old or new kwarg is listed first in the call.
+
+        Before the precedence fix, ``depr_collision_old_new(new=6, old=5)`` returned ``5``
+        because the dict-comprehension last-write-wins caused the ``old→new`` rename to
+        overwrite the explicitly passed ``new=6``.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new(new=6, old=5)
+        assert result == 6
+
+    def test_new_kwarg_wins_when_old_passed_positionally(self) -> None:
+        """New-name value wins when old name passed positionally and new name passed as kwarg.
+
+        ``depr_collision_old_new(5, new=6)`` resolves positional ``5`` to ``old=5`` via
+        ``_update_kwargs_with_args`` before ``_build_call_plan`` computes ``_explicit_new``;
+        the fix then fires identically to the kwarg-only collision case.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new(5, new=6)
+        assert result == 6
+
+    def test_args_extra_wins_over_explicit_new_kwarg(self) -> None:
+        """args_extra overwrites explicit new-name kwarg — args_extra merge runs last and always wins.
+
+        ``depr_collision_old_new_extra_wins(old=5, new=6)`` has ``args_extra={"new": 99}``;
+        the ``args_extra`` merge runs after the ``explicit_new`` restore, so the target always
+        receives ``new=99`` regardless of what the caller passed, pinning the priority contract.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_collision_old_new_extra_wins(old=5, new=6)
+        assert result == 99
+
+    def test_user_warning_emitted_when_both_old_and_new_supplied(self) -> None:
+        """Supplying both old and new names emits a UserWarning naming the ignored old arg.
+
+        When a caller passes both the deprecated ``old`` kwarg and the replacement ``new``
+        kwarg, the deprecation machinery silently drops ``old`` in favour of ``new``.
+        Without an explicit signal the caller has no way to know their ``old`` value was
+        discarded.  This test pins that a ``UserWarning`` identifying the ignored argument
+        is always emitted alongside the normal ``FutureWarning``.
+        """
+        with pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`.*`old` is ignored"):
+            depr_collision_old_new(old=5, new=6)
 
 
 @pytest.mark.parametrize(

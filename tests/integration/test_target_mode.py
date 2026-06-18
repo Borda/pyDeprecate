@@ -251,6 +251,38 @@ class TestArgsRemapMode:
             result = func(old_x=old_x)
         assert result == expected
 
+    def test_new_kwarg_wins_when_both_old_and_new_provided_old_first(self) -> None:
+        """ARGS_REMAP: explicit new-name value wins when both old and new kwargs passed (old first).
+
+        ``fn(old_x=5, x=6)`` must execute with ``x=6``; the remapped ``old_x→x=5`` must not
+        overwrite the explicitly passed ``x=6``.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_target_mode_args_only_warns_when_old_arg_passed(old_x=5, x=6)
+        assert result == 7
+
+    def test_new_kwarg_wins_when_both_old_and_new_provided_new_first(self) -> None:
+        """ARGS_REMAP: new-name value wins regardless of whether old or new kwarg is listed first.
+
+        Before the precedence fix, ``fn(x=6, old_x=5)`` returned ``6`` (increment of 5) instead
+        of ``7`` (increment of 6) because the dict-comprehension last-write-wins caused
+        the ``old_x→x`` rename to overwrite the explicit ``x=6`` entry.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_target_mode_args_only_warns_when_old_arg_passed(x=6, old_x=5)
+        assert result == 7
+
+    def test_user_warning_emitted_when_both_old_and_new_provided(self) -> None:
+        """ARGS_REMAP: UserWarning fires naming the ignored argument when both old and new kwarg are passed.
+
+        Calling ``fn(old_x=5, x=6)`` must emit a ``UserWarning`` whose text identifies ``old_x`` as
+        the ignored argument, in addition to the normal ``FutureWarning`` deprecation notice.  This
+        prevents silent data loss when a caller accidentally passes both names.
+
+        """
+        with pytest.warns(UserWarning, match=r"`old_x`.*is ignored"):
+            depr_target_mode_args_only_warns_when_old_arg_passed(old_x=5, x=6)
+
 
 class TestDefaultTarget:
     """Omitting `target` defaults to TargetMode.NOTIFY — warn-only, no forwarding."""

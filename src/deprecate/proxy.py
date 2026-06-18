@@ -44,7 +44,7 @@ from deprecate.deprecation import (
     deprecation_warning,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.utils import _get_args_mapping_positional_only_keys, _is_dataclass_target
+from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
@@ -509,12 +509,23 @@ class _DeprecatedProxy:
         return self._cfg.obj
 
     def _apply_args_mapping(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """Apply args_mapping to *kwargs*, renaming or dropping keys as configured."""
+        """Apply args_mapping to *kwargs*, renaming or dropping keys as configured.
+
+        When both the old key and its mapped new-name key are present in *kwargs*, the explicit new-name value wins over
+        the renamed old-name value.
+
+        """
         args_mapping = self._dep.args_mapping
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
-        return {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
+        # caller → __call__ → _proxy_call_* → _apply_args_mapping → _apply_args_mapping_collisions → warn = stacklevel 5
+        explicit_new = _apply_args_mapping_collisions(
+            args_mapping, kwargs, args_to_drop, self._dep.name, self._cfg.stream, stacklevel=5
+        )
+        result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
+        result.update(explicit_new)
+        return result
 
     @staticmethod
     def _resolve_incompat_new_keys(dep: "DeprecationConfig") -> frozenset[str]:
@@ -1056,9 +1067,10 @@ def deprecated_class(
             (will be :class:`TypeError` in v1.0).  Similarly, ``target=TargetMode.ARGS_REMAP`` without
             ``args_mapping`` emits a :class:`UserWarning` at decoration time.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call after ``args_mapping`` has
-            been applied.  Caller-supplied values override entries with the same key.  Ignored when ``target`` is
-            :attr:`~deprecate._types.TargetMode.NOTIFY` (passing both emits a :class:`UserWarning` at decoration
-            time; will be :class:`TypeError` in v1.0).
+            been applied.  ``args_extra`` values win over any caller-supplied value with the same key (i.e.
+            ``args_extra`` > explicit new-name kwarg > remapped old-name value > source defaults).  Ignored when
+            ``target`` is :attr:`~deprecate._types.TargetMode.NOTIFY` (passing both emits a :class:`UserWarning` at
+            decoration time; will be :class:`TypeError` in v1.0).
         attrs_mapping: Optional dict mapping deprecated attribute names to canonical names (or ``None`` for
             warn-only).  When set, only the listed attribute names emit a deprecation warning on access; all other
             attributes are forwarded silently.  The redirect applies to reads (``__getattr__``), writes
@@ -1225,7 +1237,7 @@ def deprecated_instance(
             ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
             Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
-            Caller-supplied values override entries with the same key.
+            ``args_extra`` values win over any caller-supplied value with the same key.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*.

@@ -33,7 +33,7 @@ from deprecate._types import (
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.utils import _get_signature, get_func_arguments_types_defaults
+from deprecate.utils import _apply_args_mapping_collisions, _get_signature, get_func_arguments_types_defaults
 
 _V1_BREAK_VERSION = "v1.0"
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
@@ -857,6 +857,8 @@ def _build_call_plan(  # noqa: C901, PLR0912
         kwargs: The keyword arguments the caller passed to the wrapper.
         dep_cfg: The frozen :class:`DeprecationConfig` for this wrapper.  ``args_mapping``, ``args_extra``,
             ``deprecated_in``, ``remove_in``, and ``template_mgs`` are all read from this object.
+            Precedence when keys collide: explicit new-name kwarg wins over the remapped old-name value;
+            ``args_extra`` wins over both (it is merged last).
         stream: Warning stream (typically :func:`warnings.warn` partial), or ``None`` to suppress.
         num_warns: Maximum number of times to emit the warning per wrapper / per renamed argument.
         source_has_var_positional: ``True`` when ``source`` declares ``*args`` — affects fast-path dispatch in the
@@ -970,7 +972,13 @@ def _build_call_plan(  # noqa: C901, PLR0912
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
+        # caller → wrapper_fn → _build_call_plan → _apply_args_mapping_collisions → warn = stacklevel 4
+        _explicit_new = _apply_args_mapping_collisions(
+            dep_cfg.args_mapping, kwargs, args_skip, source.__name__, stream, stacklevel=4
+        )
         kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
+        if _explicit_new:
+            kwargs.update(_explicit_new)
 
     if dep_cfg.args_extra and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         kwargs.update(dep_cfg.args_extra)
