@@ -19,7 +19,7 @@ jobs:
 
   publish:
     needs: build
-    if: startsWith(github.event.ref, 'refs/tags')
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Download artifact
