@@ -1,20 +1,15 @@
 # Changelog
 
-## [UnReleased] - 2026-MM-DD
+## [0.10.0] — 2026-06-21 — Property accessors, class attribute mapping & descriptor targets
 
 ### Added
 
+- **`deprecated_class(attrs_mapping={...})` for selective attribute deprecation.** Deprecated attribute names emit `FutureWarning` on read, write, and delete with per-attribute warning budgets. `None` as the redirect value means warn-only (no rename). `TargetMode.ATTRS_REMAP` is the corresponding mode — can be combined with a callable `target` to redirect attribute access across class boundaries. Multi-hop chains and fan-in renames allowed; cycles raise `ValueError` at decoration time. ([#191](https://github.com/Borda/pyDeprecate/pull/191))
 - **`target=` now accepts raw `staticmethod` / `classmethod` descriptors directly.** Inside a class body the new method is still a raw descriptor (not yet bound); passing it as `target=new_method` no longer requires the explicit `.__func__` suffix. `_normalize_target` unwraps the descriptor automatically. For `classmethod` descriptors the symmetric same-class pattern is supported (both deprecated and replacement are classmethods); asymmetric usage raises `TypeError` at decoration time. ([#192](https://github.com/Borda/pyDeprecate/pull/192))
 - **`deprecated_class` stacking is now supported.** Two `@deprecated_class` decorators applied to the same class (each with its own `attrs_mapping` and version pair) now work correctly: `isinstance()` resolves through the proxy chain, instantiation emits at most one warning instead of two, and the type annotation accepts `_DeprecatedProxy` without a `cast`. Stacking ATTRS_REMAP outer + ARGS_REMAP inner is also supported: the inner proxy no longer emits a spurious global warning on attribute access — `TargetMode.ARGS_REMAP` now correctly restricts its warnings to call-time argument remapping only. No-target two-layer stacking (both layers deprecating the class in-place without forwarding to a different type) is also supported: the outer `ATTRS_REMAP` proxy delegates `__call__` to the inner `ARGS_REMAP` proxy without firing a second global warning. ([#193](https://github.com/Borda/pyDeprecate/pull/193))
 - **Dataclass `attrs_mapping` auto-expand.** When the wrapped class is a `@dataclass`, a single `deprecated_class(attrs_mapping={"old_field": "new_field"})` call automatically generates the corresponding `args_mapping` entry so both attribute access (`obj.old_field`) and constructor kwargs (`DC(old_field=5)`) emit `FutureWarning` from one decorator. Explicitly-provided `args_mapping` keys always win over auto-expanded entries. For non-dataclass targets, `attrs_mapping` covers attribute access only. ([#193](https://github.com/Borda/pyDeprecate/pull/193))
 - **`validate_mapping_compatibility()` audit function.** Returns `list[DeprecationWrapperInfo]` for all `deprecated_class` proxies whose `args_mapping` remaps deprecated names to `POSITIONAL_ONLY` constructor parameters — those proxies fall back to `setattr` at call time instead of forwarding via kwargs. Use in CI to detect configurations that silently degrade to attribute assignment. ([#193](https://github.com/Borda/pyDeprecate/pull/193))
 - **`@deprecated @property` now wraps `fset` and `fdel` with `FutureWarning`.** Applying `@deprecated` on the outside of `@property` (outer order, or explicit `deprecated(...)(property(fget, fset, fdel))`) now wraps all three accessors. Previously, only `fget` emitted a warning; `fset` and `fdel` were silently passed through. Consumers running `filterwarnings=error::FutureWarning` that wrote to or deleted a deprecated property will now see `FutureWarning` errors — use inner-order (`@property @deprecated`) or decorate only `fget` directly if you want a silent setter/deleter. Chain-style rebinding via `@value.setter` / `@value.deleter` is fully supported through the new `_DeprecatedProperty` subclass. ([#190](https://github.com/Borda/pyDeprecate/pull/190))
-
-### Changed
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 
