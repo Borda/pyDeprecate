@@ -36,6 +36,8 @@ from tests.collection_deprecate import (
     CrossGuardSameClass,
     OldPositionalOnlyClass,
     OldSelfOnlyClass,
+    dep_cycle_fn_a,
+    dep_cycle_fn_b,
     deprecated_async_positional_only_source,
     deprecated_positional_only_source,
     deprecated_positional_only_stream_none,
@@ -1387,3 +1389,47 @@ class TestPositionalOnlyTarget:
         with pytest.warns(FutureWarning):
             obj = OldSelfOnlyClass()
         assert isinstance(obj, OldSelfOnlyClass)
+
+
+class TestCycleDetection:
+    """Lazy runtime cycle detection — RuntimeError before RecursionError."""
+
+    @pytest.mark.filterwarnings("ignore::FutureWarning")
+    def test_cycle_entry_via_a_raises(self) -> None:
+        """Calling dep_cycle_fn_a raises RuntimeError when target chain loops back through dep_cycle_fn_b.
+
+        dep_cycle_fn_a forwards to dep_cycle_fn_b which forwards back to dep_cycle_fn_a,
+        forming a two-node cycle. The lazy cycle detector intercepts the re-entry of
+        dep_cycle_fn_a and raises RuntimeError instead of letting Python hit RecursionError.
+        """
+        with pytest.raises(RuntimeError, match="Circular deprecation cycle detected"):
+            dep_cycle_fn_a(1)
+
+    @pytest.mark.filterwarnings("ignore::FutureWarning")
+    def test_cycle_entry_via_b_raises(self) -> None:
+        """Calling dep_cycle_fn_b raises RuntimeError when target chain loops back through dep_cycle_fn_a.
+
+        Mirror of test_cycle_entry_via_a_raises — the cycle is symmetric so entering
+        from either node must raise RuntimeError at the re-entry point.
+        """
+        with pytest.raises(RuntimeError, match="Circular deprecation cycle detected"):
+            dep_cycle_fn_b(1)
+
+    def test_non_cycle_callable_target_unaffected(self) -> None:
+        """A normal deprecated wrapper with a non-cycling callable target is unaffected.
+
+        The cycle detection set is cleaned up via finally-block even when no cycle fires,
+        so repeated calls to a valid deprecated wrapper must not accumulate stale entries.
+        """
+
+        def new_fn(x: int) -> int:
+            return x * 2
+
+        @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+        def old_fn(x: int) -> int:
+            return void(x)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            assert old_fn(3) == 6
+            assert old_fn(3) == 6  # second call — no stale entry in active set

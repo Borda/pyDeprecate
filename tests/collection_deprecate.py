@@ -2073,3 +2073,26 @@ def make_deprecated_positional_only_num_warns_one() -> "Callable[..., int]":
             return 0
 
     return _deprecated_positional_only_num_warns_one
+
+
+# ========== Circular target cycle fixtures ==========
+# A → B → A forms a deprecation cycle; calling either wrapper must raise RuntimeError.
+# Late-binding via a mutable dict avoids the forward-reference problem at module load time.
+
+_dep_cycle: dict[str, Any] = {}
+
+
+@deprecated(target=lambda *a, **kw: _dep_cycle["b"](*a, **kw), deprecated_in="1.0", remove_in="2.0")
+def dep_cycle_fn_a(x: int) -> int:
+    """Deprecated cycle node A — forwards to dep_cycle_fn_b; never reached directly."""
+    return x
+
+
+@deprecated(target=lambda *a, **kw: _dep_cycle["a"](*a, **kw), deprecated_in="1.0", remove_in="2.0")
+def dep_cycle_fn_b(x: int) -> int:
+    """Deprecated cycle node B — forwards to dep_cycle_fn_a; never reached directly."""
+    return x
+
+
+_dep_cycle["a"] = dep_cycle_fn_a
+_dep_cycle["b"] = dep_cycle_fn_b
