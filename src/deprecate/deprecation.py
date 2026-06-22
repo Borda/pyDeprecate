@@ -183,6 +183,67 @@ class _DeprecatedProperty(property):
         return _DeprecatedProperty(self.fget, self.fset, self._rewrap(fdel), self.__doc__, _wrap=self._wrap)
 
 
+class _StrictProperty(property):
+    """Strict ``property`` replacement that rejects inner-order ``@deprecated`` at class-body evaluation time.
+
+    Import as ``from deprecate import property`` to opt a module into a guard against the accidental *inner order*
+    ``@property`` over ``@deprecated`` (``@deprecated`` closer to ``def``). That order wraps only ``fget``; any
+    setter or deleter added afterwards is built from the plain :class:`property` base and never warns, so writes
+    and deletes silently bypass the deprecation notice. ``_StrictProperty`` raises :class:`TypeError` the moment it
+    is handed a getter that already carries ``__deprecated__`` metadata — before any instance is created — steering
+    authors to the canonical *outer order* ``@deprecated(...) @property``.
+
+    Because it subclasses the builtin :class:`property`, every ``isinstance(obj, property)`` branch in the decorator
+    and audit machinery treats it transparently: the outer ``@deprecated`` converts it to a
+    :class:`_DeprecatedProperty` exactly as it would a builtin ``property``.
+
+    Modules that do not import the strict ``property`` keep the builtin behaviour untouched — the strictness is
+    purely opt-in.
+
+    Example:
+        >>> from deprecate import deprecated, property as strict_property
+        >>> @deprecated(deprecated_in="1.0", remove_in="2.0")
+        ... def old_getter(self):
+        ...     '''Already-deprecated getter.'''
+        ...     return 42
+        >>> try:
+        ...     strict_property(old_getter)  # inner-order detected
+        ... except TypeError:
+        ...     print("TypeError raised")
+        TypeError raised
+
+    """
+
+    def __init__(
+        self,
+        fget: Optional[Callable] = None,
+        fset: Optional[Callable] = None,
+        fdel: Optional[Callable] = None,
+        doc: Optional[str] = None,
+    ) -> None:
+        """Construct the property, rejecting an already-deprecated getter.
+
+        Args:
+            fget: Getter callable, or ``None``. A :class:`TypeError` is raised when it carries ``__deprecated__``
+                metadata (the inner-order signature).
+            fset: Setter callable, or ``None``.
+            fdel: Deleter callable, or ``None``.
+            doc: Property docstring; ``None`` defers to ``fget.__doc__``.
+
+        Raises:
+            TypeError: When ``fget`` is already ``@deprecated``-decorated (inner-order ``@property @deprecated``).
+
+        """
+        if fget is not None and _has_deprecation_meta(fget):
+            name = getattr(fget, "__qualname__", repr(fget))
+            raise TypeError(
+                f"Inner-order `@property @deprecated` detected on `{name}`. Only `fget` will warn —"
+                " setter and deleter remain silent. Swap the decorator order to the canonical outer order:"
+                " `@deprecated(deprecated_in=..., remove_in=...) @property`."
+            )
+        super().__init__(fget, fset, fdel, doc)
+
+
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
     """Raise ``TypeError`` when target is a method on a different class than source.
 

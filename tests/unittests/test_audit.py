@@ -928,3 +928,105 @@ class TestValidateMappingCompatibility:
             f"args_mapping={{old_val: None}} must not produce args_mapping_positional_only; "
             f"got: {info.args_mapping_positional_only}"
         )
+
+
+class TestInnerOrderPropertyAudit:
+    """``find_deprecation_wrappers`` flags inner-order ``@property @deprecated`` definitions.
+
+    Inner-order means ``@property`` sits outermost and ``@deprecated`` closer to ``def``, so only ``fget`` gets
+    wrapped.  Any setter or deleter rebound afterwards is built from the plain :class:`property` base class and is
+    therefore silently unprotected — writes and deletes never warn.  A library author who adopts the inner order by
+    habit (mirroring how ``@property`` is normally placed outermost) creates a silent gap that an audit must surface.
+    The ``inner_order_property`` flag lets CI pipelines reject this configuration and steer authors toward the
+    canonical outer order ``@deprecated(...) @property``.
+    """
+
+    def test_inner_order_property_flagged(self) -> None:
+        """A class using inner-order property with setter/deleter is flagged ``inner_order_property=True``.
+
+        The shared ``InnerOrderDeprecatedPropCls`` fixture wraps only ``fget`` while exposing a plain setter and
+        deleter; scanning the module that holds it must mark the discovered wrapper so maintainers can see at a
+        glance that the write and delete paths are unprotected.
+        """
+        mod = types.ModuleType("test_mod_inner_order_prop")
+        col.InnerOrderDeprecatedPropCls.__module__ = mod.__name__
+        mod.InnerOrderDeprecatedPropCls = col.InnerOrderDeprecatedPropCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        prop_results = [r for r in results if r.function.endswith(".value")]
+        assert prop_results, f"property 'value' not discovered; got {[r.function for r in results]}"
+        assert all(r.inner_order_property for r in prop_results)
+
+    def test_outer_order_property_not_flagged(self) -> None:
+        """An outer-order ``_DeprecatedProperty`` is NOT flagged ``inner_order_property``.
+
+        The canonical order ``@deprecated(...) @property`` produces a :class:`_DeprecatedProperty` whose setter and
+        deleter re-wrap every rebound accessor, so all paths warn.  This configuration is correct and the audit flag
+        must stay ``False`` to avoid false positives that would punish the recommended usage.
+        """
+        mod = types.ModuleType("test_mod_outer_order_prop")
+
+        class OldCls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @property
+            def value(self) -> int:
+                """Outer-order deprecated property."""
+                return 42
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        prop_results = [r for r in results if r.function.endswith(".value")]
+        assert prop_results, f"property 'value' not discovered; got {[r.function for r in results]}"
+        assert not any(r.inner_order_property for r in prop_results)
+
+    def test_getter_only_inner_order_flagged(self) -> None:
+        """A getter-only inner-order property is ALSO flagged, not just ones carrying a setter.
+
+        The stance is that outer order is canonical: any plain :class:`property` whose ``fget`` is deprecated was
+        almost certainly written with the decorators in the wrong order.  Even without a setter the author has
+        signalled intent to deprecate the attribute and should migrate to the order that survives future setter or
+        deleter additions, so the flag fires for the getter-only shape too.
+        """
+        mod = types.ModuleType("test_mod_getter_only_inner")
+
+        class OldCls:
+            @property
+            @deprecated(deprecated_in="1.0", remove_in="2.0")
+            def value(self) -> int:
+                """Inner-order deprecated getter-only property."""
+                return 42
+
+        OldCls.__module__ = mod.__name__
+        mod.OldCls = OldCls  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
+
+        prop_results = [r for r in results if r.function.endswith(".value")]
+        assert prop_results, f"property 'value' not discovered; got {[r.function for r in results]}"
+        assert all(r.inner_order_property for r in prop_results)
+
+    def test_inner_order_flag_survives_dataclass_replace(self) -> None:
+        """``dataclasses.replace`` on a flagged info preserves ``inner_order_property``.
+
+        Audit results flow through several ``replace`` calls during scanning and report assembly; a regular field
+        (not ``init=False``) must round-trip through ``replace`` unchanged so downstream consumers that copy the
+        info to adjust an unrelated field do not silently lose the flag.
+        """
+        info = DeprecationWrapperInfo(
+            function="OldCls.value",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
+            inner_order_property=True,
+        )
+        replaced = dataclasses.replace(info, module="some.module")
+        assert replaced.inner_order_property is True
+        assert replaced.module == "some.module"

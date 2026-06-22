@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from packaging.version import Version
 
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
+from deprecate.deprecation import _DeprecatedProperty
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 
@@ -264,6 +265,14 @@ class DeprecationWrapperInfo:
             constructor parameter.  Non-empty list signals that the proxy falls back to ``setattr`` for those
             keys.  Use :func:`~deprecate.audit.validate_mapping_compatibility` to filter wrappers by this
             field.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_positional_only`.
+        inner_order_property: ``True`` when the wrapper is a plain :class:`property` whose ``fget`` carries
+            ``@deprecated`` metadata — the *inner order* ``@property @deprecated`` (``@deprecated`` closer to
+            ``def``).  In this order only ``fget`` warns; any setter or deleter added afterwards is built from the
+            plain :class:`property` base and is silently unprotected.  The flag fires for every inner-order
+            property, including the getter-only shape, because the canonical order is the outer
+            ``@deprecated(...) @property`` (which produces a :class:`~deprecate.deprecation._DeprecatedProperty`
+            that re-wraps every rebound accessor).  CI pipelines can filter on this field to reject the silent
+            write/delete gap.  ``False`` for outer-order properties, non-property wrappers, and proxies.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -295,6 +304,7 @@ class DeprecationWrapperInfo:
     api_type: str = field(repr=False, default="")
     args_mapping_auto_expanded: list[str] = field(default_factory=list)
     args_mapping_positional_only: list[str] = field(default_factory=list)
+    inner_order_property: bool = False
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
@@ -810,6 +820,17 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
             )
             if _prop_accessor is not None:
                 result = _scan_callable(_prop_accessor, module_name, qualified, member_name=attr_name)
+                # Inner-order ``@property @deprecated``: a *plain* ``property`` (not ``_DeprecatedProperty``)
+                # whose ``fget`` is deprecation-wrapped. Only ``fget`` warns; any setter/deleter rebound
+                # afterwards is built from the plain ``property`` base and stays silent. Flag every such
+                # wrapper (getter-only included) since the canonical form is outer ``@deprecated(...) @property``.
+                if (
+                    result is not None
+                    and not isinstance(obj, _DeprecatedProperty)
+                    and obj.fget is not None
+                    and _has_deprecation_meta(obj.fget)
+                ):
+                    result = replace(result, inner_order_property=True)
         elif isinstance(obj, cached_property):
             result = _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
         else:

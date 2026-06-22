@@ -1390,6 +1390,32 @@ print(obj._value)
 None
 ```
 
+**CI / audit detection:** `find_deprecation_wrappers` flags inner-order properties with `inner_order_property=True` on the returned `DeprecationWrapperInfo`. Add this filter to your CI pipeline to catch the pattern before it ships:
+
+```python
+from deprecate import find_deprecation_wrappers
+import my_package
+
+inner_order = [r for r in find_deprecation_wrappers(my_package) if r.inner_order_property]
+assert not inner_order, f"Inner-order @property @deprecated detected: {inner_order}"
+```
+
+**Strict-mode import:** Add `from deprecate import property` at the top of any module to replace the builtin `property` with a guard that raises `TypeError` at class-body evaluation time whenever it detects an already-`@deprecated` getter. The check fires before any instance is created:
+
+```python
+# phmdoctest:skip — TypeError raised at class-body time
+from deprecate import deprecated, property  # strict property replaces builtin
+
+
+class MyClass:
+    @property  # strict guard — raises TypeError immediately
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def value(self) -> int:
+        return self._value
+    # TypeError: Inner-order `@property @deprecated` detected on `MyClass.value`. ...
+```
+
+Modules that do not import the strict `property` keep builtin behaviour; the guard is purely opt-in.
 </details>
 
 ______________________________________________________________________
