@@ -1,5 +1,19 @@
 # Changelog
 
+## [UnReleased] - 2026-MM-DD
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+______________________________________________________________________
+
 ## [0.10.0] — 2026-06-21 — Property accessors, class attribute mapping & descriptor targets
 
 ### Added
