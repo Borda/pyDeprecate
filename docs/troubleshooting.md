@@ -1393,8 +1393,9 @@ None
 **CI / audit detection:** `find_deprecation_wrappers` flags inner-order properties with `inner_order_property=True` on the returned `DeprecationWrapperInfo`. Add this filter to your CI pipeline to catch the pattern before it ships:
 
 ```python
+# phmdoctest:skip — CI template: replace my_package with your actual package
 from deprecate import find_deprecation_wrappers
-import my_package
+import my_package  # replace with your package, e.g. `import mylib`
 
 inner_order = [r for r in find_deprecation_wrappers(my_package) if r.inner_order_property]
 assert not inner_order, f"Inner-order @property @deprecated detected: {inner_order}"
