@@ -1413,10 +1413,12 @@ class MyClass:
     @deprecated(deprecated_in="1.0", remove_in="2.0")
     def value(self) -> int:
         return self._value
+
     # TypeError: Inner-order `@property @deprecated` detected on `MyClass.value`. ...
 ```
 
 Modules that do not import the strict `property` keep builtin behaviour; the guard is purely opt-in.
+
 </details>
 
 ______________________________________________________________________
