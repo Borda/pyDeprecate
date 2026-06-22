@@ -1,0 +1,154 @@
+# pyDeprecate Full Agent Context
+
+## Identity
+
+- Package name: `pyDeprecate`
+- Import name: `deprecate`
+- Install command: `pip install pyDeprecate`
+- Primary import: `from deprecate import deprecated`
+- CLI command: `pydeprecate`
+- Runtime dependency policy: zero runtime dependencies
+
+## Public API Map
+
+| Need | API |
+|---|---|
+| Deprecate a function or method | `deprecated` |
+| Deprecate a class | `deprecated_class` |
+| Deprecate an object alias | `deprecated_instance` |
+| Argument rename/drop mode | `TargetMode.ARGS_REMAP` |
+| Warning-only mode | `TargetMode.NOTIFY` |
+| Validate expired deprecations | `validate_deprecation_expiry` |
+| Validate wrapper chains | `validate_deprecation_chains` |
+| Discover wrappers | `find_deprecation_wrappers` |
+
+## Canonical Recipes
+
+### Function rename with forwarding
+
+```python
+from deprecate import deprecated
+
+
+def new_function(value: int) -> int:
+    return value + 1
+
+
+@deprecated(target=new_function, deprecated_in="1.0", remove_in="2.0")
+def old_function(value: int) -> int:
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
+```
+
+### Argument rename
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old": "new"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def api(*, new: str) -> str:
+    return new
+```
+
+### Drop an argument
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"debug": None},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def api(value: int) -> int:
+    return value
+```
+
+### Warning only
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+def old_hook() -> None:
+    pass
+```
+
+### Class rename
+
+```python
+from deprecate import deprecated_class
+
+
+class NewModel:
+    pass
+
+
+@deprecated_class(target=NewModel, deprecated_in="1.0", remove_in="2.0")
+class OldModel:
+    pass
+```
+
+### Object alias
+
+```python
+from deprecate import deprecated_instance
+
+
+NEW_VALUE = object()
+OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
+```
+
+### CI audit
+
+```python
+from deprecate import validate_deprecation_chains, validate_deprecation_expiry
+
+
+validate_deprecation_chains("src")
+validate_deprecation_expiry("src", current_version="2.0")
+```
+
+```bash
+pydeprecate all src/
+```
+
+## Anti-Patterns
+
+- Do not import `pydeprecate` in Python code; use `deprecate`.
+- Do not use `target=True`; use `TargetMode.ARGS_REMAP`.
+- Do not use `target=None`; use `TargetMode.NOTIFY` or omit `target`.
+- Do not reimplement forwarding by calling the new function inside the old function when `target=<callable>` is already configured.
+- Do not replace pyDeprecate with raw `warnings.warn` when callers need compatibility forwarding.
+- Do not assume dict last-write-wins ordering when both old and new argument names are passed simultaneously (e.g. `fn(val=5, new_val=6)`). Explicit new-name kwarg always wins over remapped old-name value. `args_extra` wins over both. Precedence: `args_extra` > explicit new-name kwarg > remapped old-name value > source defaults.
+
+## When Not To Use pyDeprecate
+
+- Use `warnings.warn` for a one-off internal warning that does not need API compatibility behavior.
+- Use `typing.deprecated` for Python 3.13+ static-checker-only visibility.
+- Use pyDeprecate when runtime compatibility, forwarding, argument remapping, class/object aliases, warning control, or audit checks matter.
+
+## Troubleshooting Summary
+
+- If no warning appears, check warning filters and whether the decorator is applied to the public wrapper.
+- If the old function body runs unexpectedly, check whether `target` is omitted or set to notify-only mode.
+- If argument remapping fails, check `TargetMode.ARGS_REMAP` and the exact `args_mapping` keys.
+- If CI expiry checks fail, compare each `remove_in` version with the release version used by the audit command.
+
+## Links
+
+- Root agent contract: https://borda.github.io/pyDeprecate/llms.txt
+- Getting Started: https://borda.github.io/pyDeprecate/stable/getting-started.html
+- Use Cases: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
+- Agent Recipes: https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html
+- API Migration CI: https://borda.github.io/pyDeprecate/stable/guide/audit.html
+- Class and Object Deprecation: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
+- Compare Python Deprecation Tools: https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html
