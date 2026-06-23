@@ -397,7 +397,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
 > - Do **not** use bare `assert` statements (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`.
 > - Avoid placeholders that do not validate behavior.
-> - **Never use bare `import my_package`** in runnable examples — `my_package` is not installed and will raise `ModuleNotFoundError`. For runnable examples, use `from tests import collection_deprecate as my_package` (or `collection_misconfigured`, `collection_chains` as appropriate). For CI-template snippets that intentionally use a placeholder, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
+> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, or `collection_chains`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
 
 > [!NOTE]
 > **Some docs examples use collection modules as fixtures and report hardcoded counts.** `docs/guide/audit.md` embeds expected output from scanning `tests.collection_misconfigured` with hardcoded numbers (wrappers scanned, empty mappings, etc.). When you add or remove entries from any `collection_*.py` module:

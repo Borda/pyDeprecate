@@ -941,7 +941,7 @@ class TestInnerOrderPropertyAudit:
     canonical outer order ``@deprecated(...) @property``.
     """
 
-    def test_inner_order_property_flagged(self) -> None:
+    def test_inner_order_property_flagged(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A class using inner-order property with setter/deleter is flagged ``inner_order_property=True``.
 
         The shared ``InnerOrderDeprecatedPropCls`` fixture wraps only ``fget`` while exposing a plain setter and
@@ -949,16 +949,12 @@ class TestInnerOrderPropertyAudit:
         glance that the write and delete paths are unprotected.
         """
         mod = types.ModuleType("test_mod_inner_order_prop")
-        orig_module = col.InnerOrderDeprecatedPropCls.__module__
-        try:
-            col.InnerOrderDeprecatedPropCls.__module__ = mod.__name__
-            mod.InnerOrderDeprecatedPropCls = col.InnerOrderDeprecatedPropCls  # type: ignore[attr-defined]
+        monkeypatch.setattr(col.InnerOrderDeprecatedPropCls, "__module__", mod.__name__)
+        mod.InnerOrderDeprecatedPropCls = col.InnerOrderDeprecatedPropCls  # type: ignore[attr-defined]
 
-            with warnings.catch_warnings():
-                warnings.simplefilter("always")
-                results = find_deprecation_wrappers(mod)
-        finally:
-            col.InnerOrderDeprecatedPropCls.__module__ = orig_module
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            results = find_deprecation_wrappers(mod)
 
         prop_results = [r for r in results if r.function.endswith(".value")]
         assert prop_results, f"property 'value' not discovered; got {[r.function for r in results]}"
