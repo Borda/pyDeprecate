@@ -1467,8 +1467,6 @@ class TestCycleDetection:
         each asyncio.Task gets its own copy, so concurrent calls are fully independent.
         """
         results = await asyncio.gather(
-            dep_async_non_cycle_old_fn(1),
-            dep_async_non_cycle_old_fn(2),
-            dep_async_non_cycle_old_fn(3)
+            dep_async_non_cycle_old_fn(1), dep_async_non_cycle_old_fn(2), dep_async_non_cycle_old_fn(3)
         )
         assert results == [2, 4, 6]
