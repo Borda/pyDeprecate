@@ -949,12 +949,16 @@ class TestInnerOrderPropertyAudit:
         glance that the write and delete paths are unprotected.
         """
         mod = types.ModuleType("test_mod_inner_order_prop")
-        col.InnerOrderDeprecatedPropCls.__module__ = mod.__name__
-        mod.InnerOrderDeprecatedPropCls = col.InnerOrderDeprecatedPropCls  # type: ignore[attr-defined]
+        orig_module = col.InnerOrderDeprecatedPropCls.__module__
+        try:
+            col.InnerOrderDeprecatedPropCls.__module__ = mod.__name__
+            mod.InnerOrderDeprecatedPropCls = col.InnerOrderDeprecatedPropCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
-            results = find_deprecation_wrappers(mod)
+            with warnings.catch_warnings():
+                warnings.simplefilter("always")
+                results = find_deprecation_wrappers(mod)
+        finally:
+            col.InnerOrderDeprecatedPropCls.__module__ = orig_module
 
         prop_results = [r for r in results if r.function.endswith(".value")]
         assert prop_results, f"property 'value' not discovered; got {[r.function for r in results]}"

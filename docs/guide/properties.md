@@ -171,7 +171,7 @@ The strict `property` is a subclass of the builtin, so `isinstance(obj, property
 
 !!! tip "Auditing existing code: the `inner_order_property` flag"
 
-    Even without the strict import, `find_deprecation_wrappers` flags every inner-order property: each `DeprecationWrapperInfo` carries `inner_order_property=True` when the wrapper is a plain `property` whose `fget` is deprecation-wrapped. The flag fires for the getter-only shape too, because the canonical form is the outer order. CI pipelines can reject any result with this flag set to eliminate the silent write/delete gap across a whole package. See the [Audit guide](audit.md) for the full CI integration pattern.
+    Even without the strict import, `find_deprecation_wrappers` flags every inner-order `@property`: each `DeprecationWrapperInfo` carries `inner_order_property=True` when the wrapper is a plain `property` whose `fget` is deprecation-wrapped. The flag fires for the getter-only shape too, because the canonical form is the outer order. CI pipelines can reject any result with this flag set to eliminate the silent write/delete gap across a whole package. See the [Audit guide](audit.md) for the full CI integration pattern.
 
 ### Deprecated property alias on a dataclass
 
