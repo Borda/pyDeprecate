@@ -274,6 +274,14 @@
             "@type": "Answer",
             "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get RuntimeError: Circular deprecation cycle detected?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You pointed target= of a @deprecated wrapper at another @deprecated callable and that chain loops back to the first wrapper. pyDeprecate detects re-entry at call time and raises RuntimeError with the message \"Circular deprecation cycle detected: `<name>` re-entered via its own target chain.\" instead of letting Python reach RecursionError. Fix: point target= at a plain non-deprecated final implementation, not at another @deprecated callable."
+          }
         }
       ]
     }
@@ -1480,6 +1488,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#runtimeerror-circular-deprecation-cycle-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RuntimeError: Circular deprecation cycle detected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#still-stuck" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1941,6 +1960,17 @@
     <span class="md-ellipsis">
       
         @deprecated and targets with POSITIONAL_ONLY parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtimeerror-circular-deprecation-cycle-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RuntimeError: Circular deprecation cycle detected
       
     </span>
   </a>
@@ -3270,6 +3300,44 @@
 </code></pre></div>
 <p><code>deprecated_class</code> is unaffected — the proxy has a <code>setattr</code> fallback for POSITIONAL_ONLY constructor parameters and emits a <code>UserWarning</code> at decoration time.</p>
 <hr />
+<h2 id="runtimeerror-circular-deprecation-cycle-detected"><code>RuntimeError: Circular deprecation cycle detected</code><a class="headerlink" href="#runtimeerror-circular-deprecation-cycle-detected" title="Permanent link">🔗</a></h2>
+<p><strong>When does this happen?</strong></p>
+<p>You pointed <code>target=</code> of a <code>@deprecated</code> wrapper at another <code>@deprecated</code> callable, and that second wrapper's <code>target=</code> chain eventually loops back to the first one. Calling any wrapper in the cycle raises <code>RuntimeError</code> at the first re-entry point.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="c1"># phmdoctest:skip</span>
+<a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a>
+<a id="__codelineno-79-4" name="__codelineno-79-4" href="#__codelineno-79-4"></a>
+<a id="__codelineno-79-5" name="__codelineno-79-5" href="#__codelineno-79-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-79-6" name="__codelineno-79-6" href="#__codelineno-79-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-79-7" name="__codelineno-79-7" href="#__codelineno-79-7"></a>
+<a id="__codelineno-79-8" name="__codelineno-79-8" href="#__codelineno-79-8"></a>
+<a id="__codelineno-79-9" name="__codelineno-79-9" href="#__codelineno-79-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">old_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-79-10" name="__codelineno-79-10" href="#__codelineno-79-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>Calling <code>old_fn(1)</code> raises:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a>RuntimeError: Circular deprecation cycle detected: `old_fn` re-entered via its own target chain.
+<a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a>Point to a non-deprecated final implementation.
+</code></pre></div>
+<p><strong>Why?</strong></p>
+<p><code>@deprecated</code> resolves its <code>target=</code> lazily at call time. When targets form a cycle, each call re-enters the same wrapper, which would recurse infinitely. The detector intercepts re-entry and raises <code>RuntimeError</code> instead of letting Python reach <code>RecursionError</code>.</p>
+<p><strong>Fix</strong></p>
+<p>Point <code>target=</code> at the plain (non-deprecated) final implementation, not at another <code>@deprecated</code> callable:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>
+<a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a>
+<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_impl</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a>
+<a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a>
+<a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_impl</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a>
+<a id="__codelineno-81-11" name="__codelineno-81-11" href="#__codelineno-81-11"></a>
+<a id="__codelineno-81-12" name="__codelineno-81-12" href="#__codelineno-81-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_impl</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-81-13" name="__codelineno-81-13" href="#__codelineno-81-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">also_old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>Both deprecated names forward to the same non-deprecated implementation with no cycle.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
@@ -3297,7 +3365,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 18, 2026 18:45:13 UTC">2026-06-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 23, 2026 13:13:03 UTC">2026-06-23</span>
   </span>
 
     
