@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 import typing_extensions
 
-from deprecate import TargetMode, deprecated, void
+from deprecate import TargetMode, assert_no_warnings, deprecated, void
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
     _get_positional_params,
@@ -45,6 +45,7 @@ from tests.collection_deprecate import (
     dep_fib_callable,
     dep_fib_notify,
     dep_fib_remap,
+    dep_fib_silent,
     dep_non_cycle_old_fn,
     deprecated_async_positional_only_source,
     deprecated_positional_only_source,
@@ -1478,7 +1479,15 @@ class TestCycleDetection:
 class TestRecursiveDeprecation:
     """Deprecated wrappers on recursive functions — warning fires once, recursion converges."""
 
-    def test_notify_recursive_returns_correct_result(self) -> None:
+    @pytest.mark.parametrize(
+        ("n", "expected"),
+        [
+            pytest.param(0, 0, id="base-zero"),
+            pytest.param(1, 1, id="base-one"),
+            pytest.param(6, 8, id="fib-six"),
+        ],
+    )
+    def test_notify_recursive_returns_correct_result(self, n: int, expected: int) -> None:
         """A recursive deprecated function in NOTIFY mode computes the correct result.
 
         A real Fibonacci function decorated with ``@deprecated`` (NOTIFY mode) calls itself
@@ -1487,7 +1496,7 @@ class TestRecursiveDeprecation:
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            assert dep_fib_notify(6) == 8
+            assert dep_fib_notify(n) == expected
 
     def test_notify_recursive_warns_exactly_once(self) -> None:
         """A recursive deprecated function in NOTIFY mode emits exactly one warning.
@@ -1509,46 +1518,57 @@ class TestRecursiveDeprecation:
         When the deprecation wrapper is configured with ``num_warns=0``, no warning must fire
         regardless of how many recursive re-entries occur.
         """
-
-        @deprecated(num_warns=0, deprecated_in="1.0", remove_in="2.0")
-        def silent_fib(n: int) -> int:
-            if n <= 1:
-                return n
-            return silent_fib(n - 1) + silent_fib(n - 2)
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            result = silent_fib(6)
+        with assert_no_warnings(FutureWarning):
+            result = dep_fib_silent(6)
         assert result == 8
-        assert len(caught) == 0
 
-    def test_callable_target_self_recursive_warns_once_returns_correct_result(self) -> None:
+    @pytest.mark.parametrize(
+        ("n", "expected"),
+        [
+            pytest.param(0, 0, id="base-zero"),
+            pytest.param(1, 1, id="base-one"),
+            pytest.param(6, 8, id="fib-six"),
+        ],
+    )
+    def test_callable_target_self_recursive_warns_once_returns_correct_result(self, n: int, expected: int) -> None:
         """A deprecated wrapper whose target is a self-recursive function warns once and returns correctly.
 
         ``dep_fib_callable`` forwards to ``fib_recursive``, which recurses on itself directly
-        without re-entering the deprecated wrapper. The cycle-detection set is populated on the
-        initial call and cleaned up in the finally-block; only one ``FutureWarning`` fires.
+        without re-entering the deprecated wrapper. Cycle detection does not false-positive:
+        ``id(source)`` is added to ``_active`` once and removed in the ``finally`` block; only
+        one ``FutureWarning`` fires.
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            result = dep_fib_callable(6)
-        assert result == 8
+            result = dep_fib_callable(n)
+        assert result == expected
         assert len(caught) == 1
         assert caught[0].category is FutureWarning
 
     def test_callable_target_repeated_calls_no_stale_state(self) -> None:
-        """Repeated calls to a recursive callable-target wrapper each warn once with no stale ids.
+        """A second independent call succeeds with no stale ``id(source)`` entries and no new warning.
 
-        After the first call cleans up via the finally-block, the cycle-detection set must be
-        empty so a second independent call succeeds identically — no stale ``id(source)`` entries
-        left over from the previous recursion.
+        After the first call cleans up via the ``finally`` block, the cycle-detection set must be
+        empty so a second call succeeds identically.  Since ``num_warns=1`` is already satisfied
+        after the first call, the second call emits no additional ``FutureWarning`` instances.
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
             assert dep_fib_callable(5) == 5
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             assert dep_fib_callable(5) == 5
+        assert len(caught) == 0
 
-    def test_args_remap_recursive_returns_correct_result(self) -> None:
+    @pytest.mark.parametrize(
+        ("n", "expected"),
+        [
+            pytest.param(0, 0, id="base-zero"),
+            pytest.param(1, 1, id="base-one"),
+            pytest.param(6, 8, id="fib-six"),
+        ],
+    )
+    def test_args_remap_recursive_returns_correct_result(self, n: int, expected: int) -> None:
         """A recursive ARGS_REMAP deprecated function remaps the deprecated arg on every call and converges.
 
         ``dep_fib_remap`` accepts the deprecated ``n`` argument and remaps it to ``x`` on each
@@ -1557,14 +1577,14 @@ class TestRecursiveDeprecation:
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            assert dep_fib_remap(n=6) == 8
+            assert dep_fib_remap(n=n) == expected
 
     def test_args_remap_recursive_warns_exactly_once(self) -> None:
         """A recursive ARGS_REMAP wrapper emits exactly one warning for the initial call.
 
         Even though the wrapper re-enters on each recursive step and applies the arg remap,
         ``num_warns=1`` (default) ensures only the first re-entry of the deprecated argument
-        ``n`` triggers a ``FutureWarning``. Subsequent recursive calls see the warned count
+        ``n`` triggers a ``FutureWarning``. Subsequent recursive calls see ``state.warned_args['n']``
         already satisfied and proceed silently.
         """
         with warnings.catch_warnings(record=True) as caught:
