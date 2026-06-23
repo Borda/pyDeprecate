@@ -102,6 +102,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Define deprecated wrappers inside test files
 - Use `with warnings.catch_warnings(...)` in any `.md` documentation example in any form — neither `simplefilter("always")` for capturing nor `simplefilter("ignore", ...)` for suppressing; annotate the call with `# warns: FutureWarning` or `# warns: UserWarning` instead; output blocks show only return values
 - Use bare `assert` statements in `.md` documentation examples (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output
+- Import a fictional package name in runnable `.md` examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, or `collection_chains`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line so phmdoctest skips execution
 - Skip test coverage for new features or bug fixes
 - Implement features without maintainer approval
 - Start work without first reading config files and guidelines
