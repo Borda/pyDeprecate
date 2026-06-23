@@ -248,7 +248,7 @@ class _StrictProperty(property):
             raise TypeError(
                 f"Inner-order `@property @deprecated` detected on `{name}`. Only `fget` will warn —"
                 " setter and deleter remain silent."
-                " This check is active because `property` in this module is `deprecate._StrictProperty`"
+                " This check is active because `property` in this module is `deprecate.deprecation._StrictProperty`"
                 " (imported via `from deprecate import property`)."
                 " Swap the decorator order to the canonical outer order:"
                 " `@deprecated(deprecated_in=..., remove_in=...) @property`."
