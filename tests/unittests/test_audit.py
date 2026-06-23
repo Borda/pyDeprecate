@@ -605,7 +605,7 @@ class TestClassifyMemberApiType:
 class TestFindDeprecationWrappersClassScan:
     """find_deprecation_wrappers discovers @deprecated on class members, peeking through descriptors."""
 
-    def test_finds_deprecated_regular_method(self) -> None:
+    def test_finds_deprecated_regular_method(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deprecated regular method on a class is discovered by find_deprecation_wrappers."""
         mod = types.ModuleType("test_mod_method")
 
@@ -616,7 +616,9 @@ class TestFindDeprecationWrappersClassScan:
         class OldCls:
             old_method = _new
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -626,7 +628,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_method" in n for n in names)
 
-    def test_finds_deprecated_classmethod(self) -> None:
+    def test_finds_deprecated_classmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deprecated classmethod (correct @classmethod @deprecated order) is discovered."""
         mod = types.ModuleType("test_mod_cm")
 
@@ -637,7 +639,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old classmethod."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -647,7 +651,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_cm" in n for n in names)
 
-    def test_finds_deprecated_staticmethod(self) -> None:
+    def test_finds_deprecated_staticmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deprecated staticmethod (correct @staticmethod @deprecated order) is discovered."""
         mod = types.ModuleType("test_mod_sm")
 
@@ -658,7 +662,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old staticmethod."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -668,7 +674,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_sm" in n for n in names)
 
-    def test_finds_deprecated_property(self) -> None:
+    def test_finds_deprecated_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deprecated property (correct @property @deprecated order) is discovered."""
         mod = types.ModuleType("test_mod_prop")
 
@@ -679,7 +685,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old property."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -689,7 +697,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_prop" in n for n in names)
 
-    def test_finds_deprecated_cached_property(self) -> None:
+    def test_finds_deprecated_cached_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deprecated cached_property (correct @cached_property @deprecated order) is discovered."""
         mod = types.ModuleType("test_mod_cp")
 
@@ -700,7 +708,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old cached_property."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -710,7 +720,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_cp" in n for n in names)
 
-    def test_finds_outer_deprecated_classmethod(self) -> None:
+    def test_finds_outer_deprecated_classmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Outer @deprecated @classmethod order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_cm")
 
@@ -721,7 +731,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old classmethod."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -731,7 +743,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_cm" in n for n in names)
 
-    def test_finds_outer_deprecated_staticmethod(self) -> None:
+    def test_finds_outer_deprecated_staticmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Outer @deprecated @staticmethod order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_sm")
 
@@ -742,7 +754,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old staticmethod."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -752,7 +766,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_sm" in n for n in names)
 
-    def test_finds_outer_deprecated_property(self) -> None:
+    def test_finds_outer_deprecated_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Outer @deprecated @property order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_prop")
 
@@ -763,7 +777,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old property."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -773,7 +789,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_prop" in n for n in names)
 
-    def test_finds_outer_deprecated_cached_property(self) -> None:
+    def test_finds_outer_deprecated_cached_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Outer @deprecated @cached_property order: wrapper is discovered by audit scan."""
         mod = types.ModuleType("test_mod_outer_cp")
 
@@ -784,7 +800,9 @@ class TestFindDeprecationWrappersClassScan:
                 """Old cached_property."""
                 return 1
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -794,7 +812,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("old_cp" in n for n in names)
 
-    def test_finds_setter_only_property(self) -> None:
+    def test_finds_setter_only_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Explicit property(fget=None, fset=deprecated_fset) is discovered by audit scan."""
         mod = types.ModuleType("test_mod_setter_only")
 
@@ -804,7 +822,9 @@ class TestFindDeprecationWrappersClassScan:
         class OldCls:
             write_only: property = deprecated(deprecated_in="1.0", remove_in="2.0")(property(None, _fset))  # type: ignore[assignment,arg-type]
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -814,7 +834,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("write_only" in n for n in names)
 
-    def test_finds_explicit_construction_fset_deprecated(self) -> None:
+    def test_finds_explicit_construction_fset_deprecated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Explicit property(plain_fget, deprecated_fset): fset accessor is discovered."""
         mod = types.ModuleType("test_mod_explicit_fset")
 
@@ -829,7 +849,9 @@ class TestFindDeprecationWrappersClassScan:
         class OldCls:
             rw_prop: property = property(_plain_fget, _deprecated_fset)
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -839,7 +861,7 @@ class TestFindDeprecationWrappersClassScan:
         names = [r.function for r in results]
         assert any("rw_prop" in n for n in names)
 
-    def test_finds_deleter_only_property(self) -> None:
+    def test_finds_deleter_only_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Explicit property(None, None, deprecated_fdel) is discovered by audit scan.
 
         Symmetric to :meth:`test_finds_setter_only_property` for the fdel accessor: when the only
@@ -856,7 +878,9 @@ class TestFindDeprecationWrappersClassScan:
         class OldCls:
             delete_only: property = property(None, None, _deprecated_fdel)
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -950,6 +974,7 @@ class TestInnerOrderPropertyAudit:
         """
         mod = types.ModuleType("test_mod_inner_order_prop")
         monkeypatch.setattr(col.InnerOrderDeprecatedPropCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.InnerOrderDeprecatedPropCls = col.InnerOrderDeprecatedPropCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -960,7 +985,7 @@ class TestInnerOrderPropertyAudit:
         assert prop_results, f"property 'value' not discovered; got {[r.function for r in results]}"
         assert all(r.inner_order_property for r in prop_results)
 
-    def test_outer_order_property_not_flagged(self) -> None:
+    def test_outer_order_property_not_flagged(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """An outer-order ``_DeprecatedProperty`` is NOT flagged ``inner_order_property``.
 
         The canonical order ``@deprecated(...) @property`` produces a :class:`_DeprecatedProperty` whose setter and
@@ -976,7 +1001,9 @@ class TestInnerOrderPropertyAudit:
                 """Outer-order deprecated property."""
                 return 42
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
@@ -987,7 +1014,7 @@ class TestInnerOrderPropertyAudit:
         assert prop_results, f"property 'value' not discovered; got {[r.function for r in results]}"
         assert not any(r.inner_order_property for r in prop_results)
 
-    def test_getter_only_inner_order_flagged(self) -> None:
+    def test_getter_only_inner_order_flagged(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A getter-only inner-order property is ALSO flagged, not just ones carrying a setter.
 
         The stance is that outer order is canonical: any plain :class:`property` whose ``fget`` is deprecated was
@@ -1004,7 +1031,9 @@ class TestInnerOrderPropertyAudit:
                 """Inner-order deprecated getter-only property."""
                 return 42
 
-        OldCls.__module__ = mod.__name__
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(OldCls, "__module__", mod.__name__)
+        # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
         with warnings.catch_warnings():
