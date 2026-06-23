@@ -232,7 +232,9 @@ class _StrictProperty(property):
 
         Args:
             fget: Getter callable, or ``None``. A :class:`TypeError` is raised when it carries ``__deprecated__``
-                metadata (the inner-order signature).
+                metadata (the inner-order signature). The guard fires on ``fget`` only; ``fset`` and ``fdel``
+                are accepted without inspection — the decorator-stacking inner-order bug is structurally a
+                getter-ordering issue.
             fset: Setter callable, or ``None``.
             fdel: Deleter callable, or ``None``.
             doc: Property docstring; ``None`` defers to ``fget.__doc__``.
@@ -245,7 +247,10 @@ class _StrictProperty(property):
             name = getattr(fget, "__qualname__", repr(fget))
             raise TypeError(
                 f"Inner-order `@property @deprecated` detected on `{name}`. Only `fget` will warn —"
-                " setter and deleter remain silent. Swap the decorator order to the canonical outer order:"
+                " setter and deleter remain silent."
+                " This check is active because `property` in this module is `deprecate._StrictProperty`"
+                " (imported via `from deprecate import property`)."
+                " Swap the decorator order to the canonical outer order:"
                 " `@deprecated(deprecated_in=..., remove_in=...) @property`."
             )
         super().__init__(fget, fset, fdel, doc)

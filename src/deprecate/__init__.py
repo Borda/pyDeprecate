@@ -89,7 +89,9 @@ from deprecate.audit import (
 
 # Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
 # in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
-from deprecate.deprecation import _StrictProperty as property  # intentional builtin shadow (opt-in)
+from deprecate.deprecation import (
+    _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
+)
 from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.utils import (
@@ -110,7 +112,6 @@ __all__ = [
     "deprecated_instance",
     "find_deprecation_wrappers",
     "generate_deprecation_table",
-    "property",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
     "validate_deprecation_wrapper",
