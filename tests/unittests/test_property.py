@@ -966,7 +966,7 @@ class TestStrictProperty:
         """
 
         class _Cls:
-            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[arg-type]
             @strict_property
             def value(self) -> int:
                 """Outer-order deprecated strict property."""

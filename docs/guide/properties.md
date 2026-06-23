@@ -135,6 +135,7 @@ The inner order `@property @deprecated` wraps only `fget`. If you later add a se
 To catch this at definition time, import the strict `property` replacement. It raises `TypeError` the moment a getter already carrying `@deprecated` metadata is handed to it — before any instance is created:
 
 ```python
+# phmdoctest:skip — TypeError raised at class-body time
 from deprecate import deprecated, property  # `property` shadows the builtin in this module only
 
 
