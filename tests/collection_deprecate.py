@@ -92,6 +92,7 @@ from tests.collection_targets import (
     cross_guard_standalone_increment,
     del_only_prop_fdel,
     double_value,
+    fib_recursive,
     fn_remap_with_extra_body,
     fn_with_default,
     gen_target,
@@ -2149,3 +2150,45 @@ def dep_non_cycle_old_fn(x: int) -> int:
 async def dep_async_non_cycle_old_fn(x: int) -> int:
     """Async deprecated wrapper forwarding to async_non_cycle_double — never forms a cycle."""
     return x
+
+
+# ========== Recursive deprecated function fixtures ==========
+
+
+@deprecated(**_DEPRS_CASE_STD_ARGS)
+def dep_fib_notify(n: int) -> int:
+    """Deprecated recursive Fibonacci in NOTIFY mode — body recurses through the wrapper.
+
+    Each recursive call re-enters the wrapper; ``num_warns=1`` (default) ensures only the
+    outermost call emits a ``FutureWarning`` regardless of recursion depth.
+    """
+    if n <= 1:
+        return n
+    return dep_fib_notify(n - 1) + dep_fib_notify(n - 2)
+
+
+@deprecated(num_warns=0, **_DEPRS_CASE_STD_ARGS)
+def dep_fib_silent(n: int) -> int:
+    """Deprecated recursive Fibonacci with ``num_warns=0`` — no warning fires regardless of recursion depth."""
+    if n <= 1:
+        return n
+    return dep_fib_silent(n - 1) + dep_fib_silent(n - 2)
+
+
+@deprecated(target=fib_recursive, **_DEPRS_CASE_STD_ARGS)
+def dep_fib_callable(n: int) -> int:
+    """Deprecated callable-target wrapper forwarding to ``fib_recursive``.
+
+    Cycle detection does not false-positive when the target self-recurses: ``id(source)`` is
+    added to ``_active`` once and removed in the ``finally`` block.  The target
+    (``fib_recursive``) recurses on itself without re-entering this wrapper.
+    """
+    return n  # dead code — forwarded to fib_recursive (would return n, not fib(n), if bypassed)
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"n": "x"}, **_DEPRS_CASE_STD_ARGS)
+def dep_fib_remap(n: int = 0, x: int = 0) -> int:
+    """Deprecated recursive Fibonacci with arg rename — ``n`` remapped to ``x`` on every recursive call."""
+    if x <= 1:
+        return x
+    return dep_fib_remap(n=x - 1) + dep_fib_remap(n=x - 2)

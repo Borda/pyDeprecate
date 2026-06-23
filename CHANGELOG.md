@@ -4,6 +4,10 @@
 
 ### Added
 
+- **`DeprecationWrapperInfo.inner_order_property` flag.** `find_deprecation_wrappers()` now sets `inner_order_property=True` when a plain `property` (not `_DeprecatedProperty`) has a `@deprecated`-wrapped `fget` — the inner-order `@property @deprecated` shape where only the getter warns; setters and deleters added via `@value.setter` / `@value.deleter` remain silently unprotected. CI pipelines can filter on this field to reject the pattern. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
+
+- **Opt-in strict `property` replacement.** `from deprecate import property` now exports `_StrictProperty`, a `property` subclass that raises `TypeError` at class-definition time when handed an already-`@deprecated` getter (inner-order detection). Import it in modules that want compile-time enforcement; star imports (`from deprecate import *`) are unaffected. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
+
 ### Changed
 
 ### Deprecated
@@ -11,6 +15,10 @@
 ### Removed
 
 ### Fixed
+
+- **Circular deprecation chains now raise `RuntimeError` at call time.** Callable `target` chains that form a cycle (A → B → A) previously caused unbounded recursion and a `RecursionError`. The decorator now detects the cycle via a `ContextVar` re-entrancy guard and raises a clear `RuntimeError` naming the circular path. Async deprecation cycle detection was also improved to avoid false positives from concurrent tasks sharing a threading-local guard. ([#200](https://github.com/Borda/pyDeprecate/pull/200))
+
+- **`_StrictProperty` `TypeError` message now references the correct module path.** The error previously pointed to `deprecate._StrictProperty`; corrected to `deprecate.deprecation._StrictProperty`, which is the actual import path.
 
 ______________________________________________________________________
 

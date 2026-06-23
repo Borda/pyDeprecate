@@ -119,6 +119,8 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` **and** the FAQPage JSON-LD in `docs/overrides/main.html`
 
+- **Update `CHANGELOG.md` at PR-creation time** — once the PR number is known and the diff is stable, add or re-assess the entry under `[UnReleased]` (new features → `Added`, fixes → `Fixed`, behavior changes → `Changed`); always include `(#N)` PR link; skip docs-only, test-only, CI, and pure internal refactoring changes; do not write entries during iterative development commits — content may pivot before the PR is opened
+
 - **Update inline comments when changing behavior** — after any logic change, scan changed files for comments describing that behavior; update stale ones (stale comments mislead more than none)
 
 - **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times. Apply this sync table on every relevant change:
