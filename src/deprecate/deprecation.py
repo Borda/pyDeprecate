@@ -40,8 +40,10 @@ _V1_BREAK_VERSION = "v1.0"
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
 _DEFAULT_STACKLEVEL_TO_CALLER: int = 4
 # ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
-# ContextVar value is copied per asyncio.Task, so concurrent coroutines get independent sets
-# while a synchronous recursive chain (same task/stack) shares one — correct for cycle detection.
+# Each asyncio.Task inherits a snapshot of the parent context at creation time; because this
+# ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
+# spawned from user code (e.g. asyncio.gather) see None and create independent sets — no sharing.
+# A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
 _cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
 
 #: Default template warning message for redirecting callable

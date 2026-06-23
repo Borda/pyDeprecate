@@ -1563,13 +1563,19 @@ You pointed `target=` of a `@deprecated` wrapper at another `@deprecated` callab
 ```python
 from deprecate import deprecated
 
+_cycle: dict = {}
 
-@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+
+@deprecated(target=lambda x: _cycle["new"](x), deprecated_in="1.0", remove_in="2.0")
 def old_fn(x: int) -> int: ...
 
 
-@deprecated(target=old_fn, deprecated_in="1.0", remove_in="2.0")  # # warns: RuntimeError at call time
+@deprecated(target=lambda x: _cycle["old"](x), deprecated_in="1.0", remove_in="2.0")
 def new_fn(x: int) -> int: ...
+
+
+_cycle["old"] = old_fn
+_cycle["new"] = new_fn
 ```
 
 Calling `old_fn(1)` raises:
