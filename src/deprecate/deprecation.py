@@ -15,9 +15,9 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import inspect
 import sys
-import threading
 import warnings
 from collections.abc import Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import cached_property, partial, wraps
 from inspect import Parameter
@@ -39,8 +39,10 @@ from deprecate.utils import _apply_args_mapping_collisions, _get_signature, get_
 _V1_BREAK_VERSION = "v1.0"
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
 _DEFAULT_STACKLEVEL_TO_CALLER: int = 4
-# Thread-local set of source callables currently executing — used by lazy cycle detection.
-_cycle_detection: threading.local = threading.local()
+# ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
+# ContextVar value is copied per asyncio.Task, so concurrent coroutines get independent sets
+# while a synchronous recursive chain (same task/stack) shares one — correct for cycle detection.
+_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
 
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -1615,18 +1617,20 @@ def deprecated(  # noqa: C901
                 if shall_skip:
                     return await source(*args, **kwargs)
 
-                _active_async: Optional[set] = None
+                _active_async: Optional[set[int]] = None
+                _token_async = None
                 if callable(_target):
-                    _active_async = getattr(_cycle_detection, "active", None)
+                    _active_async = _cycle_detection.get()
                     if _active_async is None:
-                        _cycle_detection.active = set()
-                        _active_async = _cycle_detection.active
-                    if source in _active_async:
+                        _active_async = set()
+                        _token_async = _cycle_detection.set(_active_async)
+                    if id(source) in _active_async:
+                        _source_name = getattr(source, "__qualname__", repr(source))
                         raise RuntimeError(
-                            f"Circular deprecation cycle detected: `{source.__qualname__}` re-entered"
+                            f"Circular deprecation cycle detected: `{_source_name}` re-entered"
                             " via its own target chain. Point to a non-deprecated final implementation."
                         )
-                    _active_async.add(source)
+                    _active_async.add(id(source))
 
                 try:
                     # Read DeprecationConfig from the closure rather than re-reading
@@ -1648,7 +1652,9 @@ def deprecated(  # noqa: C901
                     return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
                 finally:
                     if _active_async is not None:
-                        _active_async.discard(source)
+                        _active_async.discard(id(source))
+                        if _token_async is not None:
+                            _cycle_detection.reset(_token_async)
 
             async_wrapped_fn_typed = cast(_DeprecatedCallable, async_wrapped_fn)
             async_wrapped_fn_typed.__deprecated__ = dep_meta
@@ -1672,18 +1678,20 @@ def deprecated(  # noqa: C901
             if shall_skip:
                 return source(*args, **kwargs)
 
-            _active: Optional[set] = None
+            _active: Optional[set[int]] = None
+            _token = None
             if callable(_target):
-                _active = getattr(_cycle_detection, "active", None)
+                _active = _cycle_detection.get()
                 if _active is None:
-                    _cycle_detection.active = set()
-                    _active = _cycle_detection.active
-                if source in _active:
+                    _active = set()
+                    _token = _cycle_detection.set(_active)
+                if id(source) in _active:
+                    _source_name = getattr(source, "__qualname__", repr(source))
                     raise RuntimeError(
-                        f"Circular deprecation cycle detected: `{source.__qualname__}` re-entered"
+                        f"Circular deprecation cycle detected: `{_source_name}` re-entered"
                         " via its own target chain. Point to a non-deprecated final implementation."
                     )
-                _active.add(source)
+                _active.add(id(source))
 
             try:
                 # Read DeprecationConfig from the closure rather than re-reading
@@ -1706,7 +1714,9 @@ def deprecated(  # noqa: C901
                 return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
             finally:
                 if _active is not None:
-                    _active.discard(source)
+                    _active.discard(id(source))
+                    if _token is not None:
+                        _cycle_detection.reset(_token)
 
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta

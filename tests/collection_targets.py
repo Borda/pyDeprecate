@@ -687,3 +687,19 @@ class SelfDeprecatedModel:
     def __init__(self, num_layers: int = 4) -> None:
         """Construct SelfDeprecatedModel."""
         self.num_layers = num_layers
+
+
+def non_cycle_double(x: int) -> int:
+    """Target for non-cycling callable-target tests — doubles input.
+
+    Wrapped by ``dep_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
+    """
+    return x * 2
+
+
+async def async_non_cycle_double(x: int) -> int:
+    """Async target for concurrent async non-cycle tests — doubles input.
+
+    Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
+    """
+    return x * 2
