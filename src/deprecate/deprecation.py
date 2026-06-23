@@ -17,6 +17,7 @@ import inspect
 import sys
 import warnings
 from collections.abc import Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import cached_property, partial, wraps
 from inspect import Parameter
@@ -38,6 +39,12 @@ from deprecate.utils import _apply_args_mapping_collisions, _get_signature, get_
 _V1_BREAK_VERSION = "v1.0"
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
 _DEFAULT_STACKLEVEL_TO_CALLER: int = 4
+# ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
+# Each asyncio.Task inherits a snapshot of the parent context at creation time; because this
+# ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
+# spawned from user code (e.g. asyncio.gather) see None and create independent sets — no sharing.
+# A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
+_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
 
 #: Default template warning message for redirecting callable
 TEMPLATE_WARNING_CALLABLE = (
@@ -1612,24 +1619,44 @@ def deprecated(  # noqa: C901
                 if shall_skip:
                     return await source(*args, **kwargs)
 
-                # Read DeprecationConfig from the closure rather than re-reading
-                # ``async_wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
-                # decorator stacked outside this one overwrites that attribute with a plain string.
-                plan = _build_call_plan(
-                    wrapper_fn=async_wrapped_fn,
-                    source=source,
-                    target=target,
-                    normalized_target=_target,
-                    args=args,
-                    kwargs=kwargs,
-                    dep_cfg=_dep_cfg,
-                    stream=stream,
-                    num_warns=num_warns,
-                    source_has_var_positional=source_has_var_positional,
-                    source_is_stacked=_source_is_stacked,
-                )
+                _active_async: Optional[set[int]] = None
+                _token_async = None
+                if callable(_target):
+                    _active_async = _cycle_detection.get()
+                    if _active_async is None:
+                        _active_async = set()
+                        _token_async = _cycle_detection.set(_active_async)
+                    if id(source) in _active_async:
+                        _source_name = getattr(source, "__qualname__", repr(source))
+                        raise RuntimeError(
+                            f"Circular deprecation cycle detected: `{_source_name}` re-entered"
+                            " via its own target chain. Point to a non-deprecated final implementation."
+                        )
+                    _active_async.add(id(source))
 
-                return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
+                try:
+                    # Read DeprecationConfig from the closure rather than re-reading
+                    # ``async_wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
+                    # decorator stacked outside this one overwrites that attribute with a plain string.
+                    plan = _build_call_plan(
+                        wrapper_fn=async_wrapped_fn,
+                        source=source,
+                        target=target,
+                        normalized_target=_target,
+                        args=args,
+                        kwargs=kwargs,
+                        dep_cfg=_dep_cfg,
+                        stream=stream,
+                        num_warns=num_warns,
+                        source_has_var_positional=source_has_var_positional,
+                        source_is_stacked=_source_is_stacked,
+                    )
+                    return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
+                finally:
+                    if _active_async is not None:
+                        _active_async.discard(id(source))
+                        if _token_async is not None:
+                            _cycle_detection.reset(_token_async)
 
             async_wrapped_fn_typed = cast(_DeprecatedCallable, async_wrapped_fn)
             async_wrapped_fn_typed.__deprecated__ = dep_meta
@@ -1653,25 +1680,45 @@ def deprecated(  # noqa: C901
             if shall_skip:
                 return source(*args, **kwargs)
 
-            # Read DeprecationConfig from the closure rather than re-reading
-            # ``wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
-            # decorator stacked outside this one overwrites that attribute with a plain
-            # string, which then crashes on ``.misconfigured`` access.
-            plan = _build_call_plan(
-                wrapper_fn=wrapped_fn,
-                source=source,
-                target=target,
-                normalized_target=_target,
-                args=args,
-                kwargs=kwargs,
-                dep_cfg=_dep_cfg,
-                stream=stream,
-                num_warns=num_warns,
-                source_has_var_positional=source_has_var_positional,
-                source_is_stacked=_source_is_stacked,
-            )
+            _active: Optional[set[int]] = None
+            _token = None
+            if callable(_target):
+                _active = _cycle_detection.get()
+                if _active is None:
+                    _active = set()
+                    _token = _cycle_detection.set(_active)
+                if id(source) in _active:
+                    _source_name = getattr(source, "__qualname__", repr(source))
+                    raise RuntimeError(
+                        f"Circular deprecation cycle detected: `{_source_name}` re-entered"
+                        " via its own target chain. Point to a non-deprecated final implementation."
+                    )
+                _active.add(id(source))
 
-            return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
+            try:
+                # Read DeprecationConfig from the closure rather than re-reading
+                # ``wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
+                # decorator stacked outside this one overwrites that attribute with a plain
+                # string, which then crashes on ``.misconfigured`` access.
+                plan = _build_call_plan(
+                    wrapper_fn=wrapped_fn,
+                    source=source,
+                    target=target,
+                    normalized_target=_target,
+                    args=args,
+                    kwargs=kwargs,
+                    dep_cfg=_dep_cfg,
+                    stream=stream,
+                    num_warns=num_warns,
+                    source_has_var_positional=source_has_var_positional,
+                    source_is_stacked=_source_is_stacked,
+                )
+                return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
+            finally:
+                if _active is not None:
+                    _active.discard(id(source))
+                    if _token is not None:
+                        _cycle_detection.reset(_token)
 
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
         wrapped_fn_typed.__deprecated__ = dep_meta

@@ -1554,6 +1554,60 @@ def old_fn(val: int, y: int = 0) -> int: ...
 
 ______________________________________________________________________
 
+## `RuntimeError: Circular deprecation cycle detected`
+
+**When does this happen?**
+
+You pointed `target=` of a `@deprecated` wrapper at another `@deprecated` callable, and that second wrapper's `target=` chain eventually loops back to the first one. Calling any wrapper in the cycle raises `RuntimeError` at the first re-entry point.
+
+```python
+# phmdoctest:skip
+from deprecate import deprecated
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int) -> int: ...
+
+
+@deprecated(target=old_fn, deprecated_in="1.0", remove_in="2.0")
+def new_fn(x: int) -> int: ...
+```
+
+Calling `old_fn(1)` raises:
+
+```
+RuntimeError: Circular deprecation cycle detected: `old_fn` re-entered via its own target chain.
+Point to a non-deprecated final implementation.
+```
+
+**Why?**
+
+`@deprecated` resolves its `target=` lazily at call time. When targets form a cycle, each call re-enters the same wrapper, which would recurse infinitely. The detector intercepts re-entry and raises `RuntimeError` instead of letting Python reach `RecursionError`.
+
+**Fix**
+
+Point `target=` at the plain (non-deprecated) final implementation, not at another `@deprecated` callable:
+
+```python
+from deprecate import deprecated
+
+
+def _impl(x: int) -> int:
+    return x * 2
+
+
+@deprecated(target=_impl, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int) -> int: ...
+
+
+@deprecated(target=_impl, deprecated_in="1.0", remove_in="2.0")
+def also_old_fn(x: int) -> int: ...
+```
+
+Both deprecated names forward to the same non-deprecated implementation with no cycle.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

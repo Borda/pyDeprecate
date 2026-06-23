@@ -1,5 +1,6 @@
 """Unit tests for private helpers in deprecate.deprecation."""
 
+import asyncio
 import inspect
 import sys
 import warnings
@@ -36,6 +37,12 @@ from tests.collection_deprecate import (
     CrossGuardSameClass,
     OldPositionalOnlyClass,
     OldSelfOnlyClass,
+    dep_async_cycle_fn_a,
+    dep_async_cycle_fn_b,
+    dep_async_non_cycle_old_fn,
+    dep_cycle_fn_a,
+    dep_cycle_fn_b,
+    dep_non_cycle_old_fn,
     deprecated_async_positional_only_source,
     deprecated_positional_only_source,
     deprecated_positional_only_stream_none,
@@ -1387,3 +1394,79 @@ class TestPositionalOnlyTarget:
         with pytest.warns(FutureWarning):
             obj = OldSelfOnlyClass()
         assert isinstance(obj, OldSelfOnlyClass)
+
+
+class TestCycleDetection:
+    """Lazy runtime cycle detection — RuntimeError before RecursionError."""
+
+    def test_cycle_entry_via_a_raises(self) -> None:
+        """Calling dep_cycle_fn_a raises RuntimeError when target chain loops back through dep_cycle_fn_b.
+
+        dep_cycle_fn_a forwards to dep_cycle_fn_b which forwards back to dep_cycle_fn_a,
+        forming a two-node cycle. The lazy cycle detector intercepts the re-entry of
+        dep_cycle_fn_a and raises RuntimeError instead of letting Python hit RecursionError.
+        The guard fires before the warning is emitted, so no FutureWarning is raised.
+        """
+        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_a"):
+            dep_cycle_fn_a(1)
+
+    def test_cycle_entry_via_b_raises(self) -> None:
+        """Calling dep_cycle_fn_b raises RuntimeError when target chain loops back through dep_cycle_fn_a.
+
+        A maintainer renames a second deprecated symbol to point at the same cycle. When
+        the entry point is dep_cycle_fn_b instead of dep_cycle_fn_a, the guard must fire
+        at dep_cycle_fn_b's re-entry and name dep_cycle_fn_b in the error message, proving
+        the detector is symmetric and reports the correct wrapper regardless of entry order.
+        """
+        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_b"):
+            dep_cycle_fn_b(1)
+
+    def test_non_cycle_callable_target_unaffected(self) -> None:
+        """A deprecated wrapper with a non-cycling callable target is unaffected by cycle detection.
+
+        When a deprecated wrapper's target is a plain (non-deprecated) function, the cycle
+        detection set is populated then cleaned up via the finally-block without raising.
+        Repeated calls must not accumulate stale id entries, so the second call succeeds
+        identically to the first.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            assert dep_non_cycle_old_fn(3) == 6
+            assert dep_non_cycle_old_fn(3) == 6  # second call — no stale id in active set
+
+    @pytest.mark.asyncio
+    async def test_async_cycle_entry_via_a_raises(self) -> None:
+        """Awaiting dep_async_cycle_fn_a raises RuntimeError when the async target chain cycles.
+
+        An async deprecated wrapper (routed through async_wrapped_fn) that forms a
+        two-node cycle with dep_async_cycle_fn_b must raise RuntimeError on re-entry,
+        proving the cycle guard in the async code path fires correctly.
+        """
+        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_a"):
+            await dep_async_cycle_fn_a(1)
+
+    @pytest.mark.asyncio
+    async def test_async_cycle_entry_via_b_raises(self) -> None:
+        """Awaiting dep_async_cycle_fn_b raises RuntimeError when the async target chain cycles.
+
+        Mirror of test_async_cycle_entry_via_a_raises — the async cycle is symmetric, so
+        entering from dep_async_cycle_fn_b must also trigger the guard. The error message
+        must name dep_async_cycle_fn_b as the re-entered wrapper.
+        """
+        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_b"):
+            await dep_async_cycle_fn_b(1)
+
+    @pytest.mark.asyncio
+    async def test_concurrent_async_calls_no_false_positive(self) -> None:
+        """Concurrent asyncio.gather calls to the same async deprecated wrapper must all succeed.
+
+        A production service may fan out several concurrent requests to a single deprecated
+        async endpoint (e.g. via asyncio.gather). Before the ContextVar fix, threading.local
+        caused every overlapping call beyond the first to raise a spurious RuntimeError because
+        all coroutines on the same event-loop thread shared one active-id set. With ContextVar,
+        each asyncio.Task gets its own copy, so concurrent calls are fully independent.
+        """
+        results = await asyncio.gather(
+            dep_async_non_cycle_old_fn(1), dep_async_non_cycle_old_fn(2), dep_async_non_cycle_old_fn(3)
+        )
+        assert results == [2, 4, 6]

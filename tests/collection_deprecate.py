@@ -82,6 +82,7 @@ from tests.collection_targets import (
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
     async_gen_target,
+    async_non_cycle_double,
     async_positional_only_target,
     async_target,
     base_pow_args,
@@ -96,6 +97,7 @@ from tests.collection_targets import (
     gen_target,
     identity_value,
     increment_value,
+    non_cycle_double,
     pep702_target,
     positional_only_target,
     positional_only_two_params_target,
@@ -2073,3 +2075,77 @@ def make_deprecated_positional_only_num_warns_one() -> "Callable[..., int]":
             return 0
 
     return _deprecated_positional_only_num_warns_one
+
+
+# ========== Circular target cycle fixtures ==========
+# A → B → A forms a deprecation cycle; calling either wrapper must raise RuntimeError.
+# Late-binding via a mutable dict avoids the forward-reference problem at module load time.
+
+_dep_cycle: dict[str, Any] = {}
+
+
+@deprecated(target=lambda *a, **kw: _dep_cycle["b"](*a, **kw), deprecated_in="1.0", remove_in="2.0")
+def dep_cycle_fn_a(x: int) -> int:
+    """Deprecated cycle node A — forwards to dep_cycle_fn_b; never reached directly."""
+    return x
+
+
+@deprecated(target=lambda *a, **kw: _dep_cycle["a"](*a, **kw), deprecated_in="1.0", remove_in="2.0")
+def dep_cycle_fn_b(x: int) -> int:
+    """Deprecated cycle node B — forwards to dep_cycle_fn_a; never reached directly."""
+    return x
+
+
+_dep_cycle["a"] = dep_cycle_fn_a
+_dep_cycle["b"] = dep_cycle_fn_b
+
+
+# ========== Async circular target cycle fixtures ==========
+# Same A → B → A cycle shape as above, but for async def sources.
+# Targets must be async def (not sync lambdas) because _invoke_async checks
+# inspect.iscoroutinefunction(target) to decide whether to await the call.
+# A sync lambda that returns a coroutine would have its return value returned
+# unawaited, so the cycle guard inside async_wrapped_fn would never fire.
+
+_dep_async_cycle: dict[str, Any] = {}
+
+
+async def _async_cycle_a_target(x: int) -> int:
+    """Async target for dep_async_cycle_fn_a — delegates to dep_async_cycle_fn_b."""
+    return await _dep_async_cycle["b"](x)
+
+
+async def _async_cycle_b_target(x: int) -> int:
+    """Async target for dep_async_cycle_fn_b — delegates to dep_async_cycle_fn_a."""
+    return await _dep_async_cycle["a"](x)
+
+
+@deprecated(target=_async_cycle_a_target, deprecated_in="1.0", remove_in="2.0")
+async def dep_async_cycle_fn_a(x: int) -> int:
+    """Async deprecated cycle node A — forwards to dep_async_cycle_fn_b; never reached directly."""
+    return x
+
+
+@deprecated(target=_async_cycle_b_target, deprecated_in="1.0", remove_in="2.0")
+async def dep_async_cycle_fn_b(x: int) -> int:
+    """Async deprecated cycle node B — forwards to dep_async_cycle_fn_a; never reached directly."""
+    return x
+
+
+_dep_async_cycle["a"] = dep_async_cycle_fn_a
+_dep_async_cycle["b"] = dep_async_cycle_fn_b
+
+
+# ========== Non-cycling callable-target fixtures ==========
+
+
+@deprecated(target=non_cycle_double, deprecated_in="1.0", remove_in="2.0")
+def dep_non_cycle_old_fn(x: int) -> int:
+    """Deprecated wrapper forwarding to non_cycle_double — never forms a cycle."""
+    return x
+
+
+@deprecated(target=async_non_cycle_double, deprecated_in="1.0", remove_in="2.0")
+async def dep_async_non_cycle_old_fn(x: int) -> int:
+    """Async deprecated wrapper forwarding to async_non_cycle_double — never forms a cycle."""
+    return x
