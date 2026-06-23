@@ -128,6 +128,51 @@ class Config:
 
     `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecated__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
 
+### Strict mode: `from deprecate import property`
+
+The inner order `@property @deprecated` wraps only `fget`. If you later add a setter or deleter with `@value.setter` / `@value.deleter`, those accessors are rebuilt from the plain `property` base and are **silently unprotected** — writes and deletes never warn. This is easy to introduce by habit, because the standard library puts `@property` outermost.
+
+To catch this at definition time, import the strict `property` replacement. It raises `TypeError` the moment a getter already carrying `@deprecated` metadata is handed to it — before any instance is created:
+
+```python
+# phmdoctest:skip — TypeError raised at class-body time
+from deprecate import deprecated, property  # `property` shadows the builtin in this module only
+
+
+class Config:
+    def __init__(self) -> None:
+        self._timeout: int = 30
+
+    # ! Raises TypeError at class-body evaluation time — inner order detected
+    @property
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    def timeout(self) -> int:
+        return self._timeout
+```
+
+The fix is to switch to the canonical outer order `@deprecated(...) @property`, which wraps every accessor and survives later setter/deleter additions. The outer order works unchanged with the strict `property`:
+
+```python
+from deprecate import deprecated, property
+
+
+class Config:
+    def __init__(self) -> None:
+        self._timeout: int = 30
+
+    # NEW: outer order — strict `property` passes through, all accessors warn
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @property
+    def timeout(self) -> int:
+        return self._timeout
+```
+
+The strict `property` is a subclass of the builtin, so `isinstance(obj, property)` checks and the audit scanner treat it transparently. Importing it shadows the builtin **only in the importing module** — modules that do not import it keep the builtin behaviour, so the strictness is purely opt-in.
+
+!!! tip "Auditing existing code: the `inner_order_property` flag"
+
+    Even without the strict import, `find_deprecation_wrappers` flags every inner-order `@property`: each `DeprecationWrapperInfo` carries `inner_order_property=True` when the wrapper is a plain `property` whose `fget` is deprecation-wrapped. The flag fires for the getter-only shape too, because the canonical form is the outer order. CI pipelines can reject any result with this flag set to eliminate the silent write/delete gap across a whole package. See the [Audit guide](audit.md) for the full CI integration pattern.
+
 ### Deprecated property alias on a dataclass
 
 When a dataclass field is renamed, define a property with the old name that delegates to the new field in its accessor body. `@deprecated` adds a `FutureWarning` to each accessor — the delegation itself is plain Python in the method body, not something the library provides.
