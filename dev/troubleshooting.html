@@ -3163,93 +3163,120 @@
 <a id="__codelineno-70-2" name="__codelineno-70-2" href="#__codelineno-70-2"></a>None
 </code></pre></div>
 
+**CI / audit detection:** `find_deprecation_wrappers` flags inner-order properties with `inner_order_property=True` on the returned `DeprecationWrapperInfo`. Add this filter to your CI pipeline to catch the pattern before it ships:
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="c1"># phmdoctest:skip — CI template: replace my_package with your actual package</span>
+<a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
+<a id="__codelineno-71-3" name="__codelineno-71-3" href="#__codelineno-71-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_package</span>  <span class="c1"># replace with your package, e.g. `import mylib`</span>
+<a id="__codelineno-71-4" name="__codelineno-71-4" href="#__codelineno-71-4"></a>
+<a id="__codelineno-71-5" name="__codelineno-71-5" href="#__codelineno-71-5"></a><span class="n">inner_order</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">inner_order_property</span><span class="p">]</span>
+<a id="__codelineno-71-6" name="__codelineno-71-6" href="#__codelineno-71-6"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">inner_order</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Inner-order @property @deprecated detected: </span><span class="si">{</span><span class="n">inner_order</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+**Strict-mode import:** Add `from deprecate import property` at the top of any module to replace the builtin `property` with a guard that raises `TypeError` at class-body evaluation time whenever it detects an already-`@deprecated` getter. The check fires before any instance is created:
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="c1"># phmdoctest:skip — TypeError raised at class-body time</span>
+<a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="nb">property</span>  <span class="c1"># strict property replaces builtin</span>
+<a id="__codelineno-72-3" name="__codelineno-72-3" href="#__codelineno-72-3"></a>
+<a id="__codelineno-72-4" name="__codelineno-72-4" href="#__codelineno-72-4"></a>
+<a id="__codelineno-72-5" name="__codelineno-72-5" href="#__codelineno-72-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
+<a id="__codelineno-72-6" name="__codelineno-72-6" href="#__codelineno-72-6"></a>    <span class="nd">@property</span>  <span class="c1"># strict guard — raises TypeError immediately</span>
+<a id="__codelineno-72-7" name="__codelineno-72-7" href="#__codelineno-72-7"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-72-8" name="__codelineno-72-8" href="#__codelineno-72-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-72-9" name="__codelineno-72-9" href="#__codelineno-72-9"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+<a id="__codelineno-72-10" name="__codelineno-72-10" href="#__codelineno-72-10"></a>
+<a id="__codelineno-72-11" name="__codelineno-72-11" href="#__codelineno-72-11"></a>    <span class="c1"># TypeError: Inner-order `@property @deprecated` detected on `MyClass.value`. ...</span>
+</code></pre></div>
+
+Modules that do not import the strict `property` keep builtin behaviour; the guard is purely opt-in.
+
 </details>
 
 <hr />
 <h2 id="typeerror-deprecated-cannot-be-applied-twice-to-the-already-deprecated-property">TypeError: <code>@deprecated</code> cannot be applied twice to the already-deprecated property<a class="headerlink" href="#typeerror-deprecated-cannot-be-applied-twice-to-the-already-deprecated-property" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I tried to stack two <code>@deprecated</code> decorators on a property and got <code>TypeError: ... cannot be applied twice to the already-deprecated property</code>. Why is this disallowed, and how do I add a setter or deleter to an already-deprecated property?</p>
 <p><strong>A:</strong> Double-wrapping a deprecated property would emit two <code>FutureWarning</code> notices per access and run the stacking guard three times. The decorator raises <code>TypeError</code> at decoration time so the misconfiguration cannot reach production. The error message names the offending property and points to the supported alternatives.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="c1"># phmdoctest:skip — intentional misconfiguration; raises TypeError at decoration time</span>
-<a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-71-3" name="__codelineno-71-3" href="#__codelineno-71-3"></a>
-<a id="__codelineno-71-4" name="__codelineno-71-4" href="#__codelineno-71-4"></a>
-<a id="__codelineno-71-5" name="__codelineno-71-5" href="#__codelineno-71-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fget</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-71-6" name="__codelineno-71-6" href="#__codelineno-71-6"></a>    <span class="k">return</span> <span class="mi">0</span>
-<a id="__codelineno-71-7" name="__codelineno-71-7" href="#__codelineno-71-7"></a>
-<a id="__codelineno-71-8" name="__codelineno-71-8" href="#__codelineno-71-8"></a>
-<a id="__codelineno-71-9" name="__codelineno-71-9" href="#__codelineno-71-9"></a><span class="c1"># First @deprecated — fine.</span>
-<a id="__codelineno-71-10" name="__codelineno-71-10" href="#__codelineno-71-10"></a><span class="n">once_wrapped</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)(</span><span class="nb">property</span><span class="p">(</span><span class="n">_fget</span><span class="p">))</span>
-<a id="__codelineno-71-11" name="__codelineno-71-11" href="#__codelineno-71-11"></a>
-<a id="__codelineno-71-12" name="__codelineno-71-12" href="#__codelineno-71-12"></a><span class="c1"># Second @deprecated on the already-wrapped property — TypeError at decoration time.</span>
-<a id="__codelineno-71-13" name="__codelineno-71-13" href="#__codelineno-71-13"></a><span class="n">twice_wrapped</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">)(</span><span class="n">once_wrapped</span><span class="p">)</span>
-<a id="__codelineno-71-14" name="__codelineno-71-14" href="#__codelineno-71-14"></a><span class="c1"># TypeError: @deprecated cannot be applied twice to the already-deprecated property ...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="c1"># phmdoctest:skip — intentional misconfiguration; raises TypeError at decoration time</span>
+<a id="__codelineno-73-2" name="__codelineno-73-2" href="#__codelineno-73-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-73-3" name="__codelineno-73-3" href="#__codelineno-73-3"></a>
+<a id="__codelineno-73-4" name="__codelineno-73-4" href="#__codelineno-73-4"></a>
+<a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fget</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a>    <span class="k">return</span> <span class="mi">0</span>
+<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a>
+<a id="__codelineno-73-8" name="__codelineno-73-8" href="#__codelineno-73-8"></a>
+<a id="__codelineno-73-9" name="__codelineno-73-9" href="#__codelineno-73-9"></a><span class="c1"># First @deprecated — fine.</span>
+<a id="__codelineno-73-10" name="__codelineno-73-10" href="#__codelineno-73-10"></a><span class="n">once_wrapped</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)(</span><span class="nb">property</span><span class="p">(</span><span class="n">_fget</span><span class="p">))</span>
+<a id="__codelineno-73-11" name="__codelineno-73-11" href="#__codelineno-73-11"></a>
+<a id="__codelineno-73-12" name="__codelineno-73-12" href="#__codelineno-73-12"></a><span class="c1"># Second @deprecated on the already-wrapped property — TypeError at decoration time.</span>
+<a id="__codelineno-73-13" name="__codelineno-73-13" href="#__codelineno-73-13"></a><span class="n">twice_wrapped</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">)(</span><span class="n">once_wrapped</span><span class="p">)</span>
+<a id="__codelineno-73-14" name="__codelineno-73-14" href="#__codelineno-73-14"></a><span class="c1"># TypeError: @deprecated cannot be applied twice to the already-deprecated property ...</span>
 </code></pre></div>
 <p><strong>Fix — apply <code>@deprecated</code> once, then use chain-style <code>@value.setter</code> / <code>@value.deleter</code></strong> to add accessors. The outer-order subclass of <code>property</code> re-wraps the freshly-supplied accessor with the same packing config so warnings continue to fire on every access kind:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a>
-<a id="__codelineno-72-3" name="__codelineno-72-3" href="#__codelineno-72-3"></a>
-<a id="__codelineno-72-4" name="__codelineno-72-4" href="#__codelineno-72-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
-<a id="__codelineno-72-5" name="__codelineno-72-5" href="#__codelineno-72-5"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-72-6" name="__codelineno-72-6" href="#__codelineno-72-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>
-<a id="__codelineno-72-7" name="__codelineno-72-7" href="#__codelineno-72-7"></a>
-<a id="__codelineno-72-8" name="__codelineno-72-8" href="#__codelineno-72-8"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>  <span class="c1"># outer order — single application</span>
-<a id="__codelineno-72-9" name="__codelineno-72-9" href="#__codelineno-72-9"></a>    <span class="nd">@property</span>
-<a id="__codelineno-72-10" name="__codelineno-72-10" href="#__codelineno-72-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-72-11" name="__codelineno-72-11" href="#__codelineno-72-11"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
-<a id="__codelineno-72-12" name="__codelineno-72-12" href="#__codelineno-72-12"></a>
-<a id="__codelineno-72-13" name="__codelineno-72-13" href="#__codelineno-72-13"></a>    <span class="nd">@value</span><span class="o">.</span><span class="n">setter</span>
-<a id="__codelineno-72-14" name="__codelineno-72-14" href="#__codelineno-72-14"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-72-15" name="__codelineno-72-15" href="#__codelineno-72-15"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">new_value</span>  <span class="c1"># warning fires here too</span>
-<a id="__codelineno-72-16" name="__codelineno-72-16" href="#__codelineno-72-16"></a>
-<a id="__codelineno-72-17" name="__codelineno-72-17" href="#__codelineno-72-17"></a>    <span class="nd">@value</span><span class="o">.</span><span class="n">deleter</span>
-<a id="__codelineno-72-18" name="__codelineno-72-18" href="#__codelineno-72-18"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-72-19" name="__codelineno-72-19" href="#__codelineno-72-19"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># warning fires here too</span>
-<a id="__codelineno-72-20" name="__codelineno-72-20" href="#__codelineno-72-20"></a>
-<a id="__codelineno-72-21" name="__codelineno-72-21" href="#__codelineno-72-21"></a>
-<a id="__codelineno-72-22" name="__codelineno-72-22" href="#__codelineno-72-22"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">MyClass</span><span class="p">()</span>
-<a id="__codelineno-72-23" name="__codelineno-72-23" href="#__codelineno-72-23"></a><span class="n">obj</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="mi">9</span>
-<a id="__codelineno-72-24" name="__codelineno-72-24" href="#__codelineno-72-24"></a><span class="nb">print</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-74-2" name="__codelineno-74-2" href="#__codelineno-74-2"></a>
+<a id="__codelineno-74-3" name="__codelineno-74-3" href="#__codelineno-74-3"></a>
+<a id="__codelineno-74-4" name="__codelineno-74-4" href="#__codelineno-74-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
+<a id="__codelineno-74-5" name="__codelineno-74-5" href="#__codelineno-74-5"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-74-6" name="__codelineno-74-6" href="#__codelineno-74-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-74-7" name="__codelineno-74-7" href="#__codelineno-74-7"></a>
+<a id="__codelineno-74-8" name="__codelineno-74-8" href="#__codelineno-74-8"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>  <span class="c1"># outer order — single application</span>
+<a id="__codelineno-74-9" name="__codelineno-74-9" href="#__codelineno-74-9"></a>    <span class="nd">@property</span>
+<a id="__codelineno-74-10" name="__codelineno-74-10" href="#__codelineno-74-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-74-11" name="__codelineno-74-11" href="#__codelineno-74-11"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+<a id="__codelineno-74-12" name="__codelineno-74-12" href="#__codelineno-74-12"></a>
+<a id="__codelineno-74-13" name="__codelineno-74-13" href="#__codelineno-74-13"></a>    <span class="nd">@value</span><span class="o">.</span><span class="n">setter</span>
+<a id="__codelineno-74-14" name="__codelineno-74-14" href="#__codelineno-74-14"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-74-15" name="__codelineno-74-15" href="#__codelineno-74-15"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">new_value</span>  <span class="c1"># warning fires here too</span>
+<a id="__codelineno-74-16" name="__codelineno-74-16" href="#__codelineno-74-16"></a>
+<a id="__codelineno-74-17" name="__codelineno-74-17" href="#__codelineno-74-17"></a>    <span class="nd">@value</span><span class="o">.</span><span class="n">deleter</span>
+<a id="__codelineno-74-18" name="__codelineno-74-18" href="#__codelineno-74-18"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-74-19" name="__codelineno-74-19" href="#__codelineno-74-19"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># warning fires here too</span>
+<a id="__codelineno-74-20" name="__codelineno-74-20" href="#__codelineno-74-20"></a>
+<a id="__codelineno-74-21" name="__codelineno-74-21" href="#__codelineno-74-21"></a>
+<a id="__codelineno-74-22" name="__codelineno-74-22" href="#__codelineno-74-22"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">MyClass</span><span class="p">()</span>
+<a id="__codelineno-74-23" name="__codelineno-74-23" href="#__codelineno-74-23"></a><span class="n">obj</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="mi">9</span>
+<a id="__codelineno-74-24" name="__codelineno-74-24" href="#__codelineno-74-24"></a><span class="nb">print</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>obj.value</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a>9
+<div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a>9
 </code></pre></div>
 
 </details>
 
 <p><strong>Alternative — build the <code>property</code> explicitly with all three accessors and wrap once:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-74-2" name="__codelineno-74-2" href="#__codelineno-74-2"></a>
-<a id="__codelineno-74-3" name="__codelineno-74-3" href="#__codelineno-74-3"></a>
-<a id="__codelineno-74-4" name="__codelineno-74-4" href="#__codelineno-74-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fget</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-74-5" name="__codelineno-74-5" href="#__codelineno-74-5"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
-<a id="__codelineno-74-6" name="__codelineno-74-6" href="#__codelineno-74-6"></a>
-<a id="__codelineno-74-7" name="__codelineno-74-7" href="#__codelineno-74-7"></a>
-<a id="__codelineno-74-8" name="__codelineno-74-8" href="#__codelineno-74-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
-<a id="__codelineno-74-9" name="__codelineno-74-9" href="#__codelineno-74-9"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">v</span>
-<a id="__codelineno-74-10" name="__codelineno-74-10" href="#__codelineno-74-10"></a>
-<a id="__codelineno-74-11" name="__codelineno-74-11" href="#__codelineno-74-11"></a>
-<a id="__codelineno-74-12" name="__codelineno-74-12" href="#__codelineno-74-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fdel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-74-13" name="__codelineno-74-13" href="#__codelineno-74-13"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-74-14" name="__codelineno-74-14" href="#__codelineno-74-14"></a>
-<a id="__codelineno-74-15" name="__codelineno-74-15" href="#__codelineno-74-15"></a>
-<a id="__codelineno-74-16" name="__codelineno-74-16" href="#__codelineno-74-16"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
-<a id="__codelineno-74-17" name="__codelineno-74-17" href="#__codelineno-74-17"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-74-18" name="__codelineno-74-18" href="#__codelineno-74-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>
-<a id="__codelineno-74-19" name="__codelineno-74-19" href="#__codelineno-74-19"></a>
-<a id="__codelineno-74-20" name="__codelineno-74-20" href="#__codelineno-74-20"></a>    <span class="c1"># Single @deprecated wraps all three accessors at once — no chain stacking needed.</span>
-<a id="__codelineno-74-21" name="__codelineno-74-21" href="#__codelineno-74-21"></a>    <span class="n">value</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)(</span><span class="nb">property</span><span class="p">(</span><span class="n">_fget</span><span class="p">,</span> <span class="n">_fset</span><span class="p">,</span> <span class="n">_fdel</span><span class="p">))</span>
-<a id="__codelineno-74-22" name="__codelineno-74-22" href="#__codelineno-74-22"></a>
-<a id="__codelineno-74-23" name="__codelineno-74-23" href="#__codelineno-74-23"></a>
-<a id="__codelineno-74-24" name="__codelineno-74-24" href="#__codelineno-74-24"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">MyClass</span><span class="p">()</span>
-<a id="__codelineno-74-25" name="__codelineno-74-25" href="#__codelineno-74-25"></a><span class="n">obj</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="mi">42</span>
-<a id="__codelineno-74-26" name="__codelineno-74-26" href="#__codelineno-74-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-76-2" name="__codelineno-76-2" href="#__codelineno-76-2"></a>
+<a id="__codelineno-76-3" name="__codelineno-76-3" href="#__codelineno-76-3"></a>
+<a id="__codelineno-76-4" name="__codelineno-76-4" href="#__codelineno-76-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fget</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-76-5" name="__codelineno-76-5" href="#__codelineno-76-5"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+<a id="__codelineno-76-6" name="__codelineno-76-6" href="#__codelineno-76-6"></a>
+<a id="__codelineno-76-7" name="__codelineno-76-7" href="#__codelineno-76-7"></a>
+<a id="__codelineno-76-8" name="__codelineno-76-8" href="#__codelineno-76-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+<a id="__codelineno-76-9" name="__codelineno-76-9" href="#__codelineno-76-9"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">v</span>
+<a id="__codelineno-76-10" name="__codelineno-76-10" href="#__codelineno-76-10"></a>
+<a id="__codelineno-76-11" name="__codelineno-76-11" href="#__codelineno-76-11"></a>
+<a id="__codelineno-76-12" name="__codelineno-76-12" href="#__codelineno-76-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fdel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-76-13" name="__codelineno-76-13" href="#__codelineno-76-13"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-76-14" name="__codelineno-76-14" href="#__codelineno-76-14"></a>
+<a id="__codelineno-76-15" name="__codelineno-76-15" href="#__codelineno-76-15"></a>
+<a id="__codelineno-76-16" name="__codelineno-76-16" href="#__codelineno-76-16"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
+<a id="__codelineno-76-17" name="__codelineno-76-17" href="#__codelineno-76-17"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-76-18" name="__codelineno-76-18" href="#__codelineno-76-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-76-19" name="__codelineno-76-19" href="#__codelineno-76-19"></a>
+<a id="__codelineno-76-20" name="__codelineno-76-20" href="#__codelineno-76-20"></a>    <span class="c1"># Single @deprecated wraps all three accessors at once — no chain stacking needed.</span>
+<a id="__codelineno-76-21" name="__codelineno-76-21" href="#__codelineno-76-21"></a>    <span class="n">value</span> <span class="o">=</span> <span class="n">deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)(</span><span class="nb">property</span><span class="p">(</span><span class="n">_fget</span><span class="p">,</span> <span class="n">_fset</span><span class="p">,</span> <span class="n">_fdel</span><span class="p">))</span>
+<a id="__codelineno-76-22" name="__codelineno-76-22" href="#__codelineno-76-22"></a>
+<a id="__codelineno-76-23" name="__codelineno-76-23" href="#__codelineno-76-23"></a>
+<a id="__codelineno-76-24" name="__codelineno-76-24" href="#__codelineno-76-24"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">MyClass</span><span class="p">()</span>
+<a id="__codelineno-76-25" name="__codelineno-76-25" href="#__codelineno-76-25"></a><span class="n">obj</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="mi">42</span>
+<a id="__codelineno-76-26" name="__codelineno-76-26" href="#__codelineno-76-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>obj.value</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a>42
+<div class="highlight"><pre><span></span><code><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a>42
 </code></pre></div>
 
 </details>
@@ -3259,31 +3286,6 @@
 <h2 id="deprecated-and-targets-with-positional_only-parameters"><code>@deprecated</code> and targets with POSITIONAL_ONLY parameters<a class="headerlink" href="#deprecated-and-targets-with-positional_only-parameters" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I applied <code>@deprecated(target=new_fn)</code> where <code>new_fn</code> has a positional-only parameter — does it work?</p>
 <p><strong>A:</strong> Yes, fully supported since <code>v0.10</code>. The decorator detects POSITIONAL_ONLY parameters at decoration time, emits a <code>UserWarning</code> advising you to remove <code>/</code> from the target signature if possible, and automatically splits the dispatch so positional-only values are forwarded positionally rather than as kwargs.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-76-2" name="__codelineno-76-2" href="#__codelineno-76-2"></a>
-<a id="__codelineno-76-3" name="__codelineno-76-3" href="#__codelineno-76-3"></a>
-<a id="__codelineno-76-4" name="__codelineno-76-4" href="#__codelineno-76-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-76-5" name="__codelineno-76-5" href="#__codelineno-76-5"></a>    <span class="k">return</span> <span class="n">val</span> <span class="o">+</span> <span class="n">y</span>
-<a id="__codelineno-76-6" name="__codelineno-76-6" href="#__codelineno-76-6"></a>
-<a id="__codelineno-76-7" name="__codelineno-76-7" href="#__codelineno-76-7"></a>
-<a id="__codelineno-76-8" name="__codelineno-76-8" href="#__codelineno-76-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>  <span class="c1"># warns: UserWarning (POSITIONAL_ONLY detected)</span>
-<a id="__codelineno-76-9" name="__codelineno-76-9" href="#__codelineno-76-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
-<a id="__codelineno-76-10" name="__codelineno-76-10" href="#__codelineno-76-10"></a>
-<a id="__codelineno-76-11" name="__codelineno-76-11" href="#__codelineno-76-11"></a>
-<a id="__codelineno-76-12" name="__codelineno-76-12" href="#__codelineno-76-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
-<a id="__codelineno-76-13" name="__codelineno-76-13" href="#__codelineno-76-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="n">val</span><span class="o">=</span><span class="mi">5</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
-<a id="__codelineno-76-14" name="__codelineno-76-14" href="#__codelineno-76-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">4</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
-</code></pre></div>
-<details><summary>Output: <code>5 · 5 · 7</code></summary>
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a>5
-<a id="__codelineno-77-2" name="__codelineno-77-2" href="#__codelineno-77-2"></a>5
-<a id="__codelineno-77-3" name="__codelineno-77-3" href="#__codelineno-77-3"></a>7
-</code></pre></div>
-
-</details>
-
-<p>The thin-adapter pattern shown below still works and avoids the decoration-time <code>UserWarning</code> — use it when you want to silence the warning or keep the target signature unambiguous:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-78-1" name="__codelineno-78-1" href="#__codelineno-78-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
 <a id="__codelineno-78-2" name="__codelineno-78-2" href="#__codelineno-78-2"></a>
 <a id="__codelineno-78-3" name="__codelineno-78-3" href="#__codelineno-78-3"></a>
@@ -3291,50 +3293,75 @@
 <a id="__codelineno-78-5" name="__codelineno-78-5" href="#__codelineno-78-5"></a>    <span class="k">return</span> <span class="n">val</span> <span class="o">+</span> <span class="n">y</span>
 <a id="__codelineno-78-6" name="__codelineno-78-6" href="#__codelineno-78-6"></a>
 <a id="__codelineno-78-7" name="__codelineno-78-7" href="#__codelineno-78-7"></a>
-<a id="__codelineno-78-8" name="__codelineno-78-8" href="#__codelineno-78-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_new_fn_compat</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-78-9" name="__codelineno-78-9" href="#__codelineno-78-9"></a>    <span class="k">return</span> <span class="n">new_fn</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<a id="__codelineno-78-8" name="__codelineno-78-8" href="#__codelineno-78-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>  <span class="c1"># warns: UserWarning (POSITIONAL_ONLY detected)</span>
+<a id="__codelineno-78-9" name="__codelineno-78-9" href="#__codelineno-78-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 <a id="__codelineno-78-10" name="__codelineno-78-10" href="#__codelineno-78-10"></a>
 <a id="__codelineno-78-11" name="__codelineno-78-11" href="#__codelineno-78-11"></a>
-<a id="__codelineno-78-12" name="__codelineno-78-12" href="#__codelineno-78-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_new_fn_compat</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-78-13" name="__codelineno-78-13" href="#__codelineno-78-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-78-12" name="__codelineno-78-12" href="#__codelineno-78-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-78-13" name="__codelineno-78-13" href="#__codelineno-78-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="n">val</span><span class="o">=</span><span class="mi">5</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-78-14" name="__codelineno-78-14" href="#__codelineno-78-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">old_fn</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">4</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+</code></pre></div>
+<details><summary>Output: <code>5 · 5 · 7</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a>5
+<a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a>5
+<a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a>7
+</code></pre></div>
+
+</details>
+
+<p>The thin-adapter pattern shown below still works and avoids the decoration-time <code>UserWarning</code> — use it when you want to silence the warning or keep the target signature unambiguous:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a>
+<a id="__codelineno-80-3" name="__codelineno-80-3" href="#__codelineno-80-3"></a>
+<a id="__codelineno-80-4" name="__codelineno-80-4" href="#__codelineno-80-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-80-5" name="__codelineno-80-5" href="#__codelineno-80-5"></a>    <span class="k">return</span> <span class="n">val</span> <span class="o">+</span> <span class="n">y</span>
+<a id="__codelineno-80-6" name="__codelineno-80-6" href="#__codelineno-80-6"></a>
+<a id="__codelineno-80-7" name="__codelineno-80-7" href="#__codelineno-80-7"></a>
+<a id="__codelineno-80-8" name="__codelineno-80-8" href="#__codelineno-80-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_new_fn_compat</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-80-9" name="__codelineno-80-9" href="#__codelineno-80-9"></a>    <span class="k">return</span> <span class="n">new_fn</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<a id="__codelineno-80-10" name="__codelineno-80-10" href="#__codelineno-80-10"></a>
+<a id="__codelineno-80-11" name="__codelineno-80-11" href="#__codelineno-80-11"></a>
+<a id="__codelineno-80-12" name="__codelineno-80-12" href="#__codelineno-80-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_new_fn_compat</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-80-13" name="__codelineno-80-13" href="#__codelineno-80-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <p><code>deprecated_class</code> is unaffected — the proxy has a <code>setattr</code> fallback for POSITIONAL_ONLY constructor parameters and emits a <code>UserWarning</code> at decoration time.</p>
 <hr />
 <h2 id="runtimeerror-circular-deprecation-cycle-detected"><code>RuntimeError: Circular deprecation cycle detected</code><a class="headerlink" href="#runtimeerror-circular-deprecation-cycle-detected" title="Permanent link">🔗</a></h2>
 <p><strong>When does this happen?</strong></p>
 <p>You pointed <code>target=</code> of a <code>@deprecated</code> wrapper at another <code>@deprecated</code> callable, and that second wrapper's <code>target=</code> chain eventually loops back to the first one. Calling any wrapper in the cycle raises <code>RuntimeError</code> at the first re-entry point.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="c1"># phmdoctest:skip</span>
-<a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a>
-<a id="__codelineno-79-4" name="__codelineno-79-4" href="#__codelineno-79-4"></a>
-<a id="__codelineno-79-5" name="__codelineno-79-5" href="#__codelineno-79-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-79-6" name="__codelineno-79-6" href="#__codelineno-79-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
-<a id="__codelineno-79-7" name="__codelineno-79-7" href="#__codelineno-79-7"></a>
-<a id="__codelineno-79-8" name="__codelineno-79-8" href="#__codelineno-79-8"></a>
-<a id="__codelineno-79-9" name="__codelineno-79-9" href="#__codelineno-79-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">old_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-79-10" name="__codelineno-79-10" href="#__codelineno-79-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="c1"># phmdoctest:skip</span>
+<a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a>
+<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a>
+<a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a>
+<a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a>
+<a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">old_fn</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <p>Calling <code>old_fn(1)</code> raises:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a>RuntimeError: Circular deprecation cycle detected: `old_fn` re-entered via its own target chain.
-<a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a>Point to a non-deprecated final implementation.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a>RuntimeError: Circular deprecation cycle detected: `old_fn` re-entered via its own target chain.
+<a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a>Point to a non-deprecated final implementation.
 </code></pre></div>
 <p><strong>Why?</strong></p>
 <p><code>@deprecated</code> resolves its <code>target=</code> lazily at call time. When targets form a cycle, each call re-enters the same wrapper, which would recurse infinitely. The detector intercepts re-entry and raises <code>RuntimeError</code> instead of letting Python reach <code>RecursionError</code>.</p>
 <p><strong>Fix</strong></p>
 <p>Point <code>target=</code> at the plain (non-deprecated) final implementation, not at another <code>@deprecated</code> callable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>
-<a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a>
-<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_impl</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a>
-<a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a>
-<a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_impl</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
-<a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a>
-<a id="__codelineno-81-11" name="__codelineno-81-11" href="#__codelineno-81-11"></a>
-<a id="__codelineno-81-12" name="__codelineno-81-12" href="#__codelineno-81-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_impl</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-81-13" name="__codelineno-81-13" href="#__codelineno-81-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">also_old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a>
+<a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a>
+<a id="__codelineno-83-4" name="__codelineno-83-4" href="#__codelineno-83-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_impl</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-83-5" name="__codelineno-83-5" href="#__codelineno-83-5"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-83-6" name="__codelineno-83-6" href="#__codelineno-83-6"></a>
+<a id="__codelineno-83-7" name="__codelineno-83-7" href="#__codelineno-83-7"></a>
+<a id="__codelineno-83-8" name="__codelineno-83-8" href="#__codelineno-83-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_impl</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-83-9" name="__codelineno-83-9" href="#__codelineno-83-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-83-10" name="__codelineno-83-10" href="#__codelineno-83-10"></a>
+<a id="__codelineno-83-11" name="__codelineno-83-11" href="#__codelineno-83-11"></a>
+<a id="__codelineno-83-12" name="__codelineno-83-12" href="#__codelineno-83-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_impl</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-83-13" name="__codelineno-83-13" href="#__codelineno-83-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">also_old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <p>Both deprecated names forward to the same non-deprecated implementation with no cycle.</p>
 <hr />
@@ -3365,7 +3392,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 23, 2026 13:13:03 UTC">2026-06-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 23, 2026 20:23:46 UTC">2026-06-23</span>
   </span>
 
     

@@ -1241,10 +1241,21 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;empty_mapping
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;empty_mapping
       
     </span>
   </a>
@@ -1255,18 +1266,7 @@
   <a href="#deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;identity_mapping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;identity_mapping
       
     </span>
   </a>
@@ -1849,10 +1849,21 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;empty_mapping
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;empty_mapping
       
     </span>
   </a>
@@ -1863,18 +1874,7 @@
   <a href="#deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;identity_mapping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;identity_mapping
       
     </span>
   </a>
@@ -3855,6 +3855,24 @@ field.  Read from :attr:<code>~deprecate._types.DeprecationConfig.args_mapping_p
               </div>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.inner_order_property">inner_order_property</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>True</code> when the wrapper is a plain :class:<code>property</code> whose <code>fget</code> carries
+<code>@deprecated</code> metadata — the <em>inner order</em> <code>@property @deprecated</code> (<code>@deprecated</code> closer to
+<code>def</code>).  In this order only <code>fget</code> warns; any setter or deleter added afterwards is built from the
+plain :class:<code>property</code> base and is silently unprotected.  The flag fires for every inner-order
+property, including the getter-only shape, because the canonical order is the outer
+<code>@deprecated(...) @property</code> (which produces a :class:<code>~deprecate.deprecation._DeprecatedProperty</code>
+that re-wraps every rebound accessor).  CI pipelines can filter on this field to reject the silent
+write/delete gap.  <code>False</code> for outer-order properties, non-property wrappers, and proxies.</p>
+              </div>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -3897,16 +3915,32 @@ info.invalid_args
 
 
 
-<div class="doc doc-object doc-attribute">
 
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.audit.DeprecationWrapperInfo.__post_init__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">__post_init__</span><span class="p">()</span></code>
+
+<a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Derive <code>empty_deprecated_in</code> from <code>deprecated_info</code> to keep them in sync.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
 
 
 <h3 id="deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">empty_mapping</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">empty_mapping</span><span class="p">()</span></code>
 
 <a href="#deprecate.audit.DeprecationWrapperInfo.empty_mapping" class="headerlink" title="Permanent link">🔗</a></h3>
 
@@ -3926,20 +3960,16 @@ Will be removed in v1.0.</p>
   <p>Python's default warning filter deduplicates per <code>(message, category, module, lineno)</code>,
 so accessing this property in a loop from the same call site emits at most one warning.</p>
 </details>
+
     </div>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
-
+<div class="doc doc-object doc-function">
 
 
 <h3 id="deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">identity_mapping</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">identity_mapping</span><span class="p">()</span></code>
 
 <a href="#deprecate.audit.DeprecationWrapperInfo.identity_mapping" class="headerlink" title="Permanent link">🔗</a></h3>
 
@@ -3959,26 +3989,6 @@ Will be removed in v1.0.</p>
   <p>Python's default warning filter deduplicates per <code>(message, category, module, lineno)</code>,
 so accessing this property in a loop from the same call site emits at most one warning.</p>
 </details>
-    </div>
-
-</div>
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="deprecate.audit.DeprecationWrapperInfo.__post_init__" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">__post_init__</span><span class="p">()</span></code>
-
-<a href="#deprecate.audit.DeprecationWrapperInfo.__post_init__" class="headerlink" title="Permanent link">🔗</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Derive <code>empty_deprecated_in</code> from <code>deprecated_info</code> to keep them in sync.</p>
-
 
     </div>
 
