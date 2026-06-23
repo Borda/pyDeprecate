@@ -131,6 +131,7 @@ Complete this checklist before opening a pull request to ensure quality and smoo
 - [ ] Added tests for new functionality (happy path, failure path, edge cases)
 - [ ] Ran tests locally and they pass (`pytest .`)
 - [ ] Updated documentation if needed (README, docs/guide pages, docstrings, inline comments)
+- [ ] Updated `CHANGELOG.md` under `[UnReleased]` — write the entry **at PR-creation time** (once the PR number is known and content is stable); re-assess against the final diff, not individual commits; include `(#N)` PR link; exclude docs-only, test-only, CI, and internal refactoring changes
 - [ ] Updated `docs/llms.txt` if public API behavior, patterns, or anti-patterns changed
 - [ ] Self-reviewed my code
 - [ ] Linked to related issue(s)
