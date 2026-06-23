@@ -5,7 +5,7 @@ code.
 
 """
 
-__version__ = "0.10.0.rc0"
+__version__ = "0.11.0.dev"
 __docs__ = "Python deprecation decorator: call forwarding, argument mapping, class proxying, CI audit. Zero deps."
 __author__ = "Jiri Borovec"
 __author_email__ = "j.borovec+github[at]gmail.com"
