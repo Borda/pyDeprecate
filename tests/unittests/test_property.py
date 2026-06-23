@@ -1,5 +1,6 @@
 """Unit tests for @deprecated applied to property, cached_property, and descriptor types."""
 
+import builtins
 import types
 import warnings
 from functools import cached_property
@@ -9,8 +10,9 @@ from unittest.mock import patch
 import pytest
 
 from deprecate import TargetMode, deprecated
+from deprecate import property as strict_property
 from deprecate.audit import validate_deprecation_expiry
-from deprecate.deprecation import _DeprecatedProperty
+from deprecate.deprecation import _DeprecatedProperty, _StrictProperty
 from tests.collection_deprecate import DelOnlyDeprecatedPropCls, InnerOrderDeprecatedPropCls, ServiceCls
 
 
@@ -909,3 +911,79 @@ class TestDescriptorStacklevel:
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
         assert user_warnings, "Expected UserWarning for missing deprecated_in on cached_property path"
         assert user_warnings[0].filename.endswith("test_property.py")
+
+
+class TestStrictProperty:
+    """``from deprecate import property`` is a strict ``property`` that rejects inner-order ``@deprecated``.
+
+    The standard library makes ``@property`` the outermost decorator, so authors habitually write
+    ``@property`` above ``@deprecated`` — the inner order that wraps only ``fget``. The exported strict
+    ``property`` opts a module into a guard: at class-body evaluation time it raises :class:`TypeError` the
+    moment it is handed a getter already carrying ``__deprecated__`` metadata, turning a silent-write/delete
+    bug into a loud failure before any instance exists. Modules that do not import it keep the builtin
+    behaviour untouched, so the strictness is purely opt-in.
+    """
+
+    def test_raises_on_inner_order(self) -> None:
+        """Wrapping an already-``@deprecated`` getter raises ``TypeError`` mentioning the order swap.
+
+        An author writes ``@property`` (the strict import) above ``@deprecated`` out of habit. Because the
+        getter already carries deprecation metadata, the strict property must refuse construction immediately
+        and explain that only ``fget`` would warn, pointing the author at the canonical outer order.
+        """
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def old_getter(self: object) -> int:
+            """Already-deprecated getter fed into the strict property."""
+            return 42
+
+        with pytest.raises(TypeError, match="(?i)inner.order|outer order"):
+            strict_property(old_getter)
+
+    def test_allows_normal_usage(self) -> None:
+        """A plain (non-deprecated) getter constructs the strict property without error.
+
+        The common case — a fresh ``@property`` with no deprecation involved — must behave exactly like the
+        builtin: the strict guard only fires when deprecation metadata is present, so undecorated getters pass
+        straight through and the resulting descriptor returns the getter's value.
+        """
+
+        class _Cls:
+            @strict_property
+            def value(self) -> int:
+                """Plain strict property — no deprecation involved."""
+                return 7
+
+        assert _Cls().value == 7
+
+    def test_allows_outer_order(self) -> None:
+        """Outer order ``@deprecated @strict_property`` builds a ``_DeprecatedProperty`` correctly.
+
+        When the strict property is the inner decorator and ``@deprecated`` wraps it, the getter handed to the
+        strict property is still plain (deprecation is applied afterwards by ``@deprecated`` re-wrapping the
+        accessors), so no ``TypeError`` fires. The outer ``@deprecated`` sees the ``_StrictProperty`` via the
+        ``isinstance(source, property)`` branch and converts it to a warning-emitting ``_DeprecatedProperty``.
+        """
+
+        class _Cls:
+            @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[arg-type]
+            @strict_property
+            def value(self) -> int:
+                """Outer-order deprecated strict property."""
+                return 42
+
+        assert isinstance(_Cls.__dict__["value"], _DeprecatedProperty)
+        obj = _Cls()
+        with pytest.warns(FutureWarning):
+            result = obj.value
+        assert result == 42
+
+    def test_is_subclass_of_property(self) -> None:
+        """``_StrictProperty`` subclasses the builtin ``property`` so existing ``isinstance`` checks pass.
+
+        The whole decorator and audit machinery branches on ``isinstance(obj, property)``. The strict property
+        must therefore be a genuine ``property`` subclass; otherwise the outer-order conversion path and the
+        audit scanner would skip it entirely. This pins the subclass relationship as part of the contract.
+        """
+        assert issubclass(strict_property, builtins.property)
+        assert strict_property is _StrictProperty
