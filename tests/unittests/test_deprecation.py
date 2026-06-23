@@ -42,6 +42,9 @@ from tests.collection_deprecate import (
     dep_async_non_cycle_old_fn,
     dep_cycle_fn_a,
     dep_cycle_fn_b,
+    dep_fib_callable,
+    dep_fib_notify,
+    dep_fib_remap,
     dep_non_cycle_old_fn,
     deprecated_async_positional_only_source,
     deprecated_positional_only_source,
@@ -1470,3 +1473,102 @@ class TestCycleDetection:
             dep_async_non_cycle_old_fn(1), dep_async_non_cycle_old_fn(2), dep_async_non_cycle_old_fn(3)
         )
         assert results == [2, 4, 6]
+
+
+class TestRecursiveDeprecation:
+    """Deprecated wrappers on recursive functions — warning fires once, recursion converges."""
+
+    def test_notify_recursive_returns_correct_result(self) -> None:
+        """A recursive deprecated function in NOTIFY mode computes the correct result.
+
+        A real Fibonacci function decorated with ``@deprecated`` (NOTIFY mode) calls itself
+        recursively through the wrapper for each sub-problem. The decorator must not interfere
+        with the recursion — the result must equal the standard Fibonacci value.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            assert dep_fib_notify(6) == 8
+
+    def test_notify_recursive_warns_exactly_once(self) -> None:
+        """A recursive deprecated function in NOTIFY mode emits exactly one warning.
+
+        Even though the wrapper is re-entered on every recursive call (25 total calls for
+        ``fib(6)``), ``num_warns=1`` (default) tracks the count in shared mutable state so
+        only the first call emits a ``FutureWarning``. Subsequent recursive calls see
+        ``warned_calls >= num_warns`` and skip the warning.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            dep_fib_notify(6)
+        assert len(caught) == 1
+        assert caught[0].category is FutureWarning
+
+    def test_notify_recursive_num_warns_zero_suppresses_all(self) -> None:
+        """``num_warns=0`` suppresses all warnings even for a deeply recursive deprecated function.
+
+        When the deprecation wrapper is configured with ``num_warns=0``, no warning must fire
+        regardless of how many recursive re-entries occur.
+        """
+
+        @deprecated(num_warns=0, deprecated_in="1.0", remove_in="2.0")
+        def silent_fib(n: int) -> int:
+            if n <= 1:
+                return n
+            return silent_fib(n - 1) + silent_fib(n - 2)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = silent_fib(6)
+        assert result == 8
+        assert len(caught) == 0
+
+    def test_callable_target_self_recursive_warns_once_returns_correct_result(self) -> None:
+        """A deprecated wrapper whose target is a self-recursive function warns once and returns correctly.
+
+        ``dep_fib_callable`` forwards to ``fib_recursive``, which recurses on itself directly
+        without re-entering the deprecated wrapper. The cycle-detection set is populated on the
+        initial call and cleaned up in the finally-block; only one ``FutureWarning`` fires.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = dep_fib_callable(6)
+        assert result == 8
+        assert len(caught) == 1
+        assert caught[0].category is FutureWarning
+
+    def test_callable_target_repeated_calls_no_stale_state(self) -> None:
+        """Repeated calls to a recursive callable-target wrapper each warn once with no stale ids.
+
+        After the first call cleans up via the finally-block, the cycle-detection set must be
+        empty so a second independent call succeeds identically — no stale ``id(source)`` entries
+        left over from the previous recursion.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            assert dep_fib_callable(5) == 5
+            assert dep_fib_callable(5) == 5
+
+    def test_args_remap_recursive_returns_correct_result(self) -> None:
+        """A recursive ARGS_REMAP deprecated function remaps the deprecated arg on every call and converges.
+
+        ``dep_fib_remap`` accepts the deprecated ``n`` argument and remaps it to ``x`` on each
+        recursive call. The recursion must still produce the correct Fibonacci value even though
+        every level passes ``n`` (the deprecated name) and the wrapper remaps it to ``x``.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            assert dep_fib_remap(n=6) == 8
+
+    def test_args_remap_recursive_warns_exactly_once(self) -> None:
+        """A recursive ARGS_REMAP wrapper emits exactly one warning for the initial call.
+
+        Even though the wrapper re-enters on each recursive step and applies the arg remap,
+        ``num_warns=1`` (default) ensures only the first re-entry of the deprecated argument
+        ``n`` triggers a ``FutureWarning``. Subsequent recursive calls see the warned count
+        already satisfied and proceed silently.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            dep_fib_remap(n=6)
+        assert len(caught) == 1
+        assert caught[0].category is FutureWarning

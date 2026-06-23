@@ -689,6 +689,17 @@ class SelfDeprecatedModel:
         self.num_layers = num_layers
 
 
+def fib_recursive(n: int) -> int:
+    """Recursive Fibonacci implementation — target for ``dep_fib_callable`` in :mod:`tests.collection_deprecate`.
+
+    Recurses on itself directly (not through any deprecated wrapper) so ``dep_fib_callable``
+    only triggers the deprecation wrapper on the initial call — never on recursive steps.
+    """
+    if n <= 1:
+        return n
+    return fib_recursive(n - 1) + fib_recursive(n - 2)
+
+
 def non_cycle_double(x: int) -> int:
     """Target for non-cycling callable-target tests — doubles input.
 

@@ -92,6 +92,7 @@ from tests.collection_targets import (
     cross_guard_standalone_increment,
     del_only_prop_fdel,
     double_value,
+    fib_recursive,
     fn_remap_with_extra_body,
     fn_with_default,
     gen_target,
@@ -2149,3 +2150,32 @@ def dep_non_cycle_old_fn(x: int) -> int:
 async def dep_async_non_cycle_old_fn(x: int) -> int:
     """Async deprecated wrapper forwarding to async_non_cycle_double — never forms a cycle."""
     return x
+
+
+# ========== Recursive deprecated function fixtures ==========
+
+
+@deprecated(deprecated_in="1.0", remove_in="2.0")
+def dep_fib_notify(n: int) -> int:
+    """Deprecated recursive Fibonacci in NOTIFY mode — body recurses through the wrapper.
+
+    Each recursive call re-enters the wrapper; ``num_warns=1`` (default) ensures only the
+    outermost call emits a ``FutureWarning`` regardless of recursion depth.
+    """
+    if n <= 1:
+        return n
+    return dep_fib_notify(n - 1) + dep_fib_notify(n - 2)
+
+
+@deprecated(target=fib_recursive, deprecated_in="1.0", remove_in="2.0")
+def dep_fib_callable(n: int) -> int:
+    """Deprecated wrapper forwarding to fib_recursive — target recurses on itself, not through this wrapper."""
+    return n
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"n": "x"}, deprecated_in="1.0", remove_in="2.0")
+def dep_fib_remap(n: int = 0, x: int = 0) -> int:
+    """Deprecated recursive Fibonacci with arg rename — ``n`` remapped to ``x`` on every recursive call."""
+    if x <= 1:
+        return x
+    return dep_fib_remap(n=x - 1) + dep_fib_remap(n=x - 2)
