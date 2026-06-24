@@ -1161,6 +1161,63 @@ Sent to 'alice@example.com': 'Hello' [normal]
 > [!NOTE]
 > `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is ignored and a construction-time `UserWarning` is emitted by validation.
 
+### 📦 Deprecating an Entire Module
+
+Use `deprecated_module()` at the bottom of a module you are retiring. Three modes are supported.
+
+**Mode 1 — in-place warn** (keep the module, warn on missing-attribute access):
+
+```python
+# old_calculator.py
+from deprecate import deprecated_module
+
+def add(a: float, b: float) -> float:
+    return a + b
+
+# Call once at the bottom; __getattr__ fires only for names NOT in __dict__
+# The `add` function above is a real attribute — accessing it is SILENT.
+# Use Mode 2 (redirect) for full coverage of all attribute names.
+deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0",
+                 message="Use `new_calculator` instead.")
+```
+
+**Mode 2 — redirect** (forward every access to a replacement module):
+
+<!--phmdoctest-skip-->
+```python
+# old_calculator.py
+import new_calculator as _new_calculator
+from deprecate import deprecated_module
+
+deprecated_module(
+    __name__,
+    target=_new_calculator,   # all unknown attr access forwarded here
+    deprecated_in="2.0",
+    remove_in="3.0",
+    message="Use `new_calculator` instead.",
+)
+# old_calculator.add(1, 2)  # warns: FutureWarning, returns new_calculator.add(1, 2)
+```
+
+**Mode 3 — parent alias** (expose old sub-module name on the parent package via `deprecated_instance`):
+
+<!--phmdoctest-skip-->
+```python
+# my_package/__init__.py
+import my_package.new_calculator as _new_calculator
+from deprecate import deprecated_instance
+
+old_utils = deprecated_instance(
+    _new_calculator, name="old_utils",
+    deprecated_in="2.0", remove_in="3.0",
+    message="Use `my_package.new_calculator` instead.",
+)
+# my_package.old_utils.add(1, 2)  # warns: FutureWarning
+```
+
+> [!NOTE]
+> **PEP 562 real-attribute gap:** `__getattr__` fires only for names **not** already in the module's `__dict__`. Real attributes (functions, classes, constants defined directly in the module) are silent — no warning is emitted when callers access them. Use Mode 2 (redirect) for full coverage of all attribute names. Star imports (`from old_calculator import *`) also bypass `__getattr__` and do not warn.
+
 ### 🌀 Async functions
 
 `@deprecated` works natively on `async def` functions. The resulting wrapper is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and asyncio frameworks (FastAPI, `asyncio.run`, `asyncio.gather`) recognise it. All three `TargetMode` variants work; the deprecation warning fires when the coroutine is awaited, not when the wrapper is called.

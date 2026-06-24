@@ -793,6 +793,46 @@ def _scan_callable(
     return None
 
 
+def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
+    """Build :class:`~deprecate.audit.DeprecationWrapperInfo` for a deprecated module.
+
+    Called only when the module itself carries ``__deprecated__`` metadata (set by
+    :func:`~deprecate.module.deprecated_module`).  Bypasses callable introspection entirely because a module is not a
+    callable and has no signature to validate.
+
+    Args:
+        mod: The module object carrying ``__deprecated__`` metadata.  The caller is responsible for verifying that
+            :func:`~deprecate._types._has_deprecation_meta` returned ``True`` before calling this function.
+
+    Returns:
+        A :class:`~deprecate.audit.DeprecationWrapperInfo` with ``api_type="module"`` and all validation fields set
+        to safe defaults (no invalid args, no misconfig).
+
+    """
+    dep_info: DeprecationConfig = mod.__deprecated__
+    # Read via __dict__ to avoid triggering the PEP 562 __getattr__ hook.
+    # str(mod) must be lazy — eager evaluation calls _module_repr which accesses __spec__ via getattr
+    # and may trigger the module's own __getattr__ before __spec__ is in __dict__.
+    _raw_name = mod.__dict__.get("__name__")
+    mod_name: str = _raw_name if _raw_name is not None else str(mod)
+    return DeprecationWrapperInfo(
+        function=mod_name,
+        module=mod_name,
+        deprecated_info=dep_info,
+        invalid_args=[],
+        empty_args_mapping=True,
+        identity_args_mapping=[],
+        self_reference=False,
+        no_effect=False,
+        misconfigured_target=False,
+        all_identity=False,
+        chain_type=None,
+        api_type="module",
+        args_mapping_auto_expanded=[],
+        args_mapping_positional_only=[],
+    )
+
+
 def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWrapperInfo]:  # noqa: ANN401
     """Scan class members, peeking through descriptors."""
     results: list[DeprecationWrapperInfo] = []
@@ -842,6 +882,11 @@ def _scan_module(
 ) -> list[DeprecationWrapperInfo]:
     """Scan a single module for deprecated functions and class members."""
     results: list[DeprecationWrapperInfo] = []
+
+    # Pre-loop: if the module itself is deprecated (via deprecated_module()), record it first.
+    if _has_deprecation_meta(mod):
+        results.append(_scan_module_meta(mod))
+
     try:
         members = _getmembers_static_compat(mod)
     except (AttributeError, TypeError, ImportError):
@@ -987,6 +1032,8 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
         return "—"
     if isinstance(target, TargetMode):
         return target.value
+    if inspect.ismodule(target):
+        return getattr(target, "__name__", str(target))
     if callable(target):
         target_module = getattr(target, "__module__", "")
         target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))
@@ -1017,6 +1064,9 @@ def _classify_wrapper_api_type(
 
     if member_name is not None:
         return _classify_member_api_type(member_name, descriptor_kind, has_mapping)
+
+    if inspect.ismodule(wrapped_obj):
+        return "module"
 
     if isinstance(wrapped_obj, _DeprecatedProxy):
         while isinstance(wrapped_obj, _DeprecatedProxy):

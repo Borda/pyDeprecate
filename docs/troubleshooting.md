@@ -1637,6 +1637,47 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 ______________________________________________________________________
 
+## Module deprecation: real attributes do not warn (PEP 562 gap)
+
+**Q:** I called `deprecated_module()` on my module but accessing functions defined in that module does not emit any `FutureWarning`. Why?
+
+**A:** Python's PEP 562 `__getattr__` hook fires only when an attribute name is **not** already present in the module's `__dict__`. Functions, classes, and constants defined directly in the module are stored in `__dict__` at import time, so accessing them bypasses `__getattr__` entirely — no warning is emitted.
+
+`deprecated_module()` Mode 1 (no `target=`) is useful for warning on truly absent names (legacy symbols, re-export names that were never real attributes), but it cannot intercept access to real attributes in the same module.
+
+**Fix — use Mode 2 (redirect):** move the implementation to the new module and leave the old module empty except for the `deprecated_module()` call with `target=new_module`. Every attribute lookup then falls through to `__getattr__`, which emits the warning and forwards to the new module.
+
+```python
+# old_calculator.py — only the redirect call; no real attrs defined here
+import new_calculator as _new_calculator
+from deprecate import deprecated_module
+
+deprecated_module(
+    __name__,
+    target=_new_calculator,
+    deprecated_in="2.0",
+    remove_in="3.0",
+    message="Use `new_calculator` instead.",
+)
+# old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)
+```
+
+______________________________________________________________________
+
+## Star imports from a deprecated module do not warn
+
+**Q:** I used `from old_calculator import *` but no `FutureWarning` appeared even though I called `deprecated_module()`. Why?
+
+**A:** Star imports read `__all__` (or all public names from `__dict__`) directly at import time without triggering `__getattr__`. This is a Python language-level constraint: `from module import *` is resolved during the `import` machinery before any attribute access occurs, so the PEP 562 hook is never invoked.
+
+This limitation applies to both Mode 1 and Mode 2 of `deprecated_module()`.
+
+**Recommendation:** Document the deprecation prominently in the module's docstring and in your release notes. For callers you control, replace `from old_calculator import *` with `from new_calculator import ...` directly. For third-party callers, the warning will appear as soon as they switch from star imports to explicit attribute access or named imports.
+
+______________________________________________________________________
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"
