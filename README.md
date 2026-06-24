@@ -1171,19 +1171,21 @@ Use `deprecated_module()` at the bottom of a module you are retiring. Three mode
 # old_calculator.py
 from deprecate import deprecated_module
 
+
 def add(a: float, b: float) -> float:
     return a + b
+
 
 # Call once at the bottom; __getattr__ fires only for names NOT in __dict__
 # The `add` function above is a real attribute — accessing it is SILENT.
 # Use Mode 2 (redirect) for full coverage of all attribute names.
-deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0",
-                 message="Use `new_calculator` instead.")
+deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message="Use `new_calculator` instead.")
 ```
 
 **Mode 2 — redirect** (forward every access to a replacement module):
 
 <!--phmdoctest-skip-->
+
 ```python
 # old_calculator.py
 import new_calculator as _new_calculator
@@ -1191,7 +1193,7 @@ from deprecate import deprecated_module
 
 deprecated_module(
     __name__,
-    target=_new_calculator,   # all unknown attr access forwarded here
+    target=_new_calculator,  # all unknown attr access forwarded here
     deprecated_in="2.0",
     remove_in="3.0",
     message="Use `new_calculator` instead.",
@@ -1202,14 +1204,17 @@ deprecated_module(
 **Mode 3 — parent alias** (expose old sub-module name on the parent package via `deprecated_instance`):
 
 <!--phmdoctest-skip-->
+
 ```python
 # my_package/__init__.py
 import my_package.new_calculator as _new_calculator
 from deprecate import deprecated_instance
 
 old_utils = deprecated_instance(
-    _new_calculator, name="old_utils",
-    deprecated_in="2.0", remove_in="3.0",
+    _new_calculator,
+    name="old_utils",
+    deprecated_in="2.0",
+    remove_in="3.0",
     message="Use `my_package.new_calculator` instead.",
 )
 # my_package.old_utils.add(1, 2)  # warns: FutureWarning
