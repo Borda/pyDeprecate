@@ -1,7 +1,8 @@
 pytest >=8.4.2
 pytest-cov >=7.1.0
 pytest-asyncio >=1.2.0
-scikit-learn >=1.7.2
+scikit-learn >=1.6.1; python_version < "3.10"
+scikit-learn >=1.7.2; python_version > "3.9"
 phmdoctest >=1.4.0
 dataclasses  # needed for phmdoctest
 typing_extensions  # PEP 702 stacking regression tests
