@@ -1167,9 +1167,8 @@ Use `deprecated_module()` at the bottom of a module you are retiring. Three mode
 
 **Mode 1 — in-place warn** (keep the module, warn on missing-attribute access):
 
-<!--phmdoctest-skip-->
-
 ```python
+# phmdoctest:skip — CI template: replace old_calculator with your actual module
 # old_calculator.py
 from deprecate import deprecated_module
 
@@ -1186,9 +1185,8 @@ deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message="Use `
 
 **Mode 2 — redirect** (forward every access to a replacement module):
 
-<!--phmdoctest-skip-->
-
 ```python
+# phmdoctest:skip — CI template: replace new_calculator with your actual module
 # old_calculator.py
 import new_calculator as _new_calculator
 from deprecate import deprecated_module
@@ -1205,9 +1203,8 @@ deprecated_module(
 
 **Mode 3 — parent alias** (expose old sub-module name on the parent package via `deprecated_instance`):
 
-<!--phmdoctest-skip-->
-
 ```python
+# phmdoctest:skip — CI template: replace my_package with your actual package
 # my_package/__init__.py
 import my_package.new_calculator as _new_calculator
 from deprecate import deprecated_instance
