@@ -324,7 +324,7 @@
             "@type": "Answer",
             "text": "You pointed target= of a @deprecated wrapper at another @deprecated callable and that chain loops back to the first wrapper. pyDeprecate detects re-entry at call time and raises RuntimeError with the message \"Circular deprecation cycle detected: `<name>` re-entered via its own target chain.\" instead of letting Python reach RecursionError. Fix: point target= at a plain non-deprecated final implementation, not at another @deprecated callable."
           }
-        }        ,
+        },
         {
           "@type": "Question",
           "name": "How do I deprecate an entire Python module?",
