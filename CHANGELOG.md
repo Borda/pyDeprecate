@@ -8,6 +8,8 @@
 
 - **Opt-in strict `property` replacement.** `from deprecate import property` now exports `_StrictProperty`, a `property` subclass that raises `TypeError` at class-definition time when handed an already-`@deprecated` getter (inner-order detection). Import it in modules that want compile-time enforcement; star imports (`from deprecate import *`) are unaffected. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
 
+- **`deprecated_module()` — PEP 562 module-level deprecation.** Call `deprecated_module(__name__, deprecated_in=..., remove_in=...)` once at the bottom of a module to install a PEP 562 `__getattr__` hook that emits `FutureWarning` on missing-attribute access. Three modes: in-place warn (Mode 1), redirect to replacement module with optional `attrs_mapping` (Mode 2), and parent alias via `deprecated_instance()` (Mode 3). `find_deprecation_wrappers()` discovers deprecated modules via the `__deprecated__` attribute; `validate_deprecation_wrapper()` accepts module objects directly. Double-call guard raises `ValueError`; pre-existing `__getattr__` is chained with a `UserWarning`. ([#203](https://github.com/Borda/pyDeprecate/pull/203))
+
 ### Changed
 
 ### Deprecated

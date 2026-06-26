@@ -1648,6 +1648,7 @@ ______________________________________________________________________
 **Fix — use Mode 2 (redirect):** move the implementation to the new module and leave the old module empty except for the `deprecated_module()` call with `target=new_module`. Every attribute lookup then falls through to `__getattr__`, which emits the warning and forwards to the new module.
 
 ```python
+# phmdoctest:skip — CI template; new_calculator is not installed
 # old_calculator.py — only the redirect call; no real attrs defined here
 import new_calculator as _new_calculator
 from deprecate import deprecated_module

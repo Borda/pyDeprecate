@@ -1,7 +1,6 @@
 """Demo: deprecated_module() — all three modes.
 
-This script serves as the API contract for the deprecated_module feature. Must FAIL against current code (feature
-doesn't exist yet). Promoted to a pytest test once implementation is complete.
+Integration demo for all three ``deprecated_module()`` modes: in-place warn, redirect, and audit discovery.
 
 """
 

@@ -1167,6 +1167,8 @@ Use `deprecated_module()` at the bottom of a module you are retiring. Three mode
 
 **Mode 1 — in-place warn** (keep the module, warn on missing-attribute access):
 
+<!--phmdoctest-skip-->
+
 ```python
 # old_calculator.py
 from deprecate import deprecated_module

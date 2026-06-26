@@ -10,7 +10,7 @@ Three deprecation modes are supported:
   an attribute that is *not* already in the module's ``__dict__`` is accessed (PEP 562 limitation — real attributes
   do not trigger ``__getattr__``).
 * **Mode 2 — redirect**: attribute access is forwarded to a replacement module; a :class:`FutureWarning` is emitted
-  on every access.
+  on every access to attributes not present in the module's ``__dict__`` (PEP 562 limitation).
 * **Mode 3 — parent alias**: use :func:`~deprecate.proxy.deprecated_instance` on the parent package's
   ``__init__.py`` to expose the deprecated module name as an attribute.  No new API needed; documented as a usage
   pattern.
@@ -33,6 +33,67 @@ _TEMPLATE_MODULE_REDIRECT = (
     " in favor of `%(target_name)s`."
     " It will be removed in v%(remove_in)s."
 )
+
+
+def _build_module_warn_msg(
+    module_name: str,
+    deprecated_in: str,
+    remove_in: str,
+    target: Optional[types.ModuleType],
+    message: str,
+) -> str:
+    target_name = getattr(target, "__name__", None) if target is not None else None
+    if target is not None and target_name:
+        template = _TEMPLATE_MODULE_REDIRECT % {
+            "source_name": module_name,
+            "deprecated_in": deprecated_in,
+            "remove_in": remove_in,
+            "target_name": target_name,
+        }
+    else:
+        template = _TEMPLATE_MODULE_NO_TARGET % {
+            "source_name": module_name,
+            "deprecated_in": deprecated_in,
+            "remove_in": remove_in,
+        }
+    return f"{template} {message}" if message else template
+
+
+def _make_module_getattr(
+    module_name: str,
+    mod: types.ModuleType,
+    target: Optional[types.ModuleType],
+    attrs_mapping: Optional[dict[str, Optional[str]]],
+    stream: Optional[Callable[..., Any]],
+    warn_msg: str,
+    existing_getattr: Optional[Callable[..., Any]],
+) -> Callable[[str], Any]:
+    """Return the PEP 562 ``__getattr__`` closure for a deprecated module."""
+
+    def _hook(name: str) -> Any:  # noqa: ANN401
+        if stream is not None:
+            try:
+                stream(warn_msg, FutureWarning, stacklevel=2)
+            except TypeError:
+                stream(warn_msg, FutureWarning)
+        else:
+            warnings.warn(warn_msg, FutureWarning, stacklevel=2)
+
+        if attrs_mapping is not None and name in attrs_mapping:
+            mapped = attrs_mapping[name]
+            if mapped is None:
+                raise AttributeError(f"module {module_name!r} has no attribute {name!r}")
+            return getattr(target if target is not None else mod, mapped)
+
+        if target is not None:
+            return getattr(target, name)
+
+        if existing_getattr is not None:
+            return existing_getattr(name)
+
+        raise AttributeError(f"module {module_name!r} has no attribute {name!r}")
+
+    return _hook
 
 
 def deprecated_module(
@@ -89,22 +150,12 @@ def deprecated_module(
 
     mod = sys.modules[module_name]
 
-    target_name = getattr(target, "__name__", None) if target is not None else None
-    if target is not None and target_name:
-        template = _TEMPLATE_MODULE_REDIRECT % {
-            "source_name": module_name,
-            "deprecated_in": deprecated_in,
-            "remove_in": remove_in,
-            "target_name": target_name,
-        }
-    else:
-        template = _TEMPLATE_MODULE_NO_TARGET % {
-            "source_name": module_name,
-            "deprecated_in": deprecated_in,
-            "remove_in": remove_in,
-        }
+    # Idempotency guard: skip silently if already installed (handles importlib.reload and
+    # accidental double-calls without chaining a second __getattr__ hook).
+    if isinstance(vars(mod).get("__deprecated__"), DeprecationConfig):
+        return
 
-    warn_msg = f"{template} {message}" if message else template
+    warn_msg = _build_module_warn_msg(module_name, deprecated_in, remove_in, target, message)
 
     # Attach audit metadata before installing __getattr__ so that static scanners
     # (e.g. find_deprecation_wrappers) can read it without triggering the warning.
@@ -114,30 +165,24 @@ def deprecated_module(
         name=module_name,
         target=target if target is not None else TargetMode.NOTIFY,
         template_mgs=warn_msg,
+        attrs_mapping=attrs_mapping,
     )
 
-    _target = target
-    _attrs_mapping = attrs_mapping
-    _stream = stream
-    _warn_msg = warn_msg
-
-    def _module_getattr(name: str) -> Any:  # noqa: ANN401
-        if _stream is not None:
-            _stream(_warn_msg, FutureWarning, stacklevel=2)
-        else:
-            warnings.warn(_warn_msg, FutureWarning, stacklevel=2)
-
-        if _attrs_mapping is not None and name in _attrs_mapping:
-            mapped = _attrs_mapping[name]
-            if mapped is None:
-                raise AttributeError(f"module {module_name!r} has no attribute {name!r}")
-            lookup_mod = _target if _target is not None else mod
-            return getattr(lookup_mod, mapped)
-
-        if _target is not None:
-            return getattr(_target, name)
-
-        raise AttributeError(f"module {module_name!r} has no attribute {name!r}")
+    existing_getattr = vars(mod).get("__getattr__")
+    if existing_getattr is not None:
+        warnings.warn(
+            f"`deprecated_module`: pre-existing `__getattr__` found on {module_name!r} — chaining.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     # Use vars() assignment to avoid mypy method-assign error on ModuleType.__getattr__.
-    vars(mod)["__getattr__"] = _module_getattr
+    vars(mod)["__getattr__"] = _make_module_getattr(
+        module_name=module_name,
+        mod=mod,
+        target=target,
+        attrs_mapping=attrs_mapping,
+        stream=stream,
+        warn_msg=warn_msg,
+        existing_getattr=existing_getattr,
+    )

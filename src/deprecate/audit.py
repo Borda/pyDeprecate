@@ -526,6 +526,8 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         Invalid configurations won't cause runtime errors but will silently have no effect.
 
     """
+    if inspect.ismodule(func):
+        return _scan_module_meta(func)
     if not _has_deprecation_meta(func):
         raise ValueError(
             f"Function {getattr(func, '__name__', func)} has missing or invalid `__deprecated__` metadata. "
@@ -816,7 +818,7 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
     _raw_name = mod.__dict__.get("__name__")
     mod_name: str = _raw_name if _raw_name is not None else str(mod)
     return DeprecationWrapperInfo(
-        function=mod_name,
+        function="(module)",
         module=mod_name,
         deprecated_info=dep_info,
         invalid_args=[],
@@ -884,7 +886,8 @@ def _scan_module(
     results: list[DeprecationWrapperInfo] = []
 
     # Pre-loop: if the module itself is deprecated (via deprecated_module()), record it first.
-    if _has_deprecation_meta(mod):
+    # Use __dict__.get to avoid triggering foreign PEP 562 __getattr__ hooks on third-party modules.
+    if isinstance(mod.__dict__.get("__deprecated__"), DeprecationConfig):
         results.append(_scan_module_meta(mod))
 
     try:
@@ -895,6 +898,8 @@ def _scan_module(
     mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
     for name, obj in members:
         if name.startswith("_"):
+            continue
+        if inspect.ismodule(obj):
             continue
 
         result = _scan_callable(obj, mod_name, name)

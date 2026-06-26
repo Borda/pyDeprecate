@@ -20,6 +20,7 @@ Call `deprecated_module()` at the bottom of a module you want to mark deprecated
 Use this when you want to keep the module in place and only warn callers who access names that are not defined in the module (e.g., wildcard re-exports, legacy symbol names). Call `deprecated_module(__name__, ...)` at the bottom of `old_calculator.py`:
 
 ```python
+# phmdoctest:skip — old_calculator.py in-place warn template
 # old_calculator.py — DEPRECATED API; use new_calculator instead
 # NEW API — same functions now live in new_calculator.py
 
@@ -55,10 +56,10 @@ Calling `import old_calculator; old_calculator.add(1, 2)` is **silent** because 
 Use this when you rename an entire module. All attribute access on the old module name is forwarded to `new_calculator`, so callers get both a warning and the correct value regardless of which name they access.
 
 ```python
+# phmdoctest:skip — CI template; new_calculator is not installed
 # old_calculator.py — DEPRECATED API — redirect to new_calculator
 # NEW API — same functions live in new_calculator.py
 
-import importlib
 from deprecate import deprecated_module
 
 # Load the replacement module to attach as redirect target
@@ -77,6 +78,7 @@ deprecated_module(
 Now `import old_calculator; old_calculator.add(1, 2)` emits a `FutureWarning` and returns the result from `new_calculator.add`. The `attrs_mapping` parameter lets you rename specific attributes during the redirect:
 
 ```python
+# phmdoctest:skip — attrs_mapping continuation; requires new_calculator
 # Map old attr name to new attr name, or to None to raise AttributeError
 deprecated_module(
     __name__,
@@ -94,6 +96,7 @@ deprecated_module(
 When you reorganise a package and want the old sub-module name to remain accessible as an attribute on the parent package, use [`deprecated_instance()`](classes.md#deprecating-constants-and-instances) in the parent `__init__.py`. This does not require a new API — it reuses the existing proxy mechanism.
 
 ```python
+# phmdoctest:skip — CI template; my_package is not installed
 # my_package/__init__.py
 
 import my_package.new_calculator as _new_calculator
@@ -129,7 +132,7 @@ import my_package
 from deprecate import find_deprecation_wrappers
 
 deprecated_items = find_deprecation_wrappers(my_package)
-module_items = [r for r in deprecated_items if r.function.endswith("(module)")]
+module_items = [r for r in deprecated_items if r.api_type == "module"]
 ```
 
 ## See also

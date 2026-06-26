@@ -13,6 +13,7 @@ import warnings
 
 import pytest
 
+import tests.collection_modules.new_utils as new_utils
 import tests.collection_modules.old_math as old_math
 import tests.collection_modules.old_utils as old_utils
 from deprecate import TargetMode, find_deprecation_wrappers
@@ -105,11 +106,14 @@ class TestMode1InPlaceWarn:
         Mode 1 has no forwarding target, so after emitting the warning the hook raises
         ``AttributeError`` — the same error Python would raise for a missing attribute on a
         plain module.  Callers using ``getattr(mod, name, default)`` receive the default.
+        The ``FutureWarning`` must still be emitted even when the lookup ultimately fails.
         """
-        with warnings.catch_warnings(record=True):
+        with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             with pytest.raises(AttributeError):
                 _ = old_math.truly_missing_attr  # type: ignore[attr-defined]
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
 
 
 # ---------------------------------------------------------------------------
@@ -150,12 +154,15 @@ class TestMode2Redirect:
         """Accessing a name absent from the target module raises ``AttributeError``.
 
         ``new_utils`` defines only ``add`` and ``multiply``.  Any other name should raise
-        ``AttributeError`` after emitting the warning.
+        ``AttributeError`` after emitting the warning.  The ``FutureWarning`` must be issued
+        before the ``AttributeError`` propagates.
         """
-        with warnings.catch_warnings(record=True):
+        with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             with pytest.raises(AttributeError):
                 _ = old_utils.not_on_new_utils  # type: ignore[attr-defined]
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
 
     def test_target_stored_as_module_object(self) -> None:
         """``DeprecationConfig.target`` is the redirect module object when one is provided.
@@ -164,8 +171,6 @@ class TestMode2Redirect:
         audit tools and report generators can render the redirect destination by name without
         re-inspecting the installed ``__getattr__`` hook.
         """
-        import tests.collection_modules.new_utils as new_utils
-
         dep = getattr(old_utils, "__deprecated__", None)
         assert isinstance(dep, DeprecationConfig)
         assert dep.target is new_utils
@@ -215,12 +220,15 @@ class TestAttrsMapping:
 
         Per-attribute mapping mode only forwards names explicitly listed in the mapping.
         All other names are treated as missing and raise ``AttributeError`` after warning.
+        The ``FutureWarning`` must be issued even when the lookup ultimately fails.
         """
         mod = sys.modules[self._mod_name]
-        with warnings.catch_warnings(record=True):
+        with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             with pytest.raises(AttributeError):
                 _ = mod.not_mapped  # type: ignore[attr-defined]
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
 
     def test_none_value_in_mapping_raises(self) -> None:
         """A ``None`` value in ``attrs_mapping`` signals "warn but do not redirect".
@@ -238,10 +246,12 @@ class TestAttrsMapping:
                 remove_in="2.0",
             )
             mod = sys.modules[mod_name]
-            with warnings.catch_warnings(record=True):
+            with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
                 with pytest.raises(AttributeError):
                     _ = mod.gone_fn  # type: ignore[attr-defined]
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
         finally:
             _remove_tmp_module(mod_name)
 
@@ -369,3 +379,132 @@ class TestGuard:
                 deprecated_in="1.0",
                 remove_in="2.0",
             )
+
+
+# ---------------------------------------------------------------------------
+# attrs_mapping + target combination
+# ---------------------------------------------------------------------------
+
+
+class TestAttrsMappingWithTarget:
+    """``attrs_mapping`` plus ``target`` — listed names redirect via mapping; unlisted fall to target."""
+
+    def setup_method(self) -> None:
+        """Register fresh temporary modules before each test."""
+        self._mod_name = "_test_attrs_target_tmp"
+        self._target_name = "_test_attrs_target_new_tmp"
+        target = _make_tmp_module(self._target_name)
+        target.unmapped_fn = lambda x: x * 2  # type: ignore[attr-defined]
+        target.mapped_fn = lambda x: x * 3  # type: ignore[attr-defined]
+        _make_tmp_module(self._mod_name)
+        deprecated_module(
+            self._mod_name,
+            target=target,
+            attrs_mapping={"old_mapped": "mapped_fn"},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )
+
+    def teardown_method(self) -> None:
+        """Clean up both temporary modules after each test."""
+        _remove_tmp_module(self._mod_name)
+        _remove_tmp_module(self._target_name)
+
+    def test_unmapped_falls_through_to_target(self) -> None:
+        """Names absent from ``attrs_mapping`` fall through to ``target`` after warning.
+
+        When both ``target`` and ``attrs_mapping`` are supplied, the hook first checks the
+        mapping dict.  An attribute NOT present in the mapping is forwarded directly to the
+        target module, so the call produces the correct result from the target.
+        """
+        mod = sys.modules[self._mod_name]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fn = mod.unmapped_fn  # type: ignore[attr-defined]
+        assert fn(5) == 10
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
+
+    def test_mapped_attr_uses_mapping_key(self) -> None:
+        """Attributes in ``attrs_mapping`` are redirected via the mapped name, not the original.
+
+        ``old_mapped`` maps to ``"mapped_fn"`` so accessing ``mod.old_mapped`` should return
+        ``target.mapped_fn``, which multiplies by 3.
+        """
+        mod = sys.modules[self._mod_name]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fn = mod.old_mapped  # type: ignore[attr-defined]
+        assert fn(5) == 15
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
+
+
+# ---------------------------------------------------------------------------
+# Custom stream callable
+# ---------------------------------------------------------------------------
+
+
+class TestStream:
+    """Custom ``stream`` callable receives warning message and ``FutureWarning`` category."""
+
+    def setup_method(self) -> None:
+        """Register a deprecated module that uses a custom stream callable."""
+        self._mod_name = "_test_stream_tmp"
+        self._calls: list[tuple[str, type]] = []
+        _make_tmp_module(self._mod_name)
+        deprecated_module(
+            self._mod_name,
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=lambda msg, category, **_kw: self._calls.append((msg, category)),
+        )
+
+    def teardown_method(self) -> None:
+        """Remove the temporary module after each test."""
+        _remove_tmp_module(self._mod_name)
+
+    def test_stream_called_on_attr_access(self) -> None:
+        """Accessing a missing attribute invokes the ``stream`` callable instead of ``warnings.warn``.
+
+        When a ``stream`` callable is provided, the hook delegates warning emission to it
+        rather than calling ``warnings.warn``.  The callable must be invoked exactly once
+        per attribute access.
+        """
+        mod = sys.modules[self._mod_name]
+        getattr(mod, "some_attr", None)
+        assert len(self._calls) == 1
+
+    def test_stream_receives_future_warning_category(self) -> None:
+        """The category argument passed to ``stream`` is ``FutureWarning``.
+
+        Callers configuring a custom stream (e.g. a logger adapter) rely on the second
+        positional argument being the warning category so they can format the record
+        correctly.
+        """
+        mod = sys.modules[self._mod_name]
+        getattr(mod, "some_attr", None)
+        assert self._calls[0][1] is FutureWarning
+
+    def test_stream_fallback_when_no_stacklevel(self) -> None:
+        """A ``stream`` callable that does not accept ``stacklevel`` does not crash.
+
+        The hook first tries ``stream(msg, category, stacklevel=2)``.  If the callable
+        raises ``TypeError`` (two-argument signature, no ``**kwargs``), the hook retries
+        without the keyword argument.  The warning must still reach the stream.
+        """
+        mod_name = "_test_stream_no_sl_tmp"
+        _make_tmp_module(mod_name)
+        calls: list[tuple[str, type]] = []
+        try:
+            deprecated_module(
+                mod_name,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                stream=lambda msg, category: calls.append((msg, category)),
+            )
+            getattr(sys.modules[mod_name], "some_attr", None)
+            assert len(calls) == 1
+            assert calls[0][1] is FutureWarning
+        finally:
+            _remove_tmp_module(mod_name)

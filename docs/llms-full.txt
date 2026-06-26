@@ -16,6 +16,7 @@
 | Deprecate a function or method | `deprecated` |
 | Deprecate a class | `deprecated_class` |
 | Deprecate an object alias | `deprecated_instance` |
+| Deprecate an entire module | `deprecated_module` |
 | Argument rename/drop mode | `TargetMode.ARGS_REMAP` |
 | Warning-only mode | `TargetMode.NOTIFY` |
 | Validate expired deprecations | `validate_deprecation_expiry` |
@@ -105,6 +106,21 @@ from deprecate import deprecated_instance
 
 NEW_VALUE = object()
 OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
+```
+
+### Module deprecation
+
+```python
+# old_calculator.py — call once at the bottom
+from deprecate import deprecated_module
+import new_calculator as _new_calculator
+
+deprecated_module(
+    __name__,
+    target=_new_calculator,  # old_name — all unknown attrs forwarded here
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
 ```
 
 ### CI audit
