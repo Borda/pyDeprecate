@@ -446,18 +446,18 @@ class TestAttrsMappingWithTarget:
 
 
 class TestStream:
-    """Custom ``stream`` callable receives warning message and ``FutureWarning`` category."""
+    """Custom ``stream`` callable receives the warning message string."""
 
     def setup_method(self) -> None:
         """Register a deprecated module that uses a custom stream callable."""
         self._mod_name = "_test_stream_tmp"
-        self._calls: list[tuple[str, type]] = []
+        self._calls: list[str] = []
         _make_tmp_module(self._mod_name)
         deprecated_module(
             self._mod_name,
             deprecated_in="1.0",
             remove_in="2.0",
-            stream=lambda msg, category, **_kw: self._calls.append((msg, category)),
+            stream=lambda msg, **_kw: self._calls.append(msg),
         )
 
     def teardown_method(self) -> None:
@@ -469,42 +469,33 @@ class TestStream:
 
         When a ``stream`` callable is provided, the hook delegates warning emission to it
         rather than calling ``warnings.warn``.  The callable must be invoked exactly once
-        per attribute access.
+        per attribute access, and the first positional argument is the formatted warning
+        message string (matching the contract of ``deprecation.py``'s ``_raise_warn``).
         """
         mod = sys.modules[self._mod_name]
         getattr(mod, "some_attr", None)
         assert len(self._calls) == 1
-
-    def test_stream_receives_future_warning_category(self) -> None:
-        """The category argument passed to ``stream`` is ``FutureWarning``.
-
-        Callers configuring a custom stream (e.g. a logger adapter) rely on the second
-        positional argument being the warning category so they can format the record
-        correctly.
-        """
-        mod = sys.modules[self._mod_name]
-        getattr(mod, "some_attr", None)
-        assert self._calls[0][1] is FutureWarning
+        assert isinstance(self._calls[0], str)
 
     def test_stream_fallback_when_no_stacklevel(self) -> None:
         """A ``stream`` callable that does not accept ``stacklevel`` does not crash.
 
-        The hook first tries ``stream(msg, category, stacklevel=2)``.  If the callable
-        raises ``TypeError`` (two-argument signature, no ``**kwargs``), the hook retries
-        without the keyword argument.  The warning must still reach the stream.
+        The hook first tries ``stream(msg, stacklevel=2)``.  If the callable raises
+        ``TypeError`` (e.g. a zero-kwargs ``lambda msg: ...``), the hook retries with
+        ``stream(msg)`` only.  The warning must still reach the stream.
         """
         mod_name = "_test_stream_no_sl_tmp"
         _make_tmp_module(mod_name)
-        calls: list[tuple[str, type]] = []
+        calls: list[str] = []
         try:
             deprecated_module(
                 mod_name,
                 deprecated_in="1.0",
                 remove_in="2.0",
-                stream=lambda msg, category: calls.append((msg, category)),
+                stream=lambda msg: calls.append(msg),
             )
             getattr(sys.modules[mod_name], "some_attr", None)
             assert len(calls) == 1
-            assert calls[0][1] is FutureWarning
+            assert isinstance(calls[0], str)
         finally:
             _remove_tmp_module(mod_name)

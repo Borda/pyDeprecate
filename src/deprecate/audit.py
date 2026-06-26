@@ -527,6 +527,11 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
 
     """
     if inspect.ismodule(func):
+        if not _has_deprecation_meta(func):
+            raise ValueError(
+                f"Module {getattr(func, '__name__', func)!r} has missing or invalid `__deprecated__` metadata. "
+                "Ensure `deprecated_module()` was called on it."
+            )
         return _scan_module_meta(func)
     if not _has_deprecation_meta(func):
         raise ValueError(

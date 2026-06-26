@@ -73,9 +73,10 @@ def _make_module_getattr(
     def _hook(name: str) -> Any:  # noqa: ANN401
         if stream is not None:
             try:
-                stream(warn_msg, FutureWarning, stacklevel=2)
+                stream(warn_msg, stacklevel=2)
             except TypeError:
-                stream(warn_msg, FutureWarning)
+                # stream does not accept stacklevel (e.g. print, logging.warning, custom callables).
+                stream(warn_msg)
         else:
             warnings.warn(warn_msg, FutureWarning, stacklevel=2)
 
