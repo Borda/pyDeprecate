@@ -47,6 +47,13 @@ def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
 
 _PYDEPRECATE_PUBLIC_ROOT = "https://borda.github.io/pyDeprecate"
 _PYDEPRECATE_STABLE_BASE = f"{_PYDEPRECATE_PUBLIC_ROOT}/stable/"
+_PYDEPRECATE_SEARCH_DIALOG = '<div class="md-search" data-md-component="search" role="dialog">'
+_PYDEPRECATE_SEARCH_DIALOG_LABELLED = (
+    '<div class="md-search" data-md-component="search" role="dialog" aria-label="Search">'
+)
+_PYDEPRECATE_VERSION_BUTTON_RE = re.compile(
+    r'(<button class="md-version__current" aria-label="Select version">)([^<]+)(</button>)'
+)
 
 
 def _pydeprecate_stable_base() -> str:
@@ -82,6 +89,21 @@ def _pydeprecate_public_url(page: Page) -> str:
     if page_url in {"", "index.html"}:
         return base
     return f"{base}{page_url}"
+
+
+def _pydeprecate_label_search_dialog(output: str) -> str:
+    return output.replace(_PYDEPRECATE_SEARCH_DIALOG, _PYDEPRECATE_SEARCH_DIALOG_LABELLED)
+
+
+def _pydeprecate_label_version_button(output: str) -> str:
+    return _PYDEPRECATE_VERSION_BUTTON_RE.sub(
+        r'<button class="md-version__current" aria-label="Select version \2">\2\3',
+        output,
+    )
+
+
+def _pydeprecate_fix_accessibility(output: str) -> str:
+    return _pydeprecate_label_version_button(_pydeprecate_label_search_dialog(output))
 
 
 def _pydeprecate_markdown_url(page: Page) -> str:
@@ -125,6 +147,7 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
         f'<meta property="og:url" content="{canonical}">',
         output,
     )
+    # Accessibility fixes are applied in on_post_build() for all generated HTML outputs.
     # Replace any existing text/markdown alternate link with the page-specific mirror URL.
     # This may be set by MkDocs or a prior hook; we overwrite to ensure it points to the
     # correct versioned mirror, not the root llms.txt.
@@ -184,3 +207,5 @@ def on_post_build(config: MkDocsConfig) -> None:
     """Copy markdown mirrors and rewrite sitemap after build completes."""
     _pydeprecate_copy_markdown_mirrors(config["docs_dir"], config["site_dir"])
     _pydeprecate_rewrite_sitemap(config["site_dir"])
+    for path in _PyDeprecatePath(config["site_dir"]).rglob("*.html"):
+        path.write_text(_pydeprecate_fix_accessibility(path.read_text(encoding="utf-8")), encoding="utf-8")
