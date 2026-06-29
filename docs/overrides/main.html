@@ -330,15 +330,15 @@
           "name": "How do I deprecate an entire Python module?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): installs a PEP 562 __getattr__ hook that emits FutureWarning on missing-attribute access only — real attributes (functions, classes, constants already in __dict__) are silent. Mode 2 (target=new_module): forwards every missing-attribute lookup to the replacement module with a FutureWarning, optionally with attrs_mapping for per-name redirects; use this mode for full coverage because real attributes bypass __getattr__. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. Star imports (from old_module import *) bypass __getattr__ in all modes and do not emit warnings."
+            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that emits FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. Star imports (from old_module import *) bypass __getattribute__ in all modes and do not emit warnings."
           }
         },
         {
           "@type": "Question",
-          "name": "Why do real attributes on a deprecated module not emit a FutureWarning?",
+          "name": "Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Python's PEP 562 __getattr__ hook fires only when an attribute name is NOT present in the module's __dict__. Functions, classes, and constants defined directly in the module are stored in __dict__ at import time and bypass the hook entirely. deprecated_module() Mode 1 (no target) therefore cannot warn on real attributes. Fix: use Mode 2 by passing target=new_module so the old module contains no real attributes and every lookup falls through to __getattr__, which emits FutureWarning and forwards to the new module."
+            "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to emit FutureWarning on every public attribute access — including real attributes already in __dict__. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are the only exception — they read __dict__ directly at import time and do not trigger __getattribute__."
           }
         }
       ]

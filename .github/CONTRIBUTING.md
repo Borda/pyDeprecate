@@ -753,6 +753,8 @@ Two audiences read the docs examples — name accordingly.
 
 Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.
 
+**`attrs_mapping` key naming** — keys must be the original names callers use today (at deprecation time), never a meta-name like `legacy_X` or `deprecated_X`. The key is what callers call *now*; the value is what they should migrate to. If a function was introduced as `compute` and is now renamed to `add`, write `{"compute": "add"}`, not `{"legacy_compute": "add"}` — no one names a function `legacy_compute` at introduction time.
+
 ### Keeping AI-agent documentation in sync
 
 `docs/llms.txt` is a machine-readable contract. AI coding assistants and agent frameworks fetch it before generating any pyDeprecate code. An inaccuracy there propagates into every AI-generated snippet at scale.

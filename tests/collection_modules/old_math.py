@@ -1,10 +1,9 @@
 """Deprecated in-place module (Mode 1 fixture).
 
 This module is deprecated; use ``new_math`` instead.
-The ``square`` function is a real member defined in ``__dict__`` — PEP 562 ``__getattr__``
-fires *only* for names **not** already in ``__dict__``, so ``old_math.square`` will NOT warn.
-Only accesses to names absent from ``__dict__`` (e.g. ``old_math.nonexistent_attr``) trigger
-the deprecation warning.
+Every public attribute access — including the real ``square`` function — emits a ``FutureWarning``
+because ``deprecated_module()`` replaces the module's ``__class__`` with ``_DeprecatedModuleWrapper``,
+which overrides ``__getattribute__`` to intercept all attribute lookups.
 """
 
 import deprecate

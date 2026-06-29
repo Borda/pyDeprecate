@@ -1165,7 +1165,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 Use `deprecated_module()` at the bottom of a module you are retiring. Three modes are supported.
 
-**Mode 1 — in-place warn** (keep the module, warn on missing-attribute access):
+**Mode 1 — in-place warn** (keep the module, warn on every public attribute access):
 
 ```python
 # phmdoctest:skip — CI template: replace old_calculator with your actual module
@@ -1177,13 +1177,12 @@ def add(a: float, b: float) -> float:
     return a + b
 
 
-# Call once at the bottom; __getattr__ fires only for names NOT in __dict__
-# The `add` function above is a real attribute — accessing it is SILENT.
-# Use Mode 2 (redirect) for full coverage of all attribute names.
+# Call once at the bottom — warns on every public attribute access, including real ones.
 deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message="Use `new_calculator` instead.")
+# old_calculator.add(1, 2)  # warns: FutureWarning, returns 3
 ```
 
-**Mode 2 — redirect** (forward every access to a replacement module):
+**Mode 2 — redirect** (forward missing-attr lookups to a replacement module, useful when renaming):
 
 ```python
 # phmdoctest:skip — CI template: replace new_calculator with your actual module
@@ -1220,7 +1219,7 @@ old_utils = deprecated_instance(
 ```
 
 > [!NOTE]
-> **PEP 562 real-attribute gap:** `__getattr__` fires only for names **not** already in the module's `__dict__`. Real attributes (functions, classes, constants defined directly in the module) are silent — no warning is emitted when callers access them. Use Mode 2 (redirect) for full coverage of all attribute names. Star imports (`from old_calculator import *`) also bypass `__getattr__` and do not warn.
+> **Star-import limitation:** `from old_calculator import *` reads `__all__` (or all public names) directly from `__dict__` at import time and bypasses `__getattribute__`, so no `FutureWarning` is emitted. Document the change in the module docstring and release notes if star imports are a concern.
 
 ### 🌀 Async functions
 

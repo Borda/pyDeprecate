@@ -43,7 +43,7 @@ def _remove_tmp_module(name: str) -> None:
 
 
 class TestMode1InPlaceWarn:
-    """``deprecated_module()`` with no target and no attrs_mapping emits warning on missing attrs."""
+    """``deprecated_module()`` with no target and no attrs_mapping emits warning on every public attr access."""
 
     def test_deprecated_attr_is_set(self) -> None:
         """The ``__deprecated__`` attribute must be a ``DeprecationConfig`` on the module.
@@ -59,11 +59,11 @@ class TestMode1InPlaceWarn:
         assert dep.target is TargetMode.NOTIFY
 
     def test_missing_attr_warns(self) -> None:
-        """Accessing a name not in ``__dict__`` emits exactly one ``FutureWarning``.
+        """Accessing a name absent from ``__dict__`` emits exactly one ``FutureWarning``.
 
-        PEP 562 ``__getattr__`` fires only when the name is absent from ``__dict__``.
-        ``nonexistent_attr`` is never defined in ``old_math``, so the hook fires and
-        the deprecation warning is emitted.
+        ``_DeprecatedModuleWrapper.__getattribute__`` fires for every public name, real or missing.
+        ``nonexistent_attr`` is never defined in ``old_math``, so the warning fires and
+        the hook then raises ``AttributeError`` (caught by ``getattr``'s default).
         """
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -87,18 +87,20 @@ class TestMode1InPlaceWarn:
         assert "2.0" in msg
         assert "new_math" in msg
 
-    def test_existing_attr_does_not_warn(self) -> None:
-        """Attributes already in ``__dict__`` bypass ``__getattr__`` entirely — no warning.
+    def test_real_attr_warns(self) -> None:
+        """Accessing a real attribute (one already in ``__dict__``) emits a ``FutureWarning``.
 
-        PEP 562 specifies that module ``__getattr__`` is called only for names *not* resolved
-        through normal attribute lookup.  ``square`` is defined in the module body and therefore
-        lives in ``old_math.__dict__``; accessing it must never trigger the hook.
+        Because the module is deprecated and will be removed, every public attribute access
+        must warn — including ``square``, which is a real function defined in the module body.
+        ``_DeprecatedModuleWrapper.__getattribute__`` intercepts all public attribute lookups,
+        not just missing ones, so callers always receive the deprecation notice.
         """
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             result = old_math.square(4)
         assert result == 16
-        assert len(w) == 0
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
 
     def test_missing_attr_raises_attribute_error(self) -> None:
         """In-place warn mode re-raises ``AttributeError`` after the warning.
@@ -325,8 +327,8 @@ class TestReloadSurvival:
         importlib.reload(old_math)
         assert isinstance(getattr(old_math, "__deprecated__", None), DeprecationConfig)
 
-    def test_getattr_survives_reload(self) -> None:
-        """After ``importlib.reload()``, accessing a missing attr still emits ``FutureWarning``."""
+    def test_attr_access_survives_reload(self) -> None:
+        """After ``importlib.reload()``, any public attribute access still emits ``FutureWarning``."""
         importlib.reload(old_math)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -346,9 +348,10 @@ class TestStacklevel:
     def test_warning_filename_points_to_test(self) -> None:
         """``w[0].filename`` should reference this test file, not ``deprecate/module.py``.
 
-        When a user calls ``old_math.some_missing_attr`` the warning location displayed by
-        Python must be the user's source line — not a line inside pyDeprecate's implementation.
-        ``stacklevel=2`` inside the ``__getattr__`` hook achieves this.
+        When a user accesses any attribute on a deprecated module the warning location displayed
+        by Python must be the user's source line — not a line inside pyDeprecate's implementation.
+        ``stacklevel=3`` inside ``_emit_module_warning`` accounts for the extra helper-function
+        frame between ``__getattribute__`` and ``warnings.warn``.
         """
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
