@@ -147,7 +147,7 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
         f'<meta property="og:url" content="{canonical}">',
         output,
     )
-    output = _pydeprecate_fix_accessibility(output)
+    # Accessibility fixes are applied in on_post_build() for all generated HTML outputs.
     # Replace any existing text/markdown alternate link with the page-specific mirror URL.
     # This may be set by MkDocs or a prior hook; we overwrite to ensure it points to the
     # correct versioned mirror, not the root llms.txt.
