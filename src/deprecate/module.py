@@ -197,7 +197,7 @@ def deprecated_module(
         >>> import warnings
         >>> with warnings.catch_warnings(record=True) as _w:
         ...     warnings.simplefilter("always")
-        ...     _ = sys.modules["demo_old"].any_attr
+        ...     _ = getattr(sys.modules["demo_old"], "any_attr", None)
         >>> print(len(_w) == 1 and issubclass(_w[0].category, FutureWarning))
         True
         >>> del sys.modules["demo_old"]
