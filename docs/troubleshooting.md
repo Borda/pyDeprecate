@@ -1637,6 +1637,44 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 ______________________________________________________________________
 
+## Module deprecation: accessing a missing attribute raises AttributeError
+
+**Q:** I called `deprecated_module()` in Mode 1 (no `target=`). Real attributes warn correctly, but accessing a name that is not in the module raises `AttributeError` instead of just warning. Is there a way to forward missing-attr lookups to a replacement module?
+
+**A:** Yes — that is exactly what Mode 2 (`target=new_module`) does. Mode 1 intercepts every public attribute access (real or missing) via `__getattribute__`, so real attributes warn and are returned. However, for names **not** in the module's `__dict__`, Mode 1 raises `AttributeError` after warning because there is no target to forward to.
+
+If you want unknown names to warn **and** resolve, switch to Mode 2:
+
+```python
+# phmdoctest:skip — CI template; new_calculator is not installed
+# old_calculator.py — redirect missing-attr lookups to new_calculator
+import new_calculator as _new_calculator
+from deprecate import deprecated_module
+
+deprecated_module(
+    __name__,
+    target=_new_calculator,
+    deprecated_in="2.0",
+    remove_in="3.0",
+    message="Use `new_calculator` instead.",
+)
+# old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)
+```
+
+______________________________________________________________________
+
+## Star imports from a deprecated module do not warn
+
+**Q:** I used `from old_calculator import *` but no `FutureWarning` appeared even though I called `deprecated_module()`. Why?
+
+**A:** Star imports read `__all__` (or all public names from `__dict__`) directly at import time without triggering the module wrapper's `__getattribute__` interception. This is a Python language-level constraint: `from module import *` is resolved by the import machinery from the module namespace rather than by normal attribute access, so it bypasses the `__class__` reassignment hook installed by `deprecated_module()` (`_DeprecatedModuleWrapper`), not a PEP 562 `__getattr__` hook.
+
+This limitation applies to both Mode 1 and Mode 2 of `deprecated_module()`.
+
+**Recommendation:** Document the deprecation prominently in the module's docstring and in your release notes. For callers you control, replace `from old_calculator import *` with `from new_calculator import ...` directly. For third-party callers, the warning will appear as soon as they switch from star imports to explicit attribute access or named imports.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

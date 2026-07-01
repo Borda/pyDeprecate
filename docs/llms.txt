@@ -261,6 +261,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 | Class rename | `@deprecated_class(target=NewClass)` |
 | Deprecate selected class attributes | `deprecated_class(attrs_mapping={"old": "new"}, ...)` (or `target=TargetMode.ATTRS_REMAP` + `attrs_mapping`) |
 | Constant/object alias | `deprecated_instance(obj, ...)` |
+| Deprecate entire module | `deprecated_module(deprecated_in=..., remove_in=...)` — `module_name` optional; auto-detected from caller `__name__`; Mode 2 (with `target=new_module`) for redirect |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
 | CI positional-only compat check | `validate_mapping_compatibility(module)` |
 | Docs table | `generate_deprecation_table(pkg, style="compact")` or `style="matrix"` |
@@ -275,6 +276,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 4. Are you keeping an object alias? Use `deprecated_instance(obj, ...)`.
 5. Do you only need a warning? Use `TargetMode.NOTIFY` or omit `target`.
 6. Do you need removal governance? Add audit checks in CI.
+7. Are you deprecating an entire module? Use `deprecated_module(deprecated_in=..., remove_in=...)` (auto-detects `__name__` from caller frame); add `target=new_module` for redirect mode (Mode 2).
 
 ## Agent Notes
 
@@ -285,6 +287,8 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 - `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.
 - `@deprecated` on `async def` functions: the wrapper is `async def`; `inspect.iscoroutinefunction(wrapper)` returns `True`. All three TargetModes work. Warning fires when the coroutine is awaited, not when the wrapper is called — `coro = wrapper(val=1)` produces no warning; `await coro` fires it. **CI visibility**: if coroutines are scheduled via `asyncio.create_task` or third-party schedulers, warnings fire in the scheduler's context — use `stream=logging.warning` for guaranteed log output. In tests, `pytest.warns()` must wrap the `await`, not just the call.
 - `@deprecated` on async generator functions (`async def` + `yield`): the wrapper is **sync** (`inspect.iscoroutinefunction(wrapper)` is `False`); calling the wrapper fires the deprecation warning eagerly and returns the async generator object. Callers iterate with `async for item in wrapper(...):`. All three TargetModes work — NOTIFY runs the source body, ARGS_REMAP remaps args before iterating the source body, and `target=<async_gen_callable>` forwards to a replacement async generator. The warning fires at sync call time, before the first `__anext__`.
+
+- `deprecated_module(module_name, *, target=None, attrs_mapping=None, deprecated_in, remove_in, stream=None, message="")` marks an entire module deprecated by changing the module's `__class__` to an intercepting wrapper that overrides `__getattribute__`. Three modes: Mode 1 (no `target`) — warns on every public attribute access, including real attributes already in `__dict__`; Mode 2 (`target=new_module`) — additionally forwards missing-attr access to the replacement module, optionally with `attrs_mapping` for per-name redirects; Mode 3 — use `deprecated_instance()` on the parent `__init__.py` (no new API). Attaches `__deprecated__` to the module object so `find_deprecation_wrappers` discovers it. Raises `ValueError` if `module_name` not in `sys.modules` — call at module level after all definitions. **Star-import gap**: `from old_module import *` reads names directly from `__dict__` at import time, bypassing `__getattribute__` entirely — no warning is emitted for star imports.
 
 Warning timing quick reference — all callable kinds:
 
@@ -307,6 +311,8 @@ Warning timing quick reference — all callable kinds:
 - Do not use `attrs_mapping`-only on non-`@dataclass` types when constructor-kwarg coverage is also needed — for non-dataclass targets, `attrs_mapping` covers only attribute access; you must also set `args_mapping` to cover constructor kwargs.
 - Do not stack `@deprecated` on a `@property` — raises `TypeError: @deprecated cannot be applied twice to the already-deprecated property`. Apply `@deprecated` once; use `.setter()` / `.deleter()` rebinding for additional accessors.
 - Do not assume dict last-write-wins ordering determines the result when both the old and new argument names are passed simultaneously (e.g. `fn(val=5, new_val=6)`). The explicit new-name value always wins over the remapped old-name value, regardless of call-site argument order. `args_extra` wins over both — it is merged last and unconditionally overwrites all caller-supplied values. Precedence: `args_extra` > explicit new-name kwarg > remapped old-name value > source defaults. Passing both names also emits a `UserWarning` identifying the ignored old argument: `"Both \`val\` (deprecated) and \`new_val\` were supplied to \`fn()\`; \`val\` is ignored."` — this fires in addition to the regular `FutureWarning`.
+- Do not expect `from old_module import *` to emit a `FutureWarning` — star imports read `__all__` or all public names directly from `__dict__` at import time, bypassing `__getattribute__` entirely.
+- `attrs_mapping` keys must be the original names callers use today — never a meta-name like `legacy_X` or `deprecated_X`. If a function was introduced as `compute` and is now renamed to `add`, write `attrs_mapping={"compute": "add"}`, not `{"legacy_compute": "add"}`. The key is the name that currently exists in the deprecated API; the value is what callers should migrate to.
 - Do not create a circular callable-target chain where the `target=` chain loops back to a wrapper already on the call stack (e.g. `A → B → A`): pyDeprecate detects re-entry at call time and raises `RuntimeError` with the message "Circular deprecation cycle detected: `<name>` re-entered via its own target chain." before a `RecursionError` occurs. Non-circular chains (deprecated → deprecated → final implementation) are supported; only cycles raise `RuntimeError`.
 
 ## Known Limitations

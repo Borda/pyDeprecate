@@ -324,6 +324,22 @@
             "@type": "Answer",
             "text": "You pointed target= of a @deprecated wrapper at another @deprecated callable and that chain loops back to the first wrapper. pyDeprecate detects re-entry at call time and raises RuntimeError with the message \"Circular deprecation cycle detected: `<name>` re-entered via its own target chain.\" instead of letting Python reach RecursionError. Fix: point target= at a plain non-deprecated final implementation, not at another @deprecated callable."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I deprecate an entire Python module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that emits FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. Star imports (from old_module import *) bypass __getattribute__ in all modes and do not emit warnings."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to emit FutureWarning on every public attribute access — including real attributes already in __dict__. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are the only exception — they read __dict__ directly at import time and do not trigger __getattribute__."
+          }
         }
       ]
     }

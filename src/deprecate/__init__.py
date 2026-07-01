@@ -93,6 +93,7 @@ from deprecate.deprecation import (
     _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
 )
 from deprecate.deprecation import deprecated
+from deprecate.module import deprecated_module
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.utils import (
     assert_no_warnings,
@@ -110,6 +111,7 @@ __all__ = [
     "deprecated",
     "deprecated_class",
     "deprecated_instance",
+    "deprecated_module",
     "find_deprecation_wrappers",
     "generate_deprecation_table",
     "validate_deprecation_chains",

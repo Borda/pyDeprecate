@@ -16,6 +16,7 @@
 | Deprecate a function or method | `deprecated` |
 | Deprecate a class | `deprecated_class` |
 | Deprecate an object alias | `deprecated_instance` |
+| Deprecate an entire module | `deprecated_module` |
 | Argument rename/drop mode | `TargetMode.ARGS_REMAP` |
 | Warning-only mode | `TargetMode.NOTIFY` |
 | Validate expired deprecations | `validate_deprecation_expiry` |
@@ -105,6 +106,34 @@ from deprecate import deprecated_instance
 
 NEW_VALUE = object()
 OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
+```
+
+### Module deprecation
+
+**Mode 1 — in-place warn** (keep module, warn on every public attribute access including real ones):
+
+```python
+# old_func.py — call once at the bottom
+from deprecate import deprecated_module
+
+# module_name is optional — auto-detected from caller __name__
+deprecated_module(deprecated_in="1.0", remove_in="2.0")
+# old_func.some_function  # real attr: warns FutureWarning and returns the value
+# old_func.missing_attr  # missing attr: warns FutureWarning, then raises AttributeError
+```
+
+**Mode 2 — redirect** (forward missing-attr lookups to replacement module):
+
+```python
+# old_func.py — call once at the bottom
+from deprecate import deprecated_module
+import new_func as _new_func
+
+deprecated_module(
+    target=_new_func,  # missing attrs forwarded here; module_name auto-detected
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
 ```
 
 ### CI audit

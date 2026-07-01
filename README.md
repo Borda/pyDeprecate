@@ -1161,6 +1161,66 @@ Sent to 'alice@example.com': 'Hello' [normal]
 > [!NOTE]
 > `args_extra` is merged into kwargs _after_ `args_mapping` is applied, so extra values can override mapped ones. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is ignored and a construction-time `UserWarning` is emitted by validation.
 
+### 📦 Deprecating an Entire Module
+
+Use `deprecated_module()` at the bottom of a module you are retiring. Three modes are supported.
+
+**Mode 1 — in-place warn** (keep the module, warn on every public attribute access):
+
+```python
+# phmdoctest:skip — CI template: replace old_calculator with your actual module
+# old_calculator.py
+from deprecate import deprecated_module
+
+
+def add(a: float, b: float) -> float:
+    return a + b
+
+
+# Call once at the bottom — warns on every public attribute access, including real ones.
+deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message="Use `new_calculator` instead.")
+# old_calculator.add(1, 2)  # warns: FutureWarning, returns 3
+```
+
+**Mode 2 — redirect** (forward missing-attr lookups to a replacement module, useful when renaming):
+
+```python
+# phmdoctest:skip — CI template: replace new_calculator with your actual module
+# old_calculator.py
+import new_calculator as _new_calculator
+from deprecate import deprecated_module
+
+deprecated_module(
+    __name__,
+    target=_new_calculator,  # all unknown attr access forwarded here
+    deprecated_in="2.0",
+    remove_in="3.0",
+    message="Use `new_calculator` instead.",
+)
+# old_calculator.add(1, 2)  # warns: FutureWarning, returns new_calculator.add(1, 2)
+```
+
+**Mode 3 — parent alias** (expose old sub-module name on the parent package via `deprecated_instance`):
+
+```python
+# phmdoctest:skip — CI template: replace my_package with your actual package
+# my_package/__init__.py
+import my_package.new_calculator as _new_calculator
+from deprecate import deprecated_instance
+
+old_utils = deprecated_instance(
+    _new_calculator,
+    name="old_utils",
+    deprecated_in="2.0",
+    remove_in="3.0",
+    message="Use `my_package.new_calculator` instead.",
+)
+# my_package.old_utils.add(1, 2)  # warns: FutureWarning
+```
+
+> [!NOTE]
+> **Star-import limitation:** `from old_calculator import *` reads `__all__` (or all public names) directly from `__dict__` at import time and bypasses `__getattribute__`, so no `FutureWarning` is emitted. Document the change in the module docstring and release notes if star imports are a concern.
+
 ### 🌀 Async functions
 
 `@deprecated` works natively on `async def` functions. The resulting wrapper is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and asyncio frameworks (FastAPI, `asyncio.run`, `asyncio.gather`) recognise it. All three `TargetMode` variants work; the deprecation warning fires when the coroutine is awaited, not when the wrapper is called.

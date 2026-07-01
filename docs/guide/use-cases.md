@@ -17,6 +17,10 @@ Deprecating Python functions and methods: simple call forwarding, argument renam
 
 Deprecating classes, Enums, dataclasses, and module-level constants: forwarding an old class name to a replacement with `deprecated_class()`, wrapping module-level objects with `deprecated_instance()`, selective attribute deprecation with `attrs_mapping`, and stacking multiple proxy layers for multi-version attribute migrations.
 
+### [Modules](modules.md)
+
+Deprecating an entire module via `__class__` reassignment: in-place warn on every public attribute access with normal `AttributeError` for missing names (Mode 1), warn on every public access while redirecting missing-attribute lookups to a replacement module with optional per-attribute `attrs_mapping` (Mode 2), and parent alias via `deprecated_instance()` in `__init__.py` (Mode 3). Includes audit integration.
+
 ### [Properties](properties.md)
 
 Deprecating `@property` and `@cached_property` descriptors: decorator order rules, wrapping all three accessors (`fget`, `fset`, `fdel`) at once, chaining `.setter` / `.deleter`, and the dataclass field alias pattern.
@@ -50,6 +54,7 @@ Advanced patterns: injecting a deprecation notice into the docstring at import t
 | Silence warnings in test fixtures             | [Advanced → Testing helpers](advanced.md#suppressing-futurewarning-in-test-fixtures-with-assert_no_warnings) |
 | Deprecate a `@classmethod` or `@staticmethod` | [Advanced → Class/static methods](advanced.md#class-methods-and-static-methods)                              |
 | Deprecate a generator function                | [Advanced → Generators](advanced.md#deprecating-generator-functions)                                         |
+| Deprecate an entire module                    | [Modules](modules.md)                                                                                        |
 
 ## See also
 
