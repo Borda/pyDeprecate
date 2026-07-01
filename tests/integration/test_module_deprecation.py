@@ -16,7 +16,7 @@ import pytest
 import tests.collection_modules.new_utils as new_utils
 import tests.collection_modules.old_math as old_math
 import tests.collection_modules.old_utils as old_utils
-from deprecate import TargetMode, find_deprecation_wrappers
+from deprecate import TargetMode, find_deprecation_wrappers, validate_deprecation_wrapper
 from deprecate._types import DeprecationConfig
 from deprecate.module import deprecated_module
 
@@ -232,30 +232,27 @@ class TestAttrsMapping:
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
-    def test_none_value_in_mapping_raises(self) -> None:
+    def test_none_value_in_mapping_raises(self, make_tmp_module: pytest.FixtureRequest) -> None:
         """A ``None`` value in ``attrs_mapping`` signals "warn but do not redirect".
 
         When the mapping value is ``None`` the hook emits the warning and then raises
         ``AttributeError``, giving the caller no forwarded object.
         """
         mod_name = "_test_none_val_tmp"
-        _make_tmp_module(mod_name)
-        try:
-            deprecated_module(
-                mod_name,
-                attrs_mapping={"gone_fn": None},
-                deprecated_in="1.0",
-                remove_in="2.0",
-            )
-            mod = sys.modules[mod_name]
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                with pytest.raises(AttributeError):
-                    _ = mod.gone_fn  # type: ignore[attr-defined]
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-        finally:
-            _remove_tmp_module(mod_name)
+        make_tmp_module(mod_name)
+        deprecated_module(
+            mod_name,
+            attrs_mapping={"gone_fn": None},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )
+        mod = sys.modules[mod_name]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with pytest.raises(AttributeError):
+                _ = mod.gone_fn  # type: ignore[attr-defined]
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
 
 
 # ---------------------------------------------------------------------------
@@ -320,9 +317,11 @@ class TestReloadSurvival:
     def test_deprecated_survives_reload(self) -> None:
         """After ``importlib.reload()``, the module still has ``__deprecated__``.
 
-        ``importlib.reload()`` re-executes the module body from scratch.  Because the module
-        body calls ``deprecated_module(__name__, ...)`` at the bottom, the metadata and hook
-        must be re-installed on every reload without any extra user action.
+        ``importlib.reload()`` reuses the same module object; ``__deprecated__`` and ``__class__``
+        survive unchanged because ``deprecated_module(__name__, ...)`` is called again at the bottom
+        of the module body.  The idempotency guard short-circuits that second call — config is NOT
+        re-installed.  Note: editing ``deprecated_in``/``remove_in``/``message`` and reloading silently
+        keeps the stale config because the guard exits before overwriting it.
         """
         importlib.reload(old_math)
         assert isinstance(getattr(old_math, "__deprecated__", None), DeprecationConfig)
@@ -480,7 +479,7 @@ class TestStream:
         assert len(self._calls) == 1
         assert isinstance(self._calls[0], str)
 
-    def test_stream_fallback_when_no_stacklevel(self) -> None:
+    def test_stream_fallback_when_no_stacklevel(self, make_tmp_module: pytest.FixtureRequest) -> None:
         """A ``stream`` callable that does not accept ``stacklevel`` does not crash.
 
         The hook first tries ``stream(msg, stacklevel=2)``.  If the callable raises
@@ -488,17 +487,143 @@ class TestStream:
         ``stream(msg)`` only.  The warning must still reach the stream.
         """
         mod_name = "_test_stream_no_sl_tmp"
-        _make_tmp_module(mod_name)
+        make_tmp_module(mod_name)
         calls: list[str] = []
-        try:
-            deprecated_module(
-                mod_name,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                stream=lambda msg: calls.append(msg),
-            )
-            getattr(sys.modules[mod_name], "some_attr", None)
-            assert len(calls) == 1
-            assert isinstance(calls[0], str)
-        finally:
-            _remove_tmp_module(mod_name)
+        deprecated_module(
+            mod_name,
+            deprecated_in="1.0",
+            remove_in="2.0",
+            stream=lambda msg: calls.append(msg),
+        )
+        getattr(sys.modules[mod_name], "some_attr", None)
+        assert len(calls) == 1
+        assert isinstance(calls[0], str)
+
+
+# ---------------------------------------------------------------------------
+# Pytest fixtures for ephemeral module lifecycle
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def make_tmp_module() -> pytest.FixtureRequest:
+    """Factory fixture: create named temp modules; auto-removes each after the test."""
+    created: list[str] = []
+
+    def _factory(name: str) -> types.ModuleType:
+        mod = _make_tmp_module(name)
+        created.append(name)
+        return mod
+
+    yield _factory  # type: ignore[misc]
+    for name in created:
+        _remove_tmp_module(name)
+
+
+# ---------------------------------------------------------------------------
+# Idempotency guard
+# ---------------------------------------------------------------------------
+
+
+class TestIdempotency:
+    """Second call to ``deprecated_module()`` on an already-deprecated module is a silent no-op."""
+
+    def test_double_call_is_no_op(self, make_tmp_module: pytest.FixtureRequest) -> None:
+        """Calling ``deprecated_module()`` twice on the same module leaves config unchanged.
+
+        The idempotency guard checks for an existing ``DeprecationConfig`` on ``__deprecated__``
+        before installing.  A second call with different version strings must not overwrite the
+        first config — the ``is`` identity of the ``DeprecationConfig`` object must be preserved.
+        This ensures that ``importlib.reload()`` and accidental double-calls both behave safely.
+        """
+        mod_name = "_test_idempotency_tmp"
+        make_tmp_module(mod_name)
+        deprecated_module(mod_name, deprecated_in="1.0", remove_in="2.0")
+        config_before = vars(sys.modules[mod_name]).get("__deprecated__")
+        deprecated_module(mod_name, deprecated_in="9.9", remove_in="10.0")
+        config_after = vars(sys.modules[mod_name]).get("__deprecated__")
+        assert config_before is config_after
+        assert config_after is not None
+        assert config_after.deprecated_in == "1.0"
+
+
+# ---------------------------------------------------------------------------
+# PEP 562 __getattr__ chaining
+# ---------------------------------------------------------------------------
+
+
+class TestGetAttrChaining:
+    """Pre-existing ``__getattr__`` on the module is preserved and chained after deprecation."""
+
+    def test_install_emits_user_warning(self, make_tmp_module: pytest.FixtureRequest) -> None:
+        """Installing on a module that already has ``__getattr__`` emits a ``UserWarning``.
+
+        When ``deprecated_module()`` detects a pre-existing ``__getattr__`` in the module
+        ``__dict__``, it chains it by storing the original under ``__deprecated_existing_getattr__``
+        and emits a one-time ``UserWarning`` to signal the chaining so the developer is aware.
+        """
+        mod_name = "_test_chain_warn_tmp"
+        mod = make_tmp_module(mod_name)
+        mod.__getattr__ = lambda name: f"dynamic_{name}"  # type: ignore[attr-defined]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            deprecated_module(mod_name, deprecated_in="1.0", remove_in="2.0")
+        user_warns = [x for x in w if issubclass(x.category, UserWarning)]
+        assert len(user_warns) == 1
+        assert "chaining" in str(user_warns[0].message).lower()
+
+    def test_chained_getattr_resolves_value(self, make_tmp_module: pytest.FixtureRequest) -> None:
+        """Accessing a name resolved by the chained ``__getattr__`` returns the correct value.
+
+        After chaining, missing-attribute lookups that are not handled by ``attrs_mapping`` or
+        a redirect ``target`` fall through to the preserved ``__deprecated_existing_getattr__``.
+        The ``FutureWarning`` must still fire, and the returned value must come from the original hook.
+        """
+        mod_name = "_test_chain_resolve_tmp"
+        mod = make_tmp_module(mod_name)
+        mod.__getattr__ = lambda name: f"resolved_{name}"  # type: ignore[attr-defined]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            deprecated_module(mod_name, deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = sys.modules[mod_name].dynamic_key  # type: ignore[attr-defined]
+        assert result == "resolved_dynamic_key"
+        future_warns = [x for x in w if issubclass(x.category, FutureWarning)]
+        assert len(future_warns) == 1
+
+
+# ---------------------------------------------------------------------------
+# validate_deprecation_wrapper — module mode
+# ---------------------------------------------------------------------------
+
+
+class TestValidateWrapper:
+    """``validate_deprecation_wrapper()`` handles module objects correctly."""
+
+    def test_returns_wrapper_info_for_deprecated_module(self) -> None:
+        """Passing a deprecated module returns ``DeprecationWrapperInfo`` with ``api_type="module"``.
+
+        ``validate_deprecation_wrapper`` dispatches on ``inspect.ismodule`` and calls
+        ``_scan_module_meta``, which returns a ``DeprecationWrapperInfo`` with safe defaults
+        (no invalid args, no misconfig) and ``api_type="module"``.
+        """
+        info = validate_deprecation_wrapper(old_math)
+        assert info.api_type == "module"
+        assert info.no_effect is False
+        assert info.invalid_args == []
+
+    def test_deprecated_in_propagated(self) -> None:
+        """The returned info carries the correct ``deprecated_in`` from the module's config."""
+        info = validate_deprecation_wrapper(old_math)
+        assert info.deprecated_info.deprecated_in == "1.0"
+
+    def test_raises_for_plain_module(self) -> None:
+        """Passing a plain module without ``__deprecated__`` raises ``ValueError``.
+
+        ``validate_deprecation_wrapper`` must not silently return a default result for an
+        unconfigured module — it must raise to force the caller to fix the setup.
+        """
+        plain_mod = types.ModuleType("_plain_test_mod")
+        with pytest.raises(ValueError, match="missing or invalid"):
+            validate_deprecation_wrapper(plain_mod)
