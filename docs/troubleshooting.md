@@ -1667,7 +1667,7 @@ ______________________________________________________________________
 
 **Q:** I used `from old_calculator import *` but no `FutureWarning` appeared even though I called `deprecated_module()`. Why?
 
-**A:** Star imports read `__all__` (or all public names from `__dict__`) directly at import time without triggering `__getattr__`. This is a Python language-level constraint: `from module import *` is resolved during the `import` machinery before any attribute access occurs, so the PEP 562 hook is never invoked.
+**A:** Star imports read `__all__` (or all public names from `__dict__`) directly at import time without triggering the module wrapper's `__getattribute__` interception. This is a Python language-level constraint: `from module import *` is resolved by the import machinery from the module namespace rather than by normal attribute access, so it bypasses the `__class__` reassignment hook installed by `deprecated_module()` (`_DeprecatedModuleWrapper`), not a PEP 562 `__getattr__` hook.
 
 This limitation applies to both Mode 1 and Mode 2 of `deprecated_module()`.
 

@@ -19,7 +19,7 @@ Deprecating classes, Enums, dataclasses, and module-level constants: forwarding 
 
 ### [Modules](modules.md)
 
-Deprecating an entire module via PEP 562 `__getattr__`: in-place warn on missing-attribute access (Mode 1), redirect all attribute access to a replacement module with optional per-attribute `attrs_mapping` (Mode 2), and parent alias via `deprecated_instance()` in `__init__.py` (Mode 3). Includes audit integration and PEP 562 real-attribute gap guidance.
+Deprecating an entire module via `__class__` reassignment: in-place warn on every public attribute access with normal `AttributeError` for missing names (Mode 1), warn on every public access while redirecting missing-attribute lookups to a replacement module with optional per-attribute `attrs_mapping` (Mode 2), and parent alias via `deprecated_instance()` in `__init__.py` (Mode 3). Includes audit integration.
 
 ### [Properties](properties.md)
 

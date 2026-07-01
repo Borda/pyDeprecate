@@ -118,7 +118,8 @@ from deprecate import deprecated_module
 
 # module_name is optional — auto-detected from caller __name__
 deprecated_module(deprecated_in="1.0", remove_in="2.0")
-# old_func.any_attr  # warns: FutureWarning: The `old_func` module was deprecated since v1.0. It will be removed in v2.0.
+# old_func.some_function  # real attr: warns FutureWarning and returns the value
+# old_func.missing_attr  # missing attr: warns FutureWarning, then raises AttributeError
 ```
 
 **Mode 2 — redirect** (forward missing-attr lookups to replacement module):

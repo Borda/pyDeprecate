@@ -461,8 +461,8 @@ def _validate_args_mapping(
     return invalid_args, identity_args_mapping, all_identity
 
 
-def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
-    """Validate if a deprecated wrapper configuration is effective.
+def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> DeprecationWrapperInfo:
+    """Validate a deprecated callable or module wrapper and return structured metadata.
 
     This is a development tool to check if deprecated wrappers are configured correctly and will have the intended
     effect. It examines the ``__deprecated__`` attribute set by the :func:`~deprecate.deprecated` decorator and
@@ -476,8 +476,8 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     - target=None with no args_mapping (just warns, no forwarding)
 
     Args:
-        func: The decorated function to validate. Must have a ``__deprecated__`` attribute set by the ``@deprecated``
-            decorator.
+        func: The deprecated wrapper to validate. Accepts either a callable decorated with ``@deprecated`` or a module
+            object passed through :func:`deprecated_module`. Must have a ``__deprecated__`` attribute.
 
     Returns:
         :class:`~deprecate.audit.DeprecationWrapperInfo`: Dataclass with validation results:
