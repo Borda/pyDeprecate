@@ -191,12 +191,7 @@ class TestAttrsMapping:
         self._mod_name = "_test_attrs_map_tmp"
         mod = _make_tmp_module(self._mod_name)
         mod.new_fn = lambda x: x * 10  # type: ignore[attr-defined]
-        deprecated_module(
-            self._mod_name,
-            attrs_mapping={"old_fn": "new_fn"},
-            deprecated_in="1.0",
-            remove_in="2.0"
-        )
+        deprecated_module(self._mod_name, attrs_mapping={"old_fn": "new_fn"}, deprecated_in="1.0", remove_in="2.0")
 
     def teardown_method(self) -> None:
         """Clean up the temporary module after each test."""
@@ -240,12 +235,7 @@ class TestAttrsMapping:
         """
         mod_name = "_test_none_val_tmp"
         make_tmp_module(mod_name)
-        deprecated_module(
-            mod_name,
-            attrs_mapping={"gone_fn": None},
-            deprecated_in="1.0",
-            remove_in="2.0"
-        )
+        deprecated_module(mod_name, attrs_mapping={"gone_fn": None}, deprecated_in="1.0", remove_in="2.0")
         mod = sys.modules[mod_name]
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -376,10 +366,7 @@ class TestGuard:
         hook on nothing, leaving the real module undeprecated.
         """
         with pytest.raises(ValueError, match="not in `sys.modules`"):
-                "_definitely_not_registered_xyz",
-                deprecated_in="1.0",
-                remove_in="2.0"
-            )
+            deprecated_module("_definitely_not_registered_xyz", deprecated_in="1.0", remove_in="2.0")
 
 
 # ---------------------------------------------------------------------------
@@ -403,7 +390,7 @@ class TestAttrsMappingWithTarget:
             target=target,
             attrs_mapping={"old_mapped": "mapped_fn"},
             deprecated_in="1.0",
-            remove_in="2.0"
+            remove_in="2.0",
         )
 
     def teardown_method(self) -> None:
@@ -455,10 +442,7 @@ class TestStream:
         self._calls: list[str] = []
         _make_tmp_module(self._mod_name)
         deprecated_module(
-            self._mod_name,
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=lambda msg, **_kw: self._calls.append(msg)
+            self._mod_name, deprecated_in="1.0", remove_in="2.0", stream=lambda msg, **_kw: self._calls.append(msg)
         )
 
     def teardown_method(self) -> None:
@@ -488,12 +472,7 @@ class TestStream:
         mod_name = "_test_stream_no_sl_tmp"
         make_tmp_module(mod_name)
         calls: list[str] = []
-        deprecated_module(
-            mod_name,
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=lambda msg: calls.append(msg)
-        )
+        deprecated_module(mod_name, deprecated_in="1.0", remove_in="2.0", stream=lambda msg: calls.append(msg))
         getattr(sys.modules[mod_name], "some_attr", None)
         assert len(calls) == 1
         assert isinstance(calls[0], str)

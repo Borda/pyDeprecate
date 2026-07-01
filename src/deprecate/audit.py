@@ -44,6 +44,7 @@ import importlib.metadata
 import inspect
 import pkgutil
 import re
+import types
 import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, is_dataclass, replace
