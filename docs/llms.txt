@@ -261,7 +261,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 | Class rename | `@deprecated_class(target=NewClass)` |
 | Deprecate selected class attributes | `deprecated_class(attrs_mapping={"old": "new"}, ...)` (or `target=TargetMode.ATTRS_REMAP` + `attrs_mapping`) |
 | Constant/object alias | `deprecated_instance(obj, ...)` |
-| Deprecate entire module | `deprecated_module(__name__, deprecated_in=..., remove_in=...)` — Mode 2 (with `target=new_module`) for full coverage |
+| Deprecate entire module | `deprecated_module(deprecated_in=..., remove_in=...)` — `module_name` optional; auto-detected from caller `__name__`; Mode 2 (with `target=new_module`) for redirect |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
 | CI positional-only compat check | `validate_mapping_compatibility(module)` |
 | Docs table | `generate_deprecation_table(pkg, style="compact")` or `style="matrix"` |
@@ -276,7 +276,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 4. Are you keeping an object alias? Use `deprecated_instance(obj, ...)`.
 5. Do you only need a warning? Use `TargetMode.NOTIFY` or omit `target`.
 6. Do you need removal governance? Add audit checks in CI.
-7. Are you deprecating an entire module? Use `deprecated_module(__name__, ...)`; add `target=new_module` for redirect mode (Mode 2) to cover real attributes.
+7. Are you deprecating an entire module? Use `deprecated_module(deprecated_in=..., remove_in=...)` (auto-detects `__name__` from caller frame); add `target=new_module` for redirect mode (Mode 2).
 
 ## Agent Notes
 

@@ -165,7 +165,7 @@ class _DeprecatedModuleWrapper(types.ModuleType):
 
 
 def deprecated_module(
-    module_name: str,
+    module_name: Optional[str] = None,
     *,
     target: Optional[types.ModuleType] = None,
     attrs_mapping: Optional[dict[str, Optional[str]]] = None,
@@ -183,7 +183,10 @@ def deprecated_module(
     :func:`~deprecate.audit.find_deprecation_wrappers` can discover it.
 
     Args:
-        module_name: The ``__name__`` of the module being deprecated (pass ``__name__`` when calling at module level).
+        module_name: The ``__name__`` of the module being deprecated.  When omitted (or ``None``), the caller's
+            ``__name__`` is detected automatically via ``sys._getframe()``, so calling ``deprecated_module(
+            deprecated_in="1.0", remove_in="2.0")`` from inside a module body works without explicitly passing
+            ``__name__``.
         target: Optional replacement module.  When given, missing-attribute access is forwarded to this module (Mode 2).
         attrs_mapping: Optional per-attribute mapping ``{"old_name": "new_name"}`` or ``{"old_name": None}`` to
             raise :class:`AttributeError` for that attribute.  When supplied alongside ``target``, the mapping takes
@@ -195,7 +198,8 @@ def deprecated_module(
         message: Optional extra text appended to the generated warning message.
 
     Raises:
-        ValueError: If ``module_name`` is not found in :data:`sys.modules`.
+        ValueError: If ``module_name`` is not found in :data:`sys.modules`, or if ``module_name`` is omitted and the
+            caller frame's ``__name__`` cannot be determined.
         TypeError: If the module's type declares ``__slots__`` (incompatible memory layout prevents
             ``__class__`` reassignment).  Wrap in a plain :class:`types.ModuleType` first if needed.
 
@@ -216,6 +220,14 @@ def deprecated_module(
     """
     # Lazy import to avoid circular dependency (_types imports nothing from deprecate).
     from deprecate._types import TargetMode
+
+    if module_name is None:
+        caller_name: Optional[str] = sys._getframe(1).f_globals.get("__name__")
+        if caller_name is None:
+            raise ValueError(
+                "`deprecated_module()` called without `module_name` and caller frame `__name__` not found."
+            )
+        module_name = caller_name
 
     if module_name not in sys.modules:
         raise ValueError(f"`deprecated_module()` called with {module_name!r} which is not in `sys.modules`.")
@@ -252,6 +264,17 @@ def deprecated_module(
             stacklevel=2,
         )
         vars(mod)["__deprecated_existing_getattr__"] = existing_getattr
+
+    # Warn when the module has a custom __class__ (e.g. installed by a lazy-loader like
+    # importlib.util.LazyLoader). Overwriting it silently would discard its behaviour.
+    if type(mod) is not types.ModuleType:
+        warnings.warn(
+            f"`deprecated_module`: module {module_name!r} already has a custom `__class__`"
+            f" ({type(mod).__name__!r}) — overwriting with `_DeprecatedModuleWrapper`;"
+            " any behaviour from the prior subclass is lost.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     # Change __class__ to enable __getattribute__ interception of ALL public attribute accesses,
     # including real attributes already in __dict__ that PEP 562 __getattr__ cannot reach.

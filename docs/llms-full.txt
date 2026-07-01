@@ -116,7 +116,8 @@ OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
 # old_func.py — call once at the bottom
 from deprecate import deprecated_module
 
-deprecated_module(__name__, deprecated_in="1.0", remove_in="2.0")
+# module_name is optional — auto-detected from caller __name__
+deprecated_module(deprecated_in="1.0", remove_in="2.0")
 # old_func.any_attr  # warns: FutureWarning: The `old_func` module was deprecated since v1.0. It will be removed in v2.0.
 ```
 
@@ -128,8 +129,7 @@ from deprecate import deprecated_module
 import new_func as _new_func
 
 deprecated_module(
-    __name__,
-    target=_new_func,  # missing attrs forwarded here
+    target=_new_func,  # missing attrs forwarded here; module_name auto-detected
     deprecated_in="1.0",
     remove_in="2.0",
 )
