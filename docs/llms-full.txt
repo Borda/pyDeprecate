@@ -110,14 +110,26 @@ OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
 
 ### Module deprecation
 
+**Mode 1 — in-place warn** (keep module, warn on every public attribute access including real ones):
+
 ```python
-# old_calculator.py — call once at the bottom
+# old_func.py — call once at the bottom
 from deprecate import deprecated_module
-import new_calculator as _new_calculator
+
+deprecated_module(__name__, deprecated_in="1.0", remove_in="2.0")
+# old_func.any_attr  # warns: FutureWarning: The `old_func` module was deprecated since v1.0. It will be removed in v2.0.
+```
+
+**Mode 2 — redirect** (forward missing-attr lookups to replacement module):
+
+```python
+# old_func.py — call once at the bottom
+from deprecate import deprecated_module
+import new_func as _new_func
 
 deprecated_module(
     __name__,
-    target=_new_calculator,  # old_name — all unknown attrs forwarded here
+    target=_new_func,  # missing attrs forwarded here
     deprecated_in="1.0",
     remove_in="2.0",
 )

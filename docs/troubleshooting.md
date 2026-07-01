@@ -1637,19 +1637,17 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 ______________________________________________________________________
 
-## Module deprecation: real attributes do not warn (PEP 562 gap)
+## Module deprecation: accessing a missing attribute raises AttributeError
 
-**Q:** I called `deprecated_module()` on my module but accessing functions defined in that module does not emit any `FutureWarning`. Why?
+**Q:** I called `deprecated_module()` in Mode 1 (no `target=`). Real attributes warn correctly, but accessing a name that is not in the module raises `AttributeError` instead of just warning. Is there a way to forward missing-attr lookups to a replacement module?
 
-**A:** Python's PEP 562 `__getattr__` hook fires only when an attribute name is **not** already present in the module's `__dict__`. Functions, classes, and constants defined directly in the module are stored in `__dict__` at import time, so accessing them bypasses `__getattr__` entirely — no warning is emitted.
+**A:** Yes — that is exactly what Mode 2 (`target=new_module`) does. Mode 1 intercepts every public attribute access (real or missing) via `__getattribute__`, so real attributes warn and are returned. However, for names **not** in the module's `__dict__`, Mode 1 raises `AttributeError` after warning because there is no target to forward to.
 
-`deprecated_module()` Mode 1 (no `target=`) is useful for warning on truly absent names (legacy symbols, re-export names that were never real attributes), but it cannot intercept access to real attributes in the same module.
-
-**Fix — use Mode 2 (redirect):** move the implementation to the new module and leave the old module empty except for the `deprecated_module()` call with `target=new_module`. Every attribute lookup then falls through to `__getattr__`, which emits the warning and forwards to the new module.
+If you want unknown names to warn **and** resolve, switch to Mode 2:
 
 ```python
 # phmdoctest:skip — CI template; new_calculator is not installed
-# old_calculator.py — only the redirect call; no real attrs defined here
+# old_calculator.py — redirect missing-attr lookups to new_calculator
 import new_calculator as _new_calculator
 from deprecate import deprecated_module
 
@@ -1674,8 +1672,6 @@ ______________________________________________________________________
 This limitation applies to both Mode 1 and Mode 2 of `deprecated_module()`.
 
 **Recommendation:** Document the deprecation prominently in the module's docstring and in your release notes. For callers you control, replace `from old_calculator import *` with `from new_calculator import ...` directly. For third-party callers, the warning will appear as soon as they switch from star imports to explicit attribute access or named imports.
-
-______________________________________________________________________
 
 ______________________________________________________________________
 

@@ -34,6 +34,10 @@ def multiply(a: float, b: float) -> float:
 
 
 # Mark this module deprecated — call once at the bottom.
+# Without message=, the warning reads:
+#   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0.
+# With message= (as below), it appends your text:
+#   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0. Use `new_calculator` instead.
 deprecated_module(
     __name__,
     deprecated_in="2.0",
@@ -46,7 +50,7 @@ deprecated_module(
 
 ## Mode 2 — redirect to a replacement module
 
-Use this when you rename an entire module. All attribute access on the old module name is forwarded to `new_calculator`, so callers get both a warning and the correct value regardless of which name they access.
+Use this when you rename an entire module. Attribute lookups that are missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly — they warn but are not forwarded.
 
 ```python
 # phmdoctest:skip — CI template; new_calculator is not installed
@@ -71,11 +75,11 @@ deprecated_module(
 Now `import old_calculator; old_calculator.add(1, 2)` emits a `FutureWarning` and returns the result from `new_calculator.add`. The `attrs_mapping` parameter lets you rename specific attributes during the redirect:
 
 ```python
-from deprecate import deprecated_module
-
 # phmdoctest:skip — attrs_mapping continuation; requires new_calculator
 # Map old attr name to new attr name, or to None to raise AttributeError.
 # Keys are the names callers use today (the original API names).
+from deprecate import deprecated_module
+
 deprecated_module(
     __name__,
     target=_new_calculator,

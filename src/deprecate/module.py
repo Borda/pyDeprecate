@@ -80,7 +80,16 @@ def _resolve_missing_attr(
     d: dict[str, Any],
     config: Optional[DeprecationConfig],
 ) -> Any:  # noqa: ANN401
-    """Resolve a public attribute that is absent from ``__dict__``; raise ``AttributeError`` when unresolvable."""
+    """Resolve a public attribute that is absent from the module's ``__dict__``.
+
+    Resolution order:
+
+    1. If ``name`` is in ``attrs_mapping``: apply the mapping (rename or raise ``AttributeError`` for ``None`` values).
+    2. If a redirect ``target`` module is set: delegate via :func:`getattr` on the target.
+    3. If a pre-existing PEP 562 ``__getattr__`` was preserved: delegate to it.
+    4. Otherwise: raise ``AttributeError``.
+
+    """
     attrs_mapping: Optional[dict[str, Optional[str]]] = config.attrs_mapping if config else None
     # target is types.ModuleType in redirect mode; a TargetMode sentinel in in-place mode.
     target: Optional[types.ModuleType] = (
@@ -187,6 +196,8 @@ def deprecated_module(
 
     Raises:
         ValueError: If ``module_name`` is not found in :data:`sys.modules`.
+        TypeError: If the module's type declares ``__slots__`` (incompatible memory layout prevents
+            ``__class__`` reassignment).  Wrap in a plain :class:`types.ModuleType` first if needed.
 
     Examples:
         >>> import sys, types
