@@ -11,5 +11,5 @@ deprecate.deprecated_module(
     __name__,
     target=new_utils,
     deprecated_in="1.0",
-    remove_in="2.0",
+    remove_in="2.0"
 )
