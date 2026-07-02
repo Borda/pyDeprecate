@@ -18,8 +18,6 @@
 
 ### Fixed
 
-- **Deprecated proxies now support `copy.copy`, `copy.deepcopy`, and `pickle`.** Copying or pickling any `deprecated_class`/`deprecated_instance` proxy previously crashed with `RecursionError` — the `_cfg` property and `__getattr__` fell into infinite mutual recursion on half-initialized instances. Proxies now implement the copy/pickle protocol and reconstruct a functional proxy. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
-
 - **Proxy introspection no longer consumes the warning budget.** `hasattr()` probes on missing attributes, `copy.deepcopy` protocol lookups, and dunder access (e.g. `__mro__` reads by doc tools) previously emitted the deprecation warning and exhausted the default `num_warns=1` budget before any real usage. Warnings now fire only on successful non-dunder attribute access. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
 - **`isinstance(obj, WrappedType)` is now transparent for proxied instances.** `_DeprecatedProxy` exposes a `__class__` property returning the active object's type, so type checks in downstream code (JSON encoders, validators, `functools.singledispatch`) keep working when an object is wrapped; `type(proxy)` still reveals the proxy. ([#210](https://github.com/Borda/pyDeprecate/pull/210))

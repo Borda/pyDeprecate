@@ -3,7 +3,6 @@
 import abc
 import copy
 import inspect
-import pickle
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
@@ -2391,86 +2390,6 @@ class TestPositionalOnlyForwarding:
             instance = DepPositionalOnlyMixed(1, old_x=5)  # type: ignore[call-arg]
         assert instance.w == 1
         assert instance.x == 5
-
-
-class TestProxyCopyPickle:
-    """``copy.copy`` / ``copy.deepcopy`` / pickle round-trips reconstruct the proxy.
-
-    A library ships a deprecated module-level config dict wrapped in ``deprecated_instance``;
-    downstream consumers routinely snapshot such configs with ``copy``/``deepcopy`` or ship them
-    across process boundaries via pickle.  All three must return a working proxy (deprecation
-    semantics preserved) instead of crashing with ``RecursionError``.
-    """
-
-    def test_copy_returns_proxy_wrapping_copied_object(self) -> None:
-        """A consumer takes a shallow working copy of a deprecated config dict.
-
-        The copy must be a proxy again (the deprecation travels with the object) and must wrap
-        an independent shallow copy — mutating the copy must not touch the original config.
-        """
-        proxy = deprecated_instance({"threshold": 0.5}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        dup = copy.copy(proxy)
-        assert type(dup) is _DeprecatedProxy
-        assert dup["threshold"] == 0.5
-        dup["threshold"] = 0.9
-        assert proxy["threshold"] == 0.5
-
-    def test_deepcopy_returns_proxy_with_independent_nested_state(self) -> None:
-        """A consumer deep-copies a deprecated nested config before mutating it.
-
-        ``deepcopy`` of the proxy must deep-copy the wrapped object so nested containers are
-        fully independent of the original.
-        """
-        proxy = deprecated_instance(
-            {"limits": {"low": 1}}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None
-        )
-        dup = copy.deepcopy(proxy)
-        assert type(dup) is _DeprecatedProxy
-        dup["limits"]["low"] = 99
-        assert proxy["limits"]["low"] == 1
-
-    def test_copy_preserves_deprecation_metadata(self) -> None:
-        """Audit tools must still discover a copied proxy via its ``__deprecated__`` metadata."""
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        dup = copy.copy(proxy)
-        meta = object.__getattribute__(dup, "__deprecated__")
-        assert meta.name == "cfg"
-        assert meta.deprecated_in == "1.0"
-        assert meta.remove_in == "2.0"
-
-    def test_pickle_roundtrip_preserves_proxy_and_warning(self) -> None:
-        """A deprecated config object crosses a process boundary via pickle.
-
-        The unpickled object must be a proxy again with intact metadata and default warning
-        stream — the first real access on the restored proxy still emits ``FutureWarning``.
-        """
-        proxy = deprecated_instance({"k": 41}, name="cfg", deprecated_in="1.0", remove_in="2.0")
-
-        restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
-        assert type(restored) is _DeprecatedProxy
-        assert object.__getattribute__(restored, "__deprecated__").name == "cfg"
-        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
-            assert restored["k"] == 41
-
-    def test_deepcopy_of_class_proxy_keeps_wrapped_class(self) -> None:
-        """Deep-copying a deprecated class alias keeps forwarding to the same target class.
-
-        Classes are atomic under ``deepcopy``, so the copied proxy must forward to the identical
-        target class object.
-        """
-        dup = copy.deepcopy(DeprecatedColorEnum)
-        assert type(dup) is _DeprecatedProxy
-        assert dup.RED is ColorEnum.RED
-
-    def test_uninitialised_instance_raises_attribute_error(self) -> None:
-        """Copy/pickle machinery creates instances via ``cls.__new__(cls)`` with no config set.
-
-        Attribute access on such a half-initialised proxy must raise a clean ``AttributeError``
-        (routing back into ``__getattr__`` must not recurse into the ``_cfg`` property again).
-        """
-        blank = _DeprecatedProxy.__new__(_DeprecatedProxy)
-        with pytest.raises(AttributeError):
-            _ = blank.anything
 
 
 class TestProxyIntrospectionProbes:
