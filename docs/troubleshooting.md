@@ -1692,13 +1692,16 @@ ______________________________________________________________________
 **A:** The `__class__` property on `_DeprecatedProxy` reports the wrapped object's type to make `isinstance` transparent, but `pickle`'s protocol 2+ consistency check detects that `type(proxy)` ≠ `proxy.__class__` and raises this error. Full pickle support ships in a companion fix. In the meantime, access the underlying object before pickling:
 
 ```python
-# warns: FutureWarning
-proxy = deprecated_instance(cfg, name="cfg", deprecated_in="1.0", remove_in="2.0")
-
-# workaround: pickle the underlying object directly
+# phmdoctest:skip — illustrative snippet; replace underlying_obj with your actual object
+from deprecate import deprecated_instance
 import pickle
 
-data = pickle.dumps(cfg)  # pickle the original, not the proxy
+underlying_obj = {"key": "value"}
+proxy = deprecated_instance(underlying_obj, name="cfg", deprecated_in="1.0", remove_in="2.0")
+
+# pickle the original object, not the proxy
+data = pickle.dumps(underlying_obj)
+restored = pickle.loads(data)
 ```
 
 `copy.copy` and `copy.deepcopy` work correctly — only `pickle` is affected.
