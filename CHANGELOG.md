@@ -12,6 +12,8 @@
 
 - **`validate_deprecation_expiry()` now scans class members by default (`include_members=True`).** Previously the expiry gate defaulted to `include_members=False` while `find_deprecation_wrappers()` defaulted to `True`, so CI gates silently skipped expired deprecated methods, constructors, classmethods, staticmethods, and properties. The flip can only surface additional expired wrappers — pass `include_members=False` explicitly to restore the old scope. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
+- **`proxy.__class__` now reports the wrapped object's type for `isinstance` transparency.** `_DeprecatedProxy` exposes a `__class__` property returning the active object's type, so type checks in downstream code (JSON encoders, validators, `functools.singledispatch`) keep working when an object is wrapped; `type(proxy)` still reveals the proxy. Code that previously detected the proxy via `obj.__class__ is _DeprecatedProxy` should use `type(obj) is _DeprecatedProxy` instead. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
 ### Deprecated
 
 ### Removed
@@ -19,8 +21,6 @@
 ### Fixed
 
 - **Proxy introspection no longer consumes the warning budget.** `hasattr()` probes on missing attributes, `copy.deepcopy` protocol lookups, and dunder access (e.g. `__mro__` reads by doc tools) previously emitted the deprecation warning and exhausted the default `num_warns=1` budget before any real usage. Warnings now fire only on successful non-dunder attribute access. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
-
-- **`isinstance(obj, WrappedType)` is now transparent for proxied instances.** `_DeprecatedProxy` exposes a `__class__` property returning the active object's type, so type checks in downstream code (JSON encoders, validators, `functools.singledispatch`) keep working when an object is wrapped; `type(proxy)` still reveals the proxy. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
 - **Sources with positional-only parameters no longer raise `TypeError` on every call.** `@deprecated` on `def f(a, /, b=2)` previously failed at call time in the default notify mode and `TargetMode.ARGS_REMAP` because positional-only arguments were re-passed as keywords; they are now split back out positionally for both sync and async sources. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 

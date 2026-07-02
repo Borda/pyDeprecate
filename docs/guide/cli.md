@@ -59,7 +59,7 @@ pydeprecate status tests --version 1.2
     # explicit version
     pydeprecate expiry path/to/your/package --version 2.0.0
 
-    # auto-detect version (nearest pyproject.toml above the path, else installed metadata)
+    # auto-detect version (searches up to 2 parent directories for pyproject.toml, else installed metadata)
     pydeprecate expiry path/to/your/package
     ```
 
@@ -111,7 +111,7 @@ pydeprecate status tests --version 1.2
 | `--style`           |         |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                |                                                                                                      |
 | `--output FILE`     |         |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                   |                                                                                                      |
 
-`--version` auto-detect: when the scanned argument is an existing *path*, the nearest `pyproject.toml` above it wins (reflecting local development checkouts whose version may differ from the installed distribution), falling back to installed package metadata. A bare module *name* skips the `pyproject.toml` lookup entirely, so it can never pick up an unrelated project's version from your current working directory.
+`--version` auto-detect: when the scanned argument is an existing *path*, `_read_pyproject_version` searches the current directory and up to 2 parent directories for a `pyproject.toml` (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module *name* skips the `pyproject.toml` lookup entirely, so it can never pick up an unrelated project's version from your current working directory.
 
 ## Exit codes
 

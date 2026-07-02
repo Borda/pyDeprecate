@@ -107,7 +107,7 @@ efg
 
 Heads up: primitive protocol methods (arithmetic on `float`, concatenation on `str`) are not intercepted by the proxy. For primitive constants, wrap them in a container or update call sites directly. See [Troubleshooting](../troubleshooting.md#why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators) for details.
 
-The proxy is transparent to introspection: `isinstance(DEFAULTS, dict)` is `True` (the proxy reports the wrapped object's type through `__class__`). Introspection stays silent: `isinstance` checks, dunder reads, and failed `hasattr` probes emit no warning and do not consume the `num_warns` budget.
+The proxy is transparent to introspection: `isinstance(DEFAULTS, dict)` is `True` (the proxy reports the wrapped object's type through `__class__`). Note: `type(DEFAULTS)` still returns `_DeprecatedProxy` — only `isinstance` (which honours `__class__`) is transparent. Code using strict `type()` equality checks will still see the wrapper type; use `type(DEFAULTS)` to detect the proxy explicitly. Introspection stays silent: `isinstance` checks, dunder reads, and failed `hasattr` probes emit no warning and do not consume the `num_warns` budget.
 
 ```python
 from deprecate import deprecated_instance
