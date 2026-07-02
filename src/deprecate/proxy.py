@@ -24,11 +24,13 @@ Example:
 
 """
 
+import copy
 import inspect
 import types
 import warnings
 from collections.abc import Iterator
-from typing import Any, Callable, Literal, Optional, Union, cast
+from dataclasses import replace
+from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
 
 from deprecate._types import (
     DeprecationConfig,
@@ -598,7 +600,14 @@ class _DeprecatedProxy:
         wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
 
         """
-        attrs_mapping = self._cfg.attrs_mapping
+        # Half-initialised instance guard (``cls.__new__(cls)`` during copy/pickle reconstruction): the ``_cfg``
+        # property raises AttributeError when ``__config`` is missing, which Python routes back into __getattr__ —
+        # touching ``self._cfg`` here again would mutually recurse (property ↔ __getattr__) into RecursionError.
+        try:
+            cfg = cast(_ProxyConfig, object.__getattribute__(self, "_DeprecatedProxy__config"))
+        except AttributeError:
+            raise AttributeError(name) from None
+        attrs_mapping = cfg.attrs_mapping
         if attrs_mapping is not None:
             if name in attrs_mapping:
                 self._warn(arg_name=f"__attr__:{name}")
@@ -611,7 +620,7 @@ class _DeprecatedProxy:
                     except AttributeError:
                         # Attribute absent from target — fall back to source. Covers the "being-removed" pattern where
                         # the deprecated attribute still lives on the old class but was dropped from the new target.
-                        attr = getattr(self._cfg.obj, attr_name)
+                        attr = getattr(cfg.obj, attr_name)
                     return self._guard_read_only_mutator(attr, attr_name)
                 attr = getattr(active, attr_name)
                 return self._guard_read_only_mutator(attr, attr_name)
@@ -811,6 +820,55 @@ class _DeprecatedProxy:
         return bool(self._get_active())
 
     # ------------------------------------------------------------------
+    # Copy / pickle protocol — no warning emitted (structural machinery)
+    #
+    # Semantics: a copy (shallow, deep, or pickle round-trip) is a *proxy again* — the
+    # deprecation travels with the object so a copied deprecated config keeps warning during
+    # the migration window. The wrapped object is copied per the respective protocol; the
+    # frozen DeprecationConfig metadata is preserved; the warn-budget counters are snapshotted.
+    # ------------------------------------------------------------------
+
+    def __copy__(self) -> "_DeprecatedProxy":
+        """Return a new proxy wrapping a shallow copy of the wrapped object.
+
+        Deprecation metadata (frozen, immutable) is shared; the mutable warn-budget counters are snapshotted into an
+        independent config so the copy warns independently from the original.
+
+        """
+        cfg = self._cfg
+        new_cfg = replace(cfg, obj=copy.copy(cfg.obj), warned_args=dict(cfg.warned_args))
+        return _reconstruct_proxy(new_cfg, self._dep, object.__getattribute__(self, "__dict__").get("__doc__"))
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_DeprecatedProxy":
+        """Return a new proxy deep-copying the wrapped object (and any instance target).
+
+        Registers the new proxy in *memo* before descending so self-referential structures that contain the proxy deep-
+        copy without infinite recursion.
+
+        """
+        cls = type(self)
+        new = cls.__new__(cls)
+        memo[id(self)] = new
+        object.__setattr__(new, "_DeprecatedProxy__config", copy.deepcopy(self._cfg, memo))
+        object.__setattr__(new, "__deprecated__", copy.deepcopy(self._dep, memo))
+        doc = object.__getattribute__(self, "__dict__").get("__doc__")
+        if doc is not None:
+            object.__setattr__(new, "__doc__", doc)
+        return new
+
+    def __reduce_ex__(self, protocol: SupportsIndex) -> tuple[Any, ...]:
+        """Support pickling: reconstruct the proxy from its two config dataclasses.
+
+        The default ``object.__reduce_ex__`` probes attributes through ``__getattr__`` and cannot
+        rebuild an instance whose state lives behind ``object.__setattr__``; this override pickles
+        the runtime config and frozen metadata directly and rebuilds via
+        :func:`~deprecate.proxy._reconstruct_proxy` without re-running ``__init__`` validation.
+
+        """
+        doc = object.__getattribute__(self, "__dict__").get("__doc__")
+        return (_reconstruct_proxy, (self._cfg, self._dep, doc))
+
+    # ------------------------------------------------------------------
     # Type protocol — supports isinstance/issubclass against a proxy
     # ------------------------------------------------------------------
 
@@ -861,6 +919,33 @@ class _DeprecatedProxy:
             # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
             return issubclass(subclass, active)
         return False
+
+
+def _reconstruct_proxy(
+    cfg: _ProxyConfig,
+    dep: DeprecationConfig,
+    doc: Optional[str],
+) -> "_DeprecatedProxy":
+    """Rebuild a :class:`_DeprecatedProxy` from its config dataclasses without re-running ``__init__``.
+
+    Used by ``__copy__`` and as the pickle reconstructor in ``__reduce_ex__``: re-running
+    ``__init__`` would repeat decoration-time validation and misconfiguration warnings, so the
+    state is re-attached directly via ``object.__setattr__`` (bypassing the proxy's forwarding
+    ``__setattr__``).
+
+    Args:
+        cfg: Private mutable runtime state for the new proxy.
+        dep: Frozen deprecation metadata (shared or copied by the caller as appropriate).
+        doc: Instance-level ``__doc__`` mirrored from the wrapped object, or ``None`` when the
+            original proxy carried no instance docstring.
+
+    """
+    proxy = _DeprecatedProxy.__new__(_DeprecatedProxy)
+    object.__setattr__(proxy, "_DeprecatedProxy__config", cfg)
+    object.__setattr__(proxy, "__deprecated__", dep)
+    if doc is not None:
+        object.__setattr__(proxy, "__doc__", doc)
+    return proxy
 
 
 def _proxy_call_args_remap(

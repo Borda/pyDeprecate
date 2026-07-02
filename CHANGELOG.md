@@ -16,6 +16,8 @@
 
 ### Fixed
 
+- **Deprecated proxies now support `copy.copy`, `copy.deepcopy`, and `pickle`.** Copying or pickling any `deprecated_class`/`deprecated_instance` proxy previously crashed with `RecursionError` — the `_cfg` property and `__getattr__` fell into infinite mutual recursion on half-initialized instances. Proxies now implement the copy/pickle protocol and reconstruct a functional proxy. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
 - **Circular deprecation chains now raise `RuntimeError` at call time.** Callable `target` chains that form a cycle (A → B → A) previously caused unbounded recursion and a `RecursionError`. The decorator now detects the cycle via a `ContextVar` re-entrancy guard and raises a clear `RuntimeError` naming the circular path. Async deprecation cycle detection was also improved to avoid false positives from concurrent tasks sharing a threading-local guard. ([#200](https://github.com/Borda/pyDeprecate/pull/200))
 
 - **`_StrictProperty` `TypeError` message now references the correct module path.** The error previously pointed to `deprecate._StrictProperty`; corrected to `deprecate.deprecation._StrictProperty`, which is the actual import path.
