@@ -3,6 +3,7 @@
 import abc
 import copy
 import inspect
+import pickle
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
@@ -2508,3 +2509,38 @@ class TestProxyClassProperty:
         assert not caught
         with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
             _ = proxy.get
+
+
+class TestProxyPickleLimitation:
+    """``pickle`` raises a curated ``TypeError`` for deprecation proxies.
+
+    The ``__class__`` property reports the wrapped object's type for ``isinstance``
+    transparency, but ``object.__reduce_ex__`` (protocol ≥ 2) uses ``__class__`` to build
+    ``__newobj__`` args and then asserts ``type(self) == __class__``.  The mismatch raises a
+    cryptic ``PicklingError``.  The curated ``__reduce_ex__`` raises ``TypeError`` with a
+    message naming the wrapped object and explaining how to work around the limitation.
+
+    Full copy/pickle proxy support ships in a companion fix.
+    """
+
+    def test_pickle_dumps_raises_type_error(self) -> None:
+        """``pickle.dumps`` on a deprecated-instance proxy raises ``TypeError`` with a curated message.
+
+        Before the fix, the error was ``PicklingError: args[0] from __newobj__ args has the wrong
+        class`` — the ``__class__`` property returned ``dict`` while ``type(proxy)`` was
+        ``_DeprecatedProxy``.  The curated error names the wrapped object and links to the workaround.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with pytest.raises(TypeError, match=r"cannot be pickled directly"):
+            pickle.dumps(proxy)
+
+    def test_copy_deepcopy_still_works(self) -> None:
+        """``copy.deepcopy`` returns a correct proxy — only ``pickle`` is limited.
+
+        ``copy`` dispatches on ``type()``, not ``__class__``, so deepcopy is unaffected.
+        The returned proxy is a fresh ``_DeprecatedProxy`` wrapping a deep copy of the original.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        cloned = copy.deepcopy(proxy)
+        assert isinstance(cloned, _DeprecatedProxy)
+        assert cloned["k"] == 1

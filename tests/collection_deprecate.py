@@ -115,6 +115,7 @@ from tests.collection_targets import (
     timing_wrapper,
     tracked_identity,
     trio_positional_target,
+    var_positional_remap_body,
     var_positional_target,
 )
 
@@ -2147,6 +2148,19 @@ def deprecated_var_positional_to_fixed(a: int, *extras: int) -> int:
 def deprecated_var_positional_overflow(a: int, *extras: int) -> int:
     """Deprecated ``*args`` source whose surplus tail cannot fit the single-slot target."""
     return 0
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_kwarg": "new_kwarg"})
+def deprecated_var_positional_remap(a: int, *extras: int, old_kwarg: str = "", new_kwarg: str = "") -> tuple:
+    """ARGS_REMAP ``*args`` source — ``old_kwarg`` renamed to ``new_kwarg``.
+
+    Regression fixture for the double-pass bug: without the fix, calling with ``old_kwarg``
+    raised ``TypeError: got multiple values for argument 'a'`` because ``resolved_kwargs``
+    included positional-to-keyword conversions already present in ``*extras``.
+
+    Wrapped body is :func:`tests.collection_targets.var_positional_remap_body`.
+    """
+    return var_positional_remap_body(a, *extras, old_kwarg=old_kwarg, new_kwarg=new_kwarg)
 
 
 # ========== Gapped POSITIONAL_ONLY forwarding fixtures ==========

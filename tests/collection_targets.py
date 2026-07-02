@@ -821,3 +821,11 @@ async def async_non_cycle_double(x: int) -> int:
     Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
     """
     return x * 2
+
+
+def var_positional_remap_body(a: int, *extras: int, old_kwarg: str = "", new_kwarg: str = "") -> tuple:
+    """Source body for ARGS_REMAP test with ``*args`` — receives remapped ``new_kwarg`` from caller's ``old_kwarg``.
+
+    Wrapped by ``deprecated_var_positional_remap`` in :mod:`tests.collection_deprecate`.
+    """
+    return (a, *extras, new_kwarg)

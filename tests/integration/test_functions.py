@@ -54,6 +54,7 @@ from tests.collection_deprecate import (
     deprecated_async_var_positional_forward,
     deprecated_var_positional_forward,
     deprecated_var_positional_overflow,
+    deprecated_var_positional_remap,
     deprecated_var_positional_to_fixed,
     wrapped_pow_self,
     wrapped_pow_skip_if_func,
@@ -700,3 +701,27 @@ class TestVarPositionalForwarding:
         with pytest.warns(FutureWarning):
             result = await deprecated_async_var_positional_forward(1, 2, 3)
         assert result == 6
+
+    def test_args_remap_with_var_positional_no_double_pass(self) -> None:
+        """ARGS_REMAP on a ``*args`` source must not double-pass named positionals.
+
+        When a source declares ``*args`` and ``args_mapping`` fires (caller used the old kwarg
+        name), the wrapper used to build ``kw_args`` from ``resolved_kwargs``, which contains
+        positional-to-keyword conversions for every named positional (e.g. ``a``).  Calling
+        ``source(*args, **kw_args)`` then raised ``TypeError: got multiple values for argument 'a'``
+        even though the call was perfectly valid.  The fix builds ``kw_args`` from
+        ``original_kwargs`` (caller-supplied keywords only) and applies the mapping there, so
+        the positional slot ``a`` is carried by ``*args`` and never appears in ``kw_args``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_remap(1, 2, 3, old_kwarg="hello")
+        assert result == (1, 2, 3, "hello")
+
+    def test_args_remap_with_var_positional_migrated_caller(self) -> None:
+        """Migrated caller (using new kwarg name) must not warn or raise.
+
+        A caller already using ``new_kwarg`` produces an empty ``reason_argument`` — the
+        short-circuit path should pass through without any warning.
+        """
+        result = deprecated_var_positional_remap(1, 2, new_kwarg="world")
+        assert result == (1, 2, "world")

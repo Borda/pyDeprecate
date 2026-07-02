@@ -1473,8 +1473,10 @@ def _resolve_source_call_shape(
 
     Covers the short-circuit (migrated caller) and no-target (NOTIFY / ARGS_REMAP) branches:
 
-    - ``*args`` sources keep their original positional tuple; kwargs are the original ones
-      unless an argument-rename reason fired (then the remapped ``resolved_kwargs``).
+    - ``*args`` sources keep their original positional tuple; kwargs are the original caller-
+      supplied keywords only (never ``resolved_kwargs``, which also contains positional-to-keyword
+      conversions that would double-pass with ``*args``).  When an arg-rename reason fires,
+      the mapping is applied to ``original_kwargs`` directly, and ``args_extra`` is merged last.
     - Sources declaring POSITIONAL_ONLY params get those split back out of the resolved
       kwargs — the wrapper converted them to keyword form internally, but the source body
       cannot accept them as keywords.
@@ -1482,7 +1484,19 @@ def _resolve_source_call_shape(
 
     """
     if source_has_var_positional:
-        kw_args = plan.original_kwargs if plan.short_circuit or not plan.reason_argument else plan.resolved_kwargs
+        if plan.short_circuit or not plan.reason_argument:
+            kw_args = plan.original_kwargs
+        else:
+            # Use caller-supplied keywords only (not resolved_kwargs, which also contains
+            # positional-to-keyword conversions that would double-pass with *args).
+            mapping = dep_cfg.args_mapping or {}
+            kw_args = {
+                (mapping.get(k) or k): v
+                for k, v in plan.original_kwargs.items()
+                if k not in mapping or mapping[k] is not None
+            }
+            if dep_cfg.args_extra:
+                kw_args.update(dep_cfg.args_extra)
         return list(args), kw_args
     if dep_cfg.source_positional_only:
         return _split_positional_only_kwargs(

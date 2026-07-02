@@ -1685,6 +1685,26 @@ The scan results are complete for every module that imported successfully; only 
 
 ______________________________________________________________________
 
+## TypeError: `<obj>` is wrapped in a deprecation proxy and cannot be pickled directly
+
+**Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
+
+**A:** The `__class__` property on `_DeprecatedProxy` reports the wrapped object's type to make `isinstance` transparent, but `pickle`'s protocol 2+ consistency check detects that `type(proxy)` ≠ `proxy.__class__` and raises this error. Full pickle support ships in a companion fix. In the meantime, access the underlying object before pickling:
+
+```python
+# warns: FutureWarning
+proxy = deprecated_instance(cfg, name="cfg", deprecated_in="1.0", remove_in="2.0")
+
+# workaround: pickle the underlying object directly
+import pickle
+
+data = pickle.dumps(cfg)  # pickle the original, not the proxy
+```
+
+`copy.copy` and `copy.deepcopy` work correctly — only `pickle` is affected.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

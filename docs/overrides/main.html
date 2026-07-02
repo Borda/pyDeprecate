@@ -340,6 +340,14 @@
             "@type": "Answer",
             "text": "Recursive audit scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just ImportError — pyDeprecate emits UserWarning 'audit: skipped <module>: <exception>' and continues scanning instead of aborting. Results are complete for every module that imported successfully; investigate and fix the named submodule to include its deprecations in the scan."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does pickle.dumps raise TypeError on a deprecated_instance proxy?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The __class__ property on _DeprecatedProxy reports the wrapped object's type to make isinstance transparent, but pickle's protocol 2+ consistency check detects that type(proxy) != proxy.__class__ and raises TypeError. Use copy.copy or copy.deepcopy (which are unaffected) or pickle the underlying object directly instead of the proxy. Full pickle support ships in a companion fix."
+          }
         }
       ]
     }
