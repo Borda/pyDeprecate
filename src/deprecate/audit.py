@@ -701,7 +701,7 @@ def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
-    include_members: bool = False,
+    include_members: bool = True,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.
 
@@ -721,7 +721,10 @@ def validate_deprecation_expiry(
             If None, attempts to auto-detect the version using the package name from the module path (e.g.,
             ``"mypackage"`` extracts ``mypackage`` as package name).
         recursive: If True (default), recursively scan submodules. If False, only scan the top-level module.
-        include_members: If True, also scan deprecated class members (methods, constructors).
+        include_members: If True (default), also scan deprecated class members (methods, constructors,
+            classmethods, staticmethods, properties) — matching the discovery default of
+            :func:`~deprecate.audit.find_deprecation_wrappers`, so the enforcement gate sees everything
+            discovery and reporting see.
 
     Returns:
         List of error messages for callables that have expired (past their removal deadline).
@@ -736,8 +739,8 @@ def validate_deprecation_expiry(
 
         >>> # Check with version past some removal deadlines
         >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
-        >>> print(len(expired))  # Some functions have remove_in="0.5"
-        28
+        >>> print(len(expired))  # Some functions and class members have remove_in <= "0.5"
+        31
 
     !!! note
         - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
@@ -911,6 +914,10 @@ def find_deprecation_wrappers(
 
     Note:
         - Requires that the module be importable
+        - Recursive scans import every submodule of the package, executing their module-level code; packages
+          with heavy import-time work (GPU init, network access) make the scan correspondingly expensive
+        - Skips submodules that fail to import — any exception raised by module-level code is reported as a
+          ``UserWarning`` (``audit: skipped <module>: ...``) and the scan continues
         - Inspects the ``__deprecated__`` attribute set by the :func:`~deprecate.deprecated` decorator
         - Skips private/magic attributes and imports from other modules
         - Uses static member inspection to avoid scan-time side effects from dynamic attribute access
@@ -933,9 +940,16 @@ def find_deprecation_wrappers(
             packages = []
 
         for _importer, modname, _ispkg in packages:
-            with suppress(ImportError, ModuleNotFoundError):
+            # Submodule top-level code can raise anything at import time (RuntimeError, OSError, KeyError from
+            # env lookups, ...), not just ImportError. One broken submodule must not abort the whole scan — and
+            # with it every audit gate built on top — so catch broad Exception, keep the signal via a warning,
+            # and continue with the remaining submodules.
+            try:
                 submod = importlib.import_module(modname)
-                results.extend(_scan_module(submod, include_members=include_members))
+            except Exception as exc:
+                warnings.warn(f"audit: skipped {modname}: {exc!r}", stacklevel=2)
+                continue
+            results.extend(_scan_module(submod, include_members=include_members))
 
     return results
 

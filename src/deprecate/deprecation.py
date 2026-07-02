@@ -674,8 +674,10 @@ def _split_positional_only_kwargs(
     param_order: tuple[str, ...],
     resolved_kwargs: dict[str, Any],
     positional_only: frozenset[str],
+    *,
+    consumed: int = 0,
 ) -> tuple[list[Any], dict[str, Any]]:
-    """Split ``resolved_kwargs`` into positional args and remaining kwargs for a target with POSITIONAL_ONLY params.
+    """Split ``resolved_kwargs`` into positional args and remaining kwargs for a callable with POSITIONAL_ONLY params.
 
     Extracts values for ``positional_only`` names from ``resolved_kwargs`` in parameter-declaration order
     so they can be forwarded positionally.  Also extracts ``self``/``cls`` when they are the *first*
@@ -684,24 +686,53 @@ def _split_positional_only_kwargs(
     argument.  The first-parameter restriction avoids incorrectly extracting a non-receiver parameter
     that happens to be named ``self`` or ``cls``.  Remaining entries stay in the returned kwargs dict.
 
+    Positional binding at the call site is by *slot*, not by name: when an earlier positional-only
+    parameter is absent from ``resolved_kwargs`` (a *gap* — safe only when nothing follows, since
+    defaults trail), a value present for a *later* positional-only parameter would silently bind to
+    the wrong slot.  That case raises :class:`TypeError` instead of misbinding.
+
     Args:
-        param_order: Pre-computed parameter-name sequence of the target callable in declaration order.
-            Stored on :attr:`~deprecate._types.DeprecationConfig.target_positional_only_order` to avoid
+        param_order: Pre-computed parameter-name sequence of the callable in declaration order.
+            Stored on :attr:`~deprecate._types.DeprecationConfig.target_positional_only_order` /
+            :attr:`~deprecate._types.DeprecationConfig.source_positional_only_order` to avoid
             re-calling ``inspect.signature`` on every dispatch.
-        resolved_kwargs: Full kwargs dict assembled by :func:`_build_call_plan`.
+        resolved_kwargs: Full kwargs dict assembled by :func:`_build_call_plan` (or the proxy's
+            mapped kwargs).
         positional_only: Names of POSITIONAL_ONLY parameters — O(1) membership check.
+        consumed: Number of leading slots already filled by caller-supplied positional args
+            (used by the proxy call path, which keeps the caller's ``*args`` positional); those
+            slots are skipped and never treated as gaps.
 
     Returns:
         Tuple of ``(pos_args, kw_args)`` where ``pos_args`` contains the instance (``self``/``cls``,
         when present) followed by positional-only param values in declaration order, and ``kw_args``
         contains the remaining kwargs.
 
+    Raises:
+        TypeError: When a positional-only name is present in ``resolved_kwargs`` while an earlier
+            positional-only parameter is absent — forwarding positionally would misbind the value.
+
     """
     kw_args = dict(resolved_kwargs)
     pos_args: list[Any] = []
+    missing: Optional[str] = None
     for i, name in enumerate(param_order):
-        if name in kw_args and (name in positional_only or (i == 0 and name in {"self", "cls"})):
-            pos_args.append(kw_args.pop(name))
+        if i < consumed:
+            continue
+        # POSITIONAL_ONLY params form a contiguous prefix of the signature, so the first
+        # non-extractable name ends the scan — no positional-only names can follow it.
+        if name not in positional_only and not (i == 0 and name in {"self", "cls"}):
+            break
+        if name not in kw_args:
+            missing = name  # gap — safe only while no later positional-only value shows up
+            continue
+        if missing is not None:
+            raise TypeError(
+                f"Cannot forward `{name}` positionally: the earlier positional-only parameter"
+                f" `{missing}` was not supplied, so `{name}`'s value would bind to the wrong slot."
+                f" Supply `{missing}` explicitly, or remove `/` from the target signature."
+            )
+        pos_args.append(kw_args.pop(name))
     return pos_args, kw_args
 
 
@@ -1375,6 +1406,120 @@ def _resolve_stored_target(
     return target
 
 
+def _reorder_kwargs_for_surplus(
+    source: Callable,
+    target_func: Callable,
+    surplus: tuple[Any, ...],
+    resolved_kwargs: dict[str, Any],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Convert leading positional-capable kwargs back to positional form so a surplus tail can follow.
+
+    A source declaring ``*args`` may receive more positional arguments than it has named
+    positional parameters; the surplus tail must be forwarded to the target *positionally*.
+    Python rejects positional arguments after keyword arguments, so every kwarg bound to one of
+    the target's leading positional slots is popped back into positional form first, in
+    declaration order.  The fill stops at the first leading slot absent from
+    ``resolved_kwargs`` — the surplus then binds to the remaining slots (and/or the target's
+    own ``*args``), which is the natural positional call shape.
+
+    Args:
+        source: The decorated callable — named in the curated ``TypeError``.
+        target_func: The forwarding target whose signature defines the positional slots.
+        surplus: Positional tail beyond the source's named positional parameters
+            (``args[dep_cfg.source_var_positional_prefix:]``).
+        resolved_kwargs: Final kwargs assembled by :func:`_build_call_plan`.
+
+    Returns:
+        Tuple of ``(pos_args, kw_args)``; the caller appends ``surplus`` after ``pos_args``.
+
+    Raises:
+        TypeError: When the target declares no ``*args`` and its unfilled positional slots
+            cannot absorb the surplus — raising loudly instead of silently dropping data.
+
+    """
+    params = list(_get_signature(target_func).parameters.values())
+    positional_names: list[str] = []
+    accepts_var_positional = False
+    for param in params:
+        if param.kind is inspect.Parameter.VAR_POSITIONAL:
+            accepts_var_positional = True
+            break
+        if param.kind not in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD):
+            break
+        positional_names.append(param.name)
+    kw_args = dict(resolved_kwargs)
+    pos_args: list[Any] = []
+    for name in positional_names:
+        if name not in kw_args:
+            break
+        pos_args.append(kw_args.pop(name))
+    free_slots = len(positional_names) - len(pos_args)
+    if not accepts_var_positional and len(surplus) > free_slots:
+        raise TypeError(
+            f"Failed mapping of `{source.__name__}`: {len(surplus)} extra positional argument(s) from `*args`"
+            f" cannot be forwarded to target `{getattr(target_func, '__name__', repr(target_func))}` —"
+            f" it accepts at most {len(positional_names)} positional argument(s) and no `*args`."
+        )
+    return pos_args, kw_args
+
+
+def _resolve_source_call_shape(
+    plan: _CallPlan,
+    dep_cfg: DeprecationConfig,
+    source_has_var_positional: bool,
+    args: tuple[Any, ...],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Return the ``(pos_args, kw_args)`` shape for invoking the *source* body.
+
+    Covers the short-circuit (migrated caller) and no-target (NOTIFY / ARGS_REMAP) branches:
+
+    - ``*args`` sources keep their original positional tuple; kwargs are the original ones
+      unless an argument-rename reason fired (then the remapped ``resolved_kwargs``).
+    - Sources declaring POSITIONAL_ONLY params get those split back out of the resolved
+      kwargs — the wrapper converted them to keyword form internally, but the source body
+      cannot accept them as keywords.
+    - All other sources are invoked with the resolved kwargs only.
+
+    """
+    if source_has_var_positional:
+        kw_args = plan.original_kwargs if plan.short_circuit or not plan.reason_argument else plan.resolved_kwargs
+        return list(args), kw_args
+    if dep_cfg.source_positional_only:
+        return _split_positional_only_kwargs(
+            dep_cfg.source_positional_only_order, plan.resolved_kwargs, dep_cfg.source_positional_only
+        )
+    return [], plan.resolved_kwargs
+
+
+def _resolve_target_call_shape(
+    source: Callable,
+    plan: _CallPlan,
+    dep_cfg: DeprecationConfig,
+    source_has_var_positional: bool,
+    args: tuple[Any, ...],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Return the ``(pos_args, kw_args)`` shape for invoking the forwarding *target*.
+
+    - A ``*args`` source with a surplus positional tail (values past its named positionals)
+      forwards the tail positionally — leading kwargs are reordered into positional form via
+      :func:`_reorder_kwargs_for_surplus` so the tail can legally follow them.
+    - A target with POSITIONAL_ONLY params gets those split out of the resolved kwargs via
+      :func:`_split_positional_only_kwargs`.
+    - Otherwise the target receives the resolved kwargs only.
+
+    """
+    target_func = cast(Callable, plan.target_func)
+    surplus = args[dep_cfg.source_var_positional_prefix :] if source_has_var_positional else ()
+    if surplus:
+        pos_args, kw_args = _reorder_kwargs_for_surplus(source, target_func, surplus, plan.resolved_kwargs)
+        return [*pos_args, *surplus], kw_args
+    if dep_cfg.target_positional_only:
+        return _split_positional_only_kwargs(
+            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
+        )
+    return [], plan.resolved_kwargs
+
+
 async def _invoke_async(
     source: Callable,
     plan: _CallPlan,
@@ -1383,27 +1528,15 @@ async def _invoke_async(
     args: tuple[Any, ...],
 ) -> Any:  # noqa: ANN401
     """Dispatch async call after :func:`_build_call_plan` has resolved the outcome."""
-    if plan.short_circuit:
-        if source_has_var_positional:
-            return await source(*args, **plan.original_kwargs)
-        return await source(**plan.resolved_kwargs)
-    if plan.target_func is None:
-        if source_has_var_positional:
-            call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
-            return await source(*args, **call_kwargs)
-        return await source(**plan.resolved_kwargs)
+    if plan.short_circuit or plan.target_func is None:
+        pos_args, kw_args = _resolve_source_call_shape(plan, dep_cfg, source_has_var_positional, args)
+        return await source(*pos_args, **kw_args)
+    pos_args, kw_args = _resolve_target_call_shape(source, plan, dep_cfg, source_has_var_positional, args)
     # Sync target under async source: invoke directly so callers can migrate without forcing
     # every legacy target to be redeclared ``async def``.
-    if dep_cfg.target_positional_only:
-        _pos_args, _kw_args = _split_positional_only_kwargs(
-            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
-        )
-        if inspect.iscoroutinefunction(plan.target_func):
-            return await plan.target_func(*_pos_args, **_kw_args)
-        return plan.target_func(*_pos_args, **_kw_args)
     if inspect.iscoroutinefunction(plan.target_func):
-        return await plan.target_func(**plan.resolved_kwargs)
-    return plan.target_func(**plan.resolved_kwargs)
+        return await plan.target_func(*pos_args, **kw_args)
+    return plan.target_func(*pos_args, **kw_args)
 
 
 def _invoke_sync(
@@ -1414,26 +1547,16 @@ def _invoke_sync(
     args: tuple[Any, ...],
 ) -> Any:  # noqa: ANN401
     """Dispatch sync call after :func:`_build_call_plan` has resolved the outcome."""
-    if plan.short_circuit:
-        if source_has_var_positional:
-            return source(*args, **plan.original_kwargs)
-        return source(**plan.resolved_kwargs)
-    if plan.target_func is None:
-        if source_has_var_positional:
-            call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
-            return source(*args, **call_kwargs)
-        return source(**plan.resolved_kwargs)
+    if plan.short_circuit or plan.target_func is None:
+        pos_args, kw_args = _resolve_source_call_shape(plan, dep_cfg, source_has_var_positional, args)
+        return source(*pos_args, **kw_args)
     if inspect.iscoroutinefunction(plan.target_func):
         raise TypeError(
             f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
             f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
         )
-    if dep_cfg.target_positional_only:
-        _pos_args, _kw_args = _split_positional_only_kwargs(
-            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
-        )
-        return plan.target_func(*_pos_args, **_kw_args)
-    return plan.target_func(**plan.resolved_kwargs)
+    pos_args, kw_args = _resolve_target_call_shape(source, plan, dep_cfg, source_has_var_positional, args)
+    return plan.target_func(*pos_args, **kw_args)
 
 
 def deprecated(  # noqa: C901
@@ -1641,8 +1764,24 @@ def deprecated(  # noqa: C901
                 _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=_stacklevel + 1
             )
 
-        source_has_var_positional = any(
-            param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
+        _source_params = list(_get_signature(source).parameters.values())
+        source_has_var_positional = any(param.kind is inspect.Parameter.VAR_POSITIONAL for param in _source_params)
+        # Named positional params preceding *args — the wrapper forwards args[prefix:] as the
+        # surplus positional tail when forwarding to a callable target.
+        _source_var_positional_prefix = (
+            next(i for i, param in enumerate(_source_params) if param.kind is inspect.Parameter.VAR_POSITIONAL)
+            if source_has_var_positional
+            else 0
+        )
+        # Source-side POSITIONAL_ONLY params: the wrapper converts positional args to kwargs
+        # internally, so the dispatcher must split these back out before invoking the source
+        # body (NOTIFY / ARGS_REMAP / migrated-caller short-circuit) — mirror of the
+        # target-side machinery below.
+        _source_positional_only = frozenset(
+            param.name for param in _source_params if param.kind is inspect.Parameter.POSITIONAL_ONLY
+        )
+        _source_positional_only_order: tuple[str, ...] = (
+            tuple(param.name for param in _source_params) if _source_positional_only else ()
         )
 
         _target_positional_only, _target_positional_only_order = _detect_positional_only(
@@ -1663,6 +1802,9 @@ def deprecated(  # noqa: C901
             template_mgs=template_mgs,
             target_positional_only=_target_positional_only,
             target_positional_only_order=_target_positional_only_order,
+            source_positional_only=_source_positional_only,
+            source_positional_only_order=_source_positional_only_order,
+            source_var_positional_prefix=_source_var_positional_prefix,
         )
         _dep_cfg = dep_meta
 

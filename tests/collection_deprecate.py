@@ -60,7 +60,10 @@ from tests.collection_targets import (
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
+    DerivedPositionalOnlyTarget,
+    ImmutablePositionalOnlyTarget,
     LegacyBoolAttrsSource,
+    MixedPositionalOnlyTarget,
     MutableAttrsList,
     NewCls,
     NewDataClass,
@@ -70,6 +73,7 @@ from tests.collection_targets import (
     PaletteEnum,
     PaletteOld,
     PositionalOnlyTarget,
+    RequiredPositionalOnlyTarget,
     SelfDeprecatedModel,
     SelfOnlyPositionalOnlyTarget,
     SomeTargetClass,
@@ -85,6 +89,7 @@ from tests.collection_targets import (
     async_non_cycle_double,
     async_positional_only_target,
     async_target,
+    async_var_positional_target,
     base_pow_args,
     base_sum_kwargs,
     both_old_new_target,
@@ -95,6 +100,7 @@ from tests.collection_targets import (
     fib_recursive,
     fn_remap_with_extra_body,
     fn_with_default,
+    gapped_positional_only_target,
     gen_target,
     identity_value,
     increment_value,
@@ -105,8 +111,11 @@ from tests.collection_targets import (
     power_with_new_coef,
     return_b,
     return_z,
+    single_positional_target,
     timing_wrapper,
     tracked_identity,
+    trio_positional_target,
+    var_positional_target,
 )
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
@@ -1904,9 +1913,9 @@ DepAutoExpandOverriddenInitDC = deprecated_class(
 # ========== Positional-only constructor guard fixture ==========
 
 # args_mapping remaps old_val → new_val, but new_val is POSITIONAL_ONLY on
-# PositionalOnlyTarget — proxy emits UserWarning at decoration time and falls
-# back to setattr at call time.  Suppress the decoration-time UserWarning here
-# so importing this module does not pollute test output.
+# PositionalOnlyTarget — proxy emits UserWarning at decoration time and forwards
+# the remapped value positionally at call time.  Suppress the decoration-time
+# UserWarning here so importing this module does not pollute test output.
 with catch_warnings():
     simplefilter("ignore", UserWarning)
     DepPositionalOnly = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
@@ -2076,6 +2085,120 @@ def make_deprecated_positional_only_num_warns_one() -> "Callable[..., int]":
             return 0
 
     return _deprecated_positional_only_num_warns_one
+
+
+# ========== POSITIONAL_ONLY *source* fixtures (NOTIFY / ARGS_REMAP) ==========
+
+# The decorated source itself declares a `/` in its signature.  NOTIFY and ARGS_REMAP
+# execute the source body, so the dispatcher must split the positional-only params back
+# out of resolved kwargs before invoking `source` — no decoration-time warning applies
+# (the source signature is fully supported).
+
+
+@deprecated(**_DEPRS_CASE_STD_INF_ARGS)
+def deprecated_notify_positional_only_source(a: int, /, b: int = 2) -> int:
+    """Warn-only deprecated function whose own signature declares a POSITIONAL_ONLY param."""
+    return a + b
+
+
+@deprecated(**_DEPRS_CASE_STD_INF_ARGS)
+async def deprecated_async_notify_positional_only_source(a: int, /, b: int = 2) -> int:
+    """Async warn-only deprecated function with a POSITIONAL_ONLY param in its own signature."""
+    return a + b
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_flag": "new_flag"}, **_DEPRS_CASE_STD_INF_ARGS)
+def deprecated_args_remap_positional_only_source(a: int, /, old_flag: int = 0, new_flag: int = 0) -> int:
+    """ARGS_REMAP self-deprecation on a source that also declares a POSITIONAL_ONLY param."""
+    return a + new_flag
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_flag": "new_flag"}, **_DEPRS_CASE_STD_INF_ARGS)
+async def deprecated_async_args_remap_positional_only_source(a: int, /, old_flag: int = 0, new_flag: int = 0) -> int:
+    """Async ARGS_REMAP self-deprecation on a source with a POSITIONAL_ONLY param."""
+    return a + new_flag
+
+
+# ========== Var-positional surplus forwarding fixtures ==========
+
+# Sources declaring `*args` forwarding to a callable target: the surplus positional tail
+# (everything past the named positionals) must be forwarded to the target, not dropped.
+
+
+@deprecated(target=var_positional_target, **_DEPRS_CASE_STD_INF_ARGS)
+def deprecated_var_positional_forward(a: int, *extras: int) -> int:
+    """Deprecated ``*args`` source forwarding to a ``*args``-accepting target."""
+    return 0
+
+
+@deprecated(target=async_var_positional_target, **_DEPRS_CASE_STD_INF_ARGS)
+async def deprecated_async_var_positional_forward(a: int, *extras: int) -> int:
+    """Async deprecated ``*args`` source forwarding to an async ``*args``-accepting target."""
+    return 0
+
+
+@deprecated(target=trio_positional_target, **_DEPRS_CASE_STD_INF_ARGS)
+def deprecated_var_positional_to_fixed(a: int, *extras: int) -> int:
+    """Deprecated ``*args`` source whose surplus tail fills the target's fixed positional slots."""
+    return 0
+
+
+@deprecated(target=single_positional_target, **_DEPRS_CASE_STD_INF_ARGS)
+def deprecated_var_positional_overflow(a: int, *extras: int) -> int:
+    """Deprecated ``*args`` source whose surplus tail cannot fit the single-slot target."""
+    return 0
+
+
+# ========== Gapped POSITIONAL_ONLY forwarding fixtures ==========
+
+# gapped_positional_only_target declares `a` and `b` positional-only, both defaulted.
+# A source supplying only `b` leaves a gap at `a` — positional binding would slide `b`'s
+# value into `a`'s slot, so the split dispatch must raise TypeError instead.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=gapped_positional_only_target, **_DEPRS_CASE_STD_INF_ARGS)
+    def deprecated_gapped_positional_only_source(b: int = 20) -> dict[str, int]:
+        """Source supplying only the *second* POSITIONAL_ONLY target param — gap at ``a``."""
+        return {}
+
+    @deprecated(target=gapped_positional_only_target, **_DEPRS_CASE_STD_INF_ARGS)
+    async def deprecated_async_gapped_positional_only_source(b: int = 20) -> dict[str, int]:
+        """Async source supplying only the *second* POSITIONAL_ONLY target param — gap at ``a``."""
+        return {}
+
+    @deprecated(target=gapped_positional_only_target, **_DEPRS_CASE_STD_INF_ARGS)
+    def deprecated_gapped_positional_only_full_source(a: int = 1, b: int = 2) -> dict[str, int]:
+        """Source supplying both POSITIONAL_ONLY target params — no gap, forwards in order."""
+        return {}
+
+    @deprecated(target=gapped_positional_only_target, **_DEPRS_CASE_STD_INF_ARGS)
+    def deprecated_gapped_positional_only_first_source(a: int = 9) -> dict[str, int]:
+        """Source supplying only the *first* POSITIONAL_ONLY target param — trailing gap at ``b`` is safe."""
+        return {}
+
+
+# ========== Proxy POSITIONAL_ONLY constructor forwarding fixtures ==========
+
+# args_mapping remaps to POSITIONAL_ONLY constructor params; the proxy must forward the
+# remapped values positionally (decorator split approach) instead of the historical
+# pop-and-setattr fallback, which failed for required params, immutable instances, and
+# constructor-derived state.  Suppress the decoration-time UserWarning here so importing
+# this module does not pollute test output.
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+    DepPositionalOnlyRequired = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
+        RequiredPositionalOnlyTarget
+    )
+    DepPositionalOnlyImmutable = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
+        ImmutablePositionalOnlyTarget
+    )
+    DepPositionalOnlyDerived = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
+        DerivedPositionalOnlyTarget
+    )
+    DepPositionalOnlyMixed = deprecated_class(args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_INF_ARGS)(
+        MixedPositionalOnlyTarget
+    )
 
 
 # ========== Circular target cycle fixtures ==========
