@@ -107,6 +107,8 @@ efg
 
 Heads up: primitive protocol methods (arithmetic on `float`, concatenation on `str`) are not intercepted by the proxy. For primitive constants, wrap them in a container or update call sites directly. See [Troubleshooting](../troubleshooting.md#why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators) for details.
 
+Deprecated proxies survive `copy.copy()`, `copy.deepcopy()`, and `pickle` round-trips — the result is a proxy again, so the deprecation warning travels with the copied object and each copy keeps its own warning budget.
+
 ```python
 from deprecate import deprecated_instance
 

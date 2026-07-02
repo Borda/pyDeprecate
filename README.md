@@ -790,7 +790,7 @@ strings, prefer wrapping them in a container (such as a dict or configuration ob
 directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
 `name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
 
-The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code.
+The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code. Deprecated proxies also survive `copy.copy()`, `copy.deepcopy()`, and `pickle` round-trips: the result is a proxy again, so the deprecation warning travels with the copied object, and each copy carries its own warning budget.
 
 ```python
 from deprecate import deprecated_instance
