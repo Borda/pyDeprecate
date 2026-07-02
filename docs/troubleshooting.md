@@ -1685,42 +1685,6 @@ The scan results are complete for every module that imported successfully; only 
 
 ______________________________________________________________________
 
-## Does the deprecation survive `copy`, `deepcopy`, and `pickle`?
-
-**Q:** I copied (or pickled and restored) an object wrapped by `deprecated_instance` / `deprecated_class` — does the deprecation still apply to the copy?
-
-**A:** Yes. Copying or unpickling a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy warns independently of the original. The copy/pickle machinery itself is silent — dunder probes and failed `hasattr` checks emit no warning and do not consume the `num_warns` budget.
-
-```python
-import copy
-import pickle
-
-from deprecate import deprecated_instance
-
-# NEW API — the canonical settings object going forward
-NEW_LIMITS = {"max_retries": 3}
-
-# DEPRECATED API — `OLD_LIMITS` kept as a deprecated alias during the migration window
-OLD_LIMITS = deprecated_instance(NEW_LIMITS, name="OLD_LIMITS", deprecated_in="1.0", remove_in="2.0")
-
-restored = pickle.loads(pickle.dumps(OLD_LIMITS))  # silent — pickling is introspection, not usage
-duplicate = copy.deepcopy(OLD_LIMITS)  # silent
-
-print(restored["max_retries"])  # warns: FutureWarning
-print(duplicate["max_retries"])  # warns: FutureWarning — each copy warns independently
-```
-
-<details><summary>Output: <code>restored["max_retries"]; duplicate["max_retries"]</code></summary>
-
-```
-3
-3
-```
-
-</details>
-
-______________________________________________________________________
-
 ## Still stuck?
 
 !!! question "Open a GitHub issue"
