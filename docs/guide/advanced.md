@@ -177,14 +177,13 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 `args_extra` merges into kwargs after `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is not used for forwarding; supplying it also triggers a construction-time `UserWarning` when the decorator is applied.
 
-## Suppressing `FutureWarning` in test fixtures with `assert_no_warnings`
+## Suppressing `FutureWarning` in test fixtures
 
-In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. [`assert_no_warnings`](audit.md#testing-deprecated-code) catches and discards warnings of the specified type inside the block, while asserting that no such warning escapes.
+In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. The first call to a deprecated function still emits its warning (default `num_warns=1`; subsequent calls are silent) — suppress that specific message session-wide with a scoped `filterwarnings` entry in `pyproject.toml` or `conftest.py`; see [Audit Tools → Suppressing warnings in test fixtures](audit.md#suppressing-warnings-in-test-fixtures) for the config snippets.
 
-Here is the gotcha: this is different from `pytest.warns` (which asserts a warning IS emitted) and from `warnings.filterwarnings("ignore")` (which silences globally without assertion). `assert_no_warnings` gives you a scoped, assertion-backed silence. If the code unexpectedly starts emitting a different warning category, that still surfaces.
+For assertions, pick the right tool: `pytest.warns` asserts a warning IS emitted; a `filterwarnings` ignore entry silences without any assertion; and [`assert_no_warnings`](audit.md#testing-deprecated-code) asserts that NO warning of the specified category escapes the block — so refactored code cannot silently regress into calling deprecated APIs. If the code unexpectedly starts emitting a different warning category, that still surfaces.
 
 ```python
-import warnings
 from deprecate import deprecated, assert_no_warnings, void
 
 
@@ -204,7 +203,7 @@ def make_test_client() -> dict:
     return create_client("localhost", 8080)  # warns: FutureWarning
 
 
-# The helper works silently:
+# The first call emits one FutureWarning (suppressed in pytest by a scoped filterwarnings entry):
 client = make_test_client()
 print(client)
 
@@ -227,13 +226,13 @@ print(result)
 
 Quick reference for choosing the right testing tool:
 
-| Tool                                                   | Purpose                       | Fails when...                 |
-| ------------------------------------------------------ | ----------------------------- | ----------------------------- |
-| `pytest.warns(FutureWarning)`                          | Assert warning IS emitted     | No matching warning raised    |
-| `assert_no_warnings(FutureWarning)`                    | Assert warning is NOT emitted | A matching warning IS raised  |
-| `warnings.catch_warnings()` + `simplefilter("ignore")` | Suppress without assertion    | Never fails (use in fixtures) |
+| Tool                                                       | Purpose                       | Fails when...                  |
+| ---------------------------------------------------------- | ----------------------------- | ------------------------------ |
+| `pytest.warns(FutureWarning)`                              | Assert warning IS emitted     | No matching warning raised     |
+| `assert_no_warnings(FutureWarning)`                        | Assert warning is NOT emitted | A matching warning IS raised   |
+| `filterwarnings` config (`pyproject.toml` / `conftest.py`) | Suppress without assertion    | Never fails (use for fixtures) |
 
-Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use `warnings.catch_warnings` in fixtures when you need to call deprecated code silently during setup.
+Use `assert_no_warnings` in test assertions to verify that refactored code no longer triggers deprecation notices. Use a scoped `filterwarnings` ignore entry when fixtures need to call deprecated code silently during setup.
 
 ## Class methods and static methods
 
