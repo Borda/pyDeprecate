@@ -2589,6 +2589,7 @@ class TestProxyCopyPickle:
         blank = _DeprecatedProxy.__new__(_DeprecatedProxy)
         with pytest.raises(AttributeError):
             _ = blank.anything
+
     def test_copy_of_exhausted_proxy_is_silent(self) -> None:
         """A copy of an already-warned proxy inherits the exhausted budget and stays silent.
 
@@ -2612,19 +2613,18 @@ class TestProxyCopyPickle:
         closures are not picklable by the standard pickle protocol.  This test documents the
         known limitation so future changes do not silently regress it.
         """
-        proxy = deprecated_instance(
-            {"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=lambda msg: None
-        )
-        with pytest.raises(Exception):  # PicklingError or AttributeError depending on Python version
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=lambda msg: None)
+        with pytest.raises((AttributeError, pickle.PicklingError)):
             pickle.dumps(proxy)
 
-    def test_pickle_roundtrip_class_proxy(self) -> None:
-        """Deprecated class alias survives a pickle round-trip.
+    def test_pickle_raises_for_class_proxy(self) -> None:
+        """Pickling a deprecated_class proxy is not supported when the class name is replaced.
 
-        Module-level class objects are picklable by reference.  The unpickled value must be
-        a proxy again (deprecation semantics preserved) and must forward attribute access to
-        the original target class correctly.
+        When ``@deprecated_class`` replaces the module-level name ``DeprecatedColorEnum`` with
+        a proxy, the wrapped class (``cfg.obj``) cannot be serialised by reference: pickle
+        finds the proxy at ``tests.collection_deprecate.DeprecatedColorEnum``, not the original
+        class.  This test documents the known limitation — ``deprecated_instance`` proxies
+        wrapping plain objects (dicts, lists) remain fully picklable.
         """
-        restored = pickle.loads(pickle.dumps(DeprecatedColorEnum))  # noqa: S301
-        assert type(restored) is _DeprecatedProxy
-        assert restored.RED is ColorEnum.RED
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(DeprecatedColorEnum)

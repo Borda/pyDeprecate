@@ -877,6 +877,12 @@ class _DeprecatedProxy:
             by the standard pickle protocol.  Use a module-level callable (e.g. ``warnings.warn``)
             or ``None`` when you intend to pickle the proxy.
 
+            For :func:`~deprecate.proxy.deprecated_instance` proxies the wrapped object is serialised
+            directly and pickle works reliably.  For :func:`~deprecate.proxy.deprecated_class` proxies
+            the wrapped class is serialised by reference; if the module-level name was replaced by the
+            proxy (the typical usage), pickle cannot resolve the reference and raises
+            :class:`~pickle.PicklingError`.
+
         """
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
         return (_reconstruct_proxy, (self._cfg, self._dep, doc))
