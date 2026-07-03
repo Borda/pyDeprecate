@@ -838,12 +838,36 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
     return results
 
 
+def _reexport_module(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the defining module of a non-proxy deprecated wrapper, for re-export attribution.
+
+    ``functools.wraps`` preserves ``__module__`` on ``@deprecated`` functions, so a wrapper re-exported through another
+    package's ``__init__`` still reports the module it was defined in and can be attributed there rather than counted
+    once per importing module.
+
+    Proxies (:class:`~deprecate.proxy._DeprecatedProxy`) have no reliable defining module — normal lookup returns the
+    proxy class's own ``__module__`` and the wrapped object commonly lives in a different module than where the proxy
+    was created — so this returns ``None`` for them and the caller falls back to id-based dedup.
+
+    """
+    if isinstance(obj, _DeprecatedProxy):
+        return None
+    return getattr(obj, "__module__", None)
+
+
 def _scan_module(
     mod: Any,  # noqa: ANN401
     *,
     include_members: bool,
+    seen: set[int],
 ) -> list[DeprecationWrapperInfo]:
-    """Scan a single module for deprecated functions and class members."""
+    """Scan a single module for deprecated functions and class members.
+
+    ``seen`` accumulates ``id()`` of every wrapper already recorded across the whole :func:`find_deprecation_wrappers`
+    run so a re-exported wrapper (the same object bound in more than one module) is reported once, not once per
+    importing module.
+
+    """
     results: list[DeprecationWrapperInfo] = []
     try:
         members = _getmembers_static_compat(mod)
@@ -855,9 +879,19 @@ def _scan_module(
         if name.startswith("_"):
             continue
 
-        result = _scan_callable(obj, mod_name, name)
-        if result is not None:
-            results.append(result)
+        if _has_deprecation_meta(obj):
+            # Attribute a re-exported wrapper to its defining module, not to every module that
+            # merely re-exports it. Non-proxy wrappers carry a reliable ``__module__``; proxies do
+            # not, so they fall through to the id-based dedup below.
+            defining_module = _reexport_module(obj)
+            if defining_module is not None and defining_module != mod_name:
+                continue
+            if id(obj) in seen:
+                continue
+            seen.add(id(obj))
+            result = _scan_callable(obj, mod_name, name)
+            if result is not None:
+                results.append(result)
         elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
             results.extend(_scan_class(obj, mod_name, name))
     return results
@@ -924,12 +958,15 @@ def find_deprecation_wrappers(
 
     """
     results: list[DeprecationWrapperInfo] = []
+    # Track object identity across the whole scan so a wrapper re-exported through several modules
+    # (the standard packaging pattern) is recorded once, not once per importing module.
+    seen: set[int] = set()
 
     # Handle string module path
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    results.extend(_scan_module(module, include_members=include_members))
+    results.extend(_scan_module(module, include_members=include_members, seen=seen))
 
     if recursive and hasattr(module, "__path__"):
         try:
@@ -949,7 +986,7 @@ def find_deprecation_wrappers(
             except Exception as exc:
                 warnings.warn(f"audit: skipped {modname}: {exc!r}", stacklevel=2)
                 continue
-            results.extend(_scan_module(submod, include_members=include_members))
+            results.extend(_scan_module(submod, include_members=include_members, seen=seen))
 
     return results
 
@@ -1001,6 +1038,13 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
         return "—"
     if isinstance(target, TargetMode):
         return target.value
+    if isinstance(target, _DeprecatedProxy):
+        # A chained-proxy target (the New API is itself a deprecated alias). Read its declared name
+        # from the static ``__deprecated__`` metadata — never dynamic-``getattr`` a proxy here:
+        # forwarding through the proxy's ``__getattr__`` would splice the proxy class's ``__module__``
+        # with the innermost target's ``__qualname__`` into a dotted path that exists nowhere, and,
+        # for non-dunder attributes, burn the proxy's one-shot warn budget from inside the audit tool.
+        return object.__getattribute__(target, "__deprecated__").name
     if callable(target):
         target_module = getattr(target, "__module__", "")
         target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))

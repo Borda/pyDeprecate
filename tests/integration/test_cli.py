@@ -166,6 +166,39 @@ class TestCliSubcommands:
         assert result.returncode == 0
         assert "Original API" in result.stdout
 
+    def test_all_plain_directory_exits_0(self, tmp_path: Path) -> None:
+        """'pydeprecate all <plaindir>' exits 0 when every check passes on a plain dir without __init__.py.
+
+        cmd_check already scans plain directories; cmd_all appends a status table afterwards. Resolving the
+        module name for that advisory table must not turn a clean run into exit 1 on a directory that has no
+        importable package — the table is a display artifact, not a pass/fail gate.
+        """
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        (plain / "mod.py").write_text("x = 1\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "all", str(plain)],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+
+    def test_status_plain_directory_exits_0(self, tmp_path: Path) -> None:
+        """'pydeprecate status <plaindir>' exits 0 on a plain dir; status generation is never a pass/fail gate."""
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        (plain / "mod.py").write_text("x = 1\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "status", str(plain)],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+
     def test_help_lists_subcommands(self) -> None:
         """'pydeprecate --help' output includes the five subcommand names."""
         result = subprocess.run(

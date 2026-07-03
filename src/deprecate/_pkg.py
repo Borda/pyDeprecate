@@ -18,7 +18,7 @@ import os
 import sys
 import warnings
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Optional
 
@@ -174,10 +174,63 @@ def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Option
         local_ver = _read_pyproject_version(path)
         if local_ver is not None:
             return local_ver
-    try:
+    with suppress(Exception):
         return importlib.metadata.version(module_name)
+    # The import name (deprecate, PIL, sklearn) often differs from the distribution name
+    # (pyDeprecate, Pillow, scikit-learn) that importlib.metadata.version() requires. Map the
+    # import package to its distribution and retry before giving up.
+    dist_name = _distribution_for_import(module_name)
+    if dist_name is not None:
+        try:
+            return importlib.metadata.version(dist_name)
+        except Exception:
+            return None
+    return None
+
+
+def _distribution_for_import(import_name: str) -> Optional[str]:
+    """Map a top-level import package name to its installed distribution name.
+
+    ``importlib.metadata.version`` needs the *distribution* name (``pyDeprecate``) while the CLI is
+    handed the *import* name (``deprecate``). Uses ``importlib.metadata.packages_distributions`` on
+    Python 3.10+ and falls back to scanning each distribution's ``top_level.txt`` on Python 3.9.
+
+    Args:
+        import_name: Importable (possibly dotted) package name; only the first component is used.
+
+    Returns:
+        The first distribution name that provides the top-level package, or ``None`` when no
+        installed distribution exposes it.
+
+    """
+    top_level = import_name.split(".")[0]
+    packages_distributions = getattr(importlib.metadata, "packages_distributions", None)
+    if callable(packages_distributions):
+        try:
+            distributions = packages_distributions().get(top_level)
+        except Exception:
+            return None
+        return distributions[0] if distributions else None
+    # Python 3.9: packages_distributions is unavailable — read top_level.txt from each distribution.
+    return _distribution_from_top_level(top_level)
+
+
+def _distribution_from_top_level(top_level: str) -> Optional[str]:
+    """Return the distribution whose ``top_level.txt`` lists *top_level* (Python 3.9 fallback)."""
+    try:
+        distributions = list(importlib.metadata.distributions())
     except Exception:
         return None
+    for dist in distributions:
+        try:
+            listed = dist.read_text("top_level.txt")
+        except Exception:
+            listed = None
+        if listed and top_level in listed.split():
+            name = dist.metadata.get("Name") if dist.metadata else None
+            if name:
+                return name
+    return None
 
 
 def _is_package_dir(pth: Path) -> bool:

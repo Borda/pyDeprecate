@@ -10,6 +10,9 @@ on: # Trigger the workflow on push or pull request for the main branch, tag push
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     uses: ./.github/workflows/_create-pkg.yml
@@ -46,6 +49,8 @@ jobs:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write # required for uploading release assets
     steps:
       - name: 📥 Download artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8

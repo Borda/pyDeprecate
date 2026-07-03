@@ -64,7 +64,7 @@ def _print(msg: str, *, stderr: bool = False) -> None:
         print(msg, file=std_)
 
 
-def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
+def _scan_directory(path: str, include_members: bool = True) -> list[DeprecationWrapperInfo]:
     """Scan a plain directory of top-level Python files.
 
     Nested Python files in subdirectories are skipped unless they are part of an importable package layout. Plain
@@ -83,7 +83,7 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
                 continue
             module_name: str = entry.stem
             try:
-                results.extend(find_deprecation_wrappers(module_name, recursive=False))
+                results.extend(find_deprecation_wrappers(module_name, recursive=False, include_members=include_members))
             except SystemExit:
                 _print(f"Skipping {module_name}: module-level code exited (not a library module)", stderr=True)
             except Exception as e:
@@ -104,7 +104,7 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     return results
 
 
-def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo]:
+def _scan_path(path: str, recursive: bool = True, include_members: bool = True) -> list[DeprecationWrapperInfo]:
     """Scan a directory or importable module/package name for deprecated wrappers.
 
     File paths are not accepted because ``find_deprecation_wrappers()`` expects an importable module or package name,
@@ -115,17 +115,19 @@ def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo
     if pth.is_dir():
         if _is_package_dir(pth):
             # package dir: resolve importable name from directory stem
-            return find_deprecation_wrappers(Path(path).resolve().name, recursive=recursive)
+            return find_deprecation_wrappers(
+                Path(path).resolve().name, recursive=recursive, include_members=include_members
+            )
         # Flat src-layout or project root: find package in direct children or src/ subdir.
         child_pkgs = _find_child_packages(pth)
         if len(child_pkgs) == 1:
-            return _scan_path(str(child_pkgs[0]), recursive=recursive)
-        return _scan_directory(path)
+            return _scan_path(str(child_pkgs[0]), recursive=recursive, include_members=include_members)
+        return _scan_directory(path, include_members=include_members)
     if pth.is_file():
         raise ValueError(
             f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
-    return find_deprecation_wrappers(path, recursive=recursive)
+    return find_deprecation_wrappers(path, recursive=recursive, include_members=include_members)
 
 
 # ---------------------------------------------------------------------------
@@ -458,6 +460,13 @@ def cmd_expiry(
     if _wrappers is None:
         # Standalone path: full scan + version auto-detect inside _do_expiry.
         resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
+        if resolved_version is None and version is None:
+            _print(
+                "Could not resolve the current package version automatically and no --version was given; "
+                "the expiry check runs without a resolved version and its result may be unreliable. "
+                "Pass --version explicitly for a definitive check.",
+                stderr=True,
+            )
         _print_scan_header(path, resolved_version, user_provided=version is not None)
         with _managed_sys_path(path):
             raw = _do_expiry(path, resolved_version, recursive)
@@ -569,7 +578,12 @@ def cmd_all(
     expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, exit_zero=False, _wrappers=wrappers)
     chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
 
-    cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
+    # The status table is a display artifact appended after the three gates. Render it defensively:
+    # a table-rendering failure must never change the aggregate exit code the three checks produced.
+    try:
+        cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
+    except Exception as exc:
+        _print(f"Could not render the deprecation table: {exc}", stderr=True)
 
     has_errors = bool(check_code or expiry_code or chains_code)
     return 0 if not has_errors or exit_zero else 1
@@ -614,25 +628,22 @@ def cmd_status(
         _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
         table_style = TableStyle.COMPACT
 
-    module_name = _resolve_module_name(path)
+    # Never resolve the importable module name eagerly: status "always exits 0" (it is not a
+    # pass/fail gate), so a plain directory without ``__init__.py`` — which ``check`` scans fine and
+    # for which ``_wrappers`` is already supplied by ``cmd_all`` — must not raise here. ``_safe_module_name``
+    # falls back to the raw path, used only as table metadata for version resolution.
+    module_name = _safe_module_name(path)
     resolved_version = version if version is not None else _auto_detect_version(module_name, path=path)
     if _wrappers is None:
         _print_scan_header(path, resolved_version, user_provided=version is not None)
         with _managed_sys_path(path):
-            markdown = generate_deprecation_table(
-                module_name,
-                current_version=resolved_version,
-                recursive=recursive,
-                style=table_style,
-                include_members=include_members,
-            )
-    else:
-        markdown = generate_deprecation_table(
-            module_name,
-            current_version=resolved_version,
-            style=table_style,
-            _wrappers=_wrappers,
-        )
+            _wrappers = _scan_path(path, recursive=recursive, include_members=include_members)
+    markdown = generate_deprecation_table(
+        module_name,
+        current_version=resolved_version,
+        style=table_style,
+        _wrappers=_wrappers,
+    )
 
     if _Reporter._HAS_RICH:
         from rich.markdown import Markdown

@@ -364,6 +364,38 @@
             "@type": "Answer",
             "text": "This error was raised in older versions (before PR #212) because pickle's protocol 2+ consistency check detected that type(proxy) != proxy.__class__. Since PR #212, pickle.dumps(proxy) works for deprecated_instance proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. Two remaining caveats: (1) the stream callable must be picklable by reference — if you passed a lambda or closure as stream, wrap it in a module-level function or use stream=None; (2) deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy — use copy.deepcopy for class aliases instead."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get ModuleNotFoundError: No module named 'pydeprecate'?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The install name and the import name are different. The package is installed with 'pip install pyDeprecate' but imported as 'deprecate': from deprecate import deprecated. The module name 'pydeprecate' does not exist — always import from 'deprecate'."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get UserWarning when using TargetMode.ARGS_REMAP without args_mapping?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "TargetMode.ARGS_REMAP is designed exclusively for renaming or dropping arguments within the same function. Without args_mapping there is nothing to remap — the decorator has zero call-time effect. Provide args_mapping={'old_name': 'new_name'} to map each renamed parameter. To deprecate the whole function with no argument changes, use target=TargetMode.NOTIFY instead. Using ARGS_REMAP without args_mapping will become a TypeError in v1.0."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "I wrapped a functools.partial of an async def and the wrapper is not async — why?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "On Python 3.9–3.11, inspect.iscoroutinefunction(functools.partial(async_fn)) returns False — the partial object does not propagate the coroutine flag. pyDeprecate checks this flag to decide whether to produce an async wrapper, so wrapping a partial of an async def falls through to the sync wrapper path. Workaround: apply @deprecated directly to the async def, then use functools.partial on the already-deprecated async wrapper if you need preset arguments. This limitation is resolved in Python 3.12+."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "A non-async decorator applied over my @deprecated async wrapper no longer looks like a coroutine — why?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "When you stack a sync decorator on top of a @deprecated async def, the outermost callable is sync, so inspect.iscoroutinefunction returns False and asyncio frameworks reject it. Make any outer decorator that wraps async functions coroutine-aware: check inspect.iscoroutinefunction(fn) and emit an async def wrapper when True, or a sync wrapper when False. With this pattern, @my_decorator @deprecated ... async def fn(...) produces an async def wrapper whose iscoroutinefunction returns True."
+          }
         }
       ]
     }

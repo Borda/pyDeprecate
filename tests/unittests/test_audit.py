@@ -20,6 +20,7 @@ from deprecate.audit import (
     DeprecationStatus,
     DeprecationWrapperInfo,
     _classify_member_api_type,
+    _format_report_target,
     _get_deprecation_status,
     _get_package_version,
     _parse_version,
@@ -449,6 +450,77 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestFindDeprecationWrappersReexport:
+    """Re-exported wrappers are attributed to their defining module and never double-counted."""
+
+    def test_reexport_dropped_in_importing_module(self) -> None:
+        """A wrapper whose ``__module__`` points elsewhere is treated as a re-export and skipped.
+
+        A library commonly surfaces a deprecated shim from a private submodule through its package
+        ``__init__``. A recursive audit must attribute that wrapper to the module that defines it, not
+        report it once per importing module — inflated counts break any CI gate summing ``len(results)``.
+        """
+        importer = types.ModuleType("importer_mod")
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def defined_elsewhere() -> None:
+            """Wrapper whose real home is a different module."""
+
+        defined_elsewhere.__module__ = "some.other.home"
+        importer.defined_elsewhere = defined_elsewhere  # type: ignore[attr-defined]
+
+        results = find_deprecation_wrappers(importer)
+
+        assert [r for r in results if r.function == "defined_elsewhere"] == []
+
+    def test_aliased_object_counted_once(self) -> None:
+        """The same wrapper object bound under two names in one module is reported once.
+
+        Mirrors the real ``self_ref_typed = cast(..., self_referencing_deprecation)`` alias in the
+        misconfigured collection: two names, one underlying object — id-based dedup must collapse them
+        so the wrapper is counted exactly once rather than inflating the scan by every extra binding.
+        """
+        mod = types.ModuleType("alias_mod")
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def canonical() -> None:
+            """Single wrapper object exposed under two names."""
+
+        canonical.__module__ = mod.__name__
+        mod.canonical = canonical  # type: ignore[attr-defined]
+        mod.alias = canonical  # type: ignore[attr-defined]  # same object, second binding
+
+        results = find_deprecation_wrappers(mod)
+
+        assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
+
+
+class TestFormatReportProxyTarget:
+    """_format_report_target reads a chained-proxy target statically, never via dynamic ``getattr``."""
+
+    def test_chained_proxy_target_formatted_statically(self) -> None:
+        """A target that is itself a deprecated_class proxy is formatted by its declared name, silently.
+
+        When a deprecated alias forwards to *another* deprecated alias (the chain
+        ``validate_deprecation_chains`` exists to flag), rendering its report row must show the immediate
+        target's real declared name — not a fabricated path spliced from the proxy class's ``__module__``
+        and the innermost target's ``__qualname__`` — and must not burn the chained proxy's warn budget
+        from inside the audit tooling.
+        """
+        final_cls = type("FinalApi", (), {})
+        mid = deprecated_class(target=final_cls, deprecated_in="1.0", remove_in="2.0")(type("MidApi", (), {}))
+        old = deprecated_class(target=mid, deprecated_in="1.0", remove_in="2.0")(type("OldApi", (), {}))
+        target = object.__getattribute__(old, "__deprecated__").target
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # any warning emitted during formatting fails the test
+            formatted = _format_report_target(target)
+
+        mid_cfg = object.__getattribute__(mid, "_DeprecatedProxy__config")
+        assert formatted == "MidApi"
+        assert mid_cfg.warned == 0
 
 
 class TestDeprecationWrapperInfoEmptyVersions:
