@@ -5,10 +5,11 @@ catch schema mismatches at analysis time rather than silently returning ``None``
 
 """
 
+import copy
 import threading
 import warnings
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Union, runtime_checkable
 
@@ -534,6 +535,10 @@ class _ProxyConfig:
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
+        lock: Guards the warn-quota check-then-act sequence (read counter → decide to emit → increment) so that
+            concurrent first accesses cannot all pass the ``num_warns`` gate and each emit a warning.  Excluded from
+            ``repr`` and equality — it is runtime machinery, not state identity.  A fresh lock is created on copy /
+            deepcopy rather than transferring the original mutex state.
 
     """
 
@@ -546,6 +551,15 @@ class _ProxyConfig:
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_ProxyConfig":
+        return replace(
+            self,
+            obj=copy.deepcopy(self.obj, memo),
+            warned_args=copy.deepcopy(self.warned_args, memo),
+            lock=threading.Lock(),  # fresh lock — mutex state is not transferable
+        )
 
 
 @dataclass

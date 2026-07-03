@@ -29,6 +29,7 @@ import inspect
 import math
 import operator
 import os
+import threading
 import types
 import warnings
 from collections.abc import Iterator
@@ -469,16 +470,22 @@ class _DeprecatedProxy:
             template = custom_template or TEMPLATE_WARNING_CALLABLE
             return template % {
                 "source_name": attr_name,
+                "source_path": attr_name,
                 "deprecated_in": dep.deprecated_in,
                 "remove_in": dep.remove_in,
                 "target_name": new_attr,
                 "target_path": target_path,
+                "argument_map": "",
             }
         template = custom_template or TEMPLATE_WARNING_NO_TARGET
         return template % {
             "source_name": attr_name,
+            "source_path": attr_name,
             "deprecated_in": dep.deprecated_in,
             "remove_in": dep.remove_in,
+            "target_name": "",
+            "target_path": "",
+            "argument_map": "",
         }
 
     def _warn(self, *, arg_name: Optional[str] = None, _extra_frames: int = 0) -> None:
@@ -497,15 +504,29 @@ class _DeprecatedProxy:
         stream = cfg.stream
         if not stream:
             return
-        if arg_name is not None:
-            arg_count = cfg.warned_args.get(arg_name, 0)
-            if cfg.num_warns >= 0 and arg_count >= cfg.num_warns:
-                return
-        elif cfg.num_warns >= 0 and cfg.warned >= cfg.num_warns:
-            return
+        # Build the message before taking the lock: attrs_mapping miss returns None (no warning),
+        # and message building is pure CPU work with no IO.
         dep = self._dep
         msg = _build_proxy_warn_msg(self, arg_name, dep, cfg)
         if msg is None:
+            return
+        # Take the state lock around quota check + counter increment so concurrent first accesses
+        # cannot all read the counter as 0, all pass the gate, and each emit a warning
+        # (check-then-act race).  Mirrors the decorator-path pattern in ``deprecation.py``:
+        # decide-and-increment under the lock, emit the warning outside to avoid serialising
+        # callers on a potentially slow ``stream`` callable.
+        should_warn = False
+        with cfg.lock:
+            if arg_name is not None:
+                arg_count = cfg.warned_args.get(arg_name, 0)
+                if cfg.num_warns < 0 or arg_count < cfg.num_warns:
+                    should_warn = True
+                    cfg.warned_args[arg_name] = arg_count + 1
+            else:
+                if cfg.num_warns < 0 or cfg.warned < cfg.num_warns:
+                    should_warn = True
+                    cfg.warned += 1
+        if not should_warn:
             return
         # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the ``_raise_warn`` fallback
         # in ``deprecation.py``: when ``stream`` does not accept a ``stacklevel`` kwarg (e.g. ``print``, custom
@@ -514,10 +535,6 @@ class _DeprecatedProxy:
             stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER + _extra_frames)
         except TypeError:
             stream(msg)
-        if arg_name is not None:
-            cfg.warned_args[arg_name] = cfg.warned_args.get(arg_name, 0) + 1
-        else:
-            cfg.warned += 1
 
     def _check_read_only(self, operation: str) -> None:
         """Raise AttributeError when the proxy is in read-only mode.
@@ -870,7 +887,7 @@ class _DeprecatedProxy:
 
         """
         cfg = self._cfg
-        new_cfg = replace(cfg, obj=copy.copy(cfg.obj), warned_args=dict(cfg.warned_args))
+        new_cfg = replace(cfg, obj=copy.copy(cfg.obj), warned_args=dict(cfg.warned_args), lock=threading.Lock())
         return _reconstruct_proxy(new_cfg, self._dep, object.__getattribute__(self, "__dict__").get("__doc__"))
 
     def __deepcopy__(self, memo: dict[int, Any]) -> "_DeprecatedProxy":
@@ -1261,8 +1278,11 @@ def _build_proxy_warn_msg(
         template = custom_template or TEMPLATE_WARNING_ARGUMENTS
         return template % {
             "source_name": dep.name,
+            "source_path": dep.name,
             "deprecated_in": dep.deprecated_in,
             "remove_in": dep.remove_in,
+            "target_name": str(new_arg) if new_arg is not None else "",
+            "target_path": "",
             "argument_map": argument_map,
         }
     if arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
@@ -1273,16 +1293,22 @@ def _build_proxy_warn_msg(
         template = custom_template or TEMPLATE_WARNING_CALLABLE
         return template % {
             "source_name": dep.name,
+            "source_path": dep.name,
             "deprecated_in": dep.deprecated_in,
             "remove_in": dep.remove_in,
             "target_name": target_name,
             "target_path": target_path,
+            "argument_map": "",
         }
     template = custom_template or TEMPLATE_WARNING_NO_TARGET
     return template % {
         "source_name": dep.name,
+        "source_path": dep.name,
         "deprecated_in": dep.deprecated_in,
         "remove_in": dep.remove_in,
+        "target_name": "",
+        "target_path": "",
+        "argument_map": "",
     }
 
 
@@ -1590,6 +1616,29 @@ def _make_binary_forward(op_name: str, *, warn: bool) -> Callable[..., Any]:
     return _binary_dunder
 
 
+def _make_inplace_forward(op_name: str) -> Callable[..., Any]:
+    """Build an in-place operator dunder that enforces ``read_only`` before forwarding.
+
+    In-place operators mutate the active object, so they must honour the ``read_only=True`` contract.  This is a
+    separate factory from :func:`_make_binary_forward` so that the check is not paid by the much more common
+    arithmetic/reflected paths.
+
+    """
+
+    def _inplace_dunder(self: "_DeprecatedProxy", other: Any) -> Any:  # noqa: ANN401
+        self._check_read_only(f"In-place operation '{op_name}'")
+        active = self._get_active()
+        impl = getattr(type(active), op_name, None)
+        if impl is None:
+            return NotImplemented
+        self._warn()
+        return impl(active, _unwrap_operand(other))
+
+    _inplace_dunder.__name__ = op_name
+    _inplace_dunder.__qualname__ = f"_DeprecatedProxy.{op_name}"
+    return _inplace_dunder
+
+
 def _make_unary_forward(op_name: str, func: Callable[[Any], Any]) -> Callable[..., Any]:
     """Build a unary/conversion dunder that forwards through *func* (a builtin such as ``int`` or ``abs``).
 
@@ -1644,13 +1693,16 @@ _UNARY_OPS: dict[str, Callable[[Any], Any]] = {
 def _install_forwarding_dunders(cls: type) -> None:
     """Attach the generated operator/conversion dunders to *cls* at import time.
 
-    Binary operators (arithmetic, reflected, in-place) and ordering comparisons are installed via
-    :func:`_make_binary_forward`; unary and conversion protocols via :func:`_make_unary_forward`. Ordering comparisons
-    are silent (probes); every other generated dunder warns (data use).
+    Arithmetic and reflected binary operators are installed via :func:`_make_binary_forward`; in-place operators via
+    :func:`_make_inplace_forward` (which also enforces ``read_only``); ordering comparisons via
+    :func:`_make_binary_forward` (silent); unary and conversion protocols via :func:`_make_unary_forward`. Ordering
+    comparisons are silent (structural probes); every other generated dunder warns (data use).
 
     """
-    for _op in (*_ARITHMETIC_OPS, *_REFLECTED_OPS, *_INPLACE_OPS):
+    for _op in (*_ARITHMETIC_OPS, *_REFLECTED_OPS):
         setattr(cls, _op, _make_binary_forward(_op, warn=True))
+    for _op in _INPLACE_OPS:
+        setattr(cls, _op, _make_inplace_forward(_op))
     for _op in _ORDERING_OPS:
         setattr(cls, _op, _make_binary_forward(_op, warn=False))
     for _op, _func in _UNARY_OPS.items():
