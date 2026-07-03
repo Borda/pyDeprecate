@@ -784,11 +784,15 @@ efg
 ### 📦 Deprecating constants and instances
 
 Use `deprecated_instance` to wrap objects accessed via attribute/item/call operations (for example, dicts,
-lists, or custom objects) with transparent deprecation warnings. Primitive protocol methods (such as numeric
-arithmetic on `float` or concatenation on `str`) are not proxied. For primitive constants like floats or
-strings, prefer wrapping them in a container (such as a dict or configuration object) or updating call sites
-directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
-`name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
+lists, or custom objects) with transparent deprecation warnings. The proxy forwards arithmetic, unary, and
+conversion operators to the wrapped object and emits the deprecation warning on data-use operations —
+ordering comparisons (`<`, `>`, `<=`, `>=`) and `format()` are silent structural probes. In-place
+operators (`+=`, `-=`, etc.) return the active object's result, so `x += 1` rebinds `x` to the underlying
+type rather than a re-wrapped proxy. One known edge case: when the proxy is on the right side of an operation
+whose left-operand type raises `TypeError` directly instead of returning `NotImplemented` (e.g.
+`prefix + proxy_str`), Python cannot fall back to the proxy; use the proxy on the left side or wrap the
+value in a container instead. The `name` parameter is optional; when omitted it defaults to the type name of
+the wrapped object.
 
 The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code. An instance proxy also reports the wrapped object's type through `__class__`, so `isinstance(DEFAULTS, dict)` is `True` directly on the proxy. Introspection stays silent — `isinstance` checks, dunder reads, and failed `hasattr` probes emit no warning and do not consume the `num_warns` budget. Deprecated proxies also survive `copy.copy()`, `copy.deepcopy()`, and `pickle` round-trips: the result is a proxy again, so the deprecation warning travels with the copied object, and each copy keeps its own warning counter snapshotted from the original. Note: `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable; `deprecated_class` proxies raise `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — use `copy.deepcopy` for class aliases instead.
 

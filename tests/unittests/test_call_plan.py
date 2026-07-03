@@ -16,12 +16,17 @@ attributes that :func:`_build_call_plan` reads, plus a fresh :class:`~deprecate.
 
 """
 
+import concurrent.futures
+import sys
+import threading
+import time
 import warnings
+from collections.abc import Iterator
 from typing import Any, Callable
 
 import pytest
 
-from deprecate import TargetMode
+from deprecate import TargetMode, deprecated, void
 from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
 from deprecate.deprecation import _build_call_plan, _split_positional_only_kwargs
 from tests.collection_deprecate import (
@@ -354,3 +359,54 @@ class TestSplitPositionalOnlyKwargs:
         pos_args, kw_args = _split_positional_only_kwargs(("self", "x"), {"self": instance, "x": 5}, frozenset({"x"}))
         assert pos_args == [instance, 5]
         assert kw_args == {}
+
+
+class TestWarnQuotaThreadSafety:
+    """The warn quota holds under concurrency (CORE-5).
+
+    ``_build_call_plan`` reads the warn counter, decides whether to emit, and increments — a check-then-act
+    sequence.  Without synchronisation, concurrent first calls all read ``warned_calls == 0``, all pass the
+    ``num_warns`` gate, and each emit a warning.  The state lock makes the check-and-increment atomic so exactly
+    ``num_warns`` emissions happen regardless of thread interleaving.
+    """
+
+    @pytest.fixture
+    def _aggressive_thread_switching(self) -> Iterator[None]:
+        """Force frequent GIL hand-offs so the check-then-act window is actually exercised, then restore it."""
+        previous = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        yield
+        sys.setswitchinterval(previous)
+
+    @pytest.mark.usefixtures("_aggressive_thread_switching")
+    def test_num_warns_one_emits_once_across_threads(self) -> None:
+        """16 threads released together into a ``num_warns=1`` wrapper produce exactly one warning emission.
+
+        A barrier releases all workers simultaneously so they contend on the quota at once; the counting stream
+        sleeps briefly to widen the check-then-act window.  Before the lock this asserted 2-16 emissions; with the
+        lock the count is a deterministic 1.
+        """
+        emissions: list[int] = []
+        emit_lock = threading.Lock()
+
+        def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+            """Record every emission; the tiny sleep is a yield point that exposes the race when unsynchronised."""
+            time.sleep(0.001)
+            with emit_lock:
+                emissions.append(1)
+
+        @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0", num_warns=1, stream=counting_stream)
+        def racy(x: int) -> int:
+            return void(x)
+
+        n_threads = 16
+        barrier = threading.Barrier(n_threads)
+
+        def worker(_ignored: int) -> None:
+            """Block until every thread has arrived, then hit the deprecated wrapper simultaneously."""
+            barrier.wait()
+            racy(1)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
+            list(pool.map(worker, range(n_threads)))
+        assert len(emissions) == 1

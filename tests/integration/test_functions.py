@@ -17,6 +17,7 @@ Current test coverage:
 
 """
 
+import warnings
 from typing import Callable, cast
 
 import pytest
@@ -27,6 +28,7 @@ from tests.collection_depr_legacy import decorated_pow_self as legacy_pow_self
 from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_warn_only
 from tests.collection_depr_legacy import depr_pow_self_double as legacy_pow_self_double
 from tests.collection_deprecate import (
+    DeprecatedTimerDecorator,
     decorated_pow_self,
     decorated_pow_skip_if_func,
     decorated_pow_skip_if_true,
@@ -51,6 +53,7 @@ from tests.collection_deprecate import (
     depr_pow_skip_if_func_int,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
+    depr_timing_wrapper,
     deprecated_async_var_positional_forward,
     deprecated_var_positional_forward,
     deprecated_var_positional_overflow,
@@ -66,7 +69,7 @@ from tests.collection_deprecate import (
     wrapped_sum_no_stream,
     wrapped_sum_warn_only,
 )
-from tests.collection_targets import sample_function
+from tests.collection_targets import NewCls, TimerDecorator, base_sum_kwargs, sample_function, timing_wrapper
 
 
 class TestDeprecationWarnings:
@@ -103,8 +106,6 @@ class TestDeprecationWarnings:
 
     def test_function_to_class_forwarding(self) -> None:
         """Deprecated function targeting a class should instantiate and return the class."""
-        from tests.collection_targets import NewCls
-
         cast(_DeprecatedCallable, depr_make_new_cls)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
@@ -120,8 +121,6 @@ class TestDeprecationWarnings:
 
     def test_function_to_class_forwarding_with_args_mapping(self) -> None:
         """Deprecated function with args_mapping should rename old_c→c before forwarding to NewCls."""
-        from tests.collection_targets import NewCls
-
         cast(_DeprecatedCallable, depr_make_new_cls_mapped)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
@@ -332,8 +331,6 @@ class TestArgumentMapping:
 
     def test_args_mapping_with_source_having_both_old_and_new_params(self) -> None:
         """When source has both old and new param names, caller's old=X reaches target as new=X."""
-        import warnings
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
             result = depr_collision_old_new(old=42)
@@ -491,8 +488,6 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     needing to call the function first.
 
     """
-    from tests.collection_targets import base_sum_kwargs
-
     # Verify __deprecated__ is set WITHOUT calling the function (using decorated_sum from collection_deprecate)
     assert hasattr(decorated_sum, "__deprecated__")
     assert decorated_sum.__deprecated__ == DeprecationConfig(
@@ -506,14 +501,10 @@ class TestDeprecatedFunctionWrappers:
     @pytest.fixture(autouse=True)
     def reset_warnings(self) -> None:
         """Reset warning counters before each test for independence."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         cast(_DeprecatedCallable, depr_timing_wrapper)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
 
@@ -522,8 +513,6 @@ class TestDeprecatedFunctionWrappers:
 
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
 
@@ -533,8 +522,6 @@ class TestDeprecatedFunctionWrappers:
 
     def test_new_implementation_no_warning(self) -> None:
         """Test that new implementation works without warnings."""
-        from tests.collection_targets import timing_wrapper
-
         with assert_no_warnings(FutureWarning):
             new_wrapped = timing_wrapper(sample_function)
             result = new_wrapped(7)
@@ -542,8 +529,6 @@ class TestDeprecatedFunctionWrappers:
 
     def test_with_decorator_syntax(self) -> None:
         """Test warning when applied using @ decorator syntax."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
 
             @depr_timing_wrapper
@@ -562,13 +547,10 @@ class TestDeprecatedClassWrappers:
     @pytest.fixture(autouse=True)
     def reset_warnings(self) -> None:
         """Reset warning counters before each test for independence."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
-
         cast(_DeprecatedCallable, DeprecatedTimerDecorator.__init__)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -582,7 +564,6 @@ class TestDeprecatedClassWrappers:
 
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -598,7 +579,6 @@ class TestDeprecatedClassWrappers:
 
     def test_preserves_attributes(self) -> None:
         """Test that wrapper preserves tracking attributes."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -618,7 +598,6 @@ class TestDeprecatedClassWrappers:
 
     def test_new_implementation_no_warning(self) -> None:
         """Test that new implementation works without warnings."""
-        from tests.collection_targets import TimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -632,8 +611,6 @@ class TestDeprecatedClassWrappers:
 
     def test_with_decorator_syntax(self) -> None:
         """Test warning when applied using @ decorator syntax."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
-
         with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
 
             @DeprecatedTimerDecorator

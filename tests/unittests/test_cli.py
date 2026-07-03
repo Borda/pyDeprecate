@@ -2,13 +2,14 @@
 
 import importlib.metadata
 import sys
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from deprecate._cli import _print, _Reporter, cli, cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_status
-from deprecate._pkg import _auto_detect_version
+from deprecate._pkg import _auto_detect_version, _load_toml, _version_from_dynamic, _version_from_toml
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
 
@@ -281,8 +282,6 @@ class TestCmdExpiry:
 
     def test_pre_scanned_wrappers_expired_exits_one(self) -> None:
         """_wrappers with an expired wrapper and matching version → returns 1."""
-        from deprecate._types import DeprecationConfig
-
         config = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
         wrapper = DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)
         with patch("deprecate._cli.validate_deprecation_expiry") as mock_expiry:
@@ -741,6 +740,132 @@ class TestAutoDetectVersion:
         """Without a path, the installed distribution metadata provides the version."""
         monkeypatch.setattr(importlib.metadata, "version", MagicMock(return_value="1.2.3"))
         assert _auto_detect_version("somepkg", path=None) == "1.2.3"
+
+
+@pytest.fixture
+def _clean_sys_modules() -> Generator[None, None, None]:
+    """Remove any modules imported during the test so tmp_path packages don't leak into ``sys.modules``.
+
+    ``_version_from_dynamic`` imports the scanned package by name; without cleanup a later test importing a
+    same-named package would get the cached (deleted-tmp-dir) module. Records the module set before the test and
+    drops every newly-added entry afterwards.
+
+    """
+    before = set(sys.modules)
+    yield
+    for name in set(sys.modules) - before:
+        del sys.modules[name]
+
+
+def _write_pkg(root: Path, name: str, init_body: str) -> Path:
+    """Create an importable ``name`` package under *root* with *init_body* as its ``__init__.py`` and return it."""
+    pkg = root / name
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(init_body)
+    return pkg
+
+
+class TestLoadToml:
+    """Tests for _load_toml() — the tolerant ``pyproject.toml`` reader used by version auto-detection."""
+
+    def test_reads_static_project_table(self, tmp_path: Path) -> None:
+        """A well-formed pyproject with a ``[project]`` table is parsed into a nested dict."""
+        toml = tmp_path / "pyproject.toml"
+        toml.write_text('[project]\nname = "mypkg"\nversion = "1.2.3"\n')
+        data = _load_toml(str(toml))
+        assert data["project"]["version"] == "1.2.3"
+
+    def test_missing_file_returns_empty_dict(self, tmp_path: Path) -> None:
+        """A non-existent path is swallowed and yields an empty dict rather than raising.
+
+        The CLI probes for a ``pyproject.toml`` that may not exist; the reader must degrade to ``{}`` so callers
+        fall back to installed distribution metadata instead of crashing.
+
+        """
+        assert _load_toml(str(tmp_path / "does_not_exist.toml")) == {}
+
+    def test_malformed_toml_returns_empty_dict(self, tmp_path: Path) -> None:
+        """Invalid TOML syntax is caught and yields an empty dict."""
+        toml = tmp_path / "pyproject.toml"
+        toml.write_text("this is = = not valid toml [[[")
+        assert _load_toml(str(toml)) == {}
+
+
+@pytest.mark.usefixtures("_clean_sys_modules")
+class TestVersionFromDynamic:
+    """Tests for _version_from_dynamic() — imports a package to read its ``__version__`` for dynamic versions."""
+
+    def test_imports_package_and_reads_version(self, tmp_path: Path) -> None:
+        """A ``dynamic = ["version"]`` package exposing ``__version__`` resolves to that string.
+
+        A src-less project whose version lives only in ``pkg.__version__`` (e.g. set from a build backend) must be
+        importable via the temporarily-extended ``sys.path`` and have its runtime attribute read back.
+
+        """
+        _write_pkg(tmp_path, "dynpkg_read", '__version__ = "3.4.5"\n')
+        assert _version_from_dynamic("dynpkg_read", str(tmp_path), str(tmp_path)) == "3.4.5"
+
+    def test_returns_none_when_import_fails(self, tmp_path: Path) -> None:
+        """A package that raises on import yields ``None`` instead of propagating the error.
+
+        User packages run arbitrary top-level code; an import that blows up must downgrade auto-detection to
+        ``None`` (caller then falls back to metadata) rather than crash the whole ``expiry`` check.
+
+        """
+        _write_pkg(tmp_path, "dynpkg_boom", 'raise RuntimeError("boom at import time")\n')
+        assert _version_from_dynamic("dynpkg_boom", str(tmp_path), str(tmp_path)) is None
+
+    def test_returns_none_when_version_not_a_string(self, tmp_path: Path) -> None:
+        """A package whose ``__version__`` is not a ``str`` (or is absent) resolves to ``None``."""
+        _write_pkg(tmp_path, "dynpkg_badtype", "__version__ = 405\n")
+        assert _version_from_dynamic("dynpkg_badtype", str(tmp_path), str(tmp_path)) is None
+
+    def test_restores_sys_path_after_import(self, tmp_path: Path) -> None:
+        """``sys.path`` is returned to its original contents even after a successful import.
+
+        The helper prepends several candidate roots to ``sys.path``; leaving them behind would let unrelated later
+        imports resolve against a tmp directory. The ``finally`` restore must leave ``sys.path`` byte-for-byte.
+
+        """
+        original = list(sys.path)
+        _write_pkg(tmp_path, "dynpkg_syspath", '__version__ = "9.0.0"\n')
+        _version_from_dynamic("dynpkg_syspath", str(tmp_path), str(tmp_path))
+        assert sys.path == original
+
+
+class TestVersionFromToml:
+    """Tests for _version_from_toml() — extracts ``[project].version``, falling back to dynamic import."""
+
+    def test_static_version_returned_directly(self, tmp_path: Path) -> None:
+        """A literal ``version = "x"`` under ``[project]`` is returned without importing anything."""
+        toml = tmp_path / "pyproject.toml"
+        toml.write_text('[project]\nname = "mypkg"\nversion = "2.1.0"\n')
+        assert _version_from_toml(str(toml), str(tmp_path)) == "2.1.0"
+
+    def test_missing_project_table_returns_none(self, tmp_path: Path) -> None:
+        """A pyproject without a ``[project]`` table yields ``None``."""
+        toml = tmp_path / "pyproject.toml"
+        toml.write_text('[build-system]\nrequires = ["setuptools"]\n')
+        assert _version_from_toml(str(toml), str(tmp_path)) is None
+
+    @pytest.mark.usefixtures("_clean_sys_modules")
+    def test_dynamic_version_falls_back_to_import(self, tmp_path: Path) -> None:
+        """A ``dynamic = ["version"]`` project resolves the version by importing the named package.
+
+        Build backends often declare the version dynamic and compute it at build time; the auditor reproduces that
+        by importing ``[project].name`` and reading ``__version__``.
+
+        """
+        _write_pkg(tmp_path, "tomldynpkg", '__version__ = "5.6.7"\n')
+        toml = tmp_path / "pyproject.toml"
+        toml.write_text('[project]\nname = "tomldynpkg"\ndynamic = ["version"]\n')
+        assert _version_from_toml(str(toml), str(tmp_path)) == "5.6.7"
+
+    def test_dynamic_without_name_returns_none(self, tmp_path: Path) -> None:
+        """A dynamic-version project missing ``[project].name`` cannot be imported and yields ``None``."""
+        toml = tmp_path / "pyproject.toml"
+        toml.write_text('[project]\ndynamic = ["version"]\n')
+        assert _version_from_toml(str(toml), str(tmp_path)) is None
 
 
 # ---------------------------------------------------------------------------

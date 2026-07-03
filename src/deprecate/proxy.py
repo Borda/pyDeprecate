@@ -26,6 +26,9 @@ Example:
 
 import copy
 import inspect
+import math
+import operator
+import os
 import types
 import warnings
 from collections.abc import Iterator
@@ -95,6 +98,24 @@ class _DeprecatedProxy:
             instead of *obj*.
         args_mapping: Optional dict remapping keyword argument names when the proxy is called.  Keys are old argument
             names; values are new names, or ``None`` to drop the argument entirely.
+
+    Protocol forwarding:
+        Operator, conversion, context-manager, iteration, and subclassing protocols are forwarded to the active object
+        so the proxy stays transparent (arithmetic ``+ - * / // % ** @`` and their reflected/in-place forms, ordering
+        ``< <= > >=``, ``int()``/``float()``/``complex()``/``index()``, ``abs()``/``-``/``+``/``~``,
+        ``round()``/``math.trunc``/``floor``/``ceil``, ``reversed()``, ``os.fspath()``, ``format()``,
+        ``with``/``async with``, ``next()``/``async for``, ``await``, and ``class Child(DeprecatedAlias)`` via PEP 560
+        ``__mro_entries__``). Because implicit special-method lookup bypasses ``__getattr__``, any dunder *not* listed
+        here is not forwarded; a protocol the wrapped object does not implement raises the normal :class:`TypeError`
+        (binary operators return :data:`NotImplemented` so reflected operands and Python's error path are preserved).
+
+        **Warn policy** (consistent with ``__getitem__`` vs ``__len__``): operations that use or produce the wrapped
+        data warn once against the shared budget — arithmetic and its reflected/in-place forms, numeric/path
+        conversions, ``round``/``trunc``/``floor``/``ceil``, ``reversed``, ``next``, context entry (``__enter__`` /
+        ``__aenter__``), async iteration, and subclassing. Cheap structural probes stay silent — ordering comparisons,
+        ``format``, and context exit (``__exit__`` / ``__aexit__``) — mirroring the silent ``__eq__`` / ``__len__`` /
+        ``__str__``. In-place operators return the active object's own result, so a proxied value assigned via ``+=``
+        rebinds to that result rather than a re-wrapped proxy.
 
     """
 
@@ -773,6 +794,14 @@ class _DeprecatedProxy:
         # surface, so forwarding through the inner proxy avoids double-warning when both layers are active.
         if dep.target is TargetMode.ATTRS_REMAP and isinstance(cfg.obj, _DeprecatedProxy):
             return cfg.obj(*args, **kwargs)
+        # ATTRS_REMAP (non-stacking path): only the listed attribute aliases are deprecated, so
+        # instantiating/calling the class is not a deprecated surface — forward WITHOUT the global
+        # warning (mirrors the stacked branch above and the ARGS_REMAP skip in __getattr__). Moving
+        # this check above ``self._warn()`` keeps plain construction from branding the whole class
+        # deprecated and burning the global warn budget. args_extra is intentionally not applied —
+        # validated as a misconfiguration at decoration time.
+        if dep.target is TargetMode.ATTRS_REMAP:
+            return self._get_active()(*args, **kwargs)
         if dep.target is TargetMode.ARGS_REMAP:
             return _proxy_call_args_remap(self, dep, cfg, args, kwargs)
         if callable(dep.target) and dep.args_mapping:
@@ -784,9 +813,6 @@ class _DeprecatedProxy:
             return dep.target(*args, **self._merge_args_extra(kwargs))
         # NOTIFY: forward unchanged — args_extra is intentionally ignored (already warned at construction).
         if dep.target is TargetMode.NOTIFY:
-            return self._get_active()(*args, **kwargs)
-        # ATTRS_REMAP (non-stacking path): attribute access only — args_extra not applied.
-        if dep.target is TargetMode.ATTRS_REMAP:
             return self._get_active()(*args, **kwargs)
         # No target configured (e.g. deprecated_instance with no target): merge args_extra into the call so
         # wrappers can inject default kwargs even without a forwarding target.
@@ -963,6 +989,79 @@ class _DeprecatedProxy:
             # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
             return issubclass(subclass, active)
         return False
+
+    # ------------------------------------------------------------------
+    # Subclassing protocol (PEP 560) — supports ``class Child(DeprecatedAlias)``
+    # ------------------------------------------------------------------
+
+    def __mro_entries__(self, bases: tuple[Any, ...]) -> tuple[Any, ...]:
+        """Resolve the proxy to the active class when it appears in a subclass ``bases`` list.
+
+        ``deprecated_class`` replaces the class binding with a (non-``type``) proxy, so ``class Child(OldName)`` would
+        otherwise pass the proxy to the class machinery and fail with an opaque metaclass arity error. PEP 560's
+        ``__mro_entries__`` hook lets the proxy substitute the concrete active class (unwrapping any stacked-proxy
+        chain) so the subclass transparently derives from the replacement.
+
+        Subclassing *is* a use of the deprecated name, so a warning is emitted here — except for
+        :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` / :attr:`~deprecate._types.TargetMode.ARGS_REMAP`, whose
+        deprecation scope is a specific set of attributes/arguments rather than the class itself (consistent with
+        :meth:`__call__` and :meth:`__getattr__`).
+
+        """
+        if self._dep.target not in (TargetMode.ATTRS_REMAP, TargetMode.ARGS_REMAP):
+            self._warn()
+        return (_DeprecatedProxy._get_static_attr_owner(self),)
+
+    # ------------------------------------------------------------------
+    # Context-manager protocol — entry warns (a use), exit is silent cleanup
+    # ------------------------------------------------------------------
+
+    def __enter__(self) -> Any:  # noqa: ANN401
+        """Enter the active object's context, emitting a deprecation warning."""
+        self._warn()
+        return self._get_active().__enter__()
+
+    def __exit__(self, *exc_info: Any) -> Any:  # noqa: ANN401
+        """Exit the active object's context without emitting a warning (cleanup half of the pair)."""
+        return self._get_active().__exit__(*exc_info)
+
+    async def __aenter__(self) -> Any:  # noqa: ANN401
+        """Async-enter the active object's context, emitting a deprecation warning."""
+        self._warn()
+        return await self._get_active().__aenter__()
+
+    async def __aexit__(self, *exc_info: Any) -> Any:  # noqa: ANN401
+        """Async-exit the active object's context without emitting a warning (cleanup half of the pair)."""
+        return await self._get_active().__aexit__(*exc_info)
+
+    def __aiter__(self) -> Any:  # noqa: ANN401
+        """Return the active object's async iterator, emitting a deprecation warning."""
+        self._warn()
+        return self._get_active().__aiter__()
+
+    def __anext__(self) -> Any:  # noqa: ANN401
+        """Return the active object's next awaitable, emitting a deprecation warning."""
+        self._warn()
+        return self._get_active().__anext__()
+
+    def __await__(self) -> Any:  # noqa: ANN401
+        """Await the active object, emitting a deprecation warning."""
+        self._warn()
+        return self._get_active().__await__()
+
+    # ------------------------------------------------------------------
+    # Numeric/string dunders with non-uniform signatures — hand-written
+    # ------------------------------------------------------------------
+
+    def __round__(self, ndigits: Any = None) -> Any:  # noqa: ANN401
+        """Round the active object, emitting a deprecation warning (numeric read)."""
+        self._warn()
+        active = self._get_active()
+        return round(active) if ndigits is None else round(active, ndigits)
+
+    def __format__(self, format_spec: str) -> str:
+        """Format the active object without emitting a warning (a repr-like probe, mirroring ``__str__``)."""
+        return format(self._get_active(), format_spec)
 
 
 def _proxy_call_with_positional_split(
@@ -1448,3 +1547,114 @@ def deprecated_instance(
         read_only=read_only,
         args_extra=args_extra,
     )
+
+
+# ----------------------------------------------------------------------
+# Operator / protocol dunder forwarding (see the "Protocol forwarding" section of the
+# _DeprecatedProxy docstring for the warn-policy contract).
+#
+# Implicit special-method lookup bypasses ``__getattr__`` — Python resolves dunders on the *type*,
+# not the instance — so every operator, conversion, and protocol dunder must live on the class
+# itself for the proxy to stay transparent. These are generated from a table (rather than ~60
+# hand-written defs) and installed onto ``_DeprecatedProxy`` below.
+# ----------------------------------------------------------------------
+
+
+def _unwrap_operand(value: Any) -> Any:  # noqa: ANN401
+    """Return the active object behind a proxy operand, leaving non-proxy operands untouched."""
+    if isinstance(value, _DeprecatedProxy):
+        return _DeprecatedProxy._get_static_attr_owner(value)
+    return value
+
+
+def _make_binary_forward(op_name: str, *, warn: bool) -> Callable[..., Any]:
+    """Build a binary-operator dunder that forwards to the active object.
+
+    Looks the operator up on the *type* of the active object and returns :data:`NotImplemented` when it is absent, so
+    Python can try the reflected operand and ultimately raise its normal :class:`TypeError` — the proxy never masks an
+    unsupported-operand error. Proxy operands are unwrapped to their active object first.
+
+    """
+
+    def _binary_dunder(self: "_DeprecatedProxy", other: Any, *extra: Any) -> Any:  # noqa: ANN401
+        active = self._get_active()
+        impl = getattr(type(active), op_name, None)
+        if impl is None:
+            return NotImplemented
+        if warn:
+            self._warn()
+        return impl(active, _unwrap_operand(other), *extra)
+
+    _binary_dunder.__name__ = op_name
+    _binary_dunder.__qualname__ = f"_DeprecatedProxy.{op_name}"
+    return _binary_dunder
+
+
+def _make_unary_forward(op_name: str, func: Callable[[Any], Any]) -> Callable[..., Any]:
+    """Build a unary/conversion dunder that forwards through *func* (a builtin such as ``int`` or ``abs``).
+
+    Delegating through the builtin preserves Python's own fallbacks (e.g. ``int()`` falling back to ``__index__``) and
+    lets the natural :class:`TypeError` surface when the active object does not support the protocol.
+
+    """
+
+    def _unary_dunder(self: "_DeprecatedProxy") -> Any:  # noqa: ANN401
+        self._warn()
+        return func(self._get_active())
+
+    _unary_dunder.__name__ = op_name
+    _unary_dunder.__qualname__ = f"_DeprecatedProxy.{op_name}"
+    return _unary_dunder
+
+
+#: Arithmetic, reflected, and in-place binary operators — all warn (a data-producing use).
+_ARITHMETIC_OPS: tuple[str, ...] = (
+    "__add__", "__sub__", "__mul__", "__matmul__", "__truediv__", "__floordiv__",
+    "__mod__", "__divmod__", "__pow__", "__lshift__", "__rshift__", "__and__", "__xor__", "__or__",
+)  # fmt: skip
+_REFLECTED_OPS: tuple[str, ...] = (
+    "__radd__", "__rsub__", "__rmul__", "__rmatmul__", "__rtruediv__", "__rfloordiv__",
+    "__rmod__", "__rdivmod__", "__rpow__", "__rlshift__", "__rrshift__", "__rand__", "__rxor__", "__ror__",
+)  # fmt: skip
+_INPLACE_OPS: tuple[str, ...] = (
+    "__iadd__", "__isub__", "__imul__", "__imatmul__", "__itruediv__", "__ifloordiv__",
+    "__imod__", "__ipow__", "__ilshift__", "__irshift__", "__iand__", "__ixor__", "__ior__",
+)  # fmt: skip
+#: Ordering comparisons — silent (cheap probes, mirroring ``__eq__``/``__len__``).
+_ORDERING_OPS: tuple[str, ...] = ("__lt__", "__le__", "__gt__", "__ge__")
+#: Unary and conversion protocols forwarded through their builtin — all warn (a data-producing use).
+_UNARY_OPS: dict[str, Callable[[Any], Any]] = {
+    "__neg__": operator.neg,
+    "__pos__": operator.pos,
+    "__abs__": abs,
+    "__invert__": operator.invert,
+    "__int__": int,
+    "__float__": float,
+    "__complex__": complex,
+    "__index__": operator.index,
+    "__trunc__": math.trunc,
+    "__floor__": math.floor,
+    "__ceil__": math.ceil,
+    "__reversed__": reversed,
+    "__fspath__": os.fspath,
+    "__next__": next,
+}
+
+
+def _install_forwarding_dunders(cls: type) -> None:
+    """Attach the generated operator/conversion dunders to *cls* at import time.
+
+    Binary operators (arithmetic, reflected, in-place) and ordering comparisons are installed via
+    :func:`_make_binary_forward`; unary and conversion protocols via :func:`_make_unary_forward`. Ordering comparisons
+    are silent (probes); every other generated dunder warns (data use).
+
+    """
+    for _op in (*_ARITHMETIC_OPS, *_REFLECTED_OPS, *_INPLACE_OPS):
+        setattr(cls, _op, _make_binary_forward(_op, warn=True))
+    for _op in _ORDERING_OPS:
+        setattr(cls, _op, _make_binary_forward(_op, warn=False))
+    for _op, _func in _UNARY_OPS.items():
+        setattr(cls, _op, _make_unary_forward(_op, _func))
+
+
+_install_forwarding_dunders(_DeprecatedProxy)

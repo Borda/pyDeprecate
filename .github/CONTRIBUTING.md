@@ -212,6 +212,9 @@ pytest .
 > [!NOTE]
 > When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves. Code blocks paired with an output block must produce exactly that output when executed, which sometimes requires mocking external state (e.g. `unittest.mock.patch`); illustrative patterns that can't run standalone (like CI fixtures) are wrapped in nested functions marked `# Caution- no assertions.` so phmdoctest skips their execution.
 
+> [!IMPORTANT]
+> **`make docs-tests` is the only supported way to (re)generate the docs example tests** under `tests/docs/` (and `tests/integration/test_readme.py`). It deletes the old generated `test_*.py` files first, so it never leaves stale artifacts behind. These files are gitignored local artifacts — running `pytest tests/docs/` against an out-of-date checkout otherwise produces confusing failures (e.g. `ModuleNotFoundError` for placeholder imports, or assertion drift against reprs that have since changed). A `tests/docs/conftest.py` guard fails collection with a `regenerate via make docs-tests` message when any generated file is older than the `docs/*.md` source it came from; the default `pytest .` run prunes `tests/docs/` and is unaffected.
+
 ## 💎 Quality Expectations
 
 > [!IMPORTANT]

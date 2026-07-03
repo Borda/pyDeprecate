@@ -4,7 +4,13 @@
 
 ### Added
 
+- **Deprecated proxies now forward operator and protocol dunders to the wrapped object.** Arithmetic (`proxy + 1`), comparison/ordering, context managers (`with proxy:`), iteration (`next`, `reversed`), numeric conversion (`int`/`float`/`round`/`abs`), `os.fspath`, `format`, and the async protocols (`async with`, `async for`, `await`) now delegate to the active object instead of raising `TypeError`. Binary operators preserve `NotImplemented` semantics, so unsupported-operand errors surface normally. The warn-policy contract is documented in the `_DeprecatedProxy` docstring: data use warns (within the `num_warns` budget), cheap probes stay silent. ([#214](https://github.com/Borda/pyDeprecate/pull/214))
+
+- **Subclassing a deprecated class alias now works (PEP 560).** `class Child(OldName)` on a `deprecated_class` alias previously raised a confusing metaclass arity `TypeError`; `__mro_entries__` now resolves the alias to the active class and emits the deprecation warning (subclassing is a use of the deprecated name), respecting the warn budget and staying silent for `attrs_mapping`-only proxies. ([#214](https://github.com/Borda/pyDeprecate/pull/214))
+
 ### Changed
+
+- **Call forwarding is ~2.4× faster.** Decoration-time-stable signature facts are now precomputed onto `DeprecationConfig` instead of re-derived on every call (uncached `inspect.getfullargspec` removed from the hot path); forwarded-call overhead drops from ~10.4 µs to ~4.3 µs with no behavior change. ([#214](https://github.com/Borda/pyDeprecate/pull/214))
 
 - **`validate_deprecation_expiry()` now scans class members by default (`include_members=True`).** Previously the expiry gate defaulted to `include_members=False` while `find_deprecation_wrappers()` defaulted to `True`, so CI gates silently skipped expired deprecated methods, constructors, classmethods, staticmethods, and properties. The flip can only surface additional expired wrappers — pass `include_members=False` explicitly to restore the old scope. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
@@ -15,6 +21,12 @@
 ### Removed
 
 ### Fixed
+
+- **`num_warns` quota is now thread-safe.** Concurrent first calls to a shared wrapper could each pass the quota check before any counter increment, emitting up to one warning per thread instead of the configured budget; the warn path now synchronizes on a per-wrapper lock, so exactly `num_warns` warnings are emitted under concurrency. ([#214](https://github.com/Borda/pyDeprecate/pull/214))
+
+- **Cross-class forwarding between staticmethods no longer raises a spurious `TypeError`.** The cross-class guard exists to prevent `self` carrying the wrong type, but staticmethods have no `self`; `@deprecated(target=NewCls.compute)` on a staticmethod forwarding to another class's staticmethod is now allowed. ([#214](https://github.com/Borda/pyDeprecate/pull/214))
+
+- **Instantiating an `attrs_mapping`-only deprecated class no longer emits a class-level warning.** `TargetMode.ATTRS_REMAP` scopes the deprecation to the listed attributes, yet plain instantiation fired the blanket `FutureWarning` and consumed the warn budget; construction is now silent and only deprecated-attribute access warns. ([#214](https://github.com/Borda/pyDeprecate/pull/214))
 
 - **Deprecated proxies now support `copy.copy`, `copy.deepcopy`, and `pickle`.** Copying or pickling any `deprecated_class`/`deprecated_instance` proxy previously crashed with `RecursionError` — the `_cfg` property and `__getattr__` fell into infinite mutual recursion on half-initialized instances. Proxies now implement the copy/pickle protocol and reconstruct a functional proxy. Note: `deprecated_instance` proxies wrapping plain objects (dicts, lists) are fully picklable; `deprecated_class` proxies may raise `PicklingError` when the decorated class name is replaced by the proxy (the common alias pattern), because pickle cannot find the original class by reference. ([#212](https://github.com/Borda/pyDeprecate/pull/212))
 

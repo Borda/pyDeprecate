@@ -99,6 +99,7 @@ from tests.collection_targets import (
     double_value,
     fib_recursive,
     fn_remap_with_extra_body,
+    fn_shared_default_target,
     fn_with_default,
     gapped_positional_only_target,
     gen_target,
@@ -1184,6 +1185,30 @@ class CrossGuardOldClass(CrossGuardClassTargetNew):
         void(x)
 
 
+class StaticGuardNewClass:
+    """Target class for the CORE-6 staticmethod cross-class guard regression."""
+
+    @staticmethod
+    def compute(x: int) -> int:
+        """Current staticmethod implementation on the replacement class."""
+        return x * 3
+
+
+class StaticGuardOldClass:
+    """Source class whose deprecated staticmethod forwards to a staticmethod on a *different* class.
+
+    Regression for CORE-6: the cross-class guard used to raise ``TypeError`` at decoration time here because it
+    saw two different owning classes in the qualnames.  A staticmethod receives no ``self``, so cross-class
+    forwarding is safe; the guard is now skipped for staticmethod sources and this module imports cleanly.
+    """
+
+    @deprecated(target=StaticGuardNewClass.compute, **_DEPRS_CASE_STD_ARGS)
+    @staticmethod
+    def compute(x: int) -> int:
+        """Deprecated staticmethod forwarding cross-class to ``StaticGuardNewClass.compute``."""
+        return void(x)
+
+
 # ========== Instance and class-level proxy deprecation examples ==========
 
 
@@ -1422,6 +1447,21 @@ def fn_old_default(old_arg: int = 1, new_arg: int = 99) -> int:
 
     """
     return void(old_arg, new_arg)
+
+
+@deprecated(target=fn_shared_default_target, **_DEPRS_CASE_STD_ARGS)
+def fn_shared_default(x: int, level: int = 1) -> int:
+    """Callable-target source sharing the non-renamed parameter ``level`` (source default 1, target default 99).
+
+    Pins the intended forwarding contract for a non-renamed shared parameter with no ``args_mapping``: the
+    source signature is the contract the caller migrated from, so the source's ``level=1`` default is forwarded
+    and wins over the target's ``level=99`` when the caller supplies neither.  This is deliberately different
+    from the *renamed* path (see ``fn_old_default``), where a stale old-arg default is dropped because that
+    argument is being removed.  (Review finding CORE-4 proposed dropping the non-renamed default too; it was
+    assessed as a misdiagnosis — the behaviour is intended and enforced by ``test_functions.py::test_default``.)
+
+    """
+    return void(x, level)
 
 
 @deprecated(
@@ -2329,3 +2369,28 @@ def dep_fib_remap(n: int = 0, x: int = 0) -> int:
     if x <= 1:
         return x
     return dep_fib_remap(n=x - 1) + dep_fib_remap(n=x - 2)
+
+
+# ========== Async source forwarding to a SYNC target fixtures ==========
+
+# An `async def` wrapper may forward to a *synchronous* callable target: legacy targets are
+# not required to be redeclared `async def` for callers to migrate.  These fixtures exercise
+# that path (the `not iscoroutinefunction(target)` branch of the async dispatcher) for both
+# the var-positional surplus reorder shape and the POSITIONAL_ONLY split shape.
+
+
+@deprecated(target=var_positional_target, **_DEPRS_CASE_STD_INF_ARGS)
+async def deprecated_async_var_positional_to_sync(a: int, *extras: int) -> int:
+    """Async ``*args`` source forwarding a surplus tail to a SYNC ``*args``-accepting target."""
+    return 0
+
+
+# positional_only_target declares `x` as POSITIONAL_ONLY, so decoration emits a UserWarning
+# that is suppressed here to keep import-time output clean (mirrors the sync fixture above).
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+
+    @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+    async def deprecated_async_positional_only_to_sync(x: int, y: int = 0) -> int:
+        """Async source forwarding to a SYNC target with a POSITIONAL_ONLY parameter."""
+        return 0
