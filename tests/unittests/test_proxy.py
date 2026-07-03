@@ -2589,3 +2589,42 @@ class TestProxyCopyPickle:
         blank = _DeprecatedProxy.__new__(_DeprecatedProxy)
         with pytest.raises(AttributeError):
             _ = blank.anything
+    def test_copy_of_exhausted_proxy_is_silent(self) -> None:
+        """A copy of an already-warned proxy inherits the exhausted budget and stays silent.
+
+        With ``num_warns=1`` the original can warn exactly once.  After that warning fires,
+        copying the proxy snapshots the exhausted counter — the copy never warns, even though
+        it was never accessed before the copy.  Each copy is independent of the original but
+        inherits the counter value at copy time, not a fresh budget.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with pytest.warns(FutureWarning):
+            _ = proxy["k"]  # exhaust the budget on the original
+        dup = copy.copy(proxy)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _ = dup["k"]  # must not warn — counter is snapshotted as exhausted
+
+    def test_pickle_raises_for_nonpicklable_stream(self) -> None:
+        """A proxy with a non-picklable stream (lambda) cannot be pickled.
+
+        The ``stream`` callable is serialised as part of the internal config; lambdas and
+        closures are not picklable by the standard pickle protocol.  This test documents the
+        known limitation so future changes do not silently regress it.
+        """
+        proxy = deprecated_instance(
+            {"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=lambda msg: None
+        )
+        with pytest.raises(Exception):  # PicklingError or AttributeError depending on Python version
+            pickle.dumps(proxy)
+
+    def test_pickle_roundtrip_class_proxy(self) -> None:
+        """Deprecated class alias survives a pickle round-trip.
+
+        Module-level class objects are picklable by reference.  The unpickled value must be
+        a proxy again (deprecation semantics preserved) and must forward attribute access to
+        the original target class correctly.
+        """
+        restored = pickle.loads(pickle.dumps(DeprecatedColorEnum))  # noqa: S301
+        assert type(restored) is _DeprecatedProxy
+        assert restored.RED is ColorEnum.RED
