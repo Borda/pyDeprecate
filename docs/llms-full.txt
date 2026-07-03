@@ -110,7 +110,7 @@ OLD_VALUE = deprecated_instance(NEW_VALUE, name="OLD_VALUE", deprecated_in="1.0"
 
 The proxy forwards arithmetic, unary, and conversion operators to the wrapped object and warns on data-use operations (arithmetic, conversions, context entry, iteration). Ordering comparisons, `format()`, and context exit are silent. In-place operators (`+= `, `-=`, etc.) return the active object's result, not a re-wrapped proxy — `old_val += 1` rebinds to a plain `int`. One edge case: `"prefix" + proxy_str` fails if the left-hand type raises `TypeError` directly rather than returning `NotImplemented` (e.g. `str.__add__`); use proxy on the left side or wrap in a container.
 
-Proxies survive `copy.copy()` and `copy.deepcopy()` — the result is a proxy again, so the warning travels with the copy; `pickle` is not yet supported (raises `TypeError`). `isinstance(OLD_VALUE, type(NEW_VALUE))` is `True` on instance proxies; failed `hasattr` probes and dunder reads emit no warning and do not consume the warning budget.
+Proxies survive `copy.copy()` and `copy.deepcopy()` — the result is a proxy again, so the warning travels with the copy; `pickle` works for `deprecated_instance` proxies; `deprecated_class` proxies raise `pickle.PicklingError` when the class name is replaced by the proxy at module level. `isinstance(OLD_VALUE, type(NEW_VALUE))` is `True` on instance proxies; failed `hasattr` probes and dunder reads emit no warning and do not consume the warning budget.
 
 ### CI audit
 

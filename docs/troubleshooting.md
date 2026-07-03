@@ -439,7 +439,7 @@ This mirrors the existing silent/warn split for `__eq__` / `__len__` / `__str__`
 from deprecate import deprecated_instance
 
 n = deprecated_instance(3, deprecated_in="1.0", remove_in="2.0", stream=None)
-n += 1  # warns: FutureWarning; n is now plain int(4), not a proxy
+n += 1  # silent (stream=None); n is now plain int(4), not a proxy
 print(type(n).__name__)
 ```
 
@@ -458,7 +458,7 @@ int
 from deprecate import deprecated_instance
 
 s = deprecated_instance("hello", deprecated_in="1.0", remove_in="2.0", stream=None)
-print(s + " world")  # warns: FutureWarning — proxy on left side works
+print(s + " world")  # silent (stream=None) — proxy on left side works
 # " world" + s → TypeError (str.__add__ raises instead of returning NotImplemented)
 ```
 
