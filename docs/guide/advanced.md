@@ -203,7 +203,7 @@ def make_test_client() -> dict:
     return create_client("localhost", 8080)  # warns: FutureWarning
 
 
-# The first call emits one FutureWarning (suppressed in pytest by a scoped filterwarnings entry):
+# The first call emits one FutureWarning; add a scoped filterwarnings entry to suppress it in fixtures:
 client = make_test_client()
 print(client)
 

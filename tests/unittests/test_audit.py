@@ -13,7 +13,7 @@ import pytest
 
 import tests.collection_deprecate as col
 import tests.collection_misconfigured as clean_module
-from deprecate import TargetMode, deprecated, validate_mapping_compatibility
+from deprecate import TargetMode, deprecated, validate_deprecation_expiry, validate_mapping_compatibility
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     ChainType,
@@ -600,6 +600,41 @@ class TestClassifyMemberApiType:
     def test_init_with_mapping_returns_class_constructor_args(self) -> None:
         """member_name='__init__' with has_mapping=True returns 'class constructor args'."""
         assert _classify_member_api_type("__init__", None, True) == "class constructor args"
+
+
+@_requires_packaging
+class TestValidateDeprecationExpiryDefaults:
+    """validate_deprecation_expiry must cover class members by default — it is the CI enforcement gate."""
+
+    def test_default_includes_expired_class_members(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A deprecated method past its deadline is reported without passing ``include_members``.
+
+        A team wires the documented one-liner ``validate_deprecation_expiry(my_package, __version__)``
+        into CI and believes all deprecations are enforced. If the default excluded class members, every
+        deprecated method, constructor, classmethod, staticmethod, and property would silently outlive its
+        ``remove_in`` deadline while discovery (``find_deprecation_wrappers``) and reporting
+        (``generate_deprecation_table``) show them by default.
+
+        """
+        mod = types.ModuleType("test_mod_expiry_member_default")
+
+        # one-off mechanical fixture: wrapper belongs to a dynamically-built class attached to types.ModuleType
+        class Service:
+            @deprecated(deprecated_in="0.1", remove_in="0.5")
+            def old_compute(self, x: int) -> int:
+                """Deprecated self-deprecation past its removal deadline."""
+                return x
+
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(Service, "__module__", mod.__name__)
+        mod.Service = Service  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            expired = validate_deprecation_expiry(mod, "1.0")
+
+        assert len(expired) == 1
+        assert "old_compute" in expired[0]
 
 
 class TestFindDeprecationWrappersClassScan:

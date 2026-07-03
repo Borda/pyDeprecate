@@ -6,6 +6,7 @@ import importlib.util
 import inspect
 import pkgutil
 import warnings
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -39,6 +40,20 @@ from tests.collection_targets import plain_function_target
 # Check if packaging is available for version comparison tests
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
+
+# Source for a healthy submodule of a scan-target package (one-off mechanical fixture written to tmp_path).
+_GOOD_SUBMODULE_SRC = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"})
+def old_fn(old: int) -> int:
+    pass
+"""
 
 
 class TestValidateDeprecatedWrapper:
@@ -404,6 +419,29 @@ class TestFindDeprecatedWrappers:
         with patch.object(pkgutil, "walk_packages", side_effect=OSError("no walk")):
             results = find_deprecation_wrappers(tests, recursive=True)
         assert isinstance(results, list)
+
+    def test_recursive_scan_skips_submodule_failing_import(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A submodule raising a non-ImportError at import time is skipped with a warning; the scan continues.
+
+        Optional-dependency submodules commonly raise ``RuntimeError`` (missing driver), ``OSError``, or
+        ``KeyError`` (env lookup) from module-level code. A CI expiry gate scanning the whole package must
+        still report wrappers from healthy submodules instead of aborting with an error unrelated to
+        deprecation — or worse, training teams to ``|| true`` the gate.
+
+        """
+        pkg = tmp_path / "brokenscan_pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "good.py").write_text(_GOOD_SUBMODULE_SRC)
+        (pkg / "bad.py").write_text('raise RuntimeError("boom at import")\n')
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        with pytest.warns(UserWarning, match=r"audit: skipped brokenscan_pkg\.bad"):
+            results = find_deprecation_wrappers("brokenscan_pkg", recursive=True)
+
+        assert "old_fn" in {r.function for r in results}
 
     def test_empty_deprecated_in_flag_reported_via_find(self) -> None:
         """find_deprecation_wrappers sets empty_deprecated_in=True for wrappers with no version."""
@@ -783,6 +821,18 @@ class TestCheckModuleDeprecationExpiry:
         assert len(expired) > 0
         assert all(isinstance(msg, str) for msg in expired)
         assert all("scheduled for removal" in msg and "still exists" in msg for msg in expired)
+
+    def test_expired_class_members_detected_by_default(self) -> None:
+        """Expired class-member wrappers are reported without opting in via ``include_members``.
+
+        The expiry check is the CI enforcement gate: a team using the documented default call must not
+        have deprecated constructors and methods silently excluded while discovery
+        (``find_deprecation_wrappers``) and reporting (``generate_deprecation_table``) include them by
+        default. ``PastCls.__init__`` carries ``remove_in="0.4"`` and must be flagged at version 0.5.
+
+        """
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+        assert any("PastCls.__init__" in msg for msg in expired)
 
     def test_accepts_module_object(self) -> None:
         """Module objects are accepted alongside string paths."""

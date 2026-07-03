@@ -47,7 +47,15 @@ from tests.collection_deprecate import (
     dep_fib_remap,
     dep_fib_silent,
     dep_non_cycle_old_fn,
+    deprecated_args_remap_positional_only_source,
+    deprecated_async_args_remap_positional_only_source,
+    deprecated_async_gapped_positional_only_source,
+    deprecated_async_notify_positional_only_source,
     deprecated_async_positional_only_source,
+    deprecated_gapped_positional_only_first_source,
+    deprecated_gapped_positional_only_full_source,
+    deprecated_gapped_positional_only_source,
+    deprecated_notify_positional_only_source,
     deprecated_positional_only_source,
     deprecated_positional_only_stream_none,
     deprecated_positional_only_two_params_source,
@@ -1398,6 +1406,118 @@ class TestPositionalOnlyTarget:
         with pytest.warns(FutureWarning):
             obj = OldSelfOnlyClass()
         assert isinstance(obj, OldSelfOnlyClass)
+
+
+class TestPositionalOnlySource:
+    """``@deprecated`` on a *source* whose own signature declares POSITIONAL_ONLY parameters.
+
+    NOTIFY (default) and ARGS_REMAP modes execute the source body.  The wrapper converts
+    positional args to kwargs internally, so the dispatcher must split the source's
+    positional-only params back out before calling ``source`` — otherwise every call in
+    the default mode raises ``TypeError: got some positional-only arguments passed as
+    keyword arguments``.
+    """
+
+    def test_notify_positional_call_executes_source(self) -> None:
+        """Default warn-only mode executes a source with a ``/`` in its signature.
+
+        A library author adds a plain ``@deprecated(deprecated_in=..., remove_in=...)``
+        notice to an existing function that uses positional-only parameters.  Callers keep
+        calling it exactly as before — the call must warn and return the source's result,
+        not crash with ``TypeError`` on every invocation.
+        """
+        with pytest.warns(FutureWarning, match=r"deprecated_notify_positional_only_source"):
+            result = deprecated_notify_positional_only_source(1)
+        assert result == 3
+
+    def test_notify_keyword_tail_preserved(self) -> None:
+        """Keyword arguments after the ``/`` still reach the source alongside the positional split."""
+        with pytest.warns(FutureWarning):
+            result = deprecated_notify_positional_only_source(1, b=10)
+        assert result == 11
+
+    def test_args_remap_old_name_remapped(self) -> None:
+        """ARGS_REMAP renames the deprecated kwarg and executes the positional-only source body.
+
+        A caller still using the deprecated ``old_flag`` name on a function whose leading
+        parameter is positional-only must get the rename warning and the correct result —
+        the remapped kwargs dict must not swallow the positional-only ``a``.
+        """
+        with pytest.warns(FutureWarning, match=r"old_flag"):
+            result = deprecated_args_remap_positional_only_source(1, old_flag=5)
+        assert result == 6
+
+    def test_args_remap_migrated_caller_short_circuits(self) -> None:
+        """A migrated caller using the new kwarg name gets no warning and a working call.
+
+        The migrated-caller fast path (short-circuit) also calls ``source(**kwargs)``
+        internally, so it needs the same positional-only split as the warning path.
+        """
+        with assert_no_warnings(FutureWarning):
+            result = deprecated_args_remap_positional_only_source(1, new_flag=5)
+        assert result == 6
+
+    @pytest.mark.asyncio
+    async def test_async_notify_positional_call_executes_source(self) -> None:
+        """The async dispatch twin executes an async source with a POSITIONAL_ONLY param.
+
+        An async API deprecated with the plain notice must keep serving awaited calls;
+        ``_invoke_async`` must split the positional-only params exactly like the sync path.
+        """
+        with pytest.warns(FutureWarning):
+            result = await deprecated_async_notify_positional_only_source(1, b=10)
+        assert result == 11
+
+    @pytest.mark.asyncio
+    async def test_async_args_remap_old_name_remapped(self) -> None:
+        """The async ARGS_REMAP path renames the deprecated kwarg on a positional-only source."""
+        with pytest.warns(FutureWarning, match=r"old_flag"):
+            result = await deprecated_async_args_remap_positional_only_source(1, old_flag=5)
+        assert result == 6
+
+
+class TestGappedPositionalOnlyForwarding:
+    """Forwarding to a target whose POSITIONAL_ONLY params are only partially supplied.
+
+    ``gapped_positional_only_target(a=1, b=2, /, c=3)`` has defaulted positional-only
+    params.  A source that supplies ``b`` but not ``a`` leaves a gap: positional binding
+    would silently slide ``b``'s value into ``a``'s slot.  The split dispatch must raise
+    ``TypeError`` instead of misbinding.
+    """
+
+    def test_gap_with_later_value_raises_type_error(self) -> None:
+        """Supplying a later positional-only param while an earlier one is absent raises.
+
+        A migration wrapper forwards only ``b`` to a target where ``a`` (also positional-only)
+        precedes it.  Before the fix, ``b``'s value was silently bound to ``a`` — wrong data
+        on every call.  The wrapper must now fail loudly at the call site.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match=r"`a` was not supplied"):
+            deprecated_gapped_positional_only_source()
+
+    def test_full_prefix_forwards_in_order(self) -> None:
+        """Supplying every positional-only param forwards each value to its own slot."""
+        with pytest.warns(FutureWarning):
+            result = deprecated_gapped_positional_only_full_source(9, 8)
+        assert result == {"a": 9, "b": 8, "c": 3}
+
+    def test_trailing_gap_uses_target_defaults(self) -> None:
+        """A gap with no later positional-only value present falls back to the target defaults.
+
+        A source declaring only ``a`` (the first positional-only target param) leaves a
+        *trailing* gap at ``b`` — safe, because no later positional-only value can slide
+        into the wrong slot.  ``b`` and ``c`` keep their target-side defaults, so the call
+        must succeed rather than raise.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_gapped_positional_only_first_source(4)
+        assert result == {"a": 4, "b": 2, "c": 3}
+
+    @pytest.mark.asyncio
+    async def test_async_gap_with_later_value_raises_type_error(self) -> None:
+        """The async dispatch twin raises the same TypeError on a positional-only gap."""
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match=r"`a` was not supplied"):
+            await deprecated_async_gapped_positional_only_source()
 
 
 class TestCycleDetection:

@@ -790,7 +790,7 @@ strings, prefer wrapping them in a container (such as a dict or configuration ob
 directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
 `name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
 
-The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code.
+The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code. An instance proxy also reports the wrapped object's type through `__class__`, so `isinstance(DEFAULTS, dict)` is `True` directly on the proxy. Introspection stays silent — `isinstance` checks, dunder reads, and failed `hasattr` probes emit no warning and do not consume the `num_warns` budget.
 
 ```python
 from deprecate import deprecated_instance
@@ -1610,7 +1610,7 @@ print(f"Found {len(expired)} expired")
 
 ```
 Found 14 expired
-Found 28 expired
+Found 31 expired
 Found 17 expired
 Found 0 expired
 ```
@@ -1797,7 +1797,7 @@ def enforce_no_deprecation_chains():
 
 ### Detecting Positional-Only Incompatible Mappings
 
-The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. Those proxies fall back to `setattr` after construction, which may silently produce wrong results on immutable types or classes without a matching `__setattr__`.
+The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. The proxy forwards those remapped values positionally to the constructor, so the mapping works even for required positional-only parameters, frozen dataclasses, and classes with `__post_init__` logic — the finding is an advisory visibility signal, not a failure.
 
 ```bash
 pydeprecate check my_package
@@ -1807,8 +1807,8 @@ pydeprecate all my_package
 
 > [!TIP]
 >
-> - The proxy still works at runtime via `setattr`, but the fallback is invisible; `pydeprecate check` surfaces it at CI time
-> - Fix: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
+> - The proxy forwards remapped values positionally to the constructor at call time; `pydeprecate check` surfaces the pattern at CI time as an advisory signal
+> - To silence the decoration-time `UserWarning`: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
 > - For programmatic use: `validate_mapping_compatibility(module)` returns `list[DeprecationWrapperInfo]` where `args_mapping_positional_only` is non-empty
 
 ## 🧪 Testing Deprecated Code
@@ -1912,11 +1912,11 @@ print(predict_batch(1))
 
 ## 🔧 Troubleshooting
 
-### ⚠ UserWarning: `Applying @deprecated to class … is deprecated itself`
+### ⚠ UserWarning: `Direct use of @deprecated on class … is deprecated`
 
-**Problem:** `UserWarning: Applying @deprecated to class MyClass is not supported since v0.6.0. Use @deprecated_class() from deprecate.proxy instead.`
+**Problem:** `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.`
 
-**Cause:** You applied `@deprecated` directly to a class. This still works (it delegates to `@deprecated_class()` under the hood) but is itself deprecated — `@deprecated` is designed for functions and methods only.
+**Cause:** You applied `@deprecated` directly to a class. This still works (it delegates to `@deprecated_class()` under the hood) but the delegation path is itself deprecated and will become a `TypeError` in a future release — `@deprecated` is designed for functions and methods only. Use `deprecated_class` (public import: `from deprecate import deprecated_class`) instead.
 
 <details>
 <summary>Solution</summary>

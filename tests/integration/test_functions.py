@@ -51,6 +51,11 @@ from tests.collection_deprecate import (
     depr_pow_skip_if_func_int,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
+    deprecated_async_var_positional_forward,
+    deprecated_var_positional_forward,
+    deprecated_var_positional_overflow,
+    deprecated_var_positional_remap,
+    deprecated_var_positional_to_fixed,
     wrapped_pow_self,
     wrapped_pow_skip_if_func,
     wrapped_pow_skip_if_true,
@@ -644,3 +649,79 @@ class TestDeprecatedClassWrappers:
         assert hasattr(sample_function, "total_time")
         assert hasattr(sample_function, "calls")
         assert sample_function.calls == 1
+
+
+class TestVarPositionalForwarding:
+    """Forwarding a deprecated ``*args`` source to a callable target.
+
+    Positional-to-keyword conversion stops at the source's ``*args``, so everything past
+    the named positionals used to be silently dropped when forwarding — ``old_sum(1, 2, 3)``
+    returned ``1``.  The surplus tail must now reach the target positionally, and a target
+    that cannot accept it must raise a curated ``TypeError`` instead of losing data.
+    """
+
+    def test_surplus_tail_forwarded_to_var_positional_target(self) -> None:
+        """The surplus positional tail reaches the target's ``*args``.
+
+        A user migrates ``old_sum(1, 2, 3)`` behaviour to ``var_positional_target``:
+        the wrapper must produce ``1 + 2 + 3 == 6``, not silently drop ``(2, 3)``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_forward(1, 2, 3)
+        assert result == 6
+
+    def test_no_surplus_forwards_named_positionals_only(self) -> None:
+        """Calls without a surplus tail keep the plain keyword-forwarding path."""
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_forward(4)
+        assert result == 4
+
+    def test_surplus_fills_target_fixed_positional_slots(self) -> None:
+        """A target without ``*args`` absorbs the surplus into its unfilled positional slots.
+
+        ``trio_positional_target(a, b=0, c=0)`` has two free slots after ``a``; forwarding
+        ``(1, 2, 3)`` must bind ``b=2`` and ``c=3`` — the natural positional call shape.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_to_fixed(1, 2, 3)
+        assert result == 123
+
+    def test_surplus_overflow_raises_curated_type_error(self) -> None:
+        """A surplus tail the target cannot accept raises loudly instead of being dropped.
+
+        ``single_positional_target(a)`` has no free slots and no ``*args``; forwarding
+        ``(1, 2, 3)`` must raise the curated ``TypeError`` naming the failed mapping.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match=r"cannot be forwarded"):
+            deprecated_var_positional_overflow(1, 2, 3)
+
+    @pytest.mark.asyncio
+    async def test_async_surplus_tail_forwarded(self) -> None:
+        """The async dispatch twin forwards the surplus tail to an async target."""
+        with pytest.warns(FutureWarning):
+            result = await deprecated_async_var_positional_forward(1, 2, 3)
+        assert result == 6
+
+    def test_args_remap_with_var_positional_no_double_pass(self) -> None:
+        """ARGS_REMAP on a ``*args`` source must not double-pass named positionals.
+
+        When a source declares ``*args`` and ``args_mapping`` fires (caller used the old kwarg
+        name), the wrapper used to build ``kw_args`` from ``resolved_kwargs``, which contains
+        positional-to-keyword conversions for every named positional (e.g. ``a``).  Calling
+        ``source(*args, **kw_args)`` then raised ``TypeError: got multiple values for argument 'a'``
+        even though the call was perfectly valid.  The fix builds ``kw_args`` from
+        ``original_kwargs`` (caller-supplied keywords only) and applies the mapping there, so
+        the positional slot ``a`` is carried by ``*args`` and never appears in ``kw_args``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_remap(1, 2, 3, old_kwarg="hello")
+        assert result == (1, 2, 3, "hello")
+
+    def test_args_remap_with_var_positional_migrated_caller(self) -> None:
+        """Migrated caller (using new kwarg name) must not warn or raise.
+
+        A caller already using ``new_kwarg`` produces an empty ``reason_argument`` — the
+        short-circuit path should pass through without any warning.
+        """
+        result = deprecated_var_positional_remap(1, 2, new_kwarg="world")
+        assert result == (1, 2, "world")

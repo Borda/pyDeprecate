@@ -1,9 +1,11 @@
 """Unit tests for _DeprecatedProxy internals and deprecated_class decorator behaviour."""
 
 import abc
+import copy
 import inspect
+import pickle
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
 from typing import Any, cast
 
@@ -18,6 +20,10 @@ from tests.collection_deprecate import (
     DepAutoExpandOverriddenInitDC,
     DepAutoExpandReqDC,
     DepPositionalOnly,
+    DepPositionalOnlyDerived,
+    DepPositionalOnlyImmutable,
+    DepPositionalOnlyMixed,
+    DepPositionalOnlyRequired,
     DeprecatedAttrsExplicitMode,
     DeprecatedAttrsLegacyTrue,
     DeprecatedAttrsNotifyOnly,
@@ -2290,24 +2296,27 @@ class TestDataclassAutoExpand:
 
 
 # ---------------------------------------------------------------------------
-# Positional-only constructor guard + setattr fallback
+# Positional-only constructor guard + positional forwarding
 # ---------------------------------------------------------------------------
 
 
-class TestPositionalOnlyFallback:
+class TestPositionalOnlyForwarding:
     """``args_mapping`` on a class with ``POSITIONAL_ONLY`` constructor parameters.
 
     The proxy must emit ``UserWarning`` at decoration time, record
-    ``args_mapping_positional_only`` on ``DeprecationConfig``, and fall back to
-    ``setattr`` at call time instead of forwarding the remapped kwarg as a
-    positional-only keyword (which would raise ``TypeError``).
+    ``args_mapping_positional_only`` on ``DeprecationConfig``, and at call time reorder
+    the remapped values into positional arguments by target-signature declaration order
+    (the decorator's split approach) — forwarding ``new_val=7`` as a keyword would raise
+    ``TypeError``, and the historical pop-and-``setattr`` fallback broke required params,
+    immutable instances, and constructor-derived state.
     """
 
     def test_decoration_emits_user_warning(self) -> None:
         """Creating ``deprecated_class`` with ``args_mapping`` to a positional-only param warns.
 
-        The ``UserWarning`` must mention that the target parameter is positional-only so
-        developers know to use ``attrs_mapping`` instead.
+        The ``UserWarning`` must mention that the target parameter is positional-only and
+        that the remapped values are forwarded positionally, so developers understand the
+        call shape their users will hit.
         """
         with pytest.warns(UserWarning, match="POSITIONAL_ONLY"):
             deprecated_class(
@@ -2326,12 +2335,212 @@ class TestPositionalOnlyFallback:
         assert "old_val" in meta.args_mapping_positional_only
 
     def test_call_with_deprecated_kwarg_does_not_crash(self) -> None:
-        """``DepPositionalOnly(old_val=7)`` succeeds via ``setattr`` fallback.
+        """``DepPositionalOnly(old_val=7)`` succeeds via positional forwarding.
 
-        Without the fallback, remapping ``old_val``→``new_val`` would produce
-        ``PositionalOnlyTarget(new_val=7)`` which raises ``TypeError``.  The proxy
-        must construct without the kwarg and use ``setattr`` to assign ``new_val=7``.
+        Remapping ``old_val``→``new_val`` must not produce
+        ``PositionalOnlyTarget(new_val=7)`` (a ``TypeError``); the proxy reorders the
+        remapped value into the constructor's positional slot instead.
         """
         with pytest.warns(FutureWarning):
             instance = DepPositionalOnly(old_val=7)  # type: ignore[call-arg]
         assert instance.new_val == 7
+
+    def test_required_positional_only_param_constructs(self) -> None:
+        """A *required* positional-only constructor param is satisfied by the remapped value.
+
+        A library renames ``old_val`` to a required positional-only ``new_val`` in the
+        replacement class.  The historical ``setattr`` fallback crashed before it ever ran
+        (``TypeError: missing 1 required positional argument``); positional forwarding
+        must construct the instance correctly.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyRequired(old_val=5)  # type: ignore[call-arg]
+        assert instance.new_val == 5
+
+    def test_immutable_target_constructs_via_positional_forwarding(self) -> None:
+        """An immutable target (``__setattr__`` raises) works because no post-hoc setattr happens.
+
+        Frozen-dataclass-style targets reject attribute assignment, so the old fallback
+        raised even when the positional-only param had a default.  Forwarding the value
+        through the constructor sidesteps mutation entirely.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyImmutable(old_val=3)  # type: ignore[call-arg]
+        assert instance.new_val == 3
+
+    def test_constructor_derivation_runs(self) -> None:
+        """State derived inside the constructor reflects the remapped value.
+
+        The old ``setattr`` fallback assigned ``new_val`` *after* construction, silently
+        bypassing any ``__post_init__``-style derivation — ``double`` stayed at its
+        zero-argument value.  Positional forwarding runs the real constructor body.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyDerived(old_val=7)  # type: ignore[call-arg]
+        assert instance.new_val == 7
+        assert instance.double == 14
+
+    def test_positional_args_and_mapped_kwarg_combine(self) -> None:
+        """Caller positional args fill the leading slots; the remapped value follows them.
+
+        ``DepPositionalOnlyMixed(1, old_x=5)`` targets ``__init__(self, w, x, /)``: the
+        caller's ``1`` binds to ``w`` and the remapped ``old_x``→``x`` value must land in
+        the *next* positional slot — not trip the gap guard on ``w``.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyMixed(1, old_x=5)  # type: ignore[call-arg]
+        assert instance.w == 1
+        assert instance.x == 5
+
+
+class TestProxyIntrospectionProbes:
+    """Introspection probes must not warn spuriously or exhaust the warn budget.
+
+    With the default ``num_warns=1`` the single warning a user ever sees must not be consumed by
+    machinery — ``hasattr`` duck-typing probes, ``copy.deepcopy`` protocol probes, or doc tools
+    reading dunders — otherwise the first *real* deprecated access is silent.
+    """
+
+    def test_hasattr_missing_does_not_warn(self) -> None:
+        """A library duck-types the config object with ``hasattr`` for an absent attribute.
+
+        The failed probe must stay silent: the attribute is resolved first and the warning fires
+        only on successful access.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert not hasattr(proxy, "missing_attr")
+        assert not caught
+
+    def test_missing_attribute_raises_without_burning_budget(self) -> None:
+        """After a failed attribute lookup the first real access must still warn.
+
+        The ``num_warns=1`` budget must survive the ``AttributeError`` path so the deprecation
+        notice reaches actual user code.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            with pytest.raises(AttributeError):
+                _ = proxy.missing_attr
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            _ = proxy.get
+
+    def test_dunder_access_does_not_warn(self) -> None:
+        """A doc tool reads ``__mro__`` on a deprecated class alias (sphinx-style introspection).
+
+        Dunder reads are machinery, never a user migrating code — they must neither warn nor
+        consume the budget, mirroring the ``__instancecheck__`` "structural check" rationale.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = DeprecatedColorEnum.__mro__
+        assert not caught
+
+    def test_deepcopy_does_not_consume_warn_budget(self) -> None:
+        """``copy.deepcopy`` probes copy-protocol dunders before copying.
+
+        Those probes must not consume the ``num_warns=1`` budget: the first real access on the
+        original proxy after a deepcopy must still emit the warning.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            copy.deepcopy(proxy)
+        assert not caught
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            _ = proxy.get
+
+
+class TestProxyClassProperty:
+    """``__class__`` forwarding gives instance-side type transparency.
+
+    Downstream code type-checks deprecated objects (json encoders, pydantic validators, plain
+    defensive ``isinstance``); wrapping an object in a proxy must not change those checks during
+    the migration window.
+    """
+
+    def test_isinstance_of_wrapped_builtin_type(self) -> None:
+        """Consumer code calls ``isinstance(cfg, dict)`` on a deprecated config dict."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert isinstance(proxy, dict)
+
+    def test_isinstance_against_abc(self) -> None:
+        """Consumer code checks the deprecated config against ``collections.abc.Mapping``."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert isinstance(proxy, Mapping)
+
+    def test_isinstance_uses_target_when_set(self) -> None:
+        """With a target configured, ``__class__`` reflects the active (target) object's type."""
+        proxy = _DeprecatedProxy(obj=[1], target={"a": 1}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert isinstance(proxy, dict)
+        assert not isinstance(proxy, list)
+
+    def test_isinstance_walks_stacked_proxies(self) -> None:
+        """A proxy stacked over another proxy resolves ``__class__`` to the innermost object."""
+        inner = deprecated_instance({"k": 1}, name="inner", deprecated_in="1.0", remove_in="2.0", stream=None)
+        outer = deprecated_instance(inner, name="outer", deprecated_in="1.1", remove_in="2.0", stream=None)
+        assert isinstance(outer, dict)
+
+    def test_class_proxy_keeps_reporting_proxy_class(self) -> None:
+        """A deprecated class alias must not claim to be a ``type``.
+
+        Class-dispatching decorators (e.g. PEP 702 ``typing_extensions.deprecated`` stacked over
+        the proxy) branch on ``isinstance(arg, type)`` — forwarding the metaclass would make them
+        patch the wrapped class in place instead of wrapping the proxy callable.  Class-side
+        transparency is covered by ``__instancecheck__``/``__subclasscheck__`` instead.
+        """
+        assert DeprecatedColorEnum.__class__ is _DeprecatedProxy
+        assert not isinstance(DeprecatedColorEnum, type)
+
+    def test_type_still_reveals_proxy(self) -> None:
+        """``type(proxy)`` keeps returning the proxy class for code that needs the truth."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert type(proxy) is _DeprecatedProxy
+        assert isinstance(proxy, _DeprecatedProxy)
+
+    def test_isinstance_does_not_warn(self) -> None:
+        """``isinstance(proxy, dict)`` is structural — no warning, budget untouched."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            isinstance(proxy, dict)
+        assert not caught
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            _ = proxy.get
+
+
+class TestProxyPickleLimitation:
+    """``pickle`` raises a curated ``TypeError`` for deprecation proxies.
+
+    The ``__class__`` property reports the wrapped object's type for ``isinstance``
+    transparency, but ``object.__reduce_ex__`` (protocol ≥ 2) uses ``__class__`` to build
+    ``__newobj__`` args and then asserts ``type(self) == __class__``.  The mismatch raises a
+    cryptic ``PicklingError``.  The curated ``__reduce_ex__`` raises ``TypeError`` with a
+    message naming the wrapped object and explaining how to work around the limitation.
+
+    Full copy/pickle proxy support ships in a companion fix.
+    """
+
+    def test_pickle_dumps_raises_type_error(self) -> None:
+        """``pickle.dumps`` on a deprecated-instance proxy raises ``TypeError`` with a curated message.
+
+        Before the fix, the error was ``PicklingError: args[0] from __newobj__ args has the wrong
+        class`` — the ``__class__`` property returned ``dict`` while ``type(proxy)`` was
+        ``_DeprecatedProxy``.  The curated error names the wrapped object and links to the workaround.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with pytest.raises(TypeError, match=r"cannot be pickled directly"):
+            pickle.dumps(proxy)
+
+    def test_copy_deepcopy_still_works(self) -> None:
+        """``copy.deepcopy`` returns a correct proxy — only ``pickle`` is limited.
+
+        ``copy`` dispatches on ``type()``, not ``__class__``, so deepcopy is unaffected.
+        The returned proxy is a fresh ``_DeprecatedProxy`` wrapping a deep copy of the original.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        cloned = copy.deepcopy(proxy)
+        assert isinstance(cloned, _DeprecatedProxy)
+        assert cloned["k"] == 1
