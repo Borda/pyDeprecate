@@ -109,7 +109,7 @@ Heads up: primitive protocol methods (arithmetic on `float`, concatenation on `s
 
 The proxy is transparent to introspection: `isinstance(DEFAULTS, dict)` is `True` (the proxy reports the wrapped object's type through `__class__`). Note: `type(DEFAULTS)` still returns `_DeprecatedProxy` — only `isinstance` (which honours `__class__`) is transparent. Code using strict `type()` equality checks will still see the wrapper type; use `type(DEFAULTS)` to detect the proxy explicitly. Introspection stays silent: `isinstance` checks, dunder reads, and failed `hasattr` probes emit no warning and do not consume the `num_warns` budget.
 
-Deprecated proxies survive `copy.copy()`, `copy.deepcopy()`, and `pickle` round-trips — the result is a proxy again, so the deprecation warning travels with the copied object and each copy keeps its own warning counter snapshotted from the original.
+Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips — the result is a proxy again, so the deprecation warning travels with the copied object and each copy keeps its own warning counter snapshotted from the original. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are also fully picklable. Note: `deprecated_class` proxies raise `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — pickle cannot find the original class by reference. Use `copy.deepcopy` for class alias proxies instead of `pickle`.
 
 ```python
 from deprecate import deprecated_instance

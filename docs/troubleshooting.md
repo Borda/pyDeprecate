@@ -1641,7 +1641,7 @@ ______________________________________________________________________
 
 **Q:** I copied (or pickled and restored) an object wrapped by `deprecated_instance` / `deprecated_class` — does the deprecation still apply to the copy?
 
-**A:** Yes. Copying or unpickling a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copying and pickling are themselves silent — the copy/pickle protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used.
+**A:** Yes for `copy.copy` and `copy.deepcopy`. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: `deprecated_class` proxies cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises `PicklingError`. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.
 
 ```python
 import copy
@@ -1725,7 +1725,7 @@ ______________________________________________________________________
 
 **Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
 
-**A:** This error was raised in older versions (before [PR #212](https://github.com/Borda/pyDeprecate/pull/212)). Since PR #212, `pickle.dumps(proxy)` works: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error, upgrade pyDeprecate. One remaining caveat: the `stream` callable must be picklable by reference — if you passed a lambda or closure as `stream`, use `stream=None` or `stream=warnings.warn` instead.
+**A:** This error was raised in older versions (before [PR #212](https://github.com/Borda/pyDeprecate/pull/212)). Since PR #212, `pickle.dumps(proxy)` works for `deprecated_instance` proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a `deprecated_instance` proxy, upgrade pyDeprecate. Two remaining caveats: (1) the `stream` callable must be picklable by reference — if you passed a lambda or closure as `stream`, use `stream=None` or `stream=warnings.warn` instead; (2) `deprecated_class` proxies raise `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — use `copy.deepcopy` for class aliases instead.
 
 ______________________________________________________________________
 
