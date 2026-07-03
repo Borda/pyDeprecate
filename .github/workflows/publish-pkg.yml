@@ -22,6 +22,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
     runs-on: ubuntu-latest
     permissions:
+      actions: read # required for actions/download-artifact
       id-token: write # required for OIDC Trusted Publishing
     steps:
       - name: 📥 Download artifact
