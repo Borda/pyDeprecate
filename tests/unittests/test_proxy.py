@@ -2511,36 +2511,120 @@ class TestProxyClassProperty:
             _ = proxy.get
 
 
-class TestProxyPickleLimitation:
-    """``pickle`` raises a curated ``TypeError`` for deprecation proxies.
+class TestProxyCopyPickle:
+    """``copy.copy`` / ``copy.deepcopy`` / pickle round-trips reconstruct the proxy.
 
-    The ``__class__`` property reports the wrapped object's type for ``isinstance``
-    transparency, but ``object.__reduce_ex__`` (protocol ≥ 2) uses ``__class__`` to build
-    ``__newobj__`` args and then asserts ``type(self) == __class__``.  The mismatch raises a
-    cryptic ``PicklingError``.  The curated ``__reduce_ex__`` raises ``TypeError`` with a
-    message naming the wrapped object and explaining how to work around the limitation.
-
-    Full copy/pickle proxy support ships in a companion fix.
+    A library ships a deprecated module-level config dict wrapped in ``deprecated_instance``;
+    downstream consumers routinely snapshot such configs with ``copy``/``deepcopy`` or ship them
+    across process boundaries via pickle.  All three must return a working proxy (deprecation
+    semantics preserved) instead of crashing with ``RecursionError``.
     """
 
-    def test_pickle_dumps_raises_type_error(self) -> None:
-        """``pickle.dumps`` on a deprecated-instance proxy raises ``TypeError`` with a curated message.
+    def test_copy_returns_proxy_wrapping_copied_object(self) -> None:
+        """A consumer takes a shallow working copy of a deprecated config dict.
 
-        Before the fix, the error was ``PicklingError: args[0] from __newobj__ args has the wrong
-        class`` — the ``__class__`` property returned ``dict`` while ``type(proxy)`` was
-        ``_DeprecatedProxy``.  The curated error names the wrapped object and links to the workaround.
+        The copy must be a proxy again (the deprecation travels with the object) and must wrap
+        an independent shallow copy — mutating the copy must not touch the original config.
         """
+        proxy = deprecated_instance({"threshold": 0.5}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        dup = copy.copy(proxy)
+        assert type(dup) is _DeprecatedProxy
+        assert dup["threshold"] == 0.5
+        dup["threshold"] = 0.9
+        assert proxy["threshold"] == 0.5
+
+    def test_deepcopy_returns_proxy_with_independent_nested_state(self) -> None:
+        """A consumer deep-copies a deprecated nested config before mutating it.
+
+        ``deepcopy`` of the proxy must deep-copy the wrapped object so nested containers are
+        fully independent of the original.
+        """
+        proxy = deprecated_instance(
+            {"limits": {"low": 1}}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+        dup = copy.deepcopy(proxy)
+        assert type(dup) is _DeprecatedProxy
+        dup["limits"]["low"] = 99
+        assert proxy["limits"]["low"] == 1
+
+    def test_copy_preserves_deprecation_metadata(self) -> None:
+        """Audit tools must still discover a copied proxy via its ``__deprecated__`` metadata."""
         proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        with pytest.raises(TypeError, match=r"cannot be pickled directly"):
+        dup = copy.copy(proxy)
+        meta = object.__getattribute__(dup, "__deprecated__")
+        assert meta.name == "cfg"
+        assert meta.deprecated_in == "1.0"
+        assert meta.remove_in == "2.0"
+
+    def test_pickle_roundtrip_preserves_proxy_and_warning(self) -> None:
+        """A deprecated config object crosses a process boundary via pickle.
+
+        The unpickled object must be a proxy again with intact metadata and default warning
+        stream — the first real access on the restored proxy still emits ``FutureWarning``.
+        """
+        proxy = deprecated_instance({"k": 41}, name="cfg", deprecated_in="1.0", remove_in="2.0")
+
+        restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
+        assert type(restored) is _DeprecatedProxy
+        assert object.__getattribute__(restored, "__deprecated__").name == "cfg"
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            assert restored["k"] == 41
+
+    def test_deepcopy_of_class_proxy_keeps_wrapped_class(self) -> None:
+        """Deep-copying a deprecated class alias keeps forwarding to the same target class.
+
+        Classes are atomic under ``deepcopy``, so the copied proxy must forward to the identical
+        target class object.
+        """
+        dup = copy.deepcopy(DeprecatedColorEnum)
+        assert type(dup) is _DeprecatedProxy
+        assert dup.RED is ColorEnum.RED
+
+    def test_uninitialised_instance_raises_attribute_error(self) -> None:
+        """Copy/pickle machinery creates instances via ``cls.__new__(cls)`` with no config set.
+
+        Attribute access on such a half-initialised proxy must raise a clean ``AttributeError``
+        (routing back into ``__getattr__`` must not recurse into the ``_cfg`` property again).
+        """
+        blank = _DeprecatedProxy.__new__(_DeprecatedProxy)
+        with pytest.raises(AttributeError):
+            _ = blank.anything
+
+    def test_copy_of_exhausted_proxy_is_silent(self) -> None:
+        """A copy of an already-warned proxy inherits the exhausted budget and stays silent.
+
+        With ``num_warns=1`` the original can warn exactly once.  After that warning fires,
+        copying the proxy snapshots the exhausted counter — the copy never warns, even though
+        it was never accessed before the copy.  Each copy is independent of the original but
+        inherits the counter value at copy time, not a fresh budget.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with pytest.warns(FutureWarning):
+            _ = proxy["k"]  # exhaust the budget on the original
+        dup = copy.copy(proxy)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _ = dup["k"]  # must not warn — counter is snapshotted as exhausted
+
+    def test_pickle_raises_for_nonpicklable_stream(self) -> None:
+        """A proxy with a non-picklable stream (lambda) cannot be pickled.
+
+        The ``stream`` callable is serialised as part of the internal config; lambdas and
+        closures are not picklable by the standard pickle protocol.  This test documents the
+        known limitation so future changes do not silently regress it.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=lambda msg: None)
+        with pytest.raises((AttributeError, pickle.PicklingError)):
             pickle.dumps(proxy)
 
-    def test_copy_deepcopy_still_works(self) -> None:
-        """``copy.deepcopy`` returns a correct proxy — only ``pickle`` is limited.
+    def test_pickle_raises_for_class_proxy(self) -> None:
+        """Pickling a deprecated_class proxy is not supported when the class name is replaced.
 
-        ``copy`` dispatches on ``type()``, not ``__class__``, so deepcopy is unaffected.
-        The returned proxy is a fresh ``_DeprecatedProxy`` wrapping a deep copy of the original.
+        When ``@deprecated_class`` replaces the module-level name ``DeprecatedColorEnum`` with
+        a proxy, the wrapped class (``cfg.obj``) cannot be serialised by reference: pickle
+        finds the proxy at ``tests.collection_deprecate.DeprecatedColorEnum``, not the original
+        class.  This test documents the known limitation — ``deprecated_instance`` proxies
+        wrapping plain objects (dicts, lists) remain fully picklable.
         """
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        cloned = copy.deepcopy(proxy)
-        assert isinstance(cloned, _DeprecatedProxy)
-        assert cloned["k"] == 1
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(DeprecatedColorEnum)
