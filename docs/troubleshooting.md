@@ -1659,7 +1659,7 @@ restored = pickle.loads(pickle.dumps(OLD_LIMITS))  # noqa: S301  # silent — pi
 duplicate = copy.deepcopy(OLD_LIMITS)  # silent
 
 print(restored["max_retries"])  # warns: FutureWarning
-print(duplicate["max_retries"])  # warns: FutureWarning — each copy warns independently
+print(duplicate["max_retries"])  # warns: FutureWarning — each copy has its own counter snapshotted from the original
 ```
 
 <details><summary>Output: <code>restored["max_retries"]; duplicate["max_retries"]</code></summary>
