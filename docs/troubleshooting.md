@@ -1637,6 +1637,42 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 ______________________________________________________________________
 
+## Does the deprecation survive `copy`, `deepcopy`, and `pickle`?
+
+**Q:** I copied (or pickled and restored) an object wrapped by `deprecated_instance` / `deprecated_class` — does the deprecation still apply to the copy?
+
+**A:** Yes for `copy.copy` and `copy.deepcopy`. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: `deprecated_class` proxies cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises `PicklingError`. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.
+
+```python
+import copy
+import pickle
+
+from deprecate import deprecated_instance
+
+# NEW API — the canonical settings object going forward
+NEW_LIMITS = {"max_retries": 3}
+
+# DEPRECATED API — `OLD_LIMITS` kept as a deprecated alias during the migration window
+OLD_LIMITS = deprecated_instance(NEW_LIMITS, name="OLD_LIMITS", deprecated_in="1.0", remove_in="2.0")
+
+restored = pickle.loads(pickle.dumps(OLD_LIMITS))  # noqa: S301  # silent — pickling rebuilds the proxy, not a usage
+duplicate = copy.deepcopy(OLD_LIMITS)  # silent
+
+print(restored["max_retries"])  # warns: FutureWarning
+print(duplicate["max_retries"])  # warns: FutureWarning — each copy has its own counter snapshotted from the original
+```
+
+<details><summary>Output: <code>restored["max_retries"]; duplicate["max_retries"]</code></summary>
+
+```
+3
+3
+```
+
+</details>
+
+______________________________________________________________________
+
 ## My expiry gate reports more expired wrappers after upgrading
 
 **Q:** After upgrading pyDeprecate, `validate_deprecation_expiry` (and `pydeprecate expiry`) suddenly reports more expired wrappers than before — nothing in my code changed. Why?
@@ -1689,22 +1725,7 @@ ______________________________________________________________________
 
 **Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
 
-**A:** The `__class__` property on `_DeprecatedProxy` reports the wrapped object's type to make `isinstance` transparent, but `pickle`'s protocol 2+ consistency check detects that `type(proxy)` ≠ `proxy.__class__` and raises this error. Full pickle support ships in a companion fix. In the meantime, access the underlying object before pickling:
-
-```python
-# phmdoctest:skip — illustrative snippet; replace underlying_obj with your actual object
-from deprecate import deprecated_instance
-import pickle
-
-underlying_obj = {"key": "value"}
-proxy = deprecated_instance(underlying_obj, name="cfg", deprecated_in="1.0", remove_in="2.0")
-
-# pickle the original object, not the proxy
-data = pickle.dumps(underlying_obj)
-restored = pickle.loads(data)
-```
-
-`copy.copy` and `copy.deepcopy` work correctly — only `pickle` is affected.
+**A:** This error was raised in older versions (before [PR #212](https://github.com/Borda/pyDeprecate/pull/212)). Since PR #212, `pickle.dumps(proxy)` works for `deprecated_instance` proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a `deprecated_instance` proxy, upgrade pyDeprecate. Two remaining caveats: (1) the `stream` callable must be picklable by reference — if you passed a lambda or closure as `stream`, use `stream=None` or `stream=warnings.warn` instead; (2) `deprecated_class` proxies raise `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — use `copy.deepcopy` for class aliases instead.
 
 ______________________________________________________________________
 

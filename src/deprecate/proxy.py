@@ -24,11 +24,13 @@ Example:
 
 """
 
+import copy
 import inspect
 import types
 import warnings
 from collections.abc import Iterator
-from typing import Any, Callable, Literal, NoReturn, Optional, SupportsIndex, Union, cast
+from dataclasses import replace
+from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
 
 from deprecate._types import (
     DeprecationConfig,
@@ -826,6 +828,66 @@ class _DeprecatedProxy:
         return bool(self._get_active())
 
     # ------------------------------------------------------------------
+    # Copy / pickle protocol — no warning emitted (structural machinery)
+    #
+    # Semantics: a copy (shallow, deep, or pickle round-trip) is a *proxy again* — the
+    # deprecation travels with the object so a copied deprecated config keeps warning during
+    # the migration window. The wrapped object is copied per the respective protocol; the
+    # frozen DeprecationConfig metadata is preserved; the warn-budget counters are snapshotted.
+    # ------------------------------------------------------------------
+
+    def __copy__(self) -> "_DeprecatedProxy":
+        """Return a new proxy wrapping a shallow copy of the wrapped object.
+
+        Deprecation metadata (frozen, immutable) is shared; the mutable warn-budget counters are snapshotted into an
+        independent config so the copy warns independently from the original.
+
+        """
+        cfg = self._cfg
+        new_cfg = replace(cfg, obj=copy.copy(cfg.obj), warned_args=dict(cfg.warned_args))
+        return _reconstruct_proxy(new_cfg, self._dep, object.__getattribute__(self, "__dict__").get("__doc__"))
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_DeprecatedProxy":
+        """Return a new proxy deep-copying the wrapped object (and any instance target).
+
+        Registers the new proxy in *memo* before descending so self-referential structures that contain the proxy deep-
+        copy without infinite recursion.
+
+        """
+        cls = type(self)
+        new = cls.__new__(cls)
+        memo[id(self)] = new
+        object.__setattr__(new, "_DeprecatedProxy__config", copy.deepcopy(self._cfg, memo))
+        object.__setattr__(new, "__deprecated__", copy.deepcopy(self._dep, memo))
+        doc = object.__getattribute__(self, "__dict__").get("__doc__")
+        if doc is not None:
+            object.__setattr__(new, "__doc__", doc)
+        return new
+
+    def __reduce_ex__(self, protocol: SupportsIndex) -> tuple[Any, ...]:
+        """Support pickling: reconstruct the proxy from its two config dataclasses.
+
+        The default ``object.__reduce_ex__`` probes attributes through ``__getattr__`` and cannot
+        rebuild an instance whose state lives behind ``object.__setattr__``; this override pickles
+        the runtime config and frozen metadata directly and rebuilds via
+        :func:`~deprecate.proxy._reconstruct_proxy` without re-running ``__init__`` validation.
+
+        Note:
+            The ``stream`` callable is pickled by reference; lambdas and closures are not picklable
+            by the standard pickle protocol.  Use a module-level callable (e.g. ``warnings.warn``)
+            or ``None`` when you intend to pickle the proxy.
+
+            For :func:`~deprecate.proxy.deprecated_instance` proxies the wrapped object is serialised
+            directly and pickle works reliably.  For :func:`~deprecate.proxy.deprecated_class` proxies
+            the wrapped class is serialised by reference; if the module-level name was replaced by the
+            proxy (the typical usage), pickle cannot resolve the reference and raises
+            :class:`~pickle.PicklingError`.
+
+        """
+        doc = object.__getattribute__(self, "__dict__").get("__doc__")
+        return (_reconstruct_proxy, (self._cfg, self._dep, doc))
+
+    # ------------------------------------------------------------------
     # Type protocol — supports isinstance/issubclass against a proxy
     # ------------------------------------------------------------------
 
@@ -902,63 +964,6 @@ class _DeprecatedProxy:
             return issubclass(subclass, active)
         return False
 
-    def __copy__(self) -> "_DeprecatedProxy":
-        """Return a shallow copy that wraps a shallow copy of the underlying object."""
-        import copy
-
-        cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
-        dep = self._dep
-        return _DeprecatedProxy(
-            obj=copy.copy(cfg.obj),
-            name=dep.name,
-            deprecated_in=dep.deprecated_in,
-            remove_in=dep.remove_in,
-            num_warns=cfg.num_warns,
-            stream=cfg.stream,
-            target=dep.target,
-            args_mapping=dep.args_mapping,
-            attrs_mapping=cfg.attrs_mapping,
-        )
-
-    def __deepcopy__(self, memo: dict) -> "_DeprecatedProxy":
-        """Return a deep copy that wraps a deep copy of the underlying object."""
-        import copy
-
-        cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
-        dep = self._dep
-        return _DeprecatedProxy(
-            obj=copy.deepcopy(cfg.obj, memo),
-            name=dep.name,
-            deprecated_in=dep.deprecated_in,
-            remove_in=dep.remove_in,
-            num_warns=cfg.num_warns,
-            stream=cfg.stream,
-            target=dep.target,
-            args_mapping=dep.args_mapping,
-            attrs_mapping=cfg.attrs_mapping,
-        )
-
-    def __reduce_ex__(self, protocol: SupportsIndex) -> NoReturn:
-        """Raise a curated error — pickling a deprecation proxy is not supported.
-
-        The ``__class__`` property reports the wrapped object's type for ``isinstance``
-        transparency, but ``object.__reduce_ex__`` (protocol ≥ 2) uses ``__class__`` to build
-        ``__newobj__`` args and then compares against ``type(self)`` — the mismatch raises a
-        cryptic ``PicklingError``.  A named error here is clearer than the default message.
-
-        To pickle the underlying object, access it directly before pickling.  Full copy/pickle
-        proxy support ships in a companion fix.
-
-        Raises:
-            TypeError: Always — pickling a proxy is not supported.
-
-        """
-        name = getattr(self._get_active(), "__name__", None) or repr(self._get_active())
-        raise TypeError(
-            f"{name!r} is wrapped in a deprecation proxy and cannot be pickled directly. "
-            "Access the underlying object before pickling."
-        )
-
 
 def _proxy_call_with_positional_split(
     ctor: Callable[..., Any],
@@ -980,6 +985,33 @@ def _proxy_call_with_positional_split(
         )
         return ctor(*args, *pos_args, **kw_args)
     return ctor(*args, **mapped_kwargs)
+
+
+def _reconstruct_proxy(
+    cfg: _ProxyConfig,
+    dep: DeprecationConfig,
+    doc: Optional[str],
+) -> "_DeprecatedProxy":
+    """Rebuild a :class:`_DeprecatedProxy` from its config dataclasses without re-running ``__init__``.
+
+    Used by ``__copy__`` and as the pickle reconstructor in ``__reduce_ex__``: re-running
+    ``__init__`` would repeat decoration-time validation and misconfiguration warnings, so the
+    state is re-attached directly via ``object.__setattr__`` (bypassing the proxy's forwarding
+    ``__setattr__``).
+
+    Args:
+        cfg: Private mutable runtime state for the new proxy.
+        dep: Frozen deprecation metadata (shared or copied by the caller as appropriate).
+        doc: Instance-level ``__doc__`` mirrored from the wrapped object, or ``None`` when the
+            original proxy carried no instance docstring.
+
+    """
+    proxy = _DeprecatedProxy.__new__(_DeprecatedProxy)
+    object.__setattr__(proxy, "_DeprecatedProxy__config", cfg)
+    object.__setattr__(proxy, "__deprecated__", dep)
+    if doc is not None:
+        object.__setattr__(proxy, "__doc__", doc)
+    return proxy
 
 
 def _proxy_call_args_remap(
