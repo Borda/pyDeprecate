@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-06-15"
+  "dateModified": "2026-07-03"
 }
 </script>
 
@@ -616,10 +616,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#suppressing-futurewarning-in-test-fixtures-with-assert_no_warnings" class="md-nav__link">
+  <a href="#suppressing-futurewarning-in-test-fixtures" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Suppressing FutureWarning in test fixtures with assert_no_warnings
+        Suppressing FutureWarning in test fixtures
       
     </span>
   </a>
@@ -1290,10 +1290,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#suppressing-futurewarning-in-test-fixtures-with-assert_no_warnings" class="md-nav__link">
+  <a href="#suppressing-futurewarning-in-test-fixtures" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Suppressing FutureWarning in test fixtures with assert_no_warnings
+        Suppressing FutureWarning in test fixtures
       
     </span>
   </a>
@@ -1521,38 +1521,37 @@
 </details>
 
 <p><code>args_extra</code> merges into kwargs after <code>args_mapping</code> is applied. It is used when <code>target</code> is a Callable or <code>TargetMode.ARGS_REMAP</code> (with <code>args_mapping</code>). For <code>TargetMode.NOTIFY</code>, it is not used for forwarding; supplying it also triggers a construction-time <code>UserWarning</code> when the decorator is applied.</p>
-<h2 id="suppressing-futurewarning-in-test-fixtures-with-assert_no_warnings">Suppressing <code>FutureWarning</code> in test fixtures with <code>assert_no_warnings</code><a class="headerlink" href="#suppressing-futurewarning-in-test-fixtures-with-assert_no_warnings" title="Permanent link">🔗</a></h2>
-<p>In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with <code>FutureWarning</code> noise. <a href="audit.html#testing-deprecated-code"><code>assert_no_warnings</code></a> catches and discards warnings of the specified type inside the block, while asserting that no such warning escapes.</p>
-<p>Here is the gotcha: this is different from <code>pytest.warns</code> (which asserts a warning IS emitted) and from <code>warnings.filterwarnings("ignore")</code> (which silences globally without assertion). <code>assert_no_warnings</code> gives you a scoped, assertion-backed silence. If the code unexpectedly starts emitting a different warning category, that still surfaces.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
+<h2 id="suppressing-futurewarning-in-test-fixtures">Suppressing <code>FutureWarning</code> in test fixtures<a class="headerlink" href="#suppressing-futurewarning-in-test-fixtures" title="Permanent link">🔗</a></h2>
+<p>In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with <code>FutureWarning</code> noise. The first call to a deprecated function still emits its warning (default <code>num_warns=1</code>; subsequent calls are silent) — suppress that specific message session-wide with a scoped <code>filterwarnings</code> entry in <code>pyproject.toml</code> or <code>conftest.py</code>; see <a href="audit.html#suppressing-warnings-in-test-fixtures">Audit Tools → Suppressing warnings in test fixtures</a> for the config snippets.</p>
+<p>For assertions, pick the right tool: <code>pytest.warns</code> asserts a warning IS emitted; a <code>filterwarnings</code> ignore entry silences without any assertion; and <a href="audit.html#testing-deprecated-code"><code>assert_no_warnings</code></a> asserts that NO warning of the specified category escapes the block — so refactored code cannot silently regress into calling deprecated APIs. If the code unexpectedly starts emitting a different warning category, that still surfaces.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># NEW API — creates a client connection dict from host and port</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_create_client</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">443</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;host&quot;</span><span class="p">:</span> <span class="n">host</span><span class="p">,</span> <span class="s2">&quot;port&quot;</span><span class="p">:</span> <span class="n">port</span><span class="p">}</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># NEW API — creates a client connection dict from host and port</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_create_client</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">443</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;host&quot;</span><span class="p">:</span> <span class="n">host</span><span class="p">,</span> <span class="s2">&quot;port&quot;</span><span class="p">:</span> <span class="n">port</span><span class="p">}</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># DEPRECATED API — `create_client` replaced by `new_create_client`</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_create_client</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_client</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">443</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># DEPRECATED API — `create_client` replaced by `new_create_client`</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_create_client</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_client</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">443</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
 <a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_test_client</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test helper that calls the deprecated API.&quot;&quot;&quot;</span>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>    <span class="k">return</span> <span class="n">create_client</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">8080</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_test_client</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test helper that calls the deprecated API.&quot;&quot;&quot;</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    <span class="k">return</span> <span class="n">create_client</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="mi">8080</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>
 <a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>
-<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>
-<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="c1"># The helper works silently:</span>
-<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="n">client</span> <span class="o">=</span> <span class="n">make_test_client</span><span class="p">()</span>
-<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="c1"># The first call emits one FutureWarning; add a scoped filterwarnings entry to suppress it in fixtures:</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="n">client</span> <span class="o">=</span> <span class="n">make_test_client</span><span class="p">()</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
 <a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>
-<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>
-<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="c1"># For verifying that NEW code does NOT emit warnings, use assert_no_warnings:</span>
-<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
-<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">new_create_client</span><span class="p">(</span><span class="s2">&quot;example.com&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="c1"># For verifying that NEW code does NOT emit warnings, use assert_no_warnings:</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">new_create_client</span><span class="p">(</span><span class="s2">&quot;example.com&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>new_create_client("example.com")</code></summary>
@@ -1584,13 +1583,13 @@
 <td>A matching warning IS raised</td>
 </tr>
 <tr>
-<td><code>warnings.catch_warnings()</code> + <code>simplefilter("ignore")</code></td>
+<td><code>filterwarnings</code> config (<code>pyproject.toml</code> / <code>conftest.py</code>)</td>
 <td>Suppress without assertion</td>
-<td>Never fails (use in fixtures)</td>
+<td>Never fails (use for fixtures)</td>
 </tr>
 </tbody>
 </table>
-<p>Use <code>assert_no_warnings</code> in test assertions to verify that refactored code no longer triggers deprecation notices. Use <code>warnings.catch_warnings</code> in fixtures when you need to call deprecated code silently during setup.</p>
+<p>Use <code>assert_no_warnings</code> in test assertions to verify that refactored code no longer triggers deprecation notices. Use a scoped <code>filterwarnings</code> ignore entry when fixtures need to call deprecated code silently during setup.</p>
 <h2 id="class-methods-and-static-methods">Class methods and static methods<a class="headerlink" href="#class-methods-and-static-methods" title="Permanent link">🔗</a></h2>
 <p><code>@deprecated</code> works with both <code>@classmethod</code> and <code>@staticmethod</code> in either decorator order — place <code>@deprecated</code> above or below the descriptor decorator and the deprecation warning fires correctly at call time either way.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
@@ -1864,7 +1863,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 15, 2026 10:12:29 UTC">2026-06-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 3, 2026 10:13:26 UTC">2026-07-03</span>
   </span>
 
     
