@@ -28,7 +28,7 @@ import inspect
 import types
 import warnings
 from collections.abc import Iterator
-from typing import Any, Callable, Literal, Optional, Union, cast
+from typing import Any, Callable, Literal, NoReturn, Optional, SupportsIndex, Union, cast
 
 from deprecate._types import (
     DeprecationConfig,
@@ -40,6 +40,7 @@ from deprecate.deprecation import (
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
+    _split_positional_only_kwargs,
     _validate_template_mgs,
     deprecation_warning,
 )
@@ -51,6 +52,11 @@ from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_po
 #: From ``warnings.warn`` upwards: ``1=_warn``, ``2=accessor``, ``3=caller``.
 #: Helpers one level deeper (e.g. ``_proxy_call_args_remap``) pass ``_extra_frames=1``.
 _DEFAULT_STACKLEVEL_TO_CALLER: int = 3
+
+
+def _is_dunder(name: str) -> bool:
+    """Return whether *name* is a dunder attribute name (``__x__``) — introspection machinery, not user API."""
+    return name.startswith("__") and name.endswith("__")
 
 
 class _DeprecatedProxy:
@@ -319,6 +325,11 @@ class _DeprecatedProxy:
             target = obj
         # Kwargs-compatibility guard: detect args_mapping keys that remap to POSITIONAL_ONLY params.
         _incompatible = _detect_proxy_positional_only(_dc_check, name, args_mapping)
+        # Constructor POSITIONAL_ONLY split data: the call path forwards remapped values
+        # positionally (same split machinery as the @deprecated dispatcher) instead of the
+        # historical pop-and-setattr fallback, which failed for required params, immutable
+        # instances, and constructor-derived state.
+        _ctor_positional_only, _ctor_positional_only_order = _detect_ctor_positional_only(_dc_check)
         # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP
         if target is None and args_mapping:
             target = TargetMode.ARGS_REMAP
@@ -371,6 +382,8 @@ class _DeprecatedProxy:
             attrs_mapping=attrs_mapping,
             args_mapping_auto_expanded=tuple(_auto_expanded),
             args_mapping_positional_only=_incompatible,
+            target_positional_only=_ctor_positional_only,
+            target_positional_only_order=_ctor_positional_only_order,
         )
         object.__setattr__(self, "__deprecated__", dep_meta)
         # Expose the wrapped object's docstring as an instance attribute so that external tools (autodoc,
@@ -527,19 +540,6 @@ class _DeprecatedProxy:
         result.update(explicit_new)
         return result
 
-    @staticmethod
-    def _resolve_incompat_new_keys(dep: "DeprecationConfig") -> frozenset[str]:
-        """Return the set of remapped-to names whose original was POSITIONAL_ONLY."""
-        if not (dep.args_mapping_positional_only and dep.args_mapping):
-            return frozenset()
-        return frozenset(
-            r
-            for old in dep.args_mapping_positional_only
-            if old in dep.args_mapping
-            for r in (dep.args_mapping[old],)
-            if r is not None
-        )
-
     def _merge_args_extra(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; extra values win."""
         args_extra = self._cfg.args_extra
@@ -594,11 +594,24 @@ class _DeprecatedProxy:
         actual attribute lookup when the value is a non-``None`` string; ``None`` means warn-only with no rename on the
         active object.
 
+        Without ``attrs_mapping``, the attribute is resolved *first* and the warning fires only on successful access —
+        failed introspection probes (``hasattr`` duck-typing, copy/pickle machinery) raise :class:`AttributeError`
+        without warning or consuming the warn budget.  Dunder reads (``__mro__``, ``__wrapped__``, …) are forwarded
+        silently: they are introspection machinery, not a use of the deprecated API — the same rationale as
+        :meth:`~deprecate.proxy._DeprecatedProxy.__instancecheck__`.
+
         In read-only mode, common mutating methods on built-in collections (for example, ``append`` or ``update``) are
         wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
 
         """
-        attrs_mapping = self._cfg.attrs_mapping
+        # Half-initialised instance guard (``cls.__new__(cls)`` during copy/pickle reconstruction): the ``_cfg``
+        # property raises AttributeError when ``__config`` is missing, which Python routes back into __getattr__ —
+        # touching ``self._cfg`` here again would mutually recurse (property ↔ __getattr__) into RecursionError.
+        try:
+            cfg = cast(_ProxyConfig, object.__getattribute__(self, "_DeprecatedProxy__config"))
+        except AttributeError:
+            raise AttributeError(name) from None
+        attrs_mapping = cfg.attrs_mapping
         if attrs_mapping is not None:
             if name in attrs_mapping:
                 self._warn(arg_name=f"__attr__:{name}")
@@ -611,18 +624,20 @@ class _DeprecatedProxy:
                     except AttributeError:
                         # Attribute absent from target — fall back to source. Covers the "being-removed" pattern where
                         # the deprecated attribute still lives on the old class but was dropped from the new target.
-                        attr = getattr(self._cfg.obj, attr_name)
+                        attr = getattr(cfg.obj, attr_name)
                     return self._guard_read_only_mutator(attr, attr_name)
                 attr = getattr(active, attr_name)
                 return self._guard_read_only_mutator(attr, attr_name)
             # Not a deprecated attr — silent passthrough, no warning.
             attr = getattr(self._get_active(), name)
             return self._guard_read_only_mutator(attr, name)
+        # Resolve first so a missing attribute raises without warning or burning the warn budget.
+        attr = getattr(self._get_active(), name)
         # ARGS_REMAP deprecates constructor argument names only; attribute access is unrelated
         # to the deprecated call signature and must not emit a spurious global warning.
-        if self._dep.target is not TargetMode.ARGS_REMAP:
+        # Dunder reads are silent machinery — see the docstring above.
+        if self._dep.target is not TargetMode.ARGS_REMAP and not _is_dunder(name):
             self._warn()
-        attr = getattr(self._get_active(), name)
         return self._guard_read_only_mutator(attr, name)
 
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
@@ -814,6 +829,31 @@ class _DeprecatedProxy:
     # Type protocol — supports isinstance/issubclass against a proxy
     # ------------------------------------------------------------------
 
+    @property  # type: ignore[misc]
+    def __class__(self) -> type:
+        """Report the active object's class so ``isinstance(proxy, WrappedType)`` holds.
+
+        Instance-side type transparency (the ``wrapt``/``unittest.mock`` technique): ``isinstance``
+        honours ``__class__``, so consumer code type-checking the deprecated object (json encoders,
+        validators, defensive ``isinstance``) behaves identically before and after wrapping.
+        Stacked proxy chains are resolved to the innermost concrete object. ``type(proxy)`` still
+        returns :class:`_DeprecatedProxy` for code that needs the truth, and
+        ``isinstance(proxy, _DeprecatedProxy)`` remains ``True`` via the ``type()`` fast path.
+        No warning is emitted — type checks are structural, matching
+        :meth:`~deprecate.proxy._DeprecatedProxy.__instancecheck__`.
+
+        *Class* proxies (``deprecated_class`` aliases) deliberately keep reporting the proxy
+        class: forwarding the metaclass would make ``isinstance(proxy, type)`` true, and
+        class-dispatching decorators (e.g. PEP 702 ``typing_extensions.deprecated``) would then
+        patch the wrapped class in place instead of wrapping the proxy callable.  Class-side
+        transparency is provided by ``__instancecheck__``/``__subclasscheck__`` instead.
+
+        """
+        active = _DeprecatedProxy._get_static_attr_owner(self)
+        if isinstance(active, type):
+            return type(self)
+        return type(active)
+
     def __instancecheck__(self, instance: object) -> bool:
         """Support ``isinstance(x, proxy)`` by delegating to the active class.
 
@@ -862,6 +902,85 @@ class _DeprecatedProxy:
             return issubclass(subclass, active)
         return False
 
+    def __copy__(self) -> "_DeprecatedProxy":
+        """Return a shallow copy that wraps a shallow copy of the underlying object."""
+        import copy
+
+        cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
+        dep = self._dep
+        return _DeprecatedProxy(
+            obj=copy.copy(cfg.obj),
+            name=dep.name,
+            deprecated_in=dep.deprecated_in,
+            remove_in=dep.remove_in,
+            num_warns=cfg.num_warns,
+            stream=cfg.stream,
+            target=dep.target,
+            args_mapping=dep.args_mapping,
+            attrs_mapping=cfg.attrs_mapping,
+        )
+
+    def __deepcopy__(self, memo: dict) -> "_DeprecatedProxy":
+        """Return a deep copy that wraps a deep copy of the underlying object."""
+        import copy
+
+        cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
+        dep = self._dep
+        return _DeprecatedProxy(
+            obj=copy.deepcopy(cfg.obj, memo),
+            name=dep.name,
+            deprecated_in=dep.deprecated_in,
+            remove_in=dep.remove_in,
+            num_warns=cfg.num_warns,
+            stream=cfg.stream,
+            target=dep.target,
+            args_mapping=dep.args_mapping,
+            attrs_mapping=cfg.attrs_mapping,
+        )
+
+    def __reduce_ex__(self, protocol: SupportsIndex) -> NoReturn:
+        """Raise a curated error — pickling a deprecation proxy is not supported.
+
+        The ``__class__`` property reports the wrapped object's type for ``isinstance``
+        transparency, but ``object.__reduce_ex__`` (protocol ≥ 2) uses ``__class__`` to build
+        ``__newobj__`` args and then compares against ``type(self)`` — the mismatch raises a
+        cryptic ``PicklingError``.  A named error here is clearer than the default message.
+
+        To pickle the underlying object, access it directly before pickling.  Full copy/pickle
+        proxy support ships in a companion fix.
+
+        Raises:
+            TypeError: Always — pickling a proxy is not supported.
+
+        """
+        name = getattr(self._get_active(), "__name__", None) or repr(self._get_active())
+        raise TypeError(
+            f"{name!r} is wrapped in a deprecation proxy and cannot be pickled directly. "
+            "Access the underlying object before pickling."
+        )
+
+
+def _proxy_call_with_positional_split(
+    ctor: Callable[..., Any],
+    dep: DeprecationConfig,
+    args: tuple[Any, ...],
+    mapped_kwargs: dict[str, Any],
+) -> Any:  # noqa: ANN401
+    """Invoke *ctor*, forwarding kwargs bound to POSITIONAL_ONLY constructor params positionally.
+
+    Adopts the ``@deprecated`` dispatcher's split approach: remapped values whose target parameter is positional-only
+    are reordered into positional arguments by declaration order, after the ``consumed=len(args)`` slots the caller
+    already filled positionally.  This keeps required positional-only params, immutable (frozen-dataclass-style)
+    instances, and constructor-derived state working — unlike the historical pop-and-``setattr`` fallback.
+
+    """
+    if dep.target_positional_only:
+        pos_args, kw_args = _split_positional_only_kwargs(
+            dep.target_positional_only_order, mapped_kwargs, dep.target_positional_only, consumed=len(args)
+        )
+        return ctor(*args, *pos_args, **kw_args)
+    return ctor(*args, **mapped_kwargs)
+
 
 def _proxy_call_args_remap(
     proxy: _DeprecatedProxy,
@@ -877,14 +996,7 @@ def _proxy_call_args_remap(
             proxy._warn(arg_name=old_key, _extra_frames=1)
     mapped_kwargs = proxy._apply_args_mapping(kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
-    if dep.args_mapping_positional_only and dep.args_mapping:
-        _incompat_new = proxy._resolve_incompat_new_keys(dep)
-        pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
-        instance = cfg.obj(*args, **mapped_kwargs)
-        for new_key, val in pending.items():
-            setattr(instance, new_key, val)
-        return instance
-    return cfg.obj(*args, **mapped_kwargs)
+    return _proxy_call_with_positional_split(cfg.obj, dep, args, mapped_kwargs)
 
 
 def _proxy_call_callable_with_mapping(
@@ -903,14 +1015,7 @@ def _proxy_call_callable_with_mapping(
         proxy._warn(_extra_frames=1)
     mapped_kwargs = proxy._apply_args_mapping(kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
-    if dep.args_mapping_positional_only and dep.args_mapping:
-        _incompat_new = proxy._resolve_incompat_new_keys(dep)
-        pending = {k: mapped_kwargs.pop(k) for k in list(mapped_kwargs) if k in _incompat_new}
-        instance = target_fn(*args, **mapped_kwargs)
-        for new_key, val in pending.items():
-            setattr(instance, new_key, val)
-        return instance
-    return target_fn(*args, **mapped_kwargs)
+    return _proxy_call_with_positional_split(target_fn, dep, args, mapped_kwargs)
 
 
 def _expand_dc_attrs_to_args(
@@ -943,6 +1048,39 @@ def _expand_dc_attrs_to_args(
     return args_mapping, auto_expanded
 
 
+def _detect_ctor_positional_only(dc_check: Any) -> tuple[frozenset[str], tuple[str, ...]]:  # noqa: ANN401
+    """Inspect the active class constructor for POSITIONAL_ONLY parameters.
+
+    Proxy twin of :func:`~deprecate.deprecation._detect_positional_only`: pre-computes the split
+    data consumed by :func:`_proxy_call_with_positional_split` so remapped kwargs bound to
+    positional-only constructor params can be forwarded positionally at call time.
+
+    Args:
+        dc_check: The resolved active object (target class when configured, wrapped object
+            otherwise).  Non-class objects yield empty results.
+
+    Returns:
+        Tuple of ``(positional_only, param_order)`` — the POSITIONAL_ONLY parameter names of the
+        constructor and the full parameter-name sequence in declaration order (``self`` excluded,
+        matching ``inspect.signature`` on a class).  Both empty when *dc_check* is not a class or
+        its constructor declares no positional-only params.
+
+    """
+    if not isinstance(dc_check, type):
+        return frozenset(), ()
+    try:
+        ctor_sig = inspect.signature(dc_check)
+    except (TypeError, ValueError):
+        return frozenset(), ()
+    positional_only = frozenset(
+        param_name
+        for param_name, param in ctor_sig.parameters.items()
+        if param.kind is inspect.Parameter.POSITIONAL_ONLY
+    )
+    param_order: tuple[str, ...] = tuple(ctor_sig.parameters) if positional_only else ()
+    return positional_only, param_order
+
+
 def _detect_proxy_positional_only(
     dc_check: Any,  # noqa: ANN401
     name: str,
@@ -951,8 +1089,8 @@ def _detect_proxy_positional_only(
     """Detect ``args_mapping`` keys that remap to POSITIONAL_ONLY constructor parameters.
 
     Emits a ``UserWarning`` at decoration time and returns the incompatible old-key names so they can be recorded in
-    :class:`~deprecate._types.DeprecationConfig` for audit and call-time fallback. Returns an empty tuple when no
-    incompatibilities are found.
+    :class:`~deprecate._types.DeprecationConfig` for audit surfacing. Returns an empty tuple when no incompatibilities
+    are found.
 
     """
     if not (args_mapping and isinstance(dc_check, type)):
@@ -962,8 +1100,9 @@ def _detect_proxy_positional_only(
         warnings.warn(
             f"`args_mapping` on `{name}` remaps {list(incompatible)!r} to POSITIONAL_ONLY "
             f"constructor parameter(s) of `{dc_check.__name__}`. "
-            "Calls using those deprecated names will fall back to attribute assignment "
-            "instead of constructor kwargs — consider using `attrs_mapping` instead.",
+            "Calls using those deprecated names will pass the remapped values positionally "
+            "to the constructor — consider removing `/` from the target signature or using "
+            "`attrs_mapping` instead.",
             UserWarning,
             stacklevel=5,  # caller → decorator(cls) → __init__ → _detect_proxy_positional_only → warn
         )

@@ -19,9 +19,11 @@ attributes that :func:`_build_call_plan` reads, plus a fresh :class:`~deprecate.
 import warnings
 from typing import Any, Callable
 
+import pytest
+
 from deprecate import TargetMode
 from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
-from deprecate.deprecation import _build_call_plan
+from deprecate.deprecation import _build_call_plan, _split_positional_only_kwargs
 from tests.collection_deprecate import (
     depr_pow_args,
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
@@ -295,3 +297,60 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     future_warnings = [w for w in record if w.category is FutureWarning]
     assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
     assert len(future_warnings) >= 1, "Inner NOTIFY layer must still fire its FutureWarning on a migrated caller"
+
+
+# ---------------------------------------------------------------------------
+# _split_positional_only_kwargs — slot-safe positional extraction
+# ---------------------------------------------------------------------------
+
+
+class TestSplitPositionalOnlyKwargs:
+    """Unit contract of :func:`deprecate.deprecation._split_positional_only_kwargs`.
+
+    The helper extracts positional-only values from a resolved kwargs dict in declaration
+    order.  Positional binding at the call site is by *slot*, not by name, so a value
+    supplied for a later positional-only parameter must never slide into the slot of an
+    earlier, absent one — that case must raise ``TypeError``.
+    """
+
+    def test_contiguous_prefix_extracted_in_order(self) -> None:
+        """All positional-only names present: values come back in declaration order."""
+        pos_args, kw_args = _split_positional_only_kwargs(
+            ("a", "b", "c"), {"a": 1, "b": 2, "c": 3}, frozenset({"a", "b"})
+        )
+        assert pos_args == [1, 2]
+        assert kw_args == {"c": 3}
+
+    def test_trailing_gap_is_safe(self) -> None:
+        """An absent positional-only name with no later value present stops extraction cleanly."""
+        pos_args, kw_args = _split_positional_only_kwargs(("a", "b", "c"), {"a": 1, "c": 3}, frozenset({"a", "b"}))
+        assert pos_args == [1]
+        assert kw_args == {"c": 3}
+
+    def test_gap_before_present_value_raises(self) -> None:
+        """A later positional-only value behind an absent earlier one raises instead of misbinding.
+
+        Binding ``b``'s value positionally while ``a`` is absent would assign it to ``a``'s
+        slot — silent wrong data at every call, which is strictly worse than the TypeError
+        this machinery exists to prevent.
+        """
+        with pytest.raises(TypeError, match=r"`a` was not supplied"):
+            _split_positional_only_kwargs(("a", "b", "c"), {"b": 2, "c": 3}, frozenset({"a", "b"}))
+
+    def test_consumed_offset_skips_caller_filled_slots(self) -> None:
+        """``consumed`` leading slots already filled by caller positionals are not treated as gaps.
+
+        The proxy call path passes ``consumed=len(args)`` so a caller mixing positional args
+        with a remapped kwarg (e.g. ``Alias(1, old_x=5)``) does not trip the gap guard on the
+        slots its positional args already cover.
+        """
+        pos_args, kw_args = _split_positional_only_kwargs(("w", "x"), {"x": 5}, frozenset({"w", "x"}), consumed=1)
+        assert pos_args == [5]
+        assert kw_args == {}
+
+    def test_leading_receiver_extracted_without_positional_only_flag(self) -> None:
+        """A leading ``self`` receiver is extracted positionally even when not flagged positional-only."""
+        instance = object()
+        pos_args, kw_args = _split_positional_only_kwargs(("self", "x"), {"self": instance, "x": 5}, frozenset({"x"}))
+        assert pos_args == [instance, 5]
+        assert kw_args == {}

@@ -156,14 +156,21 @@ def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Option
     Args:
         module_name: Importable package name whose installed version to look up.
         path: Optional file-system path used to locate a local ``pyproject.toml``.
-            When provided, the local file takes precedence over installed metadata.
+            Only consulted when it actually exists on the filesystem; an importable
+            module *name* passed through here is ignored, because the walk-up from the
+            current working directory would otherwise pick up an unrelated project's
+            ``pyproject.toml`` version. When honored, the local file takes precedence
+            over installed metadata.
 
     Returns:
         Version string (e.g. ``"1.2.3"``) or ``None`` when the package is not
         installed or the version cannot be determined.
 
     """
-    if path is not None:
+    # Guard: a bare module name (not an existing path) must not trigger the pyproject.toml
+    # walk-up — starting from cwd it would grab whatever unrelated project the caller is
+    # standing in, flipping expiry gates on a foreign version.
+    if path is not None and os.path.exists(path):
         local_ver = _read_pyproject_version(path)
         if local_ver is not None:
             return local_ver

@@ -399,9 +399,10 @@ class DeprecationConfig:
             auto-generated ones.
         args_mapping_positional_only: ``args_mapping`` old-key names whose remapped target name is a
             POSITIONAL_ONLY parameter in the target class constructor.  Calling the proxy with such
-            keys as keyword arguments would raise ``TypeError`` without the runtime fallback.  Empty
-            tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
-            surfaced by :func:`~deprecate.audit.validate_mapping_compatibility`.
+            keys as keyword arguments would raise ``TypeError`` without the positional split applied
+            by the proxy call path (see :attr:`target_positional_only`).  Empty tuple when all
+            remapped targets are kwarg-accessible.  Populated at decoration time; surfaced by
+            :func:`~deprecate.audit.validate_mapping_compatibility`.
         target_positional_only: Names of POSITIONAL_ONLY parameters on the forwarding target callable
             used with :func:`~deprecate.deprecated`, including ``self`` and ``cls`` when they are
             declared positional-only.  Non-empty when a ``@deprecated(target=fn)`` call found ``fn``
@@ -410,13 +411,31 @@ class DeprecationConfig:
             when the only positional-only parameter is the instance or class receiver (e.g.
             ``def __init__(self, /): ...``).  The call dispatcher splits these out of
             ``resolved_kwargs`` and forwards them positionally so the target call does not raise
-            ``TypeError``.  Empty frozenset for proxy targets (see
-            :attr:`args_mapping_positional_only`) and for non-callable targets.
+            ``TypeError``.  For :class:`~deprecate.proxy._DeprecatedProxy` objects this holds the
+            POSITIONAL_ONLY parameter names of the *active* class constructor (target class when
+            configured, wrapped class otherwise) so the proxy call path can apply the same
+            positional split (see also :attr:`args_mapping_positional_only`).  Empty frozenset
+            for non-callable targets.
         target_positional_only_order: Full parameter-name sequence of the forwarding target callable,
             in declaration order.  Pre-computed at decoration time alongside
             :attr:`target_positional_only` so the call dispatcher can iterate in declaration order
             without calling ``inspect.signature`` on every dispatch.  Not included in ``repr``.
             Empty tuple when ``target_positional_only`` is empty.
+        source_positional_only: Names of POSITIONAL_ONLY parameters declared by the decorated
+            *source* callable itself.  The wrapper converts positional args to kwargs internally,
+            so whenever the dispatcher invokes the source body (NOTIFY, ARGS_REMAP, and the
+            migrated-caller short-circuit) it must split these names back out of the resolved
+            kwargs and pass them positionally — otherwise every call would raise ``TypeError``.
+            Mirrors :attr:`target_positional_only` on the source side.  Empty frozenset when the
+            source declares no ``/``.
+        source_positional_only_order: Full parameter-name sequence of the decorated source in
+            declaration order; the source-side twin of :attr:`target_positional_only_order`.
+            Not included in ``repr``.  Empty tuple when :attr:`source_positional_only` is empty.
+        source_var_positional_prefix: Number of named positional parameters declared before the
+            source's ``*args``.  Used by the forwarding dispatcher to compute the surplus
+            positional tail (``args[prefix:]``) that must be forwarded to a callable target
+            rather than silently dropped.  ``0`` when the source declares no var-positional
+            parameter.
 
     """
 
@@ -434,6 +453,9 @@ class DeprecationConfig:
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
     target_positional_only: frozenset[str] = field(default_factory=frozenset)
     target_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
+    source_positional_only: frozenset[str] = field(default_factory=frozenset)
+    source_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
+    source_var_positional_prefix: int = 0
 
 
 @runtime_checkable
