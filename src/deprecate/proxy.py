@@ -1411,6 +1411,15 @@ def deprecated_class(
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`.
 
+    Note:
+        **Subclassing (PEP 560)**: the proxy implements ``__mro_entries__`` so
+        ``class Child(deprecated_alias):`` resolves to ``class Child(target_or_source_class):``
+        in the MRO — ``issubclass(Child, target_class)`` returns ``True`` and standard inheritance
+        semantics are preserved.  One ``FutureWarning`` fires at class-definition time (not per
+        instance).  With :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` aliases (``attrs_mapping``
+        without a callable *target*) subclassing stays **silent** — only listed attribute accesses
+        are deprecated, not the class itself.
+
     Examples:
         >>> from enum import Enum
         >>> class NewColor(Enum):
@@ -1537,6 +1546,13 @@ def deprecated_instance(
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*.
+
+    Note:
+        **Operator warnings**: arithmetic operators (``+``, ``-``, ``*``, ``**``, ``//``, ``%``, ``<<``,
+        ``>>``, ``&``, ``|``, ``^``) and their reflected forms emit a deprecation warning and consume the
+        ``num_warns`` budget.  In-place operators (``+=``, ``-=``, …) additionally enforce ``read_only``.
+        Ordering comparisons (``<``, ``<=``, ``>``, ``>=``) and structural probes (``__eq__``, ``__len__``,
+        ``__bool__``, ``__str__``) are **silent** — they do not consume the warn budget.
 
     Example:
         >>> cfg = {"threshold": 0.5, "enabled": True}
