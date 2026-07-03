@@ -24,7 +24,7 @@ _DOCS_DIR = _REPO_ROOT / "docs"
 
 def _expected_test_name(md: Path) -> str:
     """Map a ``docs/<path>.md`` source to its generated ``test_<slug>.py`` name (mirrors ``make docs-tests``)."""
-    slug = str(md.relative_to(_DOCS_DIR).with_suffix("")).replace("/", "_").replace("-", "_")
+    slug = md.relative_to(_DOCS_DIR).with_suffix("").as_posix().replace("/", "_").replace("-", "_")
     return f"test_{slug}.py"
 
 

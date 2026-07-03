@@ -3,6 +3,7 @@
 import abc
 import copy
 import inspect
+import math
 import os
 import pickle
 import warnings
@@ -2651,7 +2652,7 @@ class TestOperatorForwarding:
             pytest.param(lambda p: 10 + p, 13, id="radd"),
             pytest.param(lambda p: 10 - p, 7, id="rsub"),
             pytest.param(lambda p: -p, -3, id="neg"),
-            pytest.param(lambda p: abs(p), 3, id="abs"),
+            pytest.param(abs, 3, id="abs"),
             pytest.param(lambda p: ~p, -4, id="invert"),
         ],
     )
@@ -2693,6 +2694,32 @@ class TestOperatorForwarding:
         proxy: Any = deprecated_instance({"a": 1}, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
         with pytest.raises(TypeError):
             _ = proxy + 1
+
+    def test_unsupported_binary_op_does_not_warn(self) -> None:
+        """When the wrapped type has no implementation for an operator the proxy returns ``NotImplemented`` silently.
+
+        A proxy wrapping a ``dict`` has no ``__add__``; Python first tries ``dict.__add__(proxy, 1)`` (the
+        forwarding dunder returns ``NotImplemented``), then tries ``int.__radd__(1, proxy)`` (also
+        ``NotImplemented``), and finally raises ``TypeError``. The warning must not fire during the
+        ``NotImplemented`` phase because the operation did not succeed.
+        """
+        proxy: Any = deprecated_instance({"a": 1}, name="d", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(TypeError):
+                _ = proxy + 1
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_three_arg_pow_unwraps_modulus_proxy(self) -> None:
+        """``pow(proxy_base, exp, proxy_mod)`` unwraps both proxy operands before calling ``int.__pow__``.
+
+        ``pow(base, exp, mod)`` calls ``__pow__(base, exp, mod)`` with three arguments; when ``mod`` is itself
+        a proxy its raw form must reach the underlying ``int.__pow__`` implementation.  Without unwrapping,
+        ``int.__pow__`` receives a ``_DeprecatedProxy`` as the modulus and raises ``TypeError``.
+        """
+        proxy_base: Any = deprecated_instance(7, name="base", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy_mod: Any = deprecated_instance(3, name="mod", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert pow(proxy_base, 2, proxy_mod) == 1  # 7**2 % 3 == 49 % 3 == 1
 
     def test_inplace_add_on_immutable_rebinds_to_result(self) -> None:
         """``+=`` on a proxied immutable rebinds the name to the computed result (an int), not a re-wrapped proxy."""
@@ -2760,6 +2787,60 @@ class TestOperatorForwarding:
             with proxy:
                 pass
         assert len([w for w in caught if issubclass(w.category, FutureWarning)]) == 1
+
+    def test_round_no_ndigits_forwards_and_warns(self) -> None:
+        """``round(proxy)`` routes through ``__round__`` (branch 1: no ndigits) and emits FutureWarning.
+
+        A project deprecating a legacy float constant must still be usable in ``round(LEGACY_CONST)``
+        calls; and the round operation counts as data-producing use, so a warning is expected.
+        """
+        proxy = deprecated_instance(3.7, name="n", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
+            result = round(proxy)
+        assert result == 4
+
+    def test_round_with_ndigits_forwards_and_warns(self) -> None:
+        """``round(proxy, 2)`` routes through ``__round__`` (branch 2: ndigits given) and emits FutureWarning.
+
+        The two-argument form is the most common rounding call in numerical code; both the forwarding
+        and the warning policy must hold for this signature.
+        """
+        proxy = deprecated_instance(3.789, name="n", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
+            result = round(proxy, 2)
+        assert result == 3.79
+
+    @pytest.mark.parametrize(
+        ("func", "expected"),
+        [
+            pytest.param(math.trunc, 3, id="trunc"),
+            pytest.param(math.floor, 3, id="floor"),
+            pytest.param(math.ceil, 4, id="ceil"),
+        ],
+    )
+    def test_math_rounding_functions_forward_and_warn(self, func: Callable[[Any], Any], expected: int) -> None:
+        """``math.trunc/floor/ceil`` on a proxy forward to the wrapped value and each emit FutureWarning.
+
+        Libraries and ORMs that coerce legacy float handles via ``math.floor`` or ``math.ceil`` must
+        still receive the correct integer result; because these are numeric reads, each is a data-use
+        operation that consumes the warn budget.
+        """
+        proxy = deprecated_instance(3.7, name="n", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
+            result = func(proxy)
+        assert result == expected
+
+    def test_next_forwards_value_and_warns(self) -> None:
+        """``next(proxy)`` on a proxied iterator forwards to the active iterator and emits FutureWarning.
+
+        Wrapping a legacy iterator handle (e.g. a generator or file pointer) in ``deprecated_instance``
+        must not break code that advances it with ``next()``; the call is a data-producing read, so the
+        warning fires.
+        """
+        proxy = deprecated_instance(iter([10, 20]), name="it", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `it` was deprecated since v1\.0"):
+            result = next(proxy)
+        assert result == 10
 
 
 class TestAsyncProtocolForwarding:
@@ -2863,6 +2944,8 @@ class TestProxySubclassing:
 
             class Child(alias):  # type: ignore[misc,valid-type]
                 """Subclass whose creation should warn."""
+
+        assert issubclass(Child, SubclassableBase)
 
     def test_attrs_remap_subclassing_does_not_warn(self) -> None:
         """An ATTRS_REMAP alias deprecates only listed attributes, so subclassing it stays silent.

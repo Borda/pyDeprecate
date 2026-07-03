@@ -1607,9 +1607,12 @@ def _make_binary_forward(op_name: str, *, warn: bool) -> Callable[..., Any]:
         impl = getattr(type(active), op_name, None)
         if impl is None:
             return NotImplemented
+        result = impl(active, _unwrap_operand(other), *(_unwrap_operand(e) for e in extra))
+        if result is NotImplemented:
+            return NotImplemented
         if warn:
             self._warn()
-        return impl(active, _unwrap_operand(other), *extra)
+        return result
 
     _binary_dunder.__name__ = op_name
     _binary_dunder.__qualname__ = f"_DeprecatedProxy.{op_name}"
