@@ -4,10 +4,6 @@
 
 ### Added
 
-- **`DeprecationWrapperInfo.inner_order_property` flag.** `find_deprecation_wrappers()` now sets `inner_order_property=True` when a plain `property` (not `_DeprecatedProperty`) has a `@deprecated`-wrapped `fget` — the inner-order `@property @deprecated` shape where only the getter warns; setters and deleters added via `@value.setter` / `@value.deleter` remain silently unprotected. CI pipelines can filter on this field to reject the pattern. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
-
-- **Opt-in strict `property` replacement.** `from deprecate import property` now exports `_StrictProperty`, a `property` subclass that raises `TypeError` at class-definition time when handed an already-`@deprecated` getter (inner-order detection). Import it in modules that want compile-time enforcement; star imports (`from deprecate import *`) are unaffected. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
-
 ### Changed
 
 - **`validate_deprecation_expiry()` now scans class members by default (`include_members=True`).** Previously the expiry gate defaulted to `include_members=False` while `find_deprecation_wrappers()` defaulted to `True`, so CI gates silently skipped expired deprecated methods, constructors, classmethods, staticmethods, and properties. The flip can only surface additional expired wrappers — pass `include_members=False` explicitly to restore the old scope. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
@@ -36,11 +32,19 @@
 
 - **Docs example tests are collected again.** The `norecursedirs` entry `"docs"` matched directory basenames and silently pruned `tests/docs/`, so the generated documentation-example tests never ran in the main CI matrix; the exclusion is now a rooted `--ignore=docs`. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
-- **Circular deprecation chains now raise `RuntimeError` at call time.** Callable `target` chains that form a cycle (A → B → A) previously caused unbounded recursion and a `RecursionError`. The decorator now detects the cycle via a `ContextVar` re-entrancy guard and raises a clear `RuntimeError` naming the circular path. Async deprecation cycle detection was also improved to avoid false positives from concurrent tasks sharing a threading-local guard. ([#200](https://github.com/Borda/pyDeprecate/pull/200))
-
-- **`_StrictProperty` `TypeError` message now references the correct module path.** The error previously pointed to `deprecate._StrictProperty`; corrected to `deprecate.deprecation._StrictProperty`, which is the actual import path.
-
 ______________________________________________________________________
+
+## [0.10.1] — 2026-07-03 — Cycle detection, strict property, & inner-order audit flag
+
+### Added
+
+- **`DeprecationWrapperInfo.inner_order_property` flag.** `find_deprecation_wrappers()` now sets `inner_order_property=True` when a plain `property` (not `_DeprecatedProperty`) has a `@deprecated`-wrapped `fget` — the inner-order `@property @deprecated` shape where only the getter warns; setters and deleters added via `@value.setter` / `@value.deleter` remain silently unprotected. CI pipelines can filter on this field to reject the pattern. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
+- **Opt-in strict `property` replacement.** `from deprecate import property` now exports `_StrictProperty`, a `property` subclass that raises `TypeError` at class-definition time when handed an already-`@deprecated` getter (inner-order detection). Import it in modules that want compile-time enforcement; star imports (`from deprecate import *`) are unaffected. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
+
+### Fixed
+
+- **Circular deprecation chains now raise `RuntimeError` at call time.** Callable `target` chains that form a cycle (A → B → A) previously caused unbounded recursion and a `RecursionError`. The decorator now detects the cycle via a `ContextVar` re-entrancy guard and raises a clear `RuntimeError` naming the circular path. Async deprecation cycle detection was also improved to avoid false positives from concurrent tasks sharing a threading-local guard. ([#200](https://github.com/Borda/pyDeprecate/pull/200))
+- **`_StrictProperty` `TypeError` message now references the correct module path.** The error previously pointed to `deprecate._StrictProperty`; corrected to `deprecate.deprecation._StrictProperty`, which is the actual import path. ([#201](https://github.com/Borda/pyDeprecate/pull/201))
 
 ## [0.10.0] — 2026-06-21 — Property accessors, class attribute mapping & descriptor targets
 
