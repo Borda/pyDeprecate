@@ -2963,6 +2963,25 @@ class TestProxySubclassing:
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
         assert issubclass(Child, SubclassableBase)
 
+    def test_args_remap_subclassing_does_not_warn(self) -> None:
+        """An ARGS_REMAP alias deprecates only constructor argument names, so subclassing it stays silent.
+
+        ARGS_REMAP and ATTRS_REMAP share the same subclassing guard in ``__mro_entries__``: both scope
+        deprecation to a specific axis (argument names or attribute names) rather than the class name
+        itself, so deriving a new class from the alias must not fire any deprecation warning.
+        """
+        alias = deprecated_class(args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")(
+            SubclassableBase
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class Child(alias):  # type: ignore[misc,valid-type]
+                """Subclass whose creation must stay silent under ARGS_REMAP."""
+
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert issubclass(Child, SubclassableBase)
+
 
 class TestAttrsRemapCallPolicy:
     """Non-stacked ATTRS_REMAP proxies do not warn on plain instantiation/call (PROX-5)."""

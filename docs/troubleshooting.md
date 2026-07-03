@@ -536,7 +536,7 @@ hello
 
 </details>
 
-One warning fires at class-definition time (when `class Child(OldBase)` is evaluated), against the shared `num_warns` budget of `OldBase`. Exception: `attrs_mapping`-only proxies (`TargetMode.ATTRS_REMAP`) do not warn on subclassing — their scope is attribute names only, not general usage of the alias.
+One warning fires at class-definition time (when `class Child(OldBase)` is evaluated), against the shared `num_warns` budget of `OldBase`. Exception: `attrs_mapping`-only proxies (`TargetMode.ATTRS_REMAP`) and `args_mapping`-only proxies (`TargetMode.ARGS_REMAP`) do not warn on subclassing — both modes scope deprecation to specific axes (attribute names or argument names respectively), not general usage of the class alias.
 
 ## How do I redirect deprecation output to a logger instead of `warnings.warn`?
 

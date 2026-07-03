@@ -194,7 +194,7 @@
           "name": "Can I subclass a class created by deprecated_class?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes — since v0.8.1 the proxy implements PEP 560 __mro_entries__, so class Child(DeprecatedAlias) resolves to the replacement class in the MRO. Child correctly inherits from the replacement, issubclass(Child, Replacement) is True, and one FutureWarning fires at class-definition time. Exception: ATTRS_REMAP proxies (deprecated_class with attrs_mapping and no callable target) are scope-limited to attribute names and skip the subclassing warning."
+            "text": "Yes — since v0.8.1 the proxy implements PEP 560 __mro_entries__, so class Child(DeprecatedAlias) resolves to the replacement class in the MRO. Child correctly inherits from the replacement, issubclass(Child, Replacement) is True, and one FutureWarning fires at class-definition time. Exception: ATTRS_REMAP proxies (deprecated_class with attrs_mapping and no callable target) and ARGS_REMAP proxies (deprecated_class with args_mapping and no callable target) are scope-limited to specific axes (attribute names or argument names respectively) and skip the subclassing warning."
           }
         },
         {

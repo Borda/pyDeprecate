@@ -118,6 +118,15 @@ class _DeprecatedProxy:
         ``__str__``. In-place operators return the active object's own result, so a proxied value assigned via ``+=``
         rebinds to that result rather than a re-wrapped proxy.
 
+    Known limitations:
+        **Structural ABC over-claim**: because dunder methods are installed unconditionally on the *type*
+        (implicit special-method lookup bypasses ``__getattr__`` and cannot be conditional per-instance),
+        ``isinstance(proxy, os.PathLike)`` returns ``True`` even when the wrapped object is not a path — then
+        ``os.fspath(proxy)`` raises ``TypeError``.  The same applies to ``Awaitable``, ``AsyncIterable``, and
+        any other structural ABC that keys on dunder presence.  Always check the *unwrapped* object's type
+        when using structural ABCs as a dispatch guard, or call ``type(deprecated_instance_proxy.__class__)``
+        to get the wrapped type (which is ``_DeprecatedProxy``).
+
     """
 
     @staticmethod
@@ -1417,8 +1426,9 @@ def deprecated_class(
         in the MRO — ``issubclass(Child, target_class)`` returns ``True`` and standard inheritance
         semantics are preserved.  One ``FutureWarning`` fires at class-definition time (not per
         instance).  With :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` aliases (``attrs_mapping``
-        without a callable *target*) subclassing stays **silent** — only listed attribute accesses
-        are deprecated, not the class itself.
+        without a callable *target*) and :attr:`~deprecate._types.TargetMode.ARGS_REMAP` aliases
+        (``args_mapping`` without a callable *target*) subclassing stays **silent** — both modes
+        scope deprecation to specific axes (attribute names or argument names), not the class name.
 
     Examples:
         >>> from enum import Enum
