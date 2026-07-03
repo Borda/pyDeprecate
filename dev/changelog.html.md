@@ -10,11 +10,31 @@
 
 ### Changed
 
+- **`validate_deprecation_expiry()` now scans class members by default (`include_members=True`).** Previously the expiry gate defaulted to `include_members=False` while `find_deprecation_wrappers()` defaulted to `True`, so CI gates silently skipped expired deprecated methods, constructors, classmethods, staticmethods, and properties. The flip can only surface additional expired wrappers — pass `include_members=False` explicitly to restore the old scope. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **`proxy.__class__` now reports the wrapped object's type for `isinstance` transparency.** `_DeprecatedProxy` exposes a `__class__` property returning the active object's type, so type checks in downstream code (JSON encoders, validators, `functools.singledispatch`) keep working when an object is wrapped; `type(proxy)` still reveals the proxy. Code that previously detected the proxy via `obj.__class__ is _DeprecatedProxy` should use `type(obj) is _DeprecatedProxy` instead. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- **Proxy introspection no longer consumes the warning budget.** `hasattr()` probes on missing attributes, `copy.deepcopy` protocol lookups, and dunder access (e.g. `__mro__` reads by doc tools) previously emitted the deprecation warning and exhausted the default `num_warns=1` budget before any real usage. Warnings now fire only on successful non-dunder attribute access. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **Sources with positional-only parameters no longer raise `TypeError` on every call.** `@deprecated` on `def f(a, /, b=2)` previously failed at call time in the default notify mode and `TargetMode.ARGS_REMAP` because positional-only arguments were re-passed as keywords; they are now split back out positionally for both sync and async sources. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **Surplus `*args` are now forwarded to callable targets instead of being silently dropped.** A `*args`-declaring source forwarding to a target previously discarded everything past the named positionals (`old_sum(1, 2, 3)` returned `1`); the positional tail is now forwarded, and incompatible targets raise the curated mapping `TypeError`. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **Positional-only forwarding no longer misbinds values when an earlier parameter is absent.** The positional split previously appended present values in declaration order, sliding a later parameter's value into an earlier defaulted slot; gaps now stop the split and conflicting later values raise `TypeError`. The same signature-order dispatch replaces the `setattr` fallback in `deprecated_class(args_mapping=...)`, which also failed for required positional-only parameters and frozen dataclasses. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **CLI: unknown or misspelled flags now exit with an error instead of being silently ignored.** `sys.exit` inside the Fire invocation previously preempted Fire's unconsumed-argument check, so a typo such as `--verison` was dropped and the command ran with defaults; the CLI now lets Fire report the unconsumed flag and exits non-zero. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **CLI: version auto-detection no longer picks up an unrelated project's `pyproject.toml`.** When the scan path is an importable module name rather than a filesystem path, `expiry`/`status` previously walked up from the current directory and could gate against whatever project the shell happened to be in; filesystem-based detection now runs only for real paths. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **Audit scans survive submodules that fail to import.** `find_deprecation_wrappers(recursive=True)` previously aborted the whole scan when any submodule raised a non-`ImportError` at import time (e.g. `RuntimeError` from an optional dependency); such submodules are now skipped with a `warnings.warn` naming the module and error. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **Docs example tests are collected again.** The `norecursedirs` entry `"docs"` matched directory basenames and silently pruned `tests/docs/`, so the generated documentation-example tests never ran in the main CI matrix; the exclusion is now a rooted `--ignore=docs`. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
 - **Circular deprecation chains now raise `RuntimeError` at call time.** Callable `target` chains that form a cycle (A → B → A) previously caused unbounded recursion and a `RecursionError`. The decorator now detects the cycle via a `ContextVar` re-entrancy guard and raises a clear `RuntimeError` naming the circular path. Async deprecation cycle detection was also improved to avoid false positives from concurrent tasks sharing a threading-local guard. ([#200](https://github.com/Borda/pyDeprecate/pull/200))
 

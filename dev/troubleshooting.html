@@ -272,7 +272,7 @@
           "name": "How does @deprecated handle target functions with positional-only parameters?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
+            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class applies the same positional forwarding to constructor positional-only parameters — remapped values are passed positionally, so required positional-only params and frozen dataclasses work. Decorated sources declaring positional-only parameters are fully supported as well, with no decoration-time warning."
           }
         },
         {
@@ -281,6 +281,30 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "You pointed target= of a @deprecated wrapper at another @deprecated callable and that chain loops back to the first wrapper. pyDeprecate detects re-entry at call time and raises RuntimeError with the message \"Circular deprecation cycle detected: `<name>` re-entered via its own target chain.\" instead of letting Python reach RecursionError. Fix: point target= at a plain non-deprecated final implementation, not at another @deprecated callable."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my expiry gate report more expired wrappers after upgrading pyDeprecate?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Recursive audit scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just ImportError — pyDeprecate emits UserWarning 'audit: skipped <module>: <exception>' and continues scanning instead of aborting. Results are complete for every module that imported successfully; investigate and fix the named submodule to include its deprecations in the scan."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does pickle.dumps raise TypeError on a deprecated_instance proxy?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The __class__ property on _DeprecatedProxy reports the wrapped object's type to make isinstance transparent, but pickle's protocol 2+ consistency check detects that type(proxy) != proxy.__class__ and raises TypeError. Use copy.copy or copy.deepcopy (which are unaffected) or pickle the underlying object directly instead of the proxy. Full pickle support ships in a companion fix."
           }
         }
       ]
@@ -1499,6 +1523,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#my-expiry-gate-reports-more-expired-wrappers-after-upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My expiry gate reports more expired wrappers after upgrading
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#userwarning-audit-skipped-module-during-a-recursive-scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UserWarning: audit: skipped &lt;module&gt; during a recursive scan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError: &lt;obj&gt; is wrapped in a deprecation proxy and cannot be pickled directly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#still-stuck" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1971,6 +2028,39 @@
     <span class="md-ellipsis">
       
         RuntimeError: Circular deprecation cycle detected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-expiry-gate-reports-more-expired-wrappers-after-upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My expiry gate reports more expired wrappers after upgrading
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#userwarning-audit-skipped-module-during-a-recursive-scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UserWarning: audit: skipped &lt;module&gt; during a recursive scan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeError: &lt;obj&gt; is wrapped in a deprecation proxy and cannot be pickled directly
       
     </span>
   </a>
@@ -3325,7 +3415,7 @@ Modules that do not import the strict `property` keep builtin behaviour; the gua
 <a id="__codelineno-80-12" name="__codelineno-80-12" href="#__codelineno-80-12"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_new_fn_compat</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
 <a id="__codelineno-80-13" name="__codelineno-80-13" href="#__codelineno-80-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">old_fn</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p><code>deprecated_class</code> is unaffected — the proxy has a <code>setattr</code> fallback for POSITIONAL_ONLY constructor parameters and emits a <code>UserWarning</code> at decoration time.</p>
+<p><code>deprecated_class</code> applies the same treatment to constructor POSITIONAL_ONLY parameters — the proxy forwards remapped values positionally to the constructor (required positional-only params, frozen dataclasses, and <code>__post_init__</code> logic all work) and emits a <code>UserWarning</code> at decoration time for visibility. Decorated <em>sources</em> declaring <code>/</code> parameters are fully supported as well, in all modes, with no decoration-time warning.</p>
 <hr />
 <h2 id="runtimeerror-circular-deprecation-cycle-detected"><code>RuntimeError: Circular deprecation cycle detected</code><a class="headerlink" href="#runtimeerror-circular-deprecation-cycle-detected" title="Permanent link">🔗</a></h2>
 <p><strong>When does this happen?</strong></p>
@@ -3365,6 +3455,55 @@ Modules that do not import the strict `property` keep builtin behaviour; the gua
 </code></pre></div>
 <p>Both deprecated names forward to the same non-deprecated implementation with no cycle.</p>
 <hr />
+<h2 id="my-expiry-gate-reports-more-expired-wrappers-after-upgrading">My expiry gate reports more expired wrappers after upgrading<a class="headerlink" href="#my-expiry-gate-reports-more-expired-wrappers-after-upgrading" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> After upgrading pyDeprecate, <code>validate_deprecation_expiry</code> (and <code>pydeprecate expiry</code>) suddenly reports more expired wrappers than before — nothing in my code changed. Why?</p>
+<p><strong>A:</strong> <code>validate_deprecation_expiry</code> now includes deprecated class members by default (<code>include_members=True</code>), matching <code>find_deprecation_wrappers</code> and <code>generate_deprecation_table</code>. Expired member wrappers — for example an <code>__init__</code> carrying deprecation metadata — are now counted, so totals can rise after upgrading even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
+<a id="__codelineno-84-2" name="__codelineno-84-2" href="#__codelineno-84-2"></a>
+<a id="__codelineno-84-3" name="__codelineno-84-3" href="#__codelineno-84-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-84-4" name="__codelineno-84-4" href="#__codelineno-84-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-84-5" name="__codelineno-84-5" href="#__codelineno-84-5"></a>
+<a id="__codelineno-84-6" name="__codelineno-84-6" href="#__codelineno-84-6"></a><span class="c1"># Default scope now includes deprecated class members</span>
+<a id="__codelineno-84-7" name="__codelineno-84-7" href="#__codelineno-84-7"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">)</span>
+<a id="__codelineno-84-8" name="__codelineno-84-8" href="#__codelineno-84-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
+<a id="__codelineno-84-9" name="__codelineno-84-9" href="#__codelineno-84-9"></a>
+<a id="__codelineno-84-10" name="__codelineno-84-10" href="#__codelineno-84-10"></a><span class="c1"># Restore the previous module-level-only scope</span>
+<a id="__codelineno-84-11" name="__codelineno-84-11" href="#__codelineno-84-11"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-84-12" name="__codelineno-84-12" href="#__codelineno-84-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
+</code></pre></div>
+<details><summary>Output: <code>Found ... expired</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a>Found 31 expired
+<a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a>Found 28 expired
+</code></pre></div>
+
+</details>
+
+<p>Prefer fixing the newly surfaced entries over passing <code>include_members=False</code> — the narrower scope hides genuinely expired member deprecations.</p>
+<hr />
+<h2 id="userwarning-audit-skipped-module-during-a-recursive-scan">UserWarning: <code>audit: skipped &lt;module&gt;</code> during a recursive scan<a class="headerlink" href="#userwarning-audit-skipped-module-during-a-recursive-scan" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> A recursive audit scan (<code>find_deprecation_wrappers</code>, <code>validate_deprecation_expiry</code>, <code>pydeprecate check</code> / <code>all</code>) emits <code>UserWarning: audit: skipped &lt;module&gt;: &lt;exception&gt;</code>. What does it mean?</p>
+<p><strong>A:</strong> Recursive scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just <code>ImportError</code> — the scanner emits this warning and continues with the remaining modules instead of aborting the whole scan:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a>UserWarning: audit: skipped my_package.legacy_ext: RuntimeError(&#39;optional native extension not built&#39;)
+</code></pre></div>
+<p>The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.</p>
+<hr />
+<h2 id="typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly">TypeError: <code>&lt;obj&gt;</code> is wrapped in a deprecation proxy and cannot be pickled directly<a class="headerlink" href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I get <code>TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly</code> when passing a <code>deprecated_instance</code> proxy to <code>pickle.dumps</code>, <code>multiprocessing</code>, or <code>joblib</code>.</p>
+<p><strong>A:</strong> The <code>__class__</code> property on <code>_DeprecatedProxy</code> reports the wrapped object's type to make <code>isinstance</code> transparent, but <code>pickle</code>'s protocol 2+ consistency check detects that <code>type(proxy)</code> ≠ <code>proxy.__class__</code> and raises this error. Full pickle support ships in a companion fix. In the meantime, access the underlying object before pickling:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a><span class="c1"># phmdoctest:skip — illustrative snippet; replace underlying_obj with your actual object</span>
+<a id="__codelineno-87-2" name="__codelineno-87-2" href="#__codelineno-87-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_instance</span>
+<a id="__codelineno-87-3" name="__codelineno-87-3" href="#__codelineno-87-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+<a id="__codelineno-87-4" name="__codelineno-87-4" href="#__codelineno-87-4"></a>
+<a id="__codelineno-87-5" name="__codelineno-87-5" href="#__codelineno-87-5"></a><span class="n">underlying_obj</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;key&quot;</span><span class="p">:</span> <span class="s2">&quot;value&quot;</span><span class="p">}</span>
+<a id="__codelineno-87-6" name="__codelineno-87-6" href="#__codelineno-87-6"></a><span class="n">proxy</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span><span class="n">underlying_obj</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cfg&quot;</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-87-7" name="__codelineno-87-7" href="#__codelineno-87-7"></a>
+<a id="__codelineno-87-8" name="__codelineno-87-8" href="#__codelineno-87-8"></a><span class="c1"># pickle the original object, not the proxy</span>
+<a id="__codelineno-87-9" name="__codelineno-87-9" href="#__codelineno-87-9"></a><span class="n">data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">underlying_obj</span><span class="p">)</span>
+<a id="__codelineno-87-10" name="__codelineno-87-10" href="#__codelineno-87-10"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+<p><code>copy.copy</code> and <code>copy.deepcopy</code> work correctly — only <code>pickle</code> is affected.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
@@ -3392,7 +3531,7 @@ Modules that do not import the strict `property` keep builtin behaviour; the gua
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 23, 2026 20:23:46 UTC">2026-06-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 3, 2026 07:04:37 UTC">2026-07-03</span>
   </span>
 
     

@@ -92,7 +92,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-06-23"
+  "dateModified": "2026-07-03"
 }
 </script>
 
@@ -2400,10 +2400,42 @@
 </li>
 </ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
+<ul>
+<li>
+<p><strong><code>validate_deprecation_expiry()</code> now scans class members by default (<code>include_members=True</code>).</strong> Previously the expiry gate defaulted to <code>include_members=False</code> while <code>find_deprecation_wrappers()</code> defaulted to <code>True</code>, so CI gates silently skipped expired deprecated methods, constructors, classmethods, staticmethods, and properties. The flip can only surface additional expired wrappers — pass <code>include_members=False</code> explicitly to restore the old scope. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong><code>proxy.__class__</code> now reports the wrapped object's type for <code>isinstance</code> transparency.</strong> <code>_DeprecatedProxy</code> exposes a <code>__class__</code> property returning the active object's type, so type checks in downstream code (JSON encoders, validators, <code>functools.singledispatch</code>) keep working when an object is wrapped; <code>type(proxy)</code> still reveals the proxy. Code that previously detected the proxy via <code>obj.__class__ is _DeprecatedProxy</code> should use <code>type(obj) is _DeprecatedProxy</code> instead. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+</ul>
 <h3 id="deprecated">Deprecated<a class="headerlink" href="#deprecated" title="Permanent link">🔗</a></h3>
 <h3 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">🔗</a></h3>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
+<li>
+<p><strong>Proxy introspection no longer consumes the warning budget.</strong> <code>hasattr()</code> probes on missing attributes, <code>copy.deepcopy</code> protocol lookups, and dunder access (e.g. <code>__mro__</code> reads by doc tools) previously emitted the deprecation warning and exhausted the default <code>num_warns=1</code> budget before any real usage. Warnings now fire only on successful non-dunder attribute access. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong>Sources with positional-only parameters no longer raise <code>TypeError</code> on every call.</strong> <code>@deprecated</code> on <code>def f(a, /, b=2)</code> previously failed at call time in the default notify mode and <code>TargetMode.ARGS_REMAP</code> because positional-only arguments were re-passed as keywords; they are now split back out positionally for both sync and async sources. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong>Surplus <code>*args</code> are now forwarded to callable targets instead of being silently dropped.</strong> A <code>*args</code>-declaring source forwarding to a target previously discarded everything past the named positionals (<code>old_sum(1, 2, 3)</code> returned <code>1</code>); the positional tail is now forwarded, and incompatible targets raise the curated mapping <code>TypeError</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong>Positional-only forwarding no longer misbinds values when an earlier parameter is absent.</strong> The positional split previously appended present values in declaration order, sliding a later parameter's value into an earlier defaulted slot; gaps now stop the split and conflicting later values raise <code>TypeError</code>. The same signature-order dispatch replaces the <code>setattr</code> fallback in <code>deprecated_class(args_mapping=...)</code>, which also failed for required positional-only parameters and frozen dataclasses. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong>CLI: unknown or misspelled flags now exit with an error instead of being silently ignored.</strong> <code>sys.exit</code> inside the Fire invocation previously preempted Fire's unconsumed-argument check, so a typo such as <code>--verison</code> was dropped and the command ran with defaults; the CLI now lets Fire report the unconsumed flag and exits non-zero. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong>CLI: version auto-detection no longer picks up an unrelated project's <code>pyproject.toml</code>.</strong> When the scan path is an importable module name rather than a filesystem path, <code>expiry</code>/<code>status</code> previously walked up from the current directory and could gate against whatever project the shell happened to be in; filesystem-based detection now runs only for real paths. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong>Audit scans survive submodules that fail to import.</strong> <code>find_deprecation_wrappers(recursive=True)</code> previously aborted the whole scan when any submodule raised a non-<code>ImportError</code> at import time (e.g. <code>RuntimeError</code> from an optional dependency); such submodules are now skipped with a <code>warnings.warn</code> naming the module and error. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
+<li>
+<p><strong>Docs example tests are collected again.</strong> The <code>norecursedirs</code> entry <code>"docs"</code> matched directory basenames and silently pruned <code>tests/docs/</code>, so the generated documentation-example tests never ran in the main CI matrix; the exclusion is now a rooted <code>--ignore=docs</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
+</li>
 <li>
 <p><strong>Circular deprecation chains now raise <code>RuntimeError</code> at call time.</strong> Callable <code>target</code> chains that form a cycle (A → B → A) previously caused unbounded recursion and a <code>RecursionError</code>. The decorator now detects the cycle via a <code>ContextVar</code> re-entrancy guard and raises a clear <code>RuntimeError</code> naming the circular path. Async deprecation cycle detection was also improved to avoid false positives from concurrent tasks sharing a threading-local guard. (<a href="https://github.com/Borda/pyDeprecate/pull/200">#200</a>)</p>
 </li>
@@ -2648,7 +2680,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 23, 2026 21:49:06 UTC">2026-06-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 3, 2026 07:04:37 UTC">2026-07-03</span>
   </span>
 
     

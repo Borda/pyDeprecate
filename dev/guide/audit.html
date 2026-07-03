@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-06-23"
+  "dateModified": "2026-07-03"
 }
 </script>
 
@@ -1782,8 +1782,8 @@
 <details>
   <summary>Output: <code>"Warning: This wrapper configuration has zero impact!"</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;bad_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;bad_func&#39;, target=&lt;TargetMode.ARGS_REMAP: &#39;args_remap&#39;&gt;, args_mapping={&#39;nonexistent&#39;: &#39;new_arg&#39;}, args_extra=None, misconfigured=False, docstring_style=&#39;rst&#39;, template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset()), invalid_args=[&#39;nonexistent&#39;], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;empty_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;empty_func&#39;, target=&lt;TargetMode.ARGS_REMAP: &#39;args_remap&#39;&gt;, args_mapping={}, args_extra=None, misconfigured=True, docstring_style=&#39;rst&#39;, template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset()), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;bad_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;bad_func&#39;, target=&lt;TargetMode.ARGS_REMAP: &#39;args_remap&#39;&gt;, args_mapping={&#39;nonexistent&#39;: &#39;new_arg&#39;}, args_extra=None, misconfigured=False, docstring_style=&#39;rst&#39;, template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=[&#39;nonexistent&#39;], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>DeprecationWrapperInfo(module=&#39;&#39;, function=&#39;empty_func&#39;, deprecated_info=DeprecationConfig(deprecated_in=&#39;1.0&#39;, remove_in=&#39;&#39;, name=&#39;empty_func&#39;, target=&lt;TargetMode.ARGS_REMAP: &#39;args_remap&#39;&gt;, args_mapping={}, args_extra=None, misconfigured=True, docstring_style=&#39;rst&#39;, template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Warning: This wrapper configuration has zero impact!
 </code></pre></div>
 
@@ -1791,6 +1791,7 @@
 
 <h3 id="scanning-a-package-for-deprecated-wrappers">Scanning a package for deprecated wrappers<a class="headerlink" href="#scanning-a-package-for-deprecated-wrappers" title="Permanent link">🔗</a></h3>
 <p><code>find_deprecation_wrappers()</code> walks an entire package or module and returns a list of <code>DeprecationWrapperInfo</code> entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.</p>
+<p>Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just <code>ImportError</code> — is skipped with a <code>UserWarning</code> of the form <code>audit: skipped &lt;module&gt;: &lt;exception&gt;</code> and the scan continues, so one broken submodule cannot abort the whole CI gate.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
@@ -1960,7 +1961,7 @@
   <summary>Output: <code>f"Found {len(expired)} expired"</code></summary>
 
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Found 14 expired
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Found 28 expired
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Found 31 expired
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>Found 17 expired
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Found 0 expired
 </code></pre></div>
@@ -1969,6 +1970,7 @@
 
 <p>Good to know:</p>
 <ul>
+<li>Class members decorated with <code>@deprecated</code> (e.g. an <code>__init__</code> wrapped by <code>deprecated_class</code> delegation) are included by default (<code>include_members=True</code>) — pass <code>include_members=False</code> to restrict the scan to module-level callables.</li>
 <li>Callables without <code>remove_in</code> are skipped — notice-only deprecations are allowed.</li>
 <li>Invalid version formats in <code>remove_in</code> are silently skipped.</li>
 <li>PEP 440 versioning is used for comparison (e.g. <code>"2.0.0" &gt; "1.9.5"</code>).</li>
@@ -2106,8 +2108,8 @@
 </code></pre></div>
 <p>Use <code>recursive=False</code> to restrict scanning to the top-level module only, which can speed up large codebases when you know submodules are clean.</p>
 <h2 id="detecting-mapping-incompatibilities">Detecting Mapping Incompatibilities<a class="headerlink" href="#detecting-mapping-incompatibilities" title="Permanent link">🔗</a></h2>
-<p><code>deprecated_class(args_mapping=...)</code> remaps deprecated argument names to their replacements before forwarding the call to the target constructor. That forwarding works only when the replacement name is a regular keyword parameter. When the replacement name is <code>POSITIONAL_ONLY</code> (i.e. declared with a <code>/</code> in the constructor signature), Python rejects it as a keyword argument. The proxy detects this at decoration time, emits a <code>UserWarning</code>, and falls back to <code>setattr</code> at call time instead of passing as a constructor kwarg — which works for most plain classes and dataclasses but silently degrades for C-extension types, <code>tuple</code>/<code>frozenset</code> subclasses, and any class where post-construction attribute assignment diverges from constructor initialisation.</p>
-<p><code>validate_mapping_compatibility()</code> surfaces every wrapper whose <code>args_mapping_positional_only</code> field is non-empty so you can review and fix these configurations before they reach users.</p>
+<p><code>deprecated_class(args_mapping=...)</code> remaps deprecated argument names to their replacements before forwarding the call to the target constructor. When the replacement name is <code>POSITIONAL_ONLY</code> (i.e. declared with a <code>/</code> in the constructor signature), Python rejects it as a keyword argument — so the proxy detects this at decoration time, emits a <code>UserWarning</code>, and forwards the remapped values <em>positionally</em> to the constructor at call time. Construction goes through the regular constructor, so required positional-only parameters, frozen dataclasses, and classes whose <code>__post_init__</code> derives state from those values all work correctly.</p>
+<p><code>validate_mapping_compatibility()</code> surfaces every wrapper whose <code>args_mapping_positional_only</code> field is non-empty so you can review these configurations deliberately — the finding is a visibility signal, not a failure.</p>
 <h3 id="the-problem-positional_only-remap-target">The problem: POSITIONAL_ONLY remap target<a class="headerlink" href="#the-problem-positional_only-remap-target" title="Permanent link">🔗</a></h3>
 <p>A class whose constructor uses the <code>/</code> positional-only separator:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
@@ -2125,7 +2127,7 @@
 <a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;px&quot;</span><span class="p">:</span> <span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;py&quot;</span><span class="p">:</span> <span class="s2">&quot;y&quot;</span><span class="p">},</span>
 <a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="p">)(</span><span class="n">Point</span><span class="p">)</span>
 <a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># Proxy strips incompatible kwargs, constructs Point() with defaults, then setattr:</span>
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># Proxy forwards the remapped values positionally: Point(1.0, 2.0)</span>
 <a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="n">p</span> <span class="o">=</span> <span class="n">OldPoint</span><span class="p">(</span><span class="n">px</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">py</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
 <a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
 </code></pre></div>
@@ -2137,7 +2139,7 @@
 
 </details>
 
-<p>The setattr fallback only works when the incompatible params have <strong>defaults</strong> — the proxy strips them from kwargs and calls the constructor without them, then patches the values in afterwards. If the POSITIONAL_ONLY params are required (no default), construction raises <code>TypeError</code> before <code>setattr</code> runs. This scenario is most likely to surface through the dataclass auto-expand path: when <code>attrs_mapping</code> on a dataclass wrapper auto-generates <code>args_mapping</code> entries and one of the target field names happens to map to a positional-only constructor param.</p>
+<p>Positional forwarding works whether or not the positional-only params have defaults — required parameters, immutable classes without a permissive <code>__setattr__</code>, and constructors with derived state all construct correctly. The decoration-time <code>UserWarning</code> is most likely to surface through the dataclass auto-expand path: when <code>attrs_mapping</code> on a dataclass wrapper auto-generates <code>args_mapping</code> entries and one of the target field names happens to map to a positional-only constructor param.</p>
 <h3 id="scanning-for-incompatible-wrappers">Scanning for incompatible wrappers<a class="headerlink" href="#scanning-for-incompatible-wrappers" title="Permanent link">🔗</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_mapping_compatibility</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
@@ -2153,14 +2155,18 @@
 <details>
   <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>Found 1 wrappers with POSITIONAL_ONLY mapping incompatibilities
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>Found 5 wrappers with POSITIONAL_ONLY mapping incompatibilities
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>  tests.collection_deprecate.DepPositionalOnly: incompatible keys = [&#39;old_val&#39;]
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>  tests.collection_deprecate.DepPositionalOnlyDerived: incompatible keys = [&#39;old_val&#39;]
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>  tests.collection_deprecate.DepPositionalOnlyImmutable: incompatible keys = [&#39;old_val&#39;]
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>  tests.collection_deprecate.DepPositionalOnlyMixed: incompatible keys = [&#39;old_x&#39;]
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>  tests.collection_deprecate.DepPositionalOnlyRequired: incompatible keys = [&#39;old_val&#39;]
 </code></pre></div>
 
 </details>
 
 <p>The function accepts the same <code>module</code> and <code>recursive</code> arguments as <code>find_deprecation_wrappers()</code> — pass an imported module object or a dotted string path; set <code>recursive=False</code> to restrict scanning to the top-level module.</p>
-<p>Unlike <code>validate_deprecation_expiry</code> or <code>validate_deprecation_chains</code>, an incompatible mapping is graceful degradation — the wrapper still works via <code>setattr</code>. Prefer <code>pydeprecate check</code> for advisory CI reporting; positional-only mapping findings are advisory warnings (exit <code>0</code>) — only hard config errors such as invalid argument mappings cause exit <code>1</code>. See the <a href="cli.html">CLI Reference</a> for flags and exit codes.</p>
+<p>Unlike <code>validate_deprecation_expiry</code> or <code>validate_deprecation_chains</code>, a positional-only mapping is not a defect — the wrapper forwards the remapped values positionally and works correctly. Prefer <code>pydeprecate check</code> for advisory CI reporting; positional-only mapping findings are advisory warnings (exit <code>0</code>) — only hard config errors such as invalid argument mappings cause exit <code>1</code>. See the <a href="cli.html">CLI Reference</a> for flags and exit codes.</p>
 <h2 id="pre-commit-integration">Pre-commit Integration<a class="headerlink" href="#pre-commit-integration" title="Permanent link">🔗</a></h2>
 <div class="admonition info">
 <p class="admonition-title">Coming soon</p>
@@ -2289,41 +2295,52 @@
 </details>
 
 <h3 id="suppressing-warnings-in-test-fixtures">Suppressing warnings in test fixtures<a class="headerlink" href="#suppressing-warnings-in-test-fixtures" title="Permanent link">🔗</a></h3>
-<p>When you call deprecated functions in test setup code (fixtures, factory helpers, shared utilities), use <code>warnings.catch_warnings()</code> with <code>simplefilter("ignore")</code> to suppress the noise while still exercising the call-forwarding path.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="c1"># NEW API — creates a session dict with host and timeout</span>
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;host&quot;</span><span class="p">:</span> <span class="n">host</span><span class="p">,</span> <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="n">timeout</span><span class="p">}</span>
-<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>
-<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>
-<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="c1"># DEPRECATED API — `create_session` replaced by `new_create_session`</span>
-<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_create_session</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
-<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a>
-<a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a>
-<a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_test_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;localhost&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test fixture helper — calls deprecated API.&quot;&quot;&quot;</span>
-<a id="__codelineno-24-18" name="__codelineno-24-18" href="#__codelineno-24-18"></a>    <span class="k">return</span> <span class="n">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
-<a id="__codelineno-24-19" name="__codelineno-24-19" href="#__codelineno-24-19"></a>
-<a id="__codelineno-24-20" name="__codelineno-24-20" href="#__codelineno-24-20"></a>
-<a id="__codelineno-24-21" name="__codelineno-24-21" href="#__codelineno-24-21"></a><span class="c1"># The helper works without emitting warnings:</span>
-<a id="__codelineno-24-22" name="__codelineno-24-22" href="#__codelineno-24-22"></a><span class="n">session</span> <span class="o">=</span> <span class="n">make_test_session</span><span class="p">()</span>
-<a id="__codelineno-24-23" name="__codelineno-24-23" href="#__codelineno-24-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>
-<a id="__codelineno-24-24" name="__codelineno-24-24" href="#__codelineno-24-24"></a>
-<a id="__codelineno-24-25" name="__codelineno-24-25" href="#__codelineno-24-25"></a><span class="c1"># Meanwhile, assert_no_warnings verifies NEW code is clean:</span>
-<a id="__codelineno-24-26" name="__codelineno-24-26" href="#__codelineno-24-26"></a><span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
-<a id="__codelineno-24-27" name="__codelineno-24-27" href="#__codelineno-24-27"></a>    <span class="n">clean_session</span> <span class="o">=</span> <span class="n">new_create_session</span><span class="p">(</span><span class="s2">&quot;prod.example.com&quot;</span><span class="p">)</span>
-<a id="__codelineno-24-28" name="__codelineno-24-28" href="#__codelineno-24-28"></a><span class="nb">print</span><span class="p">(</span><span class="n">clean_session</span><span class="p">)</span>
+<p>When you call deprecated functions in test setup code (fixtures, factory helpers, shared utilities), the first call still emits its <code>FutureWarning</code> (default <code>num_warns=1</code>; subsequent calls are silent). To keep pytest output clean while still exercising the call-forwarding path, suppress the specific message once — at the test-session level — via pytest's <code>filterwarnings</code> configuration in <code>pyproject.toml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">[tool.pytest.ini_options]</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="n">filterwarnings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">    </span><span class="s1">&#39;ignore:The `create_session` was deprecated:FutureWarning&#39;</span><span class="p">,</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="p">]</span>
+</code></pre></div>
+<p>or the equivalent runtime filter in <code>conftest.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># phmdoctest:skip — pytest conftest.py configuration snippet, not a runnable example</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s2">&quot;The `create_session` was deprecated&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">)</span>
+</code></pre></div>
+<p>Scope the filter to the specific deprecation message rather than ignoring the whole <code>FutureWarning</code> category, so unrelated deprecations from your dependencies still surface.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">assert_no_warnings</span><span class="p">,</span> <span class="n">void</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># NEW API — creates a session dict with host and timeout</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">new_create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;host&quot;</span><span class="p">:</span> <span class="n">host</span><span class="p">,</span> <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="n">timeout</span><span class="p">}</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="c1"># DEPRECATED API — `create_session` replaced by `new_create_session`</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_create_session</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>
+<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>
+<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_test_session</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;localhost&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test fixture helper — calls deprecated API.&quot;&quot;&quot;</span>
+<a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a>    <span class="k">return</span> <span class="n">create_session</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-26-18" name="__codelineno-26-18" href="#__codelineno-26-18"></a>
+<a id="__codelineno-26-19" name="__codelineno-26-19" href="#__codelineno-26-19"></a>
+<a id="__codelineno-26-20" name="__codelineno-26-20" href="#__codelineno-26-20"></a><span class="c1"># The first call emits one FutureWarning (suppressed in pytest by the filter above):</span>
+<a id="__codelineno-26-21" name="__codelineno-26-21" href="#__codelineno-26-21"></a><span class="n">session</span> <span class="o">=</span> <span class="n">make_test_session</span><span class="p">()</span>
+<a id="__codelineno-26-22" name="__codelineno-26-22" href="#__codelineno-26-22"></a><span class="nb">print</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>
+<a id="__codelineno-26-23" name="__codelineno-26-23" href="#__codelineno-26-23"></a>
+<a id="__codelineno-26-24" name="__codelineno-26-24" href="#__codelineno-26-24"></a><span class="c1"># Meanwhile, assert_no_warnings verifies NEW code is clean:</span>
+<a id="__codelineno-26-25" name="__codelineno-26-25" href="#__codelineno-26-25"></a><span class="k">with</span> <span class="n">assert_no_warnings</span><span class="p">(</span><span class="ne">FutureWarning</span><span class="p">):</span>
+<a id="__codelineno-26-26" name="__codelineno-26-26" href="#__codelineno-26-26"></a>    <span class="n">clean_session</span> <span class="o">=</span> <span class="n">new_create_session</span><span class="p">(</span><span class="s2">&quot;prod.example.com&quot;</span><span class="p">)</span>
+<a id="__codelineno-26-27" name="__codelineno-26-27" href="#__codelineno-26-27"></a><span class="nb">print</span><span class="p">(</span><span class="n">clean_session</span><span class="p">)</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>new_create_session("prod.example.com")</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>{&#39;host&#39;: &#39;localhost&#39;, &#39;timeout&#39;: 5}
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>{&#39;host&#39;: &#39;prod.example.com&#39;, &#39;timeout&#39;: 30}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>{&#39;host&#39;: &#39;localhost&#39;, &#39;timeout&#39;: 5}
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>{&#39;host&#39;: &#39;prod.example.com&#39;, &#39;timeout&#39;: 30}
 </code></pre></div>
 
 </details>
@@ -2354,9 +2371,9 @@
 <td>Only fails if a warning matching the pattern is raised</td>
 </tr>
 <tr>
-<td><code>warnings.catch_warnings()</code> + <code>simplefilter("ignore")</code></td>
+<td><code>filterwarnings</code> config (<code>pyproject.toml</code> / <code>conftest.py</code>)</td>
 <td>Calling deprecated code in fixtures/setup without assertion</td>
-<td>Silently suppresses; never fails</td>
+<td>Silently suppresses matching warnings; never fails</td>
 </tr>
 </tbody>
 </table>
@@ -2368,10 +2385,10 @@
 <li><code>"matrix"</code> — one column per version with <code>D</code> (deprecated) and <code>R</code> (remove) markers</li>
 </ul>
 <p><strong>Compact style</strong> — one row per symbol with a lifecycle status column:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_deprecation_table</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_deprecation_table</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </code></pre></div>
 <blockquote>
 <p><strong>Current version: 1.5</strong></p>
@@ -2455,10 +2472,10 @@
 </table>
 </blockquote>
 <p><strong>Matrix style</strong> — one column per version with <code>D</code> (deprecated) and <code>R</code> (remove) lifecycle markers:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_deprecation_table</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="n">matrix</span> <span class="o">=</span> <span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">&quot;matrix&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_deprecation_table</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="n">matrix</span> <span class="o">=</span> <span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">&quot;matrix&quot;</span><span class="p">)</span>
 </code></pre></div>
 <blockquote>
 <p><strong>Current version: 1.5</strong></p>
@@ -2570,7 +2587,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 23, 2026 20:23:46 UTC">2026-06-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 3, 2026 07:04:37 UTC">2026-07-03</span>
   </span>
 
     

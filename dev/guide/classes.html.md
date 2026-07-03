@@ -107,6 +107,8 @@ efg
 
 Heads up: primitive protocol methods (arithmetic on `float`, concatenation on `str`) are not intercepted by the proxy. For primitive constants, wrap them in a container or update call sites directly. See [Troubleshooting](../troubleshooting.md#why-does-deprecated_instance-not-emit-a-notice-on-arithmeticcomparison-operators) for details.
 
+The proxy is transparent to introspection: `isinstance(DEFAULTS, dict)` is `True` (the proxy reports the wrapped object's type through `__class__`). Note: `type(DEFAULTS)` still returns `_DeprecatedProxy` — only `isinstance` (which honours `__class__`) is transparent. Code using strict `type()` equality checks will still see the wrapper type; use `type(DEFAULTS)` to detect the proxy explicitly. Introspection stays silent: `isinstance` checks, dunder reads, and failed `hasattr` probes emit no warning and do not consume the `num_warns` budget.
+
 ```python
 from deprecate import deprecated_instance
 
@@ -573,7 +575,7 @@ print(pt.x)
 
 ### Class-type compatibility
 
-C-extension types, classes whose constructor accepts only positional-only parameters (e.g. `def __init__(self, val, /): ...`), and `tuple`/`frozenset` subclasses emit `UserWarning` at decoration time when `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. At call time the proxy falls back to `setattr` for those entries instead of passing the remapped name as a constructor kwarg, so the instance is created and then the field is patched in — which behaves correctly for regular dataclasses but may not suit all class types. Run `validate_mapping_compatibility(module)` in CI to surface these patterns before they reach users.
+When `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter (e.g. `def __init__(self, val, /): ...`), the proxy emits a `UserWarning` at decoration time and forwards the remapped values positionally to the constructor at call time. Construction goes through the regular constructor, so required positional-only parameters, frozen/immutable classes, and constructors whose `__post_init__` derives state from those values all work correctly. Run `validate_mapping_compatibility(module)` in CI to keep visibility of these patterns.
 
 ### Combining attribute and argument deprecation
 
@@ -685,7 +687,7 @@ False
 
 !!! note "Audit tip — mapping compatibility"
 
-    After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — those fall back to `setattr` at call time instead of forwarding the kwarg. The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty. See the [Audit guide](audit.md) for the full CI integration pattern.
+    After combining `attrs_mapping` and `args_mapping`, run `validate_mapping_compatibility(module)` from the audit module in CI to surface any `args_mapping` entries that remap a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter — the proxy forwards those remapped values positionally to the constructor, so the finding is an advisory visibility signal, not a failure. The function returns a list of `DeprecationWrapperInfo` objects whose `args_mapping_positional_only` field is non-empty. See the [Audit guide](audit.md) for the full CI integration pattern.
 
 #### Stacking `deprecated_class()` for multi-version deprecations
 

@@ -3154,6 +3154,10 @@ True</p>
   <summary>Note</summary>
   <ul>
 <li>Requires that the module be importable</li>
+<li>Recursive scans import every submodule of the package, executing their module-level code; packages
+  with heavy import-time work (GPU init, network access) make the scan correspondingly expensive</li>
+<li>Skips submodules that fail to import — any exception raised by module-level code is reported as a
+  <code>UserWarning</code> (<code>audit: skipped &lt;module&gt;: ...</code>) and the scan continues</li>
 <li>Inspects the <code>__deprecated__</code> attribute set by the :func:<code>~deprecate.deprecated</code> decorator</li>
 <li>Skips private/magic attributes and imports from other modules</li>
 <li>Uses static member inspection to avoid scan-time side effects from dynamic attribute access</li>
@@ -3327,7 +3331,7 @@ Invalid configurations won't cause runtime errors but will silently have no effe
 
 
 <h2 id="deprecate.audit.validate_deprecation_expiry" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
 
 <a href="#deprecate.audit.validate_deprecation_expiry" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -3415,11 +3419,14 @@ If None, attempts to auto-detect the version using the package name from the mod
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If True, also scan deprecated class members (methods, constructors).</p>
+                <p>If True (default), also scan deprecated class members (methods, constructors,
+classmethods, staticmethods, properties) — matching the discovery default of
+:func:<code>~deprecate.audit.find_deprecation_wrappers</code>, so the enforcement gate sees everything
+discovery and reporting see.</p>
               </div>
             </td>
             <td>
-                  <code>False</code>
+                  <code>True</code>
             </td>
           </tr>
       </tbody>
@@ -3471,8 +3478,8 @@ len(expired)
 0</p>
 <h3 id="deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines">Check with version past some removal deadlines<a class="headerlink" href="#deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines" title="Permanent link">🔗</a></h3>
 <p>expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
-print(len(expired))  # Some functions have remove_in="0.5"
-28</p>
+print(len(expired))  # Some functions and class members have remove_in &lt;= "0.5"
+31</p>
 </blockquote>
 </blockquote>
 </blockquote>

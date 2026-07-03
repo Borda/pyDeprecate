@@ -1579,7 +1579,7 @@ def _new_fn_compat(val: int, y: int = 0) -> int:
 def old_fn(val: int, y: int = 0) -> int: ...
 ```
 
-`deprecated_class` is unaffected — the proxy has a `setattr` fallback for POSITIONAL_ONLY constructor parameters and emits a `UserWarning` at decoration time.
+`deprecated_class` applies the same treatment to constructor POSITIONAL_ONLY parameters — the proxy forwards remapped values positionally to the constructor (required positional-only params, frozen dataclasses, and `__post_init__` logic all work) and emits a `UserWarning` at decoration time for visibility. Decorated *sources* declaring `/` parameters are fully supported as well, in all modes, with no decoration-time warning.
 
 ______________________________________________________________________
 
@@ -1634,6 +1634,77 @@ def also_old_fn(x: int) -> int: ...
 ```
 
 Both deprecated names forward to the same non-deprecated implementation with no cycle.
+
+______________________________________________________________________
+
+## My expiry gate reports more expired wrappers after upgrading
+
+**Q:** After upgrading pyDeprecate, `validate_deprecation_expiry` (and `pydeprecate expiry`) suddenly reports more expired wrappers than before — nothing in my code changed. Why?
+
+**A:** `validate_deprecation_expiry` now includes deprecated class members by default (`include_members=True`), matching `find_deprecation_wrappers` and `generate_deprecation_table`. Expired member wrappers — for example an `__init__` carrying deprecation metadata — are now counted, so totals can rise after upgrading even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate.
+
+```python
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+# Default scope now includes deprecated class members
+expired = validate_deprecation_expiry(my_package, "0.5")
+print(f"Found {len(expired)} expired")
+
+# Restore the previous module-level-only scope
+expired = validate_deprecation_expiry(my_package, "0.5", include_members=False)
+print(f"Found {len(expired)} expired")
+```
+
+<details><summary>Output: <code>Found ... expired</code></summary>
+
+```
+Found 31 expired
+Found 28 expired
+```
+
+</details>
+
+Prefer fixing the newly surfaced entries over passing `include_members=False` — the narrower scope hides genuinely expired member deprecations.
+
+______________________________________________________________________
+
+## UserWarning: `audit: skipped <module>` during a recursive scan
+
+**Q:** A recursive audit scan (`find_deprecation_wrappers`, `validate_deprecation_expiry`, `pydeprecate check` / `all`) emits `UserWarning: audit: skipped <module>: <exception>`. What does it mean?
+
+**A:** Recursive scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just `ImportError` — the scanner emits this warning and continues with the remaining modules instead of aborting the whole scan:
+
+```
+UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
+```
+
+The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.
+
+______________________________________________________________________
+
+## TypeError: `<obj>` is wrapped in a deprecation proxy and cannot be pickled directly
+
+**Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
+
+**A:** The `__class__` property on `_DeprecatedProxy` reports the wrapped object's type to make `isinstance` transparent, but `pickle`'s protocol 2+ consistency check detects that `type(proxy)` ≠ `proxy.__class__` and raises this error. Full pickle support ships in a companion fix. In the meantime, access the underlying object before pickling:
+
+```python
+# phmdoctest:skip — illustrative snippet; replace underlying_obj with your actual object
+from deprecate import deprecated_instance
+import pickle
+
+underlying_obj = {"key": "value"}
+proxy = deprecated_instance(underlying_obj, name="cfg", deprecated_in="1.0", remove_in="2.0")
+
+# pickle the original object, not the proxy
+data = pickle.dumps(underlying_obj)
+restored = pickle.loads(data)
+```
+
+`copy.copy` and `copy.deepcopy` work correctly — only `pickle` is affected.
 
 ______________________________________________________________________
 
