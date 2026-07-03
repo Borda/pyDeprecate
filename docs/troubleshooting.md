@@ -1727,7 +1727,6 @@ ______________________________________________________________________
 
 **A:** This error was raised in older versions (before [PR #212](https://github.com/Borda/pyDeprecate/pull/212)). Since PR #212, `pickle.dumps(proxy)` works: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error, upgrade pyDeprecate. One remaining caveat: the `stream` callable must be picklable by reference — if you passed a lambda or closure as `stream`, use `stream=None` or `stream=warnings.warn` instead.
 
-
 ______________________________________________________________________
 
 ## Still stuck?
