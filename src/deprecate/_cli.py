@@ -340,7 +340,7 @@ def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[l
                 stderr=True,
             )
         return None
-    # other exceptions propagate to _wrap
+    # other exceptions propagate to cli()'s top-level handler around fire.Fire
 
 
 def _is_missing_packaging_import_error(error: ImportError) -> bool:
@@ -655,28 +655,6 @@ def cmd_status(
 # ---------------------------------------------------------------------------
 
 
-def _wrap(fn: Callable[..., int]) -> Callable[..., None]:
-    """Wrap a cmd_* function so its integer return value becomes a sys.exit() call.
-
-    Acts as the single top-level exception handler for the CLI: unhandled exceptions
-    are converted to a non-zero sys.exit with the exception message as the exit code
-    string. SystemExit is re-raised unchanged so Fire's --help and normal exits pass
-    through unmodified.
-
-    """
-
-    @functools.wraps(fn)
-    def wrapper(*args: object, **kwargs: object) -> None:
-        try:
-            sys.exit(fn(*args, **kwargs))
-        except SystemExit:
-            raise
-        except Exception as exc:
-            sys.exit(str(exc))
-
-    return wrapper
-
-
 def _ensure_utf8_streams() -> None:
     """Reconfigure stdout/stderr to UTF-8 on platforms where the default encoding may reject non-ASCII characters.
 
@@ -695,7 +673,16 @@ def _ensure_utf8_streams() -> None:
 
 
 def cli() -> None:
-    """CLI entry point for pydeprecate."""
+    """CLI entry point for pydeprecate.
+
+    The subcommand's integer return value becomes the process exit code, applied *after* ``fire.Fire``
+    returns. Raising ``SystemExit`` from inside the Fire trace would abort Fire's own unconsumed-argument
+    check, silently ignoring unknown or misspelled flags (exit 0 on typos); letting the trace complete
+    makes Fire report ``Could not consume arg`` and exit 2 for such flags. Acts as the single top-level
+    exception handler: unhandled exceptions from subcommands are converted to a non-zero exit with the
+    exception message. SystemExit (Fire's ``--help`` and error exits) passes through unchanged.
+
+    """
     _ensure_utf8_streams()
     try:
         import fire
@@ -707,13 +694,36 @@ def cli() -> None:
     if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
         argv = ["check", *argv]
 
-    fire.Fire(
-        {
-            "check": _wrap(cmd_check),
-            "expiry": _wrap(cmd_expiry),
-            "chains": _wrap(cmd_chains),
-            "all": _wrap(cmd_all),
-            "status": _wrap(cmd_status),
-        },
-        command=argv,
-    )
+    exit_code: Optional[int] = None
+
+    def _capture(fn: Callable[..., int]) -> Callable[..., None]:
+        """Record the cmd_* return code without returning it into the Fire trace.
+
+        Returning the int would make Fire print it and treat it as a further component to consume arguments against;
+        returning ``None`` keeps the output clean and lets Fire finish its trace.
+
+        """
+
+        @functools.wraps(fn)
+        def wrapper(*args: object, **kwargs: object) -> None:
+            nonlocal exit_code
+            exit_code = fn(*args, **kwargs)
+
+        return wrapper
+
+    try:
+        fire.Fire(
+            {
+                "check": _capture(cmd_check),
+                "expiry": _capture(cmd_expiry),
+                "chains": _capture(cmd_chains),
+                "all": _capture(cmd_all),
+                "status": _capture(cmd_status),
+            },
+            command=argv,
+        )
+    except Exception as exc:  # SystemExit is BaseException — Fire's own exits pass through untouched
+        sys.exit(str(exc))
+    # exit_code stays None when no subcommand ran (bare `pydeprecate` help) → return normally (exit 0).
+    if exit_code is not None:
+        sys.exit(exit_code)

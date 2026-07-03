@@ -223,3 +223,71 @@ class TestCliSubcommands:
             cwd=tmp_path,
         )
         assert result.returncode == 0
+
+
+class TestCliArgumentValidation:
+    """Unknown or misspelled flags and version auto-detection must fail safe, never silently mislead."""
+
+    def test_check_unknown_flag_exits_nonzero(self, tmp_path: Path) -> None:
+        """'pydeprecate check <path> --bogusflag' exits non-zero with a diagnostic.
+
+        A CI pipeline invoking the CLI with an unknown flag must fail the job: exiting inside the Fire
+        trace would suppress Fire's "Could not consume arg" check, silently ignoring the flag and letting
+        the gate pass with exit 0 on unvalidated input.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "check", str(pkg), "--bogusflag"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(COLUMNS="200"),
+            cwd=tmp_path,
+        )
+        assert result.returncode != 0
+        assert "Could not consume arg" in result.stderr + result.stdout
+
+    def test_expiry_misspelled_version_flag_exits_nonzero(self, tmp_path: Path) -> None:
+        """'pydeprecate expiry <path> --verison 9.0' (typo) exits non-zero instead of dropping the value.
+
+        A user pinning the comparison version with a typo'd flag must get a hard error; silently dropping
+        the flag would run the expiry gate against an auto-detected (wrong) version — false pass or false
+        fail with zero diagnostics.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "expiry", str(pkg), "--verison", "9.0"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(COLUMNS="200"),
+            cwd=tmp_path,
+        )
+        assert result.returncode != 0
+        assert "Could not consume arg" in result.stderr + result.stdout
+
+    def test_expiry_module_name_ignores_unrelated_cwd_pyproject(self, tmp_path: Path) -> None:
+        """'pydeprecate expiry <module_name>' run from an unrelated project must not steal its version.
+
+        Scanning an importable module *name* (not a filesystem path) from a directory that happens to
+        contain another project's ``pyproject.toml`` must not auto-detect that project's version — doing
+        so compares deprecation deadlines against a foreign version and flips the CI gate arbitrarily.
+
+        """
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        _make_pkg(proj)
+        decoy = tmp_path / "otherproj"
+        decoy.mkdir()
+        (decoy / "pyproject.toml").write_text('[project]\nname = "fakeproj"\nversion = "9.9.9"\n')
+        env = _cli_env()
+        env["PYTHONPATH"] = f"{proj}{os.pathsep}{env['PYTHONPATH']}"
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "expiry", "mypkg"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=decoy,
+        )
+        assert "9.9.9" not in result.stdout + result.stderr
+        assert result.returncode == 0

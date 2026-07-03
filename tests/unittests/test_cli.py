@@ -1,5 +1,6 @@
 """Unit tests for the CLI module (all external calls fully mocked)."""
 
+import importlib.metadata
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -7,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deprecate._cli import _print, _Reporter, cli, cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_status
+from deprecate._pkg import _auto_detect_version
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
 
@@ -123,7 +125,7 @@ class TestCmdCheckScanning:
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_error_scanning(self, mock_find: MagicMock) -> None:
-        """Scan failure raises; _wrap converts to sys.exit when called via CLI."""
+        """Scan failure raises; cli() converts it to sys.exit at the CLI boundary."""
         mock_find.side_effect = Exception("Boom")
 
         with pytest.raises(Exception, match="Boom"):
@@ -138,7 +140,7 @@ class TestCmdCheckScanning:
         assert cmd_check(path="some_module", exit_zero=True) == 0
 
     def test_file_path_rejected(self, tmp_path: Path) -> None:
-        """File path raises ValueError; _wrap converts to sys.exit when called via CLI."""
+        """File path raises ValueError; cli() converts it to sys.exit at the CLI boundary."""
         fpath = tmp_path / "module.py"
         fpath.touch()
         with pytest.raises(ValueError, match="File paths are not supported"):
@@ -256,7 +258,7 @@ class TestCmdExpiry:
         mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
-        """Plain directory without __init__.py raises ValueError; _wrap converts at CLI boundary."""
+        """Plain directory without __init__.py raises ValueError; cli() converts it at the CLI boundary."""
         (tmp_path / "module_a.py").touch()
         with pytest.raises(ValueError, match="not supported"):
             cmd_expiry(path=str(tmp_path), version="1.0")
@@ -332,7 +334,7 @@ class TestCmdChains:
         mock_chains.assert_called_once_with("some_module", recursive=False)
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
-        """Plain directory without __init__.py raises ValueError; _wrap converts at CLI boundary."""
+        """Plain directory without __init__.py raises ValueError; cli() converts it at the CLI boundary."""
         (tmp_path / "module_a.py").touch()
         with pytest.raises(ValueError, match="not supported"):
             cmd_chains(path=str(tmp_path))
@@ -612,7 +614,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_check_subcommand_dispatches(self) -> None:
-        """``cli()`` with check subcommand calls cmd_check and exits via _wrap(sys.exit)."""
+        """``cli()`` with check subcommand calls cmd_check and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
             patch("deprecate._cli.cmd_check", return_value=0) as mock_check,
@@ -623,7 +625,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_expiry_subcommand_dispatches(self) -> None:
-        """``cli()`` with expiry subcommand calls cmd_expiry and exits via _wrap(sys.exit)."""
+        """``cli()`` with expiry subcommand calls cmd_expiry and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--version", "2.0"]),
             patch("deprecate._cli.cmd_expiry", return_value=0) as mock_expiry,
@@ -634,7 +636,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_chains_subcommand_dispatches(self) -> None:
-        """``cli()`` with chains subcommand calls cmd_chains and exits via _wrap(sys.exit)."""
+        """``cli()`` with chains subcommand calls cmd_chains and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "chains", "some_module"]),
             patch("deprecate._cli.cmd_chains", return_value=0) as mock_chains,
@@ -645,7 +647,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 0
 
     def test_all_subcommand_dispatches(self) -> None:
-        """``cli()`` with all subcommand calls cmd_all and exits via _wrap(sys.exit)."""
+        """``cli()`` with all subcommand calls cmd_all and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "all", "some_module"]),
             patch("deprecate._cli.cmd_all", return_value=0) as mock_all,
@@ -664,6 +666,81 @@ class TestCliEntryPoint:
         ):
             cli()
         assert exc_info.value.code == 1
+
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_unknown_flag_exits_nonzero(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """``cli()`` with an unknown flag exits non-zero via Fire's unconsumed-argument check.
+
+        A CI job invoking ``pydeprecate check pkg --bogusflag`` must fail loudly: if the exit code were
+        produced inside the Fire trace, Fire would never reach its "Could not consume arg" check and the
+        typo'd flag would be silently ignored with exit 0, letting the gate pass on unvalidated input.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "check", "some_module", "--bogusflag"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+        assert "Could not consume arg" in capsys.readouterr().err
+
+    @patch("deprecate._cli.validate_deprecation_expiry", return_value=[])
+    def test_misspelled_value_flag_exits_nonzero(self, mock_expiry: MagicMock) -> None:
+        """``cli()`` with a misspelled ``--verison`` flag exits non-zero instead of dropping the value.
+
+        A user running ``pydeprecate expiry pkg --verison 2.0`` intends to pin the comparison version;
+        silently dropping the typo'd flag would check expiry against an auto-detected (wrong) version and
+        report a false pass or false fail with no diagnostic.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--verison", "2.0"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# _auto_detect_version (package helper)
+# ---------------------------------------------------------------------------
+
+
+class TestAutoDetectVersion:
+    """Tests for _auto_detect_version() — the *path* argument must only be honored for real filesystem paths."""
+
+    def test_module_name_ignores_cwd_pyproject(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A module *name* that is not an existing path must not trigger the cwd pyproject.toml walk-up.
+
+        A CI job runs ``pydeprecate expiry somepkg`` from a checkout of a completely unrelated project.
+        Walking up from the cwd would find that project's ``pyproject.toml`` and compare deprecation
+        deadlines against the wrong version, producing false CI failures or false passes.
+
+        """
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "fakeproj"\nversion = "9.9.9"\n')
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            importlib.metadata, "version", MagicMock(side_effect=importlib.metadata.PackageNotFoundError)
+        )
+        assert _auto_detect_version("somepkg", path="somepkg") is None
+
+    def test_existing_path_uses_local_pyproject(self, tmp_path: Path) -> None:
+        """An existing package directory still resolves the version from the nearby ``pyproject.toml``.
+
+        In a development checkout the local ``pyproject.toml`` version may differ from the installed
+        distribution; scanning the checkout directory must keep preferring the local file.
+
+        """
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "mypkg"\nversion = "7.7.7"\n')
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").touch()
+        assert _auto_detect_version("mypkg", path=str(pkg)) == "7.7.7"
+
+    def test_none_path_falls_back_to_metadata(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without a path, the installed distribution metadata provides the version."""
+        monkeypatch.setattr(importlib.metadata, "version", MagicMock(return_value="1.2.3"))
+        assert _auto_detect_version("somepkg", path=None) == "1.2.3"
 
 
 # ---------------------------------------------------------------------------

@@ -314,7 +314,7 @@
           "name": "How does @deprecated handle target functions with positional-only parameters?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
+            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class applies the same positional forwarding to constructor positional-only parameters — remapped values are passed positionally, so required positional-only params and frozen dataclasses work. Decorated sources declaring positional-only parameters are fully supported as well, with no decoration-time warning."
           }
         },
         {
@@ -330,7 +330,31 @@
           "name": "Does a deprecation warning survive copy.copy, copy.deepcopy, and pickle?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. Copying or unpickling a deprecated_instance / deprecated_class proxy returns a proxy again, so the deprecation warning travels with the copied object during the migration window. Warning counters are snapshotted at copy time and each copy warns independently of the original. Copying and pickling are themselves silent — the copy/pickle protocol methods rebuild the proxy directly instead of going through attribute access."
+            "text": "Yes. Copying or unpickling a deprecated_instance / deprecated_class proxy returns a proxy again, so the deprecation warning travels with the copied object during the migration window. Warning counters are snapshotted at copy time and each copy keeps its own counter independently. Copying and pickling are themselves silent — the copy/pickle protocol methods rebuild the proxy directly instead of going through attribute access. One caveat: if the proxy was created with a non-module-level stream (lambda or closure), pickle.dumps will raise PicklingError — use stream=warnings.warn or stream=None when pickling."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my expiry gate report more expired wrappers after upgrading pyDeprecate?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Recursive audit scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just ImportError — pyDeprecate emits UserWarning 'audit: skipped <module>: <exception>' and continues scanning instead of aborting. Results are complete for every module that imported successfully; investigate and fix the named submodule to include its deprecations in the scan."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does pickle.dumps raise TypeError on a deprecated_instance proxy?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This error was raised in older versions (before PR #212) because pickle's protocol 2+ consistency check detected that type(proxy) != proxy.__class__. Since PR #212, pickle.dumps(proxy) works: the proxy is reconstructed on unpickle with deprecation semantics preserved. The one remaining caveat is that the stream callable must be picklable by reference — if you passed a lambda or closure as stream, wrap it in a module-level function or use stream=None."
           }
         }
       ]

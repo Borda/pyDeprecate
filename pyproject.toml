@@ -93,7 +93,6 @@ ini_options.norecursedirs = [
   ".claude",
   "dist",
   "build",
-  "docs",
   "demo-*",
   "releases",
   "site",
@@ -102,6 +101,9 @@ ini_options.addopts = [
   "--strict-markers",
   "--doctest-modules",
   "--color=yes",
+  # rooted ignore for the mkdocs site source; a bare "docs" in norecursedirs would match by
+  # basename and silently prune tests/docs/ (the generated docs-example tests) as well
+  "--ignore=docs",
 ]
 # filterwarnings = ["error::FutureWarning"]
 # Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`
