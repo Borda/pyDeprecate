@@ -104,8 +104,13 @@ from deprecate import deprecated_instance
 
 
 NEW_VALUE = object()
-OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
+# name= sets the display name in the warning; without it the type name of the wrapped object is used
+OLD_VALUE = deprecated_instance(NEW_VALUE, name="OLD_VALUE", deprecated_in="1.0", remove_in="2.0")
 ```
+
+Wrap containers or objects, not bare primitives (`int`, `float`, `str`) — primitive protocol operations (arithmetic, comparison, concatenation) are not intercepted by the proxy and emit no warning.
+
+Proxies survive `copy.copy()` and `copy.deepcopy()` — the result is a proxy again, so the warning travels with the copy; `pickle` is not yet supported (raises `TypeError`). `isinstance(OLD_VALUE, type(NEW_VALUE))` is `True` on instance proxies; failed `hasattr` probes and dunder reads emit no warning and do not consume the warning budget.
 
 ### CI audit
 
@@ -113,9 +118,14 @@ OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
 from deprecate import validate_deprecation_chains, validate_deprecation_expiry
 
 
-validate_deprecation_chains("src")
-validate_deprecation_expiry("src", current_version="2.0")
+# pass an importable module name (dotted path), not a directory path like "src"
+validate_deprecation_chains("my_package")
+validate_deprecation_expiry("my_package", current_version="2.0")
 ```
+
+`validate_deprecation_expiry` includes class members by default (`include_members=True`); recursive scans warn-and-skip submodules that fail to import (`UserWarning: audit: skipped <module>: <exc>`) instead of aborting.
+
+The CLI accepts directory paths and resolves them to packages:
 
 ```bash
 pydeprecate all src/
@@ -133,7 +143,7 @@ pydeprecate all src/
 ## When Not To Use pyDeprecate
 
 - Use `warnings.warn` for a one-off internal warning that does not need API compatibility behavior.
-- Use `typing.deprecated` for Python 3.13+ static-checker-only visibility.
+- Use `warnings.deprecated` (Python 3.13+, PEP 702; backport `typing_extensions.deprecated` for Python < 3.13) for static-checker-only visibility.
 - Use pyDeprecate when runtime compatibility, forwarding, argument remapping, class/object aliases, warning control, or audit checks matter.
 
 ## Troubleshooting Summary
@@ -142,6 +152,8 @@ pydeprecate all src/
 - If the old function body runs unexpectedly, check whether `target` is omitted or set to notify-only mode.
 - If argument remapping fails, check `TargetMode.ARGS_REMAP` and the exact `args_mapping` keys.
 - If CI expiry checks fail, compare each `remove_in` version with the release version used by the audit command.
+- If an expiry gate suddenly reports more wrappers after upgrading, class members are now included by default — pass `include_members=False` to restore the old scope.
+- Positional-only (`/`) parameters work on both decorated sources and forwarding targets, including `deprecated_class` constructors — remapped values are forwarded positionally (no `setattr` fallback).
 
 ## Links
 
