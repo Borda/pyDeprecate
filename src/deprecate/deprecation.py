@@ -1052,23 +1052,25 @@ def _build_call_plan(  # noqa: C901, PLR0912
     # caller → coroutine `async_wrapped_fn` body → _build_call_plan → _raise_warn_* — the asyncio runner
     # frames sit *below* the caller and are skipped by warnings.warn's stacklevel walk.
     _stacklevel_to_caller = _DEFAULT_STACKLEVEL_TO_CALLER + 1
-    # Take the state lock around the quota check *and* the matching counter increment so concurrent
-    # first calls cannot all read ``nb_warned == 0``, all pass the gate, and each emit a warning
-    # (check-then-act race).  The increment is committed under the lock; the actual emission runs
-    # *outside* it so a re-entrant or slow ``stream`` cannot self-deadlock or serialise callers.
+    # Double-checked fast path: avoid the lock when the warn budget is clearly exhausted.
+    # Under CPython the int read is atomic (GIL); after num_warns=1 fires once,
+    # warned_calls >= num_warns on every subsequent call — no benefit from acquiring the lock.
+    # The authoritative check-then-increment still runs under the lock when a warning may fire.
+    # Argument-specific budgets are not pre-checked (rare path, dict lookup not worth the complexity).
     should_warn = False
-    with state.lock:
-        if reason_argument:
-            nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-        else:
-            nb_warned = state.warned_calls
-        if stream and (num_warns < 0 or nb_warned < num_warns):
-            should_warn = True
-            if reason_callable:
-                state.warned_calls += 1
-            elif reason_argument:
-                for arg in reason_argument:
-                    state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+    if stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
+        with state.lock:
+            if reason_argument:
+                nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
+            else:
+                nb_warned = state.warned_calls
+            if num_warns < 0 or nb_warned < num_warns:
+                should_warn = True
+                if reason_callable:
+                    state.warned_calls += 1
+                elif reason_argument:
+                    for arg in reason_argument:
+                        state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
     if should_warn:
         assert stream is not None  # noqa: S101 — should_warn is only set while holding the lock when stream is truthy
         if reason_callable:
@@ -1147,10 +1149,10 @@ def _build_call_plan(  # noqa: C901, PLR0912
     # uniform argument set even if the helper later needs to switch on var-positional shape.
     target_func: Optional[Callable[..., Any]] = None
     if callable(normalized_target):
-        # An empty name set means the config was built without precomputed facts (manual construction /
-        # proxy path); pass ``None`` so _prepare_target_call recomputes from the target instead of
-        # falsely rejecting every kwarg. Wrappers built via ``packing`` always carry the cached set.
-        _cached_target_names = dep_cfg.target_all_param_names or None
+        # ``None`` means facts were not precomputed (manual DeprecationConfig construction or proxy path);
+        # _prepare_target_call recomputes from target. ``frozenset()`` is a valid cached value for zero-arg
+        # targets — gate on identity (``is not None``), not truthiness, to preserve the zero-arg cache hit.
+        _cached_target_names = dep_cfg.target_all_param_names
         target_func = _prepare_target_call(
             source,
             normalized_target,

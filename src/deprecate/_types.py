@@ -441,9 +441,10 @@ class DeprecationConfig:
         target_all_param_names: All parameter names of the forwarding target callable (including any
             ``*args`` / ``**kwargs`` names), pre-computed at decoration time so the call-time kwarg
             validation in :func:`~deprecate.deprecation._prepare_target_call` does not re-inspect the
-            target on every forwarded call.  Empty frozenset for non-callable targets.  Internal call-time
-            cache — excluded from ``repr`` and equality so audit output and stored-config comparisons stay
-            stable.
+            target on every forwarded call.  ``None`` when facts are not precomputed (manual
+            ``DeprecationConfig`` construction or non-callable target); ``frozenset()`` for zero-arg
+            callables.  Internal call-time cache — excluded from ``repr`` and equality so audit output
+            and stored-config comparisons stay stable.
         target_accepts_var_positional: ``True`` when the forwarding target declares ``*args``.  Pre-computed
             decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
             excluded from ``repr`` and equality.
@@ -470,7 +471,7 @@ class DeprecationConfig:
     source_positional_only: frozenset[str] = field(default_factory=frozenset)
     source_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
     source_var_positional_prefix: int = 0
-    target_all_param_names: frozenset[str] = field(default_factory=frozenset, repr=False, compare=False)
+    target_all_param_names: Optional[frozenset[str]] = field(default=None, repr=False, compare=False)
     target_accepts_var_positional: bool = field(default=False, repr=False, compare=False)
     target_accepts_var_keyword: bool = field(default=False, repr=False, compare=False)
 
@@ -560,6 +561,13 @@ class _ProxyConfig:
             warned_args=copy.deepcopy(self.warned_args, memo),
             lock=threading.Lock(),  # fresh lock — mutex state is not transferable
         )
+
+    def __getstate__(self) -> dict[str, Any]:
+        return {k: v for k, v in self.__dict__.items() if k != "lock"}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self.lock = threading.Lock()  # fresh lock — mutex state is not transferable
 
 
 @dataclass
