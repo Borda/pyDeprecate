@@ -193,7 +193,7 @@ def _distribution_for_import(import_name: str) -> Optional[str]:
 
     ``importlib.metadata.version`` needs the *distribution* name (``pyDeprecate``) while the CLI is
     handed the *import* name (``deprecate``). Uses ``importlib.metadata.packages_distributions`` on
-    Python 3.10+ and falls back to scanning each distribution's ``top_level.txt`` on Python 3.9.
+    Python 3.11+ and falls back to scanning each distribution's ``top_level.txt`` on Python <3.11.
 
     Args:
         import_name: Importable (possibly dotted) package name; only the first component is used.
@@ -211,12 +211,12 @@ def _distribution_for_import(import_name: str) -> Optional[str]:
         except Exception:
             return None
         return distributions[0] if distributions else None
-    # Python 3.9: packages_distributions is unavailable — read top_level.txt from each distribution.
+    # Python <3.11: packages_distributions is unavailable — read top_level.txt from each distribution.
     return _distribution_from_top_level(top_level)
 
 
 def _distribution_from_top_level(top_level: str) -> Optional[str]:
-    """Return the distribution whose ``top_level.txt`` lists *top_level* (Python 3.9 fallback)."""
+    """Return the distribution whose ``top_level.txt`` lists *top_level* (Python <3.11 fallback)."""
     try:
         distributions = list(importlib.metadata.distributions())
     except Exception:

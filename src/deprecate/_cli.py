@@ -334,13 +334,19 @@ def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[l
                 "Install it with: `pip install 'pyDeprecate[audit]'`",
                 stderr=True,
             )
-        else:
-            _print(
-                "Could not determine the current package version automatically.\n"
-                "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
-                f"Original error: {exc}",
-                stderr=True,
-            )
+            return None
+        if getattr(exc, "name", None) is not None:
+            # Python's import system sets ``exc.name`` when a module-level ``import`` statement
+            # fails — this is a broken import inside the user's package, not a version-detection
+            # failure.  Propagate so the caller gets the real error instead of the misleading
+            # "Could not determine version" message.
+            raise
+        _print(
+            "Could not determine the current package version automatically.\n"
+            "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
+            f"Original error: {exc}",
+            stderr=True,
+        )
         return None
     # other exceptions propagate to cli()'s top-level handler around fire.Fire
 

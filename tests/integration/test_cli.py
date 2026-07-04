@@ -166,6 +166,31 @@ class TestCliSubcommands:
         assert result.returncode == 0
         assert "Original API" in result.stdout
 
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_expiry_broken_user_import_propagates(self, tmp_path: Path) -> None:
+        """'pydeprecate expiry <path> --version 9.0' exits non-zero when the scanned package has a broken import.
+
+        When ``validate_deprecation_expiry`` imports the user's module and the module raises an ImportError
+        (e.g. ``from _nonexistent_module_xyz_ import something``), the CLI must not silently swallow that
+        error and exit 0 with a misleading "Could not determine version" message.  The real broken-import
+        error must reach the user so they can fix their package, not get confused about version detection.
+
+        """
+        broken_pkg = tmp_path / "broken_pkg"
+        broken_pkg.mkdir()
+        (broken_pkg / "__init__.py").write_text("from _nonexistent_module_xyz_ import something\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "expiry", str(broken_pkg), "--version", "9.0"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode != 0
+        combined = result.stdout + result.stderr
+        assert "_nonexistent_module_xyz_" in combined
+        assert "Could not determine the current package version" not in combined
+
     def test_all_plain_directory_exits_0(self, tmp_path: Path) -> None:
         """'pydeprecate all <plaindir>' exits 0 when every check passes on a plain dir without __init__.py.
 
