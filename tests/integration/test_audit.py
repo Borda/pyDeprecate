@@ -360,6 +360,8 @@ class TestFindDeprecatedWrappers:
         are defined in ``deprecate.audit`` but re-exported from ``deprecate/__init__.py``; they must
         appear in a ``recursive=False`` scan of the ``deprecate`` package.
         """
+        import deprecate
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             names = [r.function for r in find_deprecation_wrappers(deprecate, recursive=False)]
