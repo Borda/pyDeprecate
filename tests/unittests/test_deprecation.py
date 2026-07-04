@@ -1895,7 +1895,8 @@ class TestStreamStacklevelProbe:
             calls.append(msg)
             raise TypeError("boom from inside the stream")
 
-        def old() -> None: ...
+        def old() -> None:
+            pass
 
         with pytest.raises(TypeError, match="boom from inside the stream"):
             _raise_warn(stream, old, "%(source_name)s", stacklevel=3)
