@@ -2494,6 +2494,18 @@
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
 <li>
+<p><strong>Audit scans no longer double-count re-exported wrappers.</strong> Recursive <code>find_deprecation_wrappers</code> previously reported a wrapper once per importing module (e.g. once under the package root re-export and once under its defining submodule), inflating expiry counts and table rows; wrappers are now attributed to their defining module and deduplicated by identity across the scan. (<a href="https://github.com/Borda/pyDeprecate/pull/215">#215</a>)</p>
+</li>
+<li>
+<p><strong>Audit report formatting no longer triggers chained proxies.</strong> Formatting a report for a wrapper whose <code>target</code> is itself a deprecated proxy previously emitted a spurious <code>FutureWarning</code> from inside the audit tooling, consumed the proxy's warn budget, and printed a fabricated module path; proxy targets are now read via static metadata access. (<a href="https://github.com/Borda/pyDeprecate/pull/215">#215</a>)</p>
+</li>
+<li>
+<p><strong>CLI: <code>all</code> and <code>status</code> no longer fail on plain directories.</strong> Scanning a directory without <code>__init__.py</code> exited 1 from the status-table step even when every check passed; module-name resolution is now lazy and a status-rendering failure cannot change the aggregate exit code. (<a href="https://github.com/Borda/pyDeprecate/pull/215">#215</a>)</p>
+</li>
+<li>
+<p><strong>CLI: version auto-detection resolves distributions whose name differs from the import name.</strong> <code>importlib.metadata</code> lookup previously failed for packages like pyDeprecate itself (import <code>deprecate</code>, distribution <code>pyDeprecate</code>); the import name is now mapped via <code>packages_distributions()</code>, and expiry prints an explicit note when it runs without a resolved version. (<a href="https://github.com/Borda/pyDeprecate/pull/215">#215</a>)</p>
+</li>
+<li>
 <p><strong><code>num_warns</code> quota is now thread-safe.</strong> Concurrent first calls to a shared wrapper could each pass the quota check before any counter increment, emitting up to one warning per thread instead of the configured budget; the warn path now synchronizes on a per-wrapper lock, so exactly <code>num_warns</code> warnings are emitted under concurrency. (<a href="https://github.com/Borda/pyDeprecate/pull/214">#214</a>)</p>
 </li>
 <li>
@@ -2778,7 +2790,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 4, 2026 00:15:30 UTC">2026-07-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 4, 2026 11:34:21 UTC">2026-07-04</span>
   </span>
 
     

@@ -322,6 +322,38 @@
             "@type": "Answer",
             "text": "This error was raised in older versions (before PR #212) because pickle's protocol 2+ consistency check detected that type(proxy) != proxy.__class__. Since PR #212, pickle.dumps(proxy) works for deprecated_instance proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. Two remaining caveats: (1) the stream callable must be picklable by reference — if you passed a lambda or closure as stream, wrap it in a module-level function or use stream=None; (2) deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy — use copy.deepcopy for class aliases instead."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get ModuleNotFoundError: No module named 'pydeprecate'?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The install name and the import name are different. The package is installed with 'pip install pyDeprecate' but imported as 'deprecate': from deprecate import deprecated. The module name 'pydeprecate' does not exist — always import from 'deprecate'."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get UserWarning when using TargetMode.ARGS_REMAP without args_mapping?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "TargetMode.ARGS_REMAP is designed exclusively for renaming or dropping arguments within the same function. Without args_mapping there is nothing to remap — the decorator has zero call-time effect. Provide args_mapping={'old_name': 'new_name'} to map each renamed parameter. To deprecate the whole function with no argument changes, use target=TargetMode.NOTIFY instead. Using ARGS_REMAP without args_mapping will become a TypeError in v1.0."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "I wrapped a functools.partial of an async def and the wrapper is not async — why?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "On Python 3.9–3.11, inspect.iscoroutinefunction(functools.partial(async_fn)) returns False — the partial object does not propagate the coroutine flag. pyDeprecate checks this flag to decide whether to produce an async wrapper, so wrapping a partial of an async def falls through to the sync wrapper path. Workaround: apply @deprecated directly to the async def, then use functools.partial on the already-deprecated async wrapper if you need preset arguments. This limitation is resolved in Python 3.12+."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "A non-async decorator applied over my @deprecated async wrapper no longer looks like a coroutine — why?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "When you stack a sync decorator on top of a @deprecated async def, the outermost callable is sync, so inspect.iscoroutinefunction returns False and asyncio frameworks reject it. Make any outer decorator that wraps async functions coroutine-aware: check inspect.iscoroutinefunction(fn) and emit an async def wrapper when True, or a sync wrapper when False. With this pattern, @my_decorator @deprecated ... async def fn(...) produces an async def wrapper whose iscoroutinefunction returns True."
+          }
         }
       ]
     }
@@ -3365,8 +3397,9 @@
 <a id="__codelineno-75-2" name="__codelineno-75-2" href="#__codelineno-75-2"></a>None
 </code></pre></div>
 
-**CI / audit detection:** `find_deprecation_wrappers` flags inner-order properties with `inner_order_property=True` on the returned `DeprecationWrapperInfo`. Add this filter to your CI pipeline to catch the pattern before it ships:
+</details>
 
+<p><strong>CI / audit detection:</strong> <code>find_deprecation_wrappers</code> flags inner-order properties with <code>inner_order_property=True</code> on the returned <code>DeprecationWrapperInfo</code>. Add this filter to your CI pipeline to catch the pattern before it ships:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a><span class="c1"># phmdoctest:skip — CI template: replace my_package with your actual package</span>
 <a id="__codelineno-76-2" name="__codelineno-76-2" href="#__codelineno-76-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
 <a id="__codelineno-76-3" name="__codelineno-76-3" href="#__codelineno-76-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_package</span>  <span class="c1"># replace with your package, e.g. `import mylib`</span>
@@ -3374,9 +3407,7 @@
 <a id="__codelineno-76-5" name="__codelineno-76-5" href="#__codelineno-76-5"></a><span class="n">inner_order</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">inner_order_property</span><span class="p">]</span>
 <a id="__codelineno-76-6" name="__codelineno-76-6" href="#__codelineno-76-6"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">inner_order</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Inner-order @property @deprecated detected: </span><span class="si">{</span><span class="n">inner_order</span><span class="si">}</span><span class="s2">&quot;</span>
 </code></pre></div>
-
-**Strict-mode import:** Add `from deprecate import property` at the top of any module to replace the builtin `property` with a guard that raises `TypeError` at class-body evaluation time whenever it detects an already-`@deprecated` getter. The check fires before any instance is created:
-
+<p><strong>Strict-mode import:</strong> Add <code>from deprecate import property</code> at the top of any module to replace the builtin <code>property</code> with a guard that raises <code>TypeError</code> at class-body evaluation time whenever it detects an already-<code>@deprecated</code> getter. The check fires before any instance is created:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a><span class="c1"># phmdoctest:skip — TypeError raised at class-body time</span>
 <a id="__codelineno-77-2" name="__codelineno-77-2" href="#__codelineno-77-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="nb">property</span>  <span class="c1"># strict property replaces builtin</span>
 <a id="__codelineno-77-3" name="__codelineno-77-3" href="#__codelineno-77-3"></a>
@@ -3389,11 +3420,7 @@
 <a id="__codelineno-77-10" name="__codelineno-77-10" href="#__codelineno-77-10"></a>
 <a id="__codelineno-77-11" name="__codelineno-77-11" href="#__codelineno-77-11"></a>    <span class="c1"># TypeError: Inner-order `@property @deprecated` detected on `MyClass.value`. ...</span>
 </code></pre></div>
-
-Modules that do not import the strict `property` keep builtin behaviour; the guard is purely opt-in.
-
-</details>
-
+<p>Modules that do not import the strict <code>property</code> keep builtin behaviour; the guard is purely opt-in.</p>
 <hr />
 <h2 id="typeerror-deprecated-cannot-be-applied-twice-to-the-already-deprecated-property">TypeError: <code>@deprecated</code> cannot be applied twice to the already-deprecated property<a class="headerlink" href="#typeerror-deprecated-cannot-be-applied-twice-to-the-already-deprecated-property" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I tried to stack two <code>@deprecated</code> decorators on a property and got <code>TypeError: ... cannot be applied twice to the already-deprecated property</code>. Why is this disallowed, and how do I add a setter or deleter to an already-deprecated property?</p>
@@ -3660,7 +3687,7 @@ Modules that do not import the strict `property` keep builtin behaviour; the gua
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 4, 2026 00:15:30 UTC">2026-07-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 4, 2026 11:34:21 UTC">2026-07-04</span>
   </span>
 
     
