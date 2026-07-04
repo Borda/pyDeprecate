@@ -166,6 +166,88 @@ class TestCliSubcommands:
         assert result.returncode == 0
         assert "Original API" in result.stdout
 
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_expiry_broken_user_import_propagates(self, tmp_path: Path) -> None:
+        """'pydeprecate expiry <path> --version 9.0' exits non-zero when the scanned package has a broken import.
+
+        When ``validate_deprecation_expiry`` imports the user's module and the module raises an ImportError
+        (e.g. ``from _nonexistent_module_xyz_ import something``), the CLI must not silently swallow that
+        error and exit 0 with a misleading "Could not determine version" message.  The real broken-import
+        error must reach the user so they can fix their package, not get confused about version detection.
+
+        """
+        broken_pkg = tmp_path / "broken_pkg"
+        broken_pkg.mkdir()
+        (broken_pkg / "__init__.py").write_text("from _nonexistent_module_xyz_ import something\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "expiry", str(broken_pkg), "--version", "9.0"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode != 0
+        combined = result.stdout + result.stderr
+        assert "_nonexistent_module_xyz_" in combined
+        assert "Could not determine the current package version" not in combined
+
+    def test_all_plain_directory_exits_0(self, tmp_path: Path) -> None:
+        """'pydeprecate all <plaindir>' exits 0 when every check passes on a plain dir without __init__.py.
+
+        cmd_check already scans plain directories; cmd_all appends a status table afterwards. Resolving the
+        module name for that advisory table must not turn a clean run into exit 1 on a directory that has no
+        importable package — the table is a display artifact, not a pass/fail gate.
+        """
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        (plain / "mod.py").write_text("x = 1\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "all", str(plain)],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+
+    def test_status_plain_directory_exits_0(self, tmp_path: Path) -> None:
+        """'pydeprecate status <plaindir>' exits 0 on a plain dir; status generation is never a pass/fail gate."""
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        (plain / "mod.py").write_text("x = 1\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "status", str(plain)],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+
+    def test_check_plain_directory_warns_nested_files_on_stderr(self, tmp_path: Path) -> None:
+        """'pydeprecate check <plaindir>' warns on stderr when the directory contains nested .py files.
+
+        Plain directories are scanned one level deep only. When nested ``.py`` files are present in
+        sub-directories they are silently skipped, but users must be informed via stderr so they know
+        to switch to an importable package layout if they want full recursive coverage.
+
+        """
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        (plain / "mod.py").write_text("x = 1\n")
+        sub = plain / "sub"
+        sub.mkdir()
+        (sub / "nested.py").write_text("y = 2\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "check", str(plain)],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+        assert "Skipping nested Python files" in result.stderr
+
     def test_help_lists_subcommands(self) -> None:
         """'pydeprecate --help' output includes the five subcommand names."""
         result = subprocess.run(

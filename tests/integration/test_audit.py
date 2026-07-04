@@ -334,6 +334,42 @@ class TestFindDeprecatedWrappers:
         assert len(results) > 0
         assert all(isinstance(r, DeprecationWrapperInfo) for r in results)
 
+    def test_reexported_wrappers_counted_once(self) -> None:
+        """A wrapper re-exported through a package ``__init__`` is reported once, not per importing module.
+
+        pyDeprecate re-exports its own deprecated back-compat shims (``find_deprecated_callables``,
+        ``validate_deprecated_callable``, ``DeprecatedCallableInfo``) from ``deprecate.audit`` through
+        ``deprecate/__init__.py``. A recursive self-scan must not double-count them: an expiry gate or
+        report that sums or lists these would otherwise show every re-exported wrapper twice.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            names = [r.function for r in find_deprecation_wrappers("deprecate")]
+
+        assert names.count("find_deprecated_callables") == 1
+        assert names.count("validate_deprecated_callable") == 1
+        assert names.count("DeprecatedCallableInfo") == 1
+
+    def test_reexported_wrappers_found_without_recursion(self) -> None:
+        """Re-exported wrappers are visible in a non-recursive scan of the package surface.
+
+        When ``recursive=False`` the only pass is the top-level module scan, so wrappers that are
+        *defined* in a submodule but *re-exported* via ``__init__`` must be reported in that single
+        pass — not attributed to the (unvisited) defining submodule and silently dropped.
+        ``find_deprecated_callables``, ``validate_deprecated_callable``, and ``DeprecatedCallableInfo``
+        are defined in ``deprecate.audit`` but re-exported from ``deprecate/__init__.py``; they must
+        appear in a ``recursive=False`` scan of the ``deprecate`` package.
+        """
+        deprecate_module = importlib.import_module(DeprecatedCallableInfo.__module__.split(".")[0])
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            names = [r.function for r in find_deprecation_wrappers(deprecate_module, recursive=False)]
+
+        assert "find_deprecated_callables" in names
+        assert "validate_deprecated_callable" in names
+        assert "DeprecatedCallableInfo" in names
+
     def test_results_groupable_by_issue_type(self) -> None:
         """Results can be filtered by invalid_args, empty_args_mapping, and identity_args_mapping."""
         results = find_deprecation_wrappers(sample_module, recursive=False)
@@ -705,6 +741,9 @@ class TestGenerateDeprecationMarkdown:
         def bad_remove() -> None:
             """Bad remove_in."""
 
+        # find_deprecation_wrappers attributes wrappers to their defining module; align the wrapper's
+        # __module__ with the fake module so the re-export filter keeps it (mirrors the class fixtures).
+        bad_remove.__module__ = mod.__name__
         mod.bad_remove = bad_remove  # type: ignore[attr-defined]
         mod.__name__ = "test_bad_remove"  # type: ignore[attr-defined]
         report = generate_deprecation_table(mod, current_version="1.5", recursive=False)

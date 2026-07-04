@@ -996,7 +996,7 @@ red
 
 </details>
 
-Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
+Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/classes.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
 
 **Dataclass auto-expand** — when the wrapped class is a `@dataclass`, a single `deprecated_class(attrs_mapping={"old": "new"})` call automatically warns on both attribute access (`obj.old`) and constructor kwargs (`DC(old=5)`). No need to set `args_mapping` separately for a field rename. For non-`@dataclass` targets, `attrs_mapping` covers attribute access only — also set `args_mapping` to cover constructor kwargs.
 
@@ -1972,7 +1972,7 @@ print(MyClass(42).x)
 
 ### ❗ TypeError: `Failed mapping`
 
-**Problem:** `TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']`
+**Problem:** `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`
 
 **Cause:** Your deprecated function has arguments that the target function doesn't accept.
 
@@ -2136,9 +2136,11 @@ True
 
 ### 📦 Deprecation Not Working Across Modules
 
-If you're moving functions to a different module or package, show the pattern rather than importing a non-existent package in the docs.
+**Problem:** The deprecation notice shows an unexpected path when a function is moved to a different module.
 
-The warning will correctly show the full path for real imports when used in your package.
+**Cause:** pyDeprecate resolves the target path from `target.__module__` and `target.__qualname__` at decoration time — not at call time. If the target is imported via an alias or re-export at the point where `@deprecated` is applied, the stored path reflects the alias, not the canonical location.
+
+**Solution:** Import the target from its canonical module location before applying `@deprecated`. The deprecation notice will then show the fully-qualified path where the function actually lives.
 
 ## 🤝 Contributing
 

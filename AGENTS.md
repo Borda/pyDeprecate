@@ -90,7 +90,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **New troubleshooting item**: add to `docs/troubleshooting.md` AND the FAQPage JSON-LD in `docs/overrides/main.html`
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
 - **`docs/robots.txt`** — AI crawler access policy; add a `User-agent: <bot> / Allow: /` block when a new mainstream AI crawler is released. The comment referencing the `docs/llms.txt` URL must stay current.
-- See [Documentation Site](.github/CONTRIBUTING.md#documentation-site) for the full consistency rules
+- See [Documentation Site](.github/CONTRIBUTING.md#-documentation-site) for the full consistency rules
 
 ## 🚫 Critical Constraints
 
@@ -101,7 +101,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Use bare `except:` clauses
 - Define deprecated wrappers inside test files
 - Use `with warnings.catch_warnings(...)` in any `.md` documentation example in any form — neither `simplefilter("always")` for capturing nor `simplefilter("ignore", ...)` for suppressing; annotate the call with `# warns: FutureWarning` or `# warns: UserWarning` instead; output blocks show only return values
-- Use bare `assert` statements in `.md` documentation examples (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output
+- Use bare `assert` statements in `.md` documentation examples outside of `def test_...` bodies (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output. **Exception:** bare `assert` inside `def test_...` function bodies shown as pytest integration examples is allowed and idiomatic
 - Import a fictional package name in runnable `.md` examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, or `collection_chains`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line so phmdoctest skips execution
 - Skip test coverage for new features or bug fixes
 - Implement features without maintainer approval
@@ -156,4 +156,4 @@ This file provides quick reference for agents. For complete, authoritative guide
 - **PR review guidelines** → [Contributing: Reviewing PRs](.github/CONTRIBUTING.md#reviewing-prs)
 - **Security reporting** → [Security Policy](.github/SECURITY.md)
 - **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)
-- **Documentation site** → [Contributing: Documentation Site](.github/CONTRIBUTING.md#documentation-site)
+- **Documentation site** → [Contributing: Documentation Site](.github/CONTRIBUTING.md#-documentation-site)

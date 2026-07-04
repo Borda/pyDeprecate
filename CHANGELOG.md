@@ -22,6 +22,14 @@
 
 ### Fixed
 
+- **Audit scans no longer double-count re-exported wrappers.** Recursive `find_deprecation_wrappers` previously reported a wrapper once per importing module (e.g. once under the package root re-export and once under its defining submodule), inflating expiry counts and table rows; wrappers are now attributed to their defining module and deduplicated by identity across the scan. ([#215](https://github.com/Borda/pyDeprecate/pull/215))
+
+- **Audit report formatting no longer triggers chained proxies.** Formatting a report for a wrapper whose `target` is itself a deprecated proxy previously emitted a spurious `FutureWarning` from inside the audit tooling, consumed the proxy's warn budget, and printed a fabricated module path; proxy targets are now read via static metadata access. ([#215](https://github.com/Borda/pyDeprecate/pull/215))
+
+- **CLI: `all` and `status` no longer fail on plain directories.** Scanning a directory without `__init__.py` exited 1 from the status-table step even when every check passed; module-name resolution is now lazy and a status-rendering failure cannot change the aggregate exit code. ([#215](https://github.com/Borda/pyDeprecate/pull/215))
+
+- **CLI: version auto-detection resolves distributions whose name differs from the import name.** `importlib.metadata` lookup previously failed for packages like pyDeprecate itself (import `deprecate`, distribution `pyDeprecate`); the import name is now mapped via `packages_distributions()`, and expiry prints an explicit note when it runs without a resolved version. ([#215](https://github.com/Borda/pyDeprecate/pull/215))
+
 - **`num_warns` quota is now thread-safe.** Concurrent first calls to a shared wrapper could each pass the quota check before any counter increment, emitting up to one warning per thread instead of the configured budget; the warn path now synchronizes on a per-wrapper lock, so exactly `num_warns` warnings are emitted under concurrency. ([#214](https://github.com/Borda/pyDeprecate/pull/214))
 
 - **Cross-class forwarding between staticmethods no longer raises a spurious `TypeError`.** The cross-class guard exists to prevent `self` carrying the wrong type, but staticmethods have no `self`; `@deprecated(target=NewCls.compute)` on a staticmethod forwarding to another class's staticmethod is now allowed. ([#214](https://github.com/Borda/pyDeprecate/pull/214))

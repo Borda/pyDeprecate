@@ -9,7 +9,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deprecate._cli import _print, _Reporter, cli, cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_status
-from deprecate._pkg import _auto_detect_version, _load_toml, _version_from_dynamic, _version_from_toml
+from deprecate._pkg import (
+    _auto_detect_version,
+    _distribution_for_import,
+    _load_toml,
+    _version_from_dynamic,
+    _version_from_toml,
+)
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
 
@@ -38,14 +44,14 @@ class TestCmdCheckScanning:
 
         mock_find.return_value = []
         assert cmd_check(path=str(pkg_dir)) == 0
-        mock_find.assert_called_once_with("mypkg", recursive=True)
+        mock_find.assert_called_once_with("mypkg", recursive=True, include_members=True)
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_issues_file(self, mock_find: MagicMock) -> None:
         """Scanning an importable module name with no issues exits 0."""
         mock_find.return_value = []
         assert cmd_check(path="some_module") == 0
-        mock_find.assert_called_once_with("some_module", recursive=True)
+        mock_find.assert_called_once_with("some_module", recursive=True, include_members=True)
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_scan_plain_directory(self, mock_find: MagicMock, tmp_path: Path) -> None:
@@ -173,7 +179,7 @@ class TestCmdCheck:
         """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         assert cmd_check(path="some_module", recursive=False) == 0
-        mock_find.assert_called_once_with("some_module", recursive=False)
+        mock_find.assert_called_once_with("some_module", recursive=False, include_members=True)
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_chain_warning_exits_zero(self, mock_find: MagicMock) -> None:
@@ -297,6 +303,21 @@ class TestCmdExpiry:
         assert result == 0
         captured = capsys.readouterr()
         assert "version" in captured.err.lower()
+
+    def test_unresolved_version_prints_advisory_note(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Standalone expiry with no --version and no auto-detectable version warns instead of staying silent.
+
+        A CI job that cannot resolve the package version (import name unmapped, no metadata, no local
+        pyproject) must be told the expiry check ran without a resolved version, rather than silently
+        comparing removal deadlines against an undefined version and reporting a misleading pass.
+        """
+        with (
+            patch("deprecate._cli._auto_detect_version", return_value=None),
+            patch("deprecate._cli._do_expiry", return_value=[]),
+        ):
+            result = cmd_expiry(path="some_module")
+        assert result == 0
+        assert "without a resolved version" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +465,7 @@ class TestCmdAll:
         """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         cmd_all(path="some_module", version="1.0", recursive=False)
-        mock_find.assert_any_call("some_module", recursive=False)
+        mock_find.assert_any_call("some_module", recursive=False, include_members=True)
 
     @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
     @patch("deprecate._cli.validate_deprecation_chains")
@@ -455,6 +476,32 @@ class TestCmdAll:
         cmd_all(path="some_module", version="1.0")
         assert mock_find.call_count == 1
         mock_chains.assert_not_called()
+
+    @patch("deprecate._cli.cmd_status", side_effect=RuntimeError("table rendering failed"))
+    @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_status_exception_does_not_affect_exit_code(
+        self,
+        mock_find: MagicMock,
+        mock_expiry: MagicMock,
+        mock_status: MagicMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """cmd_status raising inside cmd_all must not change the aggregate exit code.
+
+        The status table is a display artifact appended after the three gates. If ``generate_deprecation_table``
+        or any rendering step throws, cmd_all must still report exit 0 (no issues) or exit 1 (issues found)
+        based solely on the check, expiry, and chains outcomes — not on the table step crashing.
+
+        Scenario: clean scan (no wrappers, no issues) with a broken cmd_status. The aggregate must be
+        exit 0 and the failure message must appear in stderr so the user knows the table failed.
+
+        """
+        mock_find.return_value = []
+        result = cmd_all(path="some_module", version="1.0")
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Could not render the deprecation table" in captured.err
 
 
 # ---------------------------------------------------------------------------
@@ -740,6 +787,42 @@ class TestAutoDetectVersion:
         """Without a path, the installed distribution metadata provides the version."""
         monkeypatch.setattr(importlib.metadata, "version", MagicMock(return_value="1.2.3"))
         assert _auto_detect_version("somepkg", path=None) == "1.2.3"
+
+    def test_import_name_maps_to_distribution(self) -> None:
+        """Auto-detect resolves the version even when the distribution name differs from the import name.
+
+        ``importlib.metadata.version`` needs the *distribution* name (``pyDeprecate``) but the CLI is
+        handed the *import* name (``deprecate``) — the same mismatch as Pillow/PIL and scikit-learn/sklearn.
+        Without the import→distribution mapping this whole class of packages silently yields ``None`` and
+        the expiry gate runs against an undefined version.
+        """
+        expected = importlib.metadata.version("pyDeprecate")
+        assert _auto_detect_version("deprecate", path=None) == expected
+
+    def test_distribution_for_import_resolves_known_package(self) -> None:
+        """_distribution_for_import maps the ``deprecate`` import name to its ``pyDeprecate`` distribution."""
+        assert _distribution_for_import("deprecate") == "pyDeprecate"
+
+    def test_distribution_for_import_unknown_returns_none(self) -> None:
+        """An import name provided by no installed distribution resolves to ``None``."""
+        assert _distribution_for_import("nonexistent_import_xyz") is None
+
+    def test_distribution_for_import_uses_top_level_txt_fallback(self) -> None:
+        """_distribution_for_import falls back to top_level.txt scanning on Python <3.11.
+
+        ``packages_distributions`` was added in Python 3.11. When it is absent (simulated by
+        patching the attribute to ``None``), ``_distribution_for_import`` must fall back to
+        ``_distribution_from_top_level``, which reads each distribution's ``top_level.txt``.
+        pyDeprecate ships ``top_level.txt`` listing ``deprecate``, so the mapping must still
+        resolve correctly even without the faster stdlib helper.
+
+        ``create=True`` is required because on Python <3.11 the attribute does not exist at all
+        and ``patch`` would raise ``AttributeError`` with ``create=False`` (the default).
+
+        """
+        with patch("deprecate._pkg.importlib.metadata.packages_distributions", None, create=True):
+            result = _distribution_for_import("deprecate")
+        assert result == "pyDeprecate"
 
 
 @pytest.fixture

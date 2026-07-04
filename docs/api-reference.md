@@ -22,9 +22,17 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ::: deprecate.audit.validate_deprecation_chains
 
+::: deprecate.audit.validate_mapping_compatibility
+
+::: deprecate.audit.generate_deprecation_table
+
 ::: deprecate.audit.DeprecationWrapperInfo
 
 ::: deprecate.audit.ChainType
+
+::: deprecate.audit.DeprecationStatus
+
+::: deprecate.audit.TableStyle
 
 ## Types
 

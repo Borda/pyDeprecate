@@ -1460,6 +1460,8 @@ print(obj._value)
 None
 ```
 
+</details>
+
 **CI / audit detection:** `find_deprecation_wrappers` flags inner-order properties with `inner_order_property=True` on the returned `DeprecationWrapperInfo`. Add this filter to your CI pipeline to catch the pattern before it ships:
 
 ```python
@@ -1488,8 +1490,6 @@ class MyClass:
 ```
 
 Modules that do not import the strict `property` keep builtin behaviour; the guard is purely opt-in.
-
-</details>
 
 ______________________________________________________________________
 

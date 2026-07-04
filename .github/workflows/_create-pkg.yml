@@ -15,6 +15,9 @@ on:
         type: string
         default: "ubuntu-latest"
 
+permissions:
+  contents: read
+
 jobs:
   package:
     runs-on: ${{ inputs.os }}

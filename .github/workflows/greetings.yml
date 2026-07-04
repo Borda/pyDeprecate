@@ -3,6 +3,9 @@ name: Greetings
 
 on: [issues] # pull_request
 
+permissions:
+  issues: write
+
 jobs:
   greeting:
     runs-on: ubuntu-latest
