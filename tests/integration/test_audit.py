@@ -360,11 +360,11 @@ class TestFindDeprecatedWrappers:
         are defined in ``deprecate.audit`` but re-exported from ``deprecate/__init__.py``; they must
         appear in a ``recursive=False`` scan of the ``deprecate`` package.
         """
-        import deprecate
+        deprecate_module = importlib.import_module(DeprecatedCallableInfo.__module__.split(".")[0])
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            names = [r.function for r in find_deprecation_wrappers(deprecate, recursive=False)]
+            names = [r.function for r in find_deprecation_wrappers(deprecate_module, recursive=False)]
 
         assert "find_deprecated_callables" in names
         assert "validate_deprecated_callable" in names
