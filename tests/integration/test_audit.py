@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
+import deprecate
 import tests
 import tests.collection_chains as chain_module
 import tests.collection_deprecate as proxy_module
@@ -349,6 +350,24 @@ class TestFindDeprecatedWrappers:
         assert names.count("find_deprecated_callables") == 1
         assert names.count("validate_deprecated_callable") == 1
         assert names.count("DeprecatedCallableInfo") == 1
+
+    def test_reexported_wrappers_found_without_recursion(self) -> None:
+        """Re-exported wrappers are visible in a non-recursive scan of the package surface.
+
+        When ``recursive=False`` the only pass is the top-level module scan, so wrappers that are
+        *defined* in a submodule but *re-exported* via ``__init__`` must be reported in that single
+        pass — not attributed to the (unvisited) defining submodule and silently dropped.
+        ``find_deprecated_callables``, ``validate_deprecated_callable``, and ``DeprecatedCallableInfo``
+        are defined in ``deprecate.audit`` but re-exported from ``deprecate/__init__.py``; they must
+        appear in a ``recursive=False`` scan of the ``deprecate`` package.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            names = [r.function for r in find_deprecation_wrappers(deprecate, recursive=False)]
+
+        assert "find_deprecated_callables" in names
+        assert "validate_deprecated_callable" in names
+        assert "DeprecatedCallableInfo" in names
 
     def test_results_groupable_by_issue_type(self) -> None:
         """Results can be filtered by invalid_args, empty_args_mapping, and identity_args_mapping."""
