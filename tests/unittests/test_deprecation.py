@@ -1917,7 +1917,8 @@ class TestStreamStacklevelProbe:
 
         assert _stream_accepts_stacklevel(stream) is True
 
-        def src() -> None: ...
+        def src() -> None:
+            pass
 
         _raise_warn(stream, src, "%(source_name)s", stacklevel=3)
         assert len(calls) == 1
