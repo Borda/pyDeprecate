@@ -2010,3 +2010,5 @@ class TestClassBodyQualnameWalk:
                 @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
                 def old_classmethod(cls, x: int) -> int:
                     return void(x)
+
+        _ = _Owner  # reference prevents static-analysis "unused class" warnings
