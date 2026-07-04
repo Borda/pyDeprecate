@@ -1892,6 +1892,27 @@ class TestStreamStacklevelProbe:
             _raise_warn(stream, old, "%(source_name)s", stacklevel=3)
         assert len(calls) == 1
 
+    def test_varkw_stream_accepts_stacklevel_and_receives_it(self) -> None:
+        """A ``**kwargs``-accepting stream is detected as stacklevel-capable and called exactly once with it.
+
+        A custom stream declared as ``def my_stream(msg, **kwargs)`` does not name ``stacklevel`` explicitly
+        but accepts it via ``**kwargs``. The probe must detect the ``VAR_KEYWORD`` parameter and treat it as
+        accepting ``stacklevel``, then the caller must forward ``stacklevel`` through the single call path —
+        never via a fallback retry that would call the stream twice.
+        """
+        calls: list[tuple[str, dict[str, object]]] = []
+
+        def stream(msg: str, **kwargs: object) -> None:
+            calls.append((msg, kwargs))
+
+        assert _stream_accepts_stacklevel(stream) is True
+
+        def src() -> None: ...
+
+        _raise_warn(stream, src, "%(source_name)s", stacklevel=3)
+        assert len(calls) == 1
+        assert "stacklevel" in calls[0][1]
+
 
 class TestTemplateBareConversion:
     """CORE-11 — bare ``%``-conversions in ``template_mgs`` must be rejected at decoration time."""
@@ -1956,4 +1977,26 @@ class TestClassBodyQualnameWalk:
         class Sample:
             captured["qualname"] = _find_class_body_qualname()
 
+        _ = Sample  # reference prevents static-analysis "unused class" warnings
         assert captured["qualname"].endswith("Sample")
+
+    def test_cross_class_guard_fires_for_descriptor_decorated_method(self) -> None:
+        """Cross-class guard raises TypeError at class-definition time even when the method uses a descriptor.
+
+        With the old fixed ``sys._getframe(2)`` approach the extra stack frames introduced by
+        ``@classmethod``/``@staticmethod``/``@property`` wrapping pushed the class body out of range,
+        silently disabling the cross-class guard for descriptor-decorated methods.  The bounded frame
+        walk introduced in CORE-13 locates the class body regardless of intervening descriptor frames.
+        """
+
+        class OtherClass:
+            def other_method(self, x: int) -> int:
+                return x
+
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+
+            class _Owner:
+                @classmethod
+                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
+                def old_classmethod(cls, x: int) -> int:
+                    return void(x)

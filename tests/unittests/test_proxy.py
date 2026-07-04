@@ -3082,12 +3082,7 @@ class TestProxyStreamStacklevelProbe:
             raise TypeError("boom from inside the proxy stream")
 
         proxy = _DeprecatedProxy(
-            obj=_P8Source,
-            target=_P8Target,
-            name="_P8Source",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            stream=stream,
+            obj=_P8Source, target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0", stream=stream
         )
         with pytest.raises(TypeError, match="boom from inside the proxy stream"):
             proxy._warn()

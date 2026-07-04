@@ -1176,15 +1176,37 @@ def _aud_new_impl() -> int:
 
 
 class _AudPrivateMembers:
-    """Fixture class carrying a deprecated *private* method — must still be surfaced by the scan (AUD-6)."""
+    """Fixture class carrying deprecated private members across all descriptor kinds (AUD-6)."""
 
     @deprecated(target=_aud_new_impl, deprecated_in="1.0", remove_in="2.0")
     def _legacy(self) -> int:
         return 0
 
+    @classmethod
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    def _cls_legacy(cls) -> int:
+        return 0
+
+    @staticmethod
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    def _static_legacy() -> int:
+        return 0
+
+    @cached_property
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    def _cached_legacy(self) -> int:
+        return 0
+
 
 class _AudTargetCls:
     """Plain class used both as the wrapped object and target of a self-referential proxy (AUD-7 fixture)."""
+
+
+class _AudAttrsMappingTarget:
+    """Fixture class with both old and new attribute names for the attrs_mapping self-reference test (AUD-7)."""
+
+    old_attr: int = 0
+    new_attr: int = 0
 
 
 class TestNormalizeVersionStringLocalSegment:
@@ -1214,6 +1236,22 @@ class TestScanClassPrivateDeprecated:
         """The helper detects deprecation metadata stored on a descriptor's underlying callable."""
         assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_legacy"]) is True
 
+    def test_member_meta_peeks_through_classmethod_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a classmethod's underlying ``__func__``.
+
+        ``classmethod`` objects store the wrapped function in ``__func__``; ``_member_has_deprecation_meta``
+        must unwrap it to find ``__deprecated__`` rather than inspecting the ``classmethod`` itself.
+        """
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cls_legacy"]) is True
+
+    def test_member_meta_peeks_through_staticmethod_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a staticmethod's underlying ``__func__``."""
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_static_legacy"]) is True
+
+    def test_member_meta_peeks_through_cached_property_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a cached_property's ``.func`` attribute."""
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cached_legacy"]) is True
+
     def test_scan_surfaces_deprecated_private_method(self) -> None:
         """A deprecated ``_legacy`` method is included in the scan even though it starts with an underscore.
 
@@ -1223,6 +1261,24 @@ class TestScanClassPrivateDeprecated:
         results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
         functions = [info.function for info in results]
         assert any("_legacy" in fn for fn in functions)
+
+    def test_scan_surfaces_deprecated_private_classmethod(self) -> None:
+        """A deprecated private classmethod is discovered by the scan via the ``classmethod.__func__`` path."""
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_cls_legacy" in fn for fn in functions)
+
+    def test_scan_surfaces_deprecated_private_staticmethod(self) -> None:
+        """A deprecated private staticmethod is discovered by the scan via the ``staticmethod.__func__`` path."""
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_static_legacy" in fn for fn in functions)
+
+    def test_scan_surfaces_deprecated_private_cached_property(self) -> None:
+        """A deprecated private cached_property is discovered by the scan via the ``cached_property.func`` path."""
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_cached_legacy" in fn for fn in functions)
 
 
 class TestProxySelfReferenceDetection:
@@ -1239,6 +1295,45 @@ class TestProxySelfReferenceDetection:
         )
         info = validate_deprecation_wrapper(proxy)
         assert info.self_reference is True
+
+    def test_effective_proxy_with_args_mapping_not_self_reference(self) -> None:
+        """Same target as wrapped but non-empty ``args_mapping`` means the proxy is NOT a self-reference.
+
+        A _DeprecatedProxy whose target matches its wrapped object but also carries an active
+        ``args_mapping`` still performs meaningful argument remapping and must not be flagged as
+        a no-op self-reference. The AUD-7 predicate narrows self_reference to the zero-remapping
+        case only; a proxy with mapping is an effective wrapper even when target is func.wrapped.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_AudTargetCls,
+            target=_AudTargetCls,
+            name="_AudTargetCls",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            args_mapping={"old_x": "new_x"},
+        )
+        info = validate_deprecation_wrapper(proxy)
+        assert info.self_reference is False
+        assert info.no_effect is False
+
+    def test_effective_proxy_with_attrs_mapping_not_self_reference(self) -> None:
+        """Same target as wrapped but non-empty ``attrs_mapping`` means the proxy is NOT a self-reference.
+
+        A proxy carrying an active ``attrs_mapping`` remaps attribute access on the deprecated wrapper,
+        so it performs meaningful work even when target is func.wrapped.  Both ``args_mapping`` and
+        ``attrs_mapping`` independently disqualify the self-reference label.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_AudAttrsMappingTarget,
+            target=_AudAttrsMappingTarget,
+            name="_AudAttrsMappingTarget",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            attrs_mapping={"old_attr": "new_attr"},
+        )
+        info = validate_deprecation_wrapper(proxy)
+        assert info.self_reference is False
+        assert info.no_effect is False
 
 
 class TestForeignObjectDeprecationMetaGuard:
