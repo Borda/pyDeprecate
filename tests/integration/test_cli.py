@@ -224,6 +224,30 @@ class TestCliSubcommands:
         )
         assert result.returncode == 0
 
+    def test_check_plain_directory_warns_nested_files_on_stderr(self, tmp_path: Path) -> None:
+        """'pydeprecate check <plaindir>' warns on stderr when the directory contains nested .py files.
+
+        Plain directories are scanned one level deep only. When nested ``.py`` files are present in
+        sub-directories they are silently skipped, but users must be informed via stderr so they know
+        to switch to an importable package layout if they want full recursive coverage.
+
+        """
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        (plain / "mod.py").write_text("x = 1\n")
+        sub = plain / "sub"
+        sub.mkdir()
+        (sub / "nested.py").write_text("y = 2\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "check", str(plain)],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+        assert "Skipping nested Python files" in result.stderr
+
     def test_help_lists_subcommands(self) -> None:
         """'pydeprecate --help' output includes the five subcommand names."""
         result = subprocess.run(

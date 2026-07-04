@@ -12,6 +12,7 @@ from deprecate._cli import _print, _Reporter, cli, cmd_all, cmd_chains, cmd_chec
 from deprecate._pkg import (
     _auto_detect_version,
     _distribution_for_import,
+    _distribution_from_top_level,
     _load_toml,
     _version_from_dynamic,
     _version_from_toml,
@@ -477,6 +478,32 @@ class TestCmdAll:
         assert mock_find.call_count == 1
         mock_chains.assert_not_called()
 
+    @patch("deprecate._cli.cmd_status", side_effect=RuntimeError("table rendering failed"))
+    @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_status_exception_does_not_affect_exit_code(
+        self,
+        mock_find: MagicMock,
+        mock_expiry: MagicMock,
+        mock_status: MagicMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """cmd_status raising inside cmd_all must not change the aggregate exit code.
+
+        The status table is a display artifact appended after the three gates. If ``generate_deprecation_table``
+        or any rendering step throws, cmd_all must still report exit 0 (no issues) or exit 1 (issues found)
+        based solely on the check, expiry, and chains outcomes — not on the table step crashing.
+
+        Scenario: clean scan (no wrappers, no issues) with a broken cmd_status. The aggregate must be
+        exit 0 and the failure message must appear in stderr so the user knows the table failed.
+
+        """
+        mock_find.return_value = []
+        result = cmd_all(path="some_module", version="1.0")
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Could not render the deprecation table" in captured.err
+
 
 # ---------------------------------------------------------------------------
 # Chain and expiry reporters
@@ -780,6 +807,20 @@ class TestAutoDetectVersion:
     def test_distribution_for_import_unknown_returns_none(self) -> None:
         """An import name provided by no installed distribution resolves to ``None``."""
         assert _distribution_for_import("nonexistent_import_xyz") is None
+
+    def test_distribution_for_import_uses_top_level_txt_fallback(self) -> None:
+        """_distribution_for_import falls back to top_level.txt scanning on Python <3.11.
+
+        ``packages_distributions`` was added in Python 3.11. When it is absent (simulated by
+        patching the attribute away), ``_distribution_for_import`` must fall back to
+        ``_distribution_from_top_level``, which reads each distribution's ``top_level.txt``.
+        pyDeprecate ships ``top_level.txt`` listing ``deprecate``, so the mapping must still
+        resolve correctly even without the faster stdlib helper.
+
+        """
+        with patch("deprecate._pkg.importlib.metadata.packages_distributions", None, create=False):
+            result = _distribution_from_top_level("deprecate")
+        assert result == "pyDeprecate"
 
 
 @pytest.fixture
