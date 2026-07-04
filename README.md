@@ -1673,7 +1673,7 @@ def enforce_deprecation_deadlines():
 > [!TIP]
 >
 > - Callables without `remove_in` are skipped (warnings-only deprecations are allowed)
-> - Invalid version formats in `remove_in` are silently skipped
+> - Callables with an unparsable `remove_in` version string emit a `UserWarning` naming the callable; the scan continues for the rest
 > - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
 > - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
 

@@ -60,7 +60,7 @@
 
 - **Docs example tests are collected again.** The `norecursedirs` entry `"docs"` matched directory basenames and silently pruned `tests/docs/`, so the generated documentation-example tests never ran in the main CI matrix; the exclusion is now a rooted `--ignore=docs`. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
-- **Bare `@deprecated` (no parentheses) now raises a clear `TypeError`.** Forgetting the call parentheses previously surfaced as a cryptic `AttributeError: 'int' object has no attribute '__name__'` on the first call; the decorator now explains that it must be called with arguments. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+- **Bare `@deprecated` (no parentheses) now raises a clear `TypeError` when the first argument is not callable.** Forgetting the call parentheses previously surfaced as a cryptic `AttributeError: 'int' object has no attribute '__name__'` on the first call; the decorator now explains that it must be called with arguments. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
 
 - **Custom `template_mgs` with a bare `%`-conversion is now rejected at decoration time.** A template containing `%s`/`%d` (rather than a `%(name)s` mapping key) silently rendered the whole substitution dict into the warning; such templates now raise `ValueError` when the decorator is applied. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
 
