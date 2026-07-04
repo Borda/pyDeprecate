@@ -151,3 +151,17 @@ class TestGetFuncArgumentsTypesDefaults:
             pass
 
         assert get_func_arguments_types_defaults(my_func) == []
+
+    def test_excludes_var_positional_and_var_keyword(self) -> None:
+        """``*args`` / ``**kwargs`` are excluded as the docstring promises (CORE-9).
+
+        The helper backs caller-argument validation; leaking the VAR_POSITIONAL / VAR_KEYWORD parameter names
+        into that check made a forwarded call raise a raw ``TypeError`` on ``args``/``kwargs`` instead of the
+        curated "argument not accepted by target" message, so only the concrete named parameters must appear.
+        """
+
+        def my_func(a: int, b: str = "x", *args: int, **kwargs: int) -> None:
+            pass
+
+        names = [name for name, _type, _default in get_func_arguments_types_defaults(my_func)]
+        assert names == ["a", "b"]

@@ -14,6 +14,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import re
 import sys
 import warnings
 from collections.abc import Mapping
@@ -94,6 +95,15 @@ def _validate_template_mgs(template_mgs: Optional[str]) -> None:
     """
     if not template_mgs:
         return
+    # Reject bare ``%``-conversions (``%s``, ``%d``, a trailing ``%``) that are not part of a
+    # ``%(name)s`` mapping key.  ``"...%s..." % {mapping}`` does not raise — it renders the whole
+    # mapping dict into the message — so the probe below cannot catch them.  ``%%`` (escaped percent)
+    # is legitimate and stripped before the search.
+    if re.search(r"%(?!\()", template_mgs.replace("%%", "")):
+        raise ValueError(
+            f"Invalid template_mgs: bare `%`-conversion found in {template_mgs!r}; only mapping keys of the "
+            f"form `%(name)s` are supported. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
+        )
     try:
         template_mgs % _TEMPLATE_MGS_PROBE_ARGS
     except (KeyError, TypeError, ValueError) as exc:
@@ -256,6 +266,55 @@ class _StrictProperty(property):
         super().__init__(fget, fset, fdel, doc)
 
 
+def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
+    """Raise a clear ``TypeError`` when ``@deprecated`` was applied without parentheses.
+
+    Bare ``@deprecated`` makes Python call ``deprecated(source)`` — binding the decorated object to
+    ``target`` — and return the ``packing`` decorator; the first real call then arrives in ``packing`` with
+    the *call argument* as ``source`` (e.g. ``old(5)`` → ``packing(5)``).  A non-callable, non-descriptor
+    ``source`` therefore signals the missing-parentheses mistake, so raise here instead of leaking a downstream
+    ``AttributeError: 'int' object has no attribute '__name__'``.
+
+    Args:
+        source: The object ``packing`` received as its decoration target.
+
+    """
+    if not callable(source) and not isinstance(source, (classmethod, staticmethod, property, cached_property)):
+        raise TypeError(
+            f"`@deprecated` must be called with parentheses, e.g. "
+            f"`@deprecated(target=..., deprecated_in=..., remove_in=...)`; got a non-callable "
+            f"`{type(source).__name__}` as the decoration target, which usually means `@deprecated` "
+            f"was used without arguments."
+        )
+
+
+def _find_class_body_qualname(max_depth: int = 10) -> str:
+    """Return the ``__qualname__`` of the nearest enclosing class body on the call stack.
+
+    Python populates ``__qualname__`` (alongside ``__module__``) in the class-body execution namespace at
+    class-definition time.  A fixed :func:`sys._getframe` depth is fragile — descriptor-decorated methods
+    (``@property``/``@classmethod``/``@staticmethod`` under ``@deprecated``) insert extra ``_packing_descriptor``
+    and ``packing`` frames, so the class body sits deeper than the plain-callable case.  This bounded walk
+    searches upward for the first frame whose locals carry both ``__qualname__`` and ``__module__`` (the
+    signature of a class body) instead of assuming a single layout, and returns ``""`` when none is found.
+
+    Args:
+        max_depth: Maximum number of parent frames to inspect (safety bound against unbounded walks).
+
+    """
+    for depth in range(1, max_depth + 1):
+        try:
+            frame = sys._getframe(depth)
+        except ValueError:
+            break
+        qualname = frame.f_locals.get("__qualname__", "")
+        # Class-body namespaces expose both ``__qualname__`` and ``__module__``; a function frame that merely
+        # has a local named ``__qualname__`` (e.g. a decorator rewrite) lacks ``__module__`` in its locals.
+        if qualname and "__module__" in frame.f_locals and not qualname.rsplit(".", 1)[-1].startswith("<"):
+            return qualname
+    return ""
+
+
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
     """Raise ``TypeError`` when target is a method on a different class than source.
 
@@ -307,19 +366,13 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     # Fix 1 — decorator-rewriting FP: a decorator applied before @deprecated may have
     # mutated source.__qualname__.  Python sets __qualname__ in the class body's locals
     # at class-definition time, before any decorator runs, so the frame value is the
-    # authoritative source class name.  Frame layout when this helper executes:
-    #   0: _check_cross_class_method_target
-    #   1: packing() (closure inside `deprecated`)
-    #   2: enclosing class body (where `@deprecated(...)` is written)
-    # The final-segment bracket filter rejects lambda/comprehension/genexp scopes
-    # (whose qualname's last component is ``<lambda>`` / ``<listcomp>`` / etc.); class
-    # bodies always end in a plain identifier, even when nested inside a function (e.g. ``"outer.<locals>.MyClass"``).
-    try:
-        frame_qn = sys._getframe(2).f_locals.get("__qualname__", "")
-        if frame_qn and not frame_qn.rsplit(".", 1)[-1].startswith("<"):
-            src_prefix = frame_qn
-    except (ValueError, AttributeError):
-        pass
+    # authoritative source class name.  A bounded upward walk locates the class-body frame
+    # regardless of how many descriptor/packing frames sit between here and it (see
+    # :func:`_find_class_body_qualname`) — a fixed ``sys._getframe(2)`` silently missed the
+    # class body for descriptor-decorated methods, disabling the guard for them.
+    frame_qn = _find_class_body_qualname()
+    if frame_qn:
+        src_prefix = frame_qn
 
     # Fix 2 — metaclass/synthetic-qualname FP: a target whose __qualname__ refers to a
     # class that does not actually exist in the target's module is unreliable; the guard
@@ -774,6 +827,27 @@ def _split_positional_only_kwargs(
     return pos_args, kw_args
 
 
+def _stream_accepts_stacklevel(stream: Callable) -> bool:
+    """Return ``True`` when *stream* accepts a ``stacklevel`` keyword argument.
+
+    Inspects the callable's signature once (cached via :func:`_get_signature`) so the warning issuer can
+    decide whether to forward ``stacklevel`` without a ``try``/``except TypeError`` that would also mask —
+    and duplicate — a ``TypeError`` raised inside a stacklevel-accepting stream.  Callables whose signature
+    cannot be introspected (some C builtins) are treated as not accepting it.
+
+    Args:
+        stream: The warning stream callable (e.g. :func:`warnings.warn`, :func:`print`, ``logging.warning``).
+
+    """
+    try:
+        params = _get_signature(stream).parameters
+    except (TypeError, ValueError):
+        return False
+    if "stacklevel" in params:
+        return True
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 def _raise_warn(
     stream: Callable,
     source: Callable,
@@ -814,10 +888,13 @@ def _raise_warn(
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
     msg = template_mgs % msg_args
-    try:
+    # Decide once whether the stream accepts ``stacklevel`` by inspecting its signature, rather than
+    # calling with ``stacklevel`` and catching ``TypeError``.  A try/except would also swallow a
+    # ``TypeError`` raised *inside* a stacklevel-accepting stream and re-invoke it, producing duplicate
+    # side effects (double log/print).  ``_get_signature`` caches per stream, so this probes only once.
+    if _stream_accepts_stacklevel(stream):
         stream(msg, stacklevel=stacklevel)
-    except TypeError:
-        # stream does not accept stacklevel (e.g. print, logging.warning, custom callables).
+    else:
         stream(msg)
 
 
@@ -1805,6 +1882,7 @@ def deprecated(  # noqa: C901
         _stacklevel: int = 2,
         _is_static: bool = False,
     ) -> Callable:
+        _reject_bare_decorator(source)
         _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra, _stacklevel)
         if _descriptor_result is not None:
             return _descriptor_result
@@ -1913,13 +1991,17 @@ def deprecated(  # noqa: C901
 
         stored_target = _resolve_stored_target(target)
         misconfigured = target is False or _function_misconfigured
+        # Copy caller-owned mutable mappings so the frozen ``DeprecationConfig`` cannot be mutated through the
+        # caller's original dict after decoration (which would silently change forwarding behavior at call time).
+        _args_mapping = dict(args_mapping) if isinstance(args_mapping, dict) else args_mapping
+        _args_extra = dict(args_extra) if isinstance(args_extra, dict) else args_extra
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             name=source.__name__,
             target=stored_target,
-            args_mapping=args_mapping,
-            args_extra=args_extra,
+            args_mapping=_args_mapping,
+            args_extra=_args_extra,
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
             template_mgs=template_mgs,

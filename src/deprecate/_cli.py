@@ -684,7 +684,10 @@ def _ensure_utf8_streams() -> None:
 
     """
     for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, "reconfigure") and getattr(stream, "encoding", "utf-8").lower() != "utf-8":
+        # ``encoding`` may be *present but None* (e.g. some redirected/binary-ish wrappers); ``getattr`` with a
+        # default only covers a missing attribute, so guard the ``None`` case with ``or "utf-8"`` before ``.lower()``.
+        encoding = (getattr(stream, "encoding", None) or "utf-8").lower()
+        if hasattr(stream, "reconfigure") and encoding != "utf-8":
             with contextlib.suppress(Exception):
                 stream.reconfigure(encoding="utf-8")
 
@@ -697,7 +700,12 @@ def cli() -> None:
     check, silently ignoring unknown or misspelled flags (exit 0 on typos); letting the trace complete
     makes Fire report ``Could not consume arg`` and exit 2 for such flags. Acts as the single top-level
     exception handler: unhandled exceptions from subcommands are converted to a non-zero exit with the
-    exception message. SystemExit (Fire's ``--help`` and error exits) passes through unchanged.
+    exception type and message (the type prefix guarantees a non-blank stderr line even when the exception
+    carries no message). SystemExit (Fire's ``--help`` and error exits) passes through unchanged.
+
+    A path whose name collides with a subcommand (``check``, ``expiry``, ``chains``, ``all``, ``status``) is
+    treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g.
+    ``pydeprecate check ./check``, so the leading token is the subcommand and the path is its argument.
 
     """
     _ensure_utf8_streams()
@@ -740,7 +748,9 @@ def cli() -> None:
             command=argv,
         )
     except Exception as exc:  # SystemExit is BaseException — Fire's own exits pass through untouched
-        sys.exit(str(exc))
+        # Prefix the exception type so an exception with an empty message still produces a non-blank stderr
+        # line (bare ``str(exc)`` on such exceptions exited 1 with nothing printed).
+        sys.exit(f"{type(exc).__name__}: {exc}")
     # exit_code stays None when no subcommand ran (bare `pydeprecate` help) → return normally (exit 0).
     if exit_code is not None:
         sys.exit(exit_code)

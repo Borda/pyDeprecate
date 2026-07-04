@@ -511,7 +511,14 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
         ``False`` otherwise.
 
     """
-    return isinstance(getattr(obj, "__deprecated__", None), DeprecationConfig)
+    # ``getattr(..., default)`` only swallows ``AttributeError``; a foreign object encountered during a
+    # recursive audit scan whose ``__getattr__``/``__getattribute__`` raises something else (e.g. a lazy
+    # proxy raising ``RuntimeError``) would otherwise crash the whole scan. Treat any failure as "no meta".
+    try:
+        meta = getattr(obj, "__deprecated__", None)
+    except Exception:
+        return False
+    return isinstance(meta, DeprecationConfig)
 
 
 @dataclass

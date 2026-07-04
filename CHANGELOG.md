@@ -16,6 +16,12 @@
 
 - **`proxy.__class__` now reports the wrapped object's type for `isinstance` transparency.** `_DeprecatedProxy` exposes a `__class__` property returning the active object's type, so type checks in downstream code (JSON encoders, validators, `functools.singledispatch`) keep working when an object is wrapped; `type(proxy)` still reveals the proxy. Code that previously detected the proxy via `obj.__class__ is _DeprecatedProxy` should use `type(obj) is _DeprecatedProxy` instead. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
+- **Proxy identity operations now reflect the served (active) object.** `repr()`, `str()`, `==`, and `hash()` on a target-forwarding proxy previously used the deprecated source while attribute/item/call access used the active target, so a proxy could compare equal to an object it never served; all four now route through the active object for consistency. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **`isinstance` / `issubclass` with an *instance* proxy as the second argument now raise `TypeError`.** Using a `deprecated_instance` proxy (one wrapping a value rather than a class) as the second argument to `isinstance`/`issubclass` previously returned `False` silently, hiding the misuse; it now raises the same `TypeError` the builtins raise. Class-alias proxies are unaffected. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **Batch expiry now warns on an unparsable `remove_in` instead of skipping it silently.** `validate_deprecation_expiry()` (and the CLI expiry gate) previously dropped wrappers whose `remove_in` version could not be parsed, leaving them permanently un-expirable with no signal; such wrappers now emit a `UserWarning` naming the callable while the rest of the scan continues. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
 ### Deprecated
 
 ### Removed
@@ -53,6 +59,30 @@
 - **Audit scans survive submodules that fail to import.** `find_deprecation_wrappers(recursive=True)` previously aborted the whole scan when any submodule raised a non-`ImportError` at import time (e.g. `RuntimeError` from an optional dependency); such submodules are now skipped with a `warnings.warn` naming the module and error. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
 
 - **Docs example tests are collected again.** The `norecursedirs` entry `"docs"` matched directory basenames and silently pruned `tests/docs/`, so the generated documentation-example tests never ran in the main CI matrix; the exclusion is now a rooted `--ignore=docs`. ([#210](https://github.com/Borda/pyDeprecate/pull/210))
+
+- **Bare `@deprecated` (no parentheses) now raises a clear `TypeError`.** Forgetting the call parentheses previously surfaced as a cryptic `AttributeError: 'int' object has no attribute '__name__'` on the first call; the decorator now explains that it must be called with arguments. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **Custom `template_mgs` with a bare `%`-conversion is now rejected at decoration time.** A template containing `%s`/`%d` (rather than a `%(name)s` mapping key) silently rendered the whole substitution dict into the warning; such templates now raise `ValueError` when the decorator is applied. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **`args_mapping`, `args_extra`, and `attrs_mapping` are defensively copied at decoration time.** The frozen configuration previously aliased the caller's dict, so mutating it after decoration could silently change forwarding behavior (or introduce a redirect cycle that validation had already rejected); the mappings are now copied. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **The cross-class forwarding guard now fires for descriptor-decorated methods.** The guard read the enclosing class name from a fixed stack depth, which the extra frames of `@property`/`@classmethod`/`@staticmethod` wrapping pushed out of reach — silently disabling the check; a bounded frame walk now locates the class body regardless of descriptor frames. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **A warning stream that raises `TypeError` internally is no longer invoked twice.** Both the decorator and proxy warning paths called the stream with `stacklevel` and caught `TypeError` to retry without it — which also swallowed a `TypeError` raised *inside* a stacklevel-accepting stream and re-ran it (duplicate log/print). The paths now decide once, via a cached signature probe, whether the stream accepts `stacklevel`. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **Argument validation against a `**kwargs`/`*args` target yields the curated message again.** The internal signature helper leaked `*args`/`**kwargs` names into caller-argument validation, producing a raw `TypeError` instead of the "argument not accepted by target" message; the variadic names are now excluded as documented. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **Audit tools now surface deprecated private and dunder members.** `_scan_class` skipped every `_`-prefixed member except `__init__`, so a deprecated private method or dunder could never be flagged as expired; private/dunder members that carry deprecation metadata are now included. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **Audit now detects proxy self-reference.** A `deprecated_instance`/`deprecated_class` proxy whose target is its own wrapped object was reported as effective because the self-reference check compared against the proxy rather than the wrapped object; it is now flagged as a no-op self-reference. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **Recursive audit scans tolerate foreign objects that raise on attribute access.** Probing a scanned object for deprecation metadata used `getattr(..., default)`, which only suppresses `AttributeError`; a third-party object whose `__getattr__` raised something else (e.g. a lazy proxy raising `RuntimeError`) aborted the whole scan. Such failures are now treated as "no metadata". ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **Version normalization preserves PEP 440 local segments.** `_normalize_version_string` ran its pre/post/dev label rule over the whole string, mangling a legitimate local version such as `1.2.3+cuda` into `1.2.3+cuda0`; the local segment (after `+`) is now split off and re-attached verbatim, and only a single leading `v`/`V` is stripped. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **CLI: a stream whose `encoding` is `None` no longer crashes UTF-8 setup.** `_ensure_utf8_streams` called `.lower()` on a possibly-`None` `encoding` attribute, raising `AttributeError` for some redirected streams; a `None` encoding is now tolerated. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
+
+- **CLI: an exception carrying no message now exits with a non-blank stderr line.** The top-level handler called `sys.exit(str(exc))`, which printed nothing (exit 1) for a message-less exception; the exception type now prefixes the exit message so CI shows what failed. ([#216](https://github.com/Borda/pyDeprecate/pull/216))
 
 ______________________________________________________________________
 

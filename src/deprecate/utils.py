@@ -61,9 +61,13 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
     func_default_params = _get_signature(func).parameters
     func_arg_type_val = []
     for arg in func_default_params:
-        arg_type = func_default_params[arg].annotation
-        arg_default = func_default_params[arg].default
-        func_arg_type_val.append((arg, arg_type, arg_default))
+        param = func_default_params[arg]
+        # Exclude ``*args`` / ``**kwargs`` (as the docstring promises): their names are not concrete
+        # parameters, and leaking them into caller-argument validation yields a raw ``TypeError`` instead
+        # of the curated "argument not accepted by target" message.
+        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            continue
+        func_arg_type_val.append((arg, param.annotation, param.default))
     return func_arg_type_val
 
 
@@ -319,7 +323,7 @@ class no_warning_call:  # noqa: N801 - kept for backward compatibility with prio
         return self._inner.__exit__(exc_type, exc_val, exc_tb)
 
 
-def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401
+def void(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
     """Empty function that accepts any arguments and returns None.
 
     This helper function is used to silence IDE warnings about unused parameters in deprecated functions where the
@@ -327,7 +331,7 @@ def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401
 
     Args:
         *args: Any positional arguments (ignored).
-        **kwrgs: Any keyword arguments (ignored).
+        **kwargs: Any keyword arguments (ignored).
 
     Returns:
         None always.
@@ -348,4 +352,4 @@ def void(*args: Any, **kwrgs: Any) -> Any:  # noqa: ANN401
         just a docstring instead of calling ``void()``.
 
     """
-    _, _ = args, kwrgs
+    _, _ = args, kwargs

@@ -19,11 +19,15 @@ from deprecate.audit import (
     ChainType,
     DeprecationStatus,
     DeprecationWrapperInfo,
+    _check_expiry_for_callables,
     _classify_member_api_type,
     _format_report_target,
     _get_deprecation_status,
     _get_package_version,
+    _member_has_deprecation_meta,
+    _normalize_version_string,
     _parse_version,
+    _scan_class,
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
 )
@@ -1164,3 +1168,110 @@ class TestInnerOrderPropertyAudit:
         replaced = dataclasses.replace(info, module="some.module")
         assert replaced.inner_order_property is True
         assert replaced.module == "some.module"
+
+
+def _aud_new_impl() -> int:
+    """Replacement callable used as a deprecation target for the private-member scan fixture (AUD-6)."""
+    return 1
+
+
+class _AudPrivateMembers:
+    """Fixture class carrying a deprecated *private* method — must still be surfaced by the scan (AUD-6)."""
+
+    @deprecated(target=_aud_new_impl, deprecated_in="1.0", remove_in="2.0")
+    def _legacy(self) -> int:
+        return 0
+
+
+class _AudTargetCls:
+    """Plain class used both as the wrapped object and target of a self-referential proxy (AUD-7 fixture)."""
+
+
+class TestNormalizeVersionStringLocalSegment:
+    """AUD-5 — the label-normalizing regex must not touch the PEP 440 local segment, and only one leading v strips."""
+
+    def test_preserves_local_segment(self) -> None:
+        """A legitimate local like ``1.2.3+cuda`` must survive verbatim instead of becoming ``1.2.3+cuda0``.
+
+        The trailing ``a`` of ``cuda`` used to be treated as a bare ``a`` pre-release label because the regex ran
+        over the whole string; splitting off the local segment first keeps real-world CUDA/build locals intact.
+        """
+        assert _normalize_version_string("1.2.3+cuda") == "1.2.3+cuda"
+
+    def test_normalizes_public_but_not_local(self) -> None:
+        """A bare ``dev`` label in the public part is normalized while the local segment is left untouched."""
+        assert _normalize_version_string("1.0.dev+build.a") == "1.0.dev0+build.a"
+
+    def test_strips_only_single_leading_v(self) -> None:
+        """Only one left-anchored ``v`` is removed, not every leading ``v`` (``lstrip`` stripped all)."""
+        assert _normalize_version_string("vv1.0") == "v1.0"
+
+
+class TestScanClassPrivateDeprecated:
+    """AUD-6 — deprecated private/dunder members carry ``__deprecated__`` and must be surfaced so they can expire."""
+
+    def test_member_meta_peeks_through_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a descriptor's underlying callable."""
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_legacy"]) is True
+
+    def test_scan_surfaces_deprecated_private_method(self) -> None:
+        """A deprecated ``_legacy`` method is included in the scan even though it starts with an underscore.
+
+        Previously ``_scan_class`` skipped every ``_*`` member except ``__init__``, so a deprecated private or
+        dunder member could never be flagged as expired — a zombie that outlived its ``remove_in`` unnoticed.
+        """
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_legacy" in fn for fn in functions)
+
+
+class TestProxySelfReferenceDetection:
+    """AUD-7 — a proxy whose deprecated target is its own wrapped object is a self-reference."""
+
+    def test_self_reference_detected_for_proxy(self) -> None:
+        """``target is func.wrapped`` marks the proxy as self-referential even though ``target is func`` is False.
+
+        The wrapper object is the proxy while the deprecated target is the wrapped class, so the plain identity
+        check never matched and a no-op self-referential proxy was reported as effective.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_AudTargetCls, target=_AudTargetCls, name="_AudTargetCls", deprecated_in="1.0", remove_in="2.0"
+        )
+        info = validate_deprecation_wrapper(proxy)
+        assert info.self_reference is True
+
+
+class TestForeignObjectDeprecationMetaGuard:
+    """AUD-9 — ``_has_deprecation_meta`` must not crash a scan on a foreign object raising a non-AttributeError."""
+
+    def test_hostile_getattr_returns_false(self) -> None:
+        """An object whose ``__getattr__`` raises ``RuntimeError`` is treated as carrying no metadata, not crashed on.
+
+        A recursive audit scan can encounter arbitrary third-party objects; ``getattr(..., default)`` only swallows
+        ``AttributeError``, so without the guard a lazy proxy raising ``RuntimeError`` would abort the whole scan.
+        """
+
+        class _Hostile:
+            def __getattr__(self, name: str) -> object:
+                raise RuntimeError("attribute access forbidden")
+
+        assert _has_deprecation_meta(_Hostile()) is False
+
+
+class TestBatchExpiryUnparsableVersion:
+    """AUD-8 — an unparsable ``remove_in`` in a batch scan warns instead of being silently skipped."""
+
+    @_requires_packaging
+    def test_unparsable_remove_in_warns_and_is_not_expired(self) -> None:
+        """A typo'd ``remove_in`` emits a UserWarning and is excluded from the expired list, not dropped silently.
+
+        A permanently un-expirable wrapper (broken version string) would otherwise pass the CI expiry gate forever
+        with no signal; warning per skip surfaces the misconfiguration while the rest of the batch keeps scanning.
+        """
+        info = DeprecationWrapperInfo(
+            function="pkg.broken",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not.a.version!!"),
+        )
+        with pytest.warns(UserWarning, match="unparsable"):
+            expired = _check_expiry_for_callables([info], "2.0")
+        assert expired == []
