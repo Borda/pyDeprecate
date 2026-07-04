@@ -456,19 +456,26 @@ class TestFindDeprecationWrappersReexport:
     """Re-exported wrappers are attributed to their defining module and never double-counted."""
 
     def test_reexport_dropped_in_importing_module(self) -> None:
-        """A wrapper whose ``__module__`` points elsewhere is treated as a re-export and skipped.
+        """A same-package re-export is skipped in the importing module to avoid double-counting.
 
         A library commonly surfaces a deprecated shim from a private submodule through its package
         ``__init__``. A recursive audit must attribute that wrapper to the module that defines it, not
         report it once per importing module — inflated counts break any CI gate summing ``len(results)``.
+
+        The attribution filter only fires when the defining module shares the same top-level package
+        (``_same_top_package`` guard). Wrappers from a wholly different package (e.g. an external
+        library re-exposed) are never skipped — they will not be visited elsewhere and must be reported
+        where they appear.
         """
         importer = types.ModuleType("importer_mod")
 
         @deprecated(deprecated_in="1.0", remove_in="2.0")
         def defined_elsewhere() -> None:
-            """Wrapper whose real home is a different module."""
+            """Wrapper defined in a sibling submodule of the same package."""
 
-        defined_elsewhere.__module__ = "some.other.home"
+        # Simulate a same-package re-export: __module__ points to a submodule of the same top
+        # package so _same_top_package("importer_mod.sub", "importer_mod") → True → skip fires.
+        defined_elsewhere.__module__ = "importer_mod.sub"
         importer.defined_elsewhere = defined_elsewhere  # type: ignore[attr-defined]
 
         results = find_deprecation_wrappers(importer)
