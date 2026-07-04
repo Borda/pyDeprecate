@@ -1245,14 +1245,17 @@ class TestForeignObjectDeprecationMetaGuard:
     """AUD-9 — ``_has_deprecation_meta`` must not crash a scan on a foreign object raising a non-AttributeError."""
 
     def test_hostile_getattr_returns_false(self) -> None:
-        """An object whose ``__getattr__`` raises ``RuntimeError`` is treated as carrying no metadata, not crashed on.
+        """An object whose ``__deprecated__`` property raises is treated as carrying no metadata, not crashed on.
 
         A recursive audit scan can encounter arbitrary third-party objects; ``getattr(..., default)`` only swallows
         ``AttributeError``, so without the guard a lazy proxy raising ``RuntimeError`` would abort the whole scan.
+        Using a ``@property`` that raises on access exercises the ``try/except Exception`` guard without making
+        ``__getattr__`` raise for every attribute (which CodeQL flags as broadly hazardous).
         """
 
         class _Hostile:
-            def __getattr__(self, name: str) -> object:
+            @property
+            def __deprecated__(self) -> object:
                 raise RuntimeError("attribute access forbidden")
 
         assert _has_deprecation_meta(_Hostile()) is False

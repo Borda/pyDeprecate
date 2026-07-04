@@ -78,6 +78,7 @@ class DeprecationStatus(str, enum.Enum):
     urgency**: because each value starts with an emoji, the inherited ``str`` ordering operators (``<``, ``>``)
     compare Unicode codepoints of those emoji, not deprecation urgency. Do not rely on ``status_a > status_b``
     to mean "more urgent" — compare members explicitly (``status is DeprecationStatus.PAST_REMOVAL_DATE``).
+    The ordering operators are overridden to raise ``TypeError`` so accidental comparisons fail loudly.
 
     Examples:
         >>> DeprecationStatus.ACTIVE_WARNING.value
@@ -95,6 +96,22 @@ class DeprecationStatus(str, enum.Enum):
     REMOVAL_IMMINENT = "⏰ Removal Imminent"  # pre-release dev/a/b of remove_in base
     REMOVE_BEFORE_RELEASE = "🔔 Remove Before Release"  # RC of the remove_in base release
     PAST_REMOVAL_DATE = "💥 Past Removal Date"  # current >= remove_in
+
+    def __lt__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'<' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __le__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'<=' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __gt__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'>' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __ge__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'>=' not supported between instances of 'DeprecationStatus' — compare by identity")
 
 
 def _normalize_version_string(version: str) -> str:
@@ -559,9 +576,17 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
 
     # Self-reference: the wrapper forwards to itself. For a proxy the wrapper object is the proxy while its
     # deprecated target is the *wrapped* object, so ``target is func`` never matches — compare against
-    # ``func.wrapped`` too (AUD-7).
+    # ``func.wrapped`` too (AUD-7). A proxy is self-referential only when there is *no* active remapping:
+    # a proxy with non-empty ``args_mapping`` or ``attrs_mapping`` still performs meaningful transformation
+    # and must not be flagged as a no-op.
     self_reference = target is not None and (
-        target is func or (isinstance(func, _DeprecatedProxy) and target is func.wrapped)
+        target is func
+        or (
+            isinstance(func, _DeprecatedProxy)
+            and target is func.wrapped
+            and not dep_info.args_mapping
+            and not dep_info.attrs_mapping
+        )
     )
     empty_args_mapping = not args_mapping
     chain_type = _detect_chain_type(dep_info, func, target, _is_args_remap)
@@ -828,6 +853,38 @@ def _scan_callable(
     return None
 
 
+def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN401
+    """Return the underlying callable(s) from a descriptor, or a 1-tuple of *obj* for plain callables.
+
+    Centralises the descriptor-unwrapping logic shared by :func:`_member_has_deprecation_meta` and
+    :func:`_scan_class` so each descriptor type is handled in exactly one place.
+
+    Args:
+        obj: A raw class member — may be a ``classmethod``, ``staticmethod``, ``property``,
+            ``cached_property``, or a plain callable.
+
+    Returns:
+        A tuple of the underlying callable objects.  Empty when ``obj`` is a ``cached_property``
+        with no ``func`` attribute (degenerate case).
+
+    Examples:
+        >>> import warnings
+        >>> _descriptor_underlying_callables(classmethod(warnings.warn))  # doctest: +ELLIPSIS
+        (<built-in function warn>,)
+        >>> _descriptor_underlying_callables(staticmethod(warnings.warn))
+        (<built-in function warn>,)
+
+    """
+    if isinstance(obj, (classmethod, staticmethod)):
+        return (obj.__func__,)
+    if isinstance(obj, property):
+        return tuple(a for a in (obj.fget, obj.fset, obj.fdel) if a is not None)
+    if isinstance(obj, cached_property):
+        func = getattr(obj, "func", None)
+        return (func,) if func is not None else ()
+    return (obj,)
+
+
 def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
     """Return ``True`` if a class member — peeking through descriptors — carries ``__deprecated__`` metadata.
 
@@ -839,13 +896,7 @@ def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
         obj: The raw class member (possibly a descriptor) to inspect.
 
     """
-    if isinstance(obj, (classmethod, staticmethod)):
-        return _has_deprecation_meta(obj.__func__)
-    if isinstance(obj, property):
-        return any(a is not None and _has_deprecation_meta(a) for a in (obj.fget, obj.fset, obj.fdel))
-    if isinstance(obj, cached_property):
-        return _has_deprecation_meta(getattr(obj, "func", None))
-    return _has_deprecation_meta(obj)
+    return any(_has_deprecation_meta(c) for c in _descriptor_underlying_callables(obj))
 
 
 def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWrapperInfo]:  # noqa: ANN401
@@ -868,7 +919,7 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
             result = _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
         elif isinstance(obj, property):
             _prop_accessor = next(
-                (a for a in (obj.fget, obj.fset, obj.fdel) if a is not None and _has_deprecation_meta(a)),
+                (c for c in _descriptor_underlying_callables(obj) if _has_deprecation_meta(c)),
                 None,
             )
             if _prop_accessor is not None:
