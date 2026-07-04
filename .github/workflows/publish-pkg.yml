@@ -50,6 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      actions: read # required for actions/download-artifact
       contents: write # required for uploading release assets
     steps:
       - name: 📥 Download artifact
