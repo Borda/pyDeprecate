@@ -13,7 +13,6 @@ from unittest.mock import patch
 
 import pytest
 
-import deprecate
 import tests
 import tests.collection_chains as chain_module
 import tests.collection_deprecate as proxy_module
