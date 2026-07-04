@@ -958,6 +958,42 @@ def _raise_warn_arguments(
     )
 
 
+def _consume_warn_budget(
+    state: _WrapperState,
+    num_warns: int,
+    reason_callable: bool,
+    reason_argument: dict[str, Optional[str]],
+) -> bool:
+    """Check the warn budget and consume one unit from it when a warning may fire.
+
+    Must be called while holding ``state.lock`` — the read-check-increment sequence is exactly
+    what the lock protects (see the thread-safety note at the call site).
+
+    Args:
+        state: Mutable per-wrapper counters.
+        num_warns: Configured budget; negative means unlimited.
+        reason_callable: Warning is for the deprecated callable itself — consumes ``warned_calls``.
+        reason_argument: Deprecated argument names present in this call — consumes per-argument
+            budgets in ``warned_args``; takes precedence over the call counter for the check.
+
+    Returns:
+        True when the caller should emit the warning (budget available and now consumed).
+
+    """
+    if reason_argument:
+        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
+    else:
+        nb_warned = state.warned_calls
+    if num_warns >= 0 and nb_warned >= num_warns:
+        return False
+    if reason_callable:
+        state.warned_calls += 1
+    elif reason_argument:
+        for arg in reason_argument:
+            state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+    return True
+
+
 def _build_call_plan(  # noqa: C901, PLR0912
     wrapper_fn: Callable[..., Any],
     source: Callable[..., Any],
@@ -1060,17 +1096,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
     should_warn = False
     if stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
         with state.lock:
-            if reason_argument:
-                nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-            else:
-                nb_warned = state.warned_calls
-            if num_warns < 0 or nb_warned < num_warns:
-                should_warn = True
-                if reason_callable:
-                    state.warned_calls += 1
-                elif reason_argument:
-                    for arg in reason_argument:
-                        state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+            should_warn = _consume_warn_budget(state, num_warns, reason_callable, reason_argument)
     if should_warn:
         assert stream is not None  # noqa: S101 — should_warn is only set while holding the lock when stream is truthy
         if reason_callable:
