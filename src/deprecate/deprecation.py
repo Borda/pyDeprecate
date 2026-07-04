@@ -827,27 +827,6 @@ def _split_positional_only_kwargs(
     return pos_args, kw_args
 
 
-def _stream_accepts_stacklevel(stream: Callable) -> bool:
-    """Return ``True`` when *stream* accepts a ``stacklevel`` keyword argument.
-
-    Inspects the callable's signature once (cached via :func:`_get_signature`) so the warning issuer can
-    decide whether to forward ``stacklevel`` without a ``try``/``except TypeError`` that would also mask —
-    and duplicate — a ``TypeError`` raised inside a stacklevel-accepting stream.  Callables whose signature
-    cannot be introspected (some C builtins) are treated as not accepting it.
-
-    Args:
-        stream: The warning stream callable (e.g. :func:`warnings.warn`, :func:`print`, ``logging.warning``).
-
-    """
-    try:
-        params = _get_signature(stream).parameters
-    except (TypeError, ValueError):
-        return False
-    if "stacklevel" in params:
-        return True
-    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
-
-
 def _raise_warn(
     stream: Callable,
     source: Callable,
@@ -888,14 +867,13 @@ def _raise_warn(
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
     msg = template_mgs % msg_args
-    # Decide once whether the stream accepts ``stacklevel`` by inspecting its signature, rather than
-    # calling with ``stacklevel`` and catching ``TypeError``.  A try/except would also swallow a
-    # ``TypeError`` raised *inside* a stacklevel-accepting stream and re-invoke it, producing duplicate
-    # side effects (double log/print).  ``_get_signature`` caches per stream, so this probes only once.
-    if _stream_accepts_stacklevel(stream):
+    try:
         stream(msg, stacklevel=stacklevel)
-    else:
-        stream(msg)
+    except TypeError as _exc:
+        if "stacklevel" in str(_exc) or "keyword" in str(_exc):
+            stream(msg)
+        else:
+            raise
 
 
 def _source_display_name(source: Callable) -> str:

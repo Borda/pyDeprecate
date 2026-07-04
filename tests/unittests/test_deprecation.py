@@ -25,7 +25,6 @@ from deprecate.deprecation import (
     _raise_warn_arguments,
     _raise_warn_callable,
     _reject_bare_decorator,
-    _stream_accepts_stacklevel,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
     _validate_template_mgs,
@@ -1862,32 +1861,16 @@ class TestBareDecoratorGuard:
         _reject_bare_decorator(real)  # no exception raised = a plain callable is accepted
 
 
-class TestStreamStacklevelProbe:
-    """CORE-10 — decide once whether a stream accepts ``stacklevel`` instead of try/except double-calling."""
-
-    def test_warn_accepts_stacklevel(self) -> None:
-        """Probe result for ``warnings.warn`` matches whether its signature is introspectable.
-
-        CPython 3.14 changed ``warnings.warn`` to a C builtin whose signature ``inspect.signature`` cannot
-        parse — the probe conservatively returns ``False`` in that case instead of crashing.
-        """
-        try:
-            inspect.signature(warnings.warn)
-            expected = True
-        except (ValueError, TypeError):
-            expected = False
-        assert _stream_accepts_stacklevel(warnings.warn) is expected
-
-    def test_print_rejects_stacklevel(self) -> None:
-        """``print`` has no ``stacklevel`` parameter and no ``**kwargs`` so the probe reports it unaccepted."""
-        assert _stream_accepts_stacklevel(print) is False
+class TestRaiseWarnStacklevel:
+    """CORE-10 — stream called with ``stacklevel`` when accepted; internal TypeError propagates without double-call."""
 
     def test_internal_typeerror_not_swallowed_no_double_call(self) -> None:
         """An internal TypeError from a stacklevel-accepting stream propagates and the stream runs exactly once.
 
         A ``TypeError`` raised *inside* a stacklevel-accepting stream must propagate and the stream must run
-        exactly once. The old ``try/except TypeError`` masked such internal errors and re-invoked the stream,
-        producing duplicate side effects (double log lines) for anyone whose custom stream raised internally.
+        exactly once. A naive ``try/except TypeError`` would re-invoke the stream on any TypeError, producing
+        duplicate side effects (double log lines) for anyone whose custom stream raised internally.  The
+        message-based discrimination (``"stacklevel" in str(exc)``) prevents this.
         """
         calls: list[str] = []
 
@@ -1902,20 +1885,16 @@ class TestStreamStacklevelProbe:
             _raise_warn(stream, old, "%(source_name)s", stacklevel=3)
         assert len(calls) == 1
 
-    def test_varkw_stream_accepts_stacklevel_and_receives_it(self) -> None:
-        """A ``**kwargs``-accepting stream is detected as stacklevel-capable and called exactly once with it.
+    def test_varkw_stream_receives_stacklevel_exactly_once(self) -> None:
+        """A ``**kwargs``-accepting stream receives ``stacklevel`` and is called exactly once.
 
-        A custom stream declared as ``def my_stream(msg, **kwargs)`` does not name ``stacklevel`` explicitly
-        but accepts it via ``**kwargs``. The probe must detect the ``VAR_KEYWORD`` parameter and treat it as
-        accepting ``stacklevel``, then the caller must forward ``stacklevel`` through the single call path —
-        never via a fallback retry that would call the stream twice.
+        A custom stream declared as ``def my_stream(msg, **kwargs)`` accepts ``stacklevel`` via ``**kwargs``.
+        The caller must forward ``stacklevel`` in a single call — never via a fallback retry.
         """
         calls: list[tuple[str, dict[str, object]]] = []
 
         def stream(msg: str, **kwargs: object) -> None:
             calls.append((msg, kwargs))
-
-        assert _stream_accepts_stacklevel(stream) is True
 
         def src() -> None:
             pass

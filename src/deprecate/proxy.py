@@ -47,7 +47,6 @@ from deprecate.deprecation import (
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
     _split_positional_only_kwargs,
-    _stream_accepts_stacklevel,
     _validate_template_mgs,
     deprecation_warning,
 )
@@ -542,14 +541,18 @@ class _DeprecatedProxy:
                     cfg.warned += 1
         if not should_warn:
             return
-        # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the ``_raise_warn`` path
-        # in ``deprecation.py``: decide *once* (via a cached signature probe) whether ``stream`` accepts a
-        # ``stacklevel`` kwarg instead of calling with it and catching ``TypeError`` — the latter also swallowed
-        # a ``TypeError`` raised inside a stacklevel-accepting custom stream and re-invoked it (double side effect).
-        if _stream_accepts_stacklevel(stream):
+        # Route the warning to the caller's frame rather than ``proxy.py``.
+        # A plain ``try/except TypeError`` would swallow a TypeError raised *inside* a
+        # stacklevel-accepting stream and re-invoke it (double side-effect, CORE-10).
+        # Checking the exception message distinguishes a keyword-rejection error from an
+        # internal one — the stream is called exactly once in all but the keyword-rejection case.
+        try:
             stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER + _extra_frames)
-        else:
-            stream(msg)
+        except TypeError as _exc:
+            if "stacklevel" in str(_exc) or "keyword" in str(_exc):
+                stream(msg)
+            else:
+                raise
 
     def _check_read_only(self, operation: str) -> None:
         """Raise AttributeError when the proxy is in read-only mode.
