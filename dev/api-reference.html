@@ -2710,6 +2710,18 @@ doc engine at decoration time; <code>"rst"</code> emits a <code>.. deprecated::<
     </table>
 
 
+<details class="note" open>
+  <summary>Note</summary>
+  <p><strong>Subclassing (PEP 560)</strong>: the proxy implements <code>__mro_entries__</code> so
+<code>class Child(deprecated_alias):</code> resolves to <code>class Child(target_or_source_class):</code>
+in the MRO — <code>issubclass(Child, target_class)</code> returns <code>True</code> and standard inheritance
+semantics are preserved.  One <code>FutureWarning</code> fires at class-definition time (not per
+instance).  With :attr:<code>~deprecate._types.TargetMode.ATTRS_REMAP</code> aliases (<code>attrs_mapping</code>
+without a callable <em>target</em>) and :attr:<code>~deprecate._types.TargetMode.ARGS_REMAP</code> aliases
+(<code>args_mapping</code> without a callable <em>target</em>) subclassing stays <strong>silent</strong> — both modes
+scope deprecation to specific axes (attribute names or argument names), not the class name.</p>
+</details>
+
 <p><span class="doc-section-title">Examples:</span></p>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">NewColor</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
@@ -2964,6 +2976,15 @@ Custom method names (e.g. <code>register()</code>, <code>reload()</code>, <code>
       </tbody>
     </table>
 
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p><strong>Operator warnings</strong>: arithmetic operators (<code>+</code>, <code>-</code>, <code>*</code>, <code>**</code>, <code>//</code>, <code>%</code>, <code>&lt;&lt;</code>,
+<code>&gt;&gt;</code>, <code>&amp;</code>, <code>|</code>, <code>^</code>) and their reflected forms emit a deprecation warning and consume the
+<code>num_warns</code> budget.  In-place operators (<code>+=</code>, <code>-=</code>, …) additionally enforce <code>read_only</code>.
+Ordering comparisons (<code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>) and structural probes (<code>__eq__</code>, <code>__len__</code>,
+<code>__bool__</code>, <code>__str__</code>) are <strong>silent</strong> — they do not consume the warn budget.</p>
+</details>
 
 <details class="example" open>
   <summary>Example</summary>

@@ -92,7 +92,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-07-03"
+  "dateModified": "2026-07-04"
 }
 </script>
 
@@ -2469,8 +2469,19 @@
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">🔗</a></h1>
 <h2 id="unreleased-2026-mm-dd">[UnReleased] - 2026-MM-DD<a class="headerlink" href="#unreleased-2026-mm-dd" title="Permanent link">🔗</a></h2>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
+<ul>
+<li>
+<p><strong>Deprecated proxies now forward operator and protocol dunders to the wrapped object.</strong> Arithmetic (<code>proxy + 1</code>), comparison/ordering, context managers (<code>with proxy:</code>), iteration (<code>next</code>, <code>reversed</code>), numeric conversion (<code>int</code>/<code>float</code>/<code>round</code>/<code>abs</code>), <code>os.fspath</code>, <code>format</code>, and the async protocols (<code>async with</code>, <code>async for</code>, <code>await</code>) now delegate to the active object instead of raising <code>TypeError</code>. Binary operators preserve <code>NotImplemented</code> semantics, so unsupported-operand errors surface normally. The warn-policy contract is documented in the <code>_DeprecatedProxy</code> docstring: data use warns (within the <code>num_warns</code> budget), cheap probes stay silent. <strong>Caveat</strong>: in-place operators (<code>+=</code>, <code>-=</code>, <code>*=</code>, …) return the active object's result rather than a re-wrapped proxy — after <code>x += 1</code>, the name <code>x</code> is rebound to a plain <code>int</code> and all subsequent uses are silent even if the deprecation window has not closed. (<a href="https://github.com/Borda/pyDeprecate/pull/214">#214</a>)</p>
+</li>
+<li>
+<p><strong>Subclassing a deprecated class alias now works (PEP 560).</strong> <code>class Child(OldName)</code> on a <code>deprecated_class</code> alias previously raised a confusing metaclass arity <code>TypeError</code>; <code>__mro_entries__</code> now resolves the alias to the active class and emits the deprecation warning (subclassing is a use of the deprecated name), respecting the warn budget and staying silent for <code>attrs_mapping</code>-only and <code>args_mapping</code>-only proxies. (<a href="https://github.com/Borda/pyDeprecate/pull/214">#214</a>)</p>
+</li>
+</ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
 <ul>
+<li>
+<p><strong>Call forwarding is ~2.4× faster.</strong> Decoration-time-stable signature facts are now precomputed onto <code>DeprecationConfig</code> instead of re-derived on every call (uncached <code>inspect.getfullargspec</code> removed from the hot path); forwarded-call overhead drops from ~10.4 µs to ~4.3 µs with no behavior change. (<a href="https://github.com/Borda/pyDeprecate/pull/214">#214</a>)</p>
+</li>
 <li>
 <p><strong><code>validate_deprecation_expiry()</code> now scans class members by default (<code>include_members=True</code>).</strong> Previously the expiry gate defaulted to <code>include_members=False</code> while <code>find_deprecation_wrappers()</code> defaulted to <code>True</code>, so CI gates silently skipped expired deprecated methods, constructors, classmethods, staticmethods, and properties. The flip can only surface additional expired wrappers — pass <code>include_members=False</code> explicitly to restore the old scope. (<a href="https://github.com/Borda/pyDeprecate/pull/210">#210</a>)</p>
 </li>
@@ -2482,6 +2493,15 @@
 <h3 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">🔗</a></h3>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
+<li>
+<p><strong><code>num_warns</code> quota is now thread-safe.</strong> Concurrent first calls to a shared wrapper could each pass the quota check before any counter increment, emitting up to one warning per thread instead of the configured budget; the warn path now synchronizes on a per-wrapper lock, so exactly <code>num_warns</code> warnings are emitted under concurrency. (<a href="https://github.com/Borda/pyDeprecate/pull/214">#214</a>)</p>
+</li>
+<li>
+<p><strong>Cross-class forwarding between staticmethods no longer raises a spurious <code>TypeError</code>.</strong> The cross-class guard exists to prevent <code>self</code> carrying the wrong type, but staticmethods have no <code>self</code>; <code>@deprecated(target=NewCls.compute)</code> on a staticmethod forwarding to another class's staticmethod is now allowed. (<a href="https://github.com/Borda/pyDeprecate/pull/214">#214</a>)</p>
+</li>
+<li>
+<p><strong>Instantiating an <code>attrs_mapping</code>-only deprecated class no longer emits a class-level warning.</strong> <code>TargetMode.ATTRS_REMAP</code> scopes the deprecation to the listed attributes, yet plain instantiation fired the blanket <code>FutureWarning</code> and consumed the warn budget; construction is now silent and only deprecated-attribute access warns. (<a href="https://github.com/Borda/pyDeprecate/pull/214">#214</a>)</p>
+</li>
 <li>
 <p><strong>Deprecated proxies now support <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code>.</strong> Copying or pickling any <code>deprecated_class</code>/<code>deprecated_instance</code> proxy previously crashed with <code>RecursionError</code> — the <code>_cfg</code> property and <code>__getattr__</code> fell into infinite mutual recursion on half-initialized instances. Proxies now implement the copy/pickle protocol and reconstruct a functional proxy. Note: <code>deprecated_instance</code> proxies wrapping plain objects (dicts, lists) are fully picklable; <code>deprecated_class</code> proxies may raise <code>PicklingError</code> when the decorated class name is replaced by the proxy (the common alias pattern), because pickle cannot find the original class by reference. (<a href="https://github.com/Borda/pyDeprecate/pull/212">#212</a>)</p>
 </li>
@@ -2758,7 +2778,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 3, 2026 12:22:09 UTC">2026-07-03</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 4, 2026 00:15:30 UTC">2026-07-04</span>
   </span>
 
     
