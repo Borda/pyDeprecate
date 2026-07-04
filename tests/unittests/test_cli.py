@@ -12,7 +12,6 @@ from deprecate._cli import _print, _Reporter, cli, cmd_all, cmd_chains, cmd_chec
 from deprecate._pkg import (
     _auto_detect_version,
     _distribution_for_import,
-    _distribution_from_top_level,
     _load_toml,
     _version_from_dynamic,
     _version_from_toml,
@@ -812,14 +811,17 @@ class TestAutoDetectVersion:
         """_distribution_for_import falls back to top_level.txt scanning on Python <3.11.
 
         ``packages_distributions`` was added in Python 3.11. When it is absent (simulated by
-        patching the attribute away), ``_distribution_for_import`` must fall back to
+        patching the attribute to ``None``), ``_distribution_for_import`` must fall back to
         ``_distribution_from_top_level``, which reads each distribution's ``top_level.txt``.
         pyDeprecate ships ``top_level.txt`` listing ``deprecate``, so the mapping must still
         resolve correctly even without the faster stdlib helper.
 
+        ``create=True`` is required because on Python <3.11 the attribute does not exist at all
+        and ``patch`` would raise ``AttributeError`` with ``create=False`` (the default).
+
         """
-        with patch("deprecate._pkg.importlib.metadata.packages_distributions", None, create=False):
-            result = _distribution_from_top_level("deprecate")
+        with patch("deprecate._pkg.importlib.metadata.packages_distributions", None, create=True):
+            result = _distribution_for_import("deprecate")
         assert result == "pyDeprecate"
 
 
