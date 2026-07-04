@@ -7,7 +7,7 @@ This module provides base functions that are used as targets for deprecated func
 import functools
 import time
 import warnings
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Generator, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Optional
@@ -216,6 +216,18 @@ def fn_with_default(new_arg: int = 99) -> int:
 
     """
     return new_arg
+
+
+def fn_shared_default_target(x: int, level: int = 99) -> int:
+    """Target sharing the parameter name ``level`` with its own default (99), no rename involved.
+
+    Used by the shared-default forwarding test: the forwarding source declares the same non-renamed
+    ``level`` parameter with a *different* default (1) and no ``args_mapping``.  The source signature is the
+    contract the caller migrated from, so its default (1) is forwarded and reaches this body — the target's
+    own default only applies when the source declares no default for that parameter.
+
+    """
+    return level
 
 
 def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
@@ -821,6 +833,95 @@ async def async_non_cycle_double(x: int) -> int:
     Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
     """
     return x * 2
+
+
+# --- Protocol-forwarding targets (appended for the proxy medium-findings fixes: PROX-4 / PROX-7) ---
+
+
+class ManagedResource:
+    """Context-manager target for proxy ``__enter__``/``__exit__`` forwarding tests (PROX-4).
+
+    A migration may wrap a legacy resource handle (a database session, a file-like object) in
+    ``deprecated_instance`` while callers still use it in a ``with`` block.  The proxy must forward the
+    context-manager protocol so ``with proxy:`` enters and exits the underlying resource, recording both
+    transitions here for assertions.
+    """
+
+    def __init__(self) -> None:
+        """Track whether the context was entered and exited."""
+        self.entered = False
+        self.exited = False
+
+    def __enter__(self) -> "ManagedResource":
+        """Mark the resource as entered and return it."""
+        self.entered = True
+        return self
+
+    def __exit__(self, *exc_info: Any) -> None:  # noqa: ANN401
+        """Mark the resource as exited; never suppress exceptions."""
+        self.exited = True
+
+
+class AsyncManagedResource:
+    """Async-protocol target for proxy async-dunder forwarding tests.
+
+    An async migration may wrap a legacy async resource (an aiohttp session, an async DB connection) in
+    ``deprecated_instance`` while callers still use ``async with``, ``async for``, or ``await`` on it. The proxy
+    must forward every async protocol dunder so those call sites keep working; each transition is recorded here
+    for assertions (PROX-4).
+    """
+
+    def __init__(self, items: Optional[list[int]] = None) -> None:
+        """Track context transitions and hold the items produced by async iteration."""
+        self.entered = False
+        self.exited = False
+        self._items = [1, 2, 3] if items is None else list(items)
+        self._cursor = 0
+
+    async def __aenter__(self) -> "AsyncManagedResource":
+        """Mark the resource entered and return it."""
+        self.entered = True
+        return self
+
+    async def __aexit__(self, *exc_info: Any) -> None:  # noqa: ANN401
+        """Mark the resource exited; never suppress exceptions."""
+        self.exited = True
+
+    def __aiter__(self) -> "AsyncManagedResource":
+        """Reset the cursor and return self as the async iterator."""
+        self._cursor = 0
+        return self
+
+    async def __anext__(self) -> int:
+        """Yield the next item, raising ``StopAsyncIteration`` once exhausted."""
+        if self._cursor >= len(self._items):
+            raise StopAsyncIteration
+        item = self._items[self._cursor]
+        self._cursor += 1
+        return item
+
+    def __await__(self) -> Generator[Any, None, str]:
+        """Make the resource awaitable; ``await resource`` yields a sentinel string."""
+        return self._awaited().__await__()
+
+    async def _awaited(self) -> str:
+        """Coroutine body returned by :meth:`__await__`."""
+        return "awaited"
+
+
+class SubclassableBase:
+    """Plain base-class target for PEP 560 subclassing tests through ``deprecated_class`` (PROX-7).
+
+    During a migration window a public base class is often renamed and wrapped in ``deprecated_class``;
+    downstream code still writes ``class Child(OldName): ...``.  This concrete class stands in for the
+    replacement so a subclass built off the deprecated alias inherits real, callable behaviour.
+    """
+
+    marker: str = "base"
+
+    def greet(self) -> str:
+        """Return a fixed greeting so subclasses can prove inherited behaviour works."""
+        return "hello"
 
 
 def var_positional_remap_body(a: int, *extras: int, old_kwarg: str = "", new_kwarg: str = "") -> tuple:

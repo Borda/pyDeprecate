@@ -191,10 +191,18 @@
         },
         {
           "@type": "Question",
-          "name": "Why does deprecated_instance not emit a warning on arithmetic or comparison operators?",
+          "name": "Can I subclass a class created by deprecated_class?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Python invokes special dunder methods like __add__, __lt__, and __mul__ directly on the object's type through the MRO, bypassing __getattr__. The _DeprecatedProxy class intercepts attribute access via __getattr__, but CPython does not call __getattr__ for implicit dunder protocol lookups. Workarounds: wrap the value in a container dict or dataclass (access via subscript triggers the proxy), expose it through a deprecated function, or update call sites directly."
+            "text": "Yes — since v0.8.1 the proxy implements PEP 560 __mro_entries__, so class Child(DeprecatedAlias) resolves to the replacement class in the MRO. Child correctly inherits from the replacement, issubclass(Child, Replacement) is True, and one FutureWarning fires at class-definition time. Exception: ATTRS_REMAP proxies (deprecated_class with attrs_mapping and no callable target) and ARGS_REMAP proxies (deprecated_class with args_mapping and no callable target) are scope-limited to specific axes (attribute names or argument names respectively) and skip the subclassing warning."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do arithmetic and operator protocol methods emit deprecation notices on deprecated_instance proxies?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — since v0.8.1 the proxy installs arithmetic, unary, and conversion dunders directly on its type, so CPython can find them via the MRO without going through __getattr__. Data-use operations warn against the shared budget: arithmetic (+, -, *, /, //, %, **, @), bitwise ops, unary operators, numeric conversions (int, float, complex), round/trunc/floor/ceil, reversed(), next(), context entry (__enter__), and subclassing (class Child(proxy)) all fire FutureWarning. Structural probes stay silent: ordering comparisons (<, <=, >=, >), format(), and context exit (__exit__) never warn. Two edge cases: (1) In-place operators return the active object's result rather than a re-wrapped proxy — proxy_val += 1 rebinds the variable to a plain int. (2) If the left-hand operand's __add__ raises TypeError directly (e.g. str.__add__), Python cannot fall back to the proxy's __radd__ — place the proxy on the left side or wrap in a container."
           }
         },
         {
@@ -242,7 +250,7 @@
           "name": "Why did I get TypeError at decoration time about a cross-class method target?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8."
+            "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8. Exception: when the source is a @staticmethod the cross-class guard is skipped, because static methods receive no self — a staticmethod can safely forward to a static method on any class."
           }
         },
         {

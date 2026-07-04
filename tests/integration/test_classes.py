@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from deprecate import TargetMode, assert_no_warnings
+from deprecate import TargetMode, assert_no_warnings, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_depr_legacy import ServiceCls as LegacyServiceCls
@@ -33,7 +33,7 @@ from tests.collection_deprecate import (
     make_class_target_args_remap,
     make_class_target_notify_with_args,
 )
-from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum
+from tests.collection_targets import NewCls, NewDataClass, NewEnum, NewIntEnum, Palette, SubclassableBase
 
 # Parametrize cases for ServiceCls method tests that exist on BOTH the modern (TargetMode.NOTIFY /
 # TargetMode.ARGS_REMAP) and legacy (target=None / target=True) ServiceCls fixtures.
@@ -446,3 +446,35 @@ class TestDeprecatedClassWithTargetMode:
         dep = object.__getattribute__(cls, "__deprecated__")
         assert dep.target is TargetMode.ARGS_REMAP
         assert dep.args_mapping == {"old_key": "new_key"}
+
+
+class TestDeprecatedClassSubclassing:
+    """End-to-end subclassing and call behaviour of ``deprecated_class`` aliases (PROX-5 / PROX-7)."""
+
+    def test_subclass_inherits_from_replacement(self) -> None:
+        """A subclass written against a deprecated class alias inherits the real replacement behaviour and warns once.
+
+        When a public base class is renamed mid-migration and its old name wrapped in ``deprecated_class``, existing
+        ``class Child(OldName): ...`` code must still produce a working subclass — proven here by calling an inherited
+        method — while surfacing exactly one deprecation warning for the subclassing use.
+        """
+        alias = deprecated_class(deprecated_in="1.0", remove_in="2.0")(SubclassableBase)
+        with pytest.warns(FutureWarning, match=r"The `SubclassableBase` was deprecated since v1\.0"):
+
+            class Child(alias):  # type: ignore[misc,valid-type]
+                """Downstream subclass of the deprecated alias."""
+
+        assert issubclass(Child, SubclassableBase)
+        assert Child().greet() == "hello"
+
+    def test_attrs_remap_instantiation_is_silent(self) -> None:
+        """Instantiating an ATTRS_REMAP-deprecated class emits no warning; only the listed attribute access does.
+
+        A class deprecating a single attribute alias (``color`` → ``colour``) must not brand the whole class
+        deprecated on construction — plain ``Alias()`` stays silent while ``Alias.color`` still warns.
+        """
+        alias = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
+        with assert_no_warnings():
+            _ = alias()
+        with pytest.warns(FutureWarning, match="color"):
+            _ = alias.color  # type: ignore[attr-defined]

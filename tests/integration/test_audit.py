@@ -5,6 +5,7 @@ import importlib.metadata
 import importlib.util
 import inspect
 import pkgutil
+import types
 import warnings
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
 from deprecate import (
     DeprecatedCallableInfo,
+    TargetMode,
     deprecated,
     find_deprecated_callables,
     validate_deprecated_callable,
@@ -384,8 +386,6 @@ class TestFindDeprecatedWrappers:
 
     def test_scan_class_no_recursion_on_self_referential_class(self) -> None:
         """Member scanning terminates and finds exactly one result on a self-referential class."""
-        import types
-
         mod = types.ModuleType("selfref_test_module")
 
         def _new_compute(x: int) -> int:
@@ -599,8 +599,6 @@ class TestGenerateDeprecationMarkdown:
 
     def test_empty_module_markdown_produces_header_only(self) -> None:
         """Empty module yields a valid header-only markdown table with no data rows."""
-        import types
-
         mod = types.ModuleType("empty_test_module")
         report = generate_deprecation_table(mod, recursive=False)
         assert "| Original API | API Type | New API | Deprecated | Remove | Current Status |" in report
@@ -626,8 +624,6 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_recursive_includes_submodules(self) -> None:
         """recursive=True discovers wrappers across submodules, not just the top-level."""
-        from tests import collection_deprecate as top_pkg
-
         symbols_recursive = {
             line.split("|", maxsplit=3)[1].strip().strip("`")
             for line in generate_deprecation_table(tests, recursive=True).splitlines()
@@ -635,7 +631,7 @@ class TestGenerateDeprecationMarkdown:
         }
         symbols_top = {
             line.split("|", maxsplit=3)[1].strip().strip("`")
-            for line in generate_deprecation_table(top_pkg, recursive=False).splitlines()
+            for line in generate_deprecation_table(proxy_module, recursive=False).splitlines()
             if line.startswith("| `")
         }
         assert symbols_top.issubset(symbols_recursive)
@@ -669,11 +665,9 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_current_version_none_resolves_installed_version(self) -> None:
         """When packaging installed and package resolvable, auto-resolved version drives status."""
         # Add a synthetic wrapper so a data row appears; use packaging so status isn't "Status Unknown"
-        import types
 
         mod = types.ModuleType("deprecate")
         mod.__name__ = "deprecate"  # type: ignore[attr-defined]
-        from deprecate import TargetMode, deprecated
 
         # one-off mechanical fixture: wrapper must live in a fake module with a specific __name__ for this test
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.2")
@@ -704,10 +698,7 @@ class TestGenerateDeprecationMarkdown:
     @_requires_packaging
     def test_markdown_invalid_removal_target_status(self) -> None:
         """Symbol with unparsable remove_in produces Invalid Removal Target status."""
-        import types
-
         mod = types.ModuleType("test_bad_remove")
-        from deprecate import TargetMode, deprecated
 
         # one-off mechanical fixture: wrapper with invalid remove_in must be in a controlled fake module
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")

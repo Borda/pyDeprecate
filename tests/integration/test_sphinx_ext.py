@@ -5,7 +5,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from deprecate import deprecated_class
 from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE
+
+# Optional-dependency imports: ``sphinx`` (and therefore ``_DeprecatedProxyClassDocumenter``) may be absent.
+# Guard at module level so collection never fails; the tests below are skipped via ``_skipif_sphinx_missing``.
+if _SPHINX_AVAILABLE:
+    from sphinx.util.docstrings import prepare_docstring
+if _SPHINX_AVAILABLE and _PROXY_AVAILABLE:
+    from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
 
 _skipif_sphinx_missing = pytest.mark.skipif(
     not (_SPHINX_AVAILABLE and _PROXY_AVAILABLE), reason="sphinx or _DeprecatedProxy not available"
@@ -14,7 +22,6 @@ _skipif_sphinx_missing = pytest.mark.skipif(
 
 def _make_proxy() -> tuple[object, type]:
     """Return an (OldClass, NewClass) pair where OldClass is a _DeprecatedProxy."""
-    from deprecate import deprecated_class
 
     class _New:
         """New implementation."""
@@ -29,14 +36,11 @@ class TestCanDocumentMember:
 
     def test_returns_true_for_proxy(self) -> None:
         """Returns True when member is a _DeprecatedProxy instance."""
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
-
         proxy, _ = _make_proxy()
         assert _DeprecatedProxyClassDocumenter.can_document_member(proxy, "OldClass", False, MagicMock()) is True
 
     def test_delegates_to_base_for_regular_class(self) -> None:
         """Falls through to ClassDocumenter.can_document_member for non-proxy objects."""
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
 
         class Regular:
             pass
@@ -54,8 +58,6 @@ class TestImportObject:
 
     def test_swaps_proxy_for_wrapped_class_and_captures_doc(self) -> None:
         """Proxy is replaced by the wrapped class; proxy __doc__ is stashed in _proxy_doc."""
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
-
         proxy, wrapped = _make_proxy()
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
         doc.doc_as_attr = True
@@ -76,7 +78,6 @@ class TestImportObject:
 
     def test_non_proxy_object_is_left_unchanged(self) -> None:
         """When the imported object is not a proxy, nothing is swapped."""
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
 
         class Regular:
             """Regular class."""
@@ -99,8 +100,6 @@ class TestImportObject:
 
     def test_super_returns_false_skips_proxy_swap(self) -> None:
         """When super().import_object() returns False, no proxy swap occurs."""
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
-
         proxy, _ = _make_proxy()
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
 
@@ -124,10 +123,6 @@ class TestGetDoc:
 
     def test_returns_prepared_proxy_doc_when_set(self) -> None:
         """Returns prepare_docstring() of _proxy_doc when available."""
-        from sphinx.util.docstrings import prepare_docstring
-
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
-
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
         doc._proxy_doc = "Proxy docstring."
 
@@ -137,8 +132,6 @@ class TestGetDoc:
 
     def test_delegates_to_super_when_no_proxy_doc(self) -> None:
         """Falls through to ClassDocumenter.get_doc when _proxy_doc is absent."""
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
-
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
         expected = [["fallback doc line"]]
 
@@ -150,8 +143,6 @@ class TestGetDoc:
 
     def test_empty_proxy_doc_delegates_to_super(self) -> None:
         """An empty _proxy_doc string is treated as absent and delegates to super."""
-        from deprecate.docstring.sphinx_ext import _DeprecatedProxyClassDocumenter
-
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
         doc._proxy_doc = ""
         expected = [["fallback from super"]]

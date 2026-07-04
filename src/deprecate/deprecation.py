@@ -543,10 +543,45 @@ def _normalize_target(
     return target
 
 
+def _precompute_target_facts(
+    target: Union[Callable, TargetMode],
+) -> tuple[frozenset[str], bool, bool]:
+    """Extract decoration-time-stable signature facts of a forwarding target.
+
+    Computed once at decoration time and stored on :class:`~deprecate._types.DeprecationConfig`
+    so the call-time kwarg validation never re-inspects the target (previously an uncached
+    ``inspect.getfullargspec`` on every forwarded call).
+
+    Args:
+        target: Normalised target — a :class:`TargetMode` member or a callable.  Non-callables
+            return empty/``False`` facts because the dispatcher never forwards to them.
+
+    Returns:
+        Tuple ``(all_param_names, accepts_var_positional, accepts_var_keyword)`` where
+        ``all_param_names`` mirrors :func:`get_func_arguments_types_defaults` (every signature
+        parameter, including ``*args`` / ``**kwargs`` names).
+
+    """
+    if not callable(target):
+        return frozenset(), False, False
+    try:
+        params = _get_signature(target).parameters
+    except (TypeError, ValueError):
+        return frozenset(), False, False
+    all_names = frozenset(params)
+    accepts_var_positional = any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in params.values())
+    accepts_var_keyword = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+    return all_names, accepts_var_positional, accepts_var_keyword
+
+
 def _prepare_target_call(
     source: Callable,
     target: Callable,
     kwargs: dict[str, Any],
+    *,
+    target_arg_names: Optional[frozenset[str]] = None,
+    accepts_var_positional: bool = False,
+    accepts_var_keyword: bool = False,
 ) -> Callable:
     """Validate mapped keyword arguments and return the target callable.
 
@@ -557,6 +592,11 @@ def _prepare_target_call(
         source: Deprecated callable being wrapped.
         target: Target callable to invoke (shall not be a class).
         kwargs: Keyword arguments after mapping and defaults.
+        target_arg_names: Pre-computed target parameter names (see :func:`_precompute_target_facts`).  When
+            ``None`` the facts are derived from ``target`` on the spot — the decorator path always passes the
+            cached values so the fallback only runs for direct/test callers.
+        accepts_var_positional: Whether ``target`` declares ``*args`` (from the same pre-computed facts).
+        accepts_var_keyword: Whether ``target`` declares ``**kwargs`` (from the same pre-computed facts).
 
     Returns:
         ``target`` unchanged, after validating that it accepts ``kwargs``.
@@ -573,14 +613,12 @@ def _prepare_target_call(
         TypeError: Failed mapping of `source`, arguments not accepted by target: ['c']
 
     """
-    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target)]
-    target_full_arg_spec = inspect.getfullargspec(target)
-    var_args = target_full_arg_spec.varargs
-    var_kw = target_full_arg_spec.varkw
+    if target_arg_names is None:
+        target_arg_names, accepts_var_positional, accepts_var_keyword = _precompute_target_facts(target)
 
-    missed = [arg for arg in kwargs if arg not in target_args]
-    if missed and var_kw is None:
-        if var_args is None:
+    missed = [arg for arg in kwargs if arg not in target_arg_names]
+    if missed and not accepts_var_keyword:
+        if not accepts_var_positional:
             raise TypeError(f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}")
         raise TypeError(
             f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
@@ -920,6 +958,42 @@ def _raise_warn_arguments(
     )
 
 
+def _consume_warn_budget(
+    state: _WrapperState,
+    num_warns: int,
+    reason_callable: bool,
+    reason_argument: dict[str, Optional[str]],
+) -> bool:
+    """Check the warn budget and consume one unit from it when a warning may fire.
+
+    Must be called while holding ``state.lock`` — the read-check-increment sequence is exactly
+    what the lock protects (see the thread-safety note at the call site).
+
+    Args:
+        state: Mutable per-wrapper counters.
+        num_warns: Configured budget; negative means unlimited.
+        reason_callable: Warning is for the deprecated callable itself — consumes ``warned_calls``.
+        reason_argument: Deprecated argument names present in this call — consumes per-argument
+            budgets in ``warned_args``; takes precedence over the call counter for the check.
+
+    Returns:
+        True when the caller should emit the warning (budget available and now consumed).
+
+    """
+    if reason_argument:
+        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
+    else:
+        nb_warned = state.warned_calls
+    if num_warns >= 0 and nb_warned >= num_warns:
+        return False
+    if reason_callable:
+        state.warned_calls += 1
+    elif reason_argument:
+        for arg in reason_argument:
+            state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+    return True
+
+
 def _build_call_plan(  # noqa: C901, PLR0912
     wrapper_fn: Callable[..., Any],
     source: Callable[..., Any],
@@ -1009,17 +1083,22 @@ def _build_call_plan(  # noqa: C901, PLR0912
             target_func=None,
         )
 
-    if reason_argument:
-        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-    else:
-        nb_warned = state.warned_calls
-
     # +1 stacklevel: extraction added one frame (caller → wrapper_fn → _build_call_plan → _raise_warn_*)
     # over the previous in-wrapper call chain.  Async path has the same frame depth:
     # caller → coroutine `async_wrapped_fn` body → _build_call_plan → _raise_warn_* — the asyncio runner
     # frames sit *below* the caller and are skipped by warnings.warn's stacklevel walk.
     _stacklevel_to_caller = _DEFAULT_STACKLEVEL_TO_CALLER + 1
-    if stream and (num_warns < 0 or nb_warned < num_warns):
+    # Double-checked fast path: avoid the lock when the warn budget is clearly exhausted.
+    # Under CPython the int read is atomic (GIL); after num_warns=1 fires once,
+    # warned_calls >= num_warns on every subsequent call — no benefit from acquiring the lock.
+    # The authoritative check-then-increment still runs under the lock when a warning may fire.
+    # Argument-specific budgets are not pre-checked (rare path, dict lookup not worth the complexity).
+    should_warn = False
+    if stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
+        with state.lock:
+            should_warn = _consume_warn_budget(state, num_warns, reason_callable, reason_argument)
+    if should_warn:
+        assert stream is not None  # noqa: S101 — should_warn is only set while holding the lock when stream is truthy
         if reason_callable:
             # Use original `target` (not remapped normalized_target) so the warning
             # names the class (e.g. "NewCls") rather than "__init__".
@@ -1032,7 +1111,6 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 template_mgs=dep_cfg.template_mgs,
                 stacklevel=_stacklevel_to_caller,
             )
-            state.warned_calls += 1
         elif reason_argument:
             _raise_warn_arguments(
                 stream=stream,
@@ -1043,13 +1121,15 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 template_mgs=dep_cfg.template_mgs,
                 stacklevel=_stacklevel_to_caller,
             )
-            for arg in reason_argument:
-                state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
 
     if reason_callable:
-        # Source defaults for renamed args survive _update_kwargs_with_defaults and
-        # would be forwarded under the new name, silently overriding the target's own
-        # default. Drop only when the caller never supplied the old or new name.
+        # Source defaults for renamed args survive _update_kwargs_with_defaults and would be forwarded
+        # under the new name, silently overriding the target's own default. Drop only the *renamed*
+        # old-arg default when the caller supplied neither the old nor the new name.
+        # NOTE: non-renamed shared parameters intentionally keep their source default — the source
+        # signature is the contract the caller migrated from, so its default is forwarded (see
+        # ``decorated_sum`` / ``test_functions.py::test_default``). CORE-4 proposed dropping these too;
+        # that conflicts with the tested behaviour and is deliberately NOT applied.
         if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
             _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
             caller_keys = set(kwargs)
@@ -1067,11 +1147,13 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 target_defaults = rename_targets
             full_defaults = _update_kwargs_with_defaults(source, kwargs)
 
-            def is_default_dropped(k: str) -> bool:
-                remapped = k in rename_sources and _am.get(k) in target_defaults
-                return k not in rename_targets and not remapped
+            def is_source_default_kept(k: str) -> bool:
+                # A renamed old-arg default is stale when the target has its own default → drop it;
+                # everything else (non-renamed params) keeps its source default.
+                renamed_with_target_default = k in rename_sources and _am.get(k) in target_defaults
+                return k not in rename_targets and not renamed_with_target_default
 
-            kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_default_dropped(k)}
+            kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_source_default_kept(k)}
         else:
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
@@ -1093,7 +1175,18 @@ def _build_call_plan(  # noqa: C901, PLR0912
     # uniform argument set even if the helper later needs to switch on var-positional shape.
     target_func: Optional[Callable[..., Any]] = None
     if callable(normalized_target):
-        target_func = _prepare_target_call(source, normalized_target, kwargs)
+        # ``None`` means facts were not precomputed (manual DeprecationConfig construction or proxy path);
+        # _prepare_target_call recomputes from target. ``frozenset()`` is a valid cached value for zero-arg
+        # targets — gate on identity (``is not None``), not truthiness, to preserve the zero-arg cache hit.
+        _cached_target_names = dep_cfg.target_all_param_names
+        target_func = _prepare_target_call(
+            source,
+            normalized_target,
+            kwargs,
+            target_arg_names=_cached_target_names,
+            accepts_var_positional=dep_cfg.target_accepts_var_positional,
+            accepts_var_keyword=dep_cfg.target_accepts_var_keyword,
+        )
 
     return _CallPlan(
         short_circuit=False,
@@ -1145,7 +1238,11 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # Order-agnostic: unwrap → deprecate inner function → rewrap.
         # Both @classmethod orders produce classmethod(deprecated_wrapper);
         # both @staticmethod orders produce staticmethod(deprecated_wrapper).
-        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2)
+        # A staticmethod receives no ``self``, so the cross-class guard's rationale ("self would carry
+        # the wrong type") does not apply — thread ``_is_static`` through so ``packing`` skips the guard
+        # for the unwrapped function, whose qualname alone cannot reveal it was a staticmethod.
+        _is_static = isinstance(source, staticmethod)
+        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2, _is_static=_is_static)
         return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
 
     if isinstance(source, property):
@@ -1706,6 +1803,7 @@ def deprecated(  # noqa: C901
     def packing(  # noqa: C901
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
         _stacklevel: int = 2,
+        _is_static: bool = False,
     ) -> Callable:
         _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra, _stacklevel)
         if _descriptor_result is not None:
@@ -1750,8 +1848,12 @@ def deprecated(  # noqa: C901
         # constructor forwarding (target=NewCls on __init__) is always valid.
         # Descriptor targets: unwrap __func__ so the guard can inspect the qualname;
         # raw staticmethod/classmethod descriptors lack __qualname__ on the instance.
+        # A staticmethod *source* skips the guard: no ``self`` is passed, so cross-class forwarding
+        # cannot carry a wrong-typed receiver (see ``_is_static``).  A staticmethod *target* is NOT a
+        # skip signal — an instance-method source forwarding to a staticmethod would still leak ``self``
+        # across classes, so that case must keep raising.
         _guard_target = _unwrap_descriptor_target(target)
-        if callable(_guard_target) and not inspect.isclass(_guard_target):
+        if callable(_guard_target) and not inspect.isclass(_guard_target) and not _is_static:
             _check_cross_class_method_target(source, _guard_target)
         _target = _normalize_target(source, target)
         # ATTRS_REMAP is a proxy-only mode — it is meaningless on @deprecated functions/methods
@@ -1801,6 +1903,13 @@ def deprecated(  # noqa: C901
         _target_positional_only, _target_positional_only_order = _detect_positional_only(
             _target, source, stream, _stacklevel + 1
         )
+        # Precompute the target signature facts the call-time kwarg validation needs (accepted-name set
+        # and var-arg flags) so no forwarded call re-inspects the target via inspect.getfullargspec.
+        (
+            _target_all_names,
+            _target_accepts_var_positional,
+            _target_accepts_var_keyword,
+        ) = _precompute_target_facts(_target)
 
         stored_target = _resolve_stored_target(target)
         misconfigured = target is False or _function_misconfigured
@@ -1819,6 +1928,9 @@ def deprecated(  # noqa: C901
             source_positional_only=_source_positional_only,
             source_positional_only_order=_source_positional_only_order,
             source_var_positional_prefix=_source_var_positional_prefix,
+            target_all_param_names=_target_all_names,
+            target_accepts_var_positional=_target_accepts_var_positional,
+            target_accepts_var_keyword=_target_accepts_var_keyword,
         )
         _dep_cfg = dep_meta
 

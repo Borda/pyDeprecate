@@ -2,11 +2,13 @@
 
 import warnings
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 
 from deprecate import deprecated_instance
 from tests.collection_deprecate import depr_config_dict, depr_config_dict_read_only
+from tests.collection_targets import ManagedResource
 
 
 class TestInstanceProxy:
@@ -79,3 +81,30 @@ class TestReadOnlyMode:
         """Shared read-only fixture from test collection should enforce write protection consistently across tests."""
         with pytest.raises(AttributeError, match="read-only"):
             depr_config_dict_read_only["threshold"] = 99.0
+
+
+class TestInstanceProtocolForwarding:
+    """deprecated_instance forwards operator and context-manager protocols to the wrapped object (PROX-4)."""
+
+    def test_arithmetic_operator_forwards_and_warns(self) -> None:
+        """A deprecated numeric constant stays usable in arithmetic and warns once when so used.
+
+        A project retiring a public integer constant wraps it with ``deprecated_instance``; callers writing
+        ``LEGACY_COUNT + 5`` must still get the arithmetic result while being nudged with a single FutureWarning.
+        """
+        proxy: Any = deprecated_instance(10, name="count", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `count` was deprecated since v1\.0"):
+            total = proxy + 5
+        assert total == 15
+
+    def test_context_manager_forwards(self) -> None:
+        """A deprecated resource handle drives its ``with`` block, entering and exiting the wrapped object.
+
+        Wrapping a legacy resource in ``deprecated_instance`` must not break ``with resource:`` usage during the
+        migration window; both context transitions reach the underlying object.
+        """
+        resource = ManagedResource()
+        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with proxy:
+            pass
+        assert (resource.entered, resource.exited) == (True, True)

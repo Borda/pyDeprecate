@@ -27,10 +27,15 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
-from tests.collection_targets import PositionalOnlyTarget
+from tests.collection_targets import ColorEnum, PositionalOnlyTarget
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
+
+# Optional dependency: ``packaging`` ships with the ``[audit]`` extra. Guard the import at module level so
+# collection never fails; the tests that use ``Version`` are gated by ``@_requires_packaging``.
+if _PACKAGING_AVAILABLE:
+    from packaging.version import Version
 
 
 class _SideEffectScanModule:
@@ -184,7 +189,6 @@ class TestGetDeprecationStatus:
     @_requires_packaging
     def test_status_active_warning_with_current_version_and_future_remove_in(self) -> None:
         """Current version before remove_in maps to Deprecation Active."""
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
         def function() -> None:
@@ -198,7 +202,6 @@ class TestGetDeprecationStatus:
     @_requires_packaging
     def test_status_invalid_removal_target(self) -> None:
         """Non-parseable remove_in maps to Invalid Removal Target."""
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
         def function() -> None:
@@ -217,7 +220,6 @@ class TestGetDeprecationStatus:
         version is below it, the symbol is not yet emitting warnings to end users.
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="9.0")
         def function() -> None:
@@ -236,7 +238,6 @@ class TestGetDeprecationStatus:
         the audit elevates the status above plain ``ACTIVE_WARNING`` to flag impending removal.
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.10")
         def function() -> None:
@@ -257,7 +258,6 @@ class TestGetDeprecationStatus:
         ``current_version.pre[0] == "rc"`` after confirming ``same_base``).
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.9")
         def function() -> None:
@@ -275,7 +275,6 @@ class TestGetDeprecationStatus:
         The symbol should have been deleted before this release; audit surfaces it as overdue.
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.9")
         def function() -> None:
@@ -324,8 +323,6 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_callable_target_no_effect_false(self) -> None:
         """Proxy forwarding to a callable target is effective → no_effect=False."""
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )
@@ -336,8 +333,6 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_args_mapping_skips_signature_validation(self) -> None:
         """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={},
             name="mapped",
@@ -353,8 +348,6 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_identity_args_mapping_detected(self) -> None:
         """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={},
             name="identity_mapped",
@@ -408,8 +401,6 @@ class TestValidateDeprecationWrapperWithProxy:
         Without this, getattr routes through __getattr__ and leaks the target's __name__.
 
         """
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )

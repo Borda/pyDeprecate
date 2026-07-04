@@ -5,9 +5,11 @@ catch schema mismatches at analysis time rather than silently returning ``None``
 
 """
 
+import copy
+import threading
 import warnings
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Union, runtime_checkable
 
@@ -436,6 +438,19 @@ class DeprecationConfig:
             positional tail (``args[prefix:]``) that must be forwarded to a callable target
             rather than silently dropped.  ``0`` when the source declares no var-positional
             parameter.
+        target_all_param_names: All parameter names of the forwarding target callable (including any
+            ``*args`` / ``**kwargs`` names), pre-computed at decoration time so the call-time kwarg
+            validation in :func:`~deprecate.deprecation._prepare_target_call` does not re-inspect the
+            target on every forwarded call.  ``None`` when facts are not precomputed (manual
+            ``DeprecationConfig`` construction or non-callable target); ``frozenset()`` for zero-arg
+            callables.  Internal call-time cache — excluded from ``repr`` and equality so audit output
+            and stored-config comparisons stay stable.
+        target_accepts_var_positional: ``True`` when the forwarding target declares ``*args``.  Pre-computed
+            decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
+            excluded from ``repr`` and equality.
+        target_accepts_var_keyword: ``True`` when the forwarding target declares ``**kwargs``.  Pre-computed
+            decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
+            excluded from ``repr`` and equality.
 
     """
 
@@ -456,6 +471,9 @@ class DeprecationConfig:
     source_positional_only: frozenset[str] = field(default_factory=frozenset)
     source_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
     source_var_positional_prefix: int = 0
+    target_all_param_names: Optional[frozenset[str]] = field(default=None, repr=False, compare=False)
+    target_accepts_var_positional: bool = field(default=False, repr=False, compare=False)
+    target_accepts_var_keyword: bool = field(default=False, repr=False, compare=False)
 
 
 @runtime_checkable
@@ -518,6 +536,10 @@ class _ProxyConfig:
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
+        lock: Guards the warn-quota check-then-act sequence (read counter → decide to emit → increment) so that
+            concurrent first accesses cannot all pass the ``num_warns`` gate and each emit a warning.  Excluded from
+            ``repr`` and equality — it is runtime machinery, not state identity.  A fresh lock is created on copy /
+            deepcopy rather than transferring the original mutex state.
 
     """
 
@@ -530,6 +552,22 @@ class _ProxyConfig:
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_ProxyConfig":
+        return replace(
+            self,
+            obj=copy.deepcopy(self.obj, memo),
+            warned_args=copy.deepcopy(self.warned_args, memo),
+            lock=threading.Lock(),  # fresh lock — mutex state is not transferable
+        )
+
+    def __getstate__(self) -> dict[str, Any]:
+        return {k: v for k, v in self.__dict__.items() if k != "lock"}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self.lock = threading.Lock()  # fresh lock — mutex state is not transferable
 
 
 @dataclass
@@ -544,6 +582,10 @@ class _WrapperState:
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
         warned_misconfigured: ``True`` after the one-time misconfiguration UserWarning has been emitted at call time.
+        lock: Guards the warn-quota check-then-act sequence (read counter → decide to emit → increment) so that
+            concurrent first calls cannot all pass the ``num_warns`` gate and each emit a warning.  Only the warn
+            path takes this lock; the ``called`` counter is a best-effort diagnostic and stays lock-free.  Excluded
+            from ``repr`` and equality — it is runtime machinery, not state identity.
 
     """
 
@@ -551,6 +593,7 @@ class _WrapperState:
     warned_calls: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
     warned_misconfigured: bool = False
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
 
 @runtime_checkable
