@@ -2138,9 +2138,9 @@ True
 
 **Problem:** The deprecation notice shows an unexpected path when a function is moved to a different module.
 
-**Cause:** pyDeprecate resolves the target path from and at decoration time — not at call time. If the target is imported via an alias or re-export at the point where is applied, the stored path reflects the alias, not the canonical location.
+**Cause:** pyDeprecate resolves the target path from `target.__module__` and `target.__qualname__` at decoration time — not at call time. If the target is imported via an alias or re-export at the point where `@deprecated` is applied, the stored path reflects the alias, not the canonical location.
 
-**Solution:** Import the target from its canonical module location before applying . The deprecation notice will then show the fully-qualified path where the function actually lives.
+**Solution:** Import the target from its canonical module location before applying `@deprecated`. The deprecation notice will then show the fully-qualified path where the function actually lives.
 
 ## 🤝 Contributing
 

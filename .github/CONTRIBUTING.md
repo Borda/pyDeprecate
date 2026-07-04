@@ -330,18 +330,18 @@ pyDeprecate/
 ├── src/deprecate/              # Core library code
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
-│   ├── docstring/              # Docstring utilities subpackage
-│   │   ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
-│   │   ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
-│   │   └── sphinx_ext.py       # Sphinx autodoc extension (beta)
-│   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
+│   ├── __main__.py             # python -m deprecate entry point
 │   ├── _cli.py                 # CLI subcommands: check, expiry, chains, all, status
 │   ├── _pkg.py                 # Version and path resolution helpers
-│   ├── __main__.py             # python -m deprecate entry point
+│   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # @deprecated decorator and warning logic
-│   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
-│   └── utils.py                # Low-level helpers: void(), assert_no_warnings()
+│   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
+│   ├── utils.py                # Low-level helpers: void(), assert_no_warnings()
+│   └── docstring/              # Docstring utilities subpackage
+│       ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
+│       ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
+│       └── sphinx_ext.py       # Sphinx autodoc extension (beta)
 ├── tests/                      # Test suite
 │   ├── collection_targets.py       # Target functions (new implementations)
 │   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
