@@ -153,7 +153,7 @@ class TestGetFuncArgumentsTypesDefaults:
         assert get_func_arguments_types_defaults(my_func) == []
 
     def test_excludes_var_positional_and_var_keyword(self) -> None:
-        """``*args`` / ``**kwargs`` are excluded as the docstring promises (CORE-9).
+        """``*args`` / ``**kwargs`` are excluded as the docstring promises.
 
         The helper backs caller-argument validation; leaking the VAR_POSITIONAL / VAR_KEYWORD parameter names
         into that check made a forwarded call raise a raw ``TypeError`` on ``args``/``kwargs`` instead of the

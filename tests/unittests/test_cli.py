@@ -1122,7 +1122,7 @@ class TestCmdStatus:
 
 
 class _NoneEncodingStream:
-    """Stream stub whose ``encoding`` attribute is present but ``None`` (CLI-6 fixture)."""
+    """Stream stub whose ``encoding`` attribute is present but ``None`` (fixture)."""
 
     encoding = None
 
@@ -1135,7 +1135,7 @@ class _NoneEncodingStream:
 
 
 class TestEnsureUtf8StreamsNoneEncoding:
-    """CLI-6 — a stream whose ``encoding`` is ``None`` must not crash the UTF-8 reconfigure pass."""
+    """A stream whose ``encoding`` is ``None`` must not crash the UTF-8 reconfigure pass."""
 
     def test_none_encoding_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A ``None`` encoding is tolerated (treated as UTF-8, so reconfigure is skipped) rather than crashing.
@@ -1152,7 +1152,7 @@ class TestEnsureUtf8StreamsNoneEncoding:
 
 
 class TestCliEmptyExceptionMessage:
-    """CLI-7 — an exception with an empty message must still produce a non-blank stderr exit line."""
+    """An exception with an empty message must still produce a non-blank stderr exit line."""
 
     def test_empty_message_exception_exits_with_type_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A subcommand raising a message-less exception exits with the exception type name, not a blank line.

@@ -543,7 +543,7 @@ class _DeprecatedProxy:
             return
         # Route the warning to the caller's frame rather than ``proxy.py``.
         # A plain ``try/except TypeError`` would swallow a TypeError raised *inside* a
-        # stacklevel-accepting stream and re-invoke it (double side-effect, CORE-10).
+        # stacklevel-accepting stream and re-invoke it (double side-effect).
         # Checking the exception message distinguishes a keyword-rejection error from an
         # internal one — the stream is called exactly once in all but the keyword-rejection case.
         try:
@@ -861,8 +861,8 @@ class _DeprecatedProxy:
         """Compare the *active* object for equality — the object the proxy actually serves.
 
         Data access (attribute/item/call) forwards to the active object (target when set, else source), so identity
-        operations must too; comparing the source while serving the target made a target-forwarding proxy equal to an
-        object it never returns (PROX-8).
+        # operations must too; comparing the source while serving the target would make a
+        # target-forwarding proxy equal to an object it never returns.
 
         """
         obj = self._get_active()

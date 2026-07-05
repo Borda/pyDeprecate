@@ -1171,12 +1171,12 @@ class TestInnerOrderPropertyAudit:
 
 
 def _aud_new_impl() -> int:
-    """Replacement callable used as a deprecation target for the private-member scan fixture (AUD-6)."""
+    """Replacement callable used as a deprecation target for the private-member scan fixture."""
     return 1
 
 
 class _AudPrivateMembers:
-    """Fixture class carrying deprecated private members across all descriptor kinds (AUD-6)."""
+    """Fixture class carrying deprecated private members across all descriptor kinds."""
 
     @deprecated(target=_aud_new_impl, deprecated_in="1.0", remove_in="2.0")
     def _legacy(self) -> int:
@@ -1199,18 +1199,18 @@ class _AudPrivateMembers:
 
 
 class _AudTargetCls:
-    """Plain class used both as the wrapped object and target of a self-referential proxy (AUD-7 fixture)."""
+    """Plain class used both as the wrapped object and target of a self-referential proxy (fixture)."""
 
 
 class _AudAttrsMappingTarget:
-    """Fixture class with both old and new attribute names for the attrs_mapping self-reference test (AUD-7)."""
+    """Fixture class with both old and new attribute names for the attrs_mapping self-reference test."""
 
     old_attr: int = 0
     new_attr: int = 0
 
 
 class TestNormalizeVersionStringLocalSegment:
-    """AUD-5 — the label-normalizing regex must not touch the PEP 440 local segment, and only one leading v strips."""
+    """The label-normalizing regex must not touch the PEP 440 local segment, and only one leading v strips."""
 
     def test_preserves_local_segment(self) -> None:
         """A legitimate local like ``1.2.3+cuda`` must survive verbatim instead of becoming ``1.2.3+cuda0``.
@@ -1230,7 +1230,7 @@ class TestNormalizeVersionStringLocalSegment:
 
 
 class TestScanClassPrivateDeprecated:
-    """AUD-6 — deprecated private/dunder members carry ``__deprecated__`` and must be surfaced so they can expire."""
+    """Deprecated private/dunder members carry ``__deprecated__`` and must be surfaced so they can expire."""
 
     def test_member_meta_peeks_through_descriptor(self) -> None:
         """The helper detects deprecation metadata stored on a descriptor's underlying callable."""
@@ -1282,7 +1282,7 @@ class TestScanClassPrivateDeprecated:
 
 
 class TestProxySelfReferenceDetection:
-    """AUD-7 — a proxy whose deprecated target is its own wrapped object is a self-reference."""
+    """A proxy whose deprecated target is its own wrapped object is a self-reference."""
 
     def test_self_reference_detected_for_proxy(self) -> None:
         """``target is func.wrapped`` marks the proxy as self-referential even though ``target is func`` is False.
@@ -1301,7 +1301,7 @@ class TestProxySelfReferenceDetection:
 
         A _DeprecatedProxy whose target matches its wrapped object but also carries an active
         ``args_mapping`` still performs meaningful argument remapping and must not be flagged as
-        a no-op self-reference. The AUD-7 predicate narrows self_reference to the zero-remapping
+        a no-op self-reference. The self-reference predicate narrows to the zero-remapping
         case only; a proxy with mapping is an effective wrapper even when target is func.wrapped.
         """
         proxy = _DeprecatedProxy(
@@ -1337,7 +1337,7 @@ class TestProxySelfReferenceDetection:
 
 
 class TestForeignObjectDeprecationMetaGuard:
-    """AUD-9 — ``_has_deprecation_meta`` must not crash a scan on a foreign object raising a non-AttributeError."""
+    """``_has_deprecation_meta`` must not crash a scan on a foreign object raising a non-AttributeError."""
 
     def test_hostile_getattr_returns_false(self) -> None:
         """An object whose ``__deprecated__`` property raises is treated as carrying no metadata, not crashed on.
@@ -1357,7 +1357,7 @@ class TestForeignObjectDeprecationMetaGuard:
 
 
 class TestBatchExpiryUnparsableVersion:
-    """AUD-8 — an unparsable ``remove_in`` in a batch scan warns instead of being silently skipped."""
+    """An unparsable ``remove_in`` in a batch scan warns instead of being silently skipped."""
 
     @_requires_packaging
     def test_unparsable_remove_in_warns_and_is_not_expired(self) -> None:

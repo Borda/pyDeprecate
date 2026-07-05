@@ -1073,7 +1073,7 @@ class TestTypeProtocol:
             proxy()  # warning budget remains untouched
 
     def test_isinstance_raises_typeerror_for_non_type_active(self) -> None:
-        """``isinstance(x, instance_proxy)`` raises TypeError like the builtin (PROX-10).
+        """``isinstance(x, instance_proxy)`` raises TypeError like the builtin.
 
         Using an *instance* proxy (one wrapping a value rather than a class) as the second argument to
         ``isinstance`` is a misuse. Previously the proxy silently returned ``False``, hiding the mistake; it now
@@ -2642,7 +2642,7 @@ class TestProxyCopyPickle:
 
 
 class TestOperatorForwarding:
-    """Type-level operator, conversion, and context-manager dunders forward to the active object (PROX-4)."""
+    """Type-level operator, conversion, and context-manager dunders forward to the active object."""
 
     @pytest.mark.parametrize(
         ("op", "expected"),
@@ -2853,7 +2853,7 @@ class TestAsyncProtocolForwarding:
     """Async protocol dunders forward to the active object so ``async with`` / ``async for`` / ``await`` keep working.
 
     The proxy hand-forwards ``__aenter__``/``__aexit__``/``__aiter__``/``__anext__``/``__await__`` to the wrapped
-    async resource (PROX-4). These exercise the real asyncio runtime paths, not just structural presence of the
+    async resource. These exercise the real asyncio runtime paths, not just structural presence of the
     methods. Warning policy mirrors the sync analogues: data-driving entry/iteration/await warn once; the
     ``__aexit__`` cleanup half stays silent.
     """
@@ -2928,7 +2928,7 @@ class TestAsyncProtocolForwarding:
 
 
 class TestProxySubclassing:
-    """PEP 560 subclassing of deprecated class aliases via ``__mro_entries__`` (PROX-7)."""
+    """PEP 560 subclassing of deprecated class aliases via ``__mro_entries__``."""
 
     def test_subclass_derives_from_active_class(self) -> None:
         """``class Child(DeprecatedAlias)`` transparently subclasses the wrapped class and inherits its behaviour.
@@ -2956,7 +2956,7 @@ class TestProxySubclassing:
     def test_attrs_remap_subclassing_does_not_warn(self) -> None:
         """An ATTRS_REMAP alias deprecates only listed attributes, so subclassing it stays silent.
 
-        Mirrors the ``__call__`` policy (PROX-5): when only specific attribute aliases are deprecated, deriving a new
+        Mirrors the ``__call__`` policy: when only specific attribute aliases are deprecated, deriving a new
         class from the alias is not a deprecated surface and must not brand the whole class deprecated.
         """
         alias = deprecated_class(attrs_mapping={"marker": None}, deprecated_in="1.0", remove_in="2.0")(SubclassableBase)
@@ -2990,7 +2990,7 @@ class TestProxySubclassing:
 
 
 class TestAttrsRemapCallPolicy:
-    """Non-stacked ATTRS_REMAP proxies do not warn on plain instantiation/call (PROX-5)."""
+    """Non-stacked ATTRS_REMAP proxies do not warn on plain instantiation/call."""
 
     def test_instantiation_does_not_warn(self) -> None:
         """Constructing a class whose deprecation covers only listed attributes emits no class-level warning.
@@ -3013,15 +3013,15 @@ class TestAttrsRemapCallPolicy:
 
 
 class _P8Source:
-    """Plain source class used as the deprecated ``obj`` of a target-forwarding proxy (PROX-8 fixture)."""
+    """Plain source class used as the deprecated ``obj`` of a target-forwarding proxy (fixture)."""
 
 
 class _P8Target:
-    """Plain replacement class used as the ``target`` a proxy actually serves (PROX-8 fixture)."""
+    """Plain replacement class used as the ``target`` a proxy actually serves (fixture)."""
 
 
 class TestProxyIdentityUsesActive:
-    """PROX-8 — ``__eq__`` / ``__hash__`` / ``__repr__`` / ``__str__`` reflect the served (active) object."""
+    """``__eq__`` / ``__hash__`` / ``__repr__`` / ``__str__`` reflect the served (active) object."""
 
     def test_eq_matches_active_target_not_source(self) -> None:
         """A target-forwarding proxy compares equal to the object it actually serves, not the deprecated source.
@@ -3044,13 +3044,13 @@ class TestProxyIdentityUsesActive:
 
 
 class _P9Config:
-    """Active class exposing ``new_attr`` so an ``attrs_mapping`` redirect target validates (PROX-9 fixture)."""
+    """Active class exposing ``new_attr`` so an ``attrs_mapping`` redirect target validates (fixture)."""
 
     new_attr = 1
 
 
 class TestProxyAttrsMappingDefensiveCopy:
-    """PROX-9 — the frozen config must not alias the caller's mutable ``attrs_mapping`` dict."""
+    """The frozen config must not alias the caller's mutable ``attrs_mapping`` dict."""
 
     def test_post_construction_mutation_ignored(self) -> None:
         """Mutating the caller's ``attrs_mapping`` after construction cannot alter the frozen proxy config.
@@ -3067,7 +3067,7 @@ class TestProxyAttrsMappingDefensiveCopy:
 
 
 class TestProxyStreamStacklevelProbe:
-    """PROX-11 — a stacklevel-accepting stream that raises internally must not be re-invoked."""
+    """A stacklevel-accepting stream that raises internally must not be re-invoked."""
 
     def test_internal_typeerror_not_swallowed_no_double_call(self) -> None:
         """An internal ``TypeError`` from a custom stream propagates and the stream runs exactly once.
@@ -3090,7 +3090,7 @@ class TestProxyStreamStacklevelProbe:
 
 
 class TestProxySubclassCheckTypeError:
-    """PROX-10 — ``issubclass`` with an instance proxy raises TypeError like the builtin."""
+    """``issubclass`` with an instance proxy raises TypeError like the builtin."""
 
     def test_issubclass_raises_typeerror_for_non_type_active(self) -> None:
         """Using an instance proxy as ``issubclass`` arg 2 raises TypeError instead of silently returning False."""

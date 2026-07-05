@@ -1183,8 +1183,8 @@ def _build_call_plan(  # noqa: C901, PLR0912
         # old-arg default when the caller supplied neither the old nor the new name.
         # NOTE: non-renamed shared parameters intentionally keep their source default — the source
         # signature is the contract the caller migrated from, so its default is forwarded (see
-        # ``decorated_sum`` / ``test_functions.py::test_default``). CORE-4 proposed dropping these too;
-        # that conflicts with the tested behaviour and is deliberately NOT applied.
+        # ``decorated_sum`` / ``test_functions.py::test_default``). Dropping these too
+        # would conflict with the tested behaviour and is deliberately NOT applied.
         if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
             _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
             caller_keys = set(kwargs)

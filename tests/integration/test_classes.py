@@ -449,7 +449,7 @@ class TestDeprecatedClassWithTargetMode:
 
 
 class TestDeprecatedClassSubclassing:
-    """End-to-end subclassing and call behaviour of ``deprecated_class`` aliases (PROX-5 / PROX-7)."""
+    """End-to-end subclassing and call behaviour of ``deprecated_class`` aliases."""
 
     def test_subclass_inherits_from_replacement(self) -> None:
         """A subclass written against a deprecated class alias inherits the real replacement behaviour and warns once.

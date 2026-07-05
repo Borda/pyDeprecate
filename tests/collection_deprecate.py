@@ -1186,7 +1186,7 @@ class CrossGuardOldClass(CrossGuardClassTargetNew):
 
 
 class StaticGuardNewClass:
-    """Target class for the CORE-6 staticmethod cross-class guard regression."""
+    """Target class for the staticmethod cross-class guard regression."""
 
     @staticmethod
     def compute(x: int) -> int:
@@ -1197,7 +1197,7 @@ class StaticGuardNewClass:
 class StaticGuardOldClass:
     """Source class whose deprecated staticmethod forwards to a staticmethod on a *different* class.
 
-    Regression for CORE-6: the cross-class guard used to raise ``TypeError`` at decoration time here because it
+    Regression test: the cross-class guard used to raise ``TypeError`` at decoration time here because it
     saw two different owning classes in the qualnames.  A staticmethod receives no ``self``, so cross-class
     forwarding is safe; the guard is now skipped for staticmethod sources and this module imports cleanly.
     """
@@ -1457,8 +1457,8 @@ def fn_shared_default(x: int, level: int = 1) -> int:
     source signature is the contract the caller migrated from, so the source's ``level=1`` default is forwarded
     and wins over the target's ``level=99`` when the caller supplies neither.  This is deliberately different
     from the *renamed* path (see ``fn_old_default``), where a stale old-arg default is dropped because that
-    argument is being removed.  (Review finding CORE-4 proposed dropping the non-renamed default too; it was
-    assessed as a misdiagnosis — the behaviour is intended and enforced by ``test_functions.py::test_default``.)
+    argument is being removed.  (The proposal to drop the non-renamed default too was assessed as a
+    misdiagnosis — the behaviour is intended and enforced by ``test_functions.py::test_default``.)
 
     """
     return void(x, level)

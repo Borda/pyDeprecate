@@ -576,7 +576,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
 
     # Self-reference: the wrapper forwards to itself. For a proxy the wrapper object is the proxy while its
     # deprecated target is the *wrapped* object, so ``target is func`` never matches — compare against
-    # ``func.wrapped`` too (AUD-7). A proxy is self-referential only when there is *no* active remapping:
+    # ``func.wrapped`` too. A proxy is self-referential only when there is *no* active remapping:
     # a proxy with non-empty ``args_mapping`` or ``attrs_mapping`` still performs meaningful transformation
     # and must not be flagged as a no-op.
     self_reference = target is not None and (
@@ -909,7 +909,7 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
     for attr_name, obj in members:
         # Skip private/dunder members that are *not* themselves deprecated. Deprecated private or dunder
         # members (e.g. a deprecated ``_legacy`` method or ``__eq__``) still carry ``__deprecated__`` and must
-        # be surfaced so they can expire — only ``__init__`` was previously exempt (AUD-6).
+        # be surfaced so they can expire — only ``__init__`` is exempt.
         if attr_name.startswith("_") and attr_name != "__init__" and not _member_has_deprecation_meta(obj):
             continue
         qualified = f"{cls_name}.{attr_name}"

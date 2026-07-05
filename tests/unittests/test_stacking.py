@@ -337,7 +337,7 @@ class TestStackingCombinations:
 
 
 class TestDeprecatedProxyNonTypeFallback:
-    """``_DeprecatedProxy`` wrapping a non-type object: ``__instancecheck__`` / ``__subclasscheck__`` misuse (PROX-10).
+    """``_DeprecatedProxy`` wrapping a non-type object: ``__instancecheck__`` / ``__subclasscheck__`` misuse.
 
     When ``_DeprecatedProxy._get_active()`` returns something that is neither a ``type`` nor a
     ``_DeprecatedProxy``, using the *instance* proxy as the second argument to ``isinstance`` / ``issubclass``
