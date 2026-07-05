@@ -1320,6 +1320,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" DeprecationStatus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__ge__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__ge__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__gt__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__gt__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__le__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__le__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__lt__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__lt__
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1971,6 +2021,56 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" DeprecationStatus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__ge__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__ge__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__gt__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__gt__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__le__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__le__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecationStatus.__lt__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__lt__
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3597,7 +3697,7 @@ print(len(expired))  # Some functions and class members have remove_in &lt;= "0.
 <ul>
 <li>Skips callables without a <code>remove_in</code> field (warnings only, no removal deadline)</li>
 <li>Skips callables that cannot be imported or accessed</li>
-<li>Silently skips callables with invalid <code>remove_in</code> version formats</li>
+<li>Emits a <code>UserWarning</code> (rather than silently skipping) for callables with an unparsable <code>remove_in</code></li>
 <li>Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")</li>
 <li>Intended for automated checks in CI/CD pipelines</li>
 <li>Can be integrated into test suites or pre-commit hooks</li>
@@ -4574,14 +4674,18 @@ Also used when <code>attrs_mapping</code> values point at another deprecated att
 <p>Each member's value is the full display string (emoji + text) rendered in the table.
 Using a <code>str</code> enum means members compare equal to their string values and can be
 returned wherever a plain string is expected.</p>
-<p>Members are ordered from least to most urgent for easy visual scanning:</p>
+<p>Members are <em>declared</em> from least to most urgent for readability, but this enum is <strong>not orderable by
+urgency</strong>: because each value starts with an emoji, the inherited <code>str</code> ordering operators (<code>&lt;</code>, <code>&gt;</code>)
+compare Unicode codepoints of those emoji, not deprecation urgency. Do not rely on <code>status_a &gt; status_b</code>
+to mean "more urgent" — compare members explicitly (<code>status is DeprecationStatus.PAST_REMOVAL_DATE</code>).
+The ordering operators are overridden to raise <code>TypeError</code> so accidental comparisons fail loudly.</p>
 
 
 <p><span class="doc-section-title">Examples:</span></p>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">DeprecationStatus</span><span class="o">.</span><span class="n">ACTIVE_WARNING</span><span class="o">.</span><span class="n">value</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="go">&#39;📢 Deprecation Active&#39;</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">DeprecationStatus</span><span class="o">.</span><span class="n">PAST_REMOVAL_DATE</span> <span class="o">&gt;</span> <span class="n">DeprecationStatus</span><span class="o">.</span><span class="n">ACTIVE_WARNING</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="go">False</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">DeprecationStatus</span><span class="o">.</span><span class="n">PAST_REMOVAL_DATE</span> <span class="ow">is</span> <span class="n">DeprecationStatus</span><span class="o">.</span><span class="n">PAST_REMOVAL_DATE</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="go">True</span>
 </code></pre></div>
 
 
@@ -4604,6 +4708,78 @@ returned wherever a plain string is expected.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.audit.DeprecationStatus.__ge__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__ge__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.DeprecationStatus.__ge__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.audit.DeprecationStatus.__gt__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__gt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.DeprecationStatus.__gt__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.audit.DeprecationStatus.__le__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__le__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.DeprecationStatus.__le__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.audit.DeprecationStatus.__lt__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__lt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.DeprecationStatus.__lt__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels.</p>
+
+
+    </div>
+
+</div>
 
 
 
@@ -4780,7 +4956,7 @@ is non-empty and no explicit <code>target</code> is provided.</p>
 
 
 <h2 id="deprecate.utils.void" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">void</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwrgs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">void</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 <a href="#deprecate.utils.void" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -4821,7 +4997,7 @@ body is never executed (calls are forwarded to a target function). It's purely a
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>**kwrgs</code>
+                <code>**kwargs</code>
             </td>
             <td>
                   <code><span title="typing.Any">Any</span></code>
