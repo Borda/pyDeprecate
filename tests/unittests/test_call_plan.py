@@ -362,7 +362,7 @@ class TestSplitPositionalOnlyKwargs:
 
 
 class TestWarnQuotaThreadSafety:
-    """The warn quota holds under concurrency (CORE-5).
+    """The warn quota holds under concurrency.
 
     ``_build_call_plan`` reads the warn counter, decides whether to emit, and increments — a check-then-act
     sequence.  Without synchronisation, concurrent first calls all read ``warned_calls == 0``, all pass the

@@ -835,11 +835,11 @@ async def async_non_cycle_double(x: int) -> int:
     return x * 2
 
 
-# --- Protocol-forwarding targets (appended for the proxy medium-findings fixes: PROX-4 / PROX-7) ---
+# --- Protocol-forwarding targets (appended for the proxy medium-findings fixes) ---
 
 
 class ManagedResource:
-    """Context-manager target for proxy ``__enter__``/``__exit__`` forwarding tests (PROX-4).
+    """Context-manager target for proxy ``__enter__``/``__exit__`` forwarding tests.
 
     A migration may wrap a legacy resource handle (a database session, a file-like object) in
     ``deprecated_instance`` while callers still use it in a ``with`` block.  The proxy must forward the
@@ -868,7 +868,7 @@ class AsyncManagedResource:
     An async migration may wrap a legacy async resource (an aiohttp session, an async DB connection) in
     ``deprecated_instance`` while callers still use ``async with``, ``async for``, or ``await`` on it. The proxy
     must forward every async protocol dunder so those call sites keep working; each transition is recorded here
-    for assertions (PROX-4).
+    for assertions.
     """
 
     def __init__(self, items: Optional[list[int]] = None) -> None:
@@ -910,7 +910,7 @@ class AsyncManagedResource:
 
 
 class SubclassableBase:
-    """Plain base-class target for PEP 560 subclassing tests through ``deprecated_class`` (PROX-7).
+    """Plain base-class target for PEP 560 subclassing tests through ``deprecated_class``.
 
     During a migration window a public base class is often renamed and wrapped in ``deprecated_class``;
     downstream code still writes ``class Child(OldName): ...``.  This concrete class stands in for the

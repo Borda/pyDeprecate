@@ -337,20 +337,19 @@ class TestStackingCombinations:
 
 
 class TestDeprecatedProxyNonTypeFallback:
-    """``_DeprecatedProxy`` wrapping a non-type object: ``__instancecheck__`` / ``__subclasscheck__`` fallback.
+    """``_DeprecatedProxy`` wrapping a non-type object: ``__instancecheck__`` / ``__subclasscheck__`` misuse.
 
     When ``_DeprecatedProxy._get_active()`` returns something that is neither a ``type`` nor a
-    ``_DeprecatedProxy``, both dunder methods must return ``False`` without raising.  This guards
-    against proxy misuse (e.g. wrapping a plain dict instance rather than a class) and ensures the
-    implementation short-circuits cleanly rather than forwarding to ``type.__instancecheck__``, which
-    would raise ``TypeError``.
+    ``_DeprecatedProxy``, using the *instance* proxy as the second argument to ``isinstance`` / ``issubclass``
+    is a misuse. Both dunder methods now raise the same ``TypeError`` the builtins raise instead of silently
+    returning ``False``, which previously hid the mistake.
     """
 
-    def test_isinstance_returns_false_when_active_is_not_a_type(self) -> None:
-        """``isinstance(obj, proxy)`` returns ``False`` when the proxy wraps a non-type object.
+    def test_isinstance_raises_typeerror_when_active_is_not_a_type(self) -> None:
+        """``isinstance(obj, instance_proxy)`` raises ``TypeError`` when the proxy wraps a non-type object.
 
-        ``_DeprecatedProxy`` with a plain dict as ``obj`` has no ``type`` to delegate to.
-        ``__instancecheck__`` must return ``False`` rather than raising ``TypeError``.
+        A proxy over a plain dict has no ``type`` to delegate to; using it as ``isinstance`` arg 2 now raises the
+        builtin's ``TypeError`` rather than silently returning ``False``.
         """
         proxy = _DeprecatedProxy(
             obj={},
@@ -358,14 +357,14 @@ class TestDeprecatedProxyNonTypeFallback:
             deprecated_in="1.0",
             remove_in="2.0",
         )
-        result = isinstance({}, proxy)  # type: ignore[arg-type]
-        assert result is False
+        with pytest.raises(TypeError, match="arg 2 must be a type"):
+            isinstance({}, proxy)  # type: ignore[arg-type]
 
-    def test_issubclass_returns_false_when_active_is_not_a_type(self) -> None:
-        """``issubclass(cls, proxy)`` returns ``False`` when the proxy wraps a non-type object.
+    def test_issubclass_raises_typeerror_when_active_is_not_a_type(self) -> None:
+        """``issubclass(cls, instance_proxy)`` raises ``TypeError`` when the proxy wraps a non-type object.
 
-        ``_DeprecatedProxy`` with a plain dict as ``obj`` has no ``type`` to delegate to.
-        ``__subclasscheck__`` must return ``False`` rather than raising ``TypeError``.
+        A proxy over a plain dict has no ``type`` to delegate to; using it as ``issubclass`` arg 2 now raises the
+        builtin's ``TypeError`` rather than silently returning ``False``.
         """
         proxy = _DeprecatedProxy(
             obj={},
@@ -373,8 +372,8 @@ class TestDeprecatedProxyNonTypeFallback:
             deprecated_in="1.0",
             remove_in="2.0",
         )
-        result = issubclass(int, proxy)  # type: ignore[arg-type]
-        assert result is False
+        with pytest.raises(TypeError, match="arg 2 must be a class"):
+            issubclass(int, proxy)  # type: ignore[arg-type]
 
 
 class TestCombinedSingleCallProxy:

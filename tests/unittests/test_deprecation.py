@@ -16,6 +16,7 @@ from deprecate import TargetMode, assert_no_warnings, deprecated, void
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
+    _find_class_body_qualname,
     _get_positional_params,
     _normalize_target,
     _precompute_target_facts,
@@ -23,8 +24,10 @@ from deprecate.deprecation import (
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
+    _reject_bare_decorator,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
+    _validate_template_mgs,
 )
 from deprecate.docstring.inject import (
     _update_docstring_with_deprecation,
@@ -501,7 +504,7 @@ class TestCrossClassMethodGuard:
     def test_does_not_raise_for_cross_class_staticmethod_target(self) -> None:
         """A deprecated staticmethod forwarding to a staticmethod on another class decorates without raising.
 
-        CORE-6 regression: a staticmethod receives no ``self``, so the cross-class guard's rationale ("self
+        Regression test: a staticmethod receives no ``self``, so the cross-class guard's rationale ("self
         would carry the wrong type") does not apply.  ``StaticGuardOldClass.compute`` forwards to
         ``StaticGuardNewClass.compute`` — a *different* class — and must decorate at import time rather than
         raising the cross-class ``TypeError``.  The class object being importable already proves decoration
@@ -1735,7 +1738,7 @@ class TestRecursiveDeprecation:
 class TestSharedNameDefaultForwarding:
     """A non-renamed shared parameter forwards the source's own default (the migrated-from contract).
 
-    Review finding CORE-4 proposed that the *target*'s default should win here; that was assessed as a
+    The *target*'s default winning here was assessed as a
     misdiagnosis — forwarding the source default is the intended, documented behaviour (``decorated_sum`` /
     ``test_functions.py::test_default`` enforce the same contract).  These tests pin it against regression.
     """
@@ -1761,7 +1764,7 @@ class TestSharedNameDefaultForwarding:
 
 
 class TestTargetFactsPrecompute:
-    """Decoration-time-cached target signature facts feed the call-time kwarg validation (CORE-7)."""
+    """Decoration-time-cached target signature facts feed the call-time kwarg validation."""
 
     def test_config_caches_target_signature_facts(self) -> None:
         """A callable-target wrapper stores the target's param names and var-arg flags.
@@ -1828,3 +1831,162 @@ class TestTargetFactsPrecompute:
                 accepts_var_positional=False,
                 accepts_var_keyword=False,
             )
+
+
+class TestBareDecoratorGuard:
+    """Bare ``@deprecated`` (no parentheses) must fail with a guiding message."""
+
+    def test_call_raises_typeerror_about_parentheses(self) -> None:
+        """Calling a bare-decorated function raises a TypeError that names the missing parentheses.
+
+        A user who forgets the parentheses (``@deprecated`` instead of ``@deprecated(...)``) binds the
+        decorated function to ``target`` and gets ``packing`` back; the first call then arrives with the call
+        argument as ``source``. The guard must name the missing-parentheses mistake rather than leak a cryptic
+        ``AttributeError: 'int' object has no attribute '__name__'``.
+        """
+
+        @deprecated  # type: ignore[operator,call-overload]
+        def old(x: int) -> int:
+            return x
+
+        with pytest.raises(TypeError, match="must be called with parentheses"):
+            old(5)  # type: ignore[arg-type]  # bare decorator rebinds ``old`` to the packing decorator
+
+    def test_helper_accepts_plain_callable(self) -> None:
+        """The guard helper is a no-op for an ordinary callable so correct decoration is never disturbed."""
+
+        def real(x: int) -> int:
+            return x
+
+        _reject_bare_decorator(real)  # no exception raised = a plain callable is accepted
+
+
+class TestRaiseWarnStacklevel:
+    """Stream called with ``stacklevel`` when accepted; internal TypeError propagates without double-call."""
+
+    def test_internal_typeerror_not_swallowed_no_double_call(self) -> None:
+        """An internal TypeError from a stacklevel-accepting stream propagates and the stream runs exactly once.
+
+        A ``TypeError`` raised *inside* a stacklevel-accepting stream must propagate and the stream must run
+        exactly once. A naive ``try/except TypeError`` would re-invoke the stream on any TypeError, producing
+        duplicate side effects (double log lines) for anyone whose custom stream raised internally.  The
+        message-based discrimination (``"stacklevel" in str(exc)``) prevents this.
+        """
+        calls: list[str] = []
+
+        def stream(msg: str, stacklevel: int = 1) -> None:
+            calls.append(msg)
+            raise TypeError("boom from inside the stream")
+
+        def old() -> None:
+            pass
+
+        with pytest.raises(TypeError, match="boom from inside the stream"):
+            _raise_warn(stream, old, "%(source_name)s", stacklevel=3)
+        assert len(calls) == 1
+
+    def test_varkw_stream_receives_stacklevel_exactly_once(self) -> None:
+        """A ``**kwargs``-accepting stream receives ``stacklevel`` and is called exactly once.
+
+        A custom stream declared as ``def my_stream(msg, **kwargs)`` accepts ``stacklevel`` via ``**kwargs``.
+        The caller must forward ``stacklevel`` in a single call — never via a fallback retry.
+        """
+        calls: list[tuple[str, dict[str, object]]] = []
+
+        def stream(msg: str, **kwargs: object) -> None:
+            calls.append((msg, kwargs))
+
+        def src() -> None:
+            pass
+
+        _raise_warn(stream, src, "%(source_name)s", stacklevel=3)
+        assert len(calls) == 1
+        assert "stacklevel" in calls[0][1]
+
+
+class TestTemplateBareConversion:
+    """Bare ``%``-conversions in ``template_mgs`` must be rejected at decoration time."""
+
+    def test_bare_s_rejected(self) -> None:
+        """``"%s"`` silently renders the whole substitution mapping at call time, so it must be rejected up front."""
+        with pytest.raises(ValueError, match="bare `%`-conversion"):
+            _validate_template_mgs("Deprecated: %s")
+
+    def test_escaped_percent_allowed(self) -> None:
+        """A literal ``%%`` alongside a valid mapping key is legitimate and must pass validation."""
+        _validate_template_mgs("100%% done: %(source_name)s")  # no exception raised = accepted
+
+    def test_bare_conversion_raises_on_decoration(self) -> None:
+        """The bare-conversion guard fires when the decorator is applied, not on first call."""
+        with pytest.raises(ValueError, match="bare `%`-conversion"):
+
+            @deprecated(deprecated_in="1.0", remove_in="2.0", template_mgs="gone %d")
+            def old() -> int:
+                return 1
+
+
+class TestArgsMappingDefensiveCopy:
+    """The frozen config must not alias the caller's mutable ``args_mapping`` dict."""
+
+    def test_post_decoration_mutation_ignored(self) -> None:
+        """Mutating the caller's ``args_mapping`` dict after decoration does not change forwarding behavior.
+
+        Mutating the ``args_mapping`` dict after decoration used to change forwarding behavior because the
+        frozen ``DeprecationConfig`` stored the caller's dict by reference. A defensive copy makes the wrapper
+        immune to later mutation of the caller-owned dict.
+        """
+
+        def new(**kwargs: int) -> dict[str, int]:
+            return kwargs
+
+        mapping: dict[str, Any] = {"old_a": "new_a"}
+
+        @deprecated(target=new, deprecated_in="1.0", remove_in="2.0", args_mapping=mapping)
+        def old(old_a: int = 1) -> dict[str, int]:
+            return {"old_a": old_a}
+
+        mapping["old_a"] = "hijacked"  # would redirect to a bogus name if the dict were aliased
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = old(old_a=5)
+        assert result == {"new_a": 5}
+
+
+class TestClassBodyQualnameWalk:
+    """The cross-class guard locates the class body via a bounded frame walk, not a fixed depth."""
+
+    def test_finds_enclosing_class_qualname(self) -> None:
+        """Called inside a class body, the walk returns that class's ``__qualname__``.
+
+        Called from within a class body the walk returns that class's ``__qualname__`` regardless of how many
+        descriptor/packing frames sit between it and the class body — the fixed ``sys._getframe(2)`` it replaces
+        silently missed the class body for descriptor-decorated methods, disabling the guard for them.
+        """
+        captured: dict[str, str] = {}
+
+        class Sample:
+            captured["qualname"] = _find_class_body_qualname()
+
+        _ = Sample  # reference prevents static-analysis "unused class" warnings
+        assert captured["qualname"].endswith("Sample")
+
+    def test_cross_class_guard_fires_for_descriptor_decorated_method(self) -> None:
+        """Cross-class guard raises TypeError at class-definition time even when the method uses a descriptor.
+
+        With the old fixed ``sys._getframe(2)`` approach the extra stack frames introduced by
+        ``@classmethod``/``@staticmethod``/``@property`` wrapping pushed the class body out of range,
+        silently disabling the cross-class guard for descriptor-decorated methods.  The bounded frame
+        walk locates the class body regardless of intervening descriptor frames.
+        """
+
+        class OtherClass:
+            def other_method(self, x: int) -> int:
+                return x
+
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+
+            class _Owner:
+                @classmethod
+                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
+                def old_classmethod(cls, x: int) -> int:
+                    return void(x)

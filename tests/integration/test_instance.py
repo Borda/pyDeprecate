@@ -84,7 +84,7 @@ class TestReadOnlyMode:
 
 
 class TestInstanceProtocolForwarding:
-    """deprecated_instance forwards operator and context-manager protocols to the wrapped object (PROX-4)."""
+    """deprecated_instance forwards operator and context-manager protocols to the wrapped object."""
 
     def test_arithmetic_operator_forwards_and_warns(self) -> None:
         """A deprecated numeric constant stays usable in arithmetic and warns once when so used.

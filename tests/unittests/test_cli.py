@@ -2,13 +2,25 @@
 
 import importlib.metadata
 import sys
+import types
 from collections.abc import Generator
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deprecate._cli import _print, _Reporter, cli, cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_status
+from deprecate._cli import (
+    _ensure_utf8_streams,
+    _print,
+    _Reporter,
+    cli,
+    cmd_all,
+    cmd_chains,
+    cmd_check,
+    cmd_expiry,
+    cmd_status,
+)
 from deprecate._pkg import (
     _auto_detect_version,
     _distribution_for_import,
@@ -1107,3 +1119,57 @@ class TestCmdStatus:
         assert result == 0
         assert out_file.exists()
         assert "| Col |" in out_file.read_text()
+
+
+class _NoneEncodingStream:
+    """Stream stub whose ``encoding`` attribute is present but ``None`` (fixture)."""
+
+    encoding = None
+
+    def __init__(self) -> None:
+        self.reconfigured_to: Optional[str] = None
+
+    def reconfigure(self, *, encoding: str) -> None:
+        """Record the encoding a caller reconfigured the stream to."""
+        self.reconfigured_to = encoding
+
+
+class TestEnsureUtf8StreamsNoneEncoding:
+    """A stream whose ``encoding`` is ``None`` must not crash the UTF-8 reconfigure pass."""
+
+    def test_none_encoding_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A ``None`` encoding is tolerated (treated as UTF-8, so reconfigure is skipped) rather than crashing.
+
+        ``getattr(stream, "encoding", "utf-8")`` returned ``None`` (the attribute exists but is ``None``) and the
+        subsequent ``.lower()`` raised ``AttributeError``; the ``or "utf-8"`` guard folds ``None`` to ``"utf-8"``
+        so the stream is considered already-UTF-8 and left untouched instead of blowing up.
+        """
+        stream = _NoneEncodingStream()
+        monkeypatch.setattr(sys, "stdout", stream)
+        monkeypatch.setattr(sys, "stderr", stream)
+        _ensure_utf8_streams()
+        assert stream.reconfigured_to is None
+
+
+class TestCliEmptyExceptionMessage:
+    """An exception with an empty message must still produce a non-blank stderr exit line."""
+
+    def test_empty_message_exception_exits_with_type_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A subcommand raising a message-less exception exits with the exception type name, not a blank line.
+
+        ``sys.exit(str(exc))`` on such an exception exited 1 with nothing printed, giving CI no clue what failed;
+        prefixing the exception type guarantees a meaningful stderr line.
+        """
+
+        class _SilentError(Exception):
+            pass
+
+        def _raise(*_args: object, **_kwargs: object) -> None:
+            raise _SilentError
+
+        fake_fire = types.SimpleNamespace(Fire=_raise)
+        monkeypatch.setitem(sys.modules, "fire", fake_fire)
+        monkeypatch.setattr(sys, "argv", ["pydeprecate", "check", "."])
+        with pytest.raises(SystemExit) as exc_info:
+            cli()
+        assert "_SilentError" in str(exc_info.value.code)

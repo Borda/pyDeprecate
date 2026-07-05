@@ -349,6 +349,10 @@ class _DeprecatedProxy:
         )
         if args_mapping is not None:
             args_mapping = dict(args_mapping)
+        # Copy ``attrs_mapping`` too (``args_mapping`` is copied just above): the frozen config stores it, so
+        # aliasing the caller's dict would let post-decoration mutation introduce the exact cycle validation rejected.
+        if attrs_mapping is not None:
+            attrs_mapping = dict(attrs_mapping)
         # Dataclass dual-surface auto-expand: copy attrs_mapping entries that name a dataclass field
         # into args_mapping so both attribute access and constructor kwarg paths emit a FutureWarning.
         args_mapping, _auto_expanded = _expand_dc_attrs_to_args(_dc_check, attrs_mapping, args_mapping)
@@ -537,13 +541,18 @@ class _DeprecatedProxy:
                     cfg.warned += 1
         if not should_warn:
             return
-        # Route the warning to the caller's frame rather than ``proxy.py``.  Mirrors the ``_raise_warn`` fallback
-        # in ``deprecation.py``: when ``stream`` does not accept a ``stacklevel`` kwarg (e.g. ``print``, custom
-        # callables), fall back to a positional call.
+        # Route the warning to the caller's frame rather than ``proxy.py``.
+        # A plain ``try/except TypeError`` would swallow a TypeError raised *inside* a
+        # stacklevel-accepting stream and re-invoke it (double side-effect).
+        # Checking the exception message distinguishes a keyword-rejection error from an
+        # internal one — the stream is called exactly once in all but the keyword-rejection case.
         try:
             stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER + _extra_frames)
-        except TypeError:
-            stream(msg)
+        except TypeError as _exc:
+            if "stacklevel" in str(_exc) or "keyword" in str(_exc):
+                stream(msg)
+            else:
+                raise
 
     def _check_read_only(self, operation: str) -> None:
         """Raise AttributeError when the proxy is in read-only mode.
@@ -849,10 +858,16 @@ class _DeprecatedProxy:
     # ------------------------------------------------------------------
 
     def __eq__(self, other: object) -> bool:
-        """Compare the source object for equality."""
-        obj = self._cfg.obj
+        """Compare the *active* object for equality — the object the proxy actually serves.
+
+        Data access (attribute/item/call) forwards to the active object (target when set, else source), so identity #
+        operations must too; comparing the source while serving the target would make a # target-forwarding proxy equal
+        to an object it never returns.
+
+        """
+        obj = self._get_active()
         if isinstance(other, _DeprecatedProxy):
-            other = other._cfg.obj
+            other = other._get_active()
         return bool(obj == other)
 
     def __ne__(self, other: object) -> bool:
@@ -860,20 +875,20 @@ class _DeprecatedProxy:
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        """Return the hash of the source object."""
-        return hash(self._cfg.obj)
+        """Return the hash of the active object (consistent with :meth:`__eq__`)."""
+        return hash(self._get_active())
 
     # ------------------------------------------------------------------
     # String representations — no warning emitted (used for debugging)
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        """Return repr of the source object."""
-        return repr(self._cfg.obj)
+        """Return repr of the active object (the object the proxy serves)."""
+        return repr(self._get_active())
 
     def __str__(self) -> str:
-        """Return str of the source object."""
-        return str(self._cfg.obj)
+        """Return str of the active object (the object the proxy serves)."""
+        return str(self._get_active())
 
     def __bool__(self) -> bool:
         """Return bool of the active object without emitting a warning."""
@@ -978,7 +993,9 @@ class _DeprecatedProxy:
         a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular stack so
         this dunder never blocks.
 
-        Returns False when the active object is neither a type nor a proxy.
+        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using an
+        *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
+        proxy stack.
 
         """
         seen: set[int] = set()
@@ -991,7 +1008,10 @@ class _DeprecatedProxy:
         if isinstance(active, type):
             # Delegate via isinstance to preserve metaclass-defined instance checks.
             return isinstance(instance, active)
-        return False
+        # Active object is an instance, not a class: using an *instance* proxy as the second argument to
+        # ``isinstance`` is a misuse.  Raise the same ``TypeError`` the builtin does instead of silently
+        # returning ``False`` (which hid the mistake).
+        raise TypeError("isinstance() arg 2 must be a type, a tuple of types, or a union")
 
     def __subclasscheck__(self, subclass: type) -> bool:
         """Support ``issubclass(X, proxy)`` by delegating to the active class.
@@ -1000,7 +1020,8 @@ class _DeprecatedProxy:
         Stacked proxy chains are walked iteratively until a concrete type is reached; a defensive cycle guard
         breaks the loop on the unlikely case of a circular stack.
 
-        Returns False when the active object is neither a type nor a proxy.
+        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type.
+        Returns ``False`` only on a circular proxy stack.
 
         """
         seen: set[int] = set()
@@ -1014,7 +1035,10 @@ class _DeprecatedProxy:
             # Delegate via issubclass so that any metaclass-defined
             # __subclasscheck__ (e.g., from abc.ABCMeta) is respected.
             return issubclass(subclass, active)
-        return False
+        # Active object is an instance, not a class: using an *instance* proxy as the second argument to
+        # ``issubclass`` is a misuse.  Raise the same ``TypeError`` the builtin does instead of silently
+        # returning ``False`` (which hid the mistake).
+        raise TypeError("issubclass() arg 2 must be a class, a tuple of classes, or a union")
 
     # ------------------------------------------------------------------
     # Subclassing protocol (PEP 560) — supports ``class Child(DeprecatedAlias)``

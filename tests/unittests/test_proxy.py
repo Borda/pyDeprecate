@@ -1072,10 +1072,16 @@ class TestTypeProtocol:
         with pytest.warns(FutureWarning):
             proxy()  # warning budget remains untouched
 
-    def test_isinstance_returns_false_for_non_type_active(self) -> None:
-        """``isinstance(x, proxy)`` returns False when the active object is not a type."""
+    def test_isinstance_raises_typeerror_for_non_type_active(self) -> None:
+        """``isinstance(x, instance_proxy)`` raises TypeError like the builtin.
+
+        Using an *instance* proxy (one wrapping a value rather than a class) as the second argument to
+        ``isinstance`` is a misuse. Previously the proxy silently returned ``False``, hiding the mistake; it now
+        raises the same ``TypeError`` the builtin raises when arg 2 is not a type.
+        """
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
-        assert not isinstance(42, cast(Any, proxy))
+        with pytest.raises(TypeError, match="arg 2 must be a type"):
+            isinstance(42, cast(Any, proxy))
 
 
 class TestProxyArgsMappingBehavior:
@@ -2636,7 +2642,7 @@ class TestProxyCopyPickle:
 
 
 class TestOperatorForwarding:
-    """Type-level operator, conversion, and context-manager dunders forward to the active object (PROX-4)."""
+    """Type-level operator, conversion, and context-manager dunders forward to the active object."""
 
     @pytest.mark.parametrize(
         ("op", "expected"),
@@ -2847,7 +2853,7 @@ class TestAsyncProtocolForwarding:
     """Async protocol dunders forward to the active object so ``async with`` / ``async for`` / ``await`` keep working.
 
     The proxy hand-forwards ``__aenter__``/``__aexit__``/``__aiter__``/``__anext__``/``__await__`` to the wrapped
-    async resource (PROX-4). These exercise the real asyncio runtime paths, not just structural presence of the
+    async resource. These exercise the real asyncio runtime paths, not just structural presence of the
     methods. Warning policy mirrors the sync analogues: data-driving entry/iteration/await warn once; the
     ``__aexit__`` cleanup half stays silent.
     """
@@ -2922,7 +2928,7 @@ class TestAsyncProtocolForwarding:
 
 
 class TestProxySubclassing:
-    """PEP 560 subclassing of deprecated class aliases via ``__mro_entries__`` (PROX-7)."""
+    """PEP 560 subclassing of deprecated class aliases via ``__mro_entries__``."""
 
     def test_subclass_derives_from_active_class(self) -> None:
         """``class Child(DeprecatedAlias)`` transparently subclasses the wrapped class and inherits its behaviour.
@@ -2950,7 +2956,7 @@ class TestProxySubclassing:
     def test_attrs_remap_subclassing_does_not_warn(self) -> None:
         """An ATTRS_REMAP alias deprecates only listed attributes, so subclassing it stays silent.
 
-        Mirrors the ``__call__`` policy (PROX-5): when only specific attribute aliases are deprecated, deriving a new
+        Mirrors the ``__call__`` policy: when only specific attribute aliases are deprecated, deriving a new
         class from the alias is not a deprecated surface and must not brand the whole class deprecated.
         """
         alias = deprecated_class(attrs_mapping={"marker": None}, deprecated_in="1.0", remove_in="2.0")(SubclassableBase)
@@ -2984,7 +2990,7 @@ class TestProxySubclassing:
 
 
 class TestAttrsRemapCallPolicy:
-    """Non-stacked ATTRS_REMAP proxies do not warn on plain instantiation/call (PROX-5)."""
+    """Non-stacked ATTRS_REMAP proxies do not warn on plain instantiation/call."""
 
     def test_instantiation_does_not_warn(self) -> None:
         """Constructing a class whose deprecation covers only listed attributes emits no class-level warning.
@@ -3004,3 +3010,90 @@ class TestAttrsRemapCallPolicy:
         alias()
         with pytest.warns(FutureWarning, match="color"):
             _ = alias.color  # type: ignore[attr-defined]
+
+
+class _P8Source:
+    """Plain source class used as the deprecated ``obj`` of a target-forwarding proxy (fixture)."""
+
+
+class _P8Target:
+    """Plain replacement class used as the ``target`` a proxy actually serves (fixture)."""
+
+
+class TestProxyIdentityUsesActive:
+    """``__eq__`` / ``__hash__`` / ``__repr__`` / ``__str__`` reflect the served (active) object."""
+
+    def test_eq_matches_active_target_not_source(self) -> None:
+        """A target-forwarding proxy compares equal to the object it actually serves, not the deprecated source.
+
+        Data access forwards to the active object (the ``target`` when set), so a proxy comparing equal to its
+        source while never returning it was inconsistent. Identity now routes through the active object too.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_P8Source, target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0"
+        )
+        assert proxy == _P8Target
+        assert proxy != _P8Source
+
+    def test_repr_shows_active_target(self) -> None:
+        """``repr`` of a target-forwarding proxy shows the active object rather than the deprecated source."""
+        proxy = _DeprecatedProxy(
+            obj=_P8Source, target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0"
+        )
+        assert repr(proxy) == repr(_P8Target)
+
+
+class _P9Config:
+    """Active class exposing ``new_attr`` so an ``attrs_mapping`` redirect target validates (fixture)."""
+
+    new_attr = 1
+
+
+class TestProxyAttrsMappingDefensiveCopy:
+    """The frozen config must not alias the caller's mutable ``attrs_mapping`` dict."""
+
+    def test_post_construction_mutation_ignored(self) -> None:
+        """Mutating the caller's ``attrs_mapping`` after construction cannot alter the frozen proxy config.
+
+        Storing the caller's dict by reference let a later mutation introduce a redirect cycle that decoration-time
+        validation had already rejected; a defensive copy makes the stored mapping immune to caller mutation.
+        """
+        mapping: dict[str, Any] = {"old_attr": "new_attr"}
+        proxy = _DeprecatedProxy(
+            obj=_P9Config, name="_P9Config", deprecated_in="1.0", remove_in="2.0", attrs_mapping=mapping
+        )
+        mapping["old_attr"] = "hijacked"
+        assert proxy.__deprecated__.attrs_mapping == {"old_attr": "new_attr"}
+
+
+class TestProxyStreamStacklevelProbe:
+    """A stacklevel-accepting stream that raises internally must not be re-invoked."""
+
+    def test_internal_typeerror_not_swallowed_no_double_call(self) -> None:
+        """An internal ``TypeError`` from a custom stream propagates and the stream runs exactly once.
+
+        The old ``try/except TypeError`` fallback masked a ``TypeError`` raised inside a stacklevel-accepting
+        stream and re-invoked it, producing duplicate warning side effects; the signature probe avoids that.
+        """
+        calls: list[str] = []
+
+        def stream(msg: str, stacklevel: int = 1) -> None:
+            calls.append(msg)
+            raise TypeError("boom from inside the proxy stream")
+
+        proxy = _DeprecatedProxy(
+            obj=_P8Source, target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0", stream=stream
+        )
+        with pytest.raises(TypeError, match="boom from inside the proxy stream"):
+            proxy._warn()
+        assert len(calls) == 1
+
+
+class TestProxySubclassCheckTypeError:
+    """``issubclass`` with an instance proxy raises TypeError like the builtin."""
+
+    def test_issubclass_raises_typeerror_for_non_type_active(self) -> None:
+        """Using an instance proxy as ``issubclass`` arg 2 raises TypeError instead of silently returning False."""
+        proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
+        with pytest.raises(TypeError, match="arg 2 must be a class"):
+            issubclass(int, cast(Any, proxy))

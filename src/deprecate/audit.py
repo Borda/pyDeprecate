@@ -74,13 +74,17 @@ class DeprecationStatus(str, enum.Enum):
     Using a ``str`` enum means members compare equal to their string values and can be
     returned wherever a plain string is expected.
 
-    Members are ordered from least to most urgent for easy visual scanning:
+    Members are *declared* from least to most urgent for readability, but this enum is **not orderable by
+    urgency**: because each value starts with an emoji, the inherited ``str`` ordering operators (``<``, ``>``)
+    compare Unicode codepoints of those emoji, not deprecation urgency. Do not rely on ``status_a > status_b``
+    to mean "more urgent" — compare members explicitly (``status is DeprecationStatus.PAST_REMOVAL_DATE``).
+    The ordering operators are overridden to raise ``TypeError`` so accidental comparisons fail loudly.
 
     Examples:
         >>> DeprecationStatus.ACTIVE_WARNING.value
         '📢 Deprecation Active'
-        >>> DeprecationStatus.PAST_REMOVAL_DATE > DeprecationStatus.ACTIVE_WARNING
-        False
+        >>> DeprecationStatus.PAST_REMOVAL_DATE is DeprecationStatus.PAST_REMOVAL_DATE
+        True
 
     """
 
@@ -93,6 +97,22 @@ class DeprecationStatus(str, enum.Enum):
     REMOVE_BEFORE_RELEASE = "🔔 Remove Before Release"  # RC of the remove_in base release
     PAST_REMOVAL_DATE = "💥 Past Removal Date"  # current >= remove_in
 
+    def __lt__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'<' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __le__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'<=' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __gt__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'>' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __ge__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'>=' not supported between instances of 'DeprecationStatus' — compare by identity")
+
 
 def _normalize_version_string(version: str) -> str:
     """Normalize non-standard version strings before PEP 440 parsing.
@@ -104,10 +124,13 @@ def _normalize_version_string(version: str) -> str:
 
     The transformation is conservative:
 
-    1. Strip a single leading ``v`` or ``V`` prefix (``packaging`` accepts this, but stripping defensively
-       keeps the normalized output stable for downstream callers).
+    1. Strip a single leading ``v`` or ``V`` prefix (left-anchored, so only one leading ``v`` is removed).
     2. Append ``0`` to bare pre/post/dev labels that lack a trailing digit. Labels recognized:
        ``dev``, ``rc``, ``a``, ``b``, ``c``, ``alpha``, ``beta``, ``preview``, ``post``.
+
+    The label normalization runs only over the *public* part of the version — any PEP 440 local segment
+    (everything after ``+``) is split off first and re-attached verbatim, so a legitimate local like
+    ``1.2.3+cuda`` is never mangled into ``1.2.3+cuda0`` by the trailing-``a`` label rule.
 
     No other transformations are applied — case, separators, and label aliases pass through unchanged
     so ``packaging.Version`` can apply its own canonicalization.
@@ -131,9 +154,17 @@ def _normalize_version_string(version: str) -> str:
         '1.8.0.RC1'
         >>> _normalize_version_string("1.2.3")
         '1.2.3'
+        >>> _normalize_version_string("1.2.3+cuda")
+        '1.2.3+cuda'
+        >>> _normalize_version_string("v1.8.0.dev+local.a")
+        '1.8.0.dev0+local.a'
 
     """
-    normalized = version.lstrip("vV")
+    # Split off any PEP 440 local segment (after ``+``) so the label regex never touches it; labels like
+    # ``post``/``dev`` never appear in a local segment, and running the rule over it mangles legit locals.
+    public, plus, local = version.partition("+")
+    # Strip a single left-anchored leading ``v``/``V`` (``lstrip("vV")`` would strip *all* leading v's).
+    normalized = re.sub(r"^[vV]", "", public)
     # Append ``0`` to bare pre/post/dev labels with no trailing digit. The ordering of the alternatives
     # matters: longer labels (``alpha``, ``beta``, ``preview``) must come before their single-letter
     # forms (``a``, ``b``) so the regex prefers the longer match.
@@ -143,7 +174,8 @@ def _normalize_version_string(version: str) -> str:
         r"(?P<sep>\.?)(?P<label>alpha|beta|preview|post|dev|rc|a|b|c)(?![A-Za-z0-9])",
         re.IGNORECASE,
     )
-    return pattern.sub(lambda m: f"{m.group('sep')}{m.group('label')}0", normalized)
+    normalized = pattern.sub(lambda m: f"{m.group('sep')}{m.group('label')}0", normalized)
+    return f"{normalized}{plus}{local}"
 
 
 def _parse_version(version_string: str) -> "Version":
@@ -431,10 +463,14 @@ def _detect_chain_type(
         chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET
     elif _is_args_remap:
         wrapped = getattr(func, "__wrapped__", None)
-        if wrapped is not None and _has_deprecation_meta(wrapped):
-            erp_depr_tgt = wrapped.__deprecated__.target
-            if erp_depr_tgt is True or erp_depr_tgt is TargetMode.ARGS_REMAP:
-                chain_type = ChainType.STACKED
+        # ``target`` is always a ``TargetMode`` (or callable/None) after normalization — the legacy
+        # ``target is True`` sentinel can no longer reach here, so only ARGS_REMAP marks a stacked chain.
+        if (
+            wrapped is not None
+            and _has_deprecation_meta(wrapped)
+            and wrapped.__deprecated__.target is TargetMode.ARGS_REMAP
+        ):
+            chain_type = ChainType.STACKED
     attrs_mapping = dep_info.attrs_mapping
     has_chained_attrs = attrs_mapping is not None and any(
         v is not None and v in attrs_mapping for v in attrs_mapping.values()
@@ -538,7 +574,20 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     _is_args_remap = target is TargetMode.ARGS_REMAP
     _is_notify = target is TargetMode.NOTIFY
 
-    self_reference = target is func if target is not None else False
+    # Self-reference: the wrapper forwards to itself. For a proxy the wrapper object is the proxy while its
+    # deprecated target is the *wrapped* object, so ``target is func`` never matches — compare against
+    # ``func.wrapped`` too. A proxy is self-referential only when there is *no* active remapping:
+    # a proxy with non-empty ``args_mapping`` or ``attrs_mapping`` still performs meaningful transformation
+    # and must not be flagged as a no-op.
+    self_reference = target is not None and (
+        target is func
+        or (
+            isinstance(func, _DeprecatedProxy)
+            and target is func.wrapped
+            and not dep_info.args_mapping
+            and not dep_info.attrs_mapping
+        )
+    )
     empty_args_mapping = not args_mapping
     chain_type = _detect_chain_type(dep_info, func, target, _is_args_remap)
     invalid_args, identity_args_mapping, all_identity = _validate_args_mapping(func, args_mapping)
@@ -688,6 +737,14 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
         try:
             remove_ver = _parse_version(remove_in)
         except ValueError:
+            # An unparsable ``remove_in`` (e.g. a typo) would make the wrapper permanently un-expirable and the
+            # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent
+            # — the single-callable path raises; here a warning keeps the batch scan going for the rest.
+            warnings.warn(
+                f"Callable `{info.function}` has an unparsable `remove_in` version `{remove_in}`; "
+                "its expiry cannot be checked until the version string is fixed.",
+                stacklevel=2,
+            )
             continue
         if current_ver >= remove_ver:
             expired.append(
@@ -745,7 +802,7 @@ def validate_deprecation_expiry(
     !!! note
         - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
         - Skips callables that cannot be imported or accessed
-        - Silently skips callables with invalid ``remove_in`` version formats
+        - Emits a ``UserWarning`` (rather than silently skipping) for callables with an unparsable ``remove_in``
         - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
         - Intended for automated checks in CI/CD pipelines
         - Can be integrated into test suites or pre-commit hooks
@@ -796,6 +853,52 @@ def _scan_callable(
     return None
 
 
+def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN401
+    """Return the underlying callable(s) from a descriptor, or a 1-tuple of *obj* for plain callables.
+
+    Centralises the descriptor-unwrapping logic shared by :func:`_member_has_deprecation_meta` and
+    :func:`_scan_class` so each descriptor type is handled in exactly one place.
+
+    Args:
+        obj: A raw class member — may be a ``classmethod``, ``staticmethod``, ``property``,
+            ``cached_property``, or a plain callable.
+
+    Returns:
+        A tuple of the underlying callable objects.  Empty when ``obj`` is a ``cached_property``
+        with no ``func`` attribute (degenerate case).
+
+    Examples:
+        >>> import warnings
+        >>> _descriptor_underlying_callables(classmethod(warnings.warn))  # doctest: +ELLIPSIS
+        (<built-in function warn>,)
+        >>> _descriptor_underlying_callables(staticmethod(warnings.warn))
+        (<built-in function warn>,)
+
+    """
+    if isinstance(obj, (classmethod, staticmethod)):
+        return (obj.__func__,)
+    if isinstance(obj, property):
+        return tuple(a for a in (obj.fget, obj.fset, obj.fdel) if a is not None)
+    if isinstance(obj, cached_property):
+        func = getattr(obj, "func", None)
+        return (func,) if func is not None else ()
+    return (obj,)
+
+
+def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
+    """Return ``True`` if a class member — peeking through descriptors — carries ``__deprecated__`` metadata.
+
+    Descriptors store the deprecation metadata on the underlying callable (``classmethod``/``staticmethod``
+    ``__func__``, ``property`` accessors, ``cached_property`` ``func``), so a plain :func:`_has_deprecation_meta`
+    on the raw member would miss deprecated descriptors.
+
+    Args:
+        obj: The raw class member (possibly a descriptor) to inspect.
+
+    """
+    return any(_has_deprecation_meta(c) for c in _descriptor_underlying_callables(obj))
+
+
 def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWrapperInfo]:  # noqa: ANN401
     """Scan class members, peeking through descriptors."""
     results: list[DeprecationWrapperInfo] = []
@@ -804,7 +907,10 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
     except (AttributeError, TypeError):
         return results
     for attr_name, obj in members:
-        if attr_name.startswith("_") and attr_name != "__init__":
+        # Skip private/dunder members that are *not* themselves deprecated. Deprecated private or dunder
+        # members (e.g. a deprecated ``_legacy`` method or ``__eq__``) still carry ``__deprecated__`` and must
+        # be surfaced so they can expire — only ``__init__`` is exempt.
+        if attr_name.startswith("_") and attr_name != "__init__" and not _member_has_deprecation_meta(obj):
             continue
         qualified = f"{cls_name}.{attr_name}"
         result: Optional[DeprecationWrapperInfo] = None
@@ -813,7 +919,7 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
             result = _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
         elif isinstance(obj, property):
             _prop_accessor = next(
-                (a for a in (obj.fget, obj.fset, obj.fdel) if a is not None and _has_deprecation_meta(a)),
+                (c for c in _descriptor_underlying_callables(obj) if _has_deprecation_meta(c)),
                 None,
             )
             if _prop_accessor is not None:
@@ -1147,7 +1253,8 @@ def _format_version(version: Optional[str], *, missing: str = "—") -> str:
     """Format version values with a stable ``v`` prefix for report output."""
     if not version:
         return missing
-    return f"v{version.lstrip('vV')}"
+    # Strip a single left-anchored leading ``v``/``V`` (``lstrip`` would remove *all* leading v's).
+    return f"v{re.sub(r'^[vV]', '', version)}"
 
 
 def _get_deprecation_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> DeprecationStatus:

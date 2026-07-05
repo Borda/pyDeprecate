@@ -452,6 +452,11 @@ class DeprecationConfig:
             decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
             excluded from ``repr`` and equality.
 
+    Note:
+        ``@dataclass(frozen=True)`` blocks attribute *rebinding* on the config object itself, but the
+        stored ``args_mapping`` and ``attrs_mapping`` dicts remain mutable.  Code that reads these fields
+        must not modify them in place; the decorator copies them defensively at decoration time.
+
     """
 
     deprecated_in: str = ""
@@ -511,7 +516,14 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
         ``False`` otherwise.
 
     """
-    return isinstance(getattr(obj, "__deprecated__", None), DeprecationConfig)
+    # ``getattr(..., default)`` only swallows ``AttributeError``; a foreign object encountered during a
+    # recursive audit scan whose ``__getattr__``/``__getattribute__`` raises something else (e.g. a lazy
+    # proxy raising ``RuntimeError``) would otherwise crash the whole scan. Treat any failure as "no meta".
+    try:
+        meta = getattr(obj, "__deprecated__", None)
+    except Exception:
+        return False
+    return isinstance(meta, DeprecationConfig)
 
 
 @dataclass
