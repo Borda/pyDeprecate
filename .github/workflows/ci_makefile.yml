@@ -11,6 +11,11 @@ on:
 permissions:
   contents: read
 
+# cancel superseded runs on the same ref so rapid pushes don't queue the full matrix repeatedly
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHON_DEFAULT: "3.13"
 

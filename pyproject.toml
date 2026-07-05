@@ -1,7 +1,6 @@
 [build-system]
 requires = [
-  "setuptools",
-  "wheel",
+  "setuptools>=70",
 ]
 
 [tool.ruff]
@@ -126,6 +125,8 @@ ini_options.junit_duration_report = "call"
 run.parallel = true
 run.relative_files = true
 report.exclude_lines = [
-  "pass",
+  # anchored so only a bare `pass` statement is excluded — a substring `pass` would also drop
+  # lines containing `passed`, `password`, etc. and overstate coverage
+  "^\\s*pass\\s*$",
   "pragma: no cover",
 ]

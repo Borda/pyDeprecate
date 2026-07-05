@@ -245,12 +245,13 @@ Not sure which API to reach for? Start here.
 | `remove_in`        | `""`                        | Version when removed (e.g. `"2.0"`)                                                                        |
 |                    | **Advanced: ~10% of cases** |                                                                                                            |
 | `stream`           | `deprecation_warning`       | Warning sink callable (set `None` to silence warnings)                                                     |
-| `num_warns`        | `1`                         | `1` once · `-1` always · `N` exactly N times                                                               |
+| `num_warns`        | `1`                         | `0` never · `1` once · `-1` always · `N` exactly N times                                                   |
 | `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
 | `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                   |
 | `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                 |
 | `skip_if`          | `False`                     | `bool` or `Callable → bool`; skip deprecation when true                                                    |
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
+| `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                              |
 
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `attrs_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.

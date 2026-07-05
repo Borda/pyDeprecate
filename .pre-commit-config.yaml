@@ -1,5 +1,7 @@
 default_language_version:
-  python: python3.10
+  # generic python3 so hooks run under the local interpreter; docformatter keeps its own
+  # python3.10 pin below (wheel/compat workaround) until a release supports 3.12+
+  python: python3
 
 ci:
   autofix_prs: true

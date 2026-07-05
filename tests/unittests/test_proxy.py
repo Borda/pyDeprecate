@@ -792,7 +792,7 @@ class TestArgsExtra:
         """deprecated_class accepts args_extra without raising TypeError."""
         assert isinstance(ProxyClassWithArgsExtra, _DeprecatedProxy)
 
-    def test_args_extra_values_appear_in_forwarded_constructor_call(self) -> None:
+    def test_values_appear_in_forwarded_constructor_call(self) -> None:
         """Kwargs from args_extra are merged into the forwarded constructor call."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
@@ -800,7 +800,7 @@ class TestArgsExtra:
         assert instance.new_key == 7
         assert instance.injected == "from-extra"
 
-    def test_args_extra_merged_after_args_mapping_rename(self) -> None:
+    def test_merged_after_args_mapping_rename(self) -> None:
         """args_extra is applied after args_mapping renames kwargs."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)

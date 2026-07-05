@@ -17,10 +17,13 @@
 | Deprecate a class | `deprecated_class` |
 | Deprecate an object alias | `deprecated_instance` |
 | Argument rename/drop mode | `TargetMode.ARGS_REMAP` |
+| Selective per-attribute deprecation on a class | `TargetMode.ATTRS_REMAP` + `attrs_mapping` |
 | Warning-only mode | `TargetMode.NOTIFY` |
 | Validate expired deprecations | `validate_deprecation_expiry` |
 | Validate wrapper chains | `validate_deprecation_chains` |
+| Detect POSITIONAL_ONLY-remap incompatibilities | `validate_mapping_compatibility` |
 | Discover wrappers | `find_deprecation_wrappers` |
+| Generate a markdown deprecation table | `generate_deprecation_table` |
 
 ## Canonical Recipes
 
@@ -97,6 +100,27 @@ class OldModel:
     pass
 ```
 
+### Selective attribute deprecation (`ATTRS_REMAP`)
+
+```python
+from deprecate import TargetMode, deprecated_class
+
+
+class Config:
+    colour: str = "red"
+
+
+# Only "color" warns and redirects to "colour"; other attributes pass through silently.
+# Passing attrs_mapping alone auto-resolves to TargetMode.ATTRS_REMAP; the explicit target= form is equivalent.
+# Use None as the value for warn-only with no rename: attrs_mapping={"size": None}.
+DeprecatedConfig = deprecated_class(
+    target=TargetMode.ATTRS_REMAP,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.2",
+    remove_in="2.0",
+)(Config)
+```
+
 ### Object alias
 
 ```python
@@ -124,6 +148,8 @@ validate_deprecation_expiry("my_package", current_version="2.0")
 ```
 
 `validate_deprecation_expiry` includes class members by default (`include_members=True`); recursive scans warn-and-skip submodules that fail to import (`UserWarning: audit: skipped <module>: <exc>`) instead of aborting.
+
+Two more audit helpers: `validate_mapping_compatibility("my_package")` flags `deprecated_class` wrappers whose `args_mapping` remaps to POSITIONAL_ONLY constructor params (a silent `setattr` fallback), and `generate_deprecation_table("my_package", style="matrix")` renders a docs-friendly markdown summary of every wrapper's lifecycle.
 
 The CLI accepts directory paths and resolves them to packages:
 
@@ -162,5 +188,5 @@ pydeprecate all src/
 - Use Cases: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
 - Agent Recipes: https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html
 - API Migration CI: https://borda.github.io/pyDeprecate/stable/guide/audit.html
-- Class and Object Deprecation: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
+- Class and Object Deprecation: https://borda.github.io/pyDeprecate/stable/guide/classes.html
 - Compare Python Deprecation Tools: https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html

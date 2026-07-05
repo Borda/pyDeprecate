@@ -11,6 +11,11 @@ on:
 permissions:
   contents: read
 
+# cancel superseded runs on the same ref so rapid pushes don't queue redundant link checks
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   links-check:
     runs-on: ubuntu-latest

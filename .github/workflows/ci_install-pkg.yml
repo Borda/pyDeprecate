@@ -10,6 +10,11 @@ on: # Trigger the workflow on push or pull request, but only for the main branch
 permissions:
   contents: read
 
+# cancel superseded runs on the same ref so rapid pushes don't queue the full matrix repeatedly
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
@@ -62,6 +67,12 @@ jobs:
           pip install '${{ env.PKG_WHEEL }}' --force-reinstall
           pip list
           python -c "import deprecate as pkg; print(f'version: {pkg.__version__}')"
+
+      - name: 🖥️ Smoke-test console script (cli extra)
+        working-directory: dist
+        run: |
+          pip install "${{ env.PKG_WHEEL }}[cli]" --force-reinstall
+          pydeprecate --help
 
       - name: 📦 Install and check package (sdist)
         working-directory: dist

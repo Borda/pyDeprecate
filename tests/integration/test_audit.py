@@ -8,7 +8,7 @@ import pkgutil
 import types
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +19,7 @@ import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
 from deprecate import (
     DeprecatedCallableInfo,
+    TableStyle,
     TargetMode,
     deprecated,
     find_deprecated_callables,
@@ -165,13 +166,13 @@ class TestMisconfiguredTarget:
             "args_only_no_mapping_deprecation",
         ],
     )
-    def test_misconfigured_target_true(self, func_name: str) -> None:
+    def test_target_true(self, func_name: str) -> None:
         """Invalid target configurations are flagged as misconfigured_target=True."""
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
         assert result.misconfigured_target is True
 
     @pytest.mark.parametrize("func_name", ["whole_clean_deprecation", "args_only_clean_deprecation"])
-    def test_misconfigured_target_false_for_valid_configs(self, func_name: str) -> None:
+    def test_target_false_for_valid_configs(self, func_name: str) -> None:
         """Correctly configured TargetMode wrappers have misconfigured_target=False."""
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
         assert result.misconfigured_target is False
@@ -181,7 +182,7 @@ class TestMisconfiguredTarget:
         result = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
         assert result.misconfigured_target is False
 
-    def test_misconfigured_flag_detected_when_target_false_used(self) -> None:
+    def test_flag_detected_when_target_false_used(self) -> None:
         """Audit flags misconfigured_target=True when legacy target=False was passed, even after normalisation."""
         result = validate_deprecation_wrapper(sample_module.target_false_deprecation)
         assert result.misconfigured_target is True
@@ -643,9 +644,21 @@ class TestGenerateDeprecationMarkdown:
         assert data_rows == []
 
     @_requires_packaging
-    def test_markdown_matrix_style_marks_deprecate_and_remove_versions(self) -> None:
-        """Matrix style adds version columns and D/R markers per symbol lifecycle."""
-        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False, style="matrix")
+    @pytest.mark.parametrize(
+        "style",
+        [
+            pytest.param("matrix", id="str"),
+            pytest.param(TableStyle.MATRIX, id="enum"),
+        ],
+    )
+    def test_markdown_matrix_style_marks_deprecate_and_remove_versions(self, style: Union[str, TableStyle]) -> None:
+        """Matrix style adds version columns and D/R markers per symbol lifecycle.
+
+        A caller may pass the style either as the ``"matrix"`` string alias or as the ``TableStyle.MATRIX`` enum
+        member — both are accepted by ``generate_deprecation_table`` and must yield the same report, so the enum
+        surface is exercised (not only string coercion) the way a downstream user importing ``TableStyle`` would use it.
+        """
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False, style=style)
         assert "| Original API | API Type | New API |" in report
         assert "v1.0" in report
         assert "v2.0" in report
