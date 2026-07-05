@@ -860,9 +860,9 @@ class _DeprecatedProxy:
     def __eq__(self, other: object) -> bool:
         """Compare the *active* object for equality — the object the proxy actually serves.
 
-        Data access (attribute/item/call) forwards to the active object (target when set, else source), so identity
-        # operations must too; comparing the source while serving the target would make a
-        # target-forwarding proxy equal to an object it never returns.
+        Data access (attribute/item/call) forwards to the active object (target when set, else source), so identity #
+        operations must too; comparing the source while serving the target would make a # target-forwarding proxy equal
+        to an object it never returns.
 
         """
         obj = self._get_active()
