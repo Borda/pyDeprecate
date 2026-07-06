@@ -10,10 +10,10 @@ on: # Trigger the workflow on push or pull request, but only for the main branch
 permissions:
   contents: read
 
-# cancel superseded runs on the same ref so rapid pushes don't queue the full matrix repeatedly
+# cancel superseded runs only on PRs; never cancel pushes to protected branches
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   pytester:
