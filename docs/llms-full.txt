@@ -106,19 +106,19 @@ class OldModel:
 from deprecate import TargetMode, deprecated_class
 
 
-class Config:
-    colour: str = "red"
+class NewClass:
+    new_attr: str = "value"
 
 
-# Only "color" warns and redirects to "colour"; other attributes pass through silently.
+# Only "old_attr" warns and redirects to "new_attr"; other attributes pass through silently.
 # Passing attrs_mapping alone auto-resolves to TargetMode.ATTRS_REMAP; the explicit target= form is equivalent.
-# Use None as the value for warn-only with no rename: attrs_mapping={"size": None}.
-DeprecatedConfig = deprecated_class(
+# Use None as the value for warn-only with no rename: attrs_mapping={"other_attr": None}.
+OldClass = deprecated_class(
     target=TargetMode.ATTRS_REMAP,
-    attrs_mapping={"color": "colour"},
+    attrs_mapping={"old_attr": "new_attr"},
     deprecated_in="1.2",
     remove_in="2.0",
-)(Config)
+)(NewClass)
 ```
 
 ### Object alias

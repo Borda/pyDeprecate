@@ -8,10 +8,11 @@ on:
   schedule:
     - cron: "10 10 * * 6"
 
-# cancel superseded runs on the same ref so rapid pushes don't queue redundant scans
+# cancel superseded runs on the same ref so rapid pushes don't queue redundant scans;
+# scheduled scans excluded from cancel to avoid interruption by a coincident push to main
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
   analyze:
