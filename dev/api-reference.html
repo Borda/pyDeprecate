@@ -3500,7 +3500,7 @@ decorator.</p>
   <blockquote>
 <blockquote>
 <blockquote>
-<p>from deprecate import deprecated, validate_deprecation_wrapper
+<p>from deprecate import TargetMode, deprecated, validate_deprecation_wrapper
 def new_implementation(value: int) -&gt; int:
 ...     return value * 2</p>
 <p>@deprecated(target=new_implementation, deprecated_in="1.0", args_mapping={"old_val": "value"})
@@ -3512,7 +3512,7 @@ result.no_effect
 False
 result.invalid_args
 []</p>
-<p>@deprecated(target=True, deprecated_in="1.0", args_mapping={"arg": "arg"})
+<p>@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.0", args_mapping={"arg": "arg"})
 ... def identity_func(arg: int) -&gt; int:
 ...     return arg</p>
 <h3 id="deprecate.audit.validate_deprecation_wrapper--identity-mapping-with-self-deprecation-no-effect">Identity mapping with self-deprecation - no effect<a class="headerlink" href="#deprecate.audit.validate_deprecation_wrapper--identity-mapping-with-self-deprecation-no-effect" title="Permanent link">🔗</a></h3>
@@ -3725,9 +3725,9 @@ print(len(expired))  # Some functions and class members have remove_in &lt;= "0.
 <ol>
 <li><strong>TARGET chains</strong>: The <code>target</code> argument points to another deprecated callable instead of the final
    non-deprecated implementation.</li>
-<li><strong>STACKED chains</strong>: Multiple <code>@deprecated(True, ...)</code> decorators are stacked on the same function with
-   argument mappings that should be collapsed, or a callable <code>target</code> is itself a self-deprecation
-   (<code>target=True</code>) requiring mapping composition.</li>
+<li><strong>STACKED chains</strong>: Multiple <code>@deprecated(target=TargetMode.ARGS_REMAP, ...)</code> decorators are stacked on the
+   same function with argument mappings that should be collapsed, or a callable <code>target</code> is itself a
+   self-deprecation (<code>target=TargetMode.ARGS_REMAP</code>) requiring mapping composition.</li>
 </ol>
 <p>Both types are wasteful: wrappers should point directly to the final (non-deprecated) implementation with
 composed argument mappings.</p>

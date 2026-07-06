@@ -12,7 +12,7 @@ description: >-
 
 Every time you rename a function or retire an argument, you end up writing the same boilerplate: a wrapper, a `warnings.warn` call with the right category and `stacklevel`, manual argument forwarding, and no way to enforce the removal deadline when it arrives. **pyDeprecate** replaces all of that with a single decorator and gives you CI tools to make sure deprecated code does not quietly outlive its deadline.
 
-> **pyDeprecate is downloaded over 700,000 times per month** from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — used across production Python projects that need reliable API deprecation without adding runtime dependencies.
+> **pyDeprecate is downloaded over 700,000 times per month** (as of mid-2026) from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — used across production Python projects that need reliable API deprecation without adding runtime dependencies.
 >
 > **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
 
@@ -139,7 +139,7 @@ Recent PyPI download statistics show broad production use; see pepy.tech for cur
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Python versions              | Project metadata currently supports Python 3.9+; Borda-maintained development policy targets Python 3.10+ because Python 3.9 reached end of life in October 2025. |
 | Runtime dependencies         | None.                                                                                                                                                             |
-| Optional audit extra         | `packaging`.                                                                                                                                                      |
+| Optional audit extra         | `packaging` (plus `tomli` on Python < 3.11 for `pyproject.toml` version detection).                                                                               |
 | Optional CLI extra           | `fire`, `rich`.                                                                                                                                                   |
 | Docs engines                 | Sphinx and MkDocs compatible.                                                                                                                                     |
 | Type checker static warnings | Prefer `warnings.deprecated` for Python 3.13+ static-checker-only cases.                                                                                          |

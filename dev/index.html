@@ -107,7 +107,7 @@
     "https://anaconda.org/conda-forge/pydeprecate",
     "https://repology.org/project/python:pydeprecate/versions"
   ],
-  "softwareVersion": "0.11.0.dev",
+  "softwareVersion": "0.11.0.dev0",
   "featureList": [
     "Decorator-based function and method deprecation with automatic call forwarding",
     "Argument renaming and remapping via args_mapping",
@@ -1404,7 +1404,7 @@
 <p><strong>Author:</strong> <a href="https://github.com/Borda">Jiri Borovec</a> · <strong>License:</strong> Apache 2.0 · <strong>Python:</strong> 3.9+ · <strong>Install:</strong> <code>pip install pyDeprecate</code> · <strong>Import:</strong> <code>from deprecate import deprecated</code> · <strong>PyPI:</strong> https://pypi.org/project/pyDeprecate/</p>
 <p>Every time you rename a function or retire an argument, you end up writing the same boilerplate: a wrapper, a <code>warnings.warn</code> call with the right category and <code>stacklevel</code>, manual argument forwarding, and no way to enforce the removal deadline when it arrives. <strong>pyDeprecate</strong> replaces all of that with a single decorator and gives you CI tools to make sure deprecated code does not quietly outlive its deadline.</p>
 <blockquote>
-<p><strong>pyDeprecate is downloaded over 700,000 times per month</strong> from PyPI (source: <a href="https://pepy.tech/project/pyDeprecate">pepy.tech</a>) — used across production Python projects that need reliable API deprecation without adding runtime dependencies.</p>
+<p><strong>pyDeprecate is downloaded over 700,000 times per month</strong> (as of mid-2026) from PyPI (source: <a href="https://pepy.tech/project/pyDeprecate">pepy.tech</a>) — used across production Python projects that need reliable API deprecation without adding runtime dependencies.</p>
 <p><strong>Read:</strong> <a href="https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62">Mastering API Deprecation in Python — the pain points and how pyDeprecate can help</a> — CodeX / Medium</p>
 </blockquote>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
@@ -1659,7 +1659,7 @@
 </tr>
 <tr>
 <td>Optional audit extra</td>
-<td><code>packaging</code>.</td>
+<td><code>packaging</code> (plus <code>tomli</code> on Python &lt; 3.11 for <code>pyproject.toml</code> version detection).</td>
 </tr>
 <tr>
 <td>Optional CLI extra</td>
@@ -1699,7 +1699,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 15, 2026 23:18:41 UTC">2026-06-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 6, 2026 15:33:25 UTC">2026-07-06</span>
   </span>
 
     

@@ -762,10 +762,10 @@ proxy = deprecated_class(
 )(TrainLoop)
 
 
-val1 = proxy.num_iters  # warns: FutureWarning — deprecated v1.0 name
+val1 = proxy.num_iters  # warns: FutureWarning — num_iters deprecated in v2.0 (→ num_steps)
 print(val1)
 
-val2 = proxy.num_steps  # warns: FutureWarning — deprecated v2.0 name
+val2 = proxy.num_steps  # warns: FutureWarning — num_steps deprecated in v2.0 (→ max_steps)
 print(val2)
 
 val3 = proxy.max_steps  # silent — canonical name
