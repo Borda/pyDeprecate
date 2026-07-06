@@ -25,7 +25,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/JoC0de/pre-commit-prettier
-    rev: v3.8.1 # using tag; previously pinned SHA when tags were not persistent
+    rev: v3.9.4 # using tag; previously pinned SHA when tags were not persistent
     hooks:
       - id: prettier
         files: \.(html|yml|yaml|toml)
@@ -56,7 +56,7 @@ repos:
         exclude: ^tests/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.0
+    rev: v2.1.0
     hooks:
       - id: mypy
         name: typing
@@ -83,7 +83,7 @@ repos:
           - mdformat_frontmatter
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.9
+    rev: v0.15.20
     hooks:
       # try to fix what is possible
       - id: ruff-check
@@ -92,7 +92,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: v2.21.0
+    rev: v2.25.1
     hooks:
       - id: pyproject-fmt
         additional_dependencies: [tox]
