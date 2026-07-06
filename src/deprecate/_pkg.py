@@ -6,7 +6,7 @@ Version resolution uses a local ``pyproject.toml`` (development checkout) when a
 distribution metadata via ``importlib.metadata``.
 
 TOML parsing uses ``tomllib`` (stdlib on Python 3.11+) or ``tomli`` (backport, via ``pip install 'pyDeprecate[audit]'``
-on Python 3.10). When not available the helpers return ``None`` and callers fall back to ``importlib.metadata``.
+on Python 3.9-3.10). When not available the helpers return ``None`` and callers fall back to ``importlib.metadata``.
 
 This module is private (no ``__all__``); its surface may change without notice.
 

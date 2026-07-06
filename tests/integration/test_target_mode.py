@@ -287,14 +287,14 @@ class TestArgsRemapMode:
 class TestDefaultTarget:
     """Omitting `target` defaults to TargetMode.NOTIFY — warn-only, no forwarding."""
 
-    def test_default_target_resolves_to_notify(self) -> None:
+    def test_resolves_to_notify(self) -> None:
         """Omitting target stores TargetMode.NOTIFY in __deprecated__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fn = make_default_target_with_versions()
         assert cast(_DeprecatedCallable, fn).__deprecated__.target is TargetMode.NOTIFY
 
-    def test_default_target_no_decoration_time_future_warning(self) -> None:
+    def test_no_decoration_time_future_warning(self) -> None:
         """Omitting target emits no FutureWarning at decoration time (unlike target=None)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -302,7 +302,7 @@ class TestDefaultTarget:
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert future_warns == []
 
-    def test_default_target_warns_on_call(self) -> None:
+    def test_warns_on_call(self) -> None:
         """Omitting target still emits FutureWarning when the decorated function is called."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -310,7 +310,7 @@ class TestDefaultTarget:
         with pytest.warns(FutureWarning):
             fn(1)
 
-    def test_default_target_executes_body(self) -> None:
+    def test_executes_body(self) -> None:
         """Omitting target executes the original function body and returns its value."""
         tracked_identity_calls.clear()
         with warnings.catch_warnings():

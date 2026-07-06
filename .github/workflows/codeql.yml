@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "10 10 * * 6"
 
+# cancel superseded runs only on PRs; never cancel pushes to protected branches or scheduled scans
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze

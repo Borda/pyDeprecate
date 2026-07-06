@@ -547,6 +547,10 @@ class TestCrossClassMethodGuard:
             def old_method(self, x: int) -> int:
                 return void(x)
 
+        # Guard returned silently: decoration completed and attached deprecation metadata rather than raising.
+        # (The synthetic ``replacement`` fixture rejects the forwarded ``self``, so only decoration is asserted here.)
+        assert hasattr(RealOwner.old_method, "__deprecated__")
+
     def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
         """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
 
@@ -569,6 +573,11 @@ class TestCrossClassMethodGuard:
             @rewrite_to_alien_class
             def old_method(self, x: int) -> int:
                 return void(x)
+
+        # Decoration succeeded and the wrapper forwards to the same-class target: calling it warns and returns 7.
+        with pytest.warns(FutureWarning):
+            result = MyClass().old_method(7)
+        assert result == 7
 
     def test_decorator_rewriting_qualname_raises_for_cross_class(self) -> None:
         """A pre-applied decorator rewriting source qualname to a genuinely different class still raises TypeError.

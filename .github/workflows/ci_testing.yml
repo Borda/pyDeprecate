@@ -10,6 +10,11 @@ on: # Trigger the workflow on push or pull request, but only for the main branch
 permissions:
   contents: read
 
+# cancel superseded runs only on PRs; never cancel pushes to protected branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pytester:
     runs-on: ${{ matrix.os }}
@@ -55,7 +60,7 @@ jobs:
         if: success()
         continue-on-error: true
         with:
-          # token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           flags: pytest,python${{ matrix.python-version }}
           fail_ci_if_error: false

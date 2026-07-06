@@ -1,12 +1,16 @@
 """Audit tools for deprecation lifecycle management.
 
-This module provides three complementary utilities for verifying the health of deprecated callables across a codebase.
-All three are designed to be called from pytest or a CI script against an imported package.
+This module provides several complementary utilities for verifying the health of deprecated callables across a
+codebase. All are designed to be called from pytest or a CI script against an imported package.
 
 **Wrapper configuration** (:func:`~deprecate.audit.validate_deprecation_wrapper`,
 :func:`~deprecate.audit.find_deprecation_wrappers`):
     Detect wrappers that have zero impact — invalid ``args_mapping`` keys, identity mappings, empty mappings, or a
     ``target`` pointing back to the same wrapper.
+
+**Mapping compatibility** (:func:`~deprecate.audit.validate_mapping_compatibility`):
+    Detect :func:`~deprecate.proxy.deprecated_class` wrappers whose ``args_mapping`` remaps to POSITIONAL_ONLY
+    constructor params, silently degrading to ``setattr`` at call time.
 
 **Expiry enforcement** (:func:`~deprecate.audit.validate_deprecation_expiry`):
     Detect wrappers whose ``remove_in`` version has been reached or passed, preventing zombie code from shipping past
@@ -531,7 +535,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
             :class:`~deprecate._types.DeprecationConfig`).
 
     Example:
-        >>> from deprecate import deprecated, validate_deprecation_wrapper
+        >>> from deprecate import TargetMode, deprecated, validate_deprecation_wrapper
         >>> def new_implementation(value: int) -> int:
         ...     return value * 2
         >>>
@@ -546,7 +550,7 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         >>> result.invalid_args
         []
 
-        >>> @deprecated(target=True, deprecated_in="1.0", args_mapping={"arg": "arg"})
+        >>> @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.0", args_mapping={"arg": "arg"})
         ... def identity_func(arg: int) -> int:
         ...     return arg
         >>>
@@ -1433,9 +1437,9 @@ def validate_deprecation_chains(
 
     1. **TARGET chains**: The ``target`` argument points to another deprecated callable instead of the final
        non-deprecated implementation.
-    2. **STACKED chains**: Multiple ``@deprecated(True, ...)`` decorators are stacked on the same function with
-       argument mappings that should be collapsed, or a callable ``target`` is itself a self-deprecation
-       (``target=True``) requiring mapping composition.
+    2. **STACKED chains**: Multiple ``@deprecated(target=TargetMode.ARGS_REMAP, ...)`` decorators are stacked on the
+       same function with argument mappings that should be collapsed, or a callable ``target`` is itself a
+       self-deprecation (``target=TargetMode.ARGS_REMAP``) requiring mapping composition.
 
     Both types are wasteful: wrappers should point directly to the final (non-deprecated) implementation with
     composed argument mappings.
