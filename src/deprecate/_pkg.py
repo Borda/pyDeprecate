@@ -227,7 +227,10 @@ def _distribution_from_top_level(top_level: str) -> Optional[str]:
         except Exception:
             listed = None
         if listed and top_level in listed.split():
-            name = dist.metadata.get("Name") if dist.metadata else None
+            try:
+                name = dist.metadata["Name"]
+            except KeyError:
+                continue
             if name:
                 return name
     return None
