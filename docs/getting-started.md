@@ -1,6 +1,6 @@
 ---
 id: getting-started
-description: Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, the audit extra, a Quick Start example, and the full API at a Glance reference table.
+description: Install pyDeprecate and write your first deprecation in minutes. Covers pip installation, optional audit and CLI extras, a Quick Start example, and the full API at a Glance reference table.
 ---
 
 # Getting Started
@@ -13,7 +13,7 @@ You renamed a function (or retired an argument) and now you need the old name to
 
 - **Automatic call forwarding** — every call to the old function is transparently redirected to the replacement; no stale code runs.
 - **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}` to help callers migrate to the new signature.
-- **CI deadline enforcement** — `validate_deprecation_expiry()` (via `pip install pyDeprecate[audit]`) raises in CI when a removal date has passed, so deprecated code cannot quietly outlive its deadline.
+- **CI deadline enforcement** — `validate_deprecation_expiry()` (via `pip install 'pyDeprecate[audit]'`) raises in CI when a removal date has passed, so deprecated code cannot quietly outlive its deadline.
 
 If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.
 
@@ -21,7 +21,15 @@ If you only need a one-line notice with no forwarding and no deadline tracking, 
 
 pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies.
 
-Install from PyPI:
+Choose the install that matches the workflow you need:
+
+| Workflow | Command | Includes |
+| --- | --- | --- |
+| Runtime deprecation wrappers | `pip install pyDeprecate` | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers |
+| CI deadline checks | `pip install 'pyDeprecate[audit]'` | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus expiry support for `pydeprecate expiry` and `pydeprecate all` |
+
+Base install from PyPI:
 
 ```bash
 pip install pyDeprecate
@@ -37,6 +45,12 @@ The `audit` extra adds `packaging` for version comparison, needed only by [`vali
 
 ```bash
 pip install 'pyDeprecate[audit]'
+```
+
+For command-line audit workflows:
+
+```bash
+pip install 'pyDeprecate[audit,cli]'
 ```
 
 ## Quick Start

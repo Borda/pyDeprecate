@@ -11,7 +11,7 @@ The most common reasons to deprecate something are renaming a function, renaming
 
 ### [Functions](functions.md)
 
-Deprecating Python functions and methods: simple call forwarding, argument renaming with `args_mapping`, notice-only deprecation, self argument remapping with `TargetMode.ARGS_REMAP`, stacking multiple decorators for multi-release migrations, and conditional suppression with `skip_if`.
+Deprecating Python functions and methods: simple call forwarding, argument renaming with `args_mapping`, notice-only deprecation, same-function argument renaming with `TargetMode.ARGS_REMAP`, stacking multiple decorators for multi-release migrations, and conditional suppression with `skip_if`.
 
 ### [Classes](classes.md)
 
@@ -36,7 +36,7 @@ Advanced patterns: injecting a deprecation notice into the docstring at import t
 | Rename a function or method                   | [Functions → Simple forwarding](functions.md#simple-function-forwarding)             |
 | Rename an argument                            | [Functions → Argument renaming](functions.md#argument-renaming-and-mapping)          |
 | Notice only — no replacement yet              | [Functions → Notice-only](functions.md#notice-only-deprecation)                      |
-| Rename an argument within the same function   | [Functions → Self argument mapping](functions.md#self-argument-mapping)              |
+| Rename an argument within the same function   | [Functions → Rename arguments within one function](functions.md#rename-arguments-within-one-function) |
 | Stack decorators across releases              | [Functions → Stacked decorators](functions.md#stacked-deprecation-decorators)        |
 | Suppress notice conditionally                 | [Functions → Conditional skip](functions.md#conditional-skip)                        |
 | Rename a class, Enum, or dataclass            | [Classes → Class deprecation](classes.md#class-deprecation)                          |

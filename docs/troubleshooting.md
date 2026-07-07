@@ -235,7 +235,7 @@ from deprecate import deprecated
 
 
 # None means skip this argument
-@deprecated(target=new_func, args_mapping={"old_arg": None})
+@deprecated(target=new_func, args_mapping={"old_arg": None}, deprecated_in="1.0", remove_in="2.0")
 def old_func(old_arg: int, new_arg: int) -> int:
     pass
 
@@ -265,7 +265,7 @@ from deprecate import deprecated
 
 
 # Map old to new
-@deprecated(target=new_func, args_mapping={"old_name": "new_name"})
+@deprecated(target=new_func, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
 def old_func(old_name: int) -> int:
     pass
 
@@ -289,7 +289,7 @@ from deprecate import TargetMode, deprecated
 
 
 # Deprecate within same function
-@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 
@@ -330,13 +330,13 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=get_status, skip_if=should_skip)
+@deprecated(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
 def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=get_status, skip_if=lambda: False)
+@deprecated(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
 def infer_v2():
     pass
 
@@ -375,13 +375,13 @@ from deprecate import deprecated
 
 
 # Show warning every time
-@deprecated(target=score_predictions, num_warns=-1)
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 def predict():
     pass
 
 
 # Show warning N times total
-@deprecated(target=score_predictions, num_warns=5)
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=5)
 def predict_batch():
     pass
 

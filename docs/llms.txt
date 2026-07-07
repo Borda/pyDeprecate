@@ -10,8 +10,8 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 - Import: `from deprecate import deprecated`
 - CLI: `pydeprecate`
 - Runtime dependencies: none
-- Optional audit extra: `pip install pyDeprecate[audit]`
-- Optional CLI extra: `pip install pyDeprecate[cli]`
+- Optional audit extra: `pip install 'pyDeprecate[audit]'`
+- Optional CLI audit extra: `pip install 'pyDeprecate[audit,cli]'` for `pydeprecate expiry` and `pydeprecate all`
 
 ## Critical Mental Model
 
