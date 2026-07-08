@@ -635,6 +635,42 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
     )
 
 
+def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
+    """Return a stable fully-qualified label for report rows and error messages.
+
+    Modules carry their name in :attr:`~deprecate.audit.DeprecationWrapperInfo.module` and leave
+    ``function`` empty, so a plain ``module.function`` join would append a trailing dot. Guard against
+    an empty ``function`` (or an empty ``module``) so the rendered label is always clean — e.g.
+    ``tests.collection_modules.old_math`` for a deprecated module, never ``...old_math.`` or ``...(module)``.
+
+    """
+    if info.module and info.function:
+        return f"{info.module}.{info.function}"
+    return info.module or info.function
+
+
+def _subject_noun(info: DeprecationWrapperInfo) -> str:
+    """Return the grammatical subject noun for a deprecated wrapper, driven by ``api_type``.
+
+    Centralises noun selection so error and report text says *Module* for a deprecated module and *Callable* for
+    everything else, instead of inlining ``info.function`` (which is empty for modules).
+
+    """
+    return "Module" if info.api_type == "module" else "Callable"
+
+
+def _format_subject(info: DeprecationWrapperInfo) -> str:
+    """Return the backticked subject phrase used in expiry error messages.
+
+    Renders the noun from :func:`_subject_noun` (``Callable`` or ``Module``) followed by the backtick-quoted fully-
+    qualified label from :func:`_format_report_symbol` — for example a callable subject reads *Callable* then the quoted
+    name, and a module subject reads *Module* then the quoted module path. Centralising this here means no expiry site
+    inlines ``info.function`` directly, so an empty or sentinel module label can never leak into the text.
+
+    """
+    return f"{_subject_noun(info)} `{_format_report_symbol(info)}`"
+
+
 def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> None:
     """Check if a deprecated wrapper has passed its scheduled removal version.
 
@@ -666,7 +702,7 @@ def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> No
     remove_in = info.deprecated_info.remove_in
     if not remove_in:
         raise ValueError(
-            f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
+            f"{_format_subject(info)} does not have a 'remove_in' version specified in its deprecation metadata."
         )
 
     # Parse both versions for proper semantic version comparison
@@ -679,12 +715,12 @@ def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> No
     try:
         remove_ver = _parse_version(remove_in)
     except ValueError as err:
-        raise ValueError(f"Invalid remove_in '{remove_in}' for callable `{info.function}`: {err}") from err
+        raise ValueError(f"Invalid remove_in '{remove_in}' for {_format_subject(info)}: {err}") from err
 
     # Check if the current version has reached or passed the removal deadline
     if current_ver >= remove_ver:
         raise AssertionError(
-            f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
+            f"{_format_subject(info)} was scheduled for removal in version {remove_in} "
             f"but still exists in version {current_version}. Please delete this deprecated code."
         )
 
@@ -753,14 +789,14 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
             # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent
             # — the single-callable path raises; here a warning keeps the batch scan going for the rest.
             warnings.warn(
-                f"Callable `{info.function}` has an unparsable `remove_in` version `{remove_in}`; "
+                f"{_format_subject(info)} has an unparsable `remove_in` version `{remove_in}`; "
                 "its expiry cannot be checked until the version string is fixed.",
                 stacklevel=2,
             )
             continue
         if current_ver >= remove_ver:
             expired.append(
-                f"Callable `{info.function}` was scheduled for removal in version {remove_in}"
+                f"{_format_subject(info)} was scheduled for removal in version {remove_in}"
                 f" but still exists in version {current_version}. Please delete this deprecated code."
             )
     return expired
@@ -887,8 +923,12 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
     # and may trigger the module's own __getattr__ before __spec__ is in __dict__.
     _raw_name = mod.__dict__.get("__name__")
     mod_name: str = _raw_name if _raw_name is not None else str(mod)
+    # A module has no callable name — its identity lives entirely in ``module``. Leave ``function``
+    # empty (never a ``"(module)"`` sentinel): ``_format_report_symbol`` then renders just the module
+    # name, and ``_subject_noun`` picks the ``Module`` noun from ``api_type``, so no ``(module)`` label
+    # can leak into report rows or expiry error messages.
     return DeprecationWrapperInfo(
-        function="(module)",
+        function="",
         module=mod_name,
         deprecated_info=dep_info,
         invalid_args=[],
@@ -1241,11 +1281,6 @@ def _safe_parse_version(version: str) -> Optional["Version"]:
         return _parse_version(version)
     except (ImportError, ValueError):
         return None
-
-
-def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
-    """Return a stable fully-qualified label for report rows."""
-    return f"{info.module}.{info.function}" if info.module else info.function
 
 
 def _format_report_target(target: Any) -> str:  # noqa: ANN401
