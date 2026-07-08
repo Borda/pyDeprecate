@@ -114,9 +114,9 @@ old_utils = deprecated_instance(
 
 `import my_package; my_package.old_utils.add(1, 2)` emits a `FutureWarning` on the first attribute access and forwards to `new_calculator`.
 
-## Star-import limitation
+## Star imports also warn
 
-Star imports (`from old_calculator import *`) read `__all__` (or all public names) directly from the module's `__dict__` at import time and bypass `__getattribute__` entirely, so no `FutureWarning` is emitted. If star imports are a concern, document the change in the module docstring and in your release notes.
+Star imports (`from old_calculator import *`) still trigger the deprecation warning. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name being pulled in, and that call routes through the same `__getattribute__` interception installed by `deprecated_module()` — so a `FutureWarning` fires once per pulled-in public name, exactly as it would for `old_calculator.add(1, 2)`. This closes a gap that a PEP 562 module-level `__getattr__` hook would otherwise leave open, since `__getattr__` only fires for missing names and star imports never trigger it.
 
 ## Audit integration
 

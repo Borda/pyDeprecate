@@ -1241,7 +1241,7 @@ old_utils = deprecated_instance(
 ```
 
 > [!NOTE]
-> **Star-import limitation:** `from old_calculator import *` reads `__all__` (or all public names) directly from `__dict__` at import time and bypasses `__getattribute__`, so no `FutureWarning` is emitted. Document the change in the module docstring and release notes if star imports are a concern.
+> **Star imports also warn:** `from old_calculator import *` still emits a `FutureWarning`. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name pulled in, so it routes through the same `__getattribute__` interception as any other attribute access — one warning per pulled-in public name. This closes a gap a PEP 562 `__getattr__` hook would otherwise leave open.
 
 ### 🌀 Async functions
 
