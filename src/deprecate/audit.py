@@ -1027,11 +1027,7 @@ def _should_skip_reexported_wrapper(
     if not attribute_to_defining_module:
         return False
     defining_module = _reexport_module(obj)
-    return (
-        defining_module is not None
-        and defining_module != mod_name
-        and _same_top_package(defining_module, mod_name)
-    )
+    return defining_module is not None and defining_module != mod_name and _same_top_package(defining_module, mod_name)
 
 
 def _scan_module_member(
