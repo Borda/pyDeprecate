@@ -264,7 +264,7 @@ Most alternatives emit a deprecation notice. pyDeprecate is for migrations where
 | **MkDocs Plugin**         |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
 
 ✍️ = possible but requires manual implementation
-</br>
+<br>
 † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as `typing_extensions.deprecated` for Python < 3.13
 
 _Positioning guide reviewed for pyDeprecate v0.11.0.dev0, July 2026. This is not a full cell-by-cell external audit; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
