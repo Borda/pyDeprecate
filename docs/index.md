@@ -12,7 +12,7 @@ description: >-
 
 Every time you rename a function or retire an argument, you end up writing the same boilerplate: a wrapper, a `warnings.warn` call with the right category and `stacklevel`, manual argument forwarding, and no way to enforce the removal deadline when it arrives. **pyDeprecate** replaces all of that with a single decorator and gives you CI tools to make sure deprecated code does not quietly outlive its deadline.
 
-> **pyDeprecate is downloaded over 700,000 times per month** from PyPI (source: [pepy.tech](https://pepy.tech/project/pyDeprecate)) — used across production Python projects that need reliable API deprecation without adding runtime dependencies.
+> **pyDeprecate has broad PyPI usage**. For current download statistics, see [pepy.tech](https://pepy.tech/project/pyDeprecate).
 >
 > **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
 
@@ -68,6 +68,16 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 ## Installation
 
+<!-- keep this install table in sync with README.md and docs/getting-started.md -->
+
+Choose the install that matches the workflow you need:
+
+| Workflow                     | Command                                | Includes                                                                                                      |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()`                            |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus expiry support for `pydeprecate expiry` and `pydeprecate all`     |
+
 ```bash
 pip install pyDeprecate
 ```
@@ -75,12 +85,16 @@ pip install pyDeprecate
 For CI audit features that compare version strings:
 
 ```bash
-pip install "pyDeprecate[audit]"
+pip install 'pyDeprecate[audit]'
 ```
 
 !!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry`"
 
     The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` needs the extra because it pulls in `packaging` for PEP 440 version comparison.
+
+!!! tip "Use `[audit,cli]` for command-line audit workflows"
+
+    The `pydeprecate` command itself lives in the `[cli]` extra, but `pydeprecate expiry` and the expiry phase of `pydeprecate all` also need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
 
 ## Comparison with other tools
 
@@ -108,7 +122,7 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 
 ✍️ = possible but requires manual implementation <br /> † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
 
-_Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
+_Positioning guide reviewed for pyDeprecate v0.11.0.dev0, July 2026. This is not a full cell-by-cell external audit; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
 > **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
 
@@ -139,7 +153,7 @@ Recent PyPI download statistics show broad production use; see pepy.tech for cur
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Python versions              | Project metadata currently supports Python 3.9+; Borda-maintained development policy targets Python 3.10+ because Python 3.9 reached end of life in October 2025. |
 | Runtime dependencies         | None.                                                                                                                                                             |
-| Optional audit extra         | `packaging`.                                                                                                                                                      |
+| Optional audit extra         | `packaging` (plus `tomli` on Python < 3.11 for `pyproject.toml` version detection).                                                                               |
 | Optional CLI extra           | `fire`, `rich`.                                                                                                                                                   |
 | Docs engines                 | Sphinx and MkDocs compatible.                                                                                                                                     |
 | Type checker static warnings | Prefer `warnings.deprecated` for Python 3.13+ static-checker-only cases.                                                                                          |

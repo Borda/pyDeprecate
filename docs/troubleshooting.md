@@ -1,6 +1,6 @@
 ---
 id: troubleshooting
-description: 'Fix common pyDeprecate errors: missing deprecation notices, async warning not appearing in CI, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy limitations on primitives, and redirecting deprecation output to a logger.'
+description: 'Fix common pyDeprecate errors: missing deprecation notices, async warning not appearing in CI, TypeError mapping failures, class deprecation notices, bool return errors, cross-module path issues, proxy operator forwarding, subclassing deprecated class aliases, and redirecting deprecation output to a logger.'
 ---
 
 # Troubleshooting
@@ -235,7 +235,7 @@ from deprecate import deprecated
 
 
 # None means skip this argument
-@deprecated(target=new_func, args_mapping={"old_arg": None})
+@deprecated(target=new_func, args_mapping={"old_arg": None}, deprecated_in="1.0", remove_in="2.0")
 def old_func(old_arg: int, new_arg: int) -> int:
     pass
 
@@ -265,7 +265,7 @@ from deprecate import deprecated
 
 
 # Map old to new
-@deprecated(target=new_func, args_mapping={"old_name": "new_name"})
+@deprecated(target=new_func, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
 def old_func(old_name: int) -> int:
     pass
 
@@ -289,7 +289,7 @@ from deprecate import TargetMode, deprecated
 
 
 # Deprecate within same function
-@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
 def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
     return new_arg * 2
 
@@ -330,13 +330,13 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=get_status, skip_if=should_skip)
+@deprecated(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
 def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=get_status, skip_if=lambda: False)
+@deprecated(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
 def infer_v2():
     pass
 
@@ -375,13 +375,13 @@ from deprecate import deprecated
 
 
 # Show warning every time
-@deprecated(target=score_predictions, num_warns=-1)
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
 def predict():
     pass
 
 
 # Show warning N times total
-@deprecated(target=score_predictions, num_warns=5)
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=5)
 def predict_batch():
     pass
 
@@ -408,42 +408,75 @@ If you are writing tests and need to verify that a warning fires, use `pytest.wa
 
 When moving functions across modules, import the target from its new home explicitly rather than relying on a re-export alias. The path shown in the deprecation message will then reflect the module where the function actually lives, giving callers accurate migration information. The message will correctly show the full path for real imports when used in your package.
 
-## Why does `deprecated_instance` not emit a notice on arithmetic/comparison operators?
+## Do arithmetic and operator protocol methods emit deprecation notices on `deprecated_instance` proxies?
 
-**Q:** I wrapped a `float` constant with `deprecated_instance` but operations like `old_value + 1` or `old_value > 0` do not emit any deprecation notice. Why?
+**Q:** I wrapped an `int` or `float` with `deprecated_instance` and operations like `old_value + 1` or `abs(old_value)` don't seem to emit a notice. How does operator interception work?
 
-**A:** Python's data model invokes special ("dunder") methods like `__add__`, `__lt__`, `__mul__`, etc. directly on the object's type, bypassing `__getattr__`. The `_DeprecatedProxy` class implements `__getattr__` to intercept attribute access, but CPython does not call `__getattr__` for implicit protocol method lookups (it goes through the class's MRO directly). Since `_DeprecatedProxy` does not define every possible arithmetic/comparison dunder, these operations fall through to the default behaviour or raise `TypeError` — without emitting a deprecation notice.
+**A:** Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing `__getattr__`), so these must be defined on `_DeprecatedProxy` itself — and they are.
 
-The proxy does intercept:
+**What warns (data-use operations):**
 
-- Attribute access (`obj.name`) via `__getattr__`
-- Subscript access (`obj[key]`) via `__getitem__`
-- Iteration (`for x in obj`) via `__iter__`
-- Calling (`obj(...)`) via `__call__`
-- Equality (`obj == other`) via `__eq__`
-- Boolean truth (`if obj`) via `__bool__`
-- String representation (`str(obj)`, `repr(obj)`) via `__str__`/`__repr__`
+- Arithmetic operators (`+`, `-`, `*`, `/`, `//`, `**`, `%`, `@`) and their reflected/in-place forms
+- Numeric/path conversions: `int()`, `float()`, `complex()`, `operator.index()`, `os.fspath()`
+- Unary numeric operators: `abs()`, `-obj`, `+obj`, `~obj`
+- Rounding: `round()`, `math.trunc()`, `math.floor()`, `math.ceil()`
+- `reversed()`, `next()`
+- Context-manager entry (`with proxy:`, `async with proxy:`)
+- Async iteration entry (`async for`)
+- Subclassing (`class Child(proxy):`)
 
-It does **not** intercept:
+**What stays silent (structural probes):**
 
-- Arithmetic operators (`+`, `-`, `*`, `/`, `//`, `**`, `%`)
-- Comparison operators (`<`, `>`, `<=`, `>=`) other than equality
-- Bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`)
-- Unary operators (`-obj`, `+obj`, `abs(obj)`)
+- Ordering comparisons: `<`, `<=`, `>`, `>=`
+- `format()` / f-strings using the wrapped object
+- Context-manager exit (`__exit__` / `__aexit__`)
 
-!!! bug "Known limitation: proxy cannot intercept dunder protocol methods"
+This mirrors the existing silent/warn split for `__eq__` / `__len__` / `__str__` versus `__getitem__` / `__iter__`.
 
-    This is a fundamental CPython constraint, not a pyDeprecate bug. Wrapping primitives (`int`, `float`, `str`) in `deprecated_instance` will not emit notices for arithmetic, comparison, or bitwise operations. See the workarounds below.
-
-**Workarounds for primitive constants:**
-
-1. **Wrap in a container** — put the value in a dict or dataclass so access goes through `__getitem__` or `__getattr__`:
+**In-place operator rebinding:** In-place operators (`+=`, `-=`, etc.) return the active object's own result, not a re-wrapped proxy. Assigning the result rebinds the variable to the underlying type:
 
 ```python
 from deprecate import deprecated_instance
 
-# Instead of: OLD_THRESHOLD = deprecated_instance(0.5, ...)
-# Use a container:
+n = deprecated_instance(3, deprecated_in="1.0", remove_in="2.0", stream=None)
+n += 1  # silent (stream=None); n is now plain int(4), not a proxy
+print(type(n).__name__)
+```
+
+<details>
+  <summary>Output: <code>type(n).__name__</code></summary>
+
+```
+int
+```
+
+</details>
+
+**One known edge case — strict-type reflected operators:** When the proxy is on the right-hand side and the left operand's type raises `TypeError` directly (instead of returning `NotImplemented`), Python cannot fall back to the proxy's reflected method. For example, `"prefix" + proxy_str` fails because `str.__add__` raises `TypeError` for non-string operands rather than returning `NotImplemented`. The proxy-on-left form works normally and warns:
+
+```python
+from deprecate import deprecated_instance
+
+s = deprecated_instance("hello", deprecated_in="1.0", remove_in="2.0", stream=None)
+print(s + " world")  # silent (stream=None) — proxy on left side works
+# " world" + s → TypeError (str.__add__ raises instead of returning NotImplemented)
+```
+
+<details>
+  <summary>Output: <code>s + " world"</code></summary>
+
+```
+hello world
+```
+
+</details>
+
+For primitive constants where reflected operations on the right are required, wrap the value in a container (dict or dataclass) so access goes through `__getitem__` or `__getattr__`:
+
+```python
+from deprecate import deprecated_instance
+
+# Container approach — subscript access warns regardless of operand position
 _THRESHOLDS = {"value": 0.5}
 OLD_THRESHOLD = deprecated_instance(
     _THRESHOLDS,
@@ -465,37 +498,45 @@ print(OLD_THRESHOLD["value"])
 
 </details>
 
-1. **Update call sites directly** — for simple numeric or string constants that are used in expressions, it is often simpler to rename the constant and update references rather than wrapping in a proxy. This does not emit deprecation warnings; use it when a mechanical migration is enough.
+______________________________________________________________________
+
+## Can I subclass a class created by `deprecated_class`?
+
+**Q:** I tried `class Child(OldName): pass` where `OldName` was created by `deprecated_class(target=NewBase, ...)`. In older pyDeprecate versions this raised `TypeError`. Does subclassing work now?
+
+**A:** Yes. The proxy implements PEP 560 `__mro_entries__` so Python transparently subclasses the replacement class instead of the proxy. Subclassing is treated as usage of the deprecated name and emits one `FutureWarning` — the class hierarchy is correct at the Python level.
 
 ```python
-NEW_THRESHOLD = 0.5  # new name
-# OLD_THRESHOLD = 0.5  # remove after migration
-```
-
-1. **Use a deprecated function wrapper** — if you need deprecation notices on read access to a bare value, expose it through a function that you can decorate:
-
-```python
-from deprecate import TargetMode, deprecated
+from deprecate import deprecated_class
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-def get_old_threshold() -> float:
-    """Use NEW_THRESHOLD constant directly instead."""
-    return 0.5
+class Base:
+    def greet(self) -> str:
+        return "hello"
 
 
-# Callers get a warning when they call get_old_threshold()
-print(get_old_threshold())
+OldBase = deprecated_class(target=Base, deprecated_in="1.0", remove_in="2.0")(Base)
+
+
+class Child(OldBase):  # warns: FutureWarning
+    pass
+
+
+print(issubclass(Child, Base))
+print(Child().greet())
 ```
 
 <details>
-  <summary>Output: <code>get_old_threshold()</code></summary>
+  <summary>Output: <code>issubclass(Child, Base); Child().greet()</code></summary>
 
 ```
-0.5
+True
+hello
 ```
 
 </details>
+
+One warning fires at class-definition time (when `class Child(OldBase)` is evaluated), against the shared `num_warns` budget of `OldBase`. Exception: `attrs_mapping`-only proxies (`TargetMode.ATTRS_REMAP`) and `args_mapping`-only proxies (`TargetMode.ARGS_REMAP`) do not warn on subclassing — both modes scope deprecation to specific axes (attribute names or argument names respectively), not general usage of the class alias.
 
 ## How do I redirect deprecation output to a logger instead of `warnings.warn`?
 
@@ -868,6 +909,37 @@ print(MyService().run(3))
 
 If you are intentionally delegating to another class, convert the target to a standalone function or use `@deprecated_class` to deprecate the whole class instead.
 
+**Exception — `@staticmethod` source:** The guard is skipped when the deprecated source is itself a `@staticmethod`. A `staticmethod` receives no `self`, so cross-class forwarding is safe. Use the decorator order `@deprecated(...) @staticmethod` (or equivalently `@staticmethod @deprecated(...)`):
+
+```python
+from deprecate import deprecated
+
+
+class NewMath:
+    @staticmethod
+    def compute(x: int) -> int:
+        return x * 3
+
+
+class OldMath:
+    @deprecated(target=NewMath.compute, deprecated_in="1.0", remove_in="2.0")
+    @staticmethod
+    def compute(x: int) -> int:
+        pass
+
+
+print(OldMath.compute(5))  # warns: FutureWarning — forwards to NewMath.compute
+```
+
+<details>
+  <summary>Output: <code>OldMath.compute(5)</code></summary>
+
+```
+15
+```
+
+</details>
+
 **False-positive triggers fixed in v0.8:**
 
 Before v0.8, two patterns produced spurious `TypeError` raises from the guard:
@@ -1082,11 +1154,9 @@ ______________________________________________________________________
 
 **Q:** I have multiple coroutines all calling the same deprecated `async def` wrapper concurrently. The deprecation notice only appeared once, but I expected it to fire `num_warns` times. What happened?
 
-**A:** `_WrapperState` fields — `called`, `warned_calls`, and `warned_args` — are plain Python dataclass fields with no asyncio lock. When multiple coroutines share a single deprecated wrapper and run concurrently in the same event loop, they race on the warning counter. One coroutine may read the counter, another may increment it, and the first may then emit or skip based on the stale value. The result is that fewer warnings than `num_warns` specifies may be emitted.
+**A:** The `num_warns` warning quota is enforced by a lock and is thread-safe for **synchronous** wrappers — exactly `num_warns` warnings fire regardless of how many threads call the deprecated function simultaneously. For **concurrent async coroutines** sharing one deprecated wrapper, a race on the warning counter is still possible: one coroutine may read the counter, another may increment it, and the first may then emit or skip based on a stale value. The result is that fewer warnings than `num_warns` specifies may be emitted under high async concurrency.
 
-This is an accepted limitation for v0.9 — adding an asyncio lock would change the public behaviour of synchronous wrappers and is deferred to a future release.
-
-**Workaround:** Set `num_warns=-1` to bypass the count gate entirely. With `num_warns=-1` the warning fires unconditionally on every call, so no race can suppress it.
+**Workaround for async concurrency:** Set `num_warns=-1` to bypass the count gate entirely. With `num_warns=-1` the warning fires unconditionally on every call, so no race can suppress it.
 
 ```python
 import asyncio
@@ -1390,6 +1460,8 @@ print(obj._value)
 None
 ```
 
+</details>
+
 **CI / audit detection:** `find_deprecation_wrappers` flags inner-order properties with `inner_order_property=True` on the returned `DeprecationWrapperInfo`. Add this filter to your CI pipeline to catch the pattern before it ships:
 
 ```python
@@ -1418,8 +1490,6 @@ class MyClass:
 ```
 
 Modules that do not import the strict `property` keep builtin behaviour; the guard is purely opt-in.
-
-</details>
 
 ______________________________________________________________________
 
@@ -1579,7 +1649,7 @@ def _new_fn_compat(val: int, y: int = 0) -> int:
 def old_fn(val: int, y: int = 0) -> int: ...
 ```
 
-`deprecated_class` is unaffected — the proxy has a `setattr` fallback for POSITIONAL_ONLY constructor parameters and emits a `UserWarning` at decoration time.
+`deprecated_class` applies the same treatment to constructor POSITIONAL_ONLY parameters — the proxy forwards remapped values positionally to the constructor (required positional-only params, frozen dataclasses, and `__post_init__` logic all work) and emits a `UserWarning` at decoration time for visibility. Decorated *sources* declaring `/` parameters are fully supported as well, in all modes, with no decoration-time warning.
 
 ______________________________________________________________________
 
@@ -1672,6 +1742,95 @@ ______________________________________________________________________
 This limitation applies to both Mode 1 and Mode 2 of `deprecated_module()`.
 
 **Recommendation:** Document the deprecation prominently in the module's docstring and in your release notes. For callers you control, replace `from old_calculator import *` with `from new_calculator import ...` directly. For third-party callers, the warning will appear as soon as they switch from star imports to explicit attribute access or named imports.
+## Does the deprecation survive `copy`, `deepcopy`, and `pickle`?
+
+**Q:** I copied (or pickled and restored) an object wrapped by `deprecated_instance` / `deprecated_class` — does the deprecation still apply to the copy?
+
+**A:** Yes for `copy.copy` and `copy.deepcopy`. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: `deprecated_class` proxies cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises `PicklingError`. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.
+
+```python
+import copy
+import pickle
+
+from deprecate import deprecated_instance
+
+# NEW API — the canonical settings object going forward
+NEW_LIMITS = {"max_retries": 3}
+
+# DEPRECATED API — `OLD_LIMITS` kept as a deprecated alias during the migration window
+OLD_LIMITS = deprecated_instance(NEW_LIMITS, name="OLD_LIMITS", deprecated_in="1.0", remove_in="2.0")
+
+restored = pickle.loads(pickle.dumps(OLD_LIMITS))  # noqa: S301  # silent — pickling rebuilds the proxy, not a usage
+duplicate = copy.deepcopy(OLD_LIMITS)  # silent
+
+print(restored["max_retries"])  # warns: FutureWarning
+print(duplicate["max_retries"])  # warns: FutureWarning — each copy has its own counter snapshotted from the original
+```
+
+<details><summary>Output: <code>restored["max_retries"]; duplicate["max_retries"]</code></summary>
+
+```
+3
+3
+```
+
+</details>
+
+______________________________________________________________________
+
+## My expiry gate reports more expired wrappers after upgrading
+
+**Q:** After upgrading pyDeprecate, `validate_deprecation_expiry` (and `pydeprecate expiry`) suddenly reports more expired wrappers than before — nothing in my code changed. Why?
+
+**A:** `validate_deprecation_expiry` now includes deprecated class members by default (`include_members=True`), matching `find_deprecation_wrappers` and `generate_deprecation_table`. Expired member wrappers — for example an `__init__` carrying deprecation metadata — are now counted, so totals can rise after upgrading even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate.
+
+```python
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_deprecate as my_package
+
+# Default scope now includes deprecated class members
+expired = validate_deprecation_expiry(my_package, "0.5")
+print(f"Found {len(expired)} expired")
+
+# Restore the previous module-level-only scope
+expired = validate_deprecation_expiry(my_package, "0.5", include_members=False)
+print(f"Found {len(expired)} expired")
+```
+
+<details><summary>Output: <code>Found ... expired</code></summary>
+
+```
+Found 31 expired
+Found 28 expired
+```
+
+</details>
+
+Prefer fixing the newly surfaced entries over passing `include_members=False` — the narrower scope hides genuinely expired member deprecations.
+
+______________________________________________________________________
+
+## UserWarning: `audit: skipped <module>` during a recursive scan
+
+**Q:** A recursive audit scan (`find_deprecation_wrappers`, `validate_deprecation_expiry`, `pydeprecate check` / `all`) emits `UserWarning: audit: skipped <module>: <exception>`. What does it mean?
+
+**A:** Recursive scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just `ImportError` — the scanner emits this warning and continues with the remaining modules instead of aborting the whole scan:
+
+```
+UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
+```
+
+The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.
+
+______________________________________________________________________
+
+## TypeError: `<obj>` is wrapped in a deprecation proxy and cannot be pickled directly
+
+**Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
+
+**A:** This error was raised in older versions (before [PR #212](https://github.com/Borda/pyDeprecate/pull/212)). Since PR #212, `pickle.dumps(proxy)` works for `deprecated_instance` proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a `deprecated_instance` proxy, upgrade pyDeprecate. Two remaining caveats: (1) the `stream` callable must be picklable by reference — if you passed a lambda or closure as `stream`, use `stream=None` or `stream=warnings.warn` instead; (2) `deprecated_class` proxies raise `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — use `copy.deepcopy` for class aliases instead.
 
 ______________________________________________________________________
 

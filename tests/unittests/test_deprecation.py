@@ -13,16 +13,21 @@ import pytest
 import typing_extensions
 
 from deprecate import TargetMode, assert_no_warnings, deprecated, void
+from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.deprecation import (
     POSITIONAL_OR_KEYWORD,
+    _find_class_body_qualname,
     _get_positional_params,
     _normalize_target,
+    _precompute_target_facts,
     _prepare_target_call,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
+    _reject_bare_decorator,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
+    _validate_template_mgs,
 )
 from deprecate.docstring.inject import (
     _update_docstring_with_deprecation,
@@ -37,6 +42,8 @@ from tests.collection_deprecate import (
     CrossGuardSameClass,
     OldPositionalOnlyClass,
     OldSelfOnlyClass,
+    StaticGuardNewClass,
+    StaticGuardOldClass,
     dep_async_cycle_fn_a,
     dep_async_cycle_fn_b,
     dep_async_non_cycle_old_fn,
@@ -47,11 +54,20 @@ from tests.collection_deprecate import (
     dep_fib_remap,
     dep_fib_silent,
     dep_non_cycle_old_fn,
+    deprecated_args_remap_positional_only_source,
+    deprecated_async_args_remap_positional_only_source,
+    deprecated_async_gapped_positional_only_source,
+    deprecated_async_notify_positional_only_source,
     deprecated_async_positional_only_source,
+    deprecated_gapped_positional_only_first_source,
+    deprecated_gapped_positional_only_full_source,
+    deprecated_gapped_positional_only_source,
+    deprecated_notify_positional_only_source,
     deprecated_positional_only_source,
     deprecated_positional_only_stream_none,
     deprecated_positional_only_two_params_source,
     deprecated_positional_only_with_args_mapping_source,
+    fn_shared_default,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
@@ -60,9 +76,13 @@ from tests.collection_deprecate import (
 )
 from tests.collection_targets import (
     KeywordCallTarget,
+    base_sum_kwargs,
     call_signature_source,
+    pep702_target,
     positional_only_target,
     positional_only_two_params_target,
+    stacked_inner_target,
+    stacked_outer_target,
 )
 
 
@@ -481,6 +501,29 @@ class TestCrossClassMethodGuard:
         assert isinstance(old, CrossGuardOldClass)
         assert old.x == 3
 
+    def test_does_not_raise_for_cross_class_staticmethod_target(self) -> None:
+        """A deprecated staticmethod forwarding to a staticmethod on another class decorates without raising.
+
+        Regression test: a staticmethod receives no ``self``, so the cross-class guard's rationale ("self
+        would carry the wrong type") does not apply.  ``StaticGuardOldClass.compute`` forwards to
+        ``StaticGuardNewClass.compute`` — a *different* class — and must decorate at import time rather than
+        raising the cross-class ``TypeError``.  The class object being importable already proves decoration
+        succeeded.
+        """
+        assert callable(StaticGuardOldClass.compute)
+        assert StaticGuardNewClass.compute(4) == 12
+
+    def test_cross_class_staticmethod_forwards_and_warns(self) -> None:
+        """The deprecated cross-class staticmethod forwards to the target and emits a FutureWarning.
+
+        Beyond decorating cleanly, calling the deprecated staticmethod must actually run the replacement:
+        ``StaticGuardOldClass.compute(4)`` returns ``StaticGuardNewClass.compute(4)`` (``4 * 3 == 12``) and
+        raises the deprecation ``FutureWarning`` on the way.
+        """
+        with pytest.warns(FutureWarning):
+            result = StaticGuardOldClass.compute(4)
+        assert result == 12
+
     def test_metaclass_generated_qualname_skips_guard(self) -> None:
         """A target with a metaclass-style rewritten ``__qualname__`` is detected and the guard returns silently.
 
@@ -504,6 +547,10 @@ class TestCrossClassMethodGuard:
             def old_method(self, x: int) -> int:
                 return void(x)
 
+        # Guard returned silently: decoration completed and attached deprecation metadata rather than raising.
+        # (The synthetic ``replacement`` fixture rejects the forwarded ``self``, so only decoration is asserted here.)
+        assert hasattr(RealOwner.old_method, "__deprecated__")
+
     def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
         """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
 
@@ -526,6 +573,11 @@ class TestCrossClassMethodGuard:
             @rewrite_to_alien_class
             def old_method(self, x: int) -> int:
                 return void(x)
+
+        # Decoration succeeded and the wrapper forwards to the same-class target: calling it warns and returns 7.
+        with pytest.warns(FutureWarning):
+            result = MyClass().old_method(7)
+        assert result == 7
 
     def test_decorator_rewriting_qualname_raises_for_cross_class(self) -> None:
         """A pre-applied decorator rewriting source qualname to a genuinely different class still raises TypeError.
@@ -988,8 +1040,6 @@ class TestPEP702StackingRegression:
         ``pep702_stacked`` fixture may already have warned in earlier tests under ``num_warns=1``.
 
         """
-        from tests.collection_targets import pep702_target
-
         inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
         stacked = typing_extensions.deprecated("use `pep702_target`")(inner)
 
@@ -1008,8 +1058,6 @@ class TestTemplateMgsValidation:
 
     def test_unknown_placeholder_raises_at_decoration(self) -> None:
         """An unknown ``%(...)s`` key raises ``ValueError`` when ``@deprecated`` is applied — before any call."""
-        from tests.collection_targets import base_sum_kwargs
-
         with pytest.raises(ValueError, match="Invalid template_mgs"):
             deprecated(
                 target=base_sum_kwargs, deprecated_in="0.8", remove_in="1.0", template_mgs="bad %(unknown_key)s"
@@ -1017,8 +1065,6 @@ class TestTemplateMgsValidation:
 
     def test_valid_template_accepted_at_decoration(self) -> None:
         """A template using only documented placeholders is accepted at decoration time."""
-        from tests.collection_targets import base_sum_kwargs
-
         # Must not raise — covers happy path of the probe.
         wrapper = deprecated(
             target=base_sum_kwargs,
@@ -1040,8 +1086,6 @@ class TestStackedCallableTargetGuard:
 
     def test_stacked_callable_targets_warn_at_decoration(self) -> None:
         """Decorating a callable-target wrapper with another callable target emits ``UserWarning``."""
-        from tests.collection_targets import stacked_inner_target, stacked_outer_target
-
         inner = deprecated(target=stacked_inner_target, deprecated_in="0.8", remove_in="1.0")(stacked_outer_target)
         with pytest.warns(UserWarning, match="callable target stacked"):
             deprecated(target=stacked_outer_target, deprecated_in="0.8", remove_in="1.0")(inner)
@@ -1066,8 +1110,6 @@ class TestStackingGuards:
 
     def test_callable_over_args_remap_warns(self) -> None:
         """Callable-target outer stacked over ARGS_REMAP inner emits ``UserWarning``."""
-        from tests.collection_targets import stacked_outer_target
-
         inner = self._make_source(
             target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
         )
@@ -1077,8 +1119,6 @@ class TestStackingGuards:
 
     def test_args_remap_over_callable_warns(self) -> None:
         """ARGS_REMAP outer stacked over callable-target inner emits ``UserWarning``."""
-        from tests.collection_targets import stacked_outer_target
-
         inner = self._make_source(target=stacked_outer_target, deprecated_in="1.0", remove_in="2.0")
         with pytest.warns(UserWarning, match="ARGS_REMAP.*stacked over a callable") as record:
             deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"x": "y"})(
@@ -1104,8 +1144,6 @@ class TestStackingGuards:
 
     def test_callable_over_notify_warns(self) -> None:
         """Callable-target outer stacked over NOTIFY inner emits ``UserWarning``."""
-        from tests.collection_targets import stacked_outer_target
-
         inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
         with pytest.warns(UserWarning, match="callable target stacked over.*NOTIFY") as record:
             deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
@@ -1400,6 +1438,118 @@ class TestPositionalOnlyTarget:
         assert isinstance(obj, OldSelfOnlyClass)
 
 
+class TestPositionalOnlySource:
+    """``@deprecated`` on a *source* whose own signature declares POSITIONAL_ONLY parameters.
+
+    NOTIFY (default) and ARGS_REMAP modes execute the source body.  The wrapper converts
+    positional args to kwargs internally, so the dispatcher must split the source's
+    positional-only params back out before calling ``source`` — otherwise every call in
+    the default mode raises ``TypeError: got some positional-only arguments passed as
+    keyword arguments``.
+    """
+
+    def test_notify_positional_call_executes_source(self) -> None:
+        """Default warn-only mode executes a source with a ``/`` in its signature.
+
+        A library author adds a plain ``@deprecated(deprecated_in=..., remove_in=...)``
+        notice to an existing function that uses positional-only parameters.  Callers keep
+        calling it exactly as before — the call must warn and return the source's result,
+        not crash with ``TypeError`` on every invocation.
+        """
+        with pytest.warns(FutureWarning, match=r"deprecated_notify_positional_only_source"):
+            result = deprecated_notify_positional_only_source(1)
+        assert result == 3
+
+    def test_notify_keyword_tail_preserved(self) -> None:
+        """Keyword arguments after the ``/`` still reach the source alongside the positional split."""
+        with pytest.warns(FutureWarning):
+            result = deprecated_notify_positional_only_source(1, b=10)
+        assert result == 11
+
+    def test_args_remap_old_name_remapped(self) -> None:
+        """ARGS_REMAP renames the deprecated kwarg and executes the positional-only source body.
+
+        A caller still using the deprecated ``old_flag`` name on a function whose leading
+        parameter is positional-only must get the rename warning and the correct result —
+        the remapped kwargs dict must not swallow the positional-only ``a``.
+        """
+        with pytest.warns(FutureWarning, match=r"old_flag"):
+            result = deprecated_args_remap_positional_only_source(1, old_flag=5)
+        assert result == 6
+
+    def test_args_remap_migrated_caller_short_circuits(self) -> None:
+        """A migrated caller using the new kwarg name gets no warning and a working call.
+
+        The migrated-caller fast path (short-circuit) also calls ``source(**kwargs)``
+        internally, so it needs the same positional-only split as the warning path.
+        """
+        with assert_no_warnings(FutureWarning):
+            result = deprecated_args_remap_positional_only_source(1, new_flag=5)
+        assert result == 6
+
+    @pytest.mark.asyncio
+    async def test_async_notify_positional_call_executes_source(self) -> None:
+        """The async dispatch twin executes an async source with a POSITIONAL_ONLY param.
+
+        An async API deprecated with the plain notice must keep serving awaited calls;
+        ``_invoke_async`` must split the positional-only params exactly like the sync path.
+        """
+        with pytest.warns(FutureWarning):
+            result = await deprecated_async_notify_positional_only_source(1, b=10)
+        assert result == 11
+
+    @pytest.mark.asyncio
+    async def test_async_args_remap_old_name_remapped(self) -> None:
+        """The async ARGS_REMAP path renames the deprecated kwarg on a positional-only source."""
+        with pytest.warns(FutureWarning, match=r"old_flag"):
+            result = await deprecated_async_args_remap_positional_only_source(1, old_flag=5)
+        assert result == 6
+
+
+class TestGappedPositionalOnlyForwarding:
+    """Forwarding to a target whose POSITIONAL_ONLY params are only partially supplied.
+
+    ``gapped_positional_only_target(a=1, b=2, /, c=3)`` has defaulted positional-only
+    params.  A source that supplies ``b`` but not ``a`` leaves a gap: positional binding
+    would silently slide ``b``'s value into ``a``'s slot.  The split dispatch must raise
+    ``TypeError`` instead of misbinding.
+    """
+
+    def test_gap_with_later_value_raises_type_error(self) -> None:
+        """Supplying a later positional-only param while an earlier one is absent raises.
+
+        A migration wrapper forwards only ``b`` to a target where ``a`` (also positional-only)
+        precedes it.  Before the fix, ``b``'s value was silently bound to ``a`` — wrong data
+        on every call.  The wrapper must now fail loudly at the call site.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match=r"`a` was not supplied"):
+            deprecated_gapped_positional_only_source()
+
+    def test_full_prefix_forwards_in_order(self) -> None:
+        """Supplying every positional-only param forwards each value to its own slot."""
+        with pytest.warns(FutureWarning):
+            result = deprecated_gapped_positional_only_full_source(9, 8)
+        assert result == {"a": 9, "b": 8, "c": 3}
+
+    def test_trailing_gap_uses_target_defaults(self) -> None:
+        """A gap with no later positional-only value present falls back to the target defaults.
+
+        A source declaring only ``a`` (the first positional-only target param) leaves a
+        *trailing* gap at ``b`` — safe, because no later positional-only value can slide
+        into the wrong slot.  ``b`` and ``c`` keep their target-side defaults, so the call
+        must succeed rather than raise.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_gapped_positional_only_first_source(4)
+        assert result == {"a": 4, "b": 2, "c": 3}
+
+    @pytest.mark.asyncio
+    async def test_async_gap_with_later_value_raises_type_error(self) -> None:
+        """The async dispatch twin raises the same TypeError on a positional-only gap."""
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match=r"`a` was not supplied"):
+            await deprecated_async_gapped_positional_only_source()
+
+
 class TestCycleDetection:
     """Lazy runtime cycle detection — RuntimeError before RecursionError."""
 
@@ -1592,3 +1742,260 @@ class TestRecursiveDeprecation:
             dep_fib_remap(n=6)
         assert len(caught) == 1
         assert caught[0].category is FutureWarning
+
+
+class TestSharedNameDefaultForwarding:
+    """A non-renamed shared parameter forwards the source's own default (the migrated-from contract).
+
+    The *target*'s default winning here was assessed as a
+    misdiagnosis — forwarding the source default is the intended, documented behaviour (``decorated_sum`` /
+    ``test_functions.py::test_default`` enforce the same contract).  These tests pin it against regression.
+    """
+
+    def test_neither_supplied_forwards_source_default(self) -> None:
+        """With no ``args_mapping`` and only ``x`` supplied, the source's ``level=1`` is forwarded, not target's 99.
+
+        ``fn_shared_default`` forwards to ``fn_shared_default_target``; both declare ``level`` but with diverging
+        defaults (source 1, target 99).  The source signature is the contract the caller knows, so its default
+        reaches the target body.  Only the *renamed* path drops stale defaults (see ``fn_old_default``).
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = fn_shared_default(5)
+        assert result == 1
+
+    def test_explicit_value_overrides_both_defaults(self) -> None:
+        """A caller-supplied ``level`` reaches the target unchanged, overriding both source and target defaults."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = fn_shared_default(5, level=3)
+        assert result == 3
+
+
+class TestTargetFactsPrecompute:
+    """Decoration-time-cached target signature facts feed the call-time kwarg validation."""
+
+    def test_config_caches_target_signature_facts(self) -> None:
+        """A callable-target wrapper stores the target's param names and var-arg flags.
+
+        These facts previously came from an uncached ``inspect.getfullargspec`` on every forwarded call;
+        caching them on the frozen config removes that per-call cost.
+        """
+        cfg = cast(_DeprecatedCallable, fn_shared_default).__deprecated__
+        assert cfg.target_all_param_names == frozenset({"x", "level"})
+        assert cfg.target_accepts_var_positional is False
+        assert cfg.target_accepts_var_keyword is False
+
+    def test_precompute_reports_var_args_and_kwargs(self) -> None:
+        """`_precompute_target_facts` flags ``*args`` and ``**kwargs`` and collects every parameter name."""
+
+        def _tgt(a: int, b: int = 2, *rest: int, **extra: int) -> None:
+            """Throwaway signature carrying every parameter kind for the precompute helper."""
+
+        names, var_pos, var_kw = _precompute_target_facts(_tgt)
+        assert names == frozenset({"a", "b", "rest", "extra"})
+        assert var_pos is True
+        assert var_kw is True
+
+    def test_precompute_empty_for_non_callable_target(self) -> None:
+        """A :class:`TargetMode` (non-callable) target yields empty facts — the dispatcher never forwards to it."""
+        names, var_pos, var_kw = _precompute_target_facts(TargetMode.NOTIFY)
+        assert names == frozenset()
+        assert (var_pos, var_kw) == (False, False)
+
+    def test_repr_excludes_cache_fields(self) -> None:
+        """The precomputed cache fields stay out of ``repr`` so audit output and doc examples remain stable."""
+        text = repr(cast(_DeprecatedCallable, fn_shared_default).__deprecated__)
+        assert "target_all_param_names" not in text
+        assert "target_accepts_var_keyword" not in text
+
+    def test_cache_fields_excluded_from_equality(self) -> None:
+        """Two configs differing only in cached target facts compare equal — caches are not identity.
+
+        The cache fields carry ``compare=False`` so stored-config equality assertions (and audit comparisons) are
+        unaffected by the perf machinery.
+        """
+        plain = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="x")
+        with_cache = DeprecationConfig(
+            deprecated_in="1.0",
+            remove_in="2.0",
+            name="x",
+            target_all_param_names=frozenset({"a"}),
+            target_accepts_var_keyword=True,
+        )
+        assert plain == with_cache
+
+    def test_prepare_target_call_uses_supplied_facts(self) -> None:
+        """`_prepare_target_call` validates against supplied facts and raises the curated TypeError on a bad kwarg."""
+
+        def _tgt(a: int, b: int) -> None:
+            """Two-parameter target that does not accept ``c``."""
+
+        with pytest.raises(TypeError, match="not accepted by target"):
+            _prepare_target_call(
+                _tgt,
+                _tgt,
+                {"c": 1},
+                target_arg_names=frozenset({"a", "b"}),
+                accepts_var_positional=False,
+                accepts_var_keyword=False,
+            )
+
+
+class TestBareDecoratorGuard:
+    """Bare ``@deprecated`` (no parentheses) must fail with a guiding message."""
+
+    def test_call_raises_typeerror_about_parentheses(self) -> None:
+        """Calling a bare-decorated function raises a TypeError that names the missing parentheses.
+
+        A user who forgets the parentheses (``@deprecated`` instead of ``@deprecated(...)``) binds the
+        decorated function to ``target`` and gets ``packing`` back; the first call then arrives with the call
+        argument as ``source``. The guard must name the missing-parentheses mistake rather than leak a cryptic
+        ``AttributeError: 'int' object has no attribute '__name__'``.
+        """
+
+        @deprecated  # type: ignore[operator,call-overload]
+        def old(x: int) -> int:
+            return x
+
+        with pytest.raises(TypeError, match="must be called with parentheses"):
+            old(5)  # type: ignore[arg-type]  # bare decorator rebinds ``old`` to the packing decorator
+
+    def test_helper_accepts_plain_callable(self) -> None:
+        """The guard helper is a no-op for an ordinary callable so correct decoration is never disturbed."""
+
+        def real(x: int) -> int:
+            return x
+
+        _reject_bare_decorator(real)  # no exception raised = a plain callable is accepted
+
+
+class TestRaiseWarnStacklevel:
+    """Stream called with ``stacklevel`` when accepted; internal TypeError propagates without double-call."""
+
+    def test_internal_typeerror_not_swallowed_no_double_call(self) -> None:
+        """An internal TypeError from a stacklevel-accepting stream propagates and the stream runs exactly once.
+
+        A ``TypeError`` raised *inside* a stacklevel-accepting stream must propagate and the stream must run
+        exactly once. A naive ``try/except TypeError`` would re-invoke the stream on any TypeError, producing
+        duplicate side effects (double log lines) for anyone whose custom stream raised internally.  The
+        message-based discrimination (``"stacklevel" in str(exc)``) prevents this.
+        """
+        calls: list[str] = []
+
+        def stream(msg: str, stacklevel: int = 1) -> None:
+            calls.append(msg)
+            raise TypeError("boom from inside the stream")
+
+        def old() -> None:
+            pass
+
+        with pytest.raises(TypeError, match="boom from inside the stream"):
+            _raise_warn(stream, old, "%(source_name)s", stacklevel=3)
+        assert len(calls) == 1
+
+    def test_varkw_stream_receives_stacklevel_exactly_once(self) -> None:
+        """A ``**kwargs``-accepting stream receives ``stacklevel`` and is called exactly once.
+
+        A custom stream declared as ``def my_stream(msg, **kwargs)`` accepts ``stacklevel`` via ``**kwargs``.
+        The caller must forward ``stacklevel`` in a single call — never via a fallback retry.
+        """
+        calls: list[tuple[str, dict[str, object]]] = []
+
+        def stream(msg: str, **kwargs: object) -> None:
+            calls.append((msg, kwargs))
+
+        def src() -> None:
+            pass
+
+        _raise_warn(stream, src, "%(source_name)s", stacklevel=3)
+        assert len(calls) == 1
+        assert "stacklevel" in calls[0][1]
+
+
+class TestTemplateBareConversion:
+    """Bare ``%``-conversions in ``template_mgs`` must be rejected at decoration time."""
+
+    def test_bare_s_rejected(self) -> None:
+        """``"%s"`` silently renders the whole substitution mapping at call time, so it must be rejected up front."""
+        with pytest.raises(ValueError, match="bare `%`-conversion"):
+            _validate_template_mgs("Deprecated: %s")
+
+    def test_escaped_percent_allowed(self) -> None:
+        """A literal ``%%`` alongside a valid mapping key is legitimate and must pass validation."""
+        _validate_template_mgs("100%% done: %(source_name)s")  # no exception raised = accepted
+
+    def test_bare_conversion_raises_on_decoration(self) -> None:
+        """The bare-conversion guard fires when the decorator is applied, not on first call."""
+        with pytest.raises(ValueError, match="bare `%`-conversion"):
+
+            @deprecated(deprecated_in="1.0", remove_in="2.0", template_mgs="gone %d")
+            def old() -> int:
+                return 1
+
+
+class TestArgsMappingDefensiveCopy:
+    """The frozen config must not alias the caller's mutable ``args_mapping`` dict."""
+
+    def test_post_decoration_mutation_ignored(self) -> None:
+        """Mutating the caller's ``args_mapping`` dict after decoration does not change forwarding behavior.
+
+        Mutating the ``args_mapping`` dict after decoration used to change forwarding behavior because the
+        frozen ``DeprecationConfig`` stored the caller's dict by reference. A defensive copy makes the wrapper
+        immune to later mutation of the caller-owned dict.
+        """
+
+        def new(**kwargs: int) -> dict[str, int]:
+            return kwargs
+
+        mapping: dict[str, Any] = {"old_a": "new_a"}
+
+        @deprecated(target=new, deprecated_in="1.0", remove_in="2.0", args_mapping=mapping)
+        def old(old_a: int = 1) -> dict[str, int]:
+            return {"old_a": old_a}
+
+        mapping["old_a"] = "hijacked"  # would redirect to a bogus name if the dict were aliased
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = old(old_a=5)
+        assert result == {"new_a": 5}
+
+
+class TestClassBodyQualnameWalk:
+    """The cross-class guard locates the class body via a bounded frame walk, not a fixed depth."""
+
+    def test_finds_enclosing_class_qualname(self) -> None:
+        """Called inside a class body, the walk returns that class's ``__qualname__``.
+
+        Called from within a class body the walk returns that class's ``__qualname__`` regardless of how many
+        descriptor/packing frames sit between it and the class body — the fixed ``sys._getframe(2)`` it replaces
+        silently missed the class body for descriptor-decorated methods, disabling the guard for them.
+        """
+        captured: dict[str, str] = {}
+
+        class Sample:
+            captured["qualname"] = _find_class_body_qualname()
+
+        _ = Sample  # reference prevents static-analysis "unused class" warnings
+        assert captured["qualname"].endswith("Sample")
+
+    def test_cross_class_guard_fires_for_descriptor_decorated_method(self) -> None:
+        """Cross-class guard raises TypeError at class-definition time even when the method uses a descriptor.
+
+        With the old fixed ``sys._getframe(2)`` approach the extra stack frames introduced by
+        ``@classmethod``/``@staticmethod``/``@property`` wrapping pushed the class body out of range,
+        silently disabling the cross-class guard for descriptor-decorated methods.  The bounded frame
+        walk locates the class body regardless of intervening descriptor frames.
+        """
+
+        class OtherClass:
+            def other_method(self, x: int) -> int:
+                return x
+
+        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+
+            class _Owner:
+                @classmethod
+                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
+                def old_classmethod(cls, x: int) -> int:
+                    return void(x)

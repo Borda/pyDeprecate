@@ -14,6 +14,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import re
 import sys
 import warnings
 from collections.abc import Mapping
@@ -94,6 +95,15 @@ def _validate_template_mgs(template_mgs: Optional[str]) -> None:
     """
     if not template_mgs:
         return
+    # Reject bare ``%``-conversions (``%s``, ``%d``, a trailing ``%``) that are not part of a
+    # ``%(name)s`` mapping key.  ``"...%s..." % {mapping}`` does not raise — it renders the whole
+    # mapping dict into the message — so the probe below cannot catch them.  ``%%`` (escaped percent)
+    # is legitimate and stripped before the search.
+    if re.search(r"%(?!\()", template_mgs.replace("%%", "")):
+        raise ValueError(
+            f"Invalid template_mgs: bare `%`-conversion found in {template_mgs!r}; only mapping keys of the "
+            f"form `%(name)s` are supported. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
+        )
     try:
         template_mgs % _TEMPLATE_MGS_PROBE_ARGS
     except (KeyError, TypeError, ValueError) as exc:
@@ -256,6 +266,55 @@ class _StrictProperty(property):
         super().__init__(fget, fset, fdel, doc)
 
 
+def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
+    """Raise a clear ``TypeError`` when ``@deprecated`` was applied without parentheses.
+
+    Bare ``@deprecated`` makes Python call ``deprecated(source)`` — binding the decorated object to
+    ``target`` — and return the ``packing`` decorator; the first real call then arrives in ``packing`` with
+    the *call argument* as ``source`` (e.g. ``old(5)`` → ``packing(5)``).  A non-callable, non-descriptor
+    ``source`` therefore signals the missing-parentheses mistake, so raise here instead of leaking a downstream
+    ``AttributeError: 'int' object has no attribute '__name__'``.
+
+    Args:
+        source: The object ``packing`` received as its decoration target.
+
+    """
+    if not callable(source) and not isinstance(source, (classmethod, staticmethod, property, cached_property)):
+        raise TypeError(
+            f"`@deprecated` must be called with parentheses, e.g. "
+            f"`@deprecated(target=..., deprecated_in=..., remove_in=...)`; got a non-callable "
+            f"`{type(source).__name__}` as the decoration target, which usually means `@deprecated` "
+            f"was used without arguments."
+        )
+
+
+def _find_class_body_qualname(max_depth: int = 10) -> str:
+    """Return the ``__qualname__`` of the nearest enclosing class body on the call stack.
+
+    Python populates ``__qualname__`` (alongside ``__module__``) in the class-body execution namespace at
+    class-definition time.  A fixed :func:`sys._getframe` depth is fragile — descriptor-decorated methods
+    (``@property``/``@classmethod``/``@staticmethod`` under ``@deprecated``) insert extra ``_packing_descriptor``
+    and ``packing`` frames, so the class body sits deeper than the plain-callable case.  This bounded walk
+    searches upward for the first frame whose locals carry both ``__qualname__`` and ``__module__`` (the
+    signature of a class body) instead of assuming a single layout, and returns ``""`` when none is found.
+
+    Args:
+        max_depth: Maximum number of parent frames to inspect (safety bound against unbounded walks).
+
+    """
+    for depth in range(1, max_depth + 1):
+        try:
+            frame = sys._getframe(depth)
+        except ValueError:
+            break
+        qualname = frame.f_locals.get("__qualname__", "")
+        # Class-body namespaces expose both ``__qualname__`` and ``__module__``; a function frame that merely
+        # has a local named ``__qualname__`` (e.g. a decorator rewrite) lacks ``__module__`` in its locals.
+        if qualname and "__module__" in frame.f_locals and not qualname.rsplit(".", 1)[-1].startswith("<"):
+            return qualname
+    return ""
+
+
 def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
     """Raise ``TypeError`` when target is a method on a different class than source.
 
@@ -307,19 +366,13 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     # Fix 1 — decorator-rewriting FP: a decorator applied before @deprecated may have
     # mutated source.__qualname__.  Python sets __qualname__ in the class body's locals
     # at class-definition time, before any decorator runs, so the frame value is the
-    # authoritative source class name.  Frame layout when this helper executes:
-    #   0: _check_cross_class_method_target
-    #   1: packing() (closure inside `deprecated`)
-    #   2: enclosing class body (where `@deprecated(...)` is written)
-    # The final-segment bracket filter rejects lambda/comprehension/genexp scopes
-    # (whose qualname's last component is ``<lambda>`` / ``<listcomp>`` / etc.); class
-    # bodies always end in a plain identifier, even when nested inside a function (e.g. ``"outer.<locals>.MyClass"``).
-    try:
-        frame_qn = sys._getframe(2).f_locals.get("__qualname__", "")
-        if frame_qn and not frame_qn.rsplit(".", 1)[-1].startswith("<"):
-            src_prefix = frame_qn
-    except (ValueError, AttributeError):
-        pass
+    # authoritative source class name.  A bounded upward walk locates the class-body frame
+    # regardless of how many descriptor/packing frames sit between here and it (see
+    # :func:`_find_class_body_qualname`) — a fixed ``sys._getframe(2)`` silently missed the
+    # class body for descriptor-decorated methods, disabling the guard for them.
+    frame_qn = _find_class_body_qualname()
+    if frame_qn:
+        src_prefix = frame_qn
 
     # Fix 2 — metaclass/synthetic-qualname FP: a target whose __qualname__ refers to a
     # class that does not actually exist in the target's module is unreliable; the guard
@@ -543,10 +596,45 @@ def _normalize_target(
     return target
 
 
+def _precompute_target_facts(
+    target: Union[Callable, TargetMode],
+) -> tuple[frozenset[str], bool, bool]:
+    """Extract decoration-time-stable signature facts of a forwarding target.
+
+    Computed once at decoration time and stored on :class:`~deprecate._types.DeprecationConfig`
+    so the call-time kwarg validation never re-inspects the target (previously an uncached
+    ``inspect.getfullargspec`` on every forwarded call).
+
+    Args:
+        target: Normalised target — a :class:`TargetMode` member or a callable.  Non-callables
+            return empty/``False`` facts because the dispatcher never forwards to them.
+
+    Returns:
+        Tuple ``(all_param_names, accepts_var_positional, accepts_var_keyword)`` where
+        ``all_param_names`` mirrors :func:`get_func_arguments_types_defaults` (every signature
+        parameter, including ``*args`` / ``**kwargs`` names).
+
+    """
+    if not callable(target):
+        return frozenset(), False, False
+    try:
+        params = _get_signature(target).parameters
+    except (TypeError, ValueError):
+        return frozenset(), False, False
+    all_names = frozenset(params)
+    accepts_var_positional = any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in params.values())
+    accepts_var_keyword = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+    return all_names, accepts_var_positional, accepts_var_keyword
+
+
 def _prepare_target_call(
     source: Callable,
     target: Callable,
     kwargs: dict[str, Any],
+    *,
+    target_arg_names: Optional[frozenset[str]] = None,
+    accepts_var_positional: bool = False,
+    accepts_var_keyword: bool = False,
 ) -> Callable:
     """Validate mapped keyword arguments and return the target callable.
 
@@ -557,6 +645,11 @@ def _prepare_target_call(
         source: Deprecated callable being wrapped.
         target: Target callable to invoke (shall not be a class).
         kwargs: Keyword arguments after mapping and defaults.
+        target_arg_names: Pre-computed target parameter names (see :func:`_precompute_target_facts`).  When
+            ``None`` the facts are derived from ``target`` on the spot — the decorator path always passes the
+            cached values so the fallback only runs for direct/test callers.
+        accepts_var_positional: Whether ``target`` declares ``*args`` (from the same pre-computed facts).
+        accepts_var_keyword: Whether ``target`` declares ``**kwargs`` (from the same pre-computed facts).
 
     Returns:
         ``target`` unchanged, after validating that it accepts ``kwargs``.
@@ -573,14 +666,12 @@ def _prepare_target_call(
         TypeError: Failed mapping of `source`, arguments not accepted by target: ['c']
 
     """
-    target_args = [arg[0] for arg in get_func_arguments_types_defaults(target)]
-    target_full_arg_spec = inspect.getfullargspec(target)
-    var_args = target_full_arg_spec.varargs
-    var_kw = target_full_arg_spec.varkw
+    if target_arg_names is None:
+        target_arg_names, accepts_var_positional, accepts_var_keyword = _precompute_target_facts(target)
 
-    missed = [arg for arg in kwargs if arg not in target_args]
-    if missed and var_kw is None:
-        if var_args is None:
+    missed = [arg for arg in kwargs if arg not in target_arg_names]
+    if missed and not accepts_var_keyword:
+        if not accepts_var_positional:
             raise TypeError(f"Failed mapping of `{source.__name__}`, arguments not accepted by target: {missed}")
         raise TypeError(
             f"Failed mapping of `{source.__name__}`, arguments not accepted by target (target accepts *args but "
@@ -674,8 +765,10 @@ def _split_positional_only_kwargs(
     param_order: tuple[str, ...],
     resolved_kwargs: dict[str, Any],
     positional_only: frozenset[str],
+    *,
+    consumed: int = 0,
 ) -> tuple[list[Any], dict[str, Any]]:
-    """Split ``resolved_kwargs`` into positional args and remaining kwargs for a target with POSITIONAL_ONLY params.
+    """Split ``resolved_kwargs`` into positional args and remaining kwargs for a callable with POSITIONAL_ONLY params.
 
     Extracts values for ``positional_only`` names from ``resolved_kwargs`` in parameter-declaration order
     so they can be forwarded positionally.  Also extracts ``self``/``cls`` when they are the *first*
@@ -684,24 +777,53 @@ def _split_positional_only_kwargs(
     argument.  The first-parameter restriction avoids incorrectly extracting a non-receiver parameter
     that happens to be named ``self`` or ``cls``.  Remaining entries stay in the returned kwargs dict.
 
+    Positional binding at the call site is by *slot*, not by name: when an earlier positional-only
+    parameter is absent from ``resolved_kwargs`` (a *gap* — safe only when nothing follows, since
+    defaults trail), a value present for a *later* positional-only parameter would silently bind to
+    the wrong slot.  That case raises :class:`TypeError` instead of misbinding.
+
     Args:
-        param_order: Pre-computed parameter-name sequence of the target callable in declaration order.
-            Stored on :attr:`~deprecate._types.DeprecationConfig.target_positional_only_order` to avoid
+        param_order: Pre-computed parameter-name sequence of the callable in declaration order.
+            Stored on :attr:`~deprecate._types.DeprecationConfig.target_positional_only_order` /
+            :attr:`~deprecate._types.DeprecationConfig.source_positional_only_order` to avoid
             re-calling ``inspect.signature`` on every dispatch.
-        resolved_kwargs: Full kwargs dict assembled by :func:`_build_call_plan`.
+        resolved_kwargs: Full kwargs dict assembled by :func:`_build_call_plan` (or the proxy's
+            mapped kwargs).
         positional_only: Names of POSITIONAL_ONLY parameters — O(1) membership check.
+        consumed: Number of leading slots already filled by caller-supplied positional args
+            (used by the proxy call path, which keeps the caller's ``*args`` positional); those
+            slots are skipped and never treated as gaps.
 
     Returns:
         Tuple of ``(pos_args, kw_args)`` where ``pos_args`` contains the instance (``self``/``cls``,
         when present) followed by positional-only param values in declaration order, and ``kw_args``
         contains the remaining kwargs.
 
+    Raises:
+        TypeError: When a positional-only name is present in ``resolved_kwargs`` while an earlier
+            positional-only parameter is absent — forwarding positionally would misbind the value.
+
     """
     kw_args = dict(resolved_kwargs)
     pos_args: list[Any] = []
+    missing: Optional[str] = None
     for i, name in enumerate(param_order):
-        if name in kw_args and (name in positional_only or (i == 0 and name in {"self", "cls"})):
-            pos_args.append(kw_args.pop(name))
+        if i < consumed:
+            continue
+        # POSITIONAL_ONLY params form a contiguous prefix of the signature, so the first
+        # non-extractable name ends the scan — no positional-only names can follow it.
+        if name not in positional_only and not (i == 0 and name in {"self", "cls"}):
+            break
+        if name not in kw_args:
+            missing = name  # gap — safe only while no later positional-only value shows up
+            continue
+        if missing is not None:
+            raise TypeError(
+                f"Cannot forward `{name}` positionally: the earlier positional-only parameter"
+                f" `{missing}` was not supplied, so `{name}`'s value would bind to the wrong slot."
+                f" Supply `{missing}` explicitly, or remove `/` from the target signature."
+            )
+        pos_args.append(kw_args.pop(name))
     return pos_args, kw_args
 
 
@@ -747,9 +869,11 @@ def _raise_warn(
     msg = template_mgs % msg_args
     try:
         stream(msg, stacklevel=stacklevel)
-    except TypeError:
-        # stream does not accept stacklevel (e.g. print, logging.warning, custom callables).
-        stream(msg)
+    except TypeError as _exc:
+        if "stacklevel" in str(_exc) or "keyword" in str(_exc):
+            stream(msg)
+        else:
+            raise
 
 
 def _source_display_name(source: Callable) -> str:
@@ -889,6 +1013,42 @@ def _raise_warn_arguments(
     )
 
 
+def _consume_warn_budget(
+    state: _WrapperState,
+    num_warns: int,
+    reason_callable: bool,
+    reason_argument: dict[str, Optional[str]],
+) -> bool:
+    """Check the warn budget and consume one unit from it when a warning may fire.
+
+    Must be called while holding ``state.lock`` — the read-check-increment sequence is exactly
+    what the lock protects (see the thread-safety note at the call site).
+
+    Args:
+        state: Mutable per-wrapper counters.
+        num_warns: Configured budget; negative means unlimited.
+        reason_callable: Warning is for the deprecated callable itself — consumes ``warned_calls``.
+        reason_argument: Deprecated argument names present in this call — consumes per-argument
+            budgets in ``warned_args``; takes precedence over the call counter for the check.
+
+    Returns:
+        True when the caller should emit the warning (budget available and now consumed).
+
+    """
+    if reason_argument:
+        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
+    else:
+        nb_warned = state.warned_calls
+    if num_warns >= 0 and nb_warned >= num_warns:
+        return False
+    if reason_callable:
+        state.warned_calls += 1
+    elif reason_argument:
+        for arg in reason_argument:
+            state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+    return True
+
+
 def _build_call_plan(  # noqa: C901, PLR0912
     wrapper_fn: Callable[..., Any],
     source: Callable[..., Any],
@@ -978,17 +1138,22 @@ def _build_call_plan(  # noqa: C901, PLR0912
             target_func=None,
         )
 
-    if reason_argument:
-        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-    else:
-        nb_warned = state.warned_calls
-
     # +1 stacklevel: extraction added one frame (caller → wrapper_fn → _build_call_plan → _raise_warn_*)
     # over the previous in-wrapper call chain.  Async path has the same frame depth:
     # caller → coroutine `async_wrapped_fn` body → _build_call_plan → _raise_warn_* — the asyncio runner
     # frames sit *below* the caller and are skipped by warnings.warn's stacklevel walk.
     _stacklevel_to_caller = _DEFAULT_STACKLEVEL_TO_CALLER + 1
-    if stream and (num_warns < 0 or nb_warned < num_warns):
+    # Double-checked fast path: avoid the lock when the warn budget is clearly exhausted.
+    # Under CPython the int read is atomic (GIL); after num_warns=1 fires once,
+    # warned_calls >= num_warns on every subsequent call — no benefit from acquiring the lock.
+    # The authoritative check-then-increment still runs under the lock when a warning may fire.
+    # Argument-specific budgets are not pre-checked (rare path, dict lookup not worth the complexity).
+    should_warn = False
+    if stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
+        with state.lock:
+            should_warn = _consume_warn_budget(state, num_warns, reason_callable, reason_argument)
+    if should_warn:
+        assert stream is not None  # noqa: S101 — should_warn is only set while holding the lock when stream is truthy
         if reason_callable:
             # Use original `target` (not remapped normalized_target) so the warning
             # names the class (e.g. "NewCls") rather than "__init__".
@@ -1001,7 +1166,6 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 template_mgs=dep_cfg.template_mgs,
                 stacklevel=_stacklevel_to_caller,
             )
-            state.warned_calls += 1
         elif reason_argument:
             _raise_warn_arguments(
                 stream=stream,
@@ -1012,13 +1176,15 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 template_mgs=dep_cfg.template_mgs,
                 stacklevel=_stacklevel_to_caller,
             )
-            for arg in reason_argument:
-                state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
 
     if reason_callable:
-        # Source defaults for renamed args survive _update_kwargs_with_defaults and
-        # would be forwarded under the new name, silently overriding the target's own
-        # default. Drop only when the caller never supplied the old or new name.
+        # Source defaults for renamed args survive _update_kwargs_with_defaults and would be forwarded
+        # under the new name, silently overriding the target's own default. Drop only the *renamed*
+        # old-arg default when the caller supplied neither the old nor the new name.
+        # NOTE: non-renamed shared parameters intentionally keep their source default — the source
+        # signature is the contract the caller migrated from, so its default is forwarded (see
+        # ``decorated_sum`` / ``test_functions.py::test_default``). Dropping these too
+        # would conflict with the tested behaviour and is deliberately NOT applied.
         if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
             _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
             caller_keys = set(kwargs)
@@ -1036,11 +1202,13 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 target_defaults = rename_targets
             full_defaults = _update_kwargs_with_defaults(source, kwargs)
 
-            def is_default_dropped(k: str) -> bool:
-                remapped = k in rename_sources and _am.get(k) in target_defaults
-                return k not in rename_targets and not remapped
+            def is_source_default_kept(k: str) -> bool:
+                # A renamed old-arg default is stale when the target has its own default → drop it;
+                # everything else (non-renamed params) keeps its source default.
+                renamed_with_target_default = k in rename_sources and _am.get(k) in target_defaults
+                return k not in rename_targets and not renamed_with_target_default
 
-            kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_default_dropped(k)}
+            kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_source_default_kept(k)}
         else:
             kwargs = _update_kwargs_with_defaults(source, kwargs)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
@@ -1062,7 +1230,18 @@ def _build_call_plan(  # noqa: C901, PLR0912
     # uniform argument set even if the helper later needs to switch on var-positional shape.
     target_func: Optional[Callable[..., Any]] = None
     if callable(normalized_target):
-        target_func = _prepare_target_call(source, normalized_target, kwargs)
+        # ``None`` means facts were not precomputed (manual DeprecationConfig construction or proxy path);
+        # _prepare_target_call recomputes from target. ``frozenset()`` is a valid cached value for zero-arg
+        # targets — gate on identity (``is not None``), not truthiness, to preserve the zero-arg cache hit.
+        _cached_target_names = dep_cfg.target_all_param_names
+        target_func = _prepare_target_call(
+            source,
+            normalized_target,
+            kwargs,
+            target_arg_names=_cached_target_names,
+            accepts_var_positional=dep_cfg.target_accepts_var_positional,
+            accepts_var_keyword=dep_cfg.target_accepts_var_keyword,
+        )
 
     return _CallPlan(
         short_circuit=False,
@@ -1114,7 +1293,11 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # Order-agnostic: unwrap → deprecate inner function → rewrap.
         # Both @classmethod orders produce classmethod(deprecated_wrapper);
         # both @staticmethod orders produce staticmethod(deprecated_wrapper).
-        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2)
+        # A staticmethod receives no ``self``, so the cross-class guard's rationale ("self would carry
+        # the wrong type") does not apply — thread ``_is_static`` through so ``packing`` skips the guard
+        # for the unwrapped function, whose qualname alone cannot reveal it was a staticmethod.
+        _is_static = isinstance(source, staticmethod)
+        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2, _is_static=_is_static)
         return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
 
     if isinstance(source, property):
@@ -1375,6 +1558,134 @@ def _resolve_stored_target(
     return target
 
 
+def _reorder_kwargs_for_surplus(
+    source: Callable,
+    target_func: Callable,
+    surplus: tuple[Any, ...],
+    resolved_kwargs: dict[str, Any],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Convert leading positional-capable kwargs back to positional form so a surplus tail can follow.
+
+    A source declaring ``*args`` may receive more positional arguments than it has named
+    positional parameters; the surplus tail must be forwarded to the target *positionally*.
+    Python rejects positional arguments after keyword arguments, so every kwarg bound to one of
+    the target's leading positional slots is popped back into positional form first, in
+    declaration order.  The fill stops at the first leading slot absent from
+    ``resolved_kwargs`` — the surplus then binds to the remaining slots (and/or the target's
+    own ``*args``), which is the natural positional call shape.
+
+    Args:
+        source: The decorated callable — named in the curated ``TypeError``.
+        target_func: The forwarding target whose signature defines the positional slots.
+        surplus: Positional tail beyond the source's named positional parameters
+            (``args[dep_cfg.source_var_positional_prefix:]``).
+        resolved_kwargs: Final kwargs assembled by :func:`_build_call_plan`.
+
+    Returns:
+        Tuple of ``(pos_args, kw_args)``; the caller appends ``surplus`` after ``pos_args``.
+
+    Raises:
+        TypeError: When the target declares no ``*args`` and its unfilled positional slots
+            cannot absorb the surplus — raising loudly instead of silently dropping data.
+
+    """
+    params = list(_get_signature(target_func).parameters.values())
+    positional_names: list[str] = []
+    accepts_var_positional = False
+    for param in params:
+        if param.kind is inspect.Parameter.VAR_POSITIONAL:
+            accepts_var_positional = True
+            break
+        if param.kind not in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD):
+            break
+        positional_names.append(param.name)
+    kw_args = dict(resolved_kwargs)
+    pos_args: list[Any] = []
+    for name in positional_names:
+        if name not in kw_args:
+            break
+        pos_args.append(kw_args.pop(name))
+    free_slots = len(positional_names) - len(pos_args)
+    if not accepts_var_positional and len(surplus) > free_slots:
+        raise TypeError(
+            f"Failed mapping of `{source.__name__}`: {len(surplus)} extra positional argument(s) from `*args`"
+            f" cannot be forwarded to target `{getattr(target_func, '__name__', repr(target_func))}` —"
+            f" it accepts at most {len(positional_names)} positional argument(s) and no `*args`."
+        )
+    return pos_args, kw_args
+
+
+def _resolve_source_call_shape(
+    plan: _CallPlan,
+    dep_cfg: DeprecationConfig,
+    source_has_var_positional: bool,
+    args: tuple[Any, ...],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Return the ``(pos_args, kw_args)`` shape for invoking the *source* body.
+
+    Covers the short-circuit (migrated caller) and no-target (NOTIFY / ARGS_REMAP) branches:
+
+    - ``*args`` sources keep their original positional tuple; kwargs are the original caller-
+      supplied keywords only (never ``resolved_kwargs``, which also contains positional-to-keyword
+      conversions that would double-pass with ``*args``).  When an arg-rename reason fires,
+      the mapping is applied to ``original_kwargs`` directly, and ``args_extra`` is merged last.
+    - Sources declaring POSITIONAL_ONLY params get those split back out of the resolved
+      kwargs — the wrapper converted them to keyword form internally, but the source body
+      cannot accept them as keywords.
+    - All other sources are invoked with the resolved kwargs only.
+
+    """
+    if source_has_var_positional:
+        if plan.short_circuit or not plan.reason_argument:
+            kw_args = plan.original_kwargs
+        else:
+            # Use caller-supplied keywords only (not resolved_kwargs, which also contains
+            # positional-to-keyword conversions that would double-pass with *args).
+            mapping = dep_cfg.args_mapping or {}
+            kw_args = {
+                (mapping.get(k) or k): v
+                for k, v in plan.original_kwargs.items()
+                if k not in mapping or mapping[k] is not None
+            }
+            if dep_cfg.args_extra:
+                kw_args.update(dep_cfg.args_extra)
+        return list(args), kw_args
+    if dep_cfg.source_positional_only:
+        return _split_positional_only_kwargs(
+            dep_cfg.source_positional_only_order, plan.resolved_kwargs, dep_cfg.source_positional_only
+        )
+    return [], plan.resolved_kwargs
+
+
+def _resolve_target_call_shape(
+    source: Callable,
+    plan: _CallPlan,
+    dep_cfg: DeprecationConfig,
+    source_has_var_positional: bool,
+    args: tuple[Any, ...],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Return the ``(pos_args, kw_args)`` shape for invoking the forwarding *target*.
+
+    - A ``*args`` source with a surplus positional tail (values past its named positionals)
+      forwards the tail positionally — leading kwargs are reordered into positional form via
+      :func:`_reorder_kwargs_for_surplus` so the tail can legally follow them.
+    - A target with POSITIONAL_ONLY params gets those split out of the resolved kwargs via
+      :func:`_split_positional_only_kwargs`.
+    - Otherwise the target receives the resolved kwargs only.
+
+    """
+    target_func = cast(Callable, plan.target_func)
+    surplus = args[dep_cfg.source_var_positional_prefix :] if source_has_var_positional else ()
+    if surplus:
+        pos_args, kw_args = _reorder_kwargs_for_surplus(source, target_func, surplus, plan.resolved_kwargs)
+        return [*pos_args, *surplus], kw_args
+    if dep_cfg.target_positional_only:
+        return _split_positional_only_kwargs(
+            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
+        )
+    return [], plan.resolved_kwargs
+
+
 async def _invoke_async(
     source: Callable,
     plan: _CallPlan,
@@ -1383,27 +1694,15 @@ async def _invoke_async(
     args: tuple[Any, ...],
 ) -> Any:  # noqa: ANN401
     """Dispatch async call after :func:`_build_call_plan` has resolved the outcome."""
-    if plan.short_circuit:
-        if source_has_var_positional:
-            return await source(*args, **plan.original_kwargs)
-        return await source(**plan.resolved_kwargs)
-    if plan.target_func is None:
-        if source_has_var_positional:
-            call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
-            return await source(*args, **call_kwargs)
-        return await source(**plan.resolved_kwargs)
+    if plan.short_circuit or plan.target_func is None:
+        pos_args, kw_args = _resolve_source_call_shape(plan, dep_cfg, source_has_var_positional, args)
+        return await source(*pos_args, **kw_args)
+    pos_args, kw_args = _resolve_target_call_shape(source, plan, dep_cfg, source_has_var_positional, args)
     # Sync target under async source: invoke directly so callers can migrate without forcing
     # every legacy target to be redeclared ``async def``.
-    if dep_cfg.target_positional_only:
-        _pos_args, _kw_args = _split_positional_only_kwargs(
-            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
-        )
-        if inspect.iscoroutinefunction(plan.target_func):
-            return await plan.target_func(*_pos_args, **_kw_args)
-        return plan.target_func(*_pos_args, **_kw_args)
     if inspect.iscoroutinefunction(plan.target_func):
-        return await plan.target_func(**plan.resolved_kwargs)
-    return plan.target_func(**plan.resolved_kwargs)
+        return await plan.target_func(*pos_args, **kw_args)
+    return plan.target_func(*pos_args, **kw_args)
 
 
 def _invoke_sync(
@@ -1414,26 +1713,16 @@ def _invoke_sync(
     args: tuple[Any, ...],
 ) -> Any:  # noqa: ANN401
     """Dispatch sync call after :func:`_build_call_plan` has resolved the outcome."""
-    if plan.short_circuit:
-        if source_has_var_positional:
-            return source(*args, **plan.original_kwargs)
-        return source(**plan.resolved_kwargs)
-    if plan.target_func is None:
-        if source_has_var_positional:
-            call_kwargs = plan.original_kwargs if not plan.reason_argument else plan.resolved_kwargs
-            return source(*args, **call_kwargs)
-        return source(**plan.resolved_kwargs)
+    if plan.short_circuit or plan.target_func is None:
+        pos_args, kw_args = _resolve_source_call_shape(plan, dep_cfg, source_has_var_positional, args)
+        return source(*pos_args, **kw_args)
     if inspect.iscoroutinefunction(plan.target_func):
         raise TypeError(
             f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
             f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
         )
-    if dep_cfg.target_positional_only:
-        _pos_args, _kw_args = _split_positional_only_kwargs(
-            dep_cfg.target_positional_only_order, plan.resolved_kwargs, dep_cfg.target_positional_only
-        )
-        return plan.target_func(*_pos_args, **_kw_args)
-    return plan.target_func(**plan.resolved_kwargs)
+    pos_args, kw_args = _resolve_target_call_shape(source, plan, dep_cfg, source_has_var_positional, args)
+    return plan.target_func(*pos_args, **kw_args)
 
 
 def deprecated(  # noqa: C901
@@ -1569,7 +1858,9 @@ def deprecated(  # noqa: C901
     def packing(  # noqa: C901
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
         _stacklevel: int = 2,
+        _is_static: bool = False,
     ) -> Callable:
+        _reject_bare_decorator(source)
         _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra, _stacklevel)
         if _descriptor_result is not None:
             return _descriptor_result
@@ -1613,8 +1904,12 @@ def deprecated(  # noqa: C901
         # constructor forwarding (target=NewCls on __init__) is always valid.
         # Descriptor targets: unwrap __func__ so the guard can inspect the qualname;
         # raw staticmethod/classmethod descriptors lack __qualname__ on the instance.
+        # A staticmethod *source* skips the guard: no ``self`` is passed, so cross-class forwarding
+        # cannot carry a wrong-typed receiver (see ``_is_static``).  A staticmethod *target* is NOT a
+        # skip signal — an instance-method source forwarding to a staticmethod would still leak ``self``
+        # across classes, so that case must keep raising.
         _guard_target = _unwrap_descriptor_target(target)
-        if callable(_guard_target) and not inspect.isclass(_guard_target):
+        if callable(_guard_target) and not inspect.isclass(_guard_target) and not _is_static:
             _check_cross_class_method_target(source, _guard_target)
         _target = _normalize_target(source, target)
         # ATTRS_REMAP is a proxy-only mode — it is meaningless on @deprecated functions/methods
@@ -1641,28 +1936,61 @@ def deprecated(  # noqa: C901
                 _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=_stacklevel + 1
             )
 
-        source_has_var_positional = any(
-            param.kind == inspect.Parameter.VAR_POSITIONAL for param in _get_signature(source).parameters.values()
+        _source_params = list(_get_signature(source).parameters.values())
+        source_has_var_positional = any(param.kind is inspect.Parameter.VAR_POSITIONAL for param in _source_params)
+        # Named positional params preceding *args — the wrapper forwards args[prefix:] as the
+        # surplus positional tail when forwarding to a callable target.
+        _source_var_positional_prefix = (
+            next(i for i, param in enumerate(_source_params) if param.kind is inspect.Parameter.VAR_POSITIONAL)
+            if source_has_var_positional
+            else 0
+        )
+        # Source-side POSITIONAL_ONLY params: the wrapper converts positional args to kwargs
+        # internally, so the dispatcher must split these back out before invoking the source
+        # body (NOTIFY / ARGS_REMAP / migrated-caller short-circuit) — mirror of the
+        # target-side machinery below.
+        _source_positional_only = frozenset(
+            param.name for param in _source_params if param.kind is inspect.Parameter.POSITIONAL_ONLY
+        )
+        _source_positional_only_order: tuple[str, ...] = (
+            tuple(param.name for param in _source_params) if _source_positional_only else ()
         )
 
         _target_positional_only, _target_positional_only_order = _detect_positional_only(
             _target, source, stream, _stacklevel + 1
         )
+        # Precompute the target signature facts the call-time kwarg validation needs (accepted-name set
+        # and var-arg flags) so no forwarded call re-inspects the target via inspect.getfullargspec.
+        (
+            _target_all_names,
+            _target_accepts_var_positional,
+            _target_accepts_var_keyword,
+        ) = _precompute_target_facts(_target)
 
         stored_target = _resolve_stored_target(target)
         misconfigured = target is False or _function_misconfigured
+        # Copy caller-owned mutable mappings so the frozen ``DeprecationConfig`` cannot be mutated through the
+        # caller's original dict after decoration (which would silently change forwarding behavior at call time).
+        _args_mapping = dict(args_mapping) if isinstance(args_mapping, dict) else args_mapping
+        _args_extra = dict(args_extra) if isinstance(args_extra, dict) else args_extra
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             name=source.__name__,
             target=stored_target,
-            args_mapping=args_mapping,
-            args_extra=args_extra,
+            args_mapping=_args_mapping,
+            args_extra=_args_extra,
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
             template_mgs=template_mgs,
             target_positional_only=_target_positional_only,
             target_positional_only_order=_target_positional_only_order,
+            source_positional_only=_source_positional_only,
+            source_positional_only_order=_source_positional_only_order,
+            source_var_positional_prefix=_source_var_positional_prefix,
+            target_all_param_names=_target_all_names,
+            target_accepts_var_positional=_target_accepts_var_positional,
+            target_accepts_var_keyword=_target_accepts_var_keyword,
         )
         _dep_cfg = dep_meta
 

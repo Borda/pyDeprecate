@@ -13,24 +13,34 @@ import pytest
 
 import tests.collection_deprecate as col
 import tests.collection_misconfigured as clean_module
-from deprecate import TargetMode, deprecated, validate_mapping_compatibility
+from deprecate import TargetMode, deprecated, validate_deprecation_expiry, validate_mapping_compatibility
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     ChainType,
     DeprecationStatus,
     DeprecationWrapperInfo,
+    _check_expiry_for_callables,
     _classify_member_api_type,
+    _format_report_target,
     _get_deprecation_status,
     _get_package_version,
+    _member_has_deprecation_meta,
+    _normalize_version_string,
     _parse_version,
+    _scan_class,
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
-from tests.collection_targets import PositionalOnlyTarget
+from tests.collection_targets import ColorEnum, PositionalOnlyTarget
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
+
+# Optional dependency: ``packaging`` ships with the ``[audit]`` extra. Guard the import at module level so
+# collection never fails; the tests that use ``Version`` are gated by ``@_requires_packaging``.
+if _PACKAGING_AVAILABLE:
+    from packaging.version import Version
 
 
 class _SideEffectScanModule:
@@ -184,7 +194,6 @@ class TestGetDeprecationStatus:
     @_requires_packaging
     def test_status_active_warning_with_current_version_and_future_remove_in(self) -> None:
         """Current version before remove_in maps to Deprecation Active."""
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
         def function() -> None:
@@ -198,7 +207,6 @@ class TestGetDeprecationStatus:
     @_requires_packaging
     def test_status_invalid_removal_target(self) -> None:
         """Non-parseable remove_in maps to Invalid Removal Target."""
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
         def function() -> None:
@@ -217,7 +225,6 @@ class TestGetDeprecationStatus:
         version is below it, the symbol is not yet emitting warnings to end users.
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="9.0")
         def function() -> None:
@@ -236,7 +243,6 @@ class TestGetDeprecationStatus:
         the audit elevates the status above plain ``ACTIVE_WARNING`` to flag impending removal.
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.10")
         def function() -> None:
@@ -257,7 +263,6 @@ class TestGetDeprecationStatus:
         ``current_version.pre[0] == "rc"`` after confirming ``same_base``).
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.9")
         def function() -> None:
@@ -275,7 +280,6 @@ class TestGetDeprecationStatus:
         The symbol should have been deleted before this release; audit surfaces it as overdue.
 
         """
-        from packaging.version import Version
 
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.9")
         def function() -> None:
@@ -324,8 +328,6 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_callable_target_no_effect_false(self) -> None:
         """Proxy forwarding to a callable target is effective → no_effect=False."""
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )
@@ -336,8 +338,6 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_args_mapping_skips_signature_validation(self) -> None:
         """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={},
             name="mapped",
@@ -353,8 +353,6 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_with_identity_args_mapping_detected(self) -> None:
         """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={},
             name="identity_mapped",
@@ -408,8 +406,6 @@ class TestValidateDeprecationWrapperWithProxy:
         Without this, getattr routes through __getattr__ and leaks the target's __name__.
 
         """
-        from tests.collection_targets import ColorEnum
-
         proxy = _DeprecatedProxy(
             obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
         )
@@ -458,6 +454,84 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestFindDeprecationWrappersReexport:
+    """Re-exported wrappers are attributed to their defining module and never double-counted."""
+
+    def test_reexport_dropped_in_importing_module(self) -> None:
+        """A same-package re-export is skipped in the importing module to avoid double-counting.
+
+        A library commonly surfaces a deprecated shim from a private submodule through its package
+        ``__init__``. A recursive audit must attribute that wrapper to the module that defines it, not
+        report it once per importing module — inflated counts break any CI gate summing ``len(results)``.
+
+        The attribution filter only fires when the defining module shares the same top-level package
+        (``_same_top_package`` guard). Wrappers from a wholly different package (e.g. an external
+        library re-exposed) are never skipped — they will not be visited elsewhere and must be reported
+        where they appear.
+        """
+        importer = types.ModuleType("importer_mod")
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def defined_elsewhere() -> None:
+            """Wrapper defined in a sibling submodule of the same package."""
+
+        # Simulate a same-package re-export: __module__ points to a submodule of the same top
+        # package so _same_top_package("importer_mod.sub", "importer_mod") → True → skip fires.
+        defined_elsewhere.__module__ = "importer_mod.sub"
+        importer.defined_elsewhere = defined_elsewhere  # type: ignore[attr-defined]
+
+        results = find_deprecation_wrappers(importer)
+
+        assert [r for r in results if r.function == "defined_elsewhere"] == []
+
+    def test_aliased_object_counted_once(self) -> None:
+        """The same wrapper object bound under two names in one module is reported once.
+
+        Mirrors the real ``self_ref_typed = cast(..., self_referencing_deprecation)`` alias in the
+        misconfigured collection: two names, one underlying object — id-based dedup must collapse them
+        so the wrapper is counted exactly once rather than inflating the scan by every extra binding.
+        """
+        mod = types.ModuleType("alias_mod")
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def canonical() -> None:
+            """Single wrapper object exposed under two names."""
+
+        canonical.__module__ = mod.__name__
+        mod.canonical = canonical  # type: ignore[attr-defined]
+        mod.alias = canonical  # type: ignore[attr-defined]  # same object, second binding
+
+        results = find_deprecation_wrappers(mod)
+
+        assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
+
+
+class TestFormatReportProxyTarget:
+    """_format_report_target reads a chained-proxy target statically, never via dynamic ``getattr``."""
+
+    def test_chained_proxy_target_formatted_statically(self) -> None:
+        """A target that is itself a deprecated_class proxy is formatted by its declared name, silently.
+
+        When a deprecated alias forwards to *another* deprecated alias (the chain
+        ``validate_deprecation_chains`` exists to flag), rendering its report row must show the immediate
+        target's real declared name — not a fabricated path spliced from the proxy class's ``__module__``
+        and the innermost target's ``__qualname__`` — and must not burn the chained proxy's warn budget
+        from inside the audit tooling.
+        """
+        final_cls = type("FinalApi", (), {})
+        mid = deprecated_class(target=final_cls, deprecated_in="1.0", remove_in="2.0")(type("MidApi", (), {}))
+        old = deprecated_class(target=mid, deprecated_in="1.0", remove_in="2.0")(type("OldApi", (), {}))
+        target = object.__getattribute__(old, "__deprecated__").target
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # any warning emitted during formatting fails the test
+            formatted = _format_report_target(target)
+
+        mid_cfg = object.__getattribute__(mid, "_DeprecatedProxy__config")
+        assert formatted == "MidApi"
+        assert mid_cfg.warned == 0
 
 
 class TestDeprecationWrapperInfoEmptyVersions:
@@ -600,6 +674,41 @@ class TestClassifyMemberApiType:
     def test_init_with_mapping_returns_class_constructor_args(self) -> None:
         """member_name='__init__' with has_mapping=True returns 'class constructor args'."""
         assert _classify_member_api_type("__init__", None, True) == "class constructor args"
+
+
+@_requires_packaging
+class TestValidateDeprecationExpiryDefaults:
+    """validate_deprecation_expiry must cover class members by default — it is the CI enforcement gate."""
+
+    def test_default_includes_expired_class_members(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A deprecated method past its deadline is reported without passing ``include_members``.
+
+        A team wires the documented one-liner ``validate_deprecation_expiry(my_package, __version__)``
+        into CI and believes all deprecations are enforced. If the default excluded class members, every
+        deprecated method, constructor, classmethod, staticmethod, and property would silently outlive its
+        ``remove_in`` deadline while discovery (``find_deprecation_wrappers``) and reporting
+        (``generate_deprecation_table``) show them by default.
+
+        """
+        mod = types.ModuleType("test_mod_expiry_member_default")
+
+        # one-off mechanical fixture: wrapper belongs to a dynamically-built class attached to types.ModuleType
+        class Service:
+            @deprecated(deprecated_in="0.1", remove_in="0.5")
+            def old_compute(self, x: int) -> int:
+                """Deprecated self-deprecation past its removal deadline."""
+                return x
+
+        # find_deprecation_wrappers filters by __module__; inline class defaults to test-file module
+        monkeypatch.setattr(Service, "__module__", mod.__name__)
+        mod.Service = Service  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            expired = validate_deprecation_expiry(mod, "1.0")
+
+        assert len(expired) == 1
+        assert "old_compute" in expired[0]
 
 
 class TestFindDeprecationWrappersClassScan:
@@ -1059,3 +1168,208 @@ class TestInnerOrderPropertyAudit:
         replaced = dataclasses.replace(info, module="some.module")
         assert replaced.inner_order_property is True
         assert replaced.module == "some.module"
+
+
+def _aud_new_impl() -> int:
+    """Replacement callable used as a deprecation target for the private-member scan fixture."""
+    return 1
+
+
+class _AudPrivateMembers:
+    """Fixture class carrying deprecated private members across all descriptor kinds."""
+
+    @deprecated(target=_aud_new_impl, deprecated_in="1.0", remove_in="2.0")
+    def _legacy(self) -> int:
+        return 0
+
+    @classmethod
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    def _cls_legacy(cls) -> int:
+        return 0
+
+    @staticmethod
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    def _static_legacy() -> int:
+        return 0
+
+    @cached_property
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    def _cached_legacy(self) -> int:
+        return 0
+
+
+class _AudTargetCls:
+    """Plain class used both as the wrapped object and target of a self-referential proxy (fixture)."""
+
+
+class _AudAttrsMappingTarget:
+    """Fixture class with both old and new attribute names for the attrs_mapping self-reference test."""
+
+    old_attr: int = 0
+    new_attr: int = 0
+
+
+class TestNormalizeVersionStringLocalSegment:
+    """The label-normalizing regex must not touch the PEP 440 local segment, and only one leading v strips."""
+
+    def test_preserves_local_segment(self) -> None:
+        """A legitimate local like ``1.2.3+cuda`` must survive verbatim instead of becoming ``1.2.3+cuda0``.
+
+        The trailing ``a`` of ``cuda`` used to be treated as a bare ``a`` pre-release label because the regex ran
+        over the whole string; splitting off the local segment first keeps real-world CUDA/build locals intact.
+        """
+        assert _normalize_version_string("1.2.3+cuda") == "1.2.3+cuda"
+
+    def test_normalizes_public_but_not_local(self) -> None:
+        """A bare ``dev`` label in the public part is normalized while the local segment is left untouched."""
+        assert _normalize_version_string("1.0.dev+build.a") == "1.0.dev0+build.a"
+
+    def test_strips_only_single_leading_v(self) -> None:
+        """Only one left-anchored ``v`` is removed, not every leading ``v`` (``lstrip`` stripped all)."""
+        assert _normalize_version_string("vv1.0") == "v1.0"
+
+
+class TestScanClassPrivateDeprecated:
+    """Deprecated private/dunder members carry ``__deprecated__`` and must be surfaced so they can expire."""
+
+    def test_member_meta_peeks_through_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a descriptor's underlying callable."""
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_legacy"]) is True
+
+    def test_member_meta_peeks_through_classmethod_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a classmethod's underlying ``__func__``.
+
+        ``classmethod`` objects store the wrapped function in ``__func__``; ``_member_has_deprecation_meta``
+        must unwrap it to find ``__deprecated__`` rather than inspecting the ``classmethod`` itself.
+        """
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cls_legacy"]) is True
+
+    def test_member_meta_peeks_through_staticmethod_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a staticmethod's underlying ``__func__``."""
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_static_legacy"]) is True
+
+    def test_member_meta_peeks_through_cached_property_descriptor(self) -> None:
+        """The helper detects deprecation metadata stored on a cached_property's ``.func`` attribute."""
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cached_legacy"]) is True
+
+    def test_scan_surfaces_deprecated_private_method(self) -> None:
+        """A deprecated ``_legacy`` method is included in the scan even though it starts with an underscore.
+
+        Previously ``_scan_class`` skipped every ``_*`` member except ``__init__``, so a deprecated private or
+        dunder member could never be flagged as expired — a zombie that outlived its ``remove_in`` unnoticed.
+        """
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_legacy" in fn for fn in functions)
+
+    def test_scan_surfaces_deprecated_private_classmethod(self) -> None:
+        """A deprecated private classmethod is discovered by the scan via the ``classmethod.__func__`` path."""
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_cls_legacy" in fn for fn in functions)
+
+    def test_scan_surfaces_deprecated_private_staticmethod(self) -> None:
+        """A deprecated private staticmethod is discovered by the scan via the ``staticmethod.__func__`` path."""
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_static_legacy" in fn for fn in functions)
+
+    def test_scan_surfaces_deprecated_private_cached_property(self) -> None:
+        """A deprecated private cached_property is discovered by the scan via the ``cached_property.func`` path."""
+        results = _scan_class(_AudPrivateMembers, "tests.unittests.test_audit", "_AudPrivateMembers")
+        functions = [info.function for info in results]
+        assert any("_cached_legacy" in fn for fn in functions)
+
+
+class TestProxySelfReferenceDetection:
+    """A proxy whose deprecated target is its own wrapped object is a self-reference."""
+
+    def test_self_reference_detected_for_proxy(self) -> None:
+        """``target is func.wrapped`` marks the proxy as self-referential even though ``target is func`` is False.
+
+        The wrapper object is the proxy while the deprecated target is the wrapped class, so the plain identity
+        check never matched and a no-op self-referential proxy was reported as effective.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_AudTargetCls, target=_AudTargetCls, name="_AudTargetCls", deprecated_in="1.0", remove_in="2.0"
+        )
+        info = validate_deprecation_wrapper(proxy)
+        assert info.self_reference is True
+
+    def test_effective_proxy_with_args_mapping_not_self_reference(self) -> None:
+        """Same target as wrapped but non-empty ``args_mapping`` means the proxy is NOT a self-reference.
+
+        A _DeprecatedProxy whose target matches its wrapped object but also carries an active
+        ``args_mapping`` still performs meaningful argument remapping and must not be flagged as
+        a no-op self-reference. The self-reference predicate narrows to the zero-remapping
+        case only; a proxy with mapping is an effective wrapper even when target is func.wrapped.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_AudTargetCls,
+            target=_AudTargetCls,
+            name="_AudTargetCls",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            args_mapping={"old_x": "new_x"},
+        )
+        info = validate_deprecation_wrapper(proxy)
+        assert info.self_reference is False
+        assert info.no_effect is False
+
+    def test_effective_proxy_with_attrs_mapping_not_self_reference(self) -> None:
+        """Same target as wrapped but non-empty ``attrs_mapping`` means the proxy is NOT a self-reference.
+
+        A proxy carrying an active ``attrs_mapping`` remaps attribute access on the deprecated wrapper,
+        so it performs meaningful work even when target is func.wrapped.  Both ``args_mapping`` and
+        ``attrs_mapping`` independently disqualify the self-reference label.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_AudAttrsMappingTarget,
+            target=_AudAttrsMappingTarget,
+            name="_AudAttrsMappingTarget",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            attrs_mapping={"old_attr": "new_attr"},
+        )
+        info = validate_deprecation_wrapper(proxy)
+        assert info.self_reference is False
+        assert info.no_effect is False
+
+
+class TestForeignObjectDeprecationMetaGuard:
+    """``_has_deprecation_meta`` must not crash a scan on a foreign object raising a non-AttributeError."""
+
+    def test_hostile_getattr_returns_false(self) -> None:
+        """An object whose ``__deprecated__`` property raises is treated as carrying no metadata, not crashed on.
+
+        A recursive audit scan can encounter arbitrary third-party objects; ``getattr(..., default)`` only swallows
+        ``AttributeError``, so without the guard a lazy proxy raising ``RuntimeError`` would abort the whole scan.
+        Using a ``@property`` that raises on access exercises the ``try/except Exception`` guard without making
+        ``__getattr__`` raise for every attribute (which CodeQL flags as broadly hazardous).
+        """
+
+        class _Hostile:
+            @property
+            def __deprecated__(self) -> object:
+                raise RuntimeError("attribute access forbidden")
+
+        assert _has_deprecation_meta(_Hostile()) is False
+
+
+class TestBatchExpiryUnparsableVersion:
+    """An unparsable ``remove_in`` in a batch scan warns instead of being silently skipped."""
+
+    @_requires_packaging
+    def test_unparsable_remove_in_warns_and_is_not_expired(self) -> None:
+        """A typo'd ``remove_in`` emits a UserWarning and is excluded from the expired list, not dropped silently.
+
+        A permanently un-expirable wrapper (broken version string) would otherwise pass the CI expiry gate forever
+        with no signal; warning per skip surfaces the misconfiguration while the rest of the batch keeps scanning.
+        """
+        info = DeprecationWrapperInfo(
+            function="pkg.broken",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not.a.version!!"),
+        )
+        with pytest.warns(UserWarning, match="unparsable"):
+            expired = _check_expiry_for_callables([info], "2.0")
+        assert expired == []

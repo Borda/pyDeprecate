@@ -16,12 +16,19 @@ attributes that :func:`_build_call_plan` reads, plus a fresh :class:`~deprecate.
 
 """
 
+import concurrent.futures
+import sys
+import threading
+import time
 import warnings
+from collections.abc import Iterator
 from typing import Any, Callable
 
-from deprecate import TargetMode
+import pytest
+
+from deprecate import TargetMode, deprecated, void
 from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
-from deprecate.deprecation import _build_call_plan
+from deprecate.deprecation import _build_call_plan, _split_positional_only_kwargs
 from tests.collection_deprecate import (
     depr_pow_args,
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
@@ -295,3 +302,111 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     future_warnings = [w for w in record if w.category is FutureWarning]
     assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
     assert len(future_warnings) >= 1, "Inner NOTIFY layer must still fire its FutureWarning on a migrated caller"
+
+
+# ---------------------------------------------------------------------------
+# _split_positional_only_kwargs — slot-safe positional extraction
+# ---------------------------------------------------------------------------
+
+
+class TestSplitPositionalOnlyKwargs:
+    """Unit contract of :func:`deprecate.deprecation._split_positional_only_kwargs`.
+
+    The helper extracts positional-only values from a resolved kwargs dict in declaration
+    order.  Positional binding at the call site is by *slot*, not by name, so a value
+    supplied for a later positional-only parameter must never slide into the slot of an
+    earlier, absent one — that case must raise ``TypeError``.
+    """
+
+    def test_contiguous_prefix_extracted_in_order(self) -> None:
+        """All positional-only names present: values come back in declaration order."""
+        pos_args, kw_args = _split_positional_only_kwargs(
+            ("a", "b", "c"), {"a": 1, "b": 2, "c": 3}, frozenset({"a", "b"})
+        )
+        assert pos_args == [1, 2]
+        assert kw_args == {"c": 3}
+
+    def test_trailing_gap_is_safe(self) -> None:
+        """An absent positional-only name with no later value present stops extraction cleanly."""
+        pos_args, kw_args = _split_positional_only_kwargs(("a", "b", "c"), {"a": 1, "c": 3}, frozenset({"a", "b"}))
+        assert pos_args == [1]
+        assert kw_args == {"c": 3}
+
+    def test_gap_before_present_value_raises(self) -> None:
+        """A later positional-only value behind an absent earlier one raises instead of misbinding.
+
+        Binding ``b``'s value positionally while ``a`` is absent would assign it to ``a``'s
+        slot — silent wrong data at every call, which is strictly worse than the TypeError
+        this machinery exists to prevent.
+        """
+        with pytest.raises(TypeError, match=r"`a` was not supplied"):
+            _split_positional_only_kwargs(("a", "b", "c"), {"b": 2, "c": 3}, frozenset({"a", "b"}))
+
+    def test_consumed_offset_skips_caller_filled_slots(self) -> None:
+        """``consumed`` leading slots already filled by caller positionals are not treated as gaps.
+
+        The proxy call path passes ``consumed=len(args)`` so a caller mixing positional args
+        with a remapped kwarg (e.g. ``Alias(1, old_x=5)``) does not trip the gap guard on the
+        slots its positional args already cover.
+        """
+        pos_args, kw_args = _split_positional_only_kwargs(("w", "x"), {"x": 5}, frozenset({"w", "x"}), consumed=1)
+        assert pos_args == [5]
+        assert kw_args == {}
+
+    def test_leading_receiver_extracted_without_positional_only_flag(self) -> None:
+        """A leading ``self`` receiver is extracted positionally even when not flagged positional-only."""
+        instance = object()
+        pos_args, kw_args = _split_positional_only_kwargs(("self", "x"), {"self": instance, "x": 5}, frozenset({"x"}))
+        assert pos_args == [instance, 5]
+        assert kw_args == {}
+
+
+class TestWarnQuotaThreadSafety:
+    """The warn quota holds under concurrency.
+
+    ``_build_call_plan`` reads the warn counter, decides whether to emit, and increments — a check-then-act
+    sequence.  Without synchronisation, concurrent first calls all read ``warned_calls == 0``, all pass the
+    ``num_warns`` gate, and each emit a warning.  The state lock makes the check-and-increment atomic so exactly
+    ``num_warns`` emissions happen regardless of thread interleaving.
+    """
+
+    @pytest.fixture
+    def _aggressive_thread_switching(self) -> Iterator[None]:
+        """Force frequent GIL hand-offs so the check-then-act window is actually exercised, then restore it."""
+        previous = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        yield
+        sys.setswitchinterval(previous)
+
+    @pytest.mark.usefixtures("_aggressive_thread_switching")
+    def test_num_warns_one_emits_once_across_threads(self) -> None:
+        """16 threads released together into a ``num_warns=1`` wrapper produce exactly one warning emission.
+
+        A barrier releases all workers simultaneously so they contend on the quota at once; the counting stream
+        sleeps briefly to widen the check-then-act window.  Before the lock this asserted 2-16 emissions; with the
+        lock the count is a deterministic 1.
+        """
+        emissions: list[int] = []
+        emit_lock = threading.Lock()
+
+        def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+            """Record every emission; the tiny sleep is a yield point that exposes the race when unsynchronised."""
+            time.sleep(0.001)
+            with emit_lock:
+                emissions.append(1)
+
+        @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0", num_warns=1, stream=counting_stream)
+        def racy(x: int) -> int:
+            return void(x)
+
+        n_threads = 16
+        barrier = threading.Barrier(n_threads)
+
+        def worker(_ignored: int) -> None:
+            """Block until every thread has arrived, then hit the deprecated wrapper simultaneously."""
+            barrier.wait()
+            racy(1)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
+            list(pool.map(worker, range(n_threads)))
+        assert len(emissions) == 1

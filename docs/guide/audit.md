@@ -99,8 +99,8 @@ if result.no_effect:
   <summary>Output: <code>"Warning: This wrapper configuration has zero impact!"</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset()), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset()), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', template_mgs=None, attrs_mapping=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -109,6 +109,8 @@ Warning: This wrapper configuration has zero impact!
 ### Scanning a package for deprecated wrappers
 
 `find_deprecation_wrappers()` walks an entire package or module and returns a list of `DeprecationWrapperInfo` entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.
+
+Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -150,7 +152,7 @@ tests.collection_deprecate.DecoratedDataClass: no_effect=False
 
 ### Scanning a misconfigured collection
 
-`tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references, and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place. The raw module scan also sees the typed alias `self_ref_typed`, so the example reports 15 bindings even though there are 14 unique function objects.
+`tests.collection_misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references, and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -182,13 +184,13 @@ print(f"No effect: {len(no_effect)}")
 
 ```
 === Misconfiguration Report ===
-Wrappers scanned: 15
+Wrappers scanned: 14
 Invalid arguments: 3
 Empty mappings: 7
 Identity mappings: 3
-Self-references: 2
+Self-references: 1
 Misconfigured targets: 6
-No effect: 7
+No effect: 6
 ```
 
 </details>
@@ -306,7 +308,7 @@ print(f"Found {len(expired)} expired")
 
 ```
 Found 14 expired
-Found 28 expired
+Found 31 expired
 Found 17 expired
 Found 0 expired
 ```
@@ -315,6 +317,7 @@ Found 0 expired
 
 Good to know:
 
+- Class members decorated with `@deprecated` (e.g. an `__init__` wrapped by `deprecated_class` delegation) are included by default (`include_members=True`) — pass `include_members=False` to restrict the scan to module-level callables.
 - Callables without `remove_in` are skipped — notice-only deprecations are allowed.
 - Invalid version formats in `remove_in` are silently skipped.
 - PEP 440 versioning is used for comparison (e.g. `"2.0.0" > "1.9.5"`).
@@ -468,9 +471,9 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
 ## Detecting Mapping Incompatibilities
 
-`deprecated_class(args_mapping=...)` remaps deprecated argument names to their replacements before forwarding the call to the target constructor. That forwarding works only when the replacement name is a regular keyword parameter. When the replacement name is `POSITIONAL_ONLY` (i.e. declared with a `/` in the constructor signature), Python rejects it as a keyword argument. The proxy detects this at decoration time, emits a `UserWarning`, and falls back to `setattr` at call time instead of passing as a constructor kwarg — which works for most plain classes and dataclasses but silently degrades for C-extension types, `tuple`/`frozenset` subclasses, and any class where post-construction attribute assignment diverges from constructor initialisation.
+`deprecated_class(args_mapping=...)` remaps deprecated argument names to their replacements before forwarding the call to the target constructor. When the replacement name is `POSITIONAL_ONLY` (i.e. declared with a `/` in the constructor signature), Python rejects it as a keyword argument — so the proxy detects this at decoration time, emits a `UserWarning`, and forwards the remapped values *positionally* to the constructor at call time. Construction goes through the regular constructor, so required positional-only parameters, frozen dataclasses, and classes whose `__post_init__` derives state from those values all work correctly.
 
-`validate_mapping_compatibility()` surfaces every wrapper whose `args_mapping_positional_only` field is non-empty so you can review and fix these configurations before they reach users.
+`validate_mapping_compatibility()` surfaces every wrapper whose `args_mapping_positional_only` field is non-empty so you can review these configurations deliberately — the finding is a visibility signal, not a failure.
 
 ### The problem: POSITIONAL_ONLY remap target
 
@@ -492,7 +495,7 @@ OldPoint = deprecated_class(  # warns: UserWarning — px, py target POSITIONAL_
     args_mapping={"px": "x", "py": "y"},
 )(Point)
 
-# Proxy strips incompatible kwargs, constructs Point() with defaults, then setattr:
+# Proxy forwards the remapped values positionally: Point(1.0, 2.0)
 p = OldPoint(px=1.0, py=2.0)  # warns: FutureWarning
 print(p.x, p.y)
 ```
@@ -506,7 +509,7 @@ print(p.x, p.y)
 
 </details>
 
-The setattr fallback only works when the incompatible params have **defaults** — the proxy strips them from kwargs and calls the constructor without them, then patches the values in afterwards. If the POSITIONAL_ONLY params are required (no default), construction raises `TypeError` before `setattr` runs. This scenario is most likely to surface through the dataclass auto-expand path: when `attrs_mapping` on a dataclass wrapper auto-generates `args_mapping` entries and one of the target field names happens to map to a positional-only constructor param.
+Positional forwarding works whether or not the positional-only params have defaults — required parameters, immutable classes without a permissive `__setattr__`, and constructors with derived state all construct correctly. The decoration-time `UserWarning` is most likely to surface through the dataclass auto-expand path: when `attrs_mapping` on a dataclass wrapper auto-generates `args_mapping` entries and one of the target field names happens to map to a positional-only constructor param.
 
 ### Scanning for incompatible wrappers
 
@@ -527,15 +530,19 @@ for info in issues:
   <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
 
 ```
-Found 1 wrappers with POSITIONAL_ONLY mapping incompatibilities
+Found 5 wrappers with POSITIONAL_ONLY mapping incompatibilities
   tests.collection_deprecate.DepPositionalOnly: incompatible keys = ['old_val']
+  tests.collection_deprecate.DepPositionalOnlyDerived: incompatible keys = ['old_val']
+  tests.collection_deprecate.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
+  tests.collection_deprecate.DepPositionalOnlyMixed: incompatible keys = ['old_x']
+  tests.collection_deprecate.DepPositionalOnlyRequired: incompatible keys = ['old_val']
 ```
 
 </details>
 
 The function accepts the same `module` and `recursive` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module.
 
-Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, an incompatible mapping is graceful degradation — the wrapper still works via `setattr`. Prefer `pydeprecate check` for advisory CI reporting; positional-only mapping findings are advisory warnings (exit `0`) — only hard config errors such as invalid argument mappings cause exit `1`. See the [CLI Reference](cli.md) for flags and exit codes.
+Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, a positional-only mapping is not a defect — the wrapper forwards the remapped values positionally and works correctly. Prefer `pydeprecate check` for advisory CI reporting; positional-only mapping findings are advisory warnings (exit `0`) — only hard config errors such as invalid argument mappings cause exit `1`. See the [CLI Reference](cli.md) for flags and exit codes.
 
 ## Pre-commit Integration
 
@@ -667,10 +674,27 @@ print(predict_batch(1))
 
 ### Suppressing warnings in test fixtures
 
-When you call deprecated functions in test setup code (fixtures, factory helpers, shared utilities), use `warnings.catch_warnings()` with `simplefilter("ignore")` to suppress the noise while still exercising the call-forwarding path.
+When you call deprecated functions in test setup code (fixtures, factory helpers, shared utilities), the first call still emits its `FutureWarning` (default `num_warns=1`; subsequent calls are silent). To keep pytest output clean while still exercising the call-forwarding path, suppress the specific message once — at the test-session level — via pytest's `filterwarnings` configuration in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+filterwarnings = [
+    'ignore:The `create_session` was deprecated:FutureWarning',
+]
+```
+
+or the equivalent runtime filter in `conftest.py`:
 
 ```python
+# phmdoctest:skip — pytest conftest.py configuration snippet, not a runnable example
 import warnings
+
+warnings.filterwarnings("ignore", message="The `create_session` was deprecated", category=FutureWarning)
+```
+
+Scope the filter to the specific deprecation message rather than ignoring the whole `FutureWarning` category, so unrelated deprecations from your dependencies still surface.
+
+```python
 from deprecate import deprecated, assert_no_warnings, void
 
 
@@ -690,7 +714,7 @@ def make_test_session(host: str = "localhost") -> dict:
     return create_session(host, timeout=5)  # warns: FutureWarning
 
 
-# The helper works without emitting warnings:
+# The first call emits one FutureWarning (suppressed in pytest by the filter above):
 session = make_test_session()
 print(session)
 
@@ -712,12 +736,12 @@ print(clean_session)
 
 ### Choosing the right testing tool
 
-| Tool                                                   | Use when...                                                 | Behaviour                                              |
-| ------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------ |
-| `pytest.warns(FutureWarning)`                          | Testing that a deprecated function DOES warn on first call  | Fails if no matching warning is raised                 |
-| `assert_no_warnings(FutureWarning)`                    | Testing that new code or subsequent calls do NOT warn       | Fails if a matching warning IS raised                  |
-| `assert_no_warnings(FutureWarning, match="pattern")`   | Testing that a specific warning message is absent           | Only fails if a warning matching the pattern is raised |
-| `warnings.catch_warnings()` + `simplefilter("ignore")` | Calling deprecated code in fixtures/setup without assertion | Silently suppresses; never fails                       |
+| Tool                                                       | Use when...                                                 | Behaviour                                              |
+| ---------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| `pytest.warns(FutureWarning)`                              | Testing that a deprecated function DOES warn on first call  | Fails if no matching warning is raised                 |
+| `assert_no_warnings(FutureWarning)`                        | Testing that new code or subsequent calls do NOT warn       | Fails if a matching warning IS raised                  |
+| `assert_no_warnings(FutureWarning, match="pattern")`       | Testing that a specific warning message is absent           | Only fails if a warning matching the pattern is raised |
+| `filterwarnings` config (`pyproject.toml` / `conftest.py`) | Calling deprecated code in fixtures/setup without assertion | Silently suppresses matching warnings; never fails     |
 
 The `match` parameter on `assert_no_warnings` accepts a substring — it filters captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
 

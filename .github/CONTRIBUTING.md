@@ -212,6 +212,9 @@ pytest .
 > [!NOTE]
 > When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves. Code blocks paired with an output block must produce exactly that output when executed, which sometimes requires mocking external state (e.g. `unittest.mock.patch`); illustrative patterns that can't run standalone (like CI fixtures) are wrapped in nested functions marked `# Caution- no assertions.` so phmdoctest skips their execution.
 
+> [!IMPORTANT]
+> **`make docs-tests` is the only supported way to (re)generate the docs example tests** under `tests/docs/` (and `tests/integration/test_readme.py`). It deletes the old generated `test_*.py` files first, so it never leaves stale artifacts behind. These files are gitignored local artifacts — running `pytest tests/docs/` against an out-of-date checkout otherwise produces confusing failures (e.g. `ModuleNotFoundError` for placeholder imports, or assertion drift against reprs that have since changed). A `tests/docs/conftest.py` guard fails collection with a `regenerate via make docs-tests` message when any generated file is older than the `docs/*.md` source it came from; the default `pytest .` run prunes `tests/docs/` and is unaffected.
+
 ## 💎 Quality Expectations
 
 > [!IMPORTANT]
@@ -327,15 +330,18 @@ pyDeprecate/
 ├── src/deprecate/              # Core library code
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
-│   ├── docstring/              # Docstring utilities subpackage
-│   │   ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
-│   │   ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
-│   │   └── sphinx_ext.py       # Sphinx autodoc extension (beta)
+│   ├── __main__.py             # python -m deprecate entry point
+│   ├── _cli.py                 # CLI subcommands: check, expiry, chains, all, status
+│   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # @deprecated decorator and warning logic
-│   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
-│   └── utils.py                # Low-level helpers: void(), no_warning_call()
+│   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
+│   ├── utils.py                # Low-level helpers: void(), assert_no_warnings()
+│   └── docstring/              # Docstring utilities subpackage
+│       ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
+│       ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
+│       └── sphinx_ext.py       # Sphinx autodoc extension (beta)
 ├── tests/                      # Test suite
 │   ├── collection_targets.py       # Target functions (new implementations)
 │   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
@@ -390,13 +396,13 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Use `print()` for values you want to verify, paired with a `<details><summary>Output: <code>expression</code></summary>` block immediately after the code block. The `<summary>` label shows the **expression** being evaluated (e.g. `cfg.timeout`), not the `print()` wrapper.
 > - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
 > - **Never use `with warnings.catch_warnings(record=True) as w: warnings.simplefilter("always")`** in any `.md` code block (README, docs, docstrings). Use direct calls annotated with `# warns: FutureWarning` or `# silent` instead. Output blocks show only return values — not warning counts or `w[0].category.__name__`.
-> - Do **not** use bare `assert` statements — they crash the test with an unhelpful `AssertionError` if the value changes.
+> - Do **not** use bare `assert` statements in top-level example code — they crash the test with an unhelpful `AssertionError` if the value changes. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic — the test function itself is the test.
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
 > **Docs examples must use `print()` + output blocks — no `assert`.** For all `docs/**/*.md` blocks that execute code:
 >
 > - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
-> - Do **not** use bare `assert` statements (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`.
+> - Do **not** use bare `assert` statements in top-level example code (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic.
 > - Avoid placeholders that do not validate behavior.
 > - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, or `collection_chains`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
 
@@ -466,7 +472,7 @@ Examples:
 When adding a parametrized test that covers both forms, always add both fixtures and share the same `deprecated(...)` instance to guarantee identical configuration:
 
 ```python
-from deprecate import deprecated, void
+from deprecate import TargetMode, deprecated, void
 
 
 # original_* is declared first — _deprecation_* refers to it immediately after.
@@ -478,7 +484,7 @@ def original_sum_warn_only(a: int, b: int = 5) -> int:
 # The _deprecation_* variable is the deprecation tool (the decorator instance),
 # NOT a deprecated callable — that distinction is why it's named _deprecation_*
 # rather than _depr_* (which would imply the thing being deprecated).
-_deprecation_warn_only = deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+_deprecation_warn_only = deprecated(target=TargetMode.NOTIFY, deprecated_in="0.2", remove_in="0.3")
 
 
 @_deprecation_warn_only
@@ -523,7 +529,7 @@ WrappedWidget = _class_deprecation_widget(_OriginalWidget)
 
 > **Rule**: when a `Decorated<Name>` / `Wrapped<Name>` pair exists, both **must** share a single `_class_deprecation_<name>` instance. Duplicating the `deprecated_class(...)` kwargs is a bug — a silent config drift will cause the parametrized test to compare two different deprecations instead of the same one in two application forms.
 
-**Unification pattern — shared version kwargs and hoisted instances:**
+#### Unification pattern — shared version kwargs and hoisted instances
 
 When three or more `@deprecated(...)` or `@deprecated_class(...)` call sites share the same `(deprecated_in, remove_in[, num_warns])` combination, extract the repeated kwargs into a named `dict` constant and splat it at each call site. This eliminates silent version drift and makes bulk version-bump changes a one-line edit.
 
@@ -563,16 +569,16 @@ Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collecti
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.2", remove_in="0.3")
 def decorated_sum_warn_only(a: int, b: int = 5) -> int:
     """Warning-only deprecation with no forwarding.
 
     Examples:
         The function is going away but has no replacement yet. The user gets
-        warned, but the original body still executes (`target=None`).
+        warned, but the original body still executes (TargetMode.NOTIFY).
     """
 ```
 
@@ -667,10 +673,10 @@ def test_deprecation_warning() -> None:
 <summary>Argument renaming</summary>
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_param": "new_param"})
+@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_param": "new_param"})
 def my_func(old_param: int = 0, new_param: int = 0) -> int:
     """Function with renamed parameter."""
     return new_param
@@ -682,11 +688,11 @@ def my_func(old_param: int = 0, new_param: int = 0) -> int:
 <summary>Testing without warnings</summary>
 
 ```python
-from deprecate import no_warning_call
+from deprecate import assert_no_warnings
 
 
 def test_without_warning() -> None:
-    with no_warning_call(FutureWarning):
+    with assert_no_warnings(FutureWarning):
         # ... test code that should not emit warnings
         pass
 ```

@@ -11,7 +11,7 @@ The most common reasons to deprecate something are renaming a function, renaming
 
 ### [Functions](functions.md)
 
-Deprecating Python functions and methods: simple call forwarding, argument renaming with `args_mapping`, notice-only deprecation, self argument remapping with `TargetMode.ARGS_REMAP`, stacking multiple decorators for multi-release migrations, and conditional suppression with `skip_if`.
+Deprecating Python functions and methods: simple call forwarding, argument renaming with `args_mapping`, notice-only deprecation, same-function argument renaming with `TargetMode.ARGS_REMAP`, stacking multiple decorators for multi-release migrations, and conditional suppression with `skip_if`.
 
 ### [Classes](classes.md)
 
@@ -35,26 +35,26 @@ Advanced patterns: injecting a deprecation notice into the docstring at import t
 
 ## Quick decision table
 
-| Scenario                                      | Where to look                                                                                                |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Rename a function or method                   | [Functions → Simple forwarding](functions.md#simple-function-forwarding)                                     |
-| Rename an argument                            | [Functions → Argument renaming](functions.md#argument-renaming-and-mapping)                                  |
-| Notice only — no replacement yet              | [Functions → Notice-only](functions.md#notice-only-deprecation)                                              |
-| Rename an argument within the same function   | [Functions → Self argument mapping](functions.md#self-argument-mapping)                                      |
-| Stack decorators across releases              | [Functions → Stacked decorators](functions.md#stacked-deprecation-decorators)                                |
-| Suppress notice conditionally                 | [Functions → Conditional skip](functions.md#conditional-skip)                                                |
-| Rename a class, Enum, or dataclass            | [Classes → Class deprecation](classes.md#class-deprecation)                                                  |
-| Deprecate a module-level constant or object   | [Classes → Constants and instances](classes.md#constants-and-instances)                                      |
-| Deprecate selected class attributes           | [Classes → Selective attributes](classes.md#selective-attribute-deprecation)                                 |
-| Deprecate a `@property`                       | [Properties](properties.md)                                                                                  |
-| Deprecate an `async def` function             | [Async → Async functions](async.md#async-functions)                                                          |
-| Deprecate an async generator                  | [Async → Async generators](async.md#async-generators)                                                        |
-| Inject deprecation notice into docstring      | [Advanced → Docstring updates](advanced.md#automatic-docstring-updates)                                      |
-| Inject a fixed default for a new required arg | [Advanced → Injecting new args](advanced.md#injecting-new-required-arguments)                                |
-| Silence warnings in test fixtures             | [Advanced → Testing helpers](advanced.md#suppressing-futurewarning-in-test-fixtures-with-assert_no_warnings) |
-| Deprecate a `@classmethod` or `@staticmethod` | [Advanced → Class/static methods](advanced.md#class-methods-and-static-methods)                              |
-| Deprecate a generator function                | [Advanced → Generators](advanced.md#deprecating-generator-functions)                                         |
-| Deprecate an entire module                    | [Modules](modules.md)                                                                                        |
+| Scenario                                      | Where to look                                                                                         |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Rename a function or method                   | [Functions → Simple forwarding](functions.md#simple-function-forwarding)                              |
+| Rename an argument                            | [Functions → Argument renaming](functions.md#argument-renaming-and-mapping)                           |
+| Notice only — no replacement yet              | [Functions → Notice-only](functions.md#notice-only-deprecation)                                       |
+| Rename an argument within the same function   | [Functions → Rename arguments within one function](functions.md#rename-arguments-within-one-function) |
+| Stack decorators across releases              | [Functions → Stacked decorators](functions.md#stacked-deprecation-decorators)                         |
+| Suppress notice conditionally                 | [Functions → Conditional skip](functions.md#conditional-skip)                                         |
+| Rename a class, Enum, or dataclass            | [Classes → Class deprecation](classes.md#class-deprecation)                                           |
+| Deprecate a module-level constant or object   | [Classes → Constants and instances](classes.md#constants-and-instances)                               |
+| Deprecate selected class attributes           | [Classes → Selective attributes](classes.md#selective-attribute-deprecation)                          |
+| Deprecate a `@property`                       | [Properties](properties.md)                                                                           |
+| Deprecate an `async def` function             | [Async → Async functions](async.md#async-functions)                                                   |
+| Deprecate an async generator                  | [Async → Async generators](async.md#async-generators)                                                 |
+| Inject deprecation notice into docstring      | [Advanced → Docstring updates](advanced.md#automatic-docstring-updates)                               |
+| Inject a fixed default for a new required arg | [Advanced → Injecting new args](advanced.md#injecting-new-required-arguments)                         |
+| Silence warnings in test fixtures             | [Advanced → Testing helpers](advanced.md#suppressing-futurewarning-in-test-fixtures)                  |
+| Deprecate a `@classmethod` or `@staticmethod` | [Advanced → Class/static methods](advanced.md#class-methods-and-static-methods)                     |
+| Deprecate a generator function                | [Advanced → Generators](advanced.md#deprecating-generator-functions)                                  |
+| Deprecate an entire module                    | [Modules](modules.md)                                                                                 |
 
 ## See also
 

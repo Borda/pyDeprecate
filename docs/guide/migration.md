@@ -44,7 +44,7 @@ print(my_func(2))
 
 </details>
 
-`TargetMode.NOTIFY` emits a deprecation notice on every call and then executes the function body as normal.
+`TargetMode.NOTIFY` emits a deprecation notice (subject to `num_warns` — once by default, not on every call) and then executes the function body as normal.
 
 ### `target=True` → `TargetMode.ARGS_REMAP`
 

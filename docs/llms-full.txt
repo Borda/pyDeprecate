@@ -18,10 +18,13 @@
 | Deprecate an object alias | `deprecated_instance` |
 | Deprecate an entire module | `deprecated_module` |
 | Argument rename/drop mode | `TargetMode.ARGS_REMAP` |
+| Selective per-attribute deprecation on a class | `TargetMode.ATTRS_REMAP` + `attrs_mapping` |
 | Warning-only mode | `TargetMode.NOTIFY` |
 | Validate expired deprecations | `validate_deprecation_expiry` |
 | Validate wrapper chains | `validate_deprecation_chains` |
+| Detect POSITIONAL_ONLY-remap incompatibilities | `validate_mapping_compatibility` |
 | Discover wrappers | `find_deprecation_wrappers` |
+| Generate a markdown deprecation table | `generate_deprecation_table` |
 
 ## Canonical Recipes
 
@@ -98,6 +101,27 @@ class OldModel:
     pass
 ```
 
+### Selective attribute deprecation (`ATTRS_REMAP`)
+
+```python
+from deprecate import TargetMode, deprecated_class
+
+
+class NewClass:
+    new_attr: str = "value"
+
+
+# Only "old_attr" warns and redirects to "new_attr"; other attributes pass through silently.
+# Passing attrs_mapping alone auto-resolves to TargetMode.ATTRS_REMAP; the explicit target= form is equivalent.
+# Use None as the value for warn-only with no rename: attrs_mapping={"other_attr": None}.
+OldClass = deprecated_class(
+    target=TargetMode.ATTRS_REMAP,
+    attrs_mapping={"old_attr": "new_attr"},
+    deprecated_in="1.2",
+    remove_in="2.0",
+)(NewClass)
+```
+
 ### Object alias
 
 ```python
@@ -105,7 +129,8 @@ from deprecate import deprecated_instance
 
 
 NEW_VALUE = object()
-OLD_VALUE = deprecated_instance(NEW_VALUE, deprecated_in="1.0", remove_in="2.0")
+# name= sets the display name in the warning; without it the type name of the wrapped object is used
+OLD_VALUE = deprecated_instance(NEW_VALUE, name="OLD_VALUE", deprecated_in="1.0", remove_in="2.0")
 ```
 
 ### Module deprecation
@@ -135,6 +160,9 @@ deprecated_module(
     remove_in="2.0",
 )
 ```
+The proxy forwards arithmetic, unary, and conversion operators to the wrapped object and warns on data-use operations (arithmetic, conversions, context entry, iteration). Ordering comparisons, `format()`, and context exit are silent. In-place operators (`+= `, `-=`, etc.) return the active object's result, not a re-wrapped proxy — `old_val += 1` rebinds to a plain `int`. One edge case: `"prefix" + proxy_str` fails if the left-hand type raises `TypeError` directly rather than returning `NotImplemented` (e.g. `str.__add__`); use proxy on the left side or wrap in a container.
+
+Proxies survive `copy.copy()` and `copy.deepcopy()` — the result is a proxy again, so the warning travels with the copy; `pickle` works for `deprecated_instance` proxies; `deprecated_class` proxies raise `pickle.PicklingError` when the class name is replaced by the proxy at module level. `isinstance(OLD_VALUE, type(NEW_VALUE))` is `True` on instance proxies; failed `hasattr` probes and dunder reads emit no warning and do not consume the warning budget.
 
 ### CI audit
 
@@ -142,9 +170,16 @@ deprecated_module(
 from deprecate import validate_deprecation_chains, validate_deprecation_expiry
 
 
-validate_deprecation_chains("src")
-validate_deprecation_expiry("src", current_version="2.0")
+# pass an importable module name (dotted path), not a directory path like "src"
+validate_deprecation_chains("my_package")
+validate_deprecation_expiry("my_package", current_version="2.0")
 ```
+
+`validate_deprecation_expiry` includes class members by default (`include_members=True`); recursive scans warn-and-skip submodules that fail to import (`UserWarning: audit: skipped <module>: <exc>`) instead of aborting.
+
+Two more audit helpers: `validate_mapping_compatibility("my_package")` flags `deprecated_class` wrappers whose `args_mapping` remaps to POSITIONAL_ONLY constructor params (a silent `setattr` fallback), and `generate_deprecation_table("my_package", style="matrix")` renders a docs-friendly markdown summary of every wrapper's lifecycle.
+
+The CLI accepts directory paths and resolves them to packages:
 
 ```bash
 pydeprecate all src/
@@ -162,7 +197,7 @@ pydeprecate all src/
 ## When Not To Use pyDeprecate
 
 - Use `warnings.warn` for a one-off internal warning that does not need API compatibility behavior.
-- Use `typing.deprecated` for Python 3.13+ static-checker-only visibility.
+- Use `warnings.deprecated` (Python 3.13+, PEP 702; backport `typing_extensions.deprecated` for Python < 3.13) for static-checker-only visibility.
 - Use pyDeprecate when runtime compatibility, forwarding, argument remapping, class/object aliases, warning control, or audit checks matter.
 
 ## Troubleshooting Summary
@@ -171,6 +206,8 @@ pydeprecate all src/
 - If the old function body runs unexpectedly, check whether `target` is omitted or set to notify-only mode.
 - If argument remapping fails, check `TargetMode.ARGS_REMAP` and the exact `args_mapping` keys.
 - If CI expiry checks fail, compare each `remove_in` version with the release version used by the audit command.
+- If an expiry gate suddenly reports more wrappers after upgrading, class members are now included by default — pass `include_members=False` to restore the old scope.
+- Positional-only (`/`) parameters work on both decorated sources and forwarding targets, including `deprecated_class` constructors — remapped values are forwarded positionally (no `setattr` fallback).
 
 ## Links
 
@@ -179,5 +216,5 @@ pydeprecate all src/
 - Use Cases: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
 - Agent Recipes: https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html
 - API Migration CI: https://borda.github.io/pyDeprecate/stable/guide/audit.html
-- Class and Object Deprecation: https://borda.github.io/pyDeprecate/stable/guide/use-cases.html
+- Class and Object Deprecation: https://borda.github.io/pyDeprecate/stable/guide/classes.html
 - Compare Python Deprecation Tools: https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html

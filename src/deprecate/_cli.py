@@ -64,7 +64,7 @@ def _print(msg: str, *, stderr: bool = False) -> None:
         print(msg, file=std_)
 
 
-def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
+def _scan_directory(path: str, include_members: bool = True) -> list[DeprecationWrapperInfo]:
     """Scan a plain directory of top-level Python files.
 
     Nested Python files in subdirectories are skipped unless they are part of an importable package layout. Plain
@@ -83,7 +83,7 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
                 continue
             module_name: str = entry.stem
             try:
-                results.extend(find_deprecation_wrappers(module_name, recursive=False))
+                results.extend(find_deprecation_wrappers(module_name, recursive=False, include_members=include_members))
             except SystemExit:
                 _print(f"Skipping {module_name}: module-level code exited (not a library module)", stderr=True)
             except Exception as e:
@@ -104,7 +104,7 @@ def _scan_directory(path: str) -> list[DeprecationWrapperInfo]:
     return results
 
 
-def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo]:
+def _scan_path(path: str, recursive: bool = True, include_members: bool = True) -> list[DeprecationWrapperInfo]:
     """Scan a directory or importable module/package name for deprecated wrappers.
 
     File paths are not accepted because ``find_deprecation_wrappers()`` expects an importable module or package name,
@@ -115,17 +115,19 @@ def _scan_path(path: str, recursive: bool = True) -> list[DeprecationWrapperInfo
     if pth.is_dir():
         if _is_package_dir(pth):
             # package dir: resolve importable name from directory stem
-            return find_deprecation_wrappers(Path(path).resolve().name, recursive=recursive)
+            return find_deprecation_wrappers(
+                Path(path).resolve().name, recursive=recursive, include_members=include_members
+            )
         # Flat src-layout or project root: find package in direct children or src/ subdir.
         child_pkgs = _find_child_packages(pth)
         if len(child_pkgs) == 1:
-            return _scan_path(str(child_pkgs[0]), recursive=recursive)
-        return _scan_directory(path)
+            return _scan_path(str(child_pkgs[0]), recursive=recursive, include_members=include_members)
+        return _scan_directory(path, include_members=include_members)
     if pth.is_file():
         raise ValueError(
             f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
-    return find_deprecation_wrappers(path, recursive=recursive)
+    return find_deprecation_wrappers(path, recursive=recursive, include_members=include_members)
 
 
 # ---------------------------------------------------------------------------
@@ -332,15 +334,21 @@ def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[l
                 "Install it with: `pip install 'pyDeprecate[audit]'`",
                 stderr=True,
             )
-        else:
-            _print(
-                "Could not determine the current package version automatically.\n"
-                "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
-                f"Original error: {exc}",
-                stderr=True,
-            )
+            return None
+        if getattr(exc, "name", None) is not None:
+            # Python's import system sets ``exc.name`` when a module-level ``import`` statement
+            # fails — this is a broken import inside the user's package, not a version-detection
+            # failure.  Propagate so the caller gets the real error instead of the misleading
+            # "Could not determine version" message.
+            raise
+        _print(
+            "Could not determine the current package version automatically.\n"
+            "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
+            f"Original error: {exc}",
+            stderr=True,
+        )
         return None
-    # other exceptions propagate to _wrap
+    # other exceptions propagate to cli()'s top-level handler around fire.Fire
 
 
 def _is_missing_packaging_import_error(error: ImportError) -> bool:
@@ -458,6 +466,13 @@ def cmd_expiry(
     if _wrappers is None:
         # Standalone path: full scan + version auto-detect inside _do_expiry.
         resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
+        if resolved_version is None and version is None:
+            _print(
+                "Could not resolve the current package version automatically and no --version was given; "
+                "the expiry check runs without a resolved version and its result may be unreliable. "
+                "Pass --version explicitly for a definitive check.",
+                stderr=True,
+            )
         _print_scan_header(path, resolved_version, user_provided=version is not None)
         with _managed_sys_path(path):
             raw = _do_expiry(path, resolved_version, recursive)
@@ -569,7 +584,12 @@ def cmd_all(
     expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, exit_zero=False, _wrappers=wrappers)
     chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
 
-    cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
+    # The status table is a display artifact appended after the three gates. Render it defensively:
+    # a table-rendering failure must never change the aggregate exit code the three checks produced.
+    try:
+        cmd_status(path, version=resolved_version, recursive=recursive, _wrappers=wrappers)
+    except Exception as exc:
+        _print(f"Could not render the deprecation table: {exc}", stderr=True)
 
     has_errors = bool(check_code or expiry_code or chains_code)
     return 0 if not has_errors or exit_zero else 1
@@ -614,25 +634,22 @@ def cmd_status(
         _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
         table_style = TableStyle.COMPACT
 
-    module_name = _resolve_module_name(path)
+    # Never resolve the importable module name eagerly: status "always exits 0" (it is not a
+    # pass/fail gate), so a plain directory without ``__init__.py`` — which ``check`` scans fine and
+    # for which ``_wrappers`` is already supplied by ``cmd_all`` — must not raise here. ``_safe_module_name``
+    # falls back to the raw path, used only as table metadata for version resolution.
+    module_name = _safe_module_name(path)
     resolved_version = version if version is not None else _auto_detect_version(module_name, path=path)
     if _wrappers is None:
         _print_scan_header(path, resolved_version, user_provided=version is not None)
         with _managed_sys_path(path):
-            markdown = generate_deprecation_table(
-                module_name,
-                current_version=resolved_version,
-                recursive=recursive,
-                style=table_style,
-                include_members=include_members,
-            )
-    else:
-        markdown = generate_deprecation_table(
-            module_name,
-            current_version=resolved_version,
-            style=table_style,
-            _wrappers=_wrappers,
-        )
+            _wrappers = _scan_path(path, recursive=recursive, include_members=include_members)
+    markdown = generate_deprecation_table(
+        module_name,
+        current_version=resolved_version,
+        style=table_style,
+        _wrappers=_wrappers,
+    )
 
     if _Reporter._HAS_RICH:
         from rich.markdown import Markdown
@@ -655,28 +672,6 @@ def cmd_status(
 # ---------------------------------------------------------------------------
 
 
-def _wrap(fn: Callable[..., int]) -> Callable[..., None]:
-    """Wrap a cmd_* function so its integer return value becomes a sys.exit() call.
-
-    Acts as the single top-level exception handler for the CLI: unhandled exceptions
-    are converted to a non-zero sys.exit with the exception message as the exit code
-    string. SystemExit is re-raised unchanged so Fire's --help and normal exits pass
-    through unmodified.
-
-    """
-
-    @functools.wraps(fn)
-    def wrapper(*args: object, **kwargs: object) -> None:
-        try:
-            sys.exit(fn(*args, **kwargs))
-        except SystemExit:
-            raise
-        except Exception as exc:
-            sys.exit(str(exc))
-
-    return wrapper
-
-
 def _ensure_utf8_streams() -> None:
     """Reconfigure stdout/stderr to UTF-8 on platforms where the default encoding may reject non-ASCII characters.
 
@@ -689,13 +684,30 @@ def _ensure_utf8_streams() -> None:
 
     """
     for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, "reconfigure") and getattr(stream, "encoding", "utf-8").lower() != "utf-8":
+        # ``encoding`` may be *present but None* (e.g. some redirected/binary-ish wrappers); ``getattr`` with a
+        # default only covers a missing attribute, so guard the ``None`` case with ``or "utf-8"`` before ``.lower()``.
+        encoding = (getattr(stream, "encoding", None) or "utf-8").lower()
+        if hasattr(stream, "reconfigure") and encoding != "utf-8":
             with contextlib.suppress(Exception):
                 stream.reconfigure(encoding="utf-8")
 
 
 def cli() -> None:
-    """CLI entry point for pydeprecate."""
+    """CLI entry point for pydeprecate.
+
+    The subcommand's integer return value becomes the process exit code, applied *after* ``fire.Fire``
+    returns. Raising ``SystemExit`` from inside the Fire trace would abort Fire's own unconsumed-argument
+    check, silently ignoring unknown or misspelled flags (exit 0 on typos); letting the trace complete
+    makes Fire report ``Could not consume arg`` and exit 2 for such flags. Acts as the single top-level
+    exception handler: unhandled exceptions from subcommands are converted to a non-zero exit with the
+    exception type and message (the type prefix guarantees a non-blank stderr line even when the exception
+    carries no message). SystemExit (Fire's ``--help`` and error exits) passes through unchanged.
+
+    A path whose name collides with a subcommand (``check``, ``expiry``, ``chains``, ``all``, ``status``) is
+    treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g.
+    ``pydeprecate check ./check``, so the leading token is the subcommand and the path is its argument.
+
+    """
     _ensure_utf8_streams()
     try:
         import fire
@@ -707,13 +719,38 @@ def cli() -> None:
     if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
         argv = ["check", *argv]
 
-    fire.Fire(
-        {
-            "check": _wrap(cmd_check),
-            "expiry": _wrap(cmd_expiry),
-            "chains": _wrap(cmd_chains),
-            "all": _wrap(cmd_all),
-            "status": _wrap(cmd_status),
-        },
-        command=argv,
-    )
+    exit_code: Optional[int] = None
+
+    def _capture(fn: Callable[..., int]) -> Callable[..., None]:
+        """Record the cmd_* return code without returning it into the Fire trace.
+
+        Returning the int would make Fire print it and treat it as a further component to consume arguments against;
+        returning ``None`` keeps the output clean and lets Fire finish its trace.
+
+        """
+
+        @functools.wraps(fn)
+        def wrapper(*args: object, **kwargs: object) -> None:
+            nonlocal exit_code
+            exit_code = fn(*args, **kwargs)
+
+        return wrapper
+
+    try:
+        fire.Fire(
+            {
+                "check": _capture(cmd_check),
+                "expiry": _capture(cmd_expiry),
+                "chains": _capture(cmd_chains),
+                "all": _capture(cmd_all),
+                "status": _capture(cmd_status),
+            },
+            command=argv,
+        )
+    except Exception as exc:  # SystemExit is BaseException — Fire's own exits pass through untouched
+        # Prefix the exception type so an exception with an empty message still produces a non-blank stderr
+        # line (bare ``str(exc)`` on such exceptions exited 1 with nothing printed).
+        sys.exit(f"{type(exc).__name__}: {exc}")
+    # exit_code stays None when no subcommand ran (bare `pydeprecate` help) → return normally (exit 0).
+    if exit_code is not None:
+        sys.exit(exit_code)

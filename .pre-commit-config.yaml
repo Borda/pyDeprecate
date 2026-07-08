@@ -1,5 +1,7 @@
 default_language_version:
-  python: python3.10
+  # generic python3 so hooks run under the local interpreter; docformatter keeps its own
+  # python3.10 pin below (wheel/compat workaround) until a release supports 3.12+
+  python: python3
 
 ci:
   autofix_prs: true
@@ -9,7 +11,7 @@ ci:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
@@ -23,7 +25,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/JoC0de/pre-commit-prettier
-    rev: v3.8.1 # using tag; previously pinned SHA when tags were not persistent
+    rev: fc2da0552b28c24c836d045bfb6c3057b3d11e62 # v3.9.4
     hooks:
       - id: prettier
         files: \.(html|yml|yaml|toml)
@@ -32,14 +34,14 @@ repos:
         args: ["--print-width=120"]
 
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.2
+    rev: 2ccb47ff45ad361a21071a7eedda4c37e6ae8c5a # v2.4.2
     hooks:
       - id: codespell
         additional_dependencies: [tomli]
         #args: ["--write-changes"] # uncomment if you want to get automatic fixing
 
   - repo: https://github.com/PyCQA/docformatter
-    rev: v1.7.8
+    rev: 0032269a0e65c068af9cd86c9a8859a0ddd568d6 # v1.7.8
     hooks:
       - id: docformatter
         # python3.10: wheel/compat issue prevents running the hook under 3.12+; revisit after next rev bump
@@ -54,14 +56,15 @@ repos:
         exclude: ^tests/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.0
+    rev: d2823d321df3af8f878f7ee3414dc94d037145b9 # v2.1.0
     hooks:
       - id: mypy
         name: typing
+        language_version: python3.10
         exclude: ^demo-.* # exclude demo doc folders
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 1.0.0
+    rev: 82912cdaea4fb830f751504486a7879c70526547 # 1.0.0
     hooks:
       - id: mdformat
         name: mdformat (general)
@@ -74,6 +77,7 @@ repos:
       - id: mdformat
         name: mdformat (docs)
         files: ^docs/
+        exclude: ^docs/llms\.txt$ # agent-facing plain-text contract — must stay compact, not table-padded
         args: ["--number", "--wrap=no"]
         additional_dependencies:
           - mdformat-mkdocs
@@ -81,7 +85,7 @@ repos:
           - mdformat_frontmatter
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.9
+    rev: c59bba8fb259db0fec2bbb77ad8ba51ea7341b56 # v0.15.20
     hooks:
       # try to fix what is possible
       - id: ruff-check
@@ -90,11 +94,11 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: v2.21.0
+    rev: 0c8c15d8fe996493035be407c5cf4a288cf6bf8e # v2.25.1
     hooks:
       - id: pyproject-fmt
         additional_dependencies: [tox]
   - repo: https://github.com/abravalheri/validate-pyproject
-    rev: v0.25
+    rev: 4b2e70d08cb2ccd26d1fba73588de41c7a5d50b7 # v0.25
     hooks:
       - id: validate-pyproject

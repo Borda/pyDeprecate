@@ -17,6 +17,7 @@ Current test coverage:
 
 """
 
+import warnings
 from typing import Callable, cast
 
 import pytest
@@ -27,6 +28,7 @@ from tests.collection_depr_legacy import decorated_pow_self as legacy_pow_self
 from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_warn_only
 from tests.collection_depr_legacy import depr_pow_self_double as legacy_pow_self_double
 from tests.collection_deprecate import (
+    DeprecatedTimerDecorator,
     decorated_pow_self,
     decorated_pow_skip_if_func,
     decorated_pow_skip_if_true,
@@ -51,6 +53,12 @@ from tests.collection_deprecate import (
     depr_pow_skip_if_func_int,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
+    depr_timing_wrapper,
+    deprecated_async_var_positional_forward,
+    deprecated_var_positional_forward,
+    deprecated_var_positional_overflow,
+    deprecated_var_positional_remap,
+    deprecated_var_positional_to_fixed,
     wrapped_pow_self,
     wrapped_pow_skip_if_func,
     wrapped_pow_skip_if_true,
@@ -61,7 +69,7 @@ from tests.collection_deprecate import (
     wrapped_sum_no_stream,
     wrapped_sum_warn_only,
 )
-from tests.collection_targets import sample_function
+from tests.collection_targets import NewCls, TimerDecorator, base_sum_kwargs, sample_function, timing_wrapper
 
 
 class TestDeprecationWarnings:
@@ -98,8 +106,6 @@ class TestDeprecationWarnings:
 
     def test_function_to_class_forwarding(self) -> None:
         """Deprecated function targeting a class should instantiate and return the class."""
-        from tests.collection_targets import NewCls
-
         cast(_DeprecatedCallable, depr_make_new_cls)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
@@ -115,8 +121,6 @@ class TestDeprecationWarnings:
 
     def test_function_to_class_forwarding_with_args_mapping(self) -> None:
         """Deprecated function with args_mapping should rename old_c→c before forwarding to NewCls."""
-        from tests.collection_targets import NewCls
-
         cast(_DeprecatedCallable, depr_make_new_cls_mapped)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
@@ -327,8 +331,6 @@ class TestArgumentMapping:
 
     def test_args_mapping_with_source_having_both_old_and_new_params(self) -> None:
         """When source has both old and new param names, caller's old=X reaches target as new=X."""
-        import warnings
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
             result = depr_collision_old_new(old=42)
@@ -486,8 +488,6 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     needing to call the function first.
 
     """
-    from tests.collection_targets import base_sum_kwargs
-
     # Verify __deprecated__ is set WITHOUT calling the function (using decorated_sum from collection_deprecate)
     assert hasattr(decorated_sum, "__deprecated__")
     assert decorated_sum.__deprecated__ == DeprecationConfig(
@@ -501,14 +501,10 @@ class TestDeprecatedFunctionWrappers:
     @pytest.fixture(autouse=True)
     def reset_warnings(self) -> None:
         """Reset warning counters before each test for independence."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         cast(_DeprecatedCallable, depr_timing_wrapper)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
 
@@ -517,8 +513,6 @@ class TestDeprecatedFunctionWrappers:
 
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
             wrapped_func = depr_timing_wrapper(sample_function)
 
@@ -528,8 +522,6 @@ class TestDeprecatedFunctionWrappers:
 
     def test_new_implementation_no_warning(self) -> None:
         """Test that new implementation works without warnings."""
-        from tests.collection_targets import timing_wrapper
-
         with assert_no_warnings(FutureWarning):
             new_wrapped = timing_wrapper(sample_function)
             result = new_wrapped(7)
@@ -537,8 +529,6 @@ class TestDeprecatedFunctionWrappers:
 
     def test_with_decorator_syntax(self) -> None:
         """Test warning when applied using @ decorator syntax."""
-        from tests.collection_deprecate import depr_timing_wrapper
-
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
 
             @depr_timing_wrapper
@@ -557,13 +547,10 @@ class TestDeprecatedClassWrappers:
     @pytest.fixture(autouse=True)
     def reset_warnings(self) -> None:
         """Reset warning counters before each test for independence."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
-
         cast(_DeprecatedCallable, DeprecatedTimerDecorator.__init__)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -577,7 +564,6 @@ class TestDeprecatedClassWrappers:
 
     def test_forwards_correctly(self) -> None:
         """Test that wrapper forwards to new implementation."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -593,7 +579,6 @@ class TestDeprecatedClassWrappers:
 
     def test_preserves_attributes(self) -> None:
         """Test that wrapper preserves tracking attributes."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -613,7 +598,6 @@ class TestDeprecatedClassWrappers:
 
     def test_new_implementation_no_warning(self) -> None:
         """Test that new implementation works without warnings."""
-        from tests.collection_targets import TimerDecorator
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -627,8 +611,6 @@ class TestDeprecatedClassWrappers:
 
     def test_with_decorator_syntax(self) -> None:
         """Test warning when applied using @ decorator syntax."""
-        from tests.collection_deprecate import DeprecatedTimerDecorator
-
         with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
 
             @DeprecatedTimerDecorator
@@ -644,3 +626,79 @@ class TestDeprecatedClassWrappers:
         assert hasattr(sample_function, "total_time")
         assert hasattr(sample_function, "calls")
         assert sample_function.calls == 1
+
+
+class TestVarPositionalForwarding:
+    """Forwarding a deprecated ``*args`` source to a callable target.
+
+    Positional-to-keyword conversion stops at the source's ``*args``, so everything past
+    the named positionals used to be silently dropped when forwarding — ``old_sum(1, 2, 3)``
+    returned ``1``.  The surplus tail must now reach the target positionally, and a target
+    that cannot accept it must raise a curated ``TypeError`` instead of losing data.
+    """
+
+    def test_surplus_tail_forwarded_to_var_positional_target(self) -> None:
+        """The surplus positional tail reaches the target's ``*args``.
+
+        A user migrates ``old_sum(1, 2, 3)`` behaviour to ``var_positional_target``:
+        the wrapper must produce ``1 + 2 + 3 == 6``, not silently drop ``(2, 3)``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_forward(1, 2, 3)
+        assert result == 6
+
+    def test_no_surplus_forwards_named_positionals_only(self) -> None:
+        """Calls without a surplus tail keep the plain keyword-forwarding path."""
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_forward(4)
+        assert result == 4
+
+    def test_surplus_fills_target_fixed_positional_slots(self) -> None:
+        """A target without ``*args`` absorbs the surplus into its unfilled positional slots.
+
+        ``trio_positional_target(a, b=0, c=0)`` has two free slots after ``a``; forwarding
+        ``(1, 2, 3)`` must bind ``b=2`` and ``c=3`` — the natural positional call shape.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_to_fixed(1, 2, 3)
+        assert result == 123
+
+    def test_surplus_overflow_raises_curated_type_error(self) -> None:
+        """A surplus tail the target cannot accept raises loudly instead of being dropped.
+
+        ``single_positional_target(a)`` has no free slots and no ``*args``; forwarding
+        ``(1, 2, 3)`` must raise the curated ``TypeError`` naming the failed mapping.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match=r"cannot be forwarded"):
+            deprecated_var_positional_overflow(1, 2, 3)
+
+    @pytest.mark.asyncio
+    async def test_async_surplus_tail_forwarded(self) -> None:
+        """The async dispatch twin forwards the surplus tail to an async target."""
+        with pytest.warns(FutureWarning):
+            result = await deprecated_async_var_positional_forward(1, 2, 3)
+        assert result == 6
+
+    def test_args_remap_with_var_positional_no_double_pass(self) -> None:
+        """ARGS_REMAP on a ``*args`` source must not double-pass named positionals.
+
+        When a source declares ``*args`` and ``args_mapping`` fires (caller used the old kwarg
+        name), the wrapper used to build ``kw_args`` from ``resolved_kwargs``, which contains
+        positional-to-keyword conversions for every named positional (e.g. ``a``).  Calling
+        ``source(*args, **kw_args)`` then raised ``TypeError: got multiple values for argument 'a'``
+        even though the call was perfectly valid.  The fix builds ``kw_args`` from
+        ``original_kwargs`` (caller-supplied keywords only) and applies the mapping there, so
+        the positional slot ``a`` is carried by ``*args`` and never appears in ``kw_args``.
+        """
+        with pytest.warns(FutureWarning):
+            result = deprecated_var_positional_remap(1, 2, 3, old_kwarg="hello")
+        assert result == (1, 2, 3, "hello")
+
+    def test_args_remap_with_var_positional_migrated_caller(self) -> None:
+        """Migrated caller (using new kwarg name) must not warn or raise.
+
+        A caller already using ``new_kwarg`` produces an empty ``reason_argument`` — the
+        short-circuit path should pass through without any warning.
+        """
+        result = deprecated_var_positional_remap(1, 2, new_kwarg="world")
+        assert result == (1, 2, "world")

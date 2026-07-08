@@ -30,6 +30,8 @@ from tests.collection_deprecate import (
     async_gen_notify,
     async_notify,
     decorated_sum_calls_inf,
+    deprecated_async_positional_only_to_sync,
+    deprecated_async_var_positional_to_sync,
     gen_args_remap,
     gen_callable,
     gen_notify,
@@ -405,3 +407,42 @@ async def test_async_args_remap_user_warning_emitted_when_both_old_and_new_provi
     assert user_warns, "UserWarning must fire when both old and new kwarg names are passed"
     assert "is ignored" in str(user_warns[0].message)
     assert result == 12
+
+
+# ========== Async source forwarding to a SYNC callable target ==========
+# An ``async def`` wrapper may forward to a *synchronous* callable target — legacy targets are
+# not forced to be redeclared ``async def`` for callers to migrate.  The async dispatcher invokes
+# such a target directly (no ``await``) via its non-coroutine branch.  The earlier async wrappers
+# in this module all forward to *async* targets, so this branch — combined with the var-positional
+# surplus-reorder and POSITIONAL_ONLY split shapes — was previously unexercised.
+#   - ``deprecated_async_var_positional_to_sync`` — async ``*args`` source → sync ``var_positional_target``.
+#   - ``deprecated_async_positional_only_to_sync`` — async source → sync target with a POSITIONAL_ONLY param.
+
+_ASYNC_TO_SYNC_TARGET_CASES = [
+    pytest.param(deprecated_async_var_positional_to_sync, (1, 2, 3), {}, 6, id="var_positional"),
+    pytest.param(deprecated_async_positional_only_to_sync, (), {"x": 5, "y": 2}, 7, id="positional_only"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("wrapper", "call_args", "call_kwargs", "expected"), _ASYNC_TO_SYNC_TARGET_CASES)
+async def test_async_source_forwards_to_sync_target(
+    wrapper: object, call_args: tuple, call_kwargs: dict, expected: int
+) -> None:
+    """An async wrapper forwards correctly to a synchronous callable target and returns its result.
+
+    A team migrating an ``async def`` entry point to a replacement often keeps the replacement
+    synchronous — there is no reason to make ``var_positional_target`` or ``positional_only_target``
+    a coroutine just because the deprecated shim awaits.  The async dispatcher must therefore call a
+    non-coroutine target directly (without ``await``) while still applying the same argument-shaping
+    it uses for async targets: the var-positional case reorders leading kwargs so the surplus tail
+    ``(2, 3)`` reaches the target's ``*args`` (``1 + 2 + 3 == 6``), and the positional-only case
+    splits ``x`` back out of the resolved kwargs so it binds positionally (``5 + 2 == 7``).
+
+    """
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        result = await wrapper(*call_args, **call_kwargs)  # type: ignore[operator]
+    dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+    assert dep_warns, "Async-to-sync forwarding must still emit the deprecation warning"
+    assert result == expected

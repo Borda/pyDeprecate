@@ -1,9 +1,13 @@
 """Unit tests for _DeprecatedProxy internals and deprecated_class decorator behaviour."""
 
 import abc
+import copy
 import inspect
+import math
+import os
+import pickle
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
 from typing import Any, cast
 
@@ -18,6 +22,10 @@ from tests.collection_deprecate import (
     DepAutoExpandOverriddenInitDC,
     DepAutoExpandReqDC,
     DepPositionalOnly,
+    DepPositionalOnlyDerived,
+    DepPositionalOnlyImmutable,
+    DepPositionalOnlyMixed,
+    DepPositionalOnlyRequired,
     DeprecatedAttrsExplicitMode,
     DeprecatedAttrsLegacyTrue,
     DeprecatedAttrsNotifyOnly,
@@ -43,17 +51,20 @@ from tests.collection_deprecate import (
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
+    AsyncManagedResource,
     AutoExpandDC,
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     LegacyBoolAttrsSource,
+    ManagedResource,
     NewDataClass,
     Palette,
     PaletteEnum,
     PaletteOld,
     PositionalOnlyTarget,
     SomeTargetClass,
+    SubclassableBase,
     WithInjected,
     _Pep702ProxyTarget,
 )
@@ -781,7 +792,7 @@ class TestArgsExtra:
         """deprecated_class accepts args_extra without raising TypeError."""
         assert isinstance(ProxyClassWithArgsExtra, _DeprecatedProxy)
 
-    def test_args_extra_values_appear_in_forwarded_constructor_call(self) -> None:
+    def test_values_appear_in_forwarded_constructor_call(self) -> None:
         """Kwargs from args_extra are merged into the forwarded constructor call."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
@@ -789,7 +800,7 @@ class TestArgsExtra:
         assert instance.new_key == 7
         assert instance.injected == "from-extra"
 
-    def test_args_extra_merged_after_args_mapping_rename(self) -> None:
+    def test_merged_after_args_mapping_rename(self) -> None:
         """args_extra is applied after args_mapping renames kwargs."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
@@ -1061,10 +1072,16 @@ class TestTypeProtocol:
         with pytest.warns(FutureWarning):
             proxy()  # warning budget remains untouched
 
-    def test_isinstance_returns_false_for_non_type_active(self) -> None:
-        """``isinstance(x, proxy)`` returns False when the active object is not a type."""
+    def test_isinstance_raises_typeerror_for_non_type_active(self) -> None:
+        """``isinstance(x, instance_proxy)`` raises TypeError like the builtin.
+
+        Using an *instance* proxy (one wrapping a value rather than a class) as the second argument to
+        ``isinstance`` is a misuse. Previously the proxy silently returned ``False``, hiding the mistake; it now
+        raises the same ``TypeError`` the builtin raises when arg 2 is not a type.
+        """
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
-        assert not isinstance(42, cast(Any, proxy))
+        with pytest.raises(TypeError, match="arg 2 must be a type"):
+            isinstance(42, cast(Any, proxy))
 
 
 class TestProxyArgsMappingBehavior:
@@ -2290,24 +2307,27 @@ class TestDataclassAutoExpand:
 
 
 # ---------------------------------------------------------------------------
-# Positional-only constructor guard + setattr fallback
+# Positional-only constructor guard + positional forwarding
 # ---------------------------------------------------------------------------
 
 
-class TestPositionalOnlyFallback:
+class TestPositionalOnlyForwarding:
     """``args_mapping`` on a class with ``POSITIONAL_ONLY`` constructor parameters.
 
     The proxy must emit ``UserWarning`` at decoration time, record
-    ``args_mapping_positional_only`` on ``DeprecationConfig``, and fall back to
-    ``setattr`` at call time instead of forwarding the remapped kwarg as a
-    positional-only keyword (which would raise ``TypeError``).
+    ``args_mapping_positional_only`` on ``DeprecationConfig``, and at call time reorder
+    the remapped values into positional arguments by target-signature declaration order
+    (the decorator's split approach) — forwarding ``new_val=7`` as a keyword would raise
+    ``TypeError``, and the historical pop-and-``setattr`` fallback broke required params,
+    immutable instances, and constructor-derived state.
     """
 
     def test_decoration_emits_user_warning(self) -> None:
         """Creating ``deprecated_class`` with ``args_mapping`` to a positional-only param warns.
 
-        The ``UserWarning`` must mention that the target parameter is positional-only so
-        developers know to use ``attrs_mapping`` instead.
+        The ``UserWarning`` must mention that the target parameter is positional-only and
+        that the remapped values are forwarded positionally, so developers understand the
+        call shape their users will hit.
         """
         with pytest.warns(UserWarning, match="POSITIONAL_ONLY"):
             deprecated_class(
@@ -2326,12 +2346,754 @@ class TestPositionalOnlyFallback:
         assert "old_val" in meta.args_mapping_positional_only
 
     def test_call_with_deprecated_kwarg_does_not_crash(self) -> None:
-        """``DepPositionalOnly(old_val=7)`` succeeds via ``setattr`` fallback.
+        """``DepPositionalOnly(old_val=7)`` succeeds via positional forwarding.
 
-        Without the fallback, remapping ``old_val``→``new_val`` would produce
-        ``PositionalOnlyTarget(new_val=7)`` which raises ``TypeError``.  The proxy
-        must construct without the kwarg and use ``setattr`` to assign ``new_val=7``.
+        Remapping ``old_val``→``new_val`` must not produce
+        ``PositionalOnlyTarget(new_val=7)`` (a ``TypeError``); the proxy reorders the
+        remapped value into the constructor's positional slot instead.
         """
         with pytest.warns(FutureWarning):
             instance = DepPositionalOnly(old_val=7)  # type: ignore[call-arg]
         assert instance.new_val == 7
+
+    def test_required_positional_only_param_constructs(self) -> None:
+        """A *required* positional-only constructor param is satisfied by the remapped value.
+
+        A library renames ``old_val`` to a required positional-only ``new_val`` in the
+        replacement class.  The historical ``setattr`` fallback crashed before it ever ran
+        (``TypeError: missing 1 required positional argument``); positional forwarding
+        must construct the instance correctly.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyRequired(old_val=5)  # type: ignore[call-arg]
+        assert instance.new_val == 5
+
+    def test_immutable_target_constructs_via_positional_forwarding(self) -> None:
+        """An immutable target (``__setattr__`` raises) works because no post-hoc setattr happens.
+
+        Frozen-dataclass-style targets reject attribute assignment, so the old fallback
+        raised even when the positional-only param had a default.  Forwarding the value
+        through the constructor sidesteps mutation entirely.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyImmutable(old_val=3)  # type: ignore[call-arg]
+        assert instance.new_val == 3
+
+    def test_constructor_derivation_runs(self) -> None:
+        """State derived inside the constructor reflects the remapped value.
+
+        The old ``setattr`` fallback assigned ``new_val`` *after* construction, silently
+        bypassing any ``__post_init__``-style derivation — ``double`` stayed at its
+        zero-argument value.  Positional forwarding runs the real constructor body.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyDerived(old_val=7)  # type: ignore[call-arg]
+        assert instance.new_val == 7
+        assert instance.double == 14
+
+    def test_positional_args_and_mapped_kwarg_combine(self) -> None:
+        """Caller positional args fill the leading slots; the remapped value follows them.
+
+        ``DepPositionalOnlyMixed(1, old_x=5)`` targets ``__init__(self, w, x, /)``: the
+        caller's ``1`` binds to ``w`` and the remapped ``old_x``→``x`` value must land in
+        the *next* positional slot — not trip the gap guard on ``w``.
+        """
+        with pytest.warns(FutureWarning):
+            instance = DepPositionalOnlyMixed(1, old_x=5)  # type: ignore[call-arg]
+        assert instance.w == 1
+        assert instance.x == 5
+
+
+class TestProxyIntrospectionProbes:
+    """Introspection probes must not warn spuriously or exhaust the warn budget.
+
+    With the default ``num_warns=1`` the single warning a user ever sees must not be consumed by
+    machinery — ``hasattr`` duck-typing probes, ``copy.deepcopy`` protocol probes, or doc tools
+    reading dunders — otherwise the first *real* deprecated access is silent.
+    """
+
+    def test_hasattr_missing_does_not_warn(self) -> None:
+        """A library duck-types the config object with ``hasattr`` for an absent attribute.
+
+        The failed probe must stay silent: the attribute is resolved first and the warning fires
+        only on successful access.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert not hasattr(proxy, "missing_attr")
+        assert not caught
+
+    def test_missing_attribute_raises_without_burning_budget(self) -> None:
+        """After a failed attribute lookup the first real access must still warn.
+
+        The ``num_warns=1`` budget must survive the ``AttributeError`` path so the deprecation
+        notice reaches actual user code.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            with pytest.raises(AttributeError):
+                _ = proxy.missing_attr
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            _ = proxy.get
+
+    def test_dunder_access_does_not_warn(self) -> None:
+        """A doc tool reads ``__mro__`` on a deprecated class alias (sphinx-style introspection).
+
+        Dunder reads are machinery, never a user migrating code — they must neither warn nor
+        consume the budget, mirroring the ``__instancecheck__`` "structural check" rationale.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = DeprecatedColorEnum.__mro__
+        assert not caught
+
+    def test_deepcopy_does_not_consume_warn_budget(self) -> None:
+        """``copy.deepcopy`` probes copy-protocol dunders before copying.
+
+        Those probes must not consume the ``num_warns=1`` budget: the first real access on the
+        original proxy after a deepcopy must still emit the warning.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            copy.deepcopy(proxy)
+        assert not caught
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            _ = proxy.get
+
+
+class TestProxyClassProperty:
+    """``__class__`` forwarding gives instance-side type transparency.
+
+    Downstream code type-checks deprecated objects (json encoders, pydantic validators, plain
+    defensive ``isinstance``); wrapping an object in a proxy must not change those checks during
+    the migration window.
+    """
+
+    def test_isinstance_of_wrapped_builtin_type(self) -> None:
+        """Consumer code calls ``isinstance(cfg, dict)`` on a deprecated config dict."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert isinstance(proxy, dict)
+
+    def test_isinstance_against_abc(self) -> None:
+        """Consumer code checks the deprecated config against ``collections.abc.Mapping``."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert isinstance(proxy, Mapping)
+
+    def test_isinstance_uses_target_when_set(self) -> None:
+        """With a target configured, ``__class__`` reflects the active (target) object's type."""
+        proxy = _DeprecatedProxy(obj=[1], target={"a": 1}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert isinstance(proxy, dict)
+        assert not isinstance(proxy, list)
+
+    def test_isinstance_walks_stacked_proxies(self) -> None:
+        """A proxy stacked over another proxy resolves ``__class__`` to the innermost object."""
+        inner = deprecated_instance({"k": 1}, name="inner", deprecated_in="1.0", remove_in="2.0", stream=None)
+        outer = deprecated_instance(inner, name="outer", deprecated_in="1.1", remove_in="2.0", stream=None)
+        assert isinstance(outer, dict)
+
+    def test_class_proxy_keeps_reporting_proxy_class(self) -> None:
+        """A deprecated class alias must not claim to be a ``type``.
+
+        Class-dispatching decorators (e.g. PEP 702 ``typing_extensions.deprecated`` stacked over
+        the proxy) branch on ``isinstance(arg, type)`` — forwarding the metaclass would make them
+        patch the wrapped class in place instead of wrapping the proxy callable.  Class-side
+        transparency is covered by ``__instancecheck__``/``__subclasscheck__`` instead.
+        """
+        assert DeprecatedColorEnum.__class__ is _DeprecatedProxy
+        assert not isinstance(DeprecatedColorEnum, type)
+
+    def test_type_still_reveals_proxy(self) -> None:
+        """``type(proxy)`` keeps returning the proxy class for code that needs the truth."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert type(proxy) is _DeprecatedProxy
+        assert isinstance(proxy, _DeprecatedProxy)
+
+    def test_isinstance_does_not_warn(self) -> None:
+        """``isinstance(proxy, dict)`` is structural — no warning, budget untouched."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            isinstance(proxy, dict)
+        assert not caught
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            _ = proxy.get
+
+
+class TestProxyCopyPickle:
+    """``copy.copy`` / ``copy.deepcopy`` / pickle round-trips reconstruct the proxy.
+
+    A library ships a deprecated module-level config dict wrapped in ``deprecated_instance``;
+    downstream consumers routinely snapshot such configs with ``copy``/``deepcopy`` or ship them
+    across process boundaries via pickle.  All three must return a working proxy (deprecation
+    semantics preserved) instead of crashing with ``RecursionError``.
+    """
+
+    def test_copy_returns_proxy_wrapping_copied_object(self) -> None:
+        """A consumer takes a shallow working copy of a deprecated config dict.
+
+        The copy must be a proxy again (the deprecation travels with the object) and must wrap
+        an independent shallow copy — mutating the copy must not touch the original config.
+        """
+        proxy = deprecated_instance({"threshold": 0.5}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        dup = copy.copy(proxy)
+        assert type(dup) is _DeprecatedProxy
+        assert dup["threshold"] == 0.5
+        dup["threshold"] = 0.9
+        assert proxy["threshold"] == 0.5
+
+    def test_deepcopy_returns_proxy_with_independent_nested_state(self) -> None:
+        """A consumer deep-copies a deprecated nested config before mutating it.
+
+        ``deepcopy`` of the proxy must deep-copy the wrapped object so nested containers are
+        fully independent of the original.
+        """
+        proxy = deprecated_instance(
+            {"limits": {"low": 1}}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+        dup = copy.deepcopy(proxy)
+        assert type(dup) is _DeprecatedProxy
+        dup["limits"]["low"] = 99
+        assert proxy["limits"]["low"] == 1
+
+    def test_copy_preserves_deprecation_metadata(self) -> None:
+        """Audit tools must still discover a copied proxy via its ``__deprecated__`` metadata."""
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        dup = copy.copy(proxy)
+        meta = object.__getattribute__(dup, "__deprecated__")
+        assert meta.name == "cfg"
+        assert meta.deprecated_in == "1.0"
+        assert meta.remove_in == "2.0"
+
+    def test_pickle_roundtrip_preserves_proxy_and_warning(self) -> None:
+        """A deprecated config object crosses a process boundary via pickle.
+
+        The unpickled object must be a proxy again with intact metadata and default warning
+        stream — the first real access on the restored proxy still emits ``FutureWarning``.
+        """
+        proxy = deprecated_instance({"k": 41}, name="cfg", deprecated_in="1.0", remove_in="2.0")
+
+        restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
+        assert type(restored) is _DeprecatedProxy
+        assert object.__getattribute__(restored, "__deprecated__").name == "cfg"
+        with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
+            assert restored["k"] == 41
+
+    def test_deepcopy_of_class_proxy_keeps_wrapped_class(self) -> None:
+        """Deep-copying a deprecated class alias keeps forwarding to the same target class.
+
+        Classes are atomic under ``deepcopy``, so the copied proxy must forward to the identical
+        target class object.
+        """
+        dup = copy.deepcopy(DeprecatedColorEnum)
+        assert type(dup) is _DeprecatedProxy
+        assert dup.RED is ColorEnum.RED
+
+    def test_uninitialised_instance_raises_attribute_error(self) -> None:
+        """Copy/pickle machinery creates instances via ``cls.__new__(cls)`` with no config set.
+
+        Attribute access on such a half-initialised proxy must raise a clean ``AttributeError``
+        (routing back into ``__getattr__`` must not recurse into the ``_cfg`` property again).
+        """
+        blank = _DeprecatedProxy.__new__(_DeprecatedProxy)
+        with pytest.raises(AttributeError):
+            _ = blank.anything
+
+    def test_copy_of_exhausted_proxy_is_silent(self) -> None:
+        """A copy of an already-warned proxy inherits the exhausted budget and stays silent.
+
+        With ``num_warns=1`` the original can warn exactly once.  After that warning fires,
+        copying the proxy snapshots the exhausted counter — the copy never warns, even though
+        it was never accessed before the copy.  Each copy is independent of the original but
+        inherits the counter value at copy time, not a fresh budget.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        with pytest.warns(FutureWarning):
+            _ = proxy["k"]  # exhaust the budget on the original
+        dup = copy.copy(proxy)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _ = dup["k"]  # must not warn — counter is snapshotted as exhausted
+
+    def test_pickle_raises_for_nonpicklable_stream(self) -> None:
+        """A proxy with a non-picklable stream (lambda) cannot be pickled.
+
+        The ``stream`` callable is serialised as part of the internal config; lambdas and
+        closures are not picklable by the standard pickle protocol.  This test documents the
+        known limitation so future changes do not silently regress it.
+        """
+        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=lambda msg: None)
+        with pytest.raises((AttributeError, pickle.PicklingError)):
+            pickle.dumps(proxy)
+
+    def test_pickle_raises_for_class_proxy(self) -> None:
+        """Pickling a deprecated_class proxy is not supported when the class name is replaced.
+
+        When ``@deprecated_class`` replaces the module-level name ``DeprecatedColorEnum`` with
+        a proxy, the wrapped class (``cfg.obj``) cannot be serialised by reference: pickle
+        finds the proxy at ``tests.collection_deprecate.DeprecatedColorEnum``, not the original
+        class.  This test documents the known limitation — ``deprecated_instance`` proxies
+        wrapping plain objects (dicts, lists) remain fully picklable.
+        """
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(DeprecatedColorEnum)
+
+
+class TestOperatorForwarding:
+    """Type-level operator, conversion, and context-manager dunders forward to the active object."""
+
+    @pytest.mark.parametrize(
+        ("op", "expected"),
+        [
+            pytest.param(lambda p: p + 2, 5, id="add"),
+            pytest.param(lambda p: p - 1, 2, id="sub"),
+            pytest.param(lambda p: p * 3, 9, id="mul"),
+            pytest.param(lambda p: p // 2, 1, id="floordiv"),
+            pytest.param(lambda p: p % 2, 1, id="mod"),
+            pytest.param(lambda p: p**2, 9, id="pow"),
+            pytest.param(lambda p: p << 1, 6, id="lshift"),
+            pytest.param(lambda p: p & 1, 1, id="and"),
+            pytest.param(lambda p: 10 + p, 13, id="radd"),
+            pytest.param(lambda p: 10 - p, 7, id="rsub"),
+            pytest.param(lambda p: -p, -3, id="neg"),
+            pytest.param(abs, 3, id="abs"),
+            pytest.param(lambda p: ~p, -4, id="invert"),
+        ],
+    )
+    def test_arithmetic_forwards_to_active(self, op: Callable[[Any], Any], expected: Any) -> None:  # noqa: ANN401
+        """Arithmetic, reflected, and unary operators compute against the wrapped value.
+
+        A project deprecating a module-level numeric constant wraps it in ``deprecated_instance``; downstream
+        expressions such as ``THRESHOLD + 2`` must keep working during the migration window rather than raising
+        ``TypeError`` because the operand is a proxy.
+        """
+        proxy = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert op(proxy) == expected
+
+    @pytest.mark.parametrize(
+        ("op", "expected"),
+        [
+            pytest.param(lambda p: p < 5, True, id="lt"),
+            pytest.param(lambda p: p <= 3, True, id="le"),
+            pytest.param(lambda p: p > 5, False, id="gt"),
+            pytest.param(lambda p: p >= 3, True, id="ge"),
+        ],
+    )
+    def test_ordering_forwards_to_active(self, op: Callable[[Any], Any], expected: bool) -> None:
+        """Ordering comparisons delegate to the wrapped value so sorting and thresholding stay transparent.
+
+        Code that keeps a proxied legacy value in a sorted container or gates on ``value >= limit`` must observe the
+        underlying object's ordering, not a proxy-identity fallback.
+        """
+        proxy = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert op(proxy) is expected
+
+    def test_unsupported_binary_op_raises_type_error(self) -> None:
+        """An operator the wrapped object lacks raises the normal ``TypeError`` instead of being masked.
+
+        Because the forwarding dunder returns ``NotImplemented`` when the active type has no implementation, Python's
+        own operand-resolution path runs and produces the same ``TypeError`` a user would see without the proxy —
+        adding a dict and an int here.
+        """
+        proxy: Any = deprecated_instance({"a": 1}, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with pytest.raises(TypeError):
+            _ = proxy + 1
+
+    def test_unsupported_binary_op_does_not_warn(self) -> None:
+        """When the wrapped type has no implementation for an operator the proxy returns ``NotImplemented`` silently.
+
+        A proxy wrapping a ``dict`` has no ``__add__``; Python first tries ``dict.__add__(proxy, 1)`` (the
+        forwarding dunder returns ``NotImplemented``), then tries ``int.__radd__(1, proxy)`` (also
+        ``NotImplemented``), and finally raises ``TypeError``. The warning must not fire during the
+        ``NotImplemented`` phase because the operation did not succeed.
+        """
+        proxy: Any = deprecated_instance({"a": 1}, name="d", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(TypeError):
+                _ = proxy + 1
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_three_arg_pow_unwraps_modulus_proxy(self) -> None:
+        """``pow(proxy_base, exp, proxy_mod)`` unwraps both proxy operands before calling ``int.__pow__``.
+
+        ``pow(base, exp, mod)`` calls ``__pow__(base, exp, mod)`` with three arguments; when ``mod`` is itself
+        a proxy its raw form must reach the underlying ``int.__pow__`` implementation.  Without unwrapping,
+        ``int.__pow__`` receives a ``_DeprecatedProxy`` as the modulus and raises ``TypeError``.
+        """
+        proxy_base: Any = deprecated_instance(7, name="base", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy_mod: Any = deprecated_instance(3, name="mod", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert pow(proxy_base, 2, proxy_mod) == 1  # 7**2 % 3 == 49 % 3 == 1
+
+    def test_inplace_add_on_immutable_rebinds_to_result(self) -> None:
+        """``+=`` on a proxied immutable rebinds the name to the computed result (an int), not a re-wrapped proxy."""
+        proxy: Any = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy += 2
+        assert (proxy, isinstance(proxy, int)) == (5, True)
+
+    def test_inplace_add_on_mutable_mutates_and_returns_active(self) -> None:
+        """``+=`` on a proxied list extends the wrapped list in place and yields the active list result."""
+        proxy: Any = deprecated_instance([1, 2], name="lst", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy += [3]
+        assert proxy == [1, 2, 3]
+
+    def test_numeric_and_path_conversions_forward(self) -> None:
+        """``int()``, ``float()``, ``__index__`` (via ``bin``) forward to the wrapped number.
+
+        Legacy numeric handles are frequently passed to APIs that coerce with ``int()``/``float()`` or use the value
+        as an index; all of these must transparently reach the wrapped object.
+        """
+        proxy = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert (int(proxy), float(proxy), bin(proxy)) == (3, 3.0, "0b11")
+
+    def test_reversed_forwards(self) -> None:
+        """``reversed()`` iterates the wrapped sequence in reverse."""
+        proxy = deprecated_instance([1, 2, 3], name="lst", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert list(reversed(proxy)) == [3, 2, 1]
+
+    def test_fspath_forwards(self) -> None:
+        """``os.fspath()`` returns the wrapped path string so proxies work with filesystem APIs."""
+        proxy = deprecated_instance("data/legacy.txt", name="p", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert os.fspath(proxy) == "data/legacy.txt"
+
+    def test_context_manager_protocol_forwards(self) -> None:
+        """A proxied context manager forwards ``__enter__``/``__exit__`` so ``with proxy:`` drives the resource.
+
+        Wrapping a legacy resource handle (session, file-like object) in ``deprecated_instance`` must not break
+        callers that still use it in a ``with`` block; both transitions reach the underlying resource.
+        """
+        resource = ManagedResource()
+        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0", stream=None)
+        with proxy as entered:
+            pass
+        assert (resource.entered, resource.exited, entered is resource) == (True, True, True)
+
+    def test_arithmetic_warns_once(self) -> None:
+        """Using the proxy in an arithmetic expression emits one deprecation warning (a data-producing use)."""
+        proxy: Any = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
+            _ = proxy + 1
+
+    def test_ordering_comparison_is_silent(self) -> None:
+        """Ordering comparisons are cheap probes and emit no warning, mirroring ``__eq__`` and ``__len__``."""
+        proxy: Any = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = proxy < 5
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_context_entry_warns_once_exit_silent(self) -> None:
+        """Context entry warns once and exit stays silent, so a ``with`` block yields exactly one warning."""
+        resource = ManagedResource()
+        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with proxy:
+                pass
+        assert len([w for w in caught if issubclass(w.category, FutureWarning)]) == 1
+
+    def test_round_no_ndigits_forwards_and_warns(self) -> None:
+        """``round(proxy)`` routes through ``__round__`` (branch 1: no ndigits) and emits FutureWarning.
+
+        A project deprecating a legacy float constant must still be usable in ``round(LEGACY_CONST)``
+        calls; and the round operation counts as data-producing use, so a warning is expected.
+        """
+        proxy = deprecated_instance(3.7, name="n", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
+            result = round(proxy)
+        assert result == 4
+
+    def test_round_with_ndigits_forwards_and_warns(self) -> None:
+        """``round(proxy, 2)`` routes through ``__round__`` (branch 2: ndigits given) and emits FutureWarning.
+
+        The two-argument form is the most common rounding call in numerical code; both the forwarding
+        and the warning policy must hold for this signature.
+        """
+        proxy = deprecated_instance(3.789, name="n", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
+            result = round(proxy, 2)
+        assert result == 3.79
+
+    @pytest.mark.parametrize(
+        ("func", "expected"),
+        [
+            pytest.param(math.trunc, 3, id="trunc"),
+            pytest.param(math.floor, 3, id="floor"),
+            pytest.param(math.ceil, 4, id="ceil"),
+        ],
+    )
+    def test_math_rounding_functions_forward_and_warn(self, func: Callable[[Any], Any], expected: int) -> None:
+        """``math.trunc/floor/ceil`` on a proxy forward to the wrapped value and each emit FutureWarning.
+
+        Libraries and ORMs that coerce legacy float handles via ``math.floor`` or ``math.ceil`` must
+        still receive the correct integer result; because these are numeric reads, each is a data-use
+        operation that consumes the warn budget.
+        """
+        proxy = deprecated_instance(3.7, name="n", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
+            result = func(proxy)
+        assert result == expected
+
+    def test_next_forwards_value_and_warns(self) -> None:
+        """``next(proxy)`` on a proxied iterator forwards to the active iterator and emits FutureWarning.
+
+        Wrapping a legacy iterator handle (e.g. a generator or file pointer) in ``deprecated_instance``
+        must not break code that advances it with ``next()``; the call is a data-producing read, so the
+        warning fires.
+        """
+        proxy = deprecated_instance(iter([10, 20]), name="it", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `it` was deprecated since v1\.0"):
+            result = next(proxy)
+        assert result == 10
+
+
+class TestAsyncProtocolForwarding:
+    """Async protocol dunders forward to the active object so ``async with`` / ``async for`` / ``await`` keep working.
+
+    The proxy hand-forwards ``__aenter__``/``__aexit__``/``__aiter__``/``__anext__``/``__await__`` to the wrapped
+    async resource. These exercise the real asyncio runtime paths, not just structural presence of the
+    methods. Warning policy mirrors the sync analogues: data-driving entry/iteration/await warn once; the
+    ``__aexit__`` cleanup half stays silent.
+    """
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager_forwards(self) -> None:
+        """A proxied async context manager drives ``async with proxy:`` through to the wrapped resource.
+
+        A migration wraps a legacy async session in ``deprecated_instance``; callers that still write
+        ``async with session:`` must reach the underlying ``__aenter__``/``__aexit__`` and receive the real
+        resource as the bound value.
+        """
+        resource = AsyncManagedResource()
+        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0", stream=None)
+        async with proxy as entered:
+            pass
+        assert (resource.entered, resource.exited, entered is resource) == (True, True, True)
+
+    @pytest.mark.asyncio
+    async def test_async_context_entry_warns_once_exit_silent(self) -> None:
+        """Async context entry warns exactly once; the async exit half emits no warning."""
+        resource = AsyncManagedResource()
+        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            async with proxy:
+                pass
+        assert len([w for w in caught if issubclass(w.category, FutureWarning)]) == 1
+
+    @pytest.mark.asyncio
+    async def test_async_iteration_forwards(self) -> None:
+        """``async for`` over a proxied async iterator yields every item from the wrapped resource.
+
+        A deprecated async stream handle wrapped in ``deprecated_instance`` must remain iterable so
+        ``async for chunk in stream:`` keeps producing the underlying sequence during the migration window.
+        """
+        resource = AsyncManagedResource([1, 2, 3])
+        proxy = deprecated_instance(resource, name="stream", deprecated_in="1.0", remove_in="2.0", stream=None)
+        collected = [item async for item in proxy]
+        assert collected == [1, 2, 3]
+
+    @pytest.mark.asyncio
+    async def test_async_iteration_warns_on_aiter(self) -> None:
+        """Entering async iteration emits a deprecation warning (a data-producing use, like sync ``__iter__``)."""
+        resource = AsyncManagedResource([1, 2])
+        proxy = deprecated_instance(resource, name="stream", deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match=r"The `stream` was deprecated since v1\.0"):
+            _ = [item async for item in proxy]
+
+    @pytest.mark.asyncio
+    async def test_anext_forwards_to_active(self) -> None:
+        """Calling ``__anext__`` on the proxy advances the wrapped async iterator directly.
+
+        ``async for`` binds iteration to the object returned by ``__aiter__`` (the resource itself), so the proxy's
+        own ``__anext__`` is only reached by an explicit ``await proxy.__anext__()`` — this pins that forwarding path.
+        """
+        resource = AsyncManagedResource([10, 20])
+        proxy = deprecated_instance(resource, name="stream", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy.__aiter__()
+        assert await proxy.__anext__() == 10
+
+    @pytest.mark.asyncio
+    async def test_await_forwards_to_active(self) -> None:
+        """``await proxy`` awaits the wrapped awaitable and returns its result.
+
+        Wrapping an awaitable handle in ``deprecated_instance`` must keep ``result = await handle`` working, routing
+        through the proxy's ``__await__`` to the resource's coroutine.
+        """
+        resource = AsyncManagedResource()
+        proxy = deprecated_instance(resource, name="awaitable", deprecated_in="1.0", remove_in="2.0", stream=None)
+        assert await proxy == "awaited"
+
+
+class TestProxySubclassing:
+    """PEP 560 subclassing of deprecated class aliases via ``__mro_entries__``."""
+
+    def test_subclass_derives_from_active_class(self) -> None:
+        """``class Child(DeprecatedAlias)`` transparently subclasses the wrapped class and inherits its behaviour.
+
+        During a migration window a public base class is renamed and wrapped in ``deprecated_class``; existing
+        downstream ``class Child(OldName): ...`` definitions must keep resolving to a real, usable base class.
+        """
+        alias = deprecated_class(deprecated_in="1.0", remove_in="2.0", stream=None)(SubclassableBase)
+
+        class Child(alias):  # type: ignore[misc,valid-type]
+            """Subclass built off the deprecated alias."""
+
+        assert (issubclass(Child, SubclassableBase), Child().greet()) == (True, "hello")
+
+    def test_subclassing_warns_once(self) -> None:
+        """Subclassing a deprecated alias is a use of the deprecated name and emits one deprecation warning."""
+        alias = deprecated_class(deprecated_in="1.0", remove_in="2.0")(SubclassableBase)
+        with pytest.warns(FutureWarning, match=r"The `SubclassableBase` was deprecated since v1\.0"):
+
+            class Child(alias):  # type: ignore[misc,valid-type]
+                """Subclass whose creation should warn."""
+
+        assert issubclass(Child, SubclassableBase)
+
+    def test_attrs_remap_subclassing_does_not_warn(self) -> None:
+        """An ATTRS_REMAP alias deprecates only listed attributes, so subclassing it stays silent.
+
+        Mirrors the ``__call__`` policy: when only specific attribute aliases are deprecated, deriving a new
+        class from the alias is not a deprecated surface and must not brand the whole class deprecated.
+        """
+        alias = deprecated_class(attrs_mapping={"marker": None}, deprecated_in="1.0", remove_in="2.0")(SubclassableBase)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class Child(alias):  # type: ignore[misc,valid-type]
+                """Subclass whose creation must stay silent under ATTRS_REMAP."""
+
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert issubclass(Child, SubclassableBase)
+
+    def test_args_remap_subclassing_does_not_warn(self) -> None:
+        """An ARGS_REMAP alias deprecates only constructor argument names, so subclassing it stays silent.
+
+        ARGS_REMAP and ATTRS_REMAP share the same subclassing guard in ``__mro_entries__``: both scope
+        deprecation to a specific axis (argument names or attribute names) rather than the class name
+        itself, so deriving a new class from the alias must not fire any deprecation warning.
+        """
+        alias = deprecated_class(args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")(
+            SubclassableBase
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class Child(alias):  # type: ignore[misc,valid-type]
+                """Subclass whose creation must stay silent under ARGS_REMAP."""
+
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert issubclass(Child, SubclassableBase)
+
+
+class TestAttrsRemapCallPolicy:
+    """Non-stacked ATTRS_REMAP proxies do not warn on plain instantiation/call."""
+
+    def test_instantiation_does_not_warn(self) -> None:
+        """Constructing a class whose deprecation covers only listed attributes emits no class-level warning.
+
+        ATTRS_REMAP means "only these attribute aliases are deprecated"; instantiating the class is not a deprecated
+        surface, so plain construction must neither warn nor burn the global warn budget.
+        """
+        alias = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = alias()
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_deprecated_attr_still_warns_after_instantiation(self) -> None:
+        """The per-attribute warning still fires after instantiation, since the budget was not consumed by the call."""
+        alias = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
+        alias()
+        with pytest.warns(FutureWarning, match="color"):
+            _ = alias.color  # type: ignore[attr-defined]
+
+
+class _P8Source:
+    """Plain source class used as the deprecated ``obj`` of a target-forwarding proxy (fixture)."""
+
+
+class _P8Target:
+    """Plain replacement class used as the ``target`` a proxy actually serves (fixture)."""
+
+
+class TestProxyIdentityUsesActive:
+    """``__eq__`` / ``__hash__`` / ``__repr__`` / ``__str__`` reflect the served (active) object."""
+
+    def test_eq_matches_active_target_not_source(self) -> None:
+        """A target-forwarding proxy compares equal to the object it actually serves, not the deprecated source.
+
+        Data access forwards to the active object (the ``target`` when set), so a proxy comparing equal to its
+        source while never returning it was inconsistent. Identity now routes through the active object too.
+        """
+        proxy = _DeprecatedProxy(
+            obj=_P8Source, target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0"
+        )
+        assert proxy == _P8Target
+        assert proxy != _P8Source
+
+    def test_repr_shows_active_target(self) -> None:
+        """``repr`` of a target-forwarding proxy shows the active object rather than the deprecated source."""
+        proxy = _DeprecatedProxy(
+            obj=_P8Source, target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0"
+        )
+        assert repr(proxy) == repr(_P8Target)
+
+
+class _P9Config:
+    """Active class exposing ``new_attr`` so an ``attrs_mapping`` redirect target validates (fixture)."""
+
+    new_attr = 1
+
+
+class TestProxyAttrsMappingDefensiveCopy:
+    """The frozen config must not alias the caller's mutable ``attrs_mapping`` dict."""
+
+    def test_post_construction_mutation_ignored(self) -> None:
+        """Mutating the caller's ``attrs_mapping`` after construction cannot alter the frozen proxy config.
+
+        Storing the caller's dict by reference let a later mutation introduce a redirect cycle that decoration-time
+        validation had already rejected; a defensive copy makes the stored mapping immune to caller mutation.
+        """
+        mapping: dict[str, Any] = {"old_attr": "new_attr"}
+        proxy = _DeprecatedProxy(
+            obj=_P9Config, name="_P9Config", deprecated_in="1.0", remove_in="2.0", attrs_mapping=mapping
+        )
+        mapping["old_attr"] = "hijacked"
+        assert proxy.__deprecated__.attrs_mapping == {"old_attr": "new_attr"}
+
+
+class TestProxyStreamStacklevelProbe:
+    """A stacklevel-accepting stream that raises internally must not be re-invoked."""
+
+    def test_internal_typeerror_not_swallowed_no_double_call(self) -> None:
+        """An internal ``TypeError`` from a custom stream propagates and the stream runs exactly once.
+
+        The old ``try/except TypeError`` fallback masked a ``TypeError`` raised inside a stacklevel-accepting
+        stream and re-invoked it, producing duplicate warning side effects; the signature probe avoids that.
+        """
+        calls: list[str] = []
+
+        def stream(msg: str, stacklevel: int = 1) -> None:
+            calls.append(msg)
+            raise TypeError("boom from inside the proxy stream")
+
+        proxy = _DeprecatedProxy(
+            obj=_P8Source, target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0", stream=stream
+        )
+        with pytest.raises(TypeError, match="boom from inside the proxy stream"):
+            proxy._warn()
+        assert len(calls) == 1
+
+
+class TestProxySubclassCheckTypeError:
+    """``issubclass`` with an instance proxy raises TypeError like the builtin."""
+
+    def test_issubclass_raises_typeerror_for_non_type_active(self) -> None:
+        """Using an instance proxy as ``issubclass`` arg 2 raises TypeError instead of silently returning False."""
+        proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
+        with pytest.raises(TypeError, match="arg 2 must be a class"):
+            issubclass(int, cast(Any, proxy))

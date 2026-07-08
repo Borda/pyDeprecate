@@ -6,7 +6,7 @@ Version resolution uses a local ``pyproject.toml`` (development checkout) when a
 distribution metadata via ``importlib.metadata``.
 
 TOML parsing uses ``tomllib`` (stdlib on Python 3.11+) or ``tomli`` (backport, via ``pip install 'pyDeprecate[audit]'``
-on Python 3.10). When not available the helpers return ``None`` and callers fall back to ``importlib.metadata``.
+on Python 3.9-3.10). When not available the helpers return ``None`` and callers fall back to ``importlib.metadata``.
 
 This module is private (no ``__all__``); its surface may change without notice.
 
@@ -18,7 +18,7 @@ import os
 import sys
 import warnings
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Optional
 
@@ -156,21 +156,84 @@ def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Option
     Args:
         module_name: Importable package name whose installed version to look up.
         path: Optional file-system path used to locate a local ``pyproject.toml``.
-            When provided, the local file takes precedence over installed metadata.
+            Only consulted when it actually exists on the filesystem; an importable
+            module *name* passed through here is ignored, because the walk-up from the
+            current working directory would otherwise pick up an unrelated project's
+            ``pyproject.toml`` version. When honored, the local file takes precedence
+            over installed metadata.
 
     Returns:
         Version string (e.g. ``"1.2.3"``) or ``None`` when the package is not
         installed or the version cannot be determined.
 
     """
-    if path is not None:
+    # Guard: a bare module name (not an existing path) must not trigger the pyproject.toml
+    # walk-up — starting from cwd it would grab whatever unrelated project the caller is
+    # standing in, flipping expiry gates on a foreign version.
+    if path is not None and os.path.exists(path):
         local_ver = _read_pyproject_version(path)
         if local_ver is not None:
             return local_ver
-    try:
+    with suppress(Exception):
         return importlib.metadata.version(module_name)
+    # The import name (deprecate, PIL, sklearn) often differs from the distribution name
+    # (pyDeprecate, Pillow, scikit-learn) that importlib.metadata.version() requires. Map the
+    # import package to its distribution and retry before giving up.
+    dist_name = _distribution_for_import(module_name)
+    if dist_name is not None:
+        try:
+            return importlib.metadata.version(dist_name)
+        except Exception:
+            return None
+    return None
+
+
+def _distribution_for_import(import_name: str) -> Optional[str]:
+    """Map a top-level import package name to its installed distribution name.
+
+    ``importlib.metadata.version`` needs the *distribution* name (``pyDeprecate``) while the CLI is
+    handed the *import* name (``deprecate``). Uses ``importlib.metadata.packages_distributions`` on
+    Python 3.11+ and falls back to scanning each distribution's ``top_level.txt`` on Python <3.11.
+
+    Args:
+        import_name: Importable (possibly dotted) package name; only the first component is used.
+
+    Returns:
+        The first distribution name that provides the top-level package, or ``None`` when no
+        installed distribution exposes it.
+
+    """
+    top_level = import_name.split(".")[0]
+    packages_distributions = getattr(importlib.metadata, "packages_distributions", None)
+    if callable(packages_distributions):
+        try:
+            distributions = packages_distributions().get(top_level)
+        except Exception:
+            return None
+        return distributions[0] if distributions else None
+    # Python <3.11: packages_distributions is unavailable — read top_level.txt from each distribution.
+    return _distribution_from_top_level(top_level)
+
+
+def _distribution_from_top_level(top_level: str) -> Optional[str]:
+    """Return the distribution whose ``top_level.txt`` lists *top_level* (Python <3.11 fallback)."""
+    try:
+        distributions = list(importlib.metadata.distributions())
     except Exception:
         return None
+    for dist in distributions:
+        try:
+            listed = dist.read_text("top_level.txt")
+        except Exception:
+            listed = None
+        if listed and top_level in listed.split():
+            try:
+                name = dist.metadata["Name"]
+            except KeyError:
+                continue
+            if name:
+                return name
+    return None
 
 
 def _is_package_dir(pth: Path) -> bool:

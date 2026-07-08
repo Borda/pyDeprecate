@@ -5,8 +5,10 @@ import importlib.metadata
 import importlib.util
 import inspect
 import pkgutil
+import types
 import warnings
-from typing import Any
+from pathlib import Path
+from typing import Any, Union
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +19,8 @@ import tests.collection_deprecate as proxy_module
 import tests.collection_misconfigured as sample_module
 from deprecate import (
     DeprecatedCallableInfo,
+    TableStyle,
+    TargetMode,
     deprecated,
     find_deprecated_callables,
     validate_deprecated_callable,
@@ -39,6 +43,20 @@ from tests.collection_targets import plain_function_target
 # Check if packaging is available for version comparison tests
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
+
+# Source for a healthy submodule of a scan-target package (one-off mechanical fixture written to tmp_path).
+_GOOD_SUBMODULE_SRC = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"})
+def old_fn(old: int) -> int:
+    pass
+"""
 
 
 class TestValidateDeprecatedWrapper:
@@ -148,13 +166,13 @@ class TestMisconfiguredTarget:
             "args_only_no_mapping_deprecation",
         ],
     )
-    def test_misconfigured_target_true(self, func_name: str) -> None:
+    def test_target_true(self, func_name: str) -> None:
         """Invalid target configurations are flagged as misconfigured_target=True."""
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
         assert result.misconfigured_target is True
 
     @pytest.mark.parametrize("func_name", ["whole_clean_deprecation", "args_only_clean_deprecation"])
-    def test_misconfigured_target_false_for_valid_configs(self, func_name: str) -> None:
+    def test_target_false_for_valid_configs(self, func_name: str) -> None:
         """Correctly configured TargetMode wrappers have misconfigured_target=False."""
         result = validate_deprecation_wrapper(getattr(sample_module, func_name))
         assert result.misconfigured_target is False
@@ -164,7 +182,7 @@ class TestMisconfiguredTarget:
         result = validate_deprecation_wrapper(proxy_module.decorated_pow_self)
         assert result.misconfigured_target is False
 
-    def test_misconfigured_flag_detected_when_target_false_used(self) -> None:
+    def test_flag_detected_when_target_false_used(self) -> None:
         """Audit flags misconfigured_target=True when legacy target=False was passed, even after normalisation."""
         result = validate_deprecation_wrapper(sample_module.target_false_deprecation)
         assert result.misconfigured_target is True
@@ -317,6 +335,42 @@ class TestFindDeprecatedWrappers:
         assert len(results) > 0
         assert all(isinstance(r, DeprecationWrapperInfo) for r in results)
 
+    def test_reexported_wrappers_counted_once(self) -> None:
+        """A wrapper re-exported through a package ``__init__`` is reported once, not per importing module.
+
+        pyDeprecate re-exports its own deprecated back-compat shims (``find_deprecated_callables``,
+        ``validate_deprecated_callable``, ``DeprecatedCallableInfo``) from ``deprecate.audit`` through
+        ``deprecate/__init__.py``. A recursive self-scan must not double-count them: an expiry gate or
+        report that sums or lists these would otherwise show every re-exported wrapper twice.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            names = [r.function for r in find_deprecation_wrappers("deprecate")]
+
+        assert names.count("find_deprecated_callables") == 1
+        assert names.count("validate_deprecated_callable") == 1
+        assert names.count("DeprecatedCallableInfo") == 1
+
+    def test_reexported_wrappers_found_without_recursion(self) -> None:
+        """Re-exported wrappers are visible in a non-recursive scan of the package surface.
+
+        When ``recursive=False`` the only pass is the top-level module scan, so wrappers that are
+        *defined* in a submodule but *re-exported* via ``__init__`` must be reported in that single
+        pass — not attributed to the (unvisited) defining submodule and silently dropped.
+        ``find_deprecated_callables``, ``validate_deprecated_callable``, and ``DeprecatedCallableInfo``
+        are defined in ``deprecate.audit`` but re-exported from ``deprecate/__init__.py``; they must
+        appear in a ``recursive=False`` scan of the ``deprecate`` package.
+        """
+        deprecate_module = importlib.import_module(DeprecatedCallableInfo.__module__.split(".")[0])
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            names = [r.function for r in find_deprecation_wrappers(deprecate_module, recursive=False)]
+
+        assert "find_deprecated_callables" in names
+        assert "validate_deprecated_callable" in names
+        assert "DeprecatedCallableInfo" in names
+
     def test_results_groupable_by_issue_type(self) -> None:
         """Results can be filtered by invalid_args, empty_args_mapping, and identity_args_mapping."""
         results = find_deprecation_wrappers(sample_module, recursive=False)
@@ -369,8 +423,6 @@ class TestFindDeprecatedWrappers:
 
     def test_scan_class_no_recursion_on_self_referential_class(self) -> None:
         """Member scanning terminates and finds exactly one result on a self-referential class."""
-        import types
-
         mod = types.ModuleType("selfref_test_module")
 
         def _new_compute(x: int) -> int:
@@ -404,6 +456,29 @@ class TestFindDeprecatedWrappers:
         with patch.object(pkgutil, "walk_packages", side_effect=OSError("no walk")):
             results = find_deprecation_wrappers(tests, recursive=True)
         assert isinstance(results, list)
+
+    def test_recursive_scan_skips_submodule_failing_import(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A submodule raising a non-ImportError at import time is skipped with a warning; the scan continues.
+
+        Optional-dependency submodules commonly raise ``RuntimeError`` (missing driver), ``OSError``, or
+        ``KeyError`` (env lookup) from module-level code. A CI expiry gate scanning the whole package must
+        still report wrappers from healthy submodules instead of aborting with an error unrelated to
+        deprecation — or worse, training teams to ``|| true`` the gate.
+
+        """
+        pkg = tmp_path / "brokenscan_pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "good.py").write_text(_GOOD_SUBMODULE_SRC)
+        (pkg / "bad.py").write_text('raise RuntimeError("boom at import")\n')
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        with pytest.warns(UserWarning, match=r"audit: skipped brokenscan_pkg\.bad"):
+            results = find_deprecation_wrappers("brokenscan_pkg", recursive=True)
+
+        assert "old_fn" in {r.function for r in results}
 
     def test_empty_deprecated_in_flag_reported_via_find(self) -> None:
         """find_deprecation_wrappers sets empty_deprecated_in=True for wrappers with no version."""
@@ -561,8 +636,6 @@ class TestGenerateDeprecationMarkdown:
 
     def test_empty_module_markdown_produces_header_only(self) -> None:
         """Empty module yields a valid header-only markdown table with no data rows."""
-        import types
-
         mod = types.ModuleType("empty_test_module")
         report = generate_deprecation_table(mod, recursive=False)
         assert "| Original API | API Type | New API | Deprecated | Remove | Current Status |" in report
@@ -571,9 +644,21 @@ class TestGenerateDeprecationMarkdown:
         assert data_rows == []
 
     @_requires_packaging
-    def test_markdown_matrix_style_marks_deprecate_and_remove_versions(self) -> None:
-        """Matrix style adds version columns and D/R markers per symbol lifecycle."""
-        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False, style="matrix")
+    @pytest.mark.parametrize(
+        "style",
+        [
+            pytest.param("matrix", id="str"),
+            pytest.param(TableStyle.MATRIX, id="enum"),
+        ],
+    )
+    def test_markdown_matrix_style_marks_deprecate_and_remove_versions(self, style: Union[str, TableStyle]) -> None:
+        """Matrix style adds version columns and D/R markers per symbol lifecycle.
+
+        A caller may pass the style either as the ``"matrix"`` string alias or as the ``TableStyle.MATRIX`` enum
+        member — both are accepted by ``generate_deprecation_table`` and must yield the same report, so the enum
+        surface is exercised (not only string coercion) the way a downstream user importing ``TableStyle`` would use it.
+        """
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False, style=style)
         assert "| Original API | API Type | New API |" in report
         assert "v1.0" in report
         assert "v2.0" in report
@@ -588,8 +673,6 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_recursive_includes_submodules(self) -> None:
         """recursive=True discovers wrappers across submodules, not just the top-level."""
-        from tests import collection_deprecate as top_pkg
-
         symbols_recursive = {
             line.split("|", maxsplit=3)[1].strip().strip("`")
             for line in generate_deprecation_table(tests, recursive=True).splitlines()
@@ -597,7 +680,7 @@ class TestGenerateDeprecationMarkdown:
         }
         symbols_top = {
             line.split("|", maxsplit=3)[1].strip().strip("`")
-            for line in generate_deprecation_table(top_pkg, recursive=False).splitlines()
+            for line in generate_deprecation_table(proxy_module, recursive=False).splitlines()
             if line.startswith("| `")
         }
         assert symbols_top.issubset(symbols_recursive)
@@ -631,11 +714,9 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_current_version_none_resolves_installed_version(self) -> None:
         """When packaging installed and package resolvable, auto-resolved version drives status."""
         # Add a synthetic wrapper so a data row appears; use packaging so status isn't "Status Unknown"
-        import types
 
         mod = types.ModuleType("deprecate")
         mod.__name__ = "deprecate"  # type: ignore[attr-defined]
-        from deprecate import TargetMode, deprecated
 
         # one-off mechanical fixture: wrapper must live in a fake module with a specific __name__ for this test
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.2")
@@ -666,16 +747,16 @@ class TestGenerateDeprecationMarkdown:
     @_requires_packaging
     def test_markdown_invalid_removal_target_status(self) -> None:
         """Symbol with unparsable remove_in produces Invalid Removal Target status."""
-        import types
-
         mod = types.ModuleType("test_bad_remove")
-        from deprecate import TargetMode, deprecated
 
         # one-off mechanical fixture: wrapper with invalid remove_in must be in a controlled fake module
         @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
         def bad_remove() -> None:
             """Bad remove_in."""
 
+        # find_deprecation_wrappers attributes wrappers to their defining module; align the wrapper's
+        # __module__ with the fake module so the re-export filter keeps it (mirrors the class fixtures).
+        bad_remove.__module__ = mod.__name__
         mod.bad_remove = bad_remove  # type: ignore[attr-defined]
         mod.__name__ = "test_bad_remove"  # type: ignore[attr-defined]
         report = generate_deprecation_table(mod, current_version="1.5", recursive=False)
@@ -783,6 +864,18 @@ class TestCheckModuleDeprecationExpiry:
         assert len(expired) > 0
         assert all(isinstance(msg, str) for msg in expired)
         assert all("scheduled for removal" in msg and "still exists" in msg for msg in expired)
+
+    def test_expired_class_members_detected_by_default(self) -> None:
+        """Expired class-member wrappers are reported without opting in via ``include_members``.
+
+        The expiry check is the CI enforcement gate: a team using the documented default call must not
+        have deprecated constructors and methods silently excluded while discovery
+        (``find_deprecation_wrappers``) and reporting (``generate_deprecation_table``) include them by
+        default. ``PastCls.__init__`` carries ``remove_in="0.4"`` and must be flagged at version 0.5.
+
+        """
+        expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+        assert any("PastCls.__init__" in msg for msg in expired)
 
     def test_accepts_module_object(self) -> None:
         """Module objects are accepted alongside string paths."""

@@ -191,10 +191,18 @@
         },
         {
           "@type": "Question",
-          "name": "Why does deprecated_instance not emit a warning on arithmetic or comparison operators?",
+          "name": "Can I subclass a class created by deprecated_class?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Python invokes special dunder methods like __add__, __lt__, and __mul__ directly on the object's type through the MRO, bypassing __getattr__. The _DeprecatedProxy class intercepts attribute access via __getattr__, but CPython does not call __getattr__ for implicit dunder protocol lookups. Workarounds: wrap the value in a container dict or dataclass (access via subscript triggers the proxy), expose it through a deprecated function, or update call sites directly."
+            "text": "Yes — since v0.8.1 the proxy implements PEP 560 __mro_entries__, so class Child(DeprecatedAlias) resolves to the replacement class in the MRO. Child correctly inherits from the replacement, issubclass(Child, Replacement) is True, and one FutureWarning fires at class-definition time. Exception: ATTRS_REMAP proxies (deprecated_class with attrs_mapping and no callable target) and ARGS_REMAP proxies (deprecated_class with args_mapping and no callable target) are scope-limited to specific axes (attribute names or argument names respectively) and skip the subclassing warning."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do arithmetic and operator protocol methods emit deprecation notices on deprecated_instance proxies?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — since v0.8.1 the proxy installs arithmetic, unary, and conversion dunders directly on its type, so CPython can find them via the MRO without going through __getattr__. Data-use operations warn against the shared budget: arithmetic (+, -, *, /, //, %, **, @), bitwise ops, unary operators, numeric conversions (int, float, complex), round/trunc/floor/ceil, reversed(), next(), context entry (__enter__), and subclassing (class Child(proxy)) all fire FutureWarning. Structural probes stay silent: ordering comparisons (<, <=, >=, >), format(), and context exit (__exit__) never warn. Two edge cases: (1) In-place operators return the active object's result rather than a re-wrapped proxy — proxy_val += 1 rebinds the variable to a plain int. (2) If the left-hand operand's __add__ raises TypeError directly (e.g. str.__add__), Python cannot fall back to the proxy's __radd__ — place the proxy on the left side or wrap in a container."
           }
         },
         {
@@ -242,7 +250,7 @@
           "name": "Why did I get TypeError at decoration time about a cross-class method target?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8."
+            "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8. Exception: when the source is a @staticmethod the cross-class guard is skipped, because static methods receive no self — a staticmethod can safely forward to a static method on any class."
           }
         },
         {
@@ -314,7 +322,7 @@
           "name": "How does @deprecated handle target functions with positional-only parameters?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class is unaffected — the proxy has a setattr fallback for positional-only constructor parameters."
+            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class applies the same positional forwarding to constructor positional-only parameters — remapped values are passed positionally, so required positional-only params and frozen dataclasses work. Decorated sources declaring positional-only parameters are fully supported as well, with no decoration-time warning."
           }
         },
         {
@@ -331,6 +339,10 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that emits FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. Star imports (from old_module import *) bypass __getattribute__ in all modes and do not emit warnings."
+          "name": "Does a deprecation warning survive copy.copy, copy.deepcopy, and pickle?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes for copy.copy and copy.deepcopy. Both proxy types return a proxy again on copy, so the deprecation warning travels with the copied object during the migration window. Warning counters are snapshotted at copy time and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access. For pickle: deprecated_instance proxies wrapping plain objects (dicts, lists) are fully picklable; deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy (pickle cannot find the original class by reference). One additional caveat: if the proxy was created with a non-module-level stream (lambda or closure), pickle.dumps will raise PicklingError — use stream=warnings.warn or stream=None when pickling."
           }
         },
         {
@@ -339,6 +351,58 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to emit FutureWarning on every public attribute access — including real attributes already in __dict__. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are the only exception — they read __dict__ directly at import time and do not trigger __getattribute__."
+          "name": "Why does my expiry gate report more expired wrappers after upgrading pyDeprecate?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Recursive audit scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just ImportError — pyDeprecate emits UserWarning 'audit: skipped <module>: <exception>' and continues scanning instead of aborting. Results are complete for every module that imported successfully; investigate and fix the named submodule to include its deprecations in the scan."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does pickle.dumps raise TypeError on a deprecated_instance proxy?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This error was raised in older versions (before PR #212) because pickle's protocol 2+ consistency check detected that type(proxy) != proxy.__class__. Since PR #212, pickle.dumps(proxy) works for deprecated_instance proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. Two remaining caveats: (1) the stream callable must be picklable by reference — if you passed a lambda or closure as stream, wrap it in a module-level function or use stream=None; (2) deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy — use copy.deepcopy for class aliases instead."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get ModuleNotFoundError: No module named 'pydeprecate'?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The install name and the import name are different. The package is installed with 'pip install pyDeprecate' but imported as 'deprecate': from deprecate import deprecated. The module name 'pydeprecate' does not exist — always import from 'deprecate'."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do I get UserWarning when using TargetMode.ARGS_REMAP without args_mapping?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "TargetMode.ARGS_REMAP is designed exclusively for renaming or dropping arguments within the same function. Without args_mapping there is nothing to remap — the decorator has zero call-time effect. Provide args_mapping={'old_name': 'new_name'} to map each renamed parameter. To deprecate the whole function with no argument changes, use target=TargetMode.NOTIFY instead. Using ARGS_REMAP without args_mapping will become a TypeError in v1.0."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "I wrapped a functools.partial of an async def and the wrapper is not async — why?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "On Python 3.9–3.11, inspect.iscoroutinefunction(functools.partial(async_fn)) returns False — the partial object does not propagate the coroutine flag. pyDeprecate checks this flag to decide whether to produce an async wrapper, so wrapping a partial of an async def falls through to the sync wrapper path. Workaround: apply @deprecated directly to the async def, then use functools.partial on the already-deprecated async wrapper if you need preset arguments. This limitation is resolved in Python 3.12+."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "A non-async decorator applied over my @deprecated async wrapper no longer looks like a coroutine — why?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "When you stack a sync decorator on top of a @deprecated async def, the outermost callable is sync, so inspect.iscoroutinefunction returns False and asyncio frameworks reject it. Make any outer decorator that wraps async functions coroutine-aware: check inspect.iscoroutinefunction(fn) and emit an async def wrapper when True, or a sync wrapper when False. With this pattern, @my_decorator @deprecated ... async def fn(...) produces an async def wrapper whose iscoroutinefunction returns True."
           }
         }
       ]

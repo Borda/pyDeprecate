@@ -7,7 +7,7 @@ This module provides base functions that are used as targets for deprecated func
 import functools
 import time
 import warnings
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Generator, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Optional
@@ -216,6 +216,18 @@ def fn_with_default(new_arg: int = 99) -> int:
 
     """
     return new_arg
+
+
+def fn_shared_default_target(x: int, level: int = 99) -> int:
+    """Target sharing the parameter name ``level`` with its own default (99), no rename involved.
+
+    Used by the shared-default forwarding test: the forwarding source declares the same non-renamed
+    ``level`` parameter with a *different* default (1) and no ``args_mapping``.  The source signature is the
+    contract the caller migrated from, so its default (1) is forwarded and reaches this body — the target's
+    own default only applies when the source declares no default for that parameter.
+
+    """
+    return level
 
 
 def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
@@ -618,8 +630,8 @@ class PositionalOnlyTarget:
 
     ``new_val`` is declared positional-only so ``PositionalOnlyTarget(new_val=5)`` raises
     ``TypeError``.  Wrapped by ``DepPositionalOnly`` in :mod:`tests.collection_deprecate`
-    to verify the proxy emits ``UserWarning`` at decoration time and falls back to
-    ``setattr`` at call time instead of crashing.
+    to verify the proxy emits ``UserWarning`` at decoration time and forwards the remapped
+    value positionally at call time instead of crashing.
     """
 
     def __init__(self, new_val: int = 0, /) -> None:
@@ -638,6 +650,65 @@ class SelfOnlyPositionalOnlyTarget:
 
     def __init__(self, /) -> None:
         """Construct with no user arguments; self is explicitly positional-only."""
+
+
+class RequiredPositionalOnlyTarget:
+    """Target whose constructor declares a *required* POSITIONAL_ONLY parameter.
+
+    ``new_val`` has no default, so the historical pop-and-``setattr`` fallback raised
+    ``TypeError`` before the fallback loop ever ran.  Wrapped by
+    ``DepRequiredPositionalOnly`` in :mod:`tests.collection_deprecate` to verify the
+    proxy forwards the remapped value positionally to the constructor.
+    """
+
+    def __init__(self, new_val: int, /) -> None:
+        """Store the required positional-only arg."""
+        self.new_val = new_val
+
+
+class ImmutablePositionalOnlyTarget:
+    """Immutable target (``__setattr__`` raises) with a POSITIONAL_ONLY constructor param.
+
+    Models frozen-dataclass-style targets: the historical ``setattr`` fallback raised on
+    such instances even when the parameter had a default.  Wrapped by
+    ``DepImmutablePositionalOnly`` in :mod:`tests.collection_deprecate`.
+    """
+
+    def __init__(self, new_val: int = 0, /) -> None:
+        """Store the positional-only arg via ``object.__setattr__`` (self is immutable)."""
+        object.__setattr__(self, "new_val", new_val)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Reject all attribute assignment — mirrors ``dataclasses.FrozenInstanceError`` semantics."""
+        raise AttributeError(f"`{type(self).__name__}` is immutable; cannot set `{name}`.")
+
+
+class DerivedPositionalOnlyTarget:
+    """Target whose constructor derives extra state from its POSITIONAL_ONLY param.
+
+    The historical ``setattr`` fallback bypassed the constructor body (like skipping
+    ``__post_init__``), leaving ``double`` stale.  Wrapped by ``DepDerivedPositionalOnly``
+    in :mod:`tests.collection_deprecate` to verify constructor-side derivation runs.
+    """
+
+    def __init__(self, new_val: int = 0, /) -> None:
+        """Store the positional-only arg and a value derived from it."""
+        self.new_val = new_val
+        self.double = new_val * 2
+
+
+class MixedPositionalOnlyTarget:
+    """Target with a leading POSITIONAL_ONLY param before the remapped one.
+
+    Callers pass ``w`` positionally and the deprecated ``old_x`` kwarg for ``x`` —
+    the proxy must interleave the caller's positional args with the remapped value.
+    Wrapped by ``DepMixedPositionalOnly`` in :mod:`tests.collection_deprecate`.
+    """
+
+    def __init__(self, w: int, x: int = 0, /) -> None:
+        """Store both positional-only args."""
+        self.w = w
+        self.x = x
 
 
 def positional_only_target(x: int, /, y: int = 0) -> int:
@@ -669,6 +740,54 @@ def positional_only_two_params_target(a: int, b: int, /, c: int = 0) -> int:
     :mod:`tests.collection_deprecate`.
     """
     return a + b + c
+
+
+def gapped_positional_only_target(a: int = 1, b: int = 2, /, c: int = 3) -> dict[str, int]:
+    """Target whose POSITIONAL_ONLY params all carry defaults, for gap-misbinding tests.
+
+    When a forwarding source supplies ``b`` but not ``a``, positional binding would slide
+    ``b``'s value into ``a``'s slot; the split dispatch must raise ``TypeError`` instead of
+    silently misbinding.  Wrapped by ``deprecated_gapped_positional_only_source`` (plus the
+    async and full-prefix variants) in :mod:`tests.collection_deprecate`.
+    """
+    return {"a": a, "b": b, "c": c}
+
+
+def var_positional_target(a: int, *extras: int) -> int:
+    """Target accepting a var-positional tail, for surplus ``*args`` forwarding tests.
+
+    Wrapped by ``deprecated_var_positional_forward`` in :mod:`tests.collection_deprecate` —
+    the surplus positional tail of a deprecated ``*args`` source must reach ``extras``
+    instead of being silently dropped.
+    """
+    return a + sum(extras)
+
+
+async def async_var_positional_target(a: int, *extras: int) -> int:
+    """Async twin of :func:`var_positional_target` for the async dispatch path.
+
+    Wrapped by ``deprecated_async_var_positional_forward`` in :mod:`tests.collection_deprecate`.
+    """
+    return a + sum(extras)
+
+
+def trio_positional_target(a: int, b: int = 0, c: int = 0) -> int:
+    """Target with fixed positional slots (no ``*args``) that can absorb a surplus tail.
+
+    Wrapped by ``deprecated_var_positional_to_fixed`` in :mod:`tests.collection_deprecate`;
+    a two-element surplus tail from the source's ``*args`` must land in ``b`` and ``c``.
+    """
+    return a * 100 + b * 10 + c
+
+
+def single_positional_target(a: int) -> int:
+    """Target with a single positional slot and no ``*args``, for surplus-overflow tests.
+
+    Wrapped by ``deprecated_var_positional_overflow`` in :mod:`tests.collection_deprecate`;
+    forwarding a surplus tail that cannot fit must raise a curated ``TypeError`` instead of
+    silently dropping the extra values.
+    """
+    return a
 
 
 class SelfDeprecatedModel:
@@ -714,3 +833,100 @@ async def async_non_cycle_double(x: int) -> int:
     Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
     """
     return x * 2
+
+
+# --- Protocol-forwarding targets (appended for the proxy medium-findings fixes) ---
+
+
+class ManagedResource:
+    """Context-manager target for proxy ``__enter__``/``__exit__`` forwarding tests.
+
+    A migration may wrap a legacy resource handle (a database session, a file-like object) in
+    ``deprecated_instance`` while callers still use it in a ``with`` block.  The proxy must forward the
+    context-manager protocol so ``with proxy:`` enters and exits the underlying resource, recording both
+    transitions here for assertions.
+    """
+
+    def __init__(self) -> None:
+        """Track whether the context was entered and exited."""
+        self.entered = False
+        self.exited = False
+
+    def __enter__(self) -> "ManagedResource":
+        """Mark the resource as entered and return it."""
+        self.entered = True
+        return self
+
+    def __exit__(self, *exc_info: Any) -> None:  # noqa: ANN401
+        """Mark the resource as exited; never suppress exceptions."""
+        self.exited = True
+
+
+class AsyncManagedResource:
+    """Async-protocol target for proxy async-dunder forwarding tests.
+
+    An async migration may wrap a legacy async resource (an aiohttp session, an async DB connection) in
+    ``deprecated_instance`` while callers still use ``async with``, ``async for``, or ``await`` on it. The proxy
+    must forward every async protocol dunder so those call sites keep working; each transition is recorded here
+    for assertions.
+    """
+
+    def __init__(self, items: Optional[list[int]] = None) -> None:
+        """Track context transitions and hold the items produced by async iteration."""
+        self.entered = False
+        self.exited = False
+        self._items = [1, 2, 3] if items is None else list(items)
+        self._cursor = 0
+
+    async def __aenter__(self) -> "AsyncManagedResource":
+        """Mark the resource entered and return it."""
+        self.entered = True
+        return self
+
+    async def __aexit__(self, *exc_info: Any) -> None:  # noqa: ANN401
+        """Mark the resource exited; never suppress exceptions."""
+        self.exited = True
+
+    def __aiter__(self) -> "AsyncManagedResource":
+        """Reset the cursor and return self as the async iterator."""
+        self._cursor = 0
+        return self
+
+    async def __anext__(self) -> int:
+        """Yield the next item, raising ``StopAsyncIteration`` once exhausted."""
+        if self._cursor >= len(self._items):
+            raise StopAsyncIteration
+        item = self._items[self._cursor]
+        self._cursor += 1
+        return item
+
+    def __await__(self) -> Generator[Any, None, str]:
+        """Make the resource awaitable; ``await resource`` yields a sentinel string."""
+        return self._awaited().__await__()
+
+    async def _awaited(self) -> str:
+        """Coroutine body returned by :meth:`__await__`."""
+        return "awaited"
+
+
+class SubclassableBase:
+    """Plain base-class target for PEP 560 subclassing tests through ``deprecated_class``.
+
+    During a migration window a public base class is often renamed and wrapped in ``deprecated_class``;
+    downstream code still writes ``class Child(OldName): ...``.  This concrete class stands in for the
+    replacement so a subclass built off the deprecated alias inherits real, callable behaviour.
+    """
+
+    marker: str = "base"
+
+    def greet(self) -> str:
+        """Return a fixed greeting so subclasses can prove inherited behaviour works."""
+        return "hello"
+
+
+def var_positional_remap_body(a: int, *extras: int, old_kwarg: str = "", new_kwarg: str = "") -> tuple:
+    """Source body for ARGS_REMAP test with ``*args`` — receives remapped ``new_kwarg`` from caller's ``old_kwarg``.
+
+    Wrapped by ``deprecated_var_positional_remap`` in :mod:`tests.collection_deprecate`.
+    """
+    return (a, *extras, new_kwarg)

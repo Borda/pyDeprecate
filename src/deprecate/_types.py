@@ -5,10 +5,12 @@ catch schema mismatches at analysis time rather than silently returning ``None``
 
 """
 
+import copy
+import threading
 import types
 import warnings
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Union, runtime_checkable
 
@@ -401,9 +403,10 @@ class DeprecationConfig:
             auto-generated ones.
         args_mapping_positional_only: ``args_mapping`` old-key names whose remapped target name is a
             POSITIONAL_ONLY parameter in the target class constructor.  Calling the proxy with such
-            keys as keyword arguments would raise ``TypeError`` without the runtime fallback.  Empty
-            tuple when all remapped targets are kwarg-accessible.  Populated at decoration time;
-            surfaced by :func:`~deprecate.audit.validate_mapping_compatibility`.
+            keys as keyword arguments would raise ``TypeError`` without the positional split applied
+            by the proxy call path (see :attr:`target_positional_only`).  Empty tuple when all
+            remapped targets are kwarg-accessible.  Populated at decoration time; surfaced by
+            :func:`~deprecate.audit.validate_mapping_compatibility`.
         target_positional_only: Names of POSITIONAL_ONLY parameters on the forwarding target callable
             used with :func:`~deprecate.deprecated`, including ``self`` and ``cls`` when they are
             declared positional-only.  Non-empty when a ``@deprecated(target=fn)`` call found ``fn``
@@ -412,13 +415,49 @@ class DeprecationConfig:
             when the only positional-only parameter is the instance or class receiver (e.g.
             ``def __init__(self, /): ...``).  The call dispatcher splits these out of
             ``resolved_kwargs`` and forwards them positionally so the target call does not raise
-            ``TypeError``.  Empty frozenset for proxy targets (see
-            :attr:`args_mapping_positional_only`) and for non-callable targets.
+            ``TypeError``.  For :class:`~deprecate.proxy._DeprecatedProxy` objects this holds the
+            POSITIONAL_ONLY parameter names of the *active* class constructor (target class when
+            configured, wrapped class otherwise) so the proxy call path can apply the same
+            positional split (see also :attr:`args_mapping_positional_only`).  Empty frozenset
+            for non-callable targets.
         target_positional_only_order: Full parameter-name sequence of the forwarding target callable,
             in declaration order.  Pre-computed at decoration time alongside
             :attr:`target_positional_only` so the call dispatcher can iterate in declaration order
             without calling ``inspect.signature`` on every dispatch.  Not included in ``repr``.
             Empty tuple when ``target_positional_only`` is empty.
+        source_positional_only: Names of POSITIONAL_ONLY parameters declared by the decorated
+            *source* callable itself.  The wrapper converts positional args to kwargs internally,
+            so whenever the dispatcher invokes the source body (NOTIFY, ARGS_REMAP, and the
+            migrated-caller short-circuit) it must split these names back out of the resolved
+            kwargs and pass them positionally — otherwise every call would raise ``TypeError``.
+            Mirrors :attr:`target_positional_only` on the source side.  Empty frozenset when the
+            source declares no ``/``.
+        source_positional_only_order: Full parameter-name sequence of the decorated source in
+            declaration order; the source-side twin of :attr:`target_positional_only_order`.
+            Not included in ``repr``.  Empty tuple when :attr:`source_positional_only` is empty.
+        source_var_positional_prefix: Number of named positional parameters declared before the
+            source's ``*args``.  Used by the forwarding dispatcher to compute the surplus
+            positional tail (``args[prefix:]``) that must be forwarded to a callable target
+            rather than silently dropped.  ``0`` when the source declares no var-positional
+            parameter.
+        target_all_param_names: All parameter names of the forwarding target callable (including any
+            ``*args`` / ``**kwargs`` names), pre-computed at decoration time so the call-time kwarg
+            validation in :func:`~deprecate.deprecation._prepare_target_call` does not re-inspect the
+            target on every forwarded call.  ``None`` when facts are not precomputed (manual
+            ``DeprecationConfig`` construction or non-callable target); ``frozenset()`` for zero-arg
+            callables.  Internal call-time cache — excluded from ``repr`` and equality so audit output
+            and stored-config comparisons stay stable.
+        target_accepts_var_positional: ``True`` when the forwarding target declares ``*args``.  Pre-computed
+            decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
+            excluded from ``repr`` and equality.
+        target_accepts_var_keyword: ``True`` when the forwarding target declares ``**kwargs``.  Pre-computed
+            decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
+            excluded from ``repr`` and equality.
+
+    Note:
+        ``@dataclass(frozen=True)`` blocks attribute *rebinding* on the config object itself, but the
+        stored ``args_mapping`` and ``attrs_mapping`` dicts remain mutable.  Code that reads these fields
+        must not modify them in place; the decorator copies them defensively at decoration time.
 
     """
 
@@ -436,6 +475,12 @@ class DeprecationConfig:
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
     target_positional_only: frozenset[str] = field(default_factory=frozenset)
     target_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
+    source_positional_only: frozenset[str] = field(default_factory=frozenset)
+    source_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
+    source_var_positional_prefix: int = 0
+    target_all_param_names: Optional[frozenset[str]] = field(default=None, repr=False, compare=False)
+    target_accepts_var_positional: bool = field(default=False, repr=False, compare=False)
+    target_accepts_var_keyword: bool = field(default=False, repr=False, compare=False)
 
 
 @runtime_checkable
@@ -473,7 +518,14 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
         ``False`` otherwise.
 
     """
-    return isinstance(getattr(obj, "__deprecated__", None), DeprecationConfig)
+    # ``getattr(..., default)`` only swallows ``AttributeError``; a foreign object encountered during a
+    # recursive audit scan whose ``__getattr__``/``__getattribute__`` raises something else (e.g. a lazy
+    # proxy raising ``RuntimeError``) would otherwise crash the whole scan. Treat any failure as "no meta".
+    try:
+        meta = getattr(obj, "__deprecated__", None)
+    except Exception:
+        return False
+    return isinstance(meta, DeprecationConfig)
 
 
 @dataclass
@@ -498,6 +550,10 @@ class _ProxyConfig:
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
+        lock: Guards the warn-quota check-then-act sequence (read counter → decide to emit → increment) so that
+            concurrent first accesses cannot all pass the ``num_warns`` gate and each emit a warning.  Excluded from
+            ``repr`` and equality — it is runtime machinery, not state identity.  A fresh lock is created on copy /
+            deepcopy rather than transferring the original mutex state.
 
     """
 
@@ -510,6 +566,22 @@ class _ProxyConfig:
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_ProxyConfig":
+        return replace(
+            self,
+            obj=copy.deepcopy(self.obj, memo),
+            warned_args=copy.deepcopy(self.warned_args, memo),
+            lock=threading.Lock(),  # fresh lock — mutex state is not transferable
+        )
+
+    def __getstate__(self) -> dict[str, Any]:
+        return {k: v for k, v in self.__dict__.items() if k != "lock"}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self.lock = threading.Lock()  # fresh lock — mutex state is not transferable
 
 
 @dataclass
@@ -524,6 +596,10 @@ class _WrapperState:
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
         warned_misconfigured: ``True`` after the one-time misconfiguration UserWarning has been emitted at call time.
+        lock: Guards the warn-quota check-then-act sequence (read counter → decide to emit → increment) so that
+            concurrent first calls cannot all pass the ``num_warns`` gate and each emit a warning.  Only the warn
+            path takes this lock; the ``called`` counter is a best-effort diagnostic and stays lock-free.  Excluded
+            from ``repr`` and equality — it is runtime machinery, not state identity.
 
     """
 
@@ -531,6 +607,7 @@ class _WrapperState:
     warned_calls: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
     warned_misconfigured: bool = False
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
 
 @runtime_checkable

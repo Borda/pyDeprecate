@@ -11,6 +11,11 @@ on:
 permissions:
   contents: read
 
+# cancel superseded runs only on PRs; never cancel pushes to protected branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   PYTHON_DEFAULT: "3.13"
 
@@ -31,12 +36,12 @@ jobs:
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           fetch-depth: ${{ matrix.fetch_depth == null && 1 || matrix.fetch_depth }}
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip

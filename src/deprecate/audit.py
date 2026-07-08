@@ -1,12 +1,16 @@
 """Audit tools for deprecation lifecycle management.
 
-This module provides three complementary utilities for verifying the health of deprecated callables across a codebase.
-All three are designed to be called from pytest or a CI script against an imported package.
+This module provides several complementary utilities for verifying the health of deprecated callables across a
+codebase. All are designed to be called from pytest or a CI script against an imported package.
 
 **Wrapper configuration** (:func:`~deprecate.audit.validate_deprecation_wrapper`,
 :func:`~deprecate.audit.find_deprecation_wrappers`):
     Detect wrappers that have zero impact — invalid ``args_mapping`` keys, identity mappings, empty mappings, or a
     ``target`` pointing back to the same wrapper.
+
+**Mapping compatibility** (:func:`~deprecate.audit.validate_mapping_compatibility`):
+    Detect :func:`~deprecate.proxy.deprecated_class` wrappers whose ``args_mapping`` remaps to POSITIONAL_ONLY
+    constructor params, silently degrading to ``setattr`` at call time.
 
 **Expiry enforcement** (:func:`~deprecate.audit.validate_deprecation_expiry`):
     Detect wrappers whose ``remove_in`` version has been reached or passed, preventing zombie code from shipping past
@@ -75,13 +79,17 @@ class DeprecationStatus(str, enum.Enum):
     Using a ``str`` enum means members compare equal to their string values and can be
     returned wherever a plain string is expected.
 
-    Members are ordered from least to most urgent for easy visual scanning:
+    Members are *declared* from least to most urgent for readability, but this enum is **not orderable by
+    urgency**: because each value starts with an emoji, the inherited ``str`` ordering operators (``<``, ``>``)
+    compare Unicode codepoints of those emoji, not deprecation urgency. Do not rely on ``status_a > status_b``
+    to mean "more urgent" — compare members explicitly (``status is DeprecationStatus.PAST_REMOVAL_DATE``).
+    The ordering operators are overridden to raise ``TypeError`` so accidental comparisons fail loudly.
 
     Examples:
         >>> DeprecationStatus.ACTIVE_WARNING.value
         '📢 Deprecation Active'
-        >>> DeprecationStatus.PAST_REMOVAL_DATE > DeprecationStatus.ACTIVE_WARNING
-        False
+        >>> DeprecationStatus.PAST_REMOVAL_DATE is DeprecationStatus.PAST_REMOVAL_DATE
+        True
 
     """
 
@@ -94,6 +102,22 @@ class DeprecationStatus(str, enum.Enum):
     REMOVE_BEFORE_RELEASE = "🔔 Remove Before Release"  # RC of the remove_in base release
     PAST_REMOVAL_DATE = "💥 Past Removal Date"  # current >= remove_in
 
+    def __lt__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'<' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __le__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'<=' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __gt__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'>' not supported between instances of 'DeprecationStatus' — compare by identity")
+
+    def __ge__(self, other: object) -> bool:
+        """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
+        raise TypeError("'>=' not supported between instances of 'DeprecationStatus' — compare by identity")
+
 
 def _normalize_version_string(version: str) -> str:
     """Normalize non-standard version strings before PEP 440 parsing.
@@ -105,10 +129,13 @@ def _normalize_version_string(version: str) -> str:
 
     The transformation is conservative:
 
-    1. Strip a single leading ``v`` or ``V`` prefix (``packaging`` accepts this, but stripping defensively
-       keeps the normalized output stable for downstream callers).
+    1. Strip a single leading ``v`` or ``V`` prefix (left-anchored, so only one leading ``v`` is removed).
     2. Append ``0`` to bare pre/post/dev labels that lack a trailing digit. Labels recognized:
        ``dev``, ``rc``, ``a``, ``b``, ``c``, ``alpha``, ``beta``, ``preview``, ``post``.
+
+    The label normalization runs only over the *public* part of the version — any PEP 440 local segment
+    (everything after ``+``) is split off first and re-attached verbatim, so a legitimate local like
+    ``1.2.3+cuda`` is never mangled into ``1.2.3+cuda0`` by the trailing-``a`` label rule.
 
     No other transformations are applied — case, separators, and label aliases pass through unchanged
     so ``packaging.Version`` can apply its own canonicalization.
@@ -132,9 +159,17 @@ def _normalize_version_string(version: str) -> str:
         '1.8.0.RC1'
         >>> _normalize_version_string("1.2.3")
         '1.2.3'
+        >>> _normalize_version_string("1.2.3+cuda")
+        '1.2.3+cuda'
+        >>> _normalize_version_string("v1.8.0.dev+local.a")
+        '1.8.0.dev0+local.a'
 
     """
-    normalized = version.lstrip("vV")
+    # Split off any PEP 440 local segment (after ``+``) so the label regex never touches it; labels like
+    # ``post``/``dev`` never appear in a local segment, and running the rule over it mangles legit locals.
+    public, plus, local = version.partition("+")
+    # Strip a single left-anchored leading ``v``/``V`` (``lstrip("vV")`` would strip *all* leading v's).
+    normalized = re.sub(r"^[vV]", "", public)
     # Append ``0`` to bare pre/post/dev labels with no trailing digit. The ordering of the alternatives
     # matters: longer labels (``alpha``, ``beta``, ``preview``) must come before their single-letter
     # forms (``a``, ``b``) so the regex prefers the longer match.
@@ -144,7 +179,8 @@ def _normalize_version_string(version: str) -> str:
         r"(?P<sep>\.?)(?P<label>alpha|beta|preview|post|dev|rc|a|b|c)(?![A-Za-z0-9])",
         re.IGNORECASE,
     )
-    return pattern.sub(lambda m: f"{m.group('sep')}{m.group('label')}0", normalized)
+    normalized = pattern.sub(lambda m: f"{m.group('sep')}{m.group('label')}0", normalized)
+    return f"{normalized}{plus}{local}"
 
 
 def _parse_version(version_string: str) -> "Version":
@@ -432,10 +468,14 @@ def _detect_chain_type(
         chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET
     elif _is_args_remap:
         wrapped = getattr(func, "__wrapped__", None)
-        if wrapped is not None and _has_deprecation_meta(wrapped):
-            erp_depr_tgt = wrapped.__deprecated__.target
-            if erp_depr_tgt is True or erp_depr_tgt is TargetMode.ARGS_REMAP:
-                chain_type = ChainType.STACKED
+        # ``target`` is always a ``TargetMode`` (or callable/None) after normalization — the legacy
+        # ``target is True`` sentinel can no longer reach here, so only ARGS_REMAP marks a stacked chain.
+        if (
+            wrapped is not None
+            and _has_deprecation_meta(wrapped)
+            and wrapped.__deprecated__.target is TargetMode.ARGS_REMAP
+        ):
+            chain_type = ChainType.STACKED
     attrs_mapping = dep_info.attrs_mapping
     has_chained_attrs = attrs_mapping is not None and any(
         v is not None and v in attrs_mapping for v in attrs_mapping.values()
@@ -496,7 +536,7 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
             :class:`~deprecate._types.DeprecationConfig`).
 
     Example:
-        >>> from deprecate import deprecated, validate_deprecation_wrapper
+        >>> from deprecate import TargetMode, deprecated, validate_deprecation_wrapper
         >>> def new_implementation(value: int) -> int:
         ...     return value * 2
         >>>
@@ -511,7 +551,7 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
         >>> result.invalid_args
         []
 
-        >>> @deprecated(target=True, deprecated_in="1.0", args_mapping={"arg": "arg"})
+        >>> @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.0", args_mapping={"arg": "arg"})
         ... def identity_func(arg: int) -> int:
         ...     return arg
         >>>
@@ -546,7 +586,20 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
     _is_args_remap = target is TargetMode.ARGS_REMAP
     _is_notify = target is TargetMode.NOTIFY
 
-    self_reference = target is func if target is not None else False
+    # Self-reference: the wrapper forwards to itself. For a proxy the wrapper object is the proxy while its
+    # deprecated target is the *wrapped* object, so ``target is func`` never matches — compare against
+    # ``func.wrapped`` too. A proxy is self-referential only when there is *no* active remapping:
+    # a proxy with non-empty ``args_mapping`` or ``attrs_mapping`` still performs meaningful transformation
+    # and must not be flagged as a no-op.
+    self_reference = target is not None and (
+        target is func
+        or (
+            isinstance(func, _DeprecatedProxy)
+            and target is func.wrapped
+            and not dep_info.args_mapping
+            and not dep_info.attrs_mapping
+        )
+    )
     empty_args_mapping = not args_mapping
     chain_type = _detect_chain_type(dep_info, func, target, _is_args_remap)
     invalid_args, identity_args_mapping, all_identity = _validate_args_mapping(func, args_mapping)
@@ -696,6 +749,14 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
         try:
             remove_ver = _parse_version(remove_in)
         except ValueError:
+            # An unparsable ``remove_in`` (e.g. a typo) would make the wrapper permanently un-expirable and the
+            # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent
+            # — the single-callable path raises; here a warning keeps the batch scan going for the rest.
+            warnings.warn(
+                f"Callable `{info.function}` has an unparsable `remove_in` version `{remove_in}`; "
+                "its expiry cannot be checked until the version string is fixed.",
+                stacklevel=2,
+            )
             continue
         if current_ver >= remove_ver:
             expired.append(
@@ -709,7 +770,7 @@ def validate_deprecation_expiry(
     module: Union[Any, str],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
-    include_members: bool = False,
+    include_members: bool = True,
 ) -> list[str]:
     """Check all deprecated callables in a module/package for expired removal deadlines.
 
@@ -729,7 +790,10 @@ def validate_deprecation_expiry(
             If None, attempts to auto-detect the version using the package name from the module path (e.g.,
             ``"mypackage"`` extracts ``mypackage`` as package name).
         recursive: If True (default), recursively scan submodules. If False, only scan the top-level module.
-        include_members: If True, also scan deprecated class members (methods, constructors).
+        include_members: If True (default), also scan deprecated class members (methods, constructors,
+            classmethods, staticmethods, properties) — matching the discovery default of
+            :func:`~deprecate.audit.find_deprecation_wrappers`, so the enforcement gate sees everything
+            discovery and reporting see.
 
     Returns:
         List of error messages for callables that have expired (past their removal deadline).
@@ -744,13 +808,13 @@ def validate_deprecation_expiry(
 
         >>> # Check with version past some removal deadlines
         >>> expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
-        >>> print(len(expired))  # Some functions have remove_in="0.5"
-        28
+        >>> print(len(expired))  # Some functions and class members have remove_in <= "0.5"
+        31
 
     !!! note
         - Skips callables without a ``remove_in`` field (warnings only, no removal deadline)
         - Skips callables that cannot be imported or accessed
-        - Silently skips callables with invalid ``remove_in`` version formats
+        - Emits a ``UserWarning`` (rather than silently skipping) for callables with an unparsable ``remove_in``
         - Uses semantic versioning comparison (e.g., "1.2.3" vs "2.0.0")
         - Intended for automated checks in CI/CD pipelines
         - Can be integrated into test suites or pre-commit hooks
@@ -839,6 +903,50 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
         args_mapping_auto_expanded=[],
         args_mapping_positional_only=[],
     )
+def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN401
+    """Return the underlying callable(s) from a descriptor, or a 1-tuple of *obj* for plain callables.
+
+    Centralises the descriptor-unwrapping logic shared by :func:`_member_has_deprecation_meta` and
+    :func:`_scan_class` so each descriptor type is handled in exactly one place.
+
+    Args:
+        obj: A raw class member — may be a ``classmethod``, ``staticmethod``, ``property``,
+            ``cached_property``, or a plain callable.
+
+    Returns:
+        A tuple of the underlying callable objects.  Empty when ``obj`` is a ``cached_property``
+        with no ``func`` attribute (degenerate case).
+
+    Examples:
+        >>> import warnings
+        >>> _descriptor_underlying_callables(classmethod(warnings.warn))  # doctest: +ELLIPSIS
+        (<built-in function warn>,)
+        >>> _descriptor_underlying_callables(staticmethod(warnings.warn))
+        (<built-in function warn>,)
+
+    """
+    if isinstance(obj, (classmethod, staticmethod)):
+        return (obj.__func__,)
+    if isinstance(obj, property):
+        return tuple(a for a in (obj.fget, obj.fset, obj.fdel) if a is not None)
+    if isinstance(obj, cached_property):
+        func = getattr(obj, "func", None)
+        return (func,) if func is not None else ()
+    return (obj,)
+
+
+def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
+    """Return ``True`` if a class member — peeking through descriptors — carries ``__deprecated__`` metadata.
+
+    Descriptors store the deprecation metadata on the underlying callable (``classmethod``/``staticmethod``
+    ``__func__``, ``property`` accessors, ``cached_property`` ``func``), so a plain :func:`_has_deprecation_meta`
+    on the raw member would miss deprecated descriptors.
+
+    Args:
+        obj: The raw class member (possibly a descriptor) to inspect.
+
+    """
+    return any(_has_deprecation_meta(c) for c in _descriptor_underlying_callables(obj))
 
 
 def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWrapperInfo]:  # noqa: ANN401
@@ -849,7 +957,10 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
     except (AttributeError, TypeError):
         return results
     for attr_name, obj in members:
-        if attr_name.startswith("_") and attr_name != "__init__":
+        # Skip private/dunder members that are *not* themselves deprecated. Deprecated private or dunder
+        # members (e.g. a deprecated ``_legacy`` method or ``__eq__``) still carry ``__deprecated__`` and must
+        # be surfaced so they can expire — only ``__init__`` is exempt.
+        if attr_name.startswith("_") and attr_name != "__init__" and not _member_has_deprecation_meta(obj):
             continue
         qualified = f"{cls_name}.{attr_name}"
         result: Optional[DeprecationWrapperInfo] = None
@@ -858,7 +969,7 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
             result = _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
         elif isinstance(obj, property):
             _prop_accessor = next(
-                (a for a in (obj.fget, obj.fset, obj.fdel) if a is not None and _has_deprecation_meta(a)),
+                (c for c in _descriptor_underlying_callables(obj) if _has_deprecation_meta(c)),
                 None,
             )
             if _prop_accessor is not None:
@@ -883,12 +994,47 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
     return results
 
 
+def _reexport_module(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the defining module of a non-proxy deprecated wrapper, for re-export attribution.
+
+    ``functools.wraps`` preserves ``__module__`` on ``@deprecated`` functions, so a wrapper re-exported through another
+    package's ``__init__`` still reports the module it was defined in and can be attributed there rather than counted
+    once per importing module.
+
+    Proxies (:class:`~deprecate.proxy._DeprecatedProxy`) have no reliable defining module — normal lookup returns the
+    proxy class's own ``__module__`` and the wrapped object commonly lives in a different module than where the proxy
+    was created — so this returns ``None`` for them and the caller falls back to id-based dedup.
+
+    """
+    if isinstance(obj, _DeprecatedProxy):
+        return None
+    return getattr(obj, "__module__", None)
+
+
+def _same_top_package(mod_a: str, mod_b: str) -> bool:
+    """Return True when ``mod_a`` and ``mod_b`` share the same top-level package."""
+    return mod_a.split(".")[0] == mod_b.split(".")[0]
+
+
 def _scan_module(
     mod: Any,  # noqa: ANN401
     *,
     include_members: bool,
+    seen: set[int],
+    attribute_to_defining_module: bool = True,
 ) -> list[DeprecationWrapperInfo]:
-    """Scan a single module for deprecated functions and class members."""
+    """Scan a single module for deprecated functions and class members.
+
+    ``seen`` accumulates ``id()`` of every wrapper already recorded across the whole :func:`find_deprecation_wrappers`
+    run so a re-exported wrapper (the same object bound in more than one module) is reported once, not once per
+    importing module.
+
+    When ``attribute_to_defining_module`` is True (the default), wrappers whose ``__module__`` differs from ``mod_name``
+    but belongs to the same top-level package are skipped — they will be counted when the recursive walk reaches their
+    defining submodule.  Pass False when the defining submodule will not be visited (package scanned with
+    ``recursive=False``) so that re-exports visible on the public surface are not silently dropped.
+
+    """
     results: list[DeprecationWrapperInfo] = []
 
     # Pre-loop: if the module itself is deprecated (via deprecated_module()), record it first.
@@ -908,9 +1054,29 @@ def _scan_module(
         if inspect.ismodule(obj):
             continue
 
-        result = _scan_callable(obj, mod_name, name)
-        if result is not None:
-            results.append(result)
+        if _has_deprecation_meta(obj):
+            # Attribute a re-exported wrapper to its defining module, not to every module that
+            # merely re-exports it. Non-proxy wrappers carry a reliable ``__module__``; proxies do
+            # not, so they fall through to the id-based dedup below.
+            # Guard 1 — only apply when a recursive walk will visit the defining module.
+            # Guard 2 — only skip when the defining module is in the same top-level package;
+            #   if ``__module__`` points to an external package (e.g. a ``functools.partial``
+            #   wrapper whose ``__module__`` was not propagated by ``functools.wraps``), the
+            #   defining module will never be visited and the wrapper would be dropped silently.
+            defining_module = _reexport_module(obj)
+            if (
+                attribute_to_defining_module
+                and defining_module is not None
+                and defining_module != mod_name
+                and _same_top_package(defining_module, mod_name)
+            ):
+                continue
+            if id(obj) in seen:
+                continue
+            seen.add(id(obj))
+            result = _scan_callable(obj, mod_name, name)
+            if result is not None:
+                results.append(result)
         elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
             results.extend(_scan_class(obj, mod_name, name))
     return results
@@ -967,20 +1133,39 @@ def find_deprecation_wrappers(
 
     Note:
         - Requires that the module be importable
+        - Recursive scans import every submodule of the package, executing their module-level code; packages
+          with heavy import-time work (GPU init, network access) make the scan correspondingly expensive
+        - Skips submodules that fail to import — any exception raised by module-level code is reported as a
+          ``UserWarning`` (``audit: skipped <module>: ...``) and the scan continues
         - Inspects the ``__deprecated__`` attribute set by the :func:`~deprecate.deprecated` decorator
         - Skips private/magic attributes and imports from other modules
         - Uses static member inspection to avoid scan-time side effects from dynamic attribute access
 
     """
     results: list[DeprecationWrapperInfo] = []
+    # Track object identity across the whole scan so a wrapper re-exported through several modules
+    # (the standard packaging pattern) is recorded once, not once per importing module.
+    seen: set[int] = set()
 
     # Handle string module path
     if isinstance(module, str):
         module = importlib.import_module(module)
 
-    results.extend(_scan_module(module, include_members=include_members))
+    # Disable the attribution filter only when the top module is a package AND recursive=False.
+    # In that case the submodules that own the re-exported wrappers will never be visited, so
+    # skipping re-exports would silently drop them.  For single-file modules or recursive package
+    # scans the old behaviour (attribute re-exports to their defining submodule) is preserved.
+    _is_package = hasattr(module, "__path__")
+    results.extend(
+        _scan_module(
+            module,
+            include_members=include_members,
+            seen=seen,
+            attribute_to_defining_module=not (_is_package and not recursive),
+        )
+    )
 
-    if recursive and hasattr(module, "__path__"):
+    if recursive and _is_package:
         try:
             packages = list(
                 pkgutil.walk_packages(path=module.__path__, prefix=module.__name__ + ".", onerror=lambda x: None)
@@ -989,9 +1174,16 @@ def find_deprecation_wrappers(
             packages = []
 
         for _importer, modname, _ispkg in packages:
-            with suppress(ImportError, ModuleNotFoundError):
+            # Submodule top-level code can raise anything at import time (RuntimeError, OSError, KeyError from
+            # env lookups, ...), not just ImportError. One broken submodule must not abort the whole scan — and
+            # with it every audit gate built on top — so catch broad Exception, keep the signal via a warning,
+            # and continue with the remaining submodules.
+            try:
                 submod = importlib.import_module(modname)
-                results.extend(_scan_module(submod, include_members=include_members))
+            except Exception as exc:
+                warnings.warn(f"audit: skipped {modname}: {exc!r}", stacklevel=2)
+                continue
+            results.extend(_scan_module(submod, include_members=include_members, seen=seen))
 
     return results
 
@@ -1045,6 +1237,12 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
         return target.value
     if inspect.ismodule(target):
         return getattr(target, "__name__", str(target))
+    if isinstance(target, _DeprecatedProxy):
+        # A chained-proxy target (the New API is itself a deprecated alias). Bypass proxy
+        # ``__getattr__`` interception to read the static metadata directly — ``__deprecated__``
+        # is stored in the instance ``__dict__`` via ``object.__setattr__`` in ``_DeprecatedProxy.__init__``,
+        # so ``object.__getattribute__`` retrieves it without triggering forwarding logic.
+        return object.__getattribute__(target, "__deprecated__").name
     if callable(target):
         target_module = getattr(target, "__module__", "")
         target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))
@@ -1118,7 +1316,8 @@ def _format_version(version: Optional[str], *, missing: str = "—") -> str:
     """Format version values with a stable ``v`` prefix for report output."""
     if not version:
         return missing
-    return f"v{version.lstrip('vV')}"
+    # Strip a single left-anchored leading ``v``/``V`` (``lstrip`` would remove *all* leading v's).
+    return f"v{re.sub(r'^[vV]', '', version)}"
 
 
 def _get_deprecation_status(info: DeprecationWrapperInfo, current_version: Optional["Version"]) -> DeprecationStatus:
@@ -1297,9 +1496,9 @@ def validate_deprecation_chains(
 
     1. **TARGET chains**: The ``target`` argument points to another deprecated callable instead of the final
        non-deprecated implementation.
-    2. **STACKED chains**: Multiple ``@deprecated(True, ...)`` decorators are stacked on the same function with
-       argument mappings that should be collapsed, or a callable ``target`` is itself a self-deprecation
-       (``target=True``) requiring mapping composition.
+    2. **STACKED chains**: Multiple ``@deprecated(target=TargetMode.ARGS_REMAP, ...)`` decorators are stacked on the
+       same function with argument mappings that should be collapsed, or a callable ``target`` is itself a
+       self-deprecation (``target=TargetMode.ARGS_REMAP``) requiring mapping composition.
 
     Both types are wasteful: wrappers should point directly to the final (non-deprecated) implementation with
     composed argument mappings.

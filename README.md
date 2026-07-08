@@ -1,8 +1,24 @@
 # pyDeprecate
 
-**Simple tooling for marking deprecated functions or classes and re-routing to their successors.**
+**Deprecate Python APIs without breaking existing callers.**
 
-> **Summary**: pyDeprecate is a lightweight Python library for managing function and class deprecations with zero dependencies. It provides automatic call forwarding to replacement functions, argument mapping between old and new APIs, and configurable warning controls to prevent log spam. Perfect for library maintainers evolving APIs while maintaining backward compatibility. Designed around three principles: **simplicity** (single decorator, no config files), **robustness** (works with any Python callable), and **flexibility** (forward, remap, or notify — your choice).
+Use pyDeprecate when you renamed a function, moved a class, or retired an argument but still need old user code to work during the migration window. A single decorator can emit a clear warning, forward the call to the new implementation, remap old argument names, and expose metadata that CI audit tools can enforce when the removal deadline arrives.
+
+```bash
+pip install pyDeprecate
+```
+
+Core capabilities:
+
+- **Warn and forward** deprecated functions or methods to replacements.
+- **Rename or drop arguments** while preserving compatibility for old call sites.
+- **Wrap classes, Enums, dataclasses, constants, and objects** with transparent deprecation proxies.
+- **Audit deprecations in CI** so expired wrappers and deprecation chains do not quietly linger.
+
+> **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Import:** `from deprecate import deprecated, deprecated_class` · **Docs:** https://borda.github.io/pyDeprecate/
+
+<details>
+  <summary>Project badges and package links</summary>
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
@@ -20,7 +36,7 @@
 [![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Borda/pyDeprecate/main.svg)](https://results.pre-commit.ci/latest/github/Borda/pyDeprecate/main)
 
-> **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated, deprecated_class` · **Docs:** https://borda.github.io/pyDeprecate/
+</details>
 
 ______________________________________________________________________
 
@@ -28,15 +44,15 @@ ______________________________________________________________________
 
 - [📖 Overview](#overview)
 - [✨ Features](#features)
-  - [Comparison with Other Tools](#comparison-with-other-tools)
 - [💾 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
 - [🗺 API at a Glance](#api-at-a-glance)
+- [📊 Comparison with Other Tools](#comparison-with-other-tools)
 - [📚 Use-cases and Applications](#use-cases-and-applications)
   - [Simple function forwarding](#simple-function-forwarding)
   - [Advanced target argument mapping](#advanced-target-argument-mapping)
   - [Deprecation warning only](#deprecation-warning-only)
-  - [Self argument mapping](#self-argument-mapping)
+  - [Rename arguments within one function](#rename-arguments-within-one-function)
   - [Stacked deprecation decorators](#stacked-deprecation-decorators)
   - [Conditional skip](#conditional-skip)
   - [Class deprecation](#class-deprecation)
@@ -44,7 +60,7 @@ ______________________________________________________________________
   - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
   - [Automatic docstring updates](#automatic-docstring-updates)
   - [Injecting new required arguments](#injecting-new-required-arguments)
-  - [Async functions](#-async-functions)
+  - [Async functions](#async-functions)
 - [🔇 Understanding the void() Helper](#understanding-the-void-helper)
 - [🔍 Audit](#audit)
   - [Validating Wrapper Configuration](#validating-wrapper-configuration)
@@ -57,10 +73,9 @@ ______________________________________________________________________
 
 ## 📖 Overview
 
-The common use-case is moving your functions across a codebase or outsourcing some functionalities to new packages.
-For most of these cases, you want to maintain some compatibility, so you cannot simply remove the past function. You also want to warn users for some time that the functionality they have been using has moved and is now deprecated in favor of another function (which should be used instead) and will soon be removed completely.
+The common case is moving functionality across modules, packages, or public API names without breaking callers immediately. You keep the old entry point temporarily, show users what changed, and forward them to the replacement until the old name can be removed.
 
-Another good aspect is not overwhelming users with too many warnings, so per function/class, this warning is raised only N times in the preferred stream (warning, logger, etc.).
+pyDeprecate also avoids warning spam: each deprecated function or class warns once by default, and you can route messages through Python warnings, logging, or any custom stream.
 
 > **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
 
@@ -80,87 +95,21 @@ Another good aspect is not overwhelming users with too many warnings, so per fun
 - 🧪 Includes testing helpers (e.g., `assert_no_warnings`, formerly `no_warning_call`) for deterministic tests
 - 🔎 Audit tools for CI pipelines: validate wrapper config, enforce removal deadlines, and detect deprecated-to-deprecated chains
 
-### 📊 Comparison with Other Tools
-
-> 💬 _How does pyDeprecate compare to other Python deprecation solutions?_
-
-While `pyDeprecate` focuses on comprehensive forwarding and argument mapping, other tools might fit different needs:
-
-- [`warnings.warn`](https://docs.python.org/3/library/warnings.html) (stdlib): The standard library's built-in function, perfect for simple cases requiring no dependencies.
-- [`deprecation`](https://pypi.org/project/deprecation/) (Lib): A widely used library by Brian Curtin, excellent for version-based deprecations.
-- [`Deprecated`](https://pypi.org/project/Deprecated/) (wrapt): A robust decorator-based library by Laurent Laporte with `wrapt` integration.
-
-<details>
-  <summary><strong>Key Advantages & Feature Breakdown</strong></summary>
-
-- **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
-- **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
-- **Generator / Async**: Works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`) — the deprecation warning fires at call time regardless of callable type, and the wrapper preserves the correct introspection flags (`iscoroutinefunction`, etc.).
-- **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
-- **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
-- **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
-- **Version Tracking**: Clearly specifies `deprecated_in` and `remove_in` versions for better lifecycle management.
-- **Prevent Log Spam**: Prevents log spam by showing warnings only once per function (or N times) by default.
-- **Zero Extra Depend.**: Lightweight and easy to install, relying solely on the Python standard library.
-- **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
-- **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
-- **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
-- **CI/Audit Tools**: Validate wrapper configuration, and—when installed with the `pyDeprecate[audit]` extra—enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains — designed for CI pipelines and test suites.
-- **Static Type-Checker Signals**: Native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
-- **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
-- **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
-- **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
-
-</details>
-
-> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
-
-<br>
-
-| _Feature_                 | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
-| ------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------: |
-| **Simple Warnings**       |      ✅       |            ✅            |         ✅          |          ✅          |                ✅                |
-| **Auto-Forward Calls**    |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Generator / Async**     |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Argument Mapping**      |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Argument Deprecation**  |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Class/Instance Proxy**  |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Docstring Updates**     |      ✅       |            ❌            |         ✅          |          ✅          |                ❌                |
-| **Version Tracking**      |      ✅       |            ✍️            |         ✅          |          ✅          |                ❌                |
-| **Prevent Log Spam**      |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Zero Extra Depend.**    |      ✅       |            ✅            |         ❌          |          ❌          |                †                 |
-| **Custom Streams**        |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
-| **Testing Helpers**       |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **CI/Audit Tools**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Static Checker Signal** |      ✍️       |            ❌            |         ❌          |          ❌          |                ✅                |
-| **Decorator Stacking**    |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **Sphinx Plugin**         |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-| **MkDocs Plugin**         |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
-
-✍️ = possible but requires manual implementation
-</br>
-† `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as `typing_extensions.deprecated` for Python < 3.13
-
-_Comparison as of v0.8, May 2026. [Open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
-
-**Fair strengths in alternative tools worth considering:**
-
-- `warnings.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes; it also adds no per-call runtime overhead when the warning category is suppressed.
-- `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
-- `Deprecated` — `deprecated.sphinx` includes `@versionadded` and `@versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
-- `warnings.warn` stays the lowest-friction option for one-off internal warnings where compatibility shims are unnecessary.
-
-> [!NOTE]
-> This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
-
-> [!TIP]
-> Every deprecation variant writes the same `DeprecationConfig` — `@deprecated`, `deprecated_class`, `deprecated_instance`, and the audit tools all read from a single source of truth. This means your CI pipeline (`pydeprecate check src/`) catches misconfigured wrappers across all three variants with one scan.
-
 ## 💾 Installation
 
 Requires **Python 3.9 or later**.
 
-Simple installation from PyPI:
+<!-- keep this install table in sync with docs/getting-started.md and docs/index.md -->
+
+Choose the install that matches the workflow you need:
+
+| Workflow                     | Command                                | Includes                                                                                                      |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()`                            |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus expiry support for `pydeprecate expiry` and `pydeprecate all`     |
+
+Base installation from PyPI:
 
 ```bash
 pip install pyDeprecate
@@ -245,12 +194,13 @@ Not sure which API to reach for? Start here.
 | `remove_in`        | `""`                        | Version when removed (e.g. `"2.0"`)                                                                        |
 |                    | **Advanced: ~10% of cases** |                                                                                                            |
 | `stream`           | `deprecation_warning`       | Warning sink callable (set `None` to silence warnings)                                                     |
-| `num_warns`        | `1`                         | `1` once · `-1` always · `N` exactly N times                                                               |
+| `num_warns`        | `1`                         | `0` never · `1` once · `-1` always · `N` exactly N times                                                   |
 | `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
 | `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                   |
 | `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                 |
 | `skip_if`          | `False`                     | `bool` or `Callable → bool`; skip deprecation when true                                                    |
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
+| `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                              |
 
 > [!TIP]
 > `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `attrs_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
@@ -258,13 +208,87 @@ Not sure which API to reach for? Start here.
 
 </details>
 
+## 📊 Comparison with Other Tools
+
+> 💬 _How does pyDeprecate compare to other Python deprecation solutions?_
+
+Most alternatives emit a deprecation notice. pyDeprecate is for migrations where the old API must keep working: it can forward calls, remap arguments, wrap class/object aliases, and audit removal deadlines.
+
+- [`warnings.warn`](https://docs.python.org/3/library/warnings.html) (stdlib): the lowest-friction option for simple internal warnings.
+- [`deprecation`](https://pypi.org/project/deprecation/) (Lib): a widely used library by Brian Curtin with version-based deprecation helpers.
+- [`Deprecated`](https://pypi.org/project/Deprecated/) (wrapt): a decorator-based library by Laurent Laporte with `wrapt` integration.
+
+<details>
+  <summary><strong>Key Advantages & Feature Breakdown</strong></summary>
+
+- **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
+- **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
+- **Generator / Async**: Works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`) — the deprecation warning fires at call time regardless of callable type, and the wrapper preserves the correct introspection flags (`iscoroutinefunction`, etc.).
+- **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
+- **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
+- **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
+- **Version Tracking**: Clearly specifies `deprecated_in` and `remove_in` versions for better lifecycle management.
+- **Prevent Log Spam**: Prevents log spam by showing warnings only once per function (or N times) by default.
+- **Zero Extra Depend.**: Lightweight and easy to install, relying solely on the Python standard library.
+- **Custom Streams**: Route warnings to `logging`, standard `warnings`, or any custom callable to fit your monitoring stack.
+- **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
+- **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
+- **CI/Audit Tools**: Validate wrapper configuration, and — when installed with the `pyDeprecate[audit]` extra — enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains.
+- **Static Type-Checker Signals**: Native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
+- **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
+- **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
+- **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
+
+</details>
+
+> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. `warnings.warn` tells users what is deprecated; pyDeprecate tells users what to use instead and does the forwarding for them. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702. On Python < 3.13, `typing_extensions.deprecated` requires `typing_extensions` (marked ✍️ for that reason).
+
+| _Feature_                 | `pyDeprecate` | `warnings.warn` (stdlib) | `deprecation` (Lib) | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
+| ------------------------- | :-----------: | :----------------------: | :-----------------: | :------------------: | :------------------------------: |
+| **Simple Warnings**       |      ✅       |            ✅            |         ✅          |          ✅          |                ✅                |
+| **Auto-Forward Calls**    |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Generator / Async**     |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Argument Mapping**      |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Argument Deprecation**  |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
+| **Class/Instance Proxy**  |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Docstring Updates**     |      ✅       |            ❌            |         ✅          |          ✅          |                ❌                |
+| **Version Tracking**      |      ✅       |            ✍️            |         ✅          |          ✅          |                ❌                |
+| **Prevent Log Spam**      |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
+| **Zero Extra Depend.**    |      ✅       |            ✅            |         ❌          |          ❌          |                †                 |
+| **Custom Streams**        |      ✅       |            ✍️            |         ❌          |          ❌          |                ❌                |
+| **Testing Helpers**       |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **CI/Audit Tools**        |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Static Checker Signal** |      ✍️       |            ❌            |         ❌          |          ❌          |                ✅                |
+| **Decorator Stacking**    |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **Sphinx Plugin**         |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+| **MkDocs Plugin**         |      ✅       |            ❌            |         ❌          |          ❌          |                ❌                |
+
+✍️ = possible but requires manual implementation
+<br>
+† `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as `typing_extensions.deprecated` for Python < 3.13
+
+_This positioning guide is not a full cell-by-cell external audit and may drift from upstream tools over time; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
+
+**Fair strengths in alternative tools worth considering:**
+
+- `warnings.deprecated` is the best option when your top priority is IDE/type-checker diagnostics with no runtime behavior changes; it also adds no per-call runtime overhead when the warning category is suppressed.
+- `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
+- `Deprecated` — `deprecated.sphinx` includes `@versionadded` and `@versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
+- `warnings.warn` stays the lowest-friction option for one-off internal warnings where compatibility shims are unnecessary.
+
+> [!NOTE]
+> This comparison is compiled to the best of our knowledge and we're happy to make any justified corrections. If you spot an inaccuracy, please [open an issue](https://github.com/Borda/pyDeprecate/issues) or submit a PR.
+
+> [!TIP]
+> Every deprecation variant writes the same `DeprecationConfig` — `@deprecated`, `deprecated_class`, `deprecated_instance`, and the audit tools all read from a single source of truth. This means your CI pipeline (`pydeprecate check src/`) catches misconfigured wrappers across all three variants with one scan.
+
 ## 📚 Use-cases and Applications
 
 The functionality is kept simple and all defaults should be reasonable, but you can still do extra customization such as:
 
 - 💬 define user warning message and preferred stream
 - 🔀 extended argument mapping to target function/method
-- 🎯 define deprecation logic for self arguments
+- 🎯 define deprecation logic for renamed arguments within one function
 - 📊 specify warning count per:
   - called function (for func deprecation)
   - used arguments (for argument deprecation)
@@ -378,7 +402,7 @@ This is an equivalent to the `@deprecated(...)` decorator form but applied to an
 
 ### 🔀 Advanced target argument mapping
 
-Another more complex example is using argument mapping is:
+Use argument mapping when the replacement function keeps the same meaning but uses different parameter names:
 
 <details>
   <summary>Example: mapping deprecated args to <code>sklearn.metrics.accuracy_score</code></summary>
@@ -396,6 +420,9 @@ from deprecate import deprecated, void
     stream=logging.warning,
     # number of warnings per lifetime (with -1 for always)
     num_warns=5,
+    # lifecycle metadata shown in the deprecation notice and audit output
+    deprecated_in="0.6",
+    remove_in="1.0",
     # custom message template
     template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
     # as target args are different, define mapping from source to target func
@@ -455,16 +482,16 @@ print(my_sum(1, 2))
 > [!NOTE]
 > When using `TargetMode.NOTIFY`, the deprecated function's implementation must be preserved and will be executed. The deprecation decorator only adds a warning without forwarding.
 
-### 🔄 Self argument mapping
+### 🔄 Rename arguments within one function
 
-We also support deprecation and argument mapping for the function itself:
+Use `TargetMode.ARGS_REMAP` when the function stays in place but one of its arguments has been renamed or removed:
 
 ```python
 from deprecate import TargetMode, deprecated
 
 
 @deprecated(
-    # define as deprecation some self argument - mapping
+    # rename an argument within the same function
     target=TargetMode.ARGS_REMAP,
     args_mapping={"coef": "new_coef"},
     # common version info
@@ -619,7 +646,7 @@ print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
 
 ### ⚙ Conditional skip
 
-Conditional skip of which can be used for mapping between different target functions depending on additional input such as package version
+Use `skip_if` when the deprecation notice should depend on runtime state such as an installed package version:
 
 <details>
 <summary>Example: <code>skip_if</code> based on a runtime condition</summary>
@@ -671,7 +698,7 @@ print(skip_pow(2, 3))
 
 <br>
 
-This can be beneficial with multiple deprecation levels shown above...
+This pattern is useful when a migration is only active for some environments or dependency versions.
 
 ### 🏗 Class deprecation
 
@@ -783,14 +810,9 @@ efg
 
 ### 📦 Deprecating constants and instances
 
-Use `deprecated_instance` to wrap objects accessed via attribute/item/call operations (for example, dicts,
-lists, or custom objects) with transparent deprecation warnings. Primitive protocol methods (such as numeric
-arithmetic on `float` or concatenation on `str`) are not proxied. For primitive constants like floats or
-strings, prefer wrapping them in a container (such as a dict or configuration object) or updating call sites
-directly, since arithmetic and other primitive protocol operations are not intercepted by the wrapper. The
-`name` parameter is optional; when omitted it defaults to the type name of the wrapped object.
+Use `deprecated_instance` to wrap module-level objects such as dicts, lists, constants, or custom objects with transparent deprecation warnings. Attribute, item, call, and common data-use operations forward to the wrapped object, while `isinstance` checks and structural introspection stay silent so type guards keep working.
 
-The proxy passes `isinstance(obj, OriginalClass)` and `issubclass(SubClass, OriginalClass)` checks transparently — zero changes needed in type-guard code.
+The `name` parameter is optional; when omitted it defaults to the wrapped object's type name. Use `read_only=True` for shared constants or config objects that callers should not mutate through the deprecated alias. For operator, copy, pickle, and introspection edge cases, see [Classes → Constants and instances](https://borda.github.io/pyDeprecate/stable/guide/classes.html#constants-and-instances) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies).
 
 ```python
 from deprecate import deprecated_instance
@@ -992,7 +1014,7 @@ red
 
 </details>
 
-Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
+Each deprecated attribute name has its own independent warning counter — with `num_warns=1`, both `color` and `size` each emit one warning, not one shared across all entries. See [Selective attribute deprecation](https://borda.github.io/pyDeprecate/stable/guide/classes.html#selective-attribute-deprecation) in the docs for write/delete redirect and Enum member alias examples.
 
 **Dataclass auto-expand** — when the wrapped class is a `@dataclass`, a single `deprecated_class(attrs_mapping={"old": "new"})` call automatically warns on both attribute access (`obj.old`) and constructor kwargs (`DC(old=5)`). No need to set `args_mapping` separately for a field rename. For non-`@dataclass` targets, `attrs_mapping` covers attribute access only — also set `args_mapping` to cover constructor kwargs.
 
@@ -1276,10 +1298,7 @@ b'https://example.com'
 </details>
 
 > [!NOTE]
-> `@deprecated` supports **async generator functions** (`async def` + `yield`). The wrapper is a sync callable — it fires the deprecation warning eagerly at call time and returns the async generator object. Callers iterate as normal with `async for item in wrapper(...):`. Because the wrapper is sync, `inspect.isasyncgenfunction(wrapper)` returns `False`; frameworks that branch on this introspection may need a thin async generator passthrough.
-
-> [!NOTE]
-> `_WrapperState` fields are plain dataclass fields with no asyncio lock — concurrent coroutines sharing one deprecated wrapper can race on warning counts. Set `num_warns=-1` to bypass the count gate in tests that assert exact emission counts.
+> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and exact async warning-count caveats, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
 
 ## 🔇 Understanding the `void()` Helper
 
@@ -1670,7 +1689,7 @@ print(f"Found {len(expired)} expired")
 
 ```
 Found 14 expired
-Found 28 expired
+Found 31 expired
 Found 17 expired
 Found 0 expired
 ```
@@ -1729,7 +1748,7 @@ def enforce_deprecation_deadlines():
 > [!TIP]
 >
 > - Callables without `remove_in` are skipped (warnings-only deprecations are allowed)
-> - Invalid version formats in `remove_in` are silently skipped
+> - Callables with an unparsable `remove_in` version string emit a `UserWarning` naming the callable; the scan continues for the rest
 > - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
 > - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
 
@@ -1857,7 +1876,7 @@ def enforce_no_deprecation_chains():
 
 ### Detecting Positional-Only Incompatible Mappings
 
-The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. Those proxies fall back to `setattr` after construction, which may silently produce wrong results on immutable types or classes without a matching `__setattr__`.
+The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. The proxy forwards those remapped values positionally to the constructor, so the mapping works even for required positional-only parameters, frozen dataclasses, and classes with `__post_init__` logic — the finding is an advisory visibility signal, not a failure.
 
 ```bash
 pydeprecate check my_package
@@ -1867,8 +1886,8 @@ pydeprecate all my_package
 
 > [!TIP]
 >
-> - The proxy still works at runtime via `setattr`, but the fallback is invisible; `pydeprecate check` surfaces it at CI time
-> - Fix: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
+> - The proxy forwards remapped values positionally to the constructor at call time; `pydeprecate check` surfaces the pattern at CI time as an advisory signal
+> - To silence the decoration-time `UserWarning`: use `attrs_mapping` instead of `args_mapping` for `POSITIONAL_ONLY` parameters, or restructure the target constructor to accept keyword arguments
 > - For programmatic use: `validate_mapping_compatibility(module)` returns `list[DeprecationWrapperInfo]` where `args_mapping_positional_only` is non-empty
 
 ## 🧪 Testing Deprecated Code
@@ -1972,11 +1991,11 @@ print(predict_batch(1))
 
 ## 🔧 Troubleshooting
 
-### ⚠ UserWarning: `Applying @deprecated to class … is deprecated itself`
+### ⚠ UserWarning: `Direct use of @deprecated on class … is deprecated`
 
-**Problem:** `UserWarning: Applying @deprecated to class MyClass is not supported since v0.6.0. Use @deprecated_class() from deprecate.proxy instead.`
+**Problem:** `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.`
 
-**Cause:** You applied `@deprecated` directly to a class. This still works (it delegates to `@deprecated_class()` under the hood) but is itself deprecated — `@deprecated` is designed for functions and methods only.
+**Cause:** You applied `@deprecated` directly to a class. This still works (it delegates to `@deprecated_class()` under the hood) but the delegation path is itself deprecated and will become a `TypeError` in a future release — `@deprecated` is designed for functions and methods only. Use `deprecated_class` (public import: `from deprecate import deprecated_class`) instead.
 
 <details>
 <summary>Solution</summary>
@@ -2028,7 +2047,7 @@ print(MyClass(42).x)
 
 ### ❗ TypeError: `Failed mapping`
 
-**Problem:** `TypeError: Failed mapping of 'my_func', arguments missing in target source: ['old_arg']`
+**Problem:** `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`
 
 **Cause:** Your deprecated function has arguments that the target function doesn't accept.
 
@@ -2049,7 +2068,7 @@ print(MyClass(42).x)
 
 
    # None means skip this argument
-   @deprecated(target=new_func, args_mapping={"old_arg": None})
+   @deprecated(target=new_func, args_mapping={"old_arg": None}, deprecated_in="1.0", remove_in="2.0")
    def old_func(old_arg: int, new_arg: int) -> int:
        pass
    ```
@@ -2067,7 +2086,7 @@ print(MyClass(42).x)
 
 
    # Map old to new
-   @deprecated(target=new_func, args_mapping={"old_name": "new_name"})
+   @deprecated(target=new_func, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
    def old_func(old_name: int) -> int:
        pass
    ```
@@ -2079,7 +2098,7 @@ print(MyClass(42).x)
 
 
    # Deprecate within same function
-   @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"})
+   @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
    def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
        return new_arg * 2
    ```
@@ -2113,13 +2132,13 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=get_status, skip_if=should_skip)
+@deprecated(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
 def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=get_status, skip_if=lambda: False)
+@deprecated(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
 def infer_v2():
     pass
 
@@ -2163,13 +2182,13 @@ from deprecate import deprecated
 
 
 # Show warning every time
-@deprecated(target=score_predictions, num_warns=-1)  # -1 means unlimited
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=-1)  # -1 means unlimited
 def predict():
     pass
 
 
 # Show warning N times total
-@deprecated(target=score_predictions, num_warns=5)  # Show 5 times
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=5)  # Show 5 times
 def predict_batch():
     pass
 
@@ -2192,9 +2211,11 @@ True
 
 ### 📦 Deprecation Not Working Across Modules
 
-If you're moving functions to a different module or package, show the pattern rather than importing a non-existent package in the docs.
+**Problem:** The deprecation notice shows an unexpected path when a function is moved to a different module.
 
-The warning will correctly show the full path for real imports when used in your package.
+**Cause:** pyDeprecate resolves the target path from `target.__module__` and `target.__qualname__` at decoration time — not at call time. If the target is imported via an alias or re-export at the point where `@deprecated` is applied, the stored path reflects the alias, not the canonical location.
+
+**Solution:** Import the target from its canonical module location before applying `@deprecated`. The deprecation notice will then show the fully-qualified path where the function actually lives.
 
 ## 🤝 Contributing
 
