@@ -77,6 +77,7 @@ repos:
       - id: mdformat
         name: mdformat (docs)
         files: ^docs/
+        exclude: ^docs/llms\.txt$ # agent-facing plain-text contract — must stay compact, not table-padded
         args: ["--number", "--wrap=no"]
         additional_dependencies:
           - mdformat-mkdocs
