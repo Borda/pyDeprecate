@@ -31,6 +31,8 @@ Core Components:
 **Proxy** (:mod:`deprecate.proxy`):
     - :func:`~deprecate.proxy.deprecated_instance`: Wrap any object with deprecation warnings
     - :func:`~deprecate.proxy.deprecated_class`: Decorator for deprecating Enum/dataclass definitions
+    - :func:`~deprecate.module.deprecated_module`: Module-level deprecation via PEP-562-inspired
+      ``__getattribute__`` interception
 
 **Testing** (:mod:`deprecate.utils`):
     - :func:`~deprecate.utils.assert_no_warnings`: Context manager asserting that no warnings are raised
