@@ -99,6 +99,8 @@ pyDeprecate also avoids warning spam: each deprecated function or class warns on
 
 Requires **Python 3.9 or later**.
 
+<!-- keep this install table in sync with docs/getting-started.md and docs/index.md -->
+
 Choose the install that matches the workflow you need:
 
 | Workflow                     | Command                                | Includes                                                                                                      |

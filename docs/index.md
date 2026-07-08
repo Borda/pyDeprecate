@@ -68,6 +68,8 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 ## Installation
 
+<!-- keep this install table in sync with README.md and docs/getting-started.md -->
+
 Choose the install that matches the workflow you need:
 
 | Workflow                     | Command                                | Includes                                                                                                      |
