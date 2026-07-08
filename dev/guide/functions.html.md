@@ -1,6 +1,6 @@
 ---
 id: functions
-description: Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, self argument remapping, stacked decorators, and conditional skip.
+description: Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, same-function argument renaming, stacked decorators, and conditional skip.
 ---
 
 # Functions
@@ -131,6 +131,9 @@ from deprecate import deprecated, void
     stream=logging.warning,
     # number of warnings per lifetime (with -1 for always)
     num_warns=5,
+    # lifecycle metadata shown in notices and audit output
+    deprecated_in="0.6",
+    remove_in="1.0",
     # custom message template
     template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
     # as target args are different, define mapping from source to target func
@@ -191,7 +194,7 @@ print(my_sum(1, 2))
 
 </details>
 
-## Self argument mapping
+## Rename arguments within one function
 
 Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.
 
@@ -200,7 +203,7 @@ from deprecate import TargetMode, deprecated
 
 
 @deprecated(
-    # define as deprecation some self argument - mapping
+    # rename an argument within the same function
     target=TargetMode.ARGS_REMAP,
     args_mapping={"coef": "new_coef"},
     # common version info

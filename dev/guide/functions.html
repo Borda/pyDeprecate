@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, self argument remapping, stacked decorators, and conditional skip.">
+        <meta name="description" content="Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, same-function argument renaming, stacked decorators, and conditional skip.">
       
       
       
@@ -66,7 +66,7 @@
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Functions — pyDeprecate" />
-<meta property="og:description" content="Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, self argument remapping, stacked decorators, and conditional skip." />
+<meta property="og:description" content="Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, same-function argument renaming, stacked decorators, and conditional skip." />
 <meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/functions.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
@@ -76,7 +76,7 @@
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Functions — pyDeprecate" />
-<meta name="twitter:description" content="Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, self argument remapping, stacked decorators, and conditional skip." />
+<meta name="twitter:description" content="Deprecating Python functions and methods — simple forwarding, argument renaming, notice-only, same-function argument renaming, stacked decorators, and conditional skip." />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
@@ -87,7 +87,7 @@
   "@context": "https://schema.org",
   "@type": "TechArticle",
   "headline": "Functions",
-  "description": "Deprecating Python functions and methods \u2014 simple forwarding, argument renaming, notice-only, self argument remapping, stacked decorators, and conditional skip.",
+  "description": "Deprecating Python functions and methods \u2014 simple forwarding, argument renaming, notice-only, same-function argument renaming, stacked decorators, and conditional skip.",
   "url": "https://borda.github.io/pyDeprecate/stable/guide/functions.html",
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/functions.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-06-18"
+  "dateModified": "2026-07-08"
 }
 </script>
 
@@ -515,10 +515,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#self-argument-mapping" class="md-nav__link">
+  <a href="#rename-arguments-within-one-function" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Self argument mapping
+        Rename arguments within one function
       
     </span>
   </a>
@@ -1395,10 +1395,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#self-argument-mapping" class="md-nav__link">
+  <a href="#rename-arguments-within-one-function" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Self argument mapping
+        Rename arguments within one function
       
     </span>
   </a>
@@ -1666,20 +1666,23 @@
 <a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="n">stream</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">,</span>
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="c1"># number of warnings per lifetime (with -1 for always)</span>
 <a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="n">num_warns</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="c1"># custom message template</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;`</span><span class="si">%(source_name)s</span><span class="s2">` was deprecated, use `</span><span class="si">%(target_path)s</span><span class="s2">`&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="c1"># as target args are different, define mapping from source to target func</span>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;preds&quot;</span><span class="p">:</span> <span class="s2">&quot;y_pred&quot;</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="s2">&quot;y_true&quot;</span><span class="p">,</span> <span class="s2">&quot;blabla&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="p">)</span>
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="k">def</span><span class="w"> </span><span class="nf">depr_accuracy</span><span class="p">(</span><span class="n">preds</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">blabla</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;My deprecated function which is mapping to sklearn accuracy.&quot;&quot;&quot;</span>
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>    <span class="c1"># to stop complain your IDE about unused argument you can use void/empty function</span>
-<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">blabla</span><span class="p">)</span>
-<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>
-<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>
-<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="c1"># calling this function will raise a deprecation warning:</span>
-<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="c1">#   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`</span>
-<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">depr_accuracy</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="mf">1.23</span><span class="p">))</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="c1"># lifecycle metadata shown in notices and audit output</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.6&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="c1"># custom message template</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;`</span><span class="si">%(source_name)s</span><span class="s2">` was deprecated, use `</span><span class="si">%(target_path)s</span><span class="s2">`&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>    <span class="c1"># as target args are different, define mapping from source to target func</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;preds&quot;</span><span class="p">:</span> <span class="s2">&quot;y_pred&quot;</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="s2">&quot;y_true&quot;</span><span class="p">,</span> <span class="s2">&quot;blabla&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="p">)</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="k">def</span><span class="w"> </span><span class="nf">depr_accuracy</span><span class="p">(</span><span class="n">preds</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">blabla</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;My deprecated function which is mapping to sklearn accuracy.&quot;&quot;&quot;</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>    <span class="c1"># to stop complain your IDE about unused argument you can use void/empty function</span>
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a>    <span class="k">return</span> <span class="n">void</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">blabla</span><span class="p">)</span>
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a>
+<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a>
+<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="c1"># calling this function will raise a deprecation warning:</span>
+<a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="c1">#   WARNING:root:`depr_accuracy` was deprecated, use `sklearn.metrics.accuracy_score`</span>
+<a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a><span class="nb">print</span><span class="p">(</span><span class="n">depr_accuracy</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="mf">1.23</span><span class="p">))</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Passing both old and new argument names at once</p>
@@ -1716,13 +1719,13 @@
 
 </details>
 
-<h2 id="self-argument-mapping">Self argument mapping<a class="headerlink" href="#self-argument-mapping" title="Permanent link">🔗</a></h2>
+<h2 id="rename-arguments-within-one-function">Rename arguments within one function<a class="headerlink" href="#rename-arguments-within-one-function" title="Permanent link">🔗</a></h2>
 <p>Use <code>TargetMode.ARGS_REMAP</code> to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="c1"># define as deprecation some self argument - mapping</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="c1"># rename an argument within the same function</span>
 <a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;coef&quot;</span><span class="p">:</span> <span class="s2">&quot;new_coef&quot;</span><span class="p">},</span>
 <a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="c1"># common version info</span>
@@ -2116,7 +2119,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 18, 2026 18:45:13 UTC">2026-06-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 8, 2026 11:02:10 UTC">2026-07-08</span>
   </span>
 
     
