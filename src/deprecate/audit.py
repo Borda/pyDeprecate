@@ -1018,6 +1018,47 @@ def _same_top_package(mod_a: str, mod_b: str) -> bool:
     return mod_a.split(".")[0] == mod_b.split(".")[0]
 
 
+def _should_skip_reexported_wrapper(
+    obj: Any,  # noqa: ANN401
+    mod_name: str,
+    attribute_to_defining_module: bool,
+) -> bool:
+    """Return True when a re-exported wrapper should be attributed elsewhere."""
+    if not attribute_to_defining_module:
+        return False
+    defining_module = _reexport_module(obj)
+    return (
+        defining_module is not None
+        and defining_module != mod_name
+        and _same_top_package(defining_module, mod_name)
+    )
+
+
+def _scan_module_member(
+    obj: Any,  # noqa: ANN401
+    *,
+    mod_name: str,
+    name: str,
+    include_members: bool,
+    attribute_to_defining_module: bool,
+    seen: set[int],
+) -> list[DeprecationWrapperInfo]:
+    """Scan one module member for deprecated wrappers or nested class members."""
+    if name.startswith("_") or inspect.ismodule(obj):
+        return []
+    if _has_deprecation_meta(obj):
+        if _should_skip_reexported_wrapper(obj, mod_name, attribute_to_defining_module):
+            return []
+        if id(obj) in seen:
+            return []
+        seen.add(id(obj))
+        result = _scan_callable(obj, mod_name, name)
+        return [result] if result is not None else []
+    if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
+        return _scan_class(obj, mod_name, name)
+    return []
+
+
 def _scan_module(
     mod: Any,  # noqa: ANN401
     *,
@@ -1051,36 +1092,16 @@ def _scan_module(
 
     mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
     for name, obj in members:
-        if name.startswith("_"):
-            continue
-        if inspect.ismodule(obj):
-            continue
-
-        if _has_deprecation_meta(obj):
-            # Attribute a re-exported wrapper to its defining module, not to every module that
-            # merely re-exports it. Non-proxy wrappers carry a reliable ``__module__``; proxies do
-            # not, so they fall through to the id-based dedup below.
-            # Guard 1 — only apply when a recursive walk will visit the defining module.
-            # Guard 2 — only skip when the defining module is in the same top-level package;
-            #   if ``__module__`` points to an external package (e.g. a ``functools.partial``
-            #   wrapper whose ``__module__`` was not propagated by ``functools.wraps``), the
-            #   defining module will never be visited and the wrapper would be dropped silently.
-            defining_module = _reexport_module(obj)
-            if (
-                attribute_to_defining_module
-                and defining_module is not None
-                and defining_module != mod_name
-                and _same_top_package(defining_module, mod_name)
-            ):
-                continue
-            if id(obj) in seen:
-                continue
-            seen.add(id(obj))
-            result = _scan_callable(obj, mod_name, name)
-            if result is not None:
-                results.append(result)
-        elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
-            results.extend(_scan_class(obj, mod_name, name))
+        results.extend(
+            _scan_module_member(
+                obj,
+                mod_name=mod_name,
+                name=name,
+                include_members=include_members,
+                attribute_to_defining_module=attribute_to_defining_module,
+                seen=seen,
+            )
+        )
     return results
 
 
