@@ -1742,6 +1742,7 @@ ______________________________________________________________________
 This limitation applies to both Mode 1 and Mode 2 of `deprecated_module()`.
 
 **Recommendation:** Document the deprecation prominently in the module's docstring and in your release notes. For callers you control, replace `from old_calculator import *` with `from new_calculator import ...` directly. For third-party callers, the warning will appear as soon as they switch from star imports to explicit attribute access or named imports.
+
 ## Does the deprecation survive `copy`, `deepcopy`, and `pickle`?
 
 **Q:** I copied (or pickled and restored) an object wrapped by `deprecated_instance` / `deprecated_class` — does the deprecation still apply to the copy?

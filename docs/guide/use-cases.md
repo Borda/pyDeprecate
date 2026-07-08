@@ -52,7 +52,7 @@ Advanced patterns: injecting a deprecation notice into the docstring at import t
 | Inject deprecation notice into docstring      | [Advanced → Docstring updates](advanced.md#automatic-docstring-updates)                               |
 | Inject a fixed default for a new required arg | [Advanced → Injecting new args](advanced.md#injecting-new-required-arguments)                         |
 | Silence warnings in test fixtures             | [Advanced → Testing helpers](advanced.md#suppressing-futurewarning-in-test-fixtures)                  |
-| Deprecate a `@classmethod` or `@staticmethod` | [Advanced → Class/static methods](advanced.md#class-methods-and-static-methods)                     |
+| Deprecate a `@classmethod` or `@staticmethod` | [Advanced → Class/static methods](advanced.md#class-methods-and-static-methods)                       |
 | Deprecate a generator function                | [Advanced → Generators](advanced.md#deprecating-generator-functions)                                  |
 | Deprecate an entire module                    | [Modules](modules.md)                                                                                 |
 

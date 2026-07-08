@@ -903,6 +903,8 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
         args_mapping_auto_expanded=[],
         args_mapping_positional_only=[],
     )
+
+
 def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN401
     """Return the underlying callable(s) from a descriptor, or a 1-tuple of *obj* for plain callables.
 
