@@ -60,7 +60,7 @@ ______________________________________________________________________
   - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
   - [Automatic docstring updates](#automatic-docstring-updates)
   - [Injecting new required arguments](#injecting-new-required-arguments)
-  - [Async functions](#-async-functions)
+  - [Async functions](#async-functions)
 - [🔇 Understanding the void() Helper](#understanding-the-void-helper)
 - [🔍 Audit](#audit)
   - [Validating Wrapper Configuration](#validating-wrapper-configuration)
@@ -810,7 +810,7 @@ efg
 
 Use `deprecated_instance` to wrap module-level objects such as dicts, lists, constants, or custom objects with transparent deprecation warnings. Attribute, item, call, and common data-use operations forward to the wrapped object, while `isinstance` checks and structural introspection stay silent so type guards keep working.
 
-The `name` parameter is optional; when omitted it defaults to the wrapped object's type name. Use `read_only=True` for shared constants or config objects that callers should not mutate through the deprecated alias. For operator, copy, pickle, and introspection edge cases, see [Classes → Constants and instances](https://borda.github.io/pyDeprecate/stable/guide/classes/#constants-and-instances) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting/#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies).
+The `name` parameter is optional; when omitted it defaults to the wrapped object's type name. Use `read_only=True` for shared constants or config objects that callers should not mutate through the deprecated alias. For operator, copy, pickle, and introspection edge cases, see [Classes → Constants and instances](https://borda.github.io/pyDeprecate/stable/guide/classes.html#constants-and-instances) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies).
 
 ```python
 from deprecate import deprecated_instance
@@ -1236,7 +1236,7 @@ b'https://example.com'
 </details>
 
 > [!NOTE]
-> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and exact async warning-count caveats, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async/) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting/#concurrent-async-calls-and-warning-counts).
+> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and exact async warning-count caveats, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
 
 ## 🔇 Understanding the `void()` Helper
 
