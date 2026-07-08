@@ -49,24 +49,24 @@ ______________________________________________________________________
 - [🗺 API at a Glance](#api-at-a-glance)
 - [📊 Comparison with Other Tools](#comparison-with-other-tools)
 - [📚 Use-cases and Applications](#use-cases-and-applications)
-  - [Simple function forwarding](#simple-function-forwarding)
-  - [Advanced target argument mapping](#advanced-target-argument-mapping)
-  - [Deprecation warning only](#deprecation-warning-only)
-  - [Rename arguments within one function](#rename-arguments-within-one-function)
-  - [Stacked deprecation decorators](#stacked-deprecation-decorators)
-  - [Conditional skip](#conditional-skip)
-  - [Class deprecation](#class-deprecation)
-  - [Deprecating constants and instances](#deprecating-constants-and-instances)
-  - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
-  - [Automatic docstring updates](#automatic-docstring-updates)
-  - [Injecting new required arguments](#injecting-new-required-arguments)
-  - [Async functions](#async-functions)
+    - [Simple function forwarding](#simple-function-forwarding)
+    - [Advanced target argument mapping](#advanced-target-argument-mapping)
+    - [Deprecation warning only](#deprecation-warning-only)
+    - [Rename arguments within one function](#rename-arguments-within-one-function)
+    - [Stacked deprecation decorators](#stacked-deprecation-decorators)
+    - [Conditional skip](#conditional-skip)
+    - [Class deprecation](#class-deprecation)
+    - [Deprecating constants and instances](#deprecating-constants-and-instances)
+    - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
+    - [Automatic docstring updates](#automatic-docstring-updates)
+    - [Injecting new required arguments](#injecting-new-required-arguments)
+    - [Async functions](#async-functions)
 - [🔇 Understanding the void() Helper](#understanding-the-void-helper)
 - [🔍 Audit](#audit)
-  - [Validating Wrapper Configuration](#validating-wrapper-configuration)
-  - [Generating Deprecation Tables](#generating-deprecation-tables)
-  - [Enforcing Deprecation Removal Deadlines](#enforcing-deprecation-removal-deadlines)
-  - [Detecting Deprecation Chains](#detecting-deprecation-chains)
+    - [Validating Wrapper Configuration](#validating-wrapper-configuration)
+    - [Generating Deprecation Tables](#generating-deprecation-tables)
+    - [Enforcing Deprecation Removal Deadlines](#enforcing-deprecation-removal-deadlines)
+    - [Detecting Deprecation Chains](#detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
 - [🔧 Troubleshooting](#troubleshooting)
 - [🤝 Contributing](#contributing)
@@ -290,8 +290,8 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 - 🔀 extended argument mapping to target function/method
 - 🎯 define deprecation logic for renamed arguments within one function
 - 📊 specify warning count per:
-  - called function (for func deprecation)
-  - used arguments (for argument deprecation)
+    - called function (for func deprecation)
+    - used arguments (for argument deprecation)
 - ⚙️ define conditional skip (e.g. depending on some package version)
 
 In particular the target values (cases):
@@ -1439,8 +1439,8 @@ It supports two styles via `style=`:
 
 - `compact` (default): `Original API | API Type | New API | Deprecated | Remove | Current Status`
 - `matrix`: `Original API | API Type | New API | <all versions ...>` with lifecycle markers:
-  - `D` = deprecated in this version
-  - `R` = remove in this version
+    - `D` = deprecated in this version
+    - `R` = remove in this version
 - rows are ordered by module and symbol family (class/function), so related `args` variants stay grouped together
 
 The **Current Status** column uses these labels:
@@ -1809,9 +1809,9 @@ def enforce_no_deprecation_chains():
 > - Returns `list[DeprecationWrapperInfo]` — each entry has `chain_type` set to a `ChainType` enum value
 > - `ChainType.TARGET` — target is a deprecated callable that forwards to another function; fix by pointing directly to the final target
 > - `ChainType.STACKED` — mappings chain through multiple hops and must be composed; includes:
->   - Callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming) — mappings compose across hops
->   - Stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
->   - `deprecated_class(attrs_mapping=...)` where one deprecated attribute redirects to another deprecated attribute alias
+>     - Callable target is itself `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` (self-renaming) — mappings compose across hops
+>     - Stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` on the same function — merge into one decorator with combined `args_mapping`
+>     - `deprecated_class(attrs_mapping=...)` where one deprecated attribute redirects to another deprecated attribute alias
 > - Use `recursive=False` to scan only the top-level module
 
 ### Detecting Positional-Only Incompatible Mappings
@@ -1996,52 +1996,52 @@ print(MyClass(42).x)
 
 1. **Skip the argument** (if it's no longer needed):
 
-   ```python
-   # define a target that ignores the extra arg
-   def new_func(required_arg: int, **kwargs) -> int:
-       return required_arg * 2
+    ```python
+    # define a target that ignores the extra arg
+    def new_func(required_arg: int, **kwargs) -> int:
+        return required_arg * 2
 
 
-   # ---------------------------
+    # ---------------------------
 
-   from deprecate import deprecated
-
-
-   # None means skip this argument
-   @deprecated(target=new_func, args_mapping={"old_arg": None}, deprecated_in="1.0", remove_in="2.0")
-   def old_func(old_arg: int, new_arg: int) -> int:
-       pass
-   ```
-
-2. **Rename the argument** (if target uses different name):
-
-   ```python
-   def new_func(new_name: int) -> int:
-       return new_name * 2
+    from deprecate import deprecated
 
 
-   # ---------------------------
+    # None means skip this argument
+    @deprecated(target=new_func, args_mapping={"old_arg": None}, deprecated_in="1.0", remove_in="2.0")
+    def old_func(old_arg: int, new_arg: int) -> int:
+        pass
+    ```
 
-   from deprecate import deprecated
+1. **Rename the argument** (if target uses different name):
 
-
-   # Map old to new
-   @deprecated(target=new_func, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
-   def old_func(old_name: int) -> int:
-       pass
-   ```
-
-3. **Use `TargetMode.ARGS_REMAP` for self-deprecation** (deprecate argument of same function):
-
-   ```python
-   from deprecate import TargetMode, deprecated
+    ```python
+    def new_func(new_name: int) -> int:
+        return new_name * 2
 
 
-   # Deprecate within same function
-   @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
-   def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
-       return new_arg * 2
-   ```
+    # ---------------------------
+
+    from deprecate import deprecated
+
+
+    # Map old to new
+    @deprecated(target=new_func, args_mapping={"old_name": "new_name"}, deprecated_in="1.0", remove_in="2.0")
+    def old_func(old_name: int) -> int:
+        pass
+    ```
+
+1. **Use `TargetMode.ARGS_REMAP` for self-deprecation** (deprecate argument of same function):
+
+    ```python
+    from deprecate import TargetMode, deprecated
+
+
+    # Deprecate within same function
+    @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")
+    def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
+        return new_arg * 2
+    ```
 
 </details>
 
