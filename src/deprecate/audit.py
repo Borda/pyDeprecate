@@ -671,7 +671,7 @@ def _format_subject(info: DeprecationWrapperInfo) -> str:
     return f"{_subject_noun(info)} `{_format_report_symbol(info)}`"
 
 
-def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> None:
+def _check_deprecated_wrapper_expiry(func: Union[Callable, types.ModuleType], current_version: str) -> None:
     """Check if a deprecated wrapper has passed its scheduled removal version.
 
     This is an internal helper function used by :func:`~deprecate.audit.validate_deprecation_expiry`.
