@@ -17,9 +17,6 @@ Core capabilities:
 
 > **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Import:** `from deprecate import deprecated, deprecated_class` · **Docs:** https://borda.github.io/pyDeprecate/
 
-<details>
-  <summary>Project badges and package links</summary>
-
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyDeprecate)](https://pypi.org/project/pyDeprecate/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Borda/pyDeprecate/blob/main/LICENSE)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FBorda%2FpyDeprecate.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FBorda%2FpyDeprecate?ref=badge_shield&issueType=license)
@@ -36,11 +33,10 @@ Core capabilities:
 [![codecov](https://codecov.io/gh/Borda/pyDeprecate/branch/main/graph/badge.svg?token=BG7RQ86UJA)](https://codecov.io/gh/Borda/pyDeprecate)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Borda/pyDeprecate/main.svg)](https://results.pre-commit.ci/latest/github/Borda/pyDeprecate/main)
 
-</details>
-
 ______________________________________________________________________
 
-## 📋 Table of Contents
+<details>
+  <summary><strong>📋 Table of Contents</strong></summary>
 
 - [📖 Overview](#overview)
 - [✨ Features](#features)
@@ -70,6 +66,8 @@ ______________________________________________________________________
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
 - [🔧 Troubleshooting](#troubleshooting)
 - [🤝 Contributing](#contributing)
+
+</details>
 
 ## 📖 Overview
 
