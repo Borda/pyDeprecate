@@ -24,8 +24,8 @@ repos:
       - id: check-docstring-first
       - id: detect-private-key
 
-  - repo: https://github.com/JoC0de/pre-commit-prettier
-    rev: fc2da0552b28c24c836d045bfb6c3057b3d11e62 # v3.9.4
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: 9337a74165b178ae2c766f60bee7252a0f06f3e8 # v3.9.5
     hooks:
       - id: prettier
         files: \.(html|yml|yaml|toml)
