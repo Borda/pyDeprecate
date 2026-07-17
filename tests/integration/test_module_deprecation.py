@@ -32,10 +32,6 @@ from deprecate.module import deprecated_module
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).
 _DEPRS_CASE_MOD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _make_tmp_module(name: str) -> types.ModuleType:
     """Create and register a fresh throwaway module in ``sys.modules``."""
@@ -47,11 +43,6 @@ def _make_tmp_module(name: str) -> types.ModuleType:
 def _remove_tmp_module(name: str) -> None:
     """Remove a throwaway module from ``sys.modules`` if present."""
     sys.modules.pop(name, None)
-
-
-# ---------------------------------------------------------------------------
-# Mode 1: in-place warn
-# ---------------------------------------------------------------------------
 
 
 class TestMode1InPlaceWarn:
@@ -201,11 +192,6 @@ class TestMode1InPlaceWarn:
         assert issubclass(w[0].category, FutureWarning)
 
 
-# ---------------------------------------------------------------------------
-# Star-import (from ... import *)
-# ---------------------------------------------------------------------------
-
-
 class TestStarImport:
     """``from old_math import *`` still triggers the deprecation warning for each pulled name."""
 
@@ -230,11 +216,6 @@ class TestStarImport:
         assert len(future_warns) >= 1
         square_fn: Any = namespace["square"]
         assert square_fn(4) == 16
-
-
-# ---------------------------------------------------------------------------
-# Mode 2: redirect
-# ---------------------------------------------------------------------------
 
 
 class TestMode2Redirect:
@@ -290,11 +271,6 @@ class TestMode2Redirect:
         dep = getattr(old_utils, "__deprecated__", None)
         assert isinstance(dep, DeprecationConfig)
         assert dep.target is new_utils
-
-
-# ---------------------------------------------------------------------------
-# Mode 2 variant — per-attribute mapping
-# ---------------------------------------------------------------------------
 
 
 class TestAttrsMapping:
@@ -357,11 +333,6 @@ class TestAttrsMapping:
                 _ = mod.gone_fn  # type: ignore[attr-defined]
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
-
-
-# ---------------------------------------------------------------------------
-# Audit discoverability
-# ---------------------------------------------------------------------------
 
 
 class TestAuditDiscoversModule:
@@ -460,11 +431,6 @@ class TestModuleReportLabel:
             _check_deprecated_wrapper_expiry(old_math, "2.0")
 
 
-# ---------------------------------------------------------------------------
-# Reload survival
-# ---------------------------------------------------------------------------
-
-
 class TestReloadSurvival:
     """Reloading a deprecated module must preserve ``__deprecated__`` and the ``__class__``-based wrapper."""
 
@@ -491,11 +457,6 @@ class TestReloadSurvival:
         assert issubclass(w[0].category, FutureWarning)
 
 
-# ---------------------------------------------------------------------------
-# Stack-level correctness
-# ---------------------------------------------------------------------------
-
-
 class TestStacklevel:
     """The warning ``filename`` must point at the call site, not at ``module.py`` internals."""
 
@@ -514,11 +475,6 @@ class TestStacklevel:
         # The filename must be this test file, not the deprecate implementation module.
         assert "test_module_deprecation" in w[0].filename
         assert "module.py" not in w[0].filename
-
-
-# ---------------------------------------------------------------------------
-# Guard: module not in sys.modules
-# ---------------------------------------------------------------------------
 
 
 class TestGuard:
@@ -546,11 +502,6 @@ class TestGuard:
         mod = make_tmp_module(mod_name)
         with pytest.raises(ValueError, match=rf"`target`.*{mod_name}.*itself"):
             deprecated_module(mod_name, target=mod, **_DEPRS_CASE_MOD_ARGS)
-
-
-# ---------------------------------------------------------------------------
-# Guard: __slots__ incompatible with __class__ reassignment
-# ---------------------------------------------------------------------------
 
 
 class TestSlotsGuard:
@@ -622,11 +573,6 @@ class TestSlotsGuard:
             assert type(plain).__name__ == "_DeprecatedModuleWrapper"
         finally:
             _remove_tmp_module(mod_name)
-
-
-# ---------------------------------------------------------------------------
-# attrs_mapping + target combination
-# ---------------------------------------------------------------------------
 
 
 class TestAttrsMappingWithTarget:
@@ -716,11 +662,6 @@ class TestAttrsMappingWithTarget:
         assert issubclass(w[0].category, FutureWarning)
 
 
-# ---------------------------------------------------------------------------
-# Custom stream callable
-# ---------------------------------------------------------------------------
-
-
 class TestStream:
     """Custom ``stream`` callable receives the warning message string."""
 
@@ -764,11 +705,6 @@ class TestStream:
         assert isinstance(calls[0], str)
 
 
-# ---------------------------------------------------------------------------
-# Pytest fixtures for ephemeral module lifecycle
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def make_tmp_module() -> Iterator[Callable[[str], types.ModuleType]]:
     """Factory fixture: create named temp modules; auto-removes each after the test."""
@@ -782,11 +718,6 @@ def make_tmp_module() -> Iterator[Callable[[str], types.ModuleType]]:
     yield _factory
     for name in created:
         _remove_tmp_module(name)
-
-
-# ---------------------------------------------------------------------------
-# Idempotency guard
-# ---------------------------------------------------------------------------
 
 
 class TestIdempotency:
@@ -849,11 +780,6 @@ class TestReconfigurationWarns:
         assert config_after is config_before
         assert config_after is not None
         assert config_after.target is TargetMode.NOTIFY
-
-
-# ---------------------------------------------------------------------------
-# PEP 562 __getattr__ chaining
-# ---------------------------------------------------------------------------
 
 
 class TestGetAttrChaining:
@@ -923,11 +849,6 @@ class TestGetAttrChaining:
         assert len(future_warns) == 1
 
 
-# ---------------------------------------------------------------------------
-# validate_deprecation_wrapper — module mode
-# ---------------------------------------------------------------------------
-
-
 class TestValidateWrapper:
     """``validate_deprecation_wrapper()`` handles module objects correctly."""
 
@@ -957,11 +878,6 @@ class TestValidateWrapper:
         plain_mod = types.ModuleType("_plain_test_mod")
         with pytest.raises(ValueError, match="missing or invalid"):
             validate_deprecation_wrapper(plain_mod)
-
-
-# ---------------------------------------------------------------------------
-# attrs_mapping precedence when the mapped name still lives in __dict__
-# ---------------------------------------------------------------------------
 
 
 class TestAttrsMappingShadowsDict:
@@ -1053,11 +969,6 @@ class TestAttrsMappingShadowsDict:
         assert fn() == "REAL"
 
 
-# ---------------------------------------------------------------------------
-# Cyclic redirect guard
-# ---------------------------------------------------------------------------
-
-
 class TestRedirectCycle:
     """Redirect cycles longer than the trivial self-target must fail cleanly, not recurse forever."""
 
@@ -1097,11 +1008,6 @@ class TestRedirectCycle:
             second = sys.modules["_test_cycle_src_tmp"].real  # type: ignore[attr-defined]
         assert first() == "REAL"
         assert second() == "REAL"
-
-
-# ---------------------------------------------------------------------------
-# Module-level call guard (auto-detection)
-# ---------------------------------------------------------------------------
 
 
 class TestModuleLevelCallGuard:
