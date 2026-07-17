@@ -48,6 +48,8 @@ deprecated_module(
 
 `import old_calculator; old_calculator.add(1, 2)` emits a `FutureWarning` and returns the result. Every public attribute access — real functions, classes, constants — warns because `deprecated_module()` replaces the module's `__class__` with an intercepting wrapper.
 
+> **Call it at module top level when omitting `module_name`.** Auto-detection reads the caller frame's `__name__`, which only names the intended module when the call sits directly in the module body. Calling it without `module_name` from inside a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError` — the frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `module_name` explicitly to call from any other scope.
+
 ## Mode 2 — redirect to a replacement module
 
 Use this when you rename an entire module. Attribute lookups that are missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly — they warn but are not forwarded.

@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 import pytest
 
+import tests.collection_modules.auto_math as auto_math
 import tests.collection_modules.new_utils as new_utils
 import tests.collection_modules.old_math as old_math
 import tests.collection_modules.old_utils as old_utils
@@ -1096,3 +1097,52 @@ class TestRedirectCycle:
             second = sys.modules["_test_cycle_src_tmp"].real  # type: ignore[attr-defined]
         assert first() == "REAL"
         assert second() == "REAL"
+
+
+# ---------------------------------------------------------------------------
+# Module-level call guard (auto-detection)
+# ---------------------------------------------------------------------------
+
+
+class TestModuleLevelCallGuard:
+    """Zero-arg ``deprecated_module()`` is only valid at module top level, never from a nested scope."""
+
+    def test_function_scope_autodetect_raises_type_error(self) -> None:
+        """Auto-detecting the module name from inside a function body raises ``TypeError``.
+
+        A developer refactors a bottom-of-module ``deprecated_module()`` call into a helper (e.g. a
+        ``_setup_deprecations()`` function) and forgets to pass ``module_name``.  The caller frame's
+        ``__name__`` still resolves to the enclosing module, so a naive auto-detect would deprecate that
+        entire module the moment the helper runs — a silent, action-at-a-distance foot-gun.  The
+        ``f_locals is not f_globals`` guard must reject this with a ``TypeError`` naming the fix before any
+        module is touched.
+        """
+
+        def _inner() -> None:
+            deprecated_module(**_DEPRS_CASE_MOD_ARGS)
+
+        with pytest.raises(TypeError, match="module top level"):
+            _inner()
+
+    def test_module_level_autodetect_installs_wrapper(self) -> None:
+        """A top-level zero-arg call auto-detects the module and installs the wrapper.
+
+        ``auto_math`` calls ``deprecated_module(deprecated_in=..., remove_in=...)`` with no ``module_name``
+        from its own module body; at that scope ``f_locals`` IS ``f_globals``, so the guard passes and the
+        module's own ``__name__`` is detected.  The imported module must therefore already be wrapped.
+        """
+        assert type(auto_math).__name__ == "_DeprecatedModuleWrapper"
+
+    def test_explicit_module_name_from_function_scope_allowed(
+        self, make_tmp_module: Callable[[str], types.ModuleType]
+    ) -> None:
+        """Passing ``module_name`` explicitly bypasses the guard even when called from a function body.
+
+        The guard only fires on the auto-detect path.  A caller that supplies ``module_name`` — as this
+        test method (itself a function scope) does — knows exactly which module it means, so the call must
+        succeed and install the wrapper regardless of the calling frame.
+        """
+        mod_name = "_test_explicit_fn_scope_tmp"
+        make_tmp_module(mod_name)
+        deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
+        assert type(sys.modules[mod_name]).__name__ == "_DeprecatedModuleWrapper"

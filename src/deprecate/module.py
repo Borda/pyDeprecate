@@ -289,8 +289,11 @@ def deprecated_module(
         ValueError: If ``module_name`` is not found in :data:`sys.modules`; if ``module_name`` is omitted and the
             caller frame's ``__name__`` cannot be determined; or if ``target`` points at the module being deprecated
             itself (a self-redirect would recurse indefinitely on every missing-attribute lookup).
-        TypeError: If the module's type declares ``__slots__`` (incompatible memory layout prevents
-            ``__class__`` reassignment).  Wrap in a plain :class:`types.ModuleType` first if needed.
+        TypeError: If ``module_name`` is omitted and the call is made from inside a function or class body
+            rather than at module top level (auto-detection would otherwise deprecate the enclosing module);
+            pass ``module_name`` explicitly to call from a non-module scope.  Also raised if the module's type
+            declares ``__slots__`` (incompatible memory layout prevents ``__class__`` reassignment) — wrap in a
+            plain :class:`types.ModuleType` first if needed.
 
     Examples:
         >>> import sys, types
@@ -308,7 +311,19 @@ def deprecated_module(
 
     """
     if module_name is None:
-        caller_name: Optional[str] = sys._getframe(1).f_globals.get("__name__")
+        caller_frame = sys._getframe(1)
+        # Auto-detection is only meaningful from a module's top level, where the caller frame's
+        # ``f_locals`` IS its ``f_globals`` (both are the module namespace). Inside a function or class
+        # body the two are distinct dicts, yet ``f_globals["__name__"]`` still names the ENCLOSING
+        # module — so a naive auto-detect from a nested call would silently deprecate that whole module
+        # as a side effect. Reject it with a ``TypeError`` that names the fix. Passing ``module_name``
+        # explicitly bypasses this guard entirely.
+        if caller_frame.f_locals is not caller_frame.f_globals:
+            raise TypeError(
+                "`deprecated_module()` was called without `module_name` from inside a function or class body."
+                " Call it at module top level, or pass `module_name` explicitly."
+            )
+        caller_name: Optional[str] = caller_frame.f_globals.get("__name__")
         if caller_name is None:
             raise ValueError(
                 "`deprecated_module()` called without `module_name` and caller frame `__name__` not found."
