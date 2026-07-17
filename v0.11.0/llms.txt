@@ -1,0 +1,380 @@
+# pyDeprecate
+
+pyDeprecate is a Python deprecation decorator library for API migration. It provides warning emission, automatic call forwarding, argument remapping, class deprecation, object aliasing, and audit helpers for removal deadlines.
+
+## Package Identity
+
+- Package name: `pyDeprecate`
+- Import name: `deprecate`
+- Install: `pip install pyDeprecate`
+- Import: `from deprecate import deprecated`
+- CLI: `pydeprecate` (requires the `[cli]` extra — base install does not include CLI dependencies)
+- Runtime dependencies: none
+- Optional audit extra: `pip install 'pyDeprecate[audit]'`
+- Optional CLI audit extra: `pip install 'pyDeprecate[audit,cli]'` for `pydeprecate expiry` and `pydeprecate all`
+
+## Critical Mental Model
+
+- If `target=<callable>` is provided, pyDeprecate forwards the call to the target. The deprecated function body is not the migration path.
+- If you only need a warning and no forwarding, omit `target` or use `TargetMode.NOTIFY`.
+- For argument rename migrations, use `TargetMode.ARGS_REMAP` and `args_mapping={"old": "new"}`.
+- For selective per-attribute deprecation on a class proxy, use `TargetMode.ATTRS_REMAP` and `attrs_mapping={"old": "new"}` (or pass `attrs_mapping` alone — auto-resolves to `ATTRS_REMAP`). Proxy-only mode; `TypeError` on `@deprecated` functions/methods.
+- For classes, use `deprecated_class`; for constants or object aliases, use `deprecated_instance`.
+- Always provide `deprecated_in`, `remove_in`, and a migration message when possible.
+
+## Copy-paste Recipes
+
+### Rename a function
+
+```python
+from deprecate import deprecated
+
+
+def new_func(value: int) -> int:
+    return value + 1
+
+
+@deprecated(
+    target=new_func,
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `old_func` was deprecated since v1.2 in favor of `new_func`. It will be removed in v2.0."
+)
+def old_func(value: int) -> int:
+    pass  # body never runs — pyDeprecate intercepts all calls before reaching here
+```
+
+### Rename an argument
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"old_arg": "new_arg"},
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `api` uses deprecated arguments: `old_arg` -> `new_arg`. They were deprecated since v1.2 and will be removed in v2.0."
+)
+def api(*, new_arg: float) -> float:
+    return new_arg
+```
+
+### Warn only
+
+```python
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(
+    target=TargetMode.NOTIFY,
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `legacy_hook` was deprecated since v1.2. It will be removed in v2.0."
+)
+def legacy_hook() -> None:
+    pass
+```
+
+### Deprecate a class
+
+```python
+from deprecate import deprecated_class
+
+
+class NewClient:
+    pass
+
+
+@deprecated_class(
+    target=NewClient,
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning: "The `OldClient` was deprecated since v1.2 in favor of `NewClient`. It will be removed in v2.0."
+)
+class OldClient:
+    pass
+```
+
+### Deprecate selected attributes on a class
+
+```python
+from deprecate import deprecated_class
+
+
+class Config:
+    colour: str = "red"
+    timeout: int = 30
+
+
+# Only "color" warns and redirects to "colour"; all other attrs pass through silently.
+# Use None as value for warn-only (no rename): attrs_mapping={"size": None}
+# Mapping values must exist on target class when target= is provided; cycles raise.
+DeprecatedConfig = deprecated_class(
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.2",
+    remove_in="2.0",
+    # FutureWarning on DeprecatedConfig.color: "The `color` was deprecated since v1.2 in favor of `Config.colour`. It will be removed in v2.0."
+)(Config)
+
+# Equivalent self-documenting form: explicit target=TargetMode.ATTRS_REMAP.
+# Both forms are equivalent; the explicit form makes the intent visible at the call site.
+# Misconfigs caught at decoration time:
+#   - target=TargetMode.ATTRS_REMAP without attrs_mapping → UserWarning (TypeError in v1.0)
+#   - target=TargetMode.NOTIFY with attrs_mapping → UserWarning (TypeError in v1.0)
+#   - attrs_mapping={} (empty dict) → UserWarning (TypeError in v1.0)
+from deprecate import TargetMode
+
+DeprecatedConfigExplicit = deprecated_class(
+    target=TargetMode.ATTRS_REMAP,
+    attrs_mapping={"color": "colour"},
+    deprecated_in="1.2",
+    remove_in="2.0",
+)(Config)
+```
+
+### Deprecate a constant or object
+
+```python
+from deprecate import deprecated_instance
+
+
+# NEW API — wrap a container (dict, list, config object); the proxy intercepts attribute/item/call access
+NEW_CONFIG = {"timeout": 30}
+# DEPRECATED API — FutureWarning on access: "The `OLD_CONFIG` was deprecated since v1.2. It will be removed in v2.0."
+OLD_CONFIG = deprecated_instance(
+    NEW_CONFIG,
+    name="OLD_CONFIG",  # display name in the warning; without name= it falls back to the type name (here "dict")
+    deprecated_in="1.2",
+    remove_in="2.0",
+)
+```
+
+The proxy forwards arithmetic, unary, and conversion operators to the wrapped object and warns on data-use operations; ordering comparisons, `format()`, and context exit are silent. In-place operators return the active object's result, not a re-wrapped proxy. One edge case: when the proxy is on the right side of an operation whose left-operand type raises `TypeError` directly (e.g. `"prefix" + proxy_str`), Python cannot fall back to the proxy — use proxy on the left or wrap the value in a container.
+
+**Wrong stacking order** — `@deprecated(NOTIFY)` on top of `@deprecated(ARGS_REMAP)`:
+
+```python
+# WRONG — emits UserWarning at decoration time; ARGS_REMAP must be outer (on top), NOTIFY inner
+@deprecated(deprecated_in="2.0", remove_in="3.0")  # outer NOTIFY
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+
+
+# CORRECT — ARGS_REMAP on top, NOTIFY below; pyDeprecate warns at decoration if order is wrong
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "new"})
+@deprecated(deprecated_in="2.0", remove_in="3.0")  # inner NOTIFY
+def my_func(old: int = 0, new: int = 0) -> int:
+    return new
+```
+
+**N-level stacking:** any sequence of supported adjacent pairs stacks transitively (e.g., ARGS_REMAP + ARGS_REMAP + NOTIFY — three decorators). The guard inspects one hop at a time; each adjacent pair must itself be supported.
+
+### Decision Flowchart
+
+```
+Choose your tool first:
+
+  ├─ Python 3.13+ only, static-checker warnings, no call-forwarding or remapping?
+  │    → use `warnings.deprecated` (PEP 702 stdlib) — zero dependencies
+  │      backport: `typing_extensions.deprecated` for Python < 3.13
+  └─ Need call-forwarding, argument remapping, class/instance proxy, or CI audit?
+       → use pyDeprecate (see below)
+
+What is being deprecated?
+
+  ├─ A module-level object instance (dict, list, config object)?
+  │    → use deprecated_instance(obj, deprecated_in=..., remove_in=...)
+  │
+  ├─ A class, Enum, or dataclass?
+  │    → use @deprecated_class(target=NewCls, ...) — NOT @deprecated
+  │      (classes are callables, but @deprecated is for functions/methods only)
+  │      └─ Only some attributes deprecated (rename or misspelling fix)?
+  │           → also add attrs_mapping={"old_attr": "new_attr"} (or None for warn-only)
+  │              only listed attrs warn; all others pass through silently
+  │              └─ Different attrs deprecated at different versions?
+  │                   → stack two @deprecated_class() calls, each with its own deprecated_in/remove_in
+  │
+  ├─ A `@property`?
+  │    → use `@deprecated @property` (outer order); all three accessors (`fget`/`fset`/`fdel`)
+  │      auto-wrap — chain-style `@x.setter` / `@x.deleter` re-wrap via `_DeprecatedProperty`.
+  │      Inner order (`@property @deprecated`) only wraps `fget`. Do NOT stack `@deprecated` twice
+  │      (raises `TypeError`) — apply once; use `.setter()` / `.deleter()` for additional accessors.
+  │      `target=<callable>` and `target=TargetMode.ARGS_REMAP` / `True` both raise `TypeError` —
+  │      property deprecation is warn-only; redirect by delegating manually in the accessor body.
+  │      Dataclass field alias: add a deprecated `@property` with the old name delegating to the
+  │      new field — do NOT use the same name as an existing dataclass field (conflicts with
+  │      `@dataclass`-generated `__init__`).
+  ├─ A `@cached_property`?
+  │    → use `@deprecated @cached_property` (outer order); wraps the getter function (`.func`) only —
+  │      `cached_property` has no setter or deleter.
+  │
+  └─ A function or method (including generator functions — `def gen(): yield` — async functions —
+     `async def fn()` — and async generator functions — `async def gen(): yield`)?
+       → use @deprecated; then choose target= based on the replacement:
+         ├─ Has a replacement function/method?
+         │    → target=<callable>; leave body empty (pass / void())
+         │      ├─ Argument names differ between old and new?
+         │      │    → also add args_mapping={"old_name": "new_name"}
+         │      └─ Renaming a @staticmethod or @classmethod inside the same class?
+         │           → target=new_method (raw descriptor in class body) — NO .__func__ needed;
+         │             pyDeprecate unwraps it automatically.
+         │             Anti-pattern: target=new_method.__func__ (unnecessary — omit .__func__)
+         │             Note: @classmethod descriptor target requires source to also be a @classmethod
+         │             (symmetric same-class pattern only)
+         ├─ Only renaming an argument within the same function?
+         │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
+         ├─ No replacement, warn-only?
+              → omit target (defaults to TargetMode.NOTIFY); keep working body
+         └─ Already deprecated (args renamed earlier) and now the whole function is going away?
+              → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
+                (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
+         Note: for generator functions and async generator functions the warning fires eagerly at sync
+               call time (before first next() / async for), not on first iteration — consistent with
+               regular function behavior.
+         Note: for async def functions, the wrapper is async def; inspect.iscoroutinefunction(wrapper)
+               returns True. Warning fires on await, not on call. For async generator functions
+               (async def + yield) the wrapper is sync (returns the async generator object); the warning
+               fires at call time and callers iterate with `async for`.
+```
+
+### Enforce removal deadlines in CI
+
+```python
+from deprecate import validate_deprecation_expiry
+
+
+# pass an importable module name (dotted path), not a directory path like "src"
+validate_deprecation_expiry("my_package", current_version="2.0")
+```
+
+CLI equivalent (the CLI accepts directory paths and resolves them to packages):
+
+```bash
+pydeprecate all src/   # runs check + expiry + chains, then appends a deprecation table
+pydeprecate status src/   # standalone deprecation table only (no checks)
+```
+
+## Decision Table
+
+| Task | Use |
+|---|---|
+| Rename function | `@deprecated(target=new_func)` |
+| Rename argument | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={...})` |
+| Drop deprecated argument | `args_mapping={"old": None}` |
+| No replacement | `@deprecated(target=TargetMode.NOTIFY)` or omit `target` |
+| Class rename | `@deprecated_class(target=NewClass)` |
+| Deprecate selected class attributes | `deprecated_class(attrs_mapping={"old": "new"}, ...)` (or `target=TargetMode.ATTRS_REMAP` + `attrs_mapping`) |
+| Constant/object alias | `deprecated_instance(obj, ...)` |
+| CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
+| CI positional-only compat check | `validate_mapping_compatibility(module)` |
+| Docs table | `generate_deprecation_table(pkg, style="compact")` or `style="matrix"` |
+| Deprecation table (CLI) | `pydeprecate status src/` — standalone table, no checks |
+
+## Decision Flowchart
+
+1. Are you renaming a callable? Use `@deprecated(target=new_callable)`.
+2. Are you renaming or dropping arguments? Use `TargetMode.ARGS_REMAP`.
+3. Are you renaming a class? Use `deprecated_class(target=NewClass)`.
+3a. Deprecating only some attributes (rename or misspelling)? Use `deprecated_class(attrs_mapping={"old": "new"}, ...)` — auto-resolves to `TargetMode.ATTRS_REMAP`. For explicit/self-documenting form, pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`.
+4. Are you keeping an object alias? Use `deprecated_instance(obj, ...)`.
+5. Do you only need a warning? Use `TargetMode.NOTIFY` or omit `target`.
+6. Do you need removal governance? Add audit checks in CI.
+
+## Agent Notes
+
+- `deprecated_class(attrs_mapping={...})` deprecates only the listed attribute names on a class proxy. Keys are deprecated names; values are canonical replacement names (string) or `None` for warn-only. When `target=` is provided, all mapped reads/writes/deletes route to the target class: non-`None` values rename the attribute, while `None` keeps the same attribute name on the target. Without `target=`, mapped reads/writes/deletes route on the wrapped source class. Non-`None` values must exist on the active class at decoration time. All other attribute access is silent or follows normal `target=` forwarding when present. Non-cyclic redirect chains such as `{"a": "b", "b": "c"}` are allowed at decoration time and reported by audit as `ChainType.STACKED`; cycles such as `{"a": "b", "b": "a"}` raise `ValueError`. `find_deprecation_wrappers` discovers the proxy but does not emit separate records for individual `attrs_mapping` entries. **Activation forms**: passing `attrs_mapping` alone auto-resolves the mode to `TargetMode.ATTRS_REMAP`; the equivalent self-documenting form is `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`. Misconfig signals at decoration time (all `UserWarning`, will be `TypeError` in v1.0): `target=TargetMode.NOTIFY` with `attrs_mapping` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` empty dict (no-op). `TargetMode.ATTRS_REMAP` is proxy-only — applying it via `@deprecated` on a function/method raises `TypeError` at decoration time. **Dataclass auto-expand**: when the wrapped class is a `@dataclass`, each `attrs_mapping` entry whose redirect target is a dataclass field is automatically copied into `args_mapping`, so a single `deprecated_class(attrs_mapping={...})` call warns on both attribute access (`obj.old_field`) and constructor kwargs (`DC(old_field=5)`). Explicit `args_mapping` entries are never overwritten by auto-expand. **Positional-only guard**: if `args_mapping` remaps a deprecated name to a `POSITIONAL_ONLY` constructor parameter, a `UserWarning` fires at decoration time and the proxy forwards the remapped values positionally to the constructor at call time — required positional-only params, frozen dataclasses, and `__post_init__` logic all work; use `validate_mapping_compatibility(module)` in CI for visibility of these patterns.
+- `validate_mapping_compatibility(module)` scans a module or package for `deprecated_class` proxies whose `args_mapping` remaps a deprecated name to a `POSITIONAL_ONLY` constructor parameter. Such configurations forward the remapped values positionally to the constructor at call time — fully functional, including for required positional-only params, frozen dataclasses, and classes with `__post_init__` logic. Returns a `list[DeprecationWrapperInfo]`; each entry's `args_mapping_positional_only` field lists the positionally-forwarded deprecated-name keys. Returns `[]` when no such mappings exist. Use in CI alongside `validate_deprecation_expiry` for visibility of positional-forwarding configurations. Accepts an imported module object or a dotted module path string; `recursive=True` by default. A `UserWarning` is also emitted at decoration time for each such mapping — `validate_mapping_compatibility` provides the machine-readable counterpart for CI pipelines that need structured output.
+- **Proxy copy/introspection transparency**: `deprecated_instance` / `deprecated_class` proxies survive `copy.copy()` and `copy.deepcopy()` — the result is a proxy again, so the deprecation warning travels with the copied object; `pickle` works for `deprecated_instance` proxies (the unpickled value is a proxy with deprecation semantics preserved; `stream` must be a module-level callable or `None`); `deprecated_class` proxies raise `pickle.PicklingError` in the common pattern where the class name is replaced by the proxy at module level. `isinstance(proxy, WrappedType)` is `True` for instance proxies (`__class__` reports the active object's type; the target's type when `target=` is set); class-alias proxies deliberately keep `isinstance(alias, type) == False` — class-side transparency is handled by `__instancecheck__` / `__subclasscheck__`, and `type(proxy)` still reveals the proxy class. Introspection is silent: failed `hasattr` probes raise `AttributeError` without warning, dunder reads never warn, and neither consumes the `num_warns` budget. **Protocol forwarding**: arithmetic, unary, conversion, context-manager, iteration, and subclassing (`class Child(proxy)`) protocols are forwarded to the active object via type-level dunder methods (not `__getattr__`); data-use operations warn against the shared budget; structural probes (ordering comparisons, `format`, context exit) are silent. **Subclassing via PEP 560**: `class Child(DeprecatedAlias)` works — the proxy's `__mro_entries__` returns the replacement class, so `Child` correctly inherits from it and one `FutureWarning` fires at class-definition time (except for `ATTRS_REMAP` and `ARGS_REMAP` proxies — both scope deprecation to specific axes, attribute names or argument names respectively, and do not warn on subclassing). **In-place operators** return the active object's result, not a re-wrapped proxy.
+- **Decorated sources with `/` params are fully supported**: `@deprecated(...)` on `def old_func(a, /, b=2)` works in all modes, including `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` — positional-only values are split back out of the resolved kwargs and passed positionally to the source body. No decoration-time warning fires for source-side `/` params; there is nothing to fix.
+- **Surplus `*args` are forwarded to callable targets**: when a `*args` source forwards to `target=<callable>`, positional values beyond the named params are forwarded to the target (kwargs bound to the target's leading positional slots are moved back into positional form so the tail can legally follow). If the target cannot absorb the tail (no `*args` and no free positional slots), a curated `TypeError` naming source, target, and counts is raised — loud failure instead of silently dropping arguments.
+- **Positional-only gap misbinding raises `TypeError`**: when forwarding to a target with several positional-only params, extraction stops at the first positional-only name absent from the kwargs; if a *later* positional-only name is still supplied, a `TypeError` names both parameters instead of silently binding the value to the wrong slot.
+- **`validate_deprecation_expiry` covers class members by default**: `include_members=True` is now the default, matching `find_deprecation_wrappers` and `generate_deprecation_table` — expiry gates may report more expired wrappers after upgrading; pass `include_members=False` to restore the old module-level-only scope.
+- **Recursive audit scans warn-and-skip failing submodules**: any exception raised while importing a submodule (not just `ImportError`) emits a `UserWarning` of the form `audit: skipped <module>: <exc>` and the scan continues — one broken submodule no longer aborts the whole audit/CI gate.
+- **`find_deprecation_wrappers(recursive=False)` includes re-exported wrappers**: when scanning a package with `recursive=False`, wrappers defined in submodules but re-exported through `__init__.py` are now correctly reported. Previously the attribution filter (`__module__ != mod_name`) dropped re-exported symbols because the defining submodule was never visited in a non-recursive scan. The fix applies `attribute_to_defining_module=False` for non-recursive package scans (guarded by `_same_top_package()`) — re-exports appear attributed to the `__init__` module, not the submodule.
+- **`pydeprecate expiry` propagates broken-import errors from the user's package**: when `validate_deprecation_expiry` imports the scanned module and the module raises an `ImportError` with `exc.name` set (Python's import system sets this automatically when an `import` statement fails), the CLI re-raises and exits non-zero with the real error message — instead of swallowing it with a misleading "Could not determine the current package version" advisory. Only version-detection failures (manually raised `ImportError` with no `name` attribute) are still converted to an advisory warning.
+- `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time. Cross-class forwarding is allowed when the **source** is a `@staticmethod` — a `staticmethod` receives no `self`, so the cross-class guard is skipped for static sources.
+- `@property` with `@deprecated`: when `@deprecated` is on the **outside** (`@deprecated @property` order or explicit `deprecated(...)(property(...))`), all three accessors are wrapped — `fget`, `fset`, and `fdel` each fire `FutureWarning` when accessed, assigned, or deleted. Warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`). When `@deprecated` is on the **inside** (`@property @deprecated`), only `fget` is wrapped — warning fires on read but not on write or delete. For setter/deleter wrapping use the outer order: `@deprecated @property` then chain `@value.setter` / `@value.deleter` (re-wrapped via `_DeprecatedProperty`), or explicit `property(fget, fset[, fdel])` construction. **Inner-order detection**: `find_deprecation_wrappers` sets `inner_order_property=True` on the `DeprecationWrapperInfo` for inner-order properties (plain `property` with a `@deprecated`-wrapped `fget`); filter on this field in CI to reject the pattern. **Strict-mode import**: `from deprecate import property` replaces the builtin with `_StrictProperty`, which raises `TypeError` at class-body evaluation time when handed a getter that already carries `__deprecated__` metadata — turns the silent footgun into a loud, immediate failure. Note: `type(x) == property` returns `False` on a decorated property; `isinstance(x, property)` is preserved. Audit: `find_deprecation_wrappers` scans the first accessor that carries `__deprecated__` metadata (`fget` → `fset` → `fdel`); setter-only properties (`fget=None`) are discovered via `fset`. `target=<callable>` and `target=TargetMode.ARGS_REMAP` / `True` both raise `TypeError` when decorating a property — property deprecation is warn-only; to redirect, delegate manually in the accessor body (e.g. `return self.new_prop`). Dataclass field alias: add a deprecated `@property` with the old name delegating to the new field; do NOT reuse an existing dataclass field name (the `@dataclass`-generated `__init__` assigns `self.field = value` which conflicts with a property descriptor of the same name).
+- `@cached_property` with `@deprecated` in either order: warning fires on **first access only** — subsequent accesses hit the cached value and do not emit a warning.
+- `@deprecated` on `async def` functions: the wrapper is `async def`; `inspect.iscoroutinefunction(wrapper)` returns `True`. All three TargetModes work. Warning fires when the coroutine is awaited, not when the wrapper is called — `coro = wrapper(val=1)` produces no warning; `await coro` fires it. **CI visibility**: if coroutines are scheduled via `asyncio.create_task` or third-party schedulers, warnings fire in the scheduler's context — use `stream=logging.warning` for guaranteed log output. In tests, `pytest.warns()` must wrap the `await`, not just the call.
+- `@deprecated` on async generator functions (`async def` + `yield`): the wrapper is **sync** (`inspect.iscoroutinefunction(wrapper)` is `False`); calling the wrapper fires the deprecation warning eagerly and returns the async generator object. Callers iterate with `async for item in wrapper(...):`. All three TargetModes work — NOTIFY runs the source body, ARGS_REMAP remaps args before iterating the source body, and `target=<async_gen_callable>` forwards to a replacement async generator. The warning fires at sync call time, before the first `__anext__`.
+- `copy.copy()` and `copy.deepcopy()` on a `_DeprecatedProxy` (created by `deprecated_instance` or `deprecated_class`) return a new proxy wrapping a copy of the underlying object. Warning counters are snapshotted at copy time — each copy tracks warnings independently, but a copy of an already-exhausted proxy (e.g. one that already warned `num_warns` times) stays silent because the counter is inherited, not reset. `pickle.dumps(proxy)` and `pickle.loads(...)` work via `__reduce_ex__`/`_reconstruct_proxy` for `deprecated_instance` proxies — the unpickled value is a proxy again with deprecation semantics preserved. **Known limitation**: `deprecated_class` proxies raise `pickle.PicklingError` in the common pattern where the decorated class name is replaced by the proxy at module level (pickle cannot find the original class by reference). Use `copy.deepcopy` instead of pickle for class proxy aliases. Caveat for `deprecated_instance`: the `stream` callable must be picklable by reference (module-level callables such as `warnings.warn` and `None` qualify; lambdas and closures do not — use `stream=None` or `stream=warnings.warn` when you intend to pickle a proxy).
+- **Proxy `repr()`/`str()`/`==`/`hash()` reflect the active object**: when `target=<callable>` is set on a proxy, comparison and representation dunder methods (`__repr__`, `__str__`, `__eq__`, `__hash__`) delegate to the active (target) object via type-level forwarding. `proxy == old_source` is `False` when a target is set — equality uses the target's `__eq__`, not the source's.
+- **Using a proxy as the second argument to `isinstance`/`issubclass` raises `TypeError`**: `isinstance(obj, instance_proxy)` and `issubclass(Cls, instance_proxy)` both raise `TypeError` — a proxy wrapping a non-class cannot be used as a type argument. Previously both returned `False` silently. Note: `isinstance(proxy, WrappedType)` (proxy as the *first* argument) still works as documented in the Proxy copy/introspection transparency note above.
+- **`find_deprecation_wrappers` now surfaces deprecated private and dunder class members**: all `_`-prefixed names except `__init__` were previously skipped; they are now included. Deprecated `@classmethod`, `@staticmethod`, `@cached_property`, and `@property` variants with `_` prefixes are now discovered. CI expiry gates and wrapper counts may increase after upgrading — the newly surfaced entries are real deprecated members that were silently skipped before.
+- **Proxy self-reference detection corrected**: a `_DeprecatedProxy` whose `target` is the proxy's own wrapped class **without** any active `args_mapping` or `attrs_mapping` is now correctly flagged `self_reference=True`. Proxies with active remapping (`args_mapping` or `attrs_mapping` non-empty) are NOT flagged — they perform meaningful argument or attribute renaming and must remain `self_reference=False`.
+- **`validate_deprecation_expiry` warns on unparsable `remove_in`**: when a callable's `remove_in` string cannot be parsed by `packaging.version.Version`, a `UserWarning` is emitted naming the callable (instead of silently skipping it). The scan continues for all remaining callables. CI logic that relied on silent skipping must be updated to handle the new `UserWarning`.
+
+Warning timing quick reference — all callable kinds:
+
+| Callable kind | Warning fires at | `iscoroutinefunction(wrapper)` |
+|---|---|---|
+| Sync function | call time | N/A (sync) |
+| Generator (`def` + `yield`) | call time (before first `next()`) | N/A (sync) |
+| Async generator (`async def` + `yield`) | call time — sync wrapper (before first `async for`) | `False` |
+| Async function (`async def`) | `await` time (inside coroutine body) | `True` |
+
+## Anti-Patterns
+
+- Do not import `pydeprecate`; import `deprecate`.
+- Do not use `target=None`; use `TargetMode.NOTIFY` or omit `target`.
+- Do not use `target=True`; use `TargetMode.ARGS_REMAP`.
+- Do not call the target inside a deprecated function body when `target=<callable>`.
+- Do not use raw `warnings.warn` for public API migrations that need forwarding, argument mapping, class proxying, warning frequency control, or CI audit.
+- `@deprecated` works with `@classmethod` and `@staticmethod` in either order. pyDeprecate unwraps the underlying function (`.__func__`), applies the deprecation wrapper, and re-wraps the descriptor, so the method remains deprecated regardless of decorator order.
+- `@deprecated` on async generator functions (`async def` + `yield`) is supported: the wrapper is a sync callable that fires the warning eagerly and returns the async generator object; iterate the result with `async for`. The wrapper is **not** a coroutine function and **not** an async generator function — frameworks introspecting the wrapper with `inspect.isasyncgenfunction(wrapper)` will see `False`. If a framework rejects the sync wrapper, hand-write a thin async generator (`async def my_wrapper(*a, **kw): async for item in wrapped(*a, **kw): yield item`) before applying `@deprecated`.
+- Do not use `attrs_mapping`-only on non-`@dataclass` types when constructor-kwarg coverage is also needed — for non-dataclass targets, `attrs_mapping` covers only attribute access; you must also set `args_mapping` to cover constructor kwargs.
+- Do not stack `@deprecated` on a `@property` — raises `TypeError: @deprecated cannot be applied twice to the already-deprecated property`. Apply `@deprecated` once; use `.setter()` / `.deleter()` rebinding for additional accessors.
+- Do not assume dict last-write-wins ordering when both old and new argument names are passed simultaneously (e.g. `fn(val=5, new_val=6)`). Explicit new-name kwarg always wins over the remapped old-name value, regardless of call-site order. `args_extra` wins over both and is merged last. Precedence: `args_extra` > explicit new-name kwarg > remapped old-name value > source defaults. Passing both names also emits a `UserWarning`: `"Both `val` (deprecated) and `new_val` were supplied to `fn()`; `val` is ignored."` This fires in addition to the regular `FutureWarning`.
+- Do not create a circular callable-target chain where the `target=` chain loops back to a wrapper already on the call stack (e.g. `A → B → A`): pyDeprecate detects re-entry at call time and raises `RuntimeError` with the message "Circular deprecation cycle detected: `<name>` re-entered via its own target chain." before a `RecursionError` occurs. Non-circular chains (deprecated → deprecated → final implementation) are supported; only cycles raise `RuntimeError`.
+- Do not pass a non-picklable `stream` (lambda, closure, or any non-module-level callable) to `deprecated_instance` or `deprecated_class` when you intend to pickle the proxy — `pickle.dumps(proxy)` will raise `PicklingError` because `stream` is serialised as part of the internal config. Use `stream=None` or `stream=warnings.warn` (or any importable module-level callable) when pickling is required.
+
+## Known Limitations
+
+- `_WrapperState.called` is incremented once per deprecated wrapper invocation in the current implementation. Warning deduplication still works correctly — warnings fire at most `num_warns` times — and the stored call count reflects wrapper invocations rather than a generator-specific double increment.
+- **`num_warns` quota is thread-safe**: the check-decide-increment sequence is protected by a per-wrapper lock for synchronous wrappers — exactly `num_warns` warnings fire under concurrent threads. The `called` counter is lock-free (best-effort diagnostic, not safety-critical). For `async def` wrappers under concurrent async coroutines, a race on the warning counter may still produce fewer warnings than `num_warns` specifies — use `num_warns=-1` to bypass the gate if exact counts matter in async tests.
+- **Async generator wrapper is sync, not async**: `@deprecated` on `async def` + `yield` produces a sync wrapper that fires the warning eagerly and returns the async generator object. `inspect.iscoroutinefunction(wrapper)` and `inspect.isasyncgenfunction(wrapper)` both return `False`. Frameworks that branch on these introspections (e.g. some FastAPI middleware) will misclassify the wrapper — hand-write a thin async generator passthrough before applying `@deprecated` if introspection matters.
+- **`_WrapperState` concurrency under async**: the `num_warns` quota gate is lock-protected for synchronous wrappers. For `async def` wrappers, concurrent coroutines share `_WrapperState` fields (`called`, `warned_calls`, `warned_args`) with no asyncio lock — coroutines can race on warning counts and the wrapper may emit fewer warnings than `num_warns` specifies. Set `num_warns=-1` to bypass the count gate if exact emission counts matter in async tests.
+- **Sync target callable under `async def` source runs synchronously**: when `@deprecated` wraps an `async def` source with `target=<callable>` and the target is a plain sync function, the async wrapper invokes it directly without `await` — this is intentional so legacy sync targets work without conversion. If the sync target performs blocking I/O (`time.sleep`, a synchronous DB query, etc.) it will block the event loop. Convert the target to `async def` or wrap it with `asyncio.to_thread` when blocking I/O is involved.
+- **`functools.partial` of `async def` loses coroutine flag on Python 3.9–3.11**: `inspect.iscoroutinefunction(functools.partial(async_fn))` returns `False` on Python ≤3.11 — `partial` does not propagate the coroutine flag. Apply `@deprecated` to the `async def` directly; use `partial` on the already-deprecated wrapper if needed. Resolved in Python 3.12+.
+- **Sync wrapper over `async def` loses coroutine flag**: a sync decorator applied over a `@deprecated async def` wrapper produces a sync callable — `inspect.iscoroutinefunction` returns `False`. Outer decorators must use an `async def` wrapper when wrapping async functions; otherwise frameworks (FastAPI route handlers, asyncio task creation) will reject the result.
+- **Callable objects with `async def __call__` not detected**: `inspect.iscoroutinefunction(callable_obj)` returns `False` for callable objects whose `__call__` is `async def` — `@deprecated` installs the sync wrapper and `await wrapper(...)` will fail. Workaround: wrap in a plain `async def my_wrapper(*a, **kw): return await callable_obj(*a, **kw)` before applying `@deprecated`.
+- **`@deprecated` with POSITIONAL_ONLY target params — supported since `v0.10`**: `@deprecated(target=new_fn)` where `new_fn` declares `/` parameters now works correctly. The decorator emits a `UserWarning` at decoration time naming the positional-only params and automatically splits dispatch so those values are forwarded positionally. A thin-adapter target (`def new_fn_compat(val, y=0): return new_fn(val, y)`) remains valid and silences the `UserWarning`. `deprecated_class` applies the same positional-split forwarding to constructor POSITIONAL_ONLY params — remapped values are passed positionally to the constructor, so required positional-only params and frozen dataclasses work correctly.
+- **`validate_deprecation_expiry` includes class members by default (since `v0.10`)**: `validate_deprecation_expiry(module, current_version)` now scans deprecated methods, constructors, classmethods, staticmethods, and properties by default (`include_members=True`). Pass `include_members=False` to restrict the scan to module-level callables and restore the pre-`v0.10` scope. Expiry counts may rise after upgrading even when user code is unchanged — the newly surfaced entries are real expired deprecations that were silently skipped before.
+- **`deprecated_instance` proxies report the wrapped object's type via `__class__` (since `v0.10`)**: `isinstance(proxy, dict)` is `True` for a proxy wrapping a dict. `type(proxy)` still returns `_DeprecatedProxy` for code that needs to detect the wrapper explicitly. Class proxies (`deprecated_class` aliases) keep reporting the proxy class via `__class__` — class-side transparency is provided by `__instancecheck__`/`__subclasscheck__` instead.
+- **Introspection and dunder access are silent (since `v0.10`)**: `isinstance` checks, failed `hasattr` probes, and dunder attribute reads (e.g. `__mro__`, `__wrapped__`) on a `_DeprecatedProxy` emit no warning and do not consume the `num_warns` budget. The warning fires only on successful non-dunder attribute access.
+- **Cycle detection is lazy (call-time, not decoration-time)**: when `target=<callable>` points at another `@deprecated` callable that eventually loops back, the cycle is detected the first time the deprecated function is called — not when `@deprecated` is applied. Detection uses `contextvars.ContextVar`: for `async def` wrappers each `asyncio.Task` gets an independent detection set so concurrent coroutines do not trigger false positives; for sync wrappers the set is shared across the same synchronous call stack. Circular chains raise `RuntimeError` immediately rather than `RecursionError`.
+
+## Full Context
+
+- [Full agent context](https://borda.github.io/pyDeprecate/llms-full.txt): compact full-context guide for coding agents.
+
+## Important Docs
+
+- [Getting Started](https://borda.github.io/pyDeprecate/stable/getting-started.html)
+- [Use Cases](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
+- [Python deprecation decorator](https://borda.github.io/pyDeprecate/stable/getting-started.html)
+- [Replace warnings.warn](https://borda.github.io/pyDeprecate/stable/guide/migration.html)
+- [Deprecate arguments](https://borda.github.io/pyDeprecate/stable/guide/functions.html)
+- [API migration CI](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
+- [Agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html)
+- [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/guide/classes.html)
+- [Compare Python deprecation tools](https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html)
+- [Audit tools](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
+- [CLI](https://borda.github.io/pyDeprecate/stable/guide/cli.html)
+- [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html)
+
+## Markdown Mirrors
+
+- [Getting Started Markdown](https://borda.github.io/pyDeprecate/stable/getting-started.html.md)
+- [Use Cases Markdown](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html.md)
+- [Functions Markdown](https://borda.github.io/pyDeprecate/stable/guide/functions.html.md)
+- [Classes Markdown](https://borda.github.io/pyDeprecate/stable/guide/classes.html.md)
+- [Properties Markdown](https://borda.github.io/pyDeprecate/stable/guide/properties.html.md)
+- [Async Markdown](https://borda.github.io/pyDeprecate/stable/guide/async.html.md)
+- [Advanced Markdown](https://borda.github.io/pyDeprecate/stable/guide/advanced.html.md)
+- [Audit Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit.html.md)
+- [CLI Markdown](https://borda.github.io/pyDeprecate/stable/guide/cli.html.md)
+- [Migration Markdown](https://borda.github.io/pyDeprecate/stable/guide/migration.html.md)
