@@ -10,6 +10,17 @@ ci:
   # submodules: true
 
 repos:
+  - repo: local
+    hooks:
+      - id: plugin-compat-floor
+        name: plugin compatible_package_version floor
+        # self-contained (no deprecate/packaging import) so it also runs on pre-commit.ci
+        entry: python .github/scripts/check_plugin_compat_floor.py
+        language: python
+        pass_filenames: false
+        # run when the package version, a plugin manifest, or any plugin skill doc changes
+        files: ^(src/deprecate/__about__\.py|plugins/pydeprecate/.*/(plugin\.json|SKILL\.md))$
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
     hooks:

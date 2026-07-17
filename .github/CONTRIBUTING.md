@@ -391,6 +391,7 @@ pyDeprecate/
 │   └── unittests/                  # Focused tests for private/internal helpers
 │       └── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 ├── .github/
+│   ├── scripts/                # Pre-commit helper scripts (plugin compat-floor check)
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
 ├── pyproject.toml              # Project config (ruff, mypy, pytest)
@@ -690,7 +691,7 @@ class TestMyFeature:
 - **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/guide/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin). A public API change updates all three; a `SKILL.md` referencing an identifier not in the installed API is a bug (guarded by `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py`).
 - **Docs and `AGENTS.md` outrank plugin guidance** — `docs/llms.txt` and `AGENTS.md` are the authoritative contract; `plugins/pydeprecate/skills/*/SKILL.md` is a cached, separately-installed copy that can lag the actual installed package version. On any conflict, trust docs/`AGENTS.md` and fix the `SKILL.md`, never the reverse.
 - **No extra blank-line spacing in `plugins/**/*.md`** — single blank line between blocks, no blank line between list items in a tight list (see existing `SKILL.md` files for the pattern).
-- **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed — independent of the package's `__version__`. Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`): a floating support window whose floor is the current minor version minus three, bumped at every minor release. Identifiers the `SKILL.md` files reference that are newer than the floor carry an inline since-note with the older spelling or fallback (check `CHANGELOG.md`, not guesswork). Never collapse the two fields into one shared number — enforced by `test_plugin_declares_compatible_package_version` in `tests/integration/test_agent_plugin.py`, which also asserts the floor sits within three minors of the installed version.
+- **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed — independent of the package's `__version__`. Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`): a floating support window whose floor is the current minor version minus three, bumped at every minor release. Identifiers the `SKILL.md` files reference that are newer than the floor carry an inline since-note with the older spelling or fallback (check `CHANGELOG.md`, not guesswork). Never collapse the two fields into one shared number — enforced by the `plugin-compat-floor` pre-commit hook (`.github/scripts/check_plugin_compat_floor.py`: manifests agree, floor within three minors of `__version__`, `SKILL.md` prose mirrors it); it is a policy check, so it lives in pre-commit rather than the test suite.
 
 ### Common Patterns
 

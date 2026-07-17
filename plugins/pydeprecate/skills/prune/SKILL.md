@@ -5,7 +5,7 @@ description: Prune pyDeprecate compatibility due by a user-supplied Python packa
 
 # Prune scheduled deprecations
 
-Verified against pyDeprecate `>=0.10` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
+Verified against pyDeprecate `>=0.11` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
 
 Retire only compatibility due in the requested release. An expired record identifies a candidate, not which definition to delete.
 

@@ -5,7 +5,7 @@ description: Scan a Python project for existing deprecation patterns and suggest
 
 # Sunset a Python API
 
-Verified against pyDeprecate `>=0.10` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
+Verified against pyDeprecate `>=0.11` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
 
 Implement the requested migration while keeping existing callers working during the deprecation window. A preview or advice request stays read-only.
 
@@ -53,7 +53,7 @@ Use explicit modes, never legacy `target=True` / `target=None` sentinels. Attrib
 
 For properties, descriptors, async/generators, modules or stacked wrappers, read the relevant installed implementation/release documentation before editing. Property forwarding is not supported by the decorator: delegate inside the accessor for warn-only property migrations. Preserve unrelated decorators and future deprecation layers. Check `skip_if`: it can execute the original body instead of forwarding.
 
-Provide migration guidance through the replacement/mapping and, when needed, `message_template` (since 0.12; `template_mgs` on 0.10 and 0.11). Verify supported template fields rather than inventing a `message=` argument.
+Provide migration guidance through the replacement/mapping and, when needed, `message_template` (since 0.12; `template_mgs` on 0.11). Verify supported template fields rather than inventing a `message=` argument.
 
 ## Verify and hand off
 

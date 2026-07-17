@@ -1,6 +1,5 @@
 """Check that both agent hosts receive the same self-contained plugin skills and up-to-date SKILL.md prose."""
 
-import importlib.util
 import inspect
 import json
 import re
@@ -23,23 +22,9 @@ from deprecate import (
 from deprecate import (
     __all__ as _deprecate_all,
 )
-from deprecate import (
-    __version__ as _deprecate_version,
-)
 
 _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
-_PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
-
-try:
-    from packaging.specifiers import SpecifierSet
-    from packaging.version import Version
-except ImportError:  # pragma: no cover - guarded by _PACKAGING_AVAILABLE skipif below
-    SpecifierSet = None  # type: ignore[assignment,misc]
-    Version = None  # type: ignore[assignment,misc]
-
-#: Floating support window: the manifest floor may trail the installed minor by at most this many minors.
-_SUPPORT_WINDOW_MINORS = 3
 
 
 def _load_manifest(host: str) -> dict[str, Any]:
@@ -128,47 +113,6 @@ def test_host_versions_agree() -> None:
         assert codex_entry["description"] == manifests["codex"]["description"]
     if "description" in claude_entry:
         assert claude_entry["description"] == manifests["claude"]["description"]
-
-
-@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
-@pytest.mark.parametrize(
-    "host",
-    [pytest.param("codex", id="codex"), pytest.param("claude", id="claude")],
-)
-def test_plugin_declares_compatible_package_version(host: str) -> None:
-    """Catch a plugin release drifting out of range of the installed package.
-
-    A maintainer changes public API without updating the plugin's declared compatibility
-    floor. Both hosts pin a ``compatible_package_version`` specifier, kept independent of
-    the plugin's own ``version``. This is a repo-side maintainer convention, not a runtime
-    guarantee: ``claude plugin validate`` reports ``compatible_package_version`` as an
-    unknown field it ignores at load time, and Codex has no validator for it either — no
-    host actually blocks installation on a mismatch. SKILL.md prose is the only channel
-    that reaches the installing agent, so this test is what keeps the declared floor
-    trustworthy for a maintainer deciding when to bump it. ``prereleases=True`` is required
-    here: this repo's own installed version is a ``.dev`` build, and a bare floor like
-    ``>=0.12.0`` excludes prereleases by default under PEP 440. An empty string is also
-    guarded against explicitly: ``SpecifierSet("")`` matches every version, so a manifest
-    that silently lost its floor would still pass a bare ``.contains()`` check. The floor is a
-    floating window — at most ``_SUPPORT_WINDOW_MINORS`` minors behind the installed version —
-    so a maintainer who forgets to bump it at a minor release, or bumps it past the window,
-    gets told here rather than by a confused agent on an older release.
-    """
-    manifest = _load_manifest(host)
-    raw_spec = manifest["compatible_package_version"]
-    assert raw_spec, "compatible_package_version must not be empty (an empty SpecifierSet matches anything)"
-    spec = SpecifierSet(raw_spec)  # type: ignore[misc]
-    assert spec.contains(_deprecate_version, prereleases=True)
-    assert not spec.contains("0.0.0", prereleases=True), f"{raw_spec!r} does not actually bound the floor"
-    assert not spec.contains("0.1.0", prereleases=True), f"{raw_spec!r} does not actually bound the floor"
-    # `==` is not a floor: `==0.13.0.dev` would satisfy the installed check while supporting none of the window.
-    floors = [Version(item.version) for item in spec if item.operator in (">=", "~=")]  # type: ignore[misc]
-    assert len(floors) == 1, f"{raw_spec!r} must declare exactly one lower bound (>= or ~=)"
-    installed = Version(_deprecate_version)  # type: ignore[misc]
-    oldest_supported = installed.minor - _SUPPORT_WINDOW_MINORS
-    assert (floors[0].major, floors[0].minor) >= (installed.major, oldest_supported), (
-        f"{raw_spec!r} trails the installed {installed} by more than {_SUPPORT_WINDOW_MINORS} minors — bump the floor"
-    )
 
 
 _CLAUDE_CLI = shutil.which("claude")
