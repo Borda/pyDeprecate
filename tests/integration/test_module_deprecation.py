@@ -586,6 +586,42 @@ class TestSlotsGuard:
         finally:
             _remove_tmp_module(mod_name)
 
+    def test_failed_install_leaves_no_metadata_and_retry_succeeds(self) -> None:
+        """A ``TypeError`` during the ``__class__`` swap rolls back cleanly and a later retry still works.
+
+        A maintainer deprecates a module whose subclass declares ``__slots__``; the ``__class__``
+        reassignment raises ``TypeError``.  Because the install is atomic — the class swap happens before any
+        ``__deprecated__`` metadata is attached — the module must be left pristine.  If instead the metadata
+        lingered, the idempotency guard would treat the module as already deprecated and silently swallow the
+        retry that follows the documented fix (wrap in a plain ``types.ModuleType``), leaving the module
+        flagged deprecated for audit tools yet never emitting a runtime warning: the worst kind of silent
+        half-deprecation.  This test pins both halves: no metadata residue, and a retry that installs the
+        wrapper.
+        """
+        mod_name = "_test_slots_rollback_tmp"
+
+        class _SlottedModuleType(types.ModuleType):
+            """Custom module subclass with an incompatible ``__slots__`` layout."""
+
+            __slots__ = ("extra_slot",)
+
+        slotted = _SlottedModuleType(mod_name)
+        sys.modules[mod_name] = slotted
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                with pytest.raises(TypeError):
+                    deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
+            assert "__deprecated__" not in vars(slotted)
+            assert "__deprecated_stream__" not in vars(slotted)
+            plain = _make_tmp_module(mod_name)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
+            assert type(plain).__name__ == "_DeprecatedModuleWrapper"
+        finally:
+            _remove_tmp_module(mod_name)
+
 
 # ---------------------------------------------------------------------------
 # attrs_mapping + target combination
@@ -714,7 +750,7 @@ class TestStream:
     def test_stream_fallback_when_no_stacklevel(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
         """A ``stream`` callable that does not accept ``stacklevel`` does not crash.
 
-        The hook first tries ``stream(msg, stacklevel=2)``.  If the callable raises
+        The hook first tries ``stream(msg, stacklevel=3)``.  If the callable raises
         ``TypeError`` (e.g. a zero-kwargs ``lambda msg: ...``), the hook retries with
         ``stream(msg)`` only.  The warning must still reach the stream.
         """
@@ -920,3 +956,143 @@ class TestValidateWrapper:
         plain_mod = types.ModuleType("_plain_test_mod")
         with pytest.raises(ValueError, match="missing or invalid"):
             validate_deprecation_wrapper(plain_mod)
+
+
+# ---------------------------------------------------------------------------
+# attrs_mapping precedence when the mapped name still lives in __dict__
+# ---------------------------------------------------------------------------
+
+
+class TestAttrsMappingShadowsDict:
+    """A mapped name must honor ``attrs_mapping`` even when the old body still exists in ``__dict__``."""
+
+    def test_none_mapping_raises_even_when_name_still_defined(
+        self, make_tmp_module: Callable[[str], types.ModuleType]
+    ) -> None:
+        """``{"old": None}`` must raise ``AttributeError`` even if ``old`` is still defined locally.
+
+        The realistic case: a maintainer marks ``helper`` for removal with ``attrs_mapping={"helper": None}``
+        but has not yet deleted the ``helper`` body from the module (a mid-migration state).  The removal
+        marker must still win — ``mod.helper`` has to raise, not quietly return the stale live function —
+        otherwise the "this attribute is gone" contract is a silent no-op and callers keep binding to code
+        the maintainer believes they blocked.
+        """
+        mod_name = "_test_none_shadow_tmp"
+        mod = make_tmp_module(mod_name)
+        mod.helper = lambda: "STALE"  # type: ignore[attr-defined]
+        deprecated_module(mod_name, attrs_mapping={"helper": None}, **_DEPRS_CASE_MOD_ARGS)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with pytest.raises(AttributeError):
+                _ = sys.modules[mod_name].helper  # type: ignore[attr-defined]
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
+
+    def test_rename_no_target_returns_new_not_stale_local(
+        self, make_tmp_module: Callable[[str], types.ModuleType]
+    ) -> None:
+        """``{"old": "new"}`` returns the ``new`` value even when both ``old`` and ``new`` exist locally.
+
+        During a rename window both the legacy ``old_fn`` and its replacement ``new_fn`` typically coexist in
+        the module body so nothing breaks abruptly.  Accessing ``mod.old_fn`` must resolve through the mapping
+        to ``new_fn``'s value — not short-circuit to the stale local ``old_fn`` via the fast path — so alias
+        callers and direct ``new_fn`` callers observe identical behavior.  Exactly one warning must fire,
+        proving the mapped-read does not re-enter ``__getattribute__``.
+        """
+        mod_name = "_test_rename_shadow_tmp"
+        mod = make_tmp_module(mod_name)
+        mod.old_fn = lambda: "STALE_LOCAL"  # type: ignore[attr-defined]
+        mod.new_fn = lambda: "NEW_BODY"  # type: ignore[attr-defined]
+        deprecated_module(mod_name, attrs_mapping={"old_fn": "new_fn"}, **_DEPRS_CASE_MOD_ARGS)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fn = sys.modules[mod_name].old_fn  # type: ignore[attr-defined]
+        assert fn() == "NEW_BODY"
+        assert len(w) == 1
+
+    def test_rename_with_target_returns_target_over_stale_local(
+        self, make_tmp_module: Callable[[str], types.ModuleType]
+    ) -> None:
+        """A mapped name with a redirect ``target`` resolves on the target, not the stale local body.
+
+        The old module keeps ``old_fn`` defined during the deprecation window while the real implementation
+        moves to ``new_mod.new_fn``.  ``attrs_mapping={"old_fn": "new_fn"}`` with ``target=new_mod`` must
+        forward to the target's ``new_fn`` so bug fixes there reach alias callers — the local stale body must
+        never shadow the mapping.
+        """
+        target_name = "_test_shadow_target_tmp"
+        target = make_tmp_module(target_name)
+        target.new_fn = lambda: "TARGET_NEW"  # type: ignore[attr-defined]
+        mod_name = "_test_shadow_src_tmp"
+        mod = make_tmp_module(mod_name)
+        mod.old_fn = lambda: "STALE_LOCAL"  # type: ignore[attr-defined]
+        deprecated_module(mod_name, target=target, attrs_mapping={"old_fn": "new_fn"}, **_DEPRS_CASE_MOD_ARGS)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fn = sys.modules[mod_name].old_fn  # type: ignore[attr-defined]
+        assert fn() == "TARGET_NEW"
+
+    def test_unmapped_real_attr_still_returns_real_value(
+        self, make_tmp_module: Callable[[str], types.ModuleType]
+    ) -> None:
+        """An unmapped real attribute is unaffected — the mapping only diverts names it lists.
+
+        With a mapping present for other names, an unlisted real attribute must still return its own local
+        value via the fast path, confirming the precedence fix diverts selectively and does not funnel every
+        public access through the redirect machinery.
+        """
+        mod_name = "_test_unmapped_kept_tmp"
+        mod = make_tmp_module(mod_name)
+        mod.kept = lambda: "REAL"  # type: ignore[attr-defined]
+        mod.other = lambda: "O"  # type: ignore[attr-defined]
+        deprecated_module(mod_name, attrs_mapping={"other": "other"}, **_DEPRS_CASE_MOD_ARGS)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fn = sys.modules[mod_name].kept  # type: ignore[attr-defined]
+        assert fn() == "REAL"
+
+
+# ---------------------------------------------------------------------------
+# Cyclic redirect guard
+# ---------------------------------------------------------------------------
+
+
+class TestRedirectCycle:
+    """Redirect cycles longer than the trivial self-target must fail cleanly, not recurse forever."""
+
+    def test_mutual_redirect_raises_attribute_error(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+        """``A`` redirecting to ``B`` and ``B`` back to ``A`` yields ``AttributeError``, not ``RecursionError``.
+
+        Two modules can end up pointing at each other — e.g. a rename that is later reverted, or two teams
+        each deprecating toward the other.  A lookup missing from both would otherwise bounce A→B→A→…  until
+        the interpreter hits its recursion limit, emitting a warning on every frame.  The resolution-time
+        cycle guard must instead surface the documented ``AttributeError`` after a bounded number of hops.
+        """
+        a = make_tmp_module("_test_cycle_a_tmp")
+        b = make_tmp_module("_test_cycle_b_tmp")
+        deprecated_module("_test_cycle_a_tmp", target=b, **_DEPRS_CASE_MOD_ARGS)
+        deprecated_module("_test_cycle_b_tmp", target=a, **_DEPRS_CASE_MOD_ARGS)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with pytest.raises(AttributeError):
+                _ = sys.modules["_test_cycle_a_tmp"].ghost  # type: ignore[attr-defined]
+
+    def test_normal_redirect_unaffected_by_cycle_guard(
+        self, make_tmp_module: Callable[[str], types.ModuleType]
+    ) -> None:
+        """A non-cyclic redirect still forwards correctly after the guard clears its thread-local state.
+
+        The cycle guard tracks in-flight ``(module, name)`` resolutions and must discard them once a lookup
+        completes, so an ordinary redirect to a live target returns the target's value on every call — the
+        guard must not leave stale entries that poison later lookups.
+        """
+        target = make_tmp_module("_test_cycle_target_tmp")
+        target.real = lambda: "REAL"  # type: ignore[attr-defined]
+        make_tmp_module("_test_cycle_src_tmp")
+        deprecated_module("_test_cycle_src_tmp", target=target, **_DEPRS_CASE_MOD_ARGS)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            first = sys.modules["_test_cycle_src_tmp"].real  # type: ignore[attr-defined]
+            second = sys.modules["_test_cycle_src_tmp"].real  # type: ignore[attr-defined]
+        assert first() == "REAL"
+        assert second() == "REAL"

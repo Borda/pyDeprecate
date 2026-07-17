@@ -524,13 +524,13 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
     # recursive audit scan whose ``__getattr__``/``__getattribute__`` raises something else (e.g. a lazy
     # proxy raising ``RuntimeError``) would otherwise crash the whole scan. Treat any failure as "no meta".
     #
-    # Module objects are a special case: a module deprecated via ``deprecated_module()`` (see
-    # ``deprecate.module``) installs a PEP 562 ``__getattr__`` that emits a ``FutureWarning`` on *any*
-    # attribute access, including ``__deprecated__`` itself. Calling this plain-``getattr`` helper directly
-    # on such a module would therefore fire a spurious warning as a side effect of merely checking for
-    # metadata. Callers that may receive a module object must probe ``mod.__dict__.get("__deprecated__")``
-    # first (see ``deprecate.audit._scan_module_meta`` and its caller) instead of routing through this
-    # helper.
+    # Module objects: a module deprecated via ``deprecated_module()`` (see ``deprecate.module``) intercepts
+    # attribute access by reassigning its ``__class__`` to a ``types.ModuleType`` subclass whose
+    # ``__getattribute__`` emits a ``FutureWarning`` — but only for *public* names; underscore-prefixed
+    # names (including ``__deprecated__``) are explicitly exempt, so the ``getattr`` below is warning-free on
+    # a ``deprecated_module`` wrapper. The ``mod.__dict__.get("__deprecated__")`` probing in
+    # ``deprecate.audit`` (``_scan_module`` / ``_scan_module_meta``) is belt-and-braces for *foreign*
+    # third-party modules with arbitrary hooks, not required for our own wrappers.
     try:
         meta = getattr(obj, "__deprecated__", None)
     except Exception:

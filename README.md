@@ -1198,6 +1198,9 @@ def add(a: float, b: float) -> float:
 
 
 # Call once at the bottom — warns on every public attribute access, including real ones.
+# `__name__` is passed explicitly here; it is optional (auto-detected from the caller frame when omitted),
+# but passing it is the robust idiom — auto-detection relies on `sys._getframe` and only works when the
+# call sits directly in the module body, not when routed through a helper.
 deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message="Use `new_calculator` instead.")
 # old_calculator.add(1, 2)  # warns: FutureWarning, returns 3
 ```
@@ -1211,7 +1214,7 @@ import new_calculator as _new_calculator
 from deprecate import deprecated_module
 
 deprecated_module(
-    __name__,
+    __name__,  # optional — auto-detected when omitted; see Mode 1 note above
     target=_new_calculator,  # all unknown attr access forwarded here
     deprecated_in="2.0",
     remove_in="3.0",

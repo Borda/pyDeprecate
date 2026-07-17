@@ -1149,7 +1149,8 @@ def find_deprecation_wrappers(
     """Scan a module or package for deprecated wrappers and validate them.
 
     This is a development/CI tool to scan a codebase for all wrappers created with :func:`~deprecate.deprecated`,
-    :func:`~deprecate.deprecated_class`, or :func:`~deprecate.deprecated_instance` and validate that each wrapper
+    :func:`~deprecate.deprecated_class`, :func:`~deprecate.deprecated_instance`, or
+    :func:`~deprecate.module.deprecated_module` (module-level deprecation) and validate that each wrapper
     configuration is meaningful.
     Returns comprehensive information about each deprecated wrapper including validation results that help identify
     misconfigured wrappers.
