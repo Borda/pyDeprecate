@@ -33,18 +33,6 @@ from deprecate.module import deprecated_module
 _DEPRS_CASE_MOD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 
 
-def _make_tmp_module(name: str) -> types.ModuleType:
-    """Create and register a fresh throwaway module in ``sys.modules``."""
-    mod = types.ModuleType(name)
-    sys.modules[name] = mod
-    return mod
-
-
-def _remove_tmp_module(name: str) -> None:
-    """Remove a throwaway module from ``sys.modules`` if present."""
-    sys.modules.pop(name, None)
-
-
 class TestMode1InPlaceWarn:
     """``deprecated_module()`` with no target and no attrs_mapping emits warning on every public attr access."""
 
@@ -276,16 +264,13 @@ class TestMode2Redirect:
 class TestAttrsMapping:
     """``deprecated_module()`` with ``attrs_mapping`` redirects listed names selectively."""
 
-    def setup_method(self) -> None:
-        """Register a fresh temporary module before each test."""
+    @pytest.fixture(autouse=True)
+    def _mapped_module(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """Register a fresh temporary module with an ``old_fn`` -> ``new_fn`` mapping before each test."""
         self._mod_name = "_test_attrs_map_tmp"
-        mod = _make_tmp_module(self._mod_name)
+        mod = make_tmp_module(self._mod_name)
         mod.new_fn = lambda x: x * 10  # type: ignore[attr-defined]
         deprecated_module(self._mod_name, attrs_mapping={"old_fn": "new_fn"}, **_DEPRS_CASE_MOD_ARGS)
-
-    def teardown_method(self) -> None:
-        """Clean up the temporary module after each test."""
-        _remove_tmp_module(self._mod_name)
 
     def test_mapped_attr_warns_and_returns(self) -> None:
         """Accessing a mapped attribute emits a ``FutureWarning`` and returns the redirected value.
@@ -317,7 +302,7 @@ class TestAttrsMapping:
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
-    def test_none_value_in_mapping_raises(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_none_value_in_mapping_raises(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A ``None`` value in ``attrs_mapping`` signals "warn but do not redirect".
 
         When the mapping value is ``None`` the hook emits the warning and then raises
@@ -368,17 +353,14 @@ class TestAuditDiscoversModule:
         results = find_deprecation_wrappers(old_math, recursive=False)
         assert results[0].deprecated_info.target is TargetMode.NOTIFY
 
-    def test_tmp_module_discovered(self) -> None:
+    def test_tmp_module_discovered(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A dynamically created deprecated module is also discovered by the audit scanner."""
         mod_name = "_test_audit_discover_tmp"
-        mod = _make_tmp_module(mod_name)
-        try:
-            deprecated_module(mod_name, deprecated_in="2.0", remove_in="3.0")
-            results = find_deprecation_wrappers(mod, recursive=False)
-            assert len(results) == 1
-            assert results[0].deprecated_info.deprecated_in == "2.0"
-        finally:
-            _remove_tmp_module(mod_name)
+        mod = make_tmp_module(mod_name)
+        deprecated_module(mod_name, deprecated_in="2.0", remove_in="3.0")
+        results = find_deprecation_wrappers(mod, recursive=False)
+        assert len(results) == 1
+        assert results[0].deprecated_info.deprecated_in == "2.0"
 
 
 class TestModuleReportLabel:
@@ -489,7 +471,7 @@ class TestGuard:
         with pytest.raises(ValueError, match="not in `sys.modules`"):
             deprecated_module("_definitely_not_registered_xyz", **_DEPRS_CASE_MOD_ARGS)
 
-    def test_raises_for_self_target(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_raises_for_self_target(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """Passing the module itself as ``target`` raises ``ValueError`` before any wrapper is installed.
 
         A caller may mistakenly pass ``target=sys.modules[__name__]`` (for example after copy-pasting
@@ -507,7 +489,7 @@ class TestGuard:
 class TestSlotsGuard:
     """``deprecated_module()`` raises ``TypeError`` when the module's type declares ``__slots__``."""
 
-    def test_raises_type_error_for_slotted_module_type(self) -> None:
+    def test_raises_type_error_for_slotted_module_type(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A module whose ``__class__`` declares ``__slots__`` raises ``TypeError`` on deprecation.
 
         A maintainer might wrap a module in a custom ``types.ModuleType`` subclass — for example a
@@ -526,19 +508,17 @@ class TestSlotsGuard:
 
             __slots__ = ("extra_slot",)
 
-        mod = _SlottedModuleType(mod_name)
-        sys.modules[mod_name] = mod
-        try:
-            with warnings.catch_warnings():
-                # A UserWarning fires first because `type(mod) is not types.ModuleType`;
-                # this test asserts only the documented TypeError, not that warning.
-                warnings.simplefilter("ignore")
-                with pytest.raises(TypeError, match="__class__ assignment"):
-                    deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
-        finally:
-            _remove_tmp_module(mod_name)
+        make_tmp_module(mod_name, module_type=_SlottedModuleType)
+        with warnings.catch_warnings():
+            # A UserWarning fires first because `type(mod) is not types.ModuleType`;
+            # this test asserts only the documented TypeError, not that warning.
+            warnings.simplefilter("ignore")
+            with pytest.raises(TypeError, match="__class__ assignment"):
+                deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
 
-    def test_failed_install_leaves_no_metadata_and_retry_succeeds(self) -> None:
+    def test_failed_install_leaves_no_metadata_and_retry_succeeds(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
         """A ``TypeError`` during the ``__class__`` swap rolls back cleanly and a later retry still works.
 
         A maintainer deprecates a module whose subclass declares ``__slots__``; the ``__class__``
@@ -557,35 +537,32 @@ class TestSlotsGuard:
 
             __slots__ = ("extra_slot",)
 
-        slotted = _SlottedModuleType(mod_name)
-        sys.modules[mod_name] = slotted
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                with pytest.raises(TypeError):
-                    deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
-            assert "__deprecated__" not in vars(slotted)
-            assert "__deprecated_stream__" not in vars(slotted)
-            plain = _make_tmp_module(mod_name)
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
+        slotted = make_tmp_module(mod_name, module_type=_SlottedModuleType)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with pytest.raises(TypeError):
                 deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
-            assert type(plain).__name__ == "_DeprecatedModuleWrapper"
-        finally:
-            _remove_tmp_module(mod_name)
+        assert "__deprecated__" not in vars(slotted)
+        assert "__deprecated_stream__" not in vars(slotted)
+        plain = make_tmp_module(mod_name)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
+        assert type(plain).__name__ == "_DeprecatedModuleWrapper"
 
 
 class TestAttrsMappingWithTarget:
     """``attrs_mapping`` plus ``target`` — listed names redirect via mapping; unlisted fall to target."""
 
-    def setup_method(self) -> None:
-        """Register fresh temporary modules before each test."""
+    @pytest.fixture(autouse=True)
+    def _mapped_module_with_target(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """Register fresh temporary modules with a mapped ``old_mapped`` name plus a redirect target."""
         self._mod_name = "_test_attrs_target_tmp"
         self._target_name = "_test_attrs_target_new_tmp"
-        target = _make_tmp_module(self._target_name)
+        target = make_tmp_module(self._target_name)
         target.unmapped_fn = lambda x: x * 2  # type: ignore[attr-defined]
         target.mapped_fn = lambda x: x * 3  # type: ignore[attr-defined]
-        _make_tmp_module(self._mod_name)
+        make_tmp_module(self._mod_name)
         deprecated_module(
             self._mod_name,
             target=target,
@@ -593,11 +570,6 @@ class TestAttrsMappingWithTarget:
             deprecated_in="1.0",
             remove_in="2.0",
         )
-
-    def teardown_method(self) -> None:
-        """Clean up both temporary modules after each test."""
-        _remove_tmp_module(self._mod_name)
-        _remove_tmp_module(self._target_name)
 
     def test_unmapped_falls_through_to_target(self) -> None:
         """Names absent from ``attrs_mapping`` fall through to ``target`` after warning.
@@ -628,7 +600,7 @@ class TestAttrsMappingWithTarget:
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
-    def test_mapped_value_missing_from_both_raises(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_mapped_value_missing_from_both_raises(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A mapped name whose value is absent from both the deprecated module and ``target`` raises.
 
         A maintainer may write ``attrs_mapping={"old_fn": "renamed_fn"}`` and then rename or remove
@@ -665,16 +637,13 @@ class TestAttrsMappingWithTarget:
 class TestStream:
     """Custom ``stream`` callable receives the warning message string."""
 
-    def setup_method(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _streamed_module(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """Register a deprecated module that uses a custom stream callable."""
         self._mod_name = "_test_stream_tmp"
         self._calls: list[str] = []
-        _make_tmp_module(self._mod_name)
+        make_tmp_module(self._mod_name)
         deprecated_module(self._mod_name, **_DEPRS_CASE_MOD_ARGS, stream=lambda msg, **_kw: self._calls.append(msg))
-
-    def teardown_method(self) -> None:
-        """Remove the temporary module after each test."""
-        _remove_tmp_module(self._mod_name)
 
     def test_stream_called_on_attr_access(self) -> None:
         """Accessing a missing attribute invokes the ``stream`` callable instead of ``warnings.warn``.
@@ -689,7 +658,7 @@ class TestStream:
         assert len(self._calls) == 1
         assert isinstance(self._calls[0], str)
 
-    def test_stream_fallback_when_no_stacklevel(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_stream_fallback_when_no_stacklevel(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A ``stream`` callable that does not accept ``stacklevel`` does not crash.
 
         The hook first tries ``stream(msg, stacklevel=3)``.  If the callable raises
@@ -706,24 +675,25 @@ class TestStream:
 
 
 @pytest.fixture
-def make_tmp_module() -> Iterator[Callable[[str], types.ModuleType]]:
-    """Factory fixture: create named temp modules; auto-removes each after the test."""
+def make_tmp_module() -> Iterator[Callable[..., types.ModuleType]]:
+    """Factory fixture: create and register named temp modules; auto-removes each after the test."""
     created: list[str] = []
 
-    def _factory(name: str) -> types.ModuleType:
-        mod = _make_tmp_module(name)
+    def _factory(name: str, module_type: type[types.ModuleType] = types.ModuleType) -> types.ModuleType:
+        mod = module_type(name)
+        sys.modules[name] = mod
         created.append(name)
         return mod
 
     yield _factory
     for name in created:
-        _remove_tmp_module(name)
+        sys.modules.pop(name, None)
 
 
 class TestIdempotency:
     """Second call to ``deprecated_module()`` with the SAME configuration is a silent no-op."""
 
-    def test_double_call_same_config_is_silent_no_op(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_double_call_same_config_is_silent_no_op(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """Re-deprecating a module with identical arguments leaves config unchanged and warns nothing.
 
         This is the ``importlib.reload()`` case: the module body re-runs ``deprecated_module(...)`` with
@@ -749,7 +719,7 @@ class TestIdempotency:
 class TestReconfigurationWarns:
     """Second call with a DIFFERENT configuration warns and keeps the original config."""
 
-    def test_different_mode_warns_and_keeps_original(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_different_mode_warns_and_keeps_original(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """Switching from Mode 1 (in-place warn) to Mode 2 (redirect) on a second call is reported, not dropped.
 
         A maintainer first marks a module deprecated in-place, then later edits the call to add a redirect
@@ -785,7 +755,7 @@ class TestReconfigurationWarns:
 class TestGetAttrChaining:
     """Pre-existing ``__getattr__`` on the module is preserved and chained after deprecation."""
 
-    def test_install_emits_user_warning(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_install_emits_user_warning(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """Installing on a module that already has ``__getattr__`` emits a ``UserWarning``.
 
         When ``deprecated_module()`` detects a pre-existing ``__getattr__`` in the module
@@ -802,7 +772,7 @@ class TestGetAttrChaining:
         assert len(user_warns) == 1
         assert "chaining" in str(user_warns[0].message).lower()
 
-    def test_chained_getattr_resolves_value(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_chained_getattr_resolves_value(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """Accessing a name resolved by the chained ``__getattr__`` returns the correct value.
 
         After chaining, missing-attribute lookups that are not handled by ``attrs_mapping`` or
@@ -822,9 +792,7 @@ class TestGetAttrChaining:
         future_warns = [x for x in w if issubclass(x.category, FutureWarning)]
         assert len(future_warns) == 1
 
-    def test_target_miss_falls_back_to_chained_getattr(
-        self, make_tmp_module: Callable[[str], types.ModuleType]
-    ) -> None:
+    def test_target_miss_falls_back_to_chained_getattr(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A name absent from the redirect ``target`` falls back to the preserved ``__getattr__``.
 
         Redirect mode and a bespoke PEP 562 ``__getattr__`` can coexist: names living on the
@@ -884,7 +852,7 @@ class TestAttrsMappingShadowsDict:
     """A mapped name must honor ``attrs_mapping`` even when the old body still exists in ``__dict__``."""
 
     def test_none_mapping_raises_even_when_name_still_defined(
-        self, make_tmp_module: Callable[[str], types.ModuleType]
+        self, make_tmp_module: Callable[..., types.ModuleType]
     ) -> None:
         """``{"old": None}`` must raise ``AttributeError`` even if ``old`` is still defined locally.
 
@@ -906,7 +874,7 @@ class TestAttrsMappingShadowsDict:
         assert issubclass(w[0].category, FutureWarning)
 
     def test_rename_no_target_returns_new_not_stale_local(
-        self, make_tmp_module: Callable[[str], types.ModuleType]
+        self, make_tmp_module: Callable[..., types.ModuleType]
     ) -> None:
         """``{"old": "new"}`` returns the ``new`` value even when both ``old`` and ``new`` exist locally.
 
@@ -928,7 +896,7 @@ class TestAttrsMappingShadowsDict:
         assert len(w) == 1
 
     def test_rename_with_target_returns_target_over_stale_local(
-        self, make_tmp_module: Callable[[str], types.ModuleType]
+        self, make_tmp_module: Callable[..., types.ModuleType]
     ) -> None:
         """A mapped name with a redirect ``target`` resolves on the target, not the stale local body.
 
@@ -950,7 +918,7 @@ class TestAttrsMappingShadowsDict:
         assert fn() == "TARGET_NEW"
 
     def test_unmapped_real_attr_still_returns_real_value(
-        self, make_tmp_module: Callable[[str], types.ModuleType]
+        self, make_tmp_module: Callable[..., types.ModuleType]
     ) -> None:
         """An unmapped real attribute is unaffected — the mapping only diverts names it lists.
 
@@ -972,7 +940,7 @@ class TestAttrsMappingShadowsDict:
 class TestRedirectCycle:
     """Redirect cycles longer than the trivial self-target must fail cleanly, not recurse forever."""
 
-    def test_mutual_redirect_raises_attribute_error(self, make_tmp_module: Callable[[str], types.ModuleType]) -> None:
+    def test_mutual_redirect_raises_attribute_error(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """``A`` redirecting to ``B`` and ``B`` back to ``A`` yields ``AttributeError``, not ``RecursionError``.
 
         Two modules can end up pointing at each other — e.g. a rename that is later reverted, or two teams
@@ -989,9 +957,7 @@ class TestRedirectCycle:
             with pytest.raises(AttributeError):
                 _ = sys.modules["_test_cycle_a_tmp"].ghost  # type: ignore[attr-defined]
 
-    def test_normal_redirect_unaffected_by_cycle_guard(
-        self, make_tmp_module: Callable[[str], types.ModuleType]
-    ) -> None:
+    def test_normal_redirect_unaffected_by_cycle_guard(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A non-cyclic redirect still forwards correctly after the guard clears its thread-local state.
 
         The cycle guard tracks in-flight ``(module, name)`` resolutions and must discard them once a lookup
@@ -1040,7 +1006,7 @@ class TestModuleLevelCallGuard:
         assert type(auto_math).__name__ == "_DeprecatedModuleWrapper"
 
     def test_explicit_module_name_from_function_scope_allowed(
-        self, make_tmp_module: Callable[[str], types.ModuleType]
+        self, make_tmp_module: Callable[..., types.ModuleType]
     ) -> None:
         """Passing ``module_name`` explicitly bypasses the guard even when called from a function body.
 
