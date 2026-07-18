@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -293,10 +293,42 @@
         },
         {
           "@type": "Question",
+          "name": "How do I deprecate an entire Python module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that emits FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. Star imports (from old_module import *) also trigger the warning in all modes, once per pulled-in public name."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Does a deprecation warning survive copy.copy, copy.deepcopy, and pickle?",
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Yes for copy.copy and copy.deepcopy. Both proxy types return a proxy again on copy, so the deprecation warning travels with the copied object during the migration window. Warning counters are snapshotted at copy time and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access. For pickle: deprecated_instance proxies wrapping plain objects (dicts, lists) are fully picklable; deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy (pickle cannot find the original class by reference). One additional caveat: if the proxy was created with a non-module-level stream (lambda or closure), pickle.dumps will raise PicklingError — use stream=warnings.warn or stream=None when pickling."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to emit FutureWarning on every public attribute access — including real attributes already in __dict__. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are not an exception: CPython's IMPORT_STAR bytecode calls getattr(module, name) for each pulled-in public name, which still routes through __getattribute__."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does from old_module import * still trigger the deprecation warning?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. CPython's IMPORT_STAR bytecode resolves from module import * by calling getattr(module, name) once for each public name being pulled into the importing namespace (either the names in __all__, or all non-underscore names when __all__ is absent). Each of those getattr() calls routes through the module wrapper's __getattribute__ interception (_DeprecatedModuleWrapper) exactly like any other attribute access, so deprecated_module() emits one FutureWarning per pulled-in public name, in both Mode 1 and Mode 2. This is also why deprecated_module() is implemented via __class__ reassignment plus __getattribute__ rather than a PEP 562 module-level __getattr__ hook: __getattr__ fires only for missing names and would never see the getattr() calls issued by IMPORT_STAR, leaving star imports completely unwarned. The __getattribute__ approach closes that gap."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "That is expected in Mode 1 and Mode 2. deprecated_module() overrides the module's __getattribute__, so any public attribute probe emits FutureWarning even when the access comes from tooling rather than your own code. pytest collection, plugin-spec lookups, Sphinx autodoc, and IDE completion can all walk module attributes repeatedly during discovery, which can turn one import into many warnings. If that noise is expected in tests, scope it in test config with warnings.filterwarnings() for the deprecated module instead of suppressing warnings globally."
           }
         },
         {
@@ -718,6 +750,34 @@
     
   
     Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/modules.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules
   
 
     
@@ -1582,6 +1642,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module deprecation: accessing a missing attribute raises AttributeError
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#does-from-old_calculator-import-still-trigger-the-deprecation-warning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does from old_calculator import * still trigger the deprecation warning?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#does-the-deprecation-survive-copy-deepcopy-and-pickle" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2109,6 +2202,39 @@
     <span class="md-ellipsis">
       
         RuntimeError: Circular deprecation cycle detected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module deprecation: accessing a missing attribute raises AttributeError
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#does-from-old_calculator-import-still-trigger-the-deprecation-warning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does from old_calculator import * still trigger the deprecation warning?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?
       
     </span>
   </a>
@@ -3594,30 +3720,65 @@
 </code></pre></div>
 <p>Both deprecated names forward to the same non-deprecated implementation with no cycle.</p>
 <hr />
+<h2 id="module-deprecation-accessing-a-missing-attribute-raises-attributeerror">Module deprecation: accessing a missing attribute raises AttributeError<a class="headerlink" href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I called <code>deprecated_module()</code> in Mode 1 (no <code>target=</code>). Real attributes warn correctly, but accessing a name that is not in the module raises <code>AttributeError</code> instead of just warning. Is there a way to forward missing-attr lookups to a replacement module?</p>
+<p><strong>A:</strong> Yes — that is exactly what Mode 2 (<code>target=new_module</code>) does. Mode 1 intercepts every public attribute access (real or missing) via <code>__getattribute__</code>, so real attributes warn and are returned. However, for names <strong>not</strong> in the module's <code>__dict__</code>, Mode 1 raises <code>AttributeError</code> after warning because there is no target to forward to.</p>
+<p>If you want unknown names to warn <strong>and</strong> resolve, switch to Mode 2:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="c1"># phmdoctest:skip — CI template; new_calculator is not installed</span>
+<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="c1"># old_calculator.py — redirect missing-attr lookups to new_calculator</span>
+<a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">new_calculator</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_new_calculator</span>
+<a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
+<a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a>
+<a id="__codelineno-89-6" name="__codelineno-89-6" href="#__codelineno-89-6"></a><span class="n">deprecated_module</span><span class="p">(</span>
+<a id="__codelineno-89-7" name="__codelineno-89-7" href="#__codelineno-89-7"></a>    <span class="vm">__name__</span><span class="p">,</span>
+<a id="__codelineno-89-8" name="__codelineno-89-8" href="#__codelineno-89-8"></a>    <span class="n">target</span><span class="o">=</span><span class="n">_new_calculator</span><span class="p">,</span>
+<a id="__codelineno-89-9" name="__codelineno-89-9" href="#__codelineno-89-9"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-89-10" name="__codelineno-89-10" href="#__codelineno-89-10"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-89-11" name="__codelineno-89-11" href="#__codelineno-89-11"></a>    <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Use `new_calculator` instead.&quot;</span><span class="p">,</span>
+<a id="__codelineno-89-12" name="__codelineno-89-12" href="#__codelineno-89-12"></a><span class="p">)</span>
+<a id="__codelineno-89-13" name="__codelineno-89-13" href="#__codelineno-89-13"></a><span class="c1"># old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)</span>
+</code></pre></div>
+<hr />
+<h2 id="does-from-old_calculator-import-still-trigger-the-deprecation-warning">Does <code>from old_calculator import *</code> still trigger the deprecation warning?<a class="headerlink" href="#does-from-old_calculator-import-still-trigger-the-deprecation-warning" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I used <code>from old_calculator import *</code> after calling <code>deprecated_module()</code> on it. Does that star import emit a <code>FutureWarning</code>, or does it slip through silently?</p>
+<p><strong>A:</strong> Yes, it still warns. CPython's <code>IMPORT_STAR</code> bytecode resolves <code>from module import *</code> by calling <code>getattr(module, name)</code> once for each public name being pulled into the importing namespace (either the names in <code>__all__</code>, or all non-underscore names when <code>__all__</code> is absent). Each of those <code>getattr()</code> calls routes through the module wrapper's <code>__getattribute__</code> interception (<code>_DeprecatedModuleWrapper</code>) exactly like any other attribute access, so <code>deprecated_module()</code> emits one <code>FutureWarning</code> per pulled-in public name.</p>
+<p>This holds for both Mode 1 and Mode 2 of <code>deprecated_module()</code>. It is also why <code>deprecated_module()</code> is implemented via <code>__class__</code> reassignment plus <code>__getattribute__</code> rather than a PEP 562 module-level <code>__getattr__</code> hook: <code>__getattr__</code> fires only for missing names and would never see the <code>getattr()</code> calls issued by <code>IMPORT_STAR</code>, leaving star imports completely unwarned. The <code>__getattribute__</code> approach closes that gap.</p>
+<hr />
+<h2 id="why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module">Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?<a class="headerlink" href="#why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many <code>FutureWarning</code>s. Why?</p>
+<p><strong>A:</strong> That is expected in Mode 1 and Mode 2. <code>deprecated_module()</code> overrides the module's <code>__getattribute__</code>, so any public attribute probe emits a warning even when the access comes from tooling rather than your own code. Test and documentation tools often call <code>getattr()</code>, inspect plugin metadata, or walk module attributes repeatedly during discovery, so pytest's collection probes, plugin-spec lookups, Sphinx autodoc, IDE completion, and linters can fan out into many warnings.</p>
+<p>If that noise is expected in tests, scope it in test config with <code>warnings.filterwarnings</code> instead of suppressing warnings globally:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a><span class="c1"># tests/conftest.py</span>
+<a id="__codelineno-90-2" name="__codelineno-90-2" href="#__codelineno-90-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<a id="__codelineno-90-3" name="__codelineno-90-3" href="#__codelineno-90-3"></a>
+<a id="__codelineno-90-4" name="__codelineno-90-4" href="#__codelineno-90-4"></a><span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;^old_module$&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Replace <code>old_module</code> with the deprecated module's import path. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.</p>
+<hr />
 <h2 id="does-the-deprecation-survive-copy-deepcopy-and-pickle">Does the deprecation survive <code>copy</code>, <code>deepcopy</code>, and <code>pickle</code>?<a class="headerlink" href="#does-the-deprecation-survive-copy-deepcopy-and-pickle" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I copied (or pickled and restored) an object wrapped by <code>deprecated_instance</code> / <code>deprecated_class</code> — does the deprecation still apply to the copy?</p>
 <p><strong>A:</strong> Yes for <code>copy.copy</code> and <code>copy.deepcopy</code>. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: <code>deprecated_class</code> proxies cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises <code>PicklingError</code>. <code>deprecated_instance</code> proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
-<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
-<a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a>
-<a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_instance</span>
-<a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a>
-<a id="__codelineno-89-6" name="__codelineno-89-6" href="#__codelineno-89-6"></a><span class="c1"># NEW API — the canonical settings object going forward</span>
-<a id="__codelineno-89-7" name="__codelineno-89-7" href="#__codelineno-89-7"></a><span class="n">NEW_LIMITS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;max_retries&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
-<a id="__codelineno-89-8" name="__codelineno-89-8" href="#__codelineno-89-8"></a>
-<a id="__codelineno-89-9" name="__codelineno-89-9" href="#__codelineno-89-9"></a><span class="c1"># DEPRECATED API — `OLD_LIMITS` kept as a deprecated alias during the migration window</span>
-<a id="__codelineno-89-10" name="__codelineno-89-10" href="#__codelineno-89-10"></a><span class="n">OLD_LIMITS</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span><span class="n">NEW_LIMITS</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;OLD_LIMITS&quot;</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-89-11" name="__codelineno-89-11" href="#__codelineno-89-11"></a>
-<a id="__codelineno-89-12" name="__codelineno-89-12" href="#__codelineno-89-12"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">))</span>  <span class="c1"># noqa: S301  # silent — pickling rebuilds the proxy, not a usage</span>
-<a id="__codelineno-89-13" name="__codelineno-89-13" href="#__codelineno-89-13"></a><span class="n">duplicate</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">)</span>  <span class="c1"># silent</span>
-<a id="__codelineno-89-14" name="__codelineno-89-14" href="#__codelineno-89-14"></a>
-<a id="__codelineno-89-15" name="__codelineno-89-15" href="#__codelineno-89-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">[</span><span class="s2">&quot;max_retries&quot;</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning</span>
-<a id="__codelineno-89-16" name="__codelineno-89-16" href="#__codelineno-89-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">duplicate</span><span class="p">[</span><span class="s2">&quot;max_retries&quot;</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning — each copy has its own counter snapshotted from the original</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<a id="__codelineno-91-2" name="__codelineno-91-2" href="#__codelineno-91-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+<a id="__codelineno-91-3" name="__codelineno-91-3" href="#__codelineno-91-3"></a>
+<a id="__codelineno-91-4" name="__codelineno-91-4" href="#__codelineno-91-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_instance</span>
+<a id="__codelineno-91-5" name="__codelineno-91-5" href="#__codelineno-91-5"></a>
+<a id="__codelineno-91-6" name="__codelineno-91-6" href="#__codelineno-91-6"></a><span class="c1"># NEW API — the canonical settings object going forward</span>
+<a id="__codelineno-91-7" name="__codelineno-91-7" href="#__codelineno-91-7"></a><span class="n">NEW_LIMITS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;max_retries&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+<a id="__codelineno-91-8" name="__codelineno-91-8" href="#__codelineno-91-8"></a>
+<a id="__codelineno-91-9" name="__codelineno-91-9" href="#__codelineno-91-9"></a><span class="c1"># DEPRECATED API — `OLD_LIMITS` kept as a deprecated alias during the migration window</span>
+<a id="__codelineno-91-10" name="__codelineno-91-10" href="#__codelineno-91-10"></a><span class="n">OLD_LIMITS</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span><span class="n">NEW_LIMITS</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;OLD_LIMITS&quot;</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-91-11" name="__codelineno-91-11" href="#__codelineno-91-11"></a>
+<a id="__codelineno-91-12" name="__codelineno-91-12" href="#__codelineno-91-12"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">))</span>  <span class="c1"># noqa: S301  # silent — pickling rebuilds the proxy, not a usage</span>
+<a id="__codelineno-91-13" name="__codelineno-91-13" href="#__codelineno-91-13"></a><span class="n">duplicate</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">)</span>  <span class="c1"># silent</span>
+<a id="__codelineno-91-14" name="__codelineno-91-14" href="#__codelineno-91-14"></a>
+<a id="__codelineno-91-15" name="__codelineno-91-15" href="#__codelineno-91-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">[</span><span class="s2">&quot;max_retries&quot;</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-91-16" name="__codelineno-91-16" href="#__codelineno-91-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">duplicate</span><span class="p">[</span><span class="s2">&quot;max_retries&quot;</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning — each copy has its own counter snapshotted from the original</span>
 </code></pre></div>
 <details><summary>Output: <code>restored["max_retries"]; duplicate["max_retries"]</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a>3
-<a id="__codelineno-90-2" name="__codelineno-90-2" href="#__codelineno-90-2"></a>3
+<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a>3
+<a id="__codelineno-92-2" name="__codelineno-92-2" href="#__codelineno-92-2"></a>3
 </code></pre></div>
 
 </details>
@@ -3626,23 +3787,23 @@
 <h2 id="my-expiry-gate-reports-more-expired-wrappers-after-upgrading">My expiry gate reports more expired wrappers after upgrading<a class="headerlink" href="#my-expiry-gate-reports-more-expired-wrappers-after-upgrading" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> After upgrading pyDeprecate, <code>validate_deprecation_expiry</code> (and <code>pydeprecate expiry</code>) suddenly reports more expired wrappers than before — nothing in my code changed. Why?</p>
 <p><strong>A:</strong> <code>validate_deprecation_expiry</code> now includes deprecated class members by default (<code>include_members=True</code>), matching <code>find_deprecation_wrappers</code> and <code>generate_deprecation_table</code>. Expired member wrappers — for example an <code>__init__</code> carrying deprecation metadata — are now counted, so totals can rise after upgrading even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
-<a id="__codelineno-91-2" name="__codelineno-91-2" href="#__codelineno-91-2"></a>
-<a id="__codelineno-91-3" name="__codelineno-91-3" href="#__codelineno-91-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
-<a id="__codelineno-91-4" name="__codelineno-91-4" href="#__codelineno-91-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-91-5" name="__codelineno-91-5" href="#__codelineno-91-5"></a>
-<a id="__codelineno-91-6" name="__codelineno-91-6" href="#__codelineno-91-6"></a><span class="c1"># Default scope now includes deprecated class members</span>
-<a id="__codelineno-91-7" name="__codelineno-91-7" href="#__codelineno-91-7"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">)</span>
-<a id="__codelineno-91-8" name="__codelineno-91-8" href="#__codelineno-91-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
-<a id="__codelineno-91-9" name="__codelineno-91-9" href="#__codelineno-91-9"></a>
-<a id="__codelineno-91-10" name="__codelineno-91-10" href="#__codelineno-91-10"></a><span class="c1"># Restore the previous module-level-only scope</span>
-<a id="__codelineno-91-11" name="__codelineno-91-11" href="#__codelineno-91-11"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-91-12" name="__codelineno-91-12" href="#__codelineno-91-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
+<a id="__codelineno-93-2" name="__codelineno-93-2" href="#__codelineno-93-2"></a>
+<a id="__codelineno-93-3" name="__codelineno-93-3" href="#__codelineno-93-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-93-4" name="__codelineno-93-4" href="#__codelineno-93-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-93-5" name="__codelineno-93-5" href="#__codelineno-93-5"></a>
+<a id="__codelineno-93-6" name="__codelineno-93-6" href="#__codelineno-93-6"></a><span class="c1"># Default scope now includes deprecated class members</span>
+<a id="__codelineno-93-7" name="__codelineno-93-7" href="#__codelineno-93-7"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">)</span>
+<a id="__codelineno-93-8" name="__codelineno-93-8" href="#__codelineno-93-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
+<a id="__codelineno-93-9" name="__codelineno-93-9" href="#__codelineno-93-9"></a>
+<a id="__codelineno-93-10" name="__codelineno-93-10" href="#__codelineno-93-10"></a><span class="c1"># Restore the previous module-level-only scope</span>
+<a id="__codelineno-93-11" name="__codelineno-93-11" href="#__codelineno-93-11"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">&quot;0.5&quot;</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-93-12" name="__codelineno-93-12" href="#__codelineno-93-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired&quot;</span><span class="p">)</span>
 </code></pre></div>
 <details><summary>Output: <code>Found ... expired</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a>Found 31 expired
-<a id="__codelineno-92-2" name="__codelineno-92-2" href="#__codelineno-92-2"></a>Found 28 expired
+<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a>Found 31 expired
+<a id="__codelineno-94-2" name="__codelineno-94-2" href="#__codelineno-94-2"></a>Found 28 expired
 </code></pre></div>
 
 </details>
@@ -3652,7 +3813,7 @@
 <h2 id="userwarning-audit-skipped-module-during-a-recursive-scan">UserWarning: <code>audit: skipped &lt;module&gt;</code> during a recursive scan<a class="headerlink" href="#userwarning-audit-skipped-module-during-a-recursive-scan" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> A recursive audit scan (<code>find_deprecation_wrappers</code>, <code>validate_deprecation_expiry</code>, <code>pydeprecate check</code> / <code>all</code>) emits <code>UserWarning: audit: skipped &lt;module&gt;: &lt;exception&gt;</code>. What does it mean?</p>
 <p><strong>A:</strong> Recursive scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just <code>ImportError</code> — the scanner emits this warning and continues with the remaining modules instead of aborting the whole scan:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a>UserWarning: audit: skipped my_package.legacy_ext: RuntimeError(&#39;optional native extension not built&#39;)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a>UserWarning: audit: skipped my_package.legacy_ext: RuntimeError(&#39;optional native extension not built&#39;)
 </code></pre></div>
 <p>The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.</p>
 <hr />
@@ -3687,7 +3848,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 8, 2026 11:02:10 UTC">2026-07-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 18, 2026 08:27:06 UTC">2026-07-18</span>
   </span>
 
     
@@ -3753,7 +3914,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

@@ -1707,6 +1707,61 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 ______________________________________________________________________
 
+## Module deprecation: accessing a missing attribute raises AttributeError
+
+**Q:** I called `deprecated_module()` in Mode 1 (no `target=`). Real attributes warn correctly, but accessing a name that is not in the module raises `AttributeError` instead of just warning. Is there a way to forward missing-attr lookups to a replacement module?
+
+**A:** Yes — that is exactly what Mode 2 (`target=new_module`) does. Mode 1 intercepts every public attribute access (real or missing) via `__getattribute__`, so real attributes warn and are returned. However, for names **not** in the module's `__dict__`, Mode 1 raises `AttributeError` after warning because there is no target to forward to.
+
+If you want unknown names to warn **and** resolve, switch to Mode 2:
+
+```python
+# phmdoctest:skip — CI template; new_calculator is not installed
+# old_calculator.py — redirect missing-attr lookups to new_calculator
+import new_calculator as _new_calculator
+from deprecate import deprecated_module
+
+deprecated_module(
+    __name__,
+    target=_new_calculator,
+    deprecated_in="2.0",
+    remove_in="3.0",
+    message="Use `new_calculator` instead.",
+)
+# old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)
+```
+
+______________________________________________________________________
+
+## Does `from old_calculator import *` still trigger the deprecation warning?
+
+**Q:** I used `from old_calculator import *` after calling `deprecated_module()` on it. Does that star import emit a `FutureWarning`, or does it slip through silently?
+
+**A:** Yes, it still warns. CPython's `IMPORT_STAR` bytecode resolves `from module import *` by calling `getattr(module, name)` once for each public name being pulled into the importing namespace (either the names in `__all__`, or all non-underscore names when `__all__` is absent). Each of those `getattr()` calls routes through the module wrapper's `__getattribute__` interception (`_DeprecatedModuleWrapper`) exactly like any other attribute access, so `deprecated_module()` emits one `FutureWarning` per pulled-in public name.
+
+This holds for both Mode 1 and Mode 2 of `deprecated_module()`. It is also why `deprecated_module()` is implemented via `__class__` reassignment plus `__getattribute__` rather than a PEP 562 module-level `__getattr__` hook: `__getattr__` fires only for missing names and would never see the `getattr()` calls issued by `IMPORT_STAR`, leaving star imports completely unwarned. The `__getattribute__` approach closes that gap.
+
+______________________________________________________________________
+
+## Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?
+
+**Q:** I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many `FutureWarning`s. Why?
+
+**A:** That is expected in Mode 1 and Mode 2. `deprecated_module()` overrides the module's `__getattribute__`, so any public attribute probe emits a warning even when the access comes from tooling rather than your own code. Test and documentation tools often call `getattr()`, inspect plugin metadata, or walk module attributes repeatedly during discovery, so pytest's collection probes, plugin-spec lookups, Sphinx autodoc, IDE completion, and linters can fan out into many warnings.
+
+If that noise is expected in tests, scope it in test config with `warnings.filterwarnings` instead of suppressing warnings globally:
+
+```python
+# tests/conftest.py
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"^old_module$")
+```
+
+Replace `old_module` with the deprecated module's import path. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.
+
+______________________________________________________________________
+
 ## Does the deprecation survive `copy`, `deepcopy`, and `pickle`?
 
 **Q:** I copied (or pickled and restored) an object wrapped by `deprecated_instance` / `deprecated_class` — does the deprecation still apply to the copy?

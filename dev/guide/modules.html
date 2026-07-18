@@ -6,17 +6,17 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Overview of all deprecation patterns in pyDeprecate — functions, classes, properties, async, and advanced topics. Start here to find the right guide for your use case.">
+        <meta name="description" content="Deprecating an entire Python module — in-place warn intercepting all public attribute access, redirect to a replacement module, and parent alias patterns with their limitations.">
       
       
       
-        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/guide/use-cases.html">
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/guide/modules.html">
       
       
-        <link rel="prev" href="../getting-started.html">
+        <link rel="prev" href="classes.html">
       
       
-        <link rel="next" href="functions.html">
+        <link rel="next" href="properties.html">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Overview - pyDeprecate — Python Deprecation Library</title>
+        <title>Modules - pyDeprecate — Python Deprecation Library</title>
       
     
     
@@ -65,9 +65,9 @@
 
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Overview — pyDeprecate" />
-<meta property="og:description" content="Overview of all deprecation patterns in pyDeprecate — functions, classes, properties, async, and advanced topics. Start here to find the right guide for your use case." />
-<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/use-cases.html" />
+<meta property="og:title" content="Modules — pyDeprecate" />
+<meta property="og:description" content="Deprecating an entire Python module — in-place warn intercepting all public attribute access, redirect to a replacement module, and parent alias patterns with their limitations." />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/modules.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta property="og:image:alt" content="pyDeprecate documentation" />
@@ -75,8 +75,8 @@
 <meta property="og:image:height" content="640" />
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="Overview — pyDeprecate" />
-<meta name="twitter:description" content="Overview of all deprecation patterns in pyDeprecate — functions, classes, properties, async, and advanced topics. Start here to find the right guide for your use case." />
+<meta name="twitter:title" content="Modules — pyDeprecate" />
+<meta name="twitter:description" content="Deprecating an entire Python module — in-place warn intercepting all public attribute access, redirect to a replacement module, and parent alias patterns with their limitations." />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
@@ -86,15 +86,15 @@
 {
   "@context": "https://schema.org",
   "@type": "TechArticle",
-  "headline": "Overview",
-  "description": "Overview of all deprecation patterns in pyDeprecate \u2014 functions, classes, properties, async, and advanced topics. Start here to find the right guide for your use case.",
-  "url": "https://borda.github.io/pyDeprecate/stable/guide/use-cases.html",
-  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/use-cases.html" },
+  "headline": "Modules",
+  "description": "Deprecating an entire Python module \u2014 in-place warn intercepting all public attribute access, redirect to a replacement module, and parent alias patterns with their limitations.",
+  "url": "https://borda.github.io/pyDeprecate/stable/guide/modules.html",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/modules.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
-  "datePublished": "2026-04-21",
+  "datePublished": "2026-07-18",
   "dateModified": "2026-07-18"
 }
 </script>
@@ -108,7 +108,7 @@
   "@type": "BreadcrumbList",
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
-    {"@type": "ListItem", "position": 2, "name": "Overview", "item": "https://borda.github.io/pyDeprecate/stable/guide/use-cases.html"}
+    {"@type": "ListItem", "position": 2, "name": "Modules", "item": "https://borda.github.io/pyDeprecate/stable/guide/modules.html"}
   ]
 }
 </script>
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/guide/use-cases.html.md">
+  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/guide/modules.html.md">
 <link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
 </head>
   
@@ -131,7 +131,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#use-cases" class="md-skip">
+        <a href="#modules" class="md-skip">
           Skip to content
         </a>
       
@@ -171,7 +171,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Modules
             
           </span>
         </div>
@@ -391,37 +391,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="use-cases.html" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="use-cases.html" class="md-nav__link">
         
   
   
@@ -437,131 +410,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#topics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Topics
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Topics">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Functions
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#classes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Classes
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modules" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Modules
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#properties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Properties
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#async" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Async
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#advanced" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Advanced
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-decision-table" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick decision table
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#see-also" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        See also
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -627,10 +475,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="modules.html" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="modules.html" class="md-nav__link md-nav__link--active">
         
   
   
@@ -646,6 +521,103 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-deprecated_module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use deprecated_module()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mode-1-in-place-warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode 1 — in-place warn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mode-2-redirect-to-a-replacement-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode 2 — redirect to a replacement module
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mode-3-parent-alias-via-deprecated_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode 3 — parent alias via deprecated_instance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#star-imports-also-warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Star imports also warn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1318,93 +1290,65 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#topics" class="md-nav__link">
+  <a href="#when-to-use-deprecated_module" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Topics
+        When to use deprecated_module()
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Topics">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Functions
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#classes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Classes
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modules" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Modules
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#properties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Properties
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#async" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Async
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#advanced" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Advanced
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-decision-table" class="md-nav__link">
+  <a href="#mode-1-in-place-warn" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick decision table
+        Mode 1 — in-place warn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mode-2-redirect-to-a-replacement-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode 2 — redirect to a replacement module
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mode-3-parent-alias-via-deprecated_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode 3 — parent alias via deprecated_instance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#star-imports-also-warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Star imports also warn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit integration
       
     </span>
   </a>
@@ -1439,113 +1383,119 @@
 
 
 
-<h1 id="use-cases">Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">🔗</a></h1>
-<p>The most common reasons to deprecate something are renaming a function, renaming an argument, or replacing a class. This overview maps each scenario to the right topic page. If you are new to the library, start with <a href="../getting-started.html">Getting Started</a>.</p>
-<h2 id="topics">Topics<a class="headerlink" href="#topics" title="Permanent link">🔗</a></h2>
-<h3 id="functions"><a href="functions.html">Functions</a><a class="headerlink" href="#functions" title="Permanent link">🔗</a></h3>
-<p>Deprecating Python functions and methods: simple call forwarding, argument renaming with <code>args_mapping</code>, notice-only deprecation, same-function argument renaming with <code>TargetMode.ARGS_REMAP</code>, stacking multiple decorators for multi-release migrations, and conditional suppression with <code>skip_if</code>.</p>
-<h3 id="classes"><a href="classes.html">Classes</a><a class="headerlink" href="#classes" title="Permanent link">🔗</a></h3>
-<p>Deprecating classes, Enums, dataclasses, and module-level constants: forwarding an old class name to a replacement with <code>deprecated_class()</code>, wrapping module-level objects with <code>deprecated_instance()</code>, selective attribute deprecation with <code>attrs_mapping</code>, and stacking multiple proxy layers for multi-version attribute migrations.</p>
-<h3 id="modules"><a href="modules.html">Modules</a><a class="headerlink" href="#modules" title="Permanent link">🔗</a></h3>
-<p>Deprecating an entire module via <code>__class__</code> reassignment: in-place warn on every public attribute access with normal <code>AttributeError</code> for missing names (Mode 1), warn on every public access while redirecting missing-attribute lookups to a replacement module with optional per-attribute <code>attrs_mapping</code> (Mode 2), and parent alias via <code>deprecated_instance()</code> in <code>__init__.py</code> (Mode 3). Includes audit integration.</p>
-<h3 id="properties"><a href="properties.html">Properties</a><a class="headerlink" href="#properties" title="Permanent link">🔗</a></h3>
-<p>Deprecating <code>@property</code> and <code>@cached_property</code> descriptors: decorator order rules, wrapping all three accessors (<code>fget</code>, <code>fset</code>, <code>fdel</code>) at once, chaining <code>.setter</code> / <code>.deleter</code>, and the dataclass field alias pattern.</p>
-<h3 id="async"><a href="async.html">Async</a><a class="headerlink" href="#async" title="Permanent link">🔗</a></h3>
-<p>Deprecating <code>async def</code> functions and async generator functions: all three TargetModes, warning timing differences (await-time vs call-time), coroutine introspection behaviour, and concurrency caveats.</p>
-<h3 id="advanced"><a href="advanced.html">Advanced</a><a class="headerlink" href="#advanced" title="Permanent link">🔗</a></h3>
-<p>Advanced patterns: injecting a deprecation notice into the docstring at import time (<code>update_docstring=True</code>), supplying a fixed default for a new required argument (<code>args_extra</code>), testing helpers (<code>assert_no_warnings</code>), deprecating <code>@classmethod</code> and <code>@staticmethod</code> descriptors, and generator functions.</p>
-<h2 id="quick-decision-table">Quick decision table<a class="headerlink" href="#quick-decision-table" title="Permanent link">🔗</a></h2>
-<table>
-<thead>
-<tr>
-<th>Scenario</th>
-<th>Where to look</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Rename a function or method</td>
-<td><a href="functions.html#simple-function-forwarding">Functions → Simple forwarding</a></td>
-</tr>
-<tr>
-<td>Rename an argument</td>
-<td><a href="functions.html#argument-renaming-and-mapping">Functions → Argument renaming</a></td>
-</tr>
-<tr>
-<td>Notice only — no replacement yet</td>
-<td><a href="functions.html#notice-only-deprecation">Functions → Notice-only</a></td>
-</tr>
-<tr>
-<td>Rename an argument within the same function</td>
-<td><a href="functions.html#rename-arguments-within-one-function">Functions → Rename arguments within one function</a></td>
-</tr>
-<tr>
-<td>Stack decorators across releases</td>
-<td><a href="functions.html#stacked-deprecation-decorators">Functions → Stacked decorators</a></td>
-</tr>
-<tr>
-<td>Suppress notice conditionally</td>
-<td><a href="functions.html#conditional-skip">Functions → Conditional skip</a></td>
-</tr>
-<tr>
-<td>Rename a class, Enum, or dataclass</td>
-<td><a href="classes.html#class-deprecation">Classes → Class deprecation</a></td>
-</tr>
-<tr>
-<td>Deprecate a module-level constant or object</td>
-<td><a href="classes.html#constants-and-instances">Classes → Constants and instances</a></td>
-</tr>
-<tr>
-<td>Deprecate selected class attributes</td>
-<td><a href="classes.html#selective-attribute-deprecation">Classes → Selective attributes</a></td>
-</tr>
-<tr>
-<td>Deprecate a <code>@property</code></td>
-<td><a href="properties.html">Properties</a></td>
-</tr>
-<tr>
-<td>Deprecate an <code>async def</code> function</td>
-<td><a href="async.html#async-functions">Async → Async functions</a></td>
-</tr>
-<tr>
-<td>Deprecate an async generator</td>
-<td><a href="async.html#async-generators">Async → Async generators</a></td>
-</tr>
-<tr>
-<td>Inject deprecation notice into docstring</td>
-<td><a href="advanced.html#automatic-docstring-updates">Advanced → Docstring updates</a></td>
-</tr>
-<tr>
-<td>Inject a fixed default for a new required arg</td>
-<td><a href="advanced.html#injecting-new-required-arguments">Advanced → Injecting new args</a></td>
-</tr>
-<tr>
-<td>Silence warnings in test fixtures</td>
-<td><a href="advanced.html#suppressing-futurewarning-in-test-fixtures">Advanced → Testing helpers</a></td>
-</tr>
-<tr>
-<td>Deprecate a <code>@classmethod</code> or <code>@staticmethod</code></td>
-<td><a href="advanced.html#class-methods-and-static-methods">Advanced → Class/static methods</a></td>
-</tr>
-<tr>
-<td>Deprecate a generator function</td>
-<td><a href="advanced.html#deprecating-generator-functions">Advanced → Generators</a></td>
-</tr>
-<tr>
-<td>Deprecate an entire module</td>
-<td><a href="modules.html">Modules</a></td>
-</tr>
-</tbody>
-</table>
+<h1 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">🔗</a></h1>
+<p><code>deprecated_module()</code> marks an entire Python module as deprecated by replacing its <code>__class__</code> with an intercepting wrapper, so every public attribute access on the old module name emits a <code>FutureWarning</code>. Three patterns are supported: warn in place without moving any code (Mode 1), redirect all attribute access to a replacement module (Mode 2), and expose a deprecated module name as a package attribute (Mode 3). For deprecating individual functions see <a href="functions.html">Functions</a>; for classes see <a href="classes.html">Classes</a>.</p>
+<h2 id="when-to-use-deprecated_module">When to use <code>deprecated_module()</code><a class="headerlink" href="#when-to-use-deprecated_module" title="Permanent link">🔗</a></h2>
+<p>Reach for <code>deprecated_module()</code> when a module is being replaced or renamed and you want every attribute access on the old name to warn callers automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's <code>__class__</code> to an intercepting wrapper, attaches <code>__deprecated__</code> metadata so that <a href="audit.html"><code>find_deprecation_wrappers()</code></a> can discover it, and emits a <code>FutureWarning</code> on every public attribute access.</p>
+<h2 id="mode-1-in-place-warn">Mode 1 — in-place warn<a class="headerlink" href="#mode-1-in-place-warn" title="Permanent link">🔗</a></h2>
+<p>Use this when you want to keep the module in place and warn on every attribute access. Call <code>deprecated_module(__name__, ...)</code> at the bottom of <code>old_calculator.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># phmdoctest:skip — old_calculator.py in-place warn template</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># old_calculator.py — DEPRECATED API; use new_calculator instead</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># NEW API — same functions now live in new_calculator.py</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Add two numbers. Prefer new_calculator.add.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">multiply</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Multiply two numbers. Prefer new_calculator.multiply.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="k">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># Mark this module deprecated — call once at the bottom.</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># module_name is optional; when omitted it is auto-detected from the caller&#39;s __name__.</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># Without message=, the warning reads:</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="c1">#   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0.</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1"># With message= (as below), it appends your text:</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="c1">#   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0. Use `new_calculator` instead.</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="n">deprecated_module</span><span class="p">(</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>    <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Use `new_calculator` instead.&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>import old_calculator; old_calculator.add(1, 2)</code> emits a <code>FutureWarning</code> and returns the result. Every public attribute access — real functions, classes, constants — warns because <code>deprecated_module()</code> replaces the module's <code>__class__</code> with an intercepting wrapper.</p>
+<blockquote>
+<p><strong>Call it at module top level when omitting <code>module_name</code>.</strong> Auto-detection reads the caller frame's <code>__name__</code>, which only names the intended module when the call sits directly in the module body. Calling it without <code>module_name</code> from inside a function or class body (e.g. a <code>_setup_deprecations()</code> helper) raises <code>TypeError</code> — the frame's <code>__name__</code> would point at the enclosing module and silently deprecate all of it. Pass <code>module_name</code> explicitly to call from any other scope.</p>
+</blockquote>
+<h2 id="mode-2-redirect-to-a-replacement-module">Mode 2 — redirect to a replacement module<a class="headerlink" href="#mode-2-redirect-to-a-replacement-module" title="Permanent link">🔗</a></h2>
+<p>Use this when you rename an entire module. Attribute lookups that are missing from the old module's <code>__dict__</code> are forwarded to <code>new_calculator</code>, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its <code>__dict__</code> directly — they warn but are not forwarded.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># phmdoctest:skip — CI template; new_calculator is not installed</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># old_calculator.py — DEPRECATED API — redirect to new_calculator</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># NEW API — same functions live in new_calculator.py</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Load the replacement module to attach as redirect target</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="kn">import</span><span class="w"> </span><span class="nn">new_calculator</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_new_calculator</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">deprecated_module</span><span class="p">(</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="vm">__name__</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">target</span><span class="o">=</span><span class="n">_new_calculator</span><span class="p">,</span>  <span class="c1"># every unknown attr forwarded here</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Use `new_calculator` instead.&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="p">)</span>
+</code></pre></div>
+<p>Now <code>import old_calculator; old_calculator.add(1, 2)</code> emits a <code>FutureWarning</code> and returns the result from <code>new_calculator.add</code>. The <code>attrs_mapping</code> parameter lets you rename specific attributes during the redirect:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># phmdoctest:skip — attrs_mapping continuation; requires new_calculator</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># Map old attr name to new attr name, or to None to raise AttributeError.</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Keys are the names callers use today (the original API names).</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">deprecated_module</span><span class="p">(</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="vm">__name__</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">target</span><span class="o">=</span><span class="n">_new_calculator</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">attrs_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;compute&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;beta_feature&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>old_calculator.compute</code> warns and forwards to <code>new_calculator.add</code> (the function was renamed). <code>old_calculator.beta_feature</code> warns and raises <code>AttributeError</code> (no replacement). All other names fall through to <code>new_calculator</code>.</p>
+<h2 id="mode-3-parent-alias-via-deprecated_instance">Mode 3 — parent alias via <code>deprecated_instance</code><a class="headerlink" href="#mode-3-parent-alias-via-deprecated_instance" title="Permanent link">🔗</a></h2>
+<p>When you reorganise a package and want the old sub-module name to remain accessible as an attribute on the parent package, use <a href="classes.html#deprecating-constants-and-instances"><code>deprecated_instance()</code></a> in the parent <code>__init__.py</code>. This does not require a new API — it reuses the existing proxy mechanism.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># phmdoctest:skip — CI template; my_package is not installed</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># my_package/__init__.py</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_package.new_calculator</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_new_calculator</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_instance</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># DEPRECATED API — expose `old_utils` as a package attribute pointing to new_calculator</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">old_utils</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">_new_calculator</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;old_utils&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Use `my_package.new_calculator` instead.&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>import my_package; my_package.old_utils.add(1, 2)</code> emits a <code>FutureWarning</code> on the first attribute access and forwards to <code>new_calculator</code>.</p>
+<h2 id="star-imports-also-warn">Star imports also warn<a class="headerlink" href="#star-imports-also-warn" title="Permanent link">🔗</a></h2>
+<p>Star imports (<code>from old_calculator import *</code>) still trigger the deprecation warning. CPython's <code>IMPORT_STAR</code> bytecode calls <code>getattr(module, name)</code> for each public name being pulled in, and that call routes through the same <code>__getattribute__</code> interception installed by <code>deprecated_module()</code> — so a <code>FutureWarning</code> fires once per pulled-in public name, exactly as it would for <code>old_calculator.add(1, 2)</code>. This closes a gap that a PEP 562 module-level <code>__getattr__</code> hook would otherwise leave open, since <code>__getattr__</code> only fires for missing names and star imports never trigger it.</p>
+<h2 id="audit-integration">Audit integration<a class="headerlink" href="#audit-integration" title="Permanent link">🔗</a></h2>
+<p><code>find_deprecation_wrappers()</code> discovers modules marked with <code>deprecated_module()</code> the same way it discovers function and class wrappers — by reading the <code>__deprecated__</code> attribute attached to the module object:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># phmdoctest:skip — CI template: replace my_package with your actual package</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_package</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">deprecated_items</span> <span class="o">=</span> <span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">module_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">deprecated_items</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">api_type</span> <span class="o">==</span> <span class="s2">&quot;module&quot;</span><span class="p">]</span>
+</code></pre></div>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">🔗</a></h2>
 <ul>
-<li><a href="customization.html">Customization</a> — redirect deprecation output to a logger or use a custom message template</li>
-<li><a href="void-helper.html">void() Helper</a> — when and why the deprecated function body should call <code>void()</code></li>
+<li><a href="use-cases.html">Use Cases overview</a> — start here for a guided tour of all deprecation patterns</li>
+<li><a href="functions.html">Functions</a> — deprecating individual functions and methods</li>
+<li><a href="classes.html">Classes</a> — class, Enum, dataclass, and instance deprecation</li>
 <li><a href="audit.html">Audit Tools</a> — enforce removal deadlines and detect deprecation chains in CI</li>
-<li><a href="../troubleshooting.html">Troubleshooting</a> — common errors and fixes for <code>@deprecated</code> configuration</li>
-<li><a href="compare-python-deprecation-tools.html">Compare Python Deprecation Tools</a> — how pyDeprecate compares to <code>warnings.warn</code>, <code>deprecation</code>, <code>wrapt</code>, and <code>warnings.deprecated</code></li>
-<li><a href="agent-recipes.html">Agent Recipes</a> — copy-paste patterns for AI coding assistants generating deprecation code</li>
+<li><a href="../troubleshooting.html">Troubleshooting</a> — common errors and fixes</li>
 </ul>
+<hr />
+<p>Next: <a href="advanced.html">Advanced</a> — docstring updates, <code>args_extra</code>, testing helpers, class/static methods, generators.</p>
 
 
 
@@ -1578,7 +1528,7 @@
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 21, 2026 10:55:44 UTC">2026-04-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 18, 2026 08:27:06 UTC">2026-07-18</span>
   </span>
 
     
