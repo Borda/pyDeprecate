@@ -335,10 +335,42 @@
         },
         {
           "@type": "Question",
+          "name": "How do I deprecate an entire Python module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that emits FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. Star imports (from old_module import *) also trigger the warning in all modes, once per pulled-in public name."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Does a deprecation warning survive copy.copy, copy.deepcopy, and pickle?",
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Yes for copy.copy and copy.deepcopy. Both proxy types return a proxy again on copy, so the deprecation warning travels with the copied object during the migration window. Warning counters are snapshotted at copy time and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access. For pickle: deprecated_instance proxies wrapping plain objects (dicts, lists) are fully picklable; deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy (pickle cannot find the original class by reference). One additional caveat: if the proxy was created with a non-module-level stream (lambda or closure), pickle.dumps will raise PicklingError — use stream=warnings.warn or stream=None when pickling."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to emit FutureWarning on every public attribute access — including real attributes already in __dict__. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are not an exception: CPython's IMPORT_STAR bytecode calls getattr(module, name) for each pulled-in public name, which still routes through __getattribute__."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does from old_module import * still trigger the deprecation warning?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. CPython's IMPORT_STAR bytecode resolves from module import * by calling getattr(module, name) once for each public name being pulled into the importing namespace (either the names in __all__, or all non-underscore names when __all__ is absent). Each of those getattr() calls routes through the module wrapper's __getattribute__ interception (_DeprecatedModuleWrapper) exactly like any other attribute access, so deprecated_module() emits one FutureWarning per pulled-in public name, in both Mode 1 and Mode 2. This is also why deprecated_module() is implemented via __class__ reassignment plus __getattribute__ rather than a PEP 562 module-level __getattr__ hook: __getattr__ fires only for missing names and would never see the getattr() calls issued by IMPORT_STAR, leaving star imports completely unwarned. The __getattribute__ approach closes that gap."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "That is expected in Mode 1 and Mode 2. deprecated_module() overrides the module's __getattribute__, so any public attribute probe emits FutureWarning even when the access comes from tooling rather than your own code. pytest collection, plugin-spec lookups, Sphinx autodoc, and IDE completion can all walk module attributes repeatedly during discovery, which can turn one import into many warnings. If that noise is expected in tests, scope it in test config with warnings.filterwarnings() for the deprecated module instead of suppressing warnings globally."
           }
         },
         {

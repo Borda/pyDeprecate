@@ -48,6 +48,7 @@ import importlib.metadata
 import inspect
 import pkgutil
 import re
+import types
 import warnings
 from contextlib import suppress
 from dataclasses import dataclass, field, is_dataclass, replace
@@ -501,8 +502,8 @@ def _validate_args_mapping(
     return invalid_args, identity_args_mapping, all_identity
 
 
-def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
-    """Validate if a deprecated wrapper configuration is effective.
+def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> DeprecationWrapperInfo:
+    """Validate a deprecated callable or module wrapper and return structured metadata.
 
     This is a development tool to check if deprecated wrappers are configured correctly and will have the intended
     effect. It examines the ``__deprecated__`` attribute set by the :func:`~deprecate.deprecated` decorator and
@@ -516,8 +517,8 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     - target=None with no args_mapping (just warns, no forwarding)
 
     Args:
-        func: The decorated function to validate. Must have a ``__deprecated__`` attribute set by the ``@deprecated``
-            decorator.
+        func: The deprecated wrapper to validate. Accepts either a callable decorated with ``@deprecated`` or a module
+            object passed through :func:`deprecated_module`. Must have a ``__deprecated__`` attribute.
 
     Returns:
         :class:`~deprecate.audit.DeprecationWrapperInfo`: Dataclass with validation results:
@@ -566,6 +567,13 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
         Invalid configurations won't cause runtime errors but will silently have no effect.
 
     """
+    if inspect.ismodule(func):
+        if not _has_deprecation_meta(func):
+            raise ValueError(
+                f"Module {getattr(func, '__name__', func)!r} has missing or invalid `__deprecated__` metadata. "
+                "Ensure `deprecated_module()` was called on it."
+            )
+        return _scan_module_meta(func)
     if not _has_deprecation_meta(func):
         raise ValueError(
             f"Function {getattr(func, '__name__', func)} has missing or invalid `__deprecated__` metadata. "
@@ -627,7 +635,43 @@ def validate_deprecation_wrapper(func: Callable) -> DeprecationWrapperInfo:
     )
 
 
-def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> None:
+def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
+    """Return a stable fully-qualified label for report rows and error messages.
+
+    Modules carry their name in :attr:`~deprecate.audit.DeprecationWrapperInfo.module` and leave
+    ``function`` empty, so a plain ``module.function`` join would append a trailing dot. Guard against
+    an empty ``function`` (or an empty ``module``) so the rendered label is always clean — e.g.
+    ``tests.collection_modules.old_math`` for a deprecated module, never ``...old_math.`` or ``...(module)``.
+
+    """
+    if info.module and info.function:
+        return f"{info.module}.{info.function}"
+    return info.module or info.function
+
+
+def _subject_noun(info: DeprecationWrapperInfo) -> str:
+    """Return the grammatical subject noun for a deprecated wrapper, driven by ``api_type``.
+
+    Centralises noun selection so error and report text says *Module* for a deprecated module and *Callable* for
+    everything else, instead of inlining ``info.function`` (which is empty for modules).
+
+    """
+    return "Module" if info.api_type == "module" else "Callable"
+
+
+def _format_subject(info: DeprecationWrapperInfo) -> str:
+    """Return the backticked subject phrase used in expiry error messages.
+
+    Renders the noun from :func:`_subject_noun` (``Callable`` or ``Module``) followed by the backtick-quoted fully-
+    qualified label from :func:`_format_report_symbol` — for example a callable subject reads *Callable* then the quoted
+    name, and a module subject reads *Module* then the quoted module path. Centralising this here means no expiry site
+    inlines ``info.function`` directly, so an empty or sentinel module label can never leak into the text.
+
+    """
+    return f"{_subject_noun(info)} `{_format_report_symbol(info)}`"
+
+
+def _check_deprecated_wrapper_expiry(func: Union[Callable, types.ModuleType], current_version: str) -> None:
     """Check if a deprecated wrapper has passed its scheduled removal version.
 
     This is an internal helper function used by :func:`~deprecate.audit.validate_deprecation_expiry`.
@@ -658,7 +702,7 @@ def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> No
     remove_in = info.deprecated_info.remove_in
     if not remove_in:
         raise ValueError(
-            f"Callable `{info.function}` does not have a 'remove_in' version specified in its deprecation metadata."
+            f"{_format_subject(info)} does not have a 'remove_in' version specified in its deprecation metadata."
         )
 
     # Parse both versions for proper semantic version comparison
@@ -671,12 +715,12 @@ def _check_deprecated_wrapper_expiry(func: Callable, current_version: str) -> No
     try:
         remove_ver = _parse_version(remove_in)
     except ValueError as err:
-        raise ValueError(f"Invalid remove_in '{remove_in}' for callable `{info.function}`: {err}") from err
+        raise ValueError(f"Invalid remove_in '{remove_in}' for {_format_subject(info)}: {err}") from err
 
     # Check if the current version has reached or passed the removal deadline
     if current_ver >= remove_ver:
         raise AssertionError(
-            f"Callable `{info.function}` was scheduled for removal in version {remove_in} "
+            f"{_format_subject(info)} was scheduled for removal in version {remove_in} "
             f"but still exists in version {current_version}. Please delete this deprecated code."
         )
 
@@ -745,14 +789,14 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
             # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent
             # — the single-callable path raises; here a warning keeps the batch scan going for the rest.
             warnings.warn(
-                f"Callable `{info.function}` has an unparsable `remove_in` version `{remove_in}`; "
+                f"{_format_subject(info)} has an unparsable `remove_in` version `{remove_in}`; "
                 "its expiry cannot be checked until the version string is fixed.",
                 stacklevel=2,
             )
             continue
         if current_ver >= remove_ver:
             expired.append(
-                f"Callable `{info.function}` was scheduled for removal in version {remove_in}"
+                f"{_format_subject(info)} was scheduled for removal in version {remove_in}"
                 f" but still exists in version {current_version}. Please delete this deprecated code."
             )
     return expired
@@ -855,6 +899,50 @@ def _scan_callable(
         api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
         return replace(info, module=module_name, function=qualified_name, api_type=api_type)
     return None
+
+
+def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
+    """Build :class:`~deprecate.audit.DeprecationWrapperInfo` for a deprecated module.
+
+    Called only when the module itself carries ``__deprecated__`` metadata (set by
+    :func:`~deprecate.module.deprecated_module`).  Bypasses callable introspection entirely because a module is not a
+    callable and has no signature to validate.
+
+    Args:
+        mod: The module object carrying ``__deprecated__`` metadata.  The caller is responsible for verifying that
+            :func:`~deprecate._types._has_deprecation_meta` returned ``True`` before calling this function.
+
+    Returns:
+        A :class:`~deprecate.audit.DeprecationWrapperInfo` with ``api_type="module"`` and all validation fields set
+        to safe defaults (no invalid args, no misconfig).
+
+    """
+    dep_info: DeprecationConfig = mod.__deprecated__
+    # Read via __dict__ to avoid triggering the PEP 562 __getattr__ hook.
+    # str(mod) must be lazy — eager evaluation calls _module_repr which accesses __spec__ via getattr
+    # and may trigger the module's own __getattr__ before __spec__ is in __dict__.
+    _raw_name = mod.__dict__.get("__name__")
+    mod_name: str = _raw_name if _raw_name is not None else str(mod)
+    # A module has no callable name — its identity lives entirely in ``module``. Leave ``function``
+    # empty (never a ``"(module)"`` sentinel): ``_format_report_symbol`` then renders just the module
+    # name, and ``_subject_noun`` picks the ``Module`` noun from ``api_type``, so no ``(module)`` label
+    # can leak into report rows or expiry error messages.
+    return DeprecationWrapperInfo(
+        function="",
+        module=mod_name,
+        deprecated_info=dep_info,
+        invalid_args=[],
+        empty_args_mapping=True,
+        identity_args_mapping=[],
+        self_reference=False,
+        no_effect=False,
+        misconfigured_target=False,
+        all_identity=False,
+        chain_type=None,
+        api_type="module",
+        args_mapping_auto_expanded=[],
+        args_mapping_positional_only=[],
+    )
 
 
 def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN401
@@ -970,6 +1058,43 @@ def _same_top_package(mod_a: str, mod_b: str) -> bool:
     return mod_a.split(".")[0] == mod_b.split(".")[0]
 
 
+def _should_skip_reexported_wrapper(
+    obj: Any,  # noqa: ANN401
+    mod_name: str,
+    attribute_to_defining_module: bool,
+) -> bool:
+    """Return True when a re-exported wrapper should be attributed elsewhere."""
+    if not attribute_to_defining_module:
+        return False
+    defining_module = _reexport_module(obj)
+    return defining_module is not None and defining_module != mod_name and _same_top_package(defining_module, mod_name)
+
+
+def _scan_module_member(
+    obj: Any,  # noqa: ANN401
+    *,
+    mod_name: str,
+    name: str,
+    include_members: bool,
+    attribute_to_defining_module: bool,
+    seen: set[int],
+) -> list[DeprecationWrapperInfo]:
+    """Scan one module member for deprecated wrappers or nested class members."""
+    if name.startswith("_") or inspect.ismodule(obj):
+        return []
+    if _has_deprecation_meta(obj):
+        if _should_skip_reexported_wrapper(obj, mod_name, attribute_to_defining_module):
+            return []
+        if id(obj) in seen:
+            return []
+        seen.add(id(obj))
+        result = _scan_callable(obj, mod_name, name)
+        return [result] if result is not None else []
+    if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
+        return _scan_class(obj, mod_name, name)
+    return []
+
+
 def _scan_module(
     mod: Any,  # noqa: ANN401
     *,
@@ -990,6 +1115,12 @@ def _scan_module(
 
     """
     results: list[DeprecationWrapperInfo] = []
+
+    # Pre-loop: if the module itself is deprecated (via deprecated_module()), record it first.
+    # Use __dict__.get to avoid triggering foreign PEP 562 __getattr__ hooks on third-party modules.
+    if isinstance(mod.__dict__.get("__deprecated__"), DeprecationConfig):
+        results.append(_scan_module_meta(mod))
+
     try:
         members = _getmembers_static_compat(mod)
     except (AttributeError, TypeError, ImportError):
@@ -997,34 +1128,16 @@ def _scan_module(
 
     mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
     for name, obj in members:
-        if name.startswith("_"):
-            continue
-
-        if _has_deprecation_meta(obj):
-            # Attribute a re-exported wrapper to its defining module, not to every module that
-            # merely re-exports it. Non-proxy wrappers carry a reliable ``__module__``; proxies do
-            # not, so they fall through to the id-based dedup below.
-            # Guard 1 — only apply when a recursive walk will visit the defining module.
-            # Guard 2 — only skip when the defining module is in the same top-level package;
-            #   if ``__module__`` points to an external package (e.g. a ``functools.partial``
-            #   wrapper whose ``__module__`` was not propagated by ``functools.wraps``), the
-            #   defining module will never be visited and the wrapper would be dropped silently.
-            defining_module = _reexport_module(obj)
-            if (
-                attribute_to_defining_module
-                and defining_module is not None
-                and defining_module != mod_name
-                and _same_top_package(defining_module, mod_name)
-            ):
-                continue
-            if id(obj) in seen:
-                continue
-            seen.add(id(obj))
-            result = _scan_callable(obj, mod_name, name)
-            if result is not None:
-                results.append(result)
-        elif include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
-            results.extend(_scan_class(obj, mod_name, name))
+        results.extend(
+            _scan_module_member(
+                obj,
+                mod_name=mod_name,
+                name=name,
+                include_members=include_members,
+                attribute_to_defining_module=attribute_to_defining_module,
+                seen=seen,
+            )
+        )
     return results
 
 
@@ -1036,7 +1149,8 @@ def find_deprecation_wrappers(
     """Scan a module or package for deprecated wrappers and validate them.
 
     This is a development/CI tool to scan a codebase for all wrappers created with :func:`~deprecate.deprecated`,
-    :func:`~deprecate.deprecated_class`, or :func:`~deprecate.deprecated_instance` and validate that each wrapper
+    :func:`~deprecate.deprecated_class`, :func:`~deprecate.deprecated_instance`, or
+    :func:`~deprecate.module.deprecated_module` (module-level deprecation) and validate that each wrapper
     configuration is meaningful.
     Returns comprehensive information about each deprecated wrapper including validation results that help identify
     misconfigured wrappers.
@@ -1170,17 +1284,14 @@ def _safe_parse_version(version: str) -> Optional["Version"]:
         return None
 
 
-def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
-    """Return a stable fully-qualified label for report rows."""
-    return f"{info.module}.{info.function}" if info.module else info.function
-
-
 def _format_report_target(target: Any) -> str:  # noqa: ANN401
     """Format replacement target name for report rows."""
     if target is None or target is TargetMode.NOTIFY:
         return "—"
     if isinstance(target, TargetMode):
         return target.value
+    if inspect.ismodule(target):
+        return getattr(target, "__name__", str(target))
     if isinstance(target, _DeprecatedProxy):
         # A chained-proxy target (the New API is itself a deprecated alias). Bypass proxy
         # ``__getattr__`` interception to read the static metadata directly — ``__deprecated__``
@@ -1217,6 +1328,9 @@ def _classify_wrapper_api_type(
 
     if member_name is not None:
         return _classify_member_api_type(member_name, descriptor_kind, has_mapping)
+
+    if inspect.ismodule(wrapped_obj):
+        return "module"
 
     if isinstance(wrapped_obj, _DeprecatedProxy):
         while isinstance(wrapped_obj, _DeprecatedProxy):

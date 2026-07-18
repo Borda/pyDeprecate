@@ -31,6 +31,8 @@ Core Components:
 **Proxy** (:mod:`deprecate.proxy`):
     - :func:`~deprecate.proxy.deprecated_instance`: Wrap any object with deprecation warnings
     - :func:`~deprecate.proxy.deprecated_class`: Decorator for deprecating Enum/dataclass definitions
+    - :func:`~deprecate.module.deprecated_module`: Module-level deprecation via PEP-562-inspired
+      ``__getattribute__`` interception
 
 **Testing** (:mod:`deprecate.utils`):
     - :func:`~deprecate.utils.assert_no_warnings`: Context manager asserting that no warnings are raised
@@ -93,6 +95,7 @@ from deprecate.deprecation import (
     _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
 )
 from deprecate.deprecation import deprecated
+from deprecate.module import deprecated_module
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.utils import (
     assert_no_warnings,
@@ -110,6 +113,7 @@ __all__ = [
     "deprecated",
     "deprecated_class",
     "deprecated_instance",
+    "deprecated_module",
     "find_deprecation_wrappers",
     "generate_deprecation_table",
     "validate_deprecation_chains",

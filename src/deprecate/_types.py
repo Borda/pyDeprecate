@@ -7,6 +7,7 @@ catch schema mismatches at analysis time rather than silently returning ``None``
 
 import copy
 import threading
+import types
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -375,8 +376,9 @@ class DeprecationConfig:
         name: Display the name of the deprecated source (function or class name).
         target: Normalised target — ``None`` (default), :attr:`~deprecate._types.TargetMode.NOTIFY`,
             :attr:`~deprecate._types.TargetMode.ARGS_REMAP`, :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`,
-            or a callable. Legacy sentinels (``True``/``False``) are normalised at decoration time and never
-            stored verbatim.
+            a callable, or a :class:`types.ModuleType` (stored by :func:`~deprecate.module.deprecated_module`
+            when a redirect module is provided). Legacy sentinels (``True``/``False``) are normalised at
+            decoration time and never stored verbatim.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
         misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.
             Audit tools surface this via
@@ -462,7 +464,7 @@ class DeprecationConfig:
     deprecated_in: str = ""
     remove_in: str = ""
     name: str = ""
-    target: Optional[Union[Callable[..., Any], "TargetMode"]] = None
+    target: Optional[Union[Callable[..., Any], "TargetMode", types.ModuleType]] = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
     args_extra: Optional[dict[str, Any]] = None
     misconfigured: bool = False
@@ -487,6 +489,8 @@ class _HasDeprecationMeta(Protocol):
 
     Both ``@deprecated``-decorated functions and :class:`~deprecate.proxy._DeprecatedProxy` instances satisfy this
     protocol once the decorator has been applied.
+
+    Module narrowing via :func:`_has_deprecation_meta` is metadata-only and does not imply a callable ``__call__``.
 
     Used as a TypeGuard target so that a ``hasattr`` guard narrows the type of an arbitrary callable to one whose
     ``__deprecated__`` attribute is typed — eliminating the need for a ``cast`` after the guard.
@@ -519,6 +523,14 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
     # ``getattr(..., default)`` only swallows ``AttributeError``; a foreign object encountered during a
     # recursive audit scan whose ``__getattr__``/``__getattribute__`` raises something else (e.g. a lazy
     # proxy raising ``RuntimeError``) would otherwise crash the whole scan. Treat any failure as "no meta".
+    #
+    # Module objects: a module deprecated via ``deprecated_module()`` (see ``deprecate.module``) intercepts
+    # attribute access by reassigning its ``__class__`` to a ``types.ModuleType`` subclass whose
+    # ``__getattribute__`` emits a ``FutureWarning`` — but only for *public* names; underscore-prefixed
+    # names (including ``__deprecated__``) are explicitly exempt, so the ``getattr`` below is warning-free on
+    # a ``deprecated_module`` wrapper. The ``mod.__dict__.get("__deprecated__")`` probing in
+    # ``deprecate.audit`` (``_scan_module`` / ``_scan_module_meta``) is belt-and-braces for *foreign*
+    # third-party modules with arbitrary hooks, not required for our own wrappers.
     try:
         meta = getattr(obj, "__deprecated__", None)
     except Exception:

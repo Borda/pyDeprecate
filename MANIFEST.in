@@ -25,3 +25,4 @@ prune demo*
 prune temp*
 prune test*
 prune docs*
+prune examples*

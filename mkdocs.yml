@@ -72,6 +72,7 @@ nav:
       - Overview: guide/use-cases.md
       - Functions: guide/functions.md
       - Classes: guide/classes.md
+      - Modules: guide/modules.md
       - Properties: guide/properties.md
       - Async: guide/async.md
       - Advanced: guide/advanced.md

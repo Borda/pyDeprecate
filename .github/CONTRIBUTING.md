@@ -336,6 +336,7 @@ pyDeprecate/
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # @deprecated decorator and warning logic
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
+│   ├── module.py               # Module-level deprecation: deprecated_module()
 │   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
 │   ├── utils.py                # Low-level helpers: void(), assert_no_warnings()
 │   └── docstring/              # Docstring utilities subpackage
@@ -348,6 +349,7 @@ pyDeprecate/
 │   ├── collection_misconfigured.py # Invalid configs for validation
 │   ├── collection_chains.py        # Chained deprecation patterns
 │   ├── collection_docstrings.py    # Fixtures for update_docstring=True behaviour
+│   ├── collection_modules/         # Fixture modules for deprecated_module() integration tests
 │   ├── integration/                # End-to-end tests via the public API
 │   └── unittests/                  # Focused tests for private/internal helpers
 ├── .github/
@@ -385,6 +387,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing                                            |
 | `collection_chains.py`        | Multi-hop deprecation chains (deprecated → deprecated → target) for chain-detection tests                                      |
 | `collection_docstrings.py`    | Fixtures for `update_docstring=True` behaviour — new and deprecated callables whose generated docstrings are compared in tests |
+| `collection_modules/`         | Fixture modules for `deprecated_module()` tests — the deprecated module targets themselves plus their replacement modules      |
 | `integration/`                | End-to-end tests exercising the **public API** via the collection modules                                                      |
 | `unittests/`                  | Focused tests for **private/internal helpers**, each file mirroring one source module                                          |
 
@@ -758,6 +761,8 @@ Two audiences read the docs examples — name accordingly.
 - '# DEPRECATED API — `old_name` replaced by `new_name`' above the deprecated decorator
 
 Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.
+
+**`attrs_mapping` key naming** — keys must be the original names callers use today (at deprecation time), never a meta-name like `legacy_X` or `deprecated_X`. The key is what callers call *now*; the value is what they should migrate to. If a function was introduced as `compute` and is now renamed to `add`, write `{"compute": "add"}`, not `{"legacy_compute": "add"}` — no one names a function `legacy_compute` at introduction time.
 
 ### Keeping AI-agent documentation in sync
 
