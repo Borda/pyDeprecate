@@ -2124,3 +2124,95 @@ def deprecated(  # noqa: C901
         return wrapped_fn
 
     return packing
+
+
+def deprecated_callable(
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod] = TargetMode.NOTIFY,
+    deprecated_in: str = "",
+    remove_in: str = "",
+    stream: Optional[Callable] = deprecation_warning,
+    num_warns: int = 1,
+    template_mgs: Optional[str] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
+    args_extra: Optional[dict[str, Any]] = None,
+    skip_if: Union[bool, Callable] = False,
+    update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Strict callable-only form of :func:`~deprecate.deprecation.deprecated`.
+
+    Behaves exactly like :func:`deprecated` for functions, methods, lambdas, and descriptors
+    (``classmethod`` / ``staticmethod`` / ``property``): same call forwarding, argument mapping,
+    warning control, and ``__deprecated__`` metadata, so the audit tools discover it identically.
+    Every parameter is forwarded verbatim to :func:`deprecated`.
+
+    The only difference is strictness: applying it to a **class** raises :class:`TypeError` at
+    decoration time instead of delegating.  Use it when a call site must never silently accept a
+    class — reach for :func:`~deprecate.proxy.deprecated_class` to deprecate a class, or
+    :func:`deprecated` when you want automatic class/callable dispatch.
+
+    Args:
+        target: See :func:`deprecated`.
+        deprecated_in: See :func:`deprecated`.
+        remove_in: See :func:`deprecated`.
+        stream: See :func:`deprecated`.
+        num_warns: See :func:`deprecated`.
+        template_mgs: See :func:`deprecated`.
+        args_mapping: See :func:`deprecated`.
+        args_extra: See :func:`deprecated`.
+        skip_if: See :func:`deprecated`.
+        update_docstring: See :func:`deprecated`.
+        docstring_style: See :func:`deprecated`.
+
+    Returns:
+        Decorator that wraps the source callable; identical to the decorator returned by
+        :func:`deprecated` except that a class source is rejected.
+
+    Raises:
+        TypeError: If applied to a class. Strictness is this function's reason to exist —
+            the message names ``deprecated_class`` and ``deprecated`` as the alternatives.
+
+    Example:
+        >>> def new_func(x: int) -> int:
+        ...     return x * 2
+        >>> @deprecated_callable(target=new_func, deprecated_in="1.0", remove_in="2.0")
+        ... def old_func(x: int) -> int:
+        ...     pass
+
+        Applying it to a class is rejected up front:
+
+        >>> @deprecated_callable(deprecated_in="1.0", remove_in="2.0")  # doctest: +IGNORE_EXCEPTION_DETAIL
+        ... class OldClass:
+        ...     pass
+        Traceback (most recent call last):
+        TypeError: `@deprecated_callable` cannot decorate class `OldClass` ...
+
+    """
+    _pack = deprecated(
+        target=target,
+        deprecated_in=deprecated_in,
+        remove_in=remove_in,
+        stream=stream,
+        num_warns=num_warns,
+        template_mgs=template_mgs,
+        args_mapping=args_mapping,
+        args_extra=args_extra,
+        skip_if=skip_if,
+        update_docstring=update_docstring,
+        docstring_style=docstring_style,
+    )
+
+    def packing_callable(source: Callable[..., Any]) -> Callable[..., Any]:
+        if inspect.isclass(source):
+            raise TypeError(
+                f"`@deprecated_callable` cannot decorate class `{source.__name__}` — it is the strict"
+                " callable-only form. Use `@deprecated_class(...)` to deprecate a class, or `@deprecated`"
+                " for automatic class/callable dispatch."
+            )
+        # One extra wrapper frame sits between the user's decoration site and ``packing``; bump the
+        # decoration-time stacklevel by one so warnings still point at the ``@deprecated_callable`` line.
+        # ``_stacklevel`` is an internal parameter of ``packing`` intentionally omitted from the public
+        # return annotation of ``deprecated`` (hence the call-arg ignore).
+        return _pack(source, _stacklevel=3)  # type: ignore[call-arg]
+
+    return packing_callable

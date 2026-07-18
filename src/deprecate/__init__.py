@@ -16,6 +16,8 @@ Core Components:
 
 **Main Decorator** (:mod:`deprecate.deprecation`):
     - :func:`~deprecate.deprecation.deprecated`: Decorator for marking functions/methods as deprecated
+    - :func:`~deprecate.deprecation.deprecated_callable`: Strict callable-only form of ``deprecated`` that
+      raises :class:`TypeError` when applied to a class
     - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
 **Audit** (:mod:`deprecate.audit`):
@@ -94,7 +96,7 @@ from deprecate.audit import (
 from deprecate.deprecation import (
     _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
 )
-from deprecate.deprecation import deprecated
+from deprecate.deprecation import deprecated, deprecated_callable
 from deprecate.module import deprecated_module
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.utils import (
@@ -111,6 +113,7 @@ __all__ = [
     "TargetMode",
     "assert_no_warnings",
     "deprecated",
+    "deprecated_callable",
     "deprecated_class",
     "deprecated_instance",
     "deprecated_module",

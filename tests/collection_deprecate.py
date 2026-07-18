@@ -49,7 +49,7 @@ from warnings import catch_warnings, simplefilter, warn
 import typing_extensions
 from sklearn.metrics import accuracy_score
 
-from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
+from deprecate import TargetMode, deprecated, deprecated_callable, deprecated_class, deprecated_instance, void
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
     AutoExpandDC,
@@ -2394,3 +2394,54 @@ with catch_warnings():
     async def deprecated_async_positional_only_to_sync(x: int, y: int = 0) -> int:
         """Async source forwarding to a SYNC target with a POSITIONAL_ONLY parameter."""
         return 0
+
+
+# ========== deprecated_callable — strict callable-only alias fixtures ==========
+
+# `deprecated_callable` is the strict form of `deprecated`: identical behaviour on callables
+# (functions, methods, descriptors), but a class source is rejected at decoration time instead
+# of being delegated to `deprecated_class`. The two function fixtures below share the same target
+# and version kwargs so tests can assert the alias forwards and records metadata identically to
+# `deprecated`; the classmethod fixture exercises the descriptor path (extra wrapper frame threaded
+# through `_packing_descriptor`).
+
+
+@deprecated_callable(target=double_value, **_DEPRS_CASE_STD_INF_ARGS)
+def deprecated_callable_double(x: int) -> int:
+    """`@deprecated_callable` on a function — parity twin of ``deprecated_double_twin``."""
+    return void(x)
+
+
+@deprecated(target=double_value, **_DEPRS_CASE_STD_INF_ARGS)
+def deprecated_double_twin(x: int) -> int:
+    """`@deprecated` twin with identical config — the parity baseline for the alias."""
+    return void(x)
+
+
+class HolderWithDeprecatedCallableMethod:
+    """Class whose classmethod is deprecated via the strict alias (descriptor-path smoke).
+
+    Warn-only (default ``TargetMode.NOTIFY``) so the descriptor path is exercised without the
+    ``cls``-forwarding signature concerns of a callable target — the body executes and returns.
+    """
+
+    @deprecated_callable(**_DEPRS_CASE_STD_INF_ARGS)
+    @classmethod
+    def old_double(cls, x: int) -> int:
+        """Deprecated classmethod (warn-only) — body executes and doubles the input."""
+        return x * 2
+
+
+def make_deprecated_callable_on_class() -> type:
+    """Apply ``@deprecated_callable`` to a class — raises ``TypeError`` at decoration time.
+
+    The strict alias rejects a class source up front rather than delegating to ``deprecated_class``.
+    Because the decoration raises on execution, it cannot exist as a module-level wrapper; this
+    factory defers it so the assertion site controls when it fires.
+    """
+
+    @deprecated_callable(**_DEPRS_CASE_STD_ARGS)
+    class RejectedClass:
+        """Source class — never actually wrapped; decoration raises first."""
+
+    return RejectedClass
