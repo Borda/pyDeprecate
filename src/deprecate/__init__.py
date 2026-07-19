@@ -74,6 +74,12 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
+
+# Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
+# in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
+from deprecate._properties import (
+    _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
+)
 from deprecate._types import TargetMode
 from deprecate.audit import (
     ChainType,
@@ -90,13 +96,7 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
     validate_mapping_compatibility,
 )
-
-# Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
-# in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
-from deprecate.deprecation import (
-    _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
-)
-from deprecate.deprecation import deprecated, deprecated_callable
+from deprecate.callables import deprecated, deprecated_callable
 from deprecate.module import deprecated_module
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.utils import (

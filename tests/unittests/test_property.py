@@ -11,8 +11,8 @@ import pytest
 
 from deprecate import TargetMode, deprecated
 from deprecate import property as strict_property
+from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
-from deprecate.deprecation import _DeprecatedProperty, _StrictProperty
 from tests.collection_deprecate import DelOnlyDeprecatedPropCls, InnerOrderDeprecatedPropCls, ServiceCls
 
 

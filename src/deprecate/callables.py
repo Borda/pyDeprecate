@@ -17,17 +17,15 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
-import re
 import sys
 import warnings
-from collections.abc import Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
-from functools import cached_property, partial, wraps
+from functools import cached_property, wraps
 from inspect import Parameter
 from typing import Any, Callable, Literal, Optional, Union, cast
-from warnings import warn
 
+from deprecate._properties import _DeprecatedProperty
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
@@ -38,11 +36,22 @@ from deprecate._types import (
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.utils import _apply_args_mapping_collisions, _get_signature, get_func_arguments_types_defaults
+from deprecate.messages import (
+    _DEFAULT_STACKLEVEL_TO_CALLER,
+    _consume_warn_budget,
+    _raise_warn_arguments,
+    _raise_warn_callable,
+    _validate_template_mgs,
+    deprecation_warning,
+)
+from deprecate.utils import (
+    _apply_args_mapping_collisions,
+    _get_signature,
+    _unwrap_descriptor_target,
+    get_func_arguments_types_defaults,
+)
 
 _V1_BREAK_VERSION = "v1.0"
-# caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
-_DEFAULT_STACKLEVEL_TO_CALLER: int = 4
 # ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
 # Each asyncio.Task inherits a snapshot of the parent context at creation time; because this
 # ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
@@ -50,223 +59,13 @@ _DEFAULT_STACKLEVEL_TO_CALLER: int = 4
 # A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
 _cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
 
-#: Default template warning message for redirecting callable
-TEMPLATE_WARNING_CALLABLE = (
-    "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
-    " It will be removed in v%(remove_in)s."
-)
-#: Default template warning message for changing argument mapping
-TEMPLATE_WARNING_ARGUMENTS = (
-    "The `%(source_name)s` uses deprecated arguments: %(argument_map)s."
-    " They were deprecated since v%(deprecated_in)s and will be removed in v%(remove_in)s."
-)
-#: Template for mapping from old to new examples
-TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
-#: Default template warning message for no target func/method
-TEMPLATE_WARNING_NO_TARGET = (
-    "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
-)
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
-deprecation_warning = partial(warn, category=FutureWarning)
-
-#: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
-#: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
-#: malformed conversion specifiers (``%(source_name)d``) before any call site ever triggers them.
-_TEMPLATE_MGS_PROBE_ARGS: dict[str, str] = {
-    "source_name": "x",
-    "source_path": "x.y",
-    "deprecated_in": "0.0",
-    "remove_in": "1.0",
-    "target_name": "x",
-    "target_path": "x.y",
-    "argument_map": "x -> y",
-}
-
-
-def _validate_template_mgs(template_mgs: Optional[str]) -> None:
-    """Probe ``template_mgs`` with every documented placeholder, raising at decoration time on failure.
-
-    Args:
-        template_mgs: User-supplied warning message template, or ``None``.  ``None`` and empty strings are
-            no-ops because the call sites already fall back to the built-in templates.
-
-    Raises:
-        ValueError: When ``template_mgs`` references an unknown ``%(...)s`` key, uses a malformed conversion
-            specifier, or otherwise fails ``%``-formatting against the full placeholder set.
-
-    """
-    if not template_mgs:
-        return
-    # Reject bare ``%``-conversions (``%s``, ``%d``, a trailing ``%``) that are not part of a
-    # ``%(name)s`` mapping key.  ``"...%s..." % {mapping}`` does not raise — it renders the whole
-    # mapping dict into the message — so the probe below cannot catch them.  ``%%`` (escaped percent)
-    # is legitimate and stripped before the search.
-    if re.search(r"%(?!\()", template_mgs.replace("%%", "")):
-        raise ValueError(
-            f"Invalid template_mgs: bare `%`-conversion found in {template_mgs!r}; only mapping keys of the "
-            f"form `%(name)s` are supported. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
-        )
-    try:
-        template_mgs % _TEMPLATE_MGS_PROBE_ARGS
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError(
-            f"Invalid template_mgs: {exc!r}. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
-        ) from exc
 
 
 def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
     """Filter positional-only and positional-or-keyword parameters."""
     return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
-
-
-class _DeprecatedProperty(property):
-    """``property`` subclass that re-wraps ``getter``/``setter``/``deleter`` results.
-
-    Built-in ``property.setter`` / ``property.deleter`` construct a fresh plain ``property``
-    from the existing accessors plus the newly supplied one — discarding any deprecation
-    wrapping applied to the original accessors. Overriding ``getter``/``setter``/``deleter``
-    to return another ``_DeprecatedProperty`` — wrapping the new accessor with the same packing
-    closure stored in ``_wrap`` — preserves the deprecation warning on every subsequent rebind.
-
-    Example:
-        Chain-style rebinding works because ``_DeprecatedProperty.setter`` re-wraps the
-        new accessor rather than rebuilding a plain ``property``:
-
-            @deprecated(deprecated_in="1.0", remove_in="2.0")
-            @property
-            def value(self): ...
-
-            @value.setter
-            def value(self, v): ...  # setter() returns _DeprecatedProperty, not plain property
-
-    Args:
-        fget: Getter callable, or ``None``.
-        fset: Setter callable, or ``None``.
-        fdel: Deleter callable, or ``None``.
-        doc: Property docstring; ``None`` defers to ``fget.__doc__``.
-        _wrap: Required packing closure to re-apply on accessor rebinds.
-
-    Attributes:
-        _wrap: Closure that re-applies the surrounding ``@deprecated`` decoration to a
-            new accessor; captures the same template/stacklevel/config as the original
-            wrap. Required — always set by ``packing()``; never ``None``.
-
-    Note:
-        ``_DeprecatedProperty`` itself does **not** carry a ``__deprecated__`` attribute —
-        that attribute lives on the individual wrapped accessors (``fget``, ``fset``, ``fdel``).
-        ``find_deprecation_wrappers`` discovers properties via whichever non-``None`` accessor
-        carries ``__deprecated__`` first. A setter-only property (``fget=None``) is discovered
-        via ``fset``; a plain-getter property whose ``fget`` is not deprecated but whose ``fset``
-        is deprecated is likewise discovered via ``fset``.
-
-        **Typing**: ``getter``/``setter``/``deleter`` return ``_DeprecatedProperty`` (covariant
-        narrowing of ``property``'s ``-> property`` annotation). Static type is preserved for
-        variables typed ``_DeprecatedProperty``; variables typed ``property`` lose the narrowing
-        and mypy infers the rebuilt accessor as plain ``property`` — chain inference still works
-        at runtime via dynamic dispatch.
-
-    """
-
-    _wrap: Callable[[Callable], Callable]
-
-    def __init__(
-        self,
-        fget: Optional[Callable] = None,
-        fset: Optional[Callable] = None,
-        fdel: Optional[Callable] = None,
-        doc: Optional[str] = None,
-        *,
-        _wrap: Callable[[Callable], Callable],
-    ) -> None:
-        super().__init__(fget, fset, fdel, doc)
-        # ``property`` exposes no slot for arbitrary attributes via ``__init__``, but it
-        # *does* permit attribute assignment on subclass instances.
-        self._wrap = _wrap
-
-    def _rewrap(self, accessor: Optional[Callable]) -> Optional[Callable]:
-        """Apply the stored ``_wrap`` closure to ``accessor`` when present."""
-        if accessor is None:
-            return accessor
-        return self._wrap(accessor)
-
-    def getter(self, fget: Callable) -> "_DeprecatedProperty":
-        """Return a new ``_DeprecatedProperty`` whose ``fget`` is freshly wrapped."""
-        return _DeprecatedProperty(self._rewrap(fget), self.fset, self.fdel, self.__doc__, _wrap=self._wrap)
-
-    def setter(self, fset: Callable) -> "_DeprecatedProperty":
-        """Return a new ``_DeprecatedProperty`` whose ``fset`` is freshly wrapped."""
-        return _DeprecatedProperty(self.fget, self._rewrap(fset), self.fdel, self.__doc__, _wrap=self._wrap)
-
-    def deleter(self, fdel: Callable) -> "_DeprecatedProperty":
-        """Return a new ``_DeprecatedProperty`` whose ``fdel`` is freshly wrapped."""
-        return _DeprecatedProperty(self.fget, self.fset, self._rewrap(fdel), self.__doc__, _wrap=self._wrap)
-
-
-class _StrictProperty(property):
-    """Strict ``property`` replacement that rejects inner-order ``@deprecated`` at class-body evaluation time.
-
-    Import as ``from deprecate import property`` to opt a module into a guard against the accidental *inner order*
-    ``@property`` over ``@deprecated`` (``@deprecated`` closer to ``def``). That order wraps only ``fget``; any
-    setter or deleter added afterwards is built from the plain :class:`property` base and never warns, so writes
-    and deletes silently bypass the deprecation notice. ``_StrictProperty`` raises :class:`TypeError` the moment it
-    is handed a getter that already carries ``__deprecated__`` metadata — before any instance is created — steering
-    authors to the canonical *outer order* ``@deprecated(...) @property``.
-
-    Because it subclasses the builtin :class:`property`, every ``isinstance(obj, property)`` branch in the decorator
-    and audit machinery treats it transparently: the outer ``@deprecated`` converts it to a
-    :class:`_DeprecatedProperty` exactly as it would a builtin ``property``.
-
-    Modules that do not import the strict ``property`` keep the builtin behaviour untouched — the strictness is
-    purely opt-in.
-
-    Example:
-        >>> from deprecate import deprecated, property as strict_property
-        >>> @deprecated(deprecated_in="1.0", remove_in="2.0")
-        ... def old_getter(self):
-        ...     '''Already-deprecated getter.'''
-        ...     return 42
-        >>> try:
-        ...     strict_property(old_getter)  # inner-order detected
-        ... except TypeError:
-        ...     print("TypeError raised")
-        TypeError raised
-
-    """
-
-    def __init__(
-        self,
-        fget: Optional[Callable] = None,
-        fset: Optional[Callable] = None,
-        fdel: Optional[Callable] = None,
-        doc: Optional[str] = None,
-    ) -> None:
-        """Construct the property, rejecting an already-deprecated getter.
-
-        Args:
-            fget: Getter callable, or ``None``. A :class:`TypeError` is raised when it carries ``__deprecated__``
-                metadata (the inner-order signature). The guard fires on ``fget`` only; ``fset`` and ``fdel``
-                are accepted without inspection — the decorator-stacking inner-order bug is structurally a
-                getter-ordering issue.
-            fset: Setter callable, or ``None``.
-            fdel: Deleter callable, or ``None``.
-            doc: Property docstring; ``None`` defers to ``fget.__doc__``.
-
-        Raises:
-            TypeError: When ``fget`` is already ``@deprecated``-decorated (inner-order ``@property @deprecated``).
-
-        """
-        if fget is not None and _has_deprecation_meta(fget):
-            name = getattr(fget, "__qualname__", repr(fget))
-            raise TypeError(
-                f"Inner-order `@property @deprecated` detected on `{name}`. Only `fget` will warn —"
-                " setter and deleter remain silent."
-                " This check is active because `property` in this module is `deprecate.deprecation._StrictProperty`"
-                " (imported via `from deprecate import property`)."
-                " Swap the decorator order to the canonical outer order:"
-                " `@deprecated(deprecated_in=..., remove_in=...) @property`."
-            )
-        super().__init__(fget, fset, fdel, doc)
 
 
 def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
@@ -492,15 +291,6 @@ def _warn_stacking_misconfiguration(
             UserWarning,
             stacklevel=stacklevel,
         )
-
-
-def _unwrap_descriptor_target(
-    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
-) -> Union[bool, None, Callable, TargetMode]:
-    """Return ``target.__func__`` when *target* is a descriptor; pass through otherwise."""
-    if isinstance(target, (staticmethod, classmethod)):
-        return target.__func__
-    return target
 
 
 def _normalize_target(
@@ -830,228 +620,6 @@ def _split_positional_only_kwargs(
             )
         pos_args.append(kw_args.pop(name))
     return pos_args, kw_args
-
-
-def _raise_warn(
-    stream: Callable,
-    source: Callable,
-    template_mgs: str,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
-    **extras: str,
-) -> None:
-    """Issue a deprecation warning using the specified stream and message template.
-
-    This is the core warning issuer that formats and emits deprecation warnings.  It extracts source function metadata
-    and combines it with provided template variables to generate the final warning message.
-
-    Args:
-        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
-        source: The deprecated function/method being wrapped.
-        template_mgs: Python format string with placeholders for message variables.
-        stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 4 accounts for
-            the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → wrapped_fn → caller`` chain.
-        **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
-
-    Note:
-        Automatically extracts source_name and source_path from the source callable:
-        - For regular functions: uses ``__name__``
-        - For ``__init__`` methods: extracts class name from ``__qualname__``
-
-    Example:
-        >>> import warnings
-        >>> def old_func(): pass
-        >>> _raise_warn(
-        ...     warnings.warn,
-        ...     old_func,
-        ...     "%(source_name)s deprecated in %(version)s",
-        ...     version="1.0"
-        ... )
-
-    """
-    source_name = _source_display_name(source)
-    source_path = f"{source.__module__}.{source_name}"
-    msg_args = dict(source_name=source_name, source_path=source_path, **extras)
-    msg = template_mgs % msg_args
-    try:
-        stream(msg, stacklevel=stacklevel)
-    except TypeError as _exc:
-        if "stacklevel" in str(_exc) or "keyword" in str(_exc):
-            stream(msg)
-        else:
-            raise
-
-
-def _source_display_name(source: Callable) -> str:
-    """Return display name: class name for ``__init__``, function name otherwise."""
-    return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
-
-
-def _raise_warn_callable(
-    stream: Callable,
-    source: Callable,
-    target: Union[None, bool, Callable, TargetMode, staticmethod, classmethod],
-    deprecated_in: str,
-    remove_in: str,
-    template_mgs: Optional[str] = None,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
-) -> None:
-    """Issue deprecation warning for callable (function/class) deprecation.
-
-    This specialized warning issuer handles deprecation of entire functions or classes that are being replaced by new
-    implementations.  It automatically determines the appropriate message template based on whether a target callable
-    is specified.
-
-    Args:
-        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
-        source: The deprecated function/method being wrapped.
-        target: The replacement implementation:
-            - Callable: Forward to this function/class
-            - None: No forwarding (warning only mode)
-            - bool: Not applicable for this function (use _raise_warn_arguments instead)
-        deprecated_in: Version when the source was marked deprecated (e.g., "1.0.0").
-        remove_in: Version when the source will be removed (e.g., "2.0.0").
-        template_mgs: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
-            callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
-        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
-
-    Template Variables Available:
-        - source_name: Function name (e.g., "old_func")
-        - source_path: Full path (e.g., "mymodule.old_func")
-        - target_name: Target function name (only if target is callable)
-        - target_path: Full target path (only if target is callable)
-        - deprecated_in: Version parameter value
-        - remove_in: Version parameter value
-
-    Example:
-        >>> import warnings
-        >>> def new_func(): pass
-        >>> def old_func(): pass
-        >>> _raise_warn_callable(
-        ...     stream=warnings.warn,
-        ...     source=old_func,
-        ...     target=new_func,
-        ...     deprecated_in="1.0",
-        ...     remove_in="2.0"
-        ... )
-        >>> # Outputs: "The `old_func` was deprecated since v1.0 in favor of
-        >>> #           `__main__.new_func`. It will be removed in v2.0."
-
-    """
-    # Unwrap descriptor: _build_call_plan passes the raw (pre-normalization) target so
-    # the warning can name the class rather than __init__.  For descriptor targets,
-    # callable(staticmethod(fn)) is False on Python 3.9 and callable(classmethod(fn))
-    # is always False, so without this unwrap the no-target template fires incorrectly.
-    target = _unwrap_descriptor_target(target)
-    if callable(target):
-        target_name = target.__name__
-        target_path = f"{target.__module__}.{target_name}"
-        template_warn = TEMPLATE_WARNING_CALLABLE
-    else:
-        target_name, target_path = "", ""
-        template_warn = TEMPLATE_WARNING_NO_TARGET
-    _raise_warn(
-        stream=stream,
-        source=source,
-        template_mgs=template_mgs or template_warn,
-        stacklevel=stacklevel,
-        deprecated_in=deprecated_in,
-        remove_in=remove_in,
-        target_name=target_name,
-        target_path=target_path,
-    )
-
-
-def _raise_warn_arguments(
-    stream: Callable,
-    source: Callable,
-    arguments: Mapping[str, Optional[str]],
-    deprecated_in: str,
-    remove_in: str,
-    template_mgs: Optional[str] = None,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
-) -> None:
-    """Issue deprecation warning for deprecated function arguments.
-
-    This specialized warning issuer handles deprecation of specific function parameters that are being renamed or
-    removed.  It generates a mapping string showing the old-to-new argument names.
-
-    Args:
-        stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
-        source: The function/method whose arguments are deprecated.
-        arguments: Mapping from deprecated argument names to new names (e.g., ``{'old_arg': 'new_arg',
-            'removed_arg': None}``).
-        deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
-        remove_in: Version when arguments will be removed (e.g., "2.0.0").
-        template_mgs: Custom message template. If None, uses default template.
-        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
-
-    Template Variables Available:
-        - source_name: Function name (e.g., "my_func")
-        - source_path: Full path (e.g., "mymodule.my_func")
-        - argument_map: Formatted string showing mappings (e.g., "`old` -> `new`")
-        - deprecated_in: Version parameter value
-        - remove_in: Version parameter value
-
-    Example:
-        >>> import warnings
-        >>> def my_func(old_arg=1, new_arg=1): pass
-        >>> _raise_warn_arguments(
-        ...     warnings.warn,
-        ...     my_func,
-        ...     {'old_arg': 'new_arg'},
-        ...     "1.0",
-        ...     "2.0"
-        ... )
-        >>> # Outputs: "The `my_func` uses deprecated arguments: `old_arg` -> `new_arg`.
-        >>> #           They were deprecated since v1.0 and will be removed in v2.0."
-
-    """
-    args_map = ", ".join(TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items())
-    _raise_warn(
-        stream,
-        source,
-        template_mgs or TEMPLATE_WARNING_ARGUMENTS,
-        stacklevel=stacklevel,
-        deprecated_in=deprecated_in,
-        remove_in=remove_in,
-        argument_map=args_map,
-    )
-
-
-def _consume_warn_budget(
-    state: _WrapperState,
-    num_warns: int,
-    reason_callable: bool,
-    reason_argument: dict[str, Optional[str]],
-) -> bool:
-    """Check the warn budget and consume one unit from it when a warning may fire.
-
-    Must be called while holding ``state.lock`` — the read-check-increment sequence is exactly
-    what the lock protects (see the thread-safety note at the call site).
-
-    Args:
-        state: Mutable per-wrapper counters.
-        num_warns: Configured budget; negative means unlimited.
-        reason_callable: Warning is for the deprecated callable itself — consumes ``warned_calls``.
-        reason_argument: Deprecated argument names present in this call — consumes per-argument
-            budgets in ``warned_args``; takes precedence over the call counter for the check.
-
-    Returns:
-        True when the caller should emit the warning (budget available and now consumed).
-
-    """
-    if reason_argument:
-        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-    else:
-        nb_warned = state.warned_calls
-    if num_warns >= 0 and nb_warned >= num_warns:
-        return False
-    if reason_callable:
-        state.warned_calls += 1
-    elif reason_argument:
-        for arg in reason_argument:
-            state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
-    return True
 
 
 def _build_call_plan(  # noqa: C901, PLR0912

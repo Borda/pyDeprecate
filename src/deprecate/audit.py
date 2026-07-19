@@ -59,8 +59,8 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
+from deprecate._properties import _DeprecatedProperty
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
-from deprecate.deprecation import _DeprecatedProperty
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 

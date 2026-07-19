@@ -41,16 +41,16 @@ from deprecate._types import (
     TargetMode,
     _ProxyConfig,
 )
-from deprecate.deprecation import (
+from deprecate.callables import _split_positional_only_kwargs
+from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
+from deprecate.messages import (
     TEMPLATE_ARGUMENT_MAPPING,
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
-    _split_positional_only_kwargs,
     _validate_template_mgs,
     deprecation_warning,
 )
-from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.

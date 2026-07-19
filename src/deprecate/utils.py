@@ -26,6 +26,8 @@ from functools import lru_cache
 from types import TracebackType
 from typing import Any, Callable, Optional, Union
 
+from deprecate._types import TargetMode
+
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, Any]]:
     """Parse function arguments, types and default values.
@@ -353,3 +355,12 @@ def void(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
 
     """
     _, _ = args, kwargs
+
+
+def _unwrap_descriptor_target(
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
+) -> Union[bool, None, Callable, TargetMode]:
+    """Return ``target.__func__`` when *target* is a descriptor; pass through otherwise."""
+    if isinstance(target, (staticmethod, classmethod)):
+        return target.__func__
+    return target
