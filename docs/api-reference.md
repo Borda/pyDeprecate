@@ -4,9 +4,9 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ## Decorator
 
-::: deprecate.deprecation.deprecated
+::: deprecate.callables.deprecated
 
-::: deprecate.deprecation.deprecated_callable
+::: deprecate.callables.deprecated_callable
 
 ## Proxy
 

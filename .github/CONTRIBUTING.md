@@ -334,7 +334,8 @@ pyDeprecate/
 │   ├── _cli.py                 # CLI subcommands: check, expiry, chains, all, status
 │   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
-│   ├── deprecation.py          # @deprecated decorator and warning logic
+│   ├── callables.py            # Callable engine: deprecated_callable() (canonical) + deprecated() dispatcher
+│   ├── deprecation.py          # Backward-compat shim re-exporting deprecate.callables
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
 │   ├── module.py               # Module-level deprecation: deprecated_module()
 │   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
@@ -770,15 +771,15 @@ Use `# NEW/FUTURE API —` when the replacement is defined in the same block imm
 
 **What `docs/llms.txt` contains:** package facts, links to human-facing docs, and Agent Notes (critical mental model, anti-patterns with WRONG/CORRECT pairs, decision flowchart for choosing the right API).
 
-**The comprehensive sync rule:** these five surfaces must always agree: public-API module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) ↔ inline comments in changed `src/` files ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt`. Additionally update `docs/robots.txt` when AI crawler policy changes.
+**The comprehensive sync rule:** these five surfaces must always agree: public-API module docstrings (`callables.py`, `audit.py`, `proxy.py`, `utils.py`) ↔ inline comments in changed `src/` files ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt`. Additionally update `docs/robots.txt` when AI crawler policy changes.
 
-| When you change...                                                          | Also update...                                                                                                                                                                                                    |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public API behavior (parameter meaning, forwarding semantics, default mode) | affected module docstrings (`deprecation.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
-| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                                                                                                                      |
-| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                                                                                                                   |
-| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`                                                                                                            |
-| A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                      |
+| When you change...                                                          | Also update...                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public API behavior (parameter meaning, forwarding semantics, default mode) | affected module docstrings (`callables.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
+| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                                                                                                                    |
+| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                                                                                                                 |
+| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`                                                                                                          |
+| A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                    |
 
 > [!IMPORTANT]
 > `docs/llms.txt` is the highest-leverage surface for AI agents. Update it in the same commit as the code change — never as a follow-up.

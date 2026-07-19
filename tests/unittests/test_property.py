@@ -285,7 +285,7 @@ class TestClassMethodDescriptorTarget:
         cm: classmethod = classmethod(_new_cm_fn)
 
         with (
-            patch("deprecate.deprecation.inspect.signature", side_effect=ValueError("no sig")),
+            patch("deprecate.callables.inspect.signature", side_effect=ValueError("no sig")),
             pytest.raises(TypeError, match="leading class argument"),
         ):
 
