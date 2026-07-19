@@ -845,7 +845,7 @@ class TestDescriptorStacklevel:
 
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
         assert user_warnings, "Expected UserWarning for missing deprecated_in on classmethod path"
-        assert user_warnings[0].filename.endswith("test_property.py")
+        assert user_warnings[0].filename.endswith("test__properties.py")
 
     def test_warn_filename_points_to_caller_on_staticmethod_path(self) -> None:
         """Staticmethod path: decoration-time UserWarning attributes to caller's frame.
@@ -866,7 +866,7 @@ class TestDescriptorStacklevel:
 
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
         assert user_warnings, "Expected UserWarning for missing deprecated_in on staticmethod path"
-        assert user_warnings[0].filename.endswith("test_property.py")
+        assert user_warnings[0].filename.endswith("test__properties.py")
 
     def test_warn_filename_points_to_caller_on_property_path(self) -> None:
         """Property path: decoration-time UserWarning attributes to caller's frame.
@@ -888,7 +888,7 @@ class TestDescriptorStacklevel:
 
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
         assert user_warnings, "Expected UserWarning for missing deprecated_in on property path"
-        assert user_warnings[0].filename.endswith("test_property.py")
+        assert user_warnings[0].filename.endswith("test__properties.py")
 
     def test_warn_filename_points_to_caller_on_cached_property_path(self) -> None:
         """cached_property path: decoration-time UserWarning attributes to caller's frame.
@@ -910,7 +910,7 @@ class TestDescriptorStacklevel:
 
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning) and "deprecated_in" in str(w.message)]
         assert user_warnings, "Expected UserWarning for missing deprecated_in on cached_property path"
-        assert user_warnings[0].filename.endswith("test_property.py")
+        assert user_warnings[0].filename.endswith("test__properties.py")
 
 
 class TestStrictProperty:

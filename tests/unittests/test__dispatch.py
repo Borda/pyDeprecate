@@ -1,41 +1,32 @@
-"""Unit tests for private helpers in deprecate.deprecation."""
+"""Unit tests for the target-resolution and call-plan engine (:mod:`deprecate._dispatch`)."""
 
 import asyncio
+import concurrent.futures
 import inspect
 import sys
+import threading
+import time
 import warnings
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Callable, Union, cast
-from unittest.mock import MagicMock
+from collections.abc import Iterator
+from typing import Any, Callable, cast
 
 import pytest
-import typing_extensions
 
 from deprecate import TargetMode, assert_no_warnings, deprecated, void
-from deprecate._types import DeprecationConfig, _DeprecatedCallable
-from deprecate.deprecation import (
+from deprecate._dispatch import (
     POSITIONAL_OR_KEYWORD,
+    _build_call_plan,
     _find_class_body_qualname,
     _get_positional_params,
     _normalize_target,
     _precompute_target_facts,
     _prepare_target_call,
-    _raise_warn,
-    _raise_warn_arguments,
-    _raise_warn_callable,
     _reject_bare_decorator,
+    _split_positional_only_kwargs,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
-    _validate_template_mgs,
 )
-from deprecate.docstring.inject import (
-    _update_docstring_with_deprecation,
-    find_docstring_insertion_index,
-    is_numpy_underline,
-    normalize_docstring_style,
-)
-from deprecate.proxy import _DeprecatedProxy
+from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
 from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
@@ -54,6 +45,8 @@ from tests.collection_deprecate import (
     dep_fib_remap,
     dep_fib_silent,
     dep_non_cycle_old_fn,
+    depr_pow_args,
+    depr_target_mode_args_only_with_args_extra_injects_kwargs,
     deprecated_args_remap_positional_only_source,
     deprecated_async_args_remap_positional_only_source,
     deprecated_async_gapped_positional_only_source,
@@ -72,13 +65,14 @@ from tests.collection_deprecate import (
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
     make_deprecated_positional_only_num_warns_one,
-    pep702_stacked,
 )
+from tests.collection_misconfigured import target_false_deprecation
 from tests.collection_targets import (
     KeywordCallTarget,
-    base_sum_kwargs,
     call_signature_source,
-    pep702_target,
+    compute_power,
+    double_value,
+    identity_value,
     positional_only_target,
     positional_only_two_params_target,
     stacked_inner_target,
@@ -226,219 +220,6 @@ class TestUpdateKwargsWithDefaults:
 
         result = _update_kwargs_with_defaults(my_func, {"a": 7})
         assert result == {"a": 7}
-
-
-class TestRaiseWarn:
-    """Tests for _raise_warn — low-level helper that formats a template string and calls the stream."""
-
-    def test_calls_stream_with_formatted_message(self) -> None:
-        """Stream is called exactly once with the template variables substituted correctly."""
-        stream = MagicMock()
-
-        def old_func() -> None:
-            pass
-
-        _raise_warn(stream, old_func, "%(source_name)s deprecated since %(version)s", version="1.0")
-        stream.assert_called_once()
-        assert "old_func" in stream.call_args[0][0]
-        assert "1.0" in stream.call_args[0][0]
-
-    def test_extracts_class_name_from_init(self) -> None:
-        """When the source callable is __init__, the enclosing class name is used as source_name."""
-        stream = MagicMock()
-
-        class MyClass:
-            def __init__(self) -> None:
-                pass
-
-        _raise_warn(stream, MyClass.__init__, "%(source_name)s")
-        called_msg = stream.call_args[0][0]
-        assert "MyClass" in called_msg
-
-    def test_source_path_contains_module_and_name(self) -> None:
-        """The %(source_path)s placeholder is substituted with a dotted module.name string."""
-        stream = MagicMock()
-
-        def my_func() -> None:
-            pass
-
-        _raise_warn(stream, my_func, "%(source_path)s")
-        called_msg = stream.call_args[0][0]
-        assert "my_func" in called_msg
-
-
-class TestRaiseWarnCallable:
-    """Tests for _raise_warn_callable — warning variant for deprecated callables forwarding to a replacement."""
-
-    def test_callable_target_uses_default_template(self) -> None:
-        """When a replacement target is provided, both old and new names appear in the default message."""
-        stream = MagicMock()
-
-        def old_func() -> None:
-            pass
-
-        def new_func() -> None:
-            pass
-
-        _raise_warn_callable(stream, old_func, new_func, "1.0", "2.0")
-        msg = stream.call_args[0][0]
-        assert "old_func" in msg
-        assert "new_func" in msg
-        assert "1.0" in msg
-        assert "2.0" in msg
-
-    def test_none_target_uses_no_target_template(self) -> None:
-        """When target=None, the no-target template is used and no replacement name appears."""
-        stream = MagicMock()
-
-        def old_func() -> None:
-            pass
-
-        _raise_warn_callable(stream, old_func, None, "1.0", "2.0")
-        msg = stream.call_args[0][0]
-        assert "old_func" in msg
-        assert "new_func" not in msg
-
-    def test_custom_template_overrides_default(self) -> None:
-        """A custom template_mgs overrides both built-in templates and receives the same substitutions."""
-        stream = MagicMock()
-
-        def old_func() -> None:
-            pass
-
-        _raise_warn_callable(stream, old_func, None, "1.0", "2.0", template_mgs="custom: %(source_name)s")
-        assert stream.call_args[0][0] == "custom: old_func"
-
-
-class TestRaiseWarnArguments:
-    """Tests for _raise_warn_arguments — warning variant for deprecated argument renames."""
-
-    def test_formats_argument_mapping(self) -> None:
-        """Function name and both old and new argument names appear in the formatted message."""
-        stream = MagicMock()
-
-        def my_func(old_arg: int = 1, new_arg: int = 1) -> None:
-            pass
-
-        _raise_warn_arguments(stream, my_func, {"old_arg": "new_arg"}, "1.0", "2.0")
-        msg = stream.call_args[0][0]
-        assert "my_func" in msg
-        assert "old_arg" in msg
-        assert "new_arg" in msg
-
-    def test_multiple_argument_mappings(self) -> None:
-        """All renamed argument pairs appear in the message when multiple mappings are provided."""
-        stream = MagicMock()
-
-        def my_func(a: int = 0, b: int = 0, x: int = 0, y: int = 0) -> None:
-            pass
-
-        _raise_warn_arguments(stream, my_func, {"a": "x", "b": "y"}, "1.0", "2.0")
-        msg = stream.call_args[0][0]
-        assert "a" in msg
-        assert "x" in msg
-        assert "b" in msg
-        assert "y" in msg
-
-    def test_custom_template_overrides_default(self) -> None:
-        """A custom template_mgs overrides the default argument-rename template."""
-        stream = MagicMock()
-
-        def my_func(old: int = 0, new: int = 0) -> None:
-            pass
-
-        _raise_warn_arguments(stream, my_func, {"old": "new"}, "1.0", "2.0", template_mgs="map: %(argument_map)s")
-        assert stream.call_args[0][0].startswith("map: ")
-
-
-class TestDeprecatedClassGuard:
-    """@deprecated emits UserWarning and delegates to @deprecated_class when applied to a class."""
-
-    _NOTIFY_PARAMS = [
-        pytest.param(TargetMode.NOTIFY, id="TargetMode.NOTIFY"),
-        pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
-    ]
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_warns_for_plain_class(self, target_val: Union[TargetMode, None]) -> None:
-        """Applying @deprecated to a plain class emits UserWarning and returns a proxy."""
-        with pytest.warns(UserWarning, match="deprecated_class"):
-
-            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
-            class _MyClass:
-                pass
-
-        assert isinstance(_MyClass, _DeprecatedProxy)
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_warns_for_enum_class(self, target_val: Union[TargetMode, None]) -> None:
-        """Applying @deprecated to an Enum class emits UserWarning and returns a proxy."""
-        with pytest.warns(UserWarning, match="deprecated_class"):
-
-            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
-            class _MyEnum(Enum):
-                A = "a"
-
-        assert isinstance(_MyEnum, _DeprecatedProxy)
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_warns_for_dataclass(self, target_val: Union[TargetMode, None]) -> None:
-        """Applying @deprecated to a dataclass emits UserWarning and returns a proxy."""
-        with pytest.warns(UserWarning, match="deprecated_class"):
-
-            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
-            @dataclass
-            class _MyData:
-                x: int
-
-        assert isinstance(_MyData, _DeprecatedProxy)
-
-    def test_stream_none_suppresses_meta_warning(self) -> None:
-        """``stream=None`` suppresses the UserWarning when @deprecated(target=None) is applied to a class."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            warnings.filterwarnings("ignore", category=FutureWarning)
-
-            @deprecated(target=None, deprecated_in="1.0", remove_in="2.0", stream=None)
-            class _MyClass:
-                pass
-
-        assert isinstance(_MyClass, _DeprecatedProxy)
-
-    def test_stream_none_suppresses_meta_warning_whole_class(self) -> None:
-        """``stream=None`` suppresses the UserWarning when @deprecated(target=NOTIFY) is applied to a plain class."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-
-            @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", stream=None)
-            class _MyWholeClass:
-                pass
-
-        assert isinstance(_MyWholeClass, _DeprecatedProxy)
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_does_not_raise_for_function(self, target_val: Union[TargetMode, None]) -> None:
-        """Applying @deprecated to a regular function does not raise."""
-
-        @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
-        def my_func() -> None:
-            pass
-
-        with pytest.warns(FutureWarning):
-            my_func()
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_does_not_raise_for_init_method(self, target_val: Union[TargetMode, None]) -> None:
-        """Applying @deprecated to __init__ (not the class itself) does not raise."""
-
-        class MyClass:
-            @deprecated(target=target_val, deprecated_in="1.0", remove_in="2.0")
-            def __init__(self) -> None:
-                pass
-
-        with pytest.warns(FutureWarning):
-            instance = MyClass()
-        assert isinstance(instance, MyClass)
 
 
 class TestCrossClassMethodGuard:
@@ -606,223 +387,6 @@ class TestCrossClassMethodGuard:
                     return void(x)
 
 
-class TestDocstringStyleValidation:
-    """Validation for ``docstring_style`` values."""
-
-    _NOTIFY_PARAMS = [
-        pytest.param(TargetMode.NOTIFY, id="TargetMode.NOTIFY"),
-        pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
-    ]
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_invalid_docstring_style_raises_value_error(self, target_val: Union[TargetMode, None]) -> None:
-        """Unsupported ``docstring_style`` values should fail fast at decoration time."""
-        with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
-
-            @deprecated(
-                target=target_val,
-                deprecated_in="1.0",
-                remove_in="2.0",
-                update_docstring=True,
-                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
-            )
-            def some_func() -> None:
-                """A function."""
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_invalid_docstring_style_raises_even_without_update_docstring(
-        self, target_val: Union[TargetMode, None]
-    ) -> None:
-        """``docstring_style`` is validated eagerly regardless of ``update_docstring``."""
-        with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
-
-            @deprecated(
-                target=target_val,
-                deprecated_in="1.0",
-                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
-            )
-            def some_func() -> None:
-                """A function."""
-
-    @pytest.mark.parametrize("style", ["RST", "MKDOCS", "Markdown", "MkDocs", "AUTO", "Auto"])
-    def test_case_insensitive_normalization(self, style: str) -> None:
-        """``docstring_style`` values are matched case-insensitively."""
-        assert normalize_docstring_style(style) in ("rst", "mkdocs")
-
-    def test_auto_style_resolves_to_rst_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """``"auto"`` resolves to ``"rst"`` when no env var is set and argv is not mkdocs."""
-        monkeypatch.setattr(sys, "argv", ["pytest"])
-        monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
-        monkeypatch.delitem(sys.modules, "mkdocs", raising=False)
-        result = normalize_docstring_style("auto")
-        assert result == "rst"
-
-    def test_auto_style_env_var_mkdocs(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """``DEPRECATE_DOCSTRING_STYLE=mkdocs`` forces MkDocs format."""
-        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "mkdocs")
-        assert normalize_docstring_style("auto") == "mkdocs"
-
-    def test_auto_style_env_var_rst(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """``DEPRECATE_DOCSTRING_STYLE=rst`` forces RST format."""
-        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "rst")
-        assert normalize_docstring_style("auto") == "rst"
-
-    def test_auto_style_detects_mkdocs_from_argv(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """``sys.argv[0]`` containing ``mkdocs`` resolves ``"auto"`` to ``"mkdocs"``."""
-        monkeypatch.setattr(sys, "argv", ["/usr/local/bin/mkdocs", "build"])
-        monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
-        assert normalize_docstring_style("auto") == "mkdocs"
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_update_docstring_idempotent(self, target_val: Union[TargetMode, None]) -> None:
-        """Calling ``_update_docstring_with_deprecation`` twice must not duplicate the notice."""
-
-        @deprecated(target=target_val, deprecated_in="1.0", update_docstring=True)
-        def some_func() -> None:
-            """A function."""
-
-        original_doc = some_func.__doc__
-        _update_docstring_with_deprecation(some_func)
-        assert some_func.__doc__ == original_doc
-
-    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
-    def test_idempotency_guard_no_false_positive_on_version_prefix(self, target_val: Union[TargetMode, None]) -> None:
-        """Guard must not suppress injection when the docstring mentions a longer version.
-
-        ``deprecated_in="1"`` should inject ``.. deprecated:: 1`` even when the
-        existing docstring contains ``.. deprecated:: 1.0`` in prose — the "1"
-        string is a substring of "1.0" so a naive ``in`` check would cause a
-        false positive.
-
-        """
-
-        @deprecated(target=target_val, deprecated_in="1", update_docstring=True, docstring_style="rst")
-        def some_func() -> None:
-            """Summary.
-
-            See also .. deprecated:: 1.0 handling.
-
-            """
-
-        assert some_func.__doc__ is not None
-        lines = [line.strip() for line in some_func.__doc__.splitlines()]
-        assert ".. deprecated:: 1" in lines
-
-
-class TestNumpyUnderlineDetection:
-    """Tests for NumPy section underline detection helper."""
-
-    @pytest.mark.parametrize(
-        ("line", "expected"),
-        [
-            ("---", True),
-            ("----------", True),
-            (" -- ", False),
-            ("===", False),
-            ("abc", False),
-            ("--", False),
-        ],
-    )
-    def test_is_numpy_underline(self, line: str, expected: bool) -> None:
-        """Underline helper should accept only 3+ dashes."""
-        assert is_numpy_underline(line) is expected
-
-
-class TestDocstringInsertionIndex:
-    """Tests for Google/NumPy insertion index detection."""
-
-    def test_detects_google_header_with_whitespace_and_case(self) -> None:
-        """Google headers are detected case-insensitively with surrounding whitespace."""
-        lines = ["Summary", "", "  ArGs:  ", "    a: value"]
-        assert find_docstring_insertion_index(lines) == 2
-
-    def test_detects_numpy_header_with_underline(self) -> None:
-        """NumPy header should be detected only when followed by dashed underline."""
-        lines = ["Summary", "", "Parameters", "----------", "a : int"]
-        assert find_docstring_insertion_index(lines) == 2
-
-    def test_does_not_detect_numpy_header_without_underline(self) -> None:
-        """NumPy-like header without underline should fall back to append-at-end."""
-        lines = ["Summary", "", "Parameters", "a : int"]
-        assert find_docstring_insertion_index(lines) == len(lines)
-
-    def test_boundary_header_last_line_does_not_crash(self) -> None:
-        """Header on final line should not index past bounds and should append at end."""
-        lines = ["Summary", "Parameters"]
-        assert find_docstring_insertion_index(lines) == len(lines)
-
-
-class TestDocstringStyleOutput:
-    """Verify each docstring style alias produces the correct notice format.
-
-    The inline ``@deprecated`` decorators in this class are parametrize-coupled
-    (``docstring_style=style`` resolves from the parametrize fixture), so they cannot be
-    moved to :mod:`tests.collection_deprecate` without losing the per-case configuration.
-    This is one of the AGENTS.md three-layer-rule exceptions: a decorator whose config
-    depends on the parametrize value must be defined inside the test method itself.
-    """
-
-    @pytest.mark.parametrize(
-        ("style", "expected_marker"),
-        [
-            ("rst", ".. deprecated:: 1.0"),
-            ("mkdocs", '!!! warning "Deprecated in 1.0"'),
-            ("markdown", '!!! warning "Deprecated in 1.0"'),
-        ],
-    )
-    def test_notice_marker_for_explicit_style(self, style: str, expected_marker: str) -> None:
-        """Each explicit style injects the expected notice format into the docstring."""
-
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
-        def _fn() -> None:
-            """A simple function."""
-
-        assert _fn.__doc__ is not None
-        assert expected_marker in _fn.__doc__
-
-    @pytest.mark.parametrize(
-        ("style", "expected_marker"),
-        [
-            ("rst", ".. deprecated:: 1.0"),
-            ("mkdocs", '!!! warning "Deprecated in 1.0"'),
-            ("markdown", '!!! warning "Deprecated in 1.0"'),
-        ],
-    )
-    def test_notice_inserted_before_google_args_for_style(self, style: str, expected_marker: str) -> None:
-        """Notice is placed before ``Args:`` regardless of style."""
-
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
-        def _fn(x: int) -> None:
-            """Summary.
-
-            Args:
-                x: A value.
-
-            """
-
-        assert _fn.__doc__ is not None
-        doc = _fn.__doc__
-        assert expected_marker in doc
-        assert doc.index(expected_marker) < doc.index("Args:")
-
-    @pytest.mark.parametrize(
-        ("style", "absent_marker"),
-        [
-            ("rst", "!!! warning"),
-            ("mkdocs", ".. deprecated::"),
-            ("markdown", ".. deprecated::"),
-        ],
-    )
-    def test_other_style_marker_absent(self, style: str, absent_marker: str) -> None:
-        """The notice uses exactly one format — the other style's marker is absent."""
-
-        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
-        def _fn() -> None:
-            """A simple function."""
-
-        assert absent_marker not in (_fn.__doc__ or "")
-
-
 class TestNormalizeTargetInvalidInputs:
     """_normalize_target passes unrecognised non-class values through unchanged.
 
@@ -859,220 +423,6 @@ class TestNormalizeTargetInvalidInputs:
             result = fn(4)
 
         assert result == 5
-
-
-class TestEmptyVersionGuardOnFunctions:
-    """@deprecated() on a function with no version strings emits UserWarning at decoration time.
-
-    Mirrors the proxy-side coverage in tests/unittests/test_proxy.py so the function form of
-    @deprecated is held to the same contract: a single UserWarning when both ``deprecated_in``
-    and ``remove_in`` are absent, suppressed when ``stream=None``.
-    """
-
-    def test_function_empty_versions_warns_once(self) -> None:
-        """@deprecated() on a function with no version strings emits exactly one UserWarning."""
-        with pytest.warns(UserWarning, match=r"no `deprecated_in` set") as caught:
-
-            @deprecated()
-            def _fn_no_versions() -> None:
-                """Source function with no version metadata supplied."""
-
-        user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
-        assert len(user_warnings) == 1
-
-    def test_function_empty_versions_stream_none_silent(self) -> None:
-        """@deprecated(stream=None) on a function with no version strings emits no UserWarning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-
-            @deprecated(stream=None)
-            def _fn_no_versions_silent() -> None:
-                """Source function with stream=None — guard must stay silent."""
-
-        assert not caught
-
-
-class TestEmptyVersionGuardOnClasses:
-    """@deprecated() on a class with no version strings emits exactly one empty-version guard warning.
-
-    When ``@deprecated`` is applied to a class, ``packing()`` delegates to ``deprecated_class()``.
-    The empty-version guard must fire at the proxy layer only — duplicating it inside
-    ``packing()`` would surface two UserWarnings for a single decoration. The inline class
-    fixtures here are mechanical one-offs per the AGENTS.md test-three-layer exception.
-    """
-
-    def test_class_empty_versions_warns_once(self) -> None:
-        """@deprecated() applied to a class with no version strings emits exactly one empty-version guard warning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-
-            @deprecated()
-            class _OldClassNoVersions:
-                """Source class with no version metadata supplied."""
-
-        user_warnings = [
-            w for w in caught if issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message)
-        ]
-        assert len(user_warnings) == 1
-
-    def test_class_empty_versions_stream_none_silent(self) -> None:
-        """@deprecated(stream=None) applied to a class with no version strings emits no UserWarning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-
-            @deprecated(stream=None)
-            class _OldClassNoVersionsSilent:
-                """Source class with stream=None — guard must stay silent."""
-
-        user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
-        assert not user_warnings
-
-
-class TestEmptyVersionGuardSymmetry:
-    """Guard fires for all target shapes when deprecated_in and remove_in are absent (F1b).
-
-    The inline ``@deprecated`` decorators in this class test *decoration-time* behavior —
-    each scenario asserts that ``UserWarning`` fires (or stays silent) at the moment the
-    decorator is applied, captured inside a ``with pytest.warns(...)`` / ``catch_warnings``
-    block.  Moving the wrappers to :mod:`tests.collection_deprecate` would fire the guard
-    warning at module import time, outside any catch context, defeating the test.  This is
-    the AGENTS.md three-layer-rule exception for guard tests.
-    """
-
-    def test_guard_fires_for_callable_target(self) -> None:
-        """@deprecated(target=<callable>) with no versions emits UserWarning at decoration time."""
-
-        def new_fn() -> None:
-            pass
-
-        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
-
-            @deprecated(target=new_fn)
-            def old_fn() -> None:
-                pass
-
-    def test_guard_fires_for_args_remap_target(self) -> None:
-        """@deprecated(target=ARGS_REMAP) with no versions emits UserWarning at decoration time."""
-        with pytest.warns(UserWarning, match="no `deprecated_in` set"):
-
-            @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})
-            def old_fn(old: int = 0, new: int = 0) -> int:
-                return new
-
-    def test_guard_silent_when_stream_none(self) -> None:
-        """@deprecated(target=<callable>, stream=None) with no versions does not emit UserWarning."""
-
-        def new_fn() -> None:
-            pass
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-
-            @deprecated(target=new_fn, stream=None)
-            def old_fn() -> None:
-                pass
-
-        assert not [w for w in caught if issubclass(w.category, UserWarning)]
-
-    def test_guard_fires_when_remove_in_set_but_deprecated_in_absent(self) -> None:
-        """@deprecated(remove_in='2.0') with no deprecated_in still emits the empty-version UserWarning."""
-
-        def new_fn() -> None:
-            pass
-
-        with pytest.warns(UserWarning, match="no `deprecated_in` set") as caught:
-
-            @deprecated(target=new_fn, remove_in="2.0")
-            def old_fn() -> None:
-                pass
-
-        user_warnings = [w for w in caught.list if issubclass(w.category, UserWarning)]
-        assert len(user_warnings) == 1
-
-    def test_guard_silent_when_template_msg_provided(self) -> None:
-        """@deprecated with template_mgs and no deprecated_in does not emit the empty-version UserWarning."""
-
-        def new_fn() -> None:
-            pass
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-
-            @deprecated(target=new_fn, template_mgs="%(source_name)s is gone, use new_fn.")
-            def old_fn_notify() -> None:
-                pass
-
-            @deprecated(
-                target=TargetMode.ARGS_REMAP, args_mapping={"a": "b"}, template_mgs="%(source_name)s arg 'a' renamed."
-            )
-            def old_fn_remap(a: int = 0, b: int = 0) -> int:
-                return b
-
-        assert not [w for w in caught if issubclass(w.category, UserWarning)]
-
-
-class TestPEP702StackingRegression:
-    """Stacking ``typing_extensions.deprecated`` outside ``@deprecated`` no longer crashes (B1a).
-
-    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's ``__deprecated__`` attribute with the
-    message string. Before the fix, ``wrapped_fn`` re-read that attribute at call time and crashed with
-    ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures the ``DeprecationConfig``
-    instance in a closure variable so the call path survives arbitrary outer decorators rewriting ``__deprecated__``.
-
-    """
-
-    def test_pep702_stacked_call_does_not_crash(self) -> None:
-        """Stacked PEP 702 + pyDeprecate wrapper forwards the call and returns the target's result."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            result = pep702_stacked(1)
-        assert result == 2
-
-    def test_pep702_stacked_emits_pep702_deprecation_warning(self) -> None:
-        """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning at call time."""
-        with pytest.warns(DeprecationWarning, match="use `pep702_target`"):
-            pep702_stacked(2)
-
-    def test_pep702_stacked_emits_pydeprecate_warning_on_first_call(self) -> None:
-        """Inner ``@deprecated`` still emits its FutureWarning naming the target.
-
-        Uses a freshly-built wrapper so the pyDeprecate ``_state.warned_calls`` counter is zero — the module-level
-        ``pep702_stacked`` fixture may already have warned in earlier tests under ``num_warns=1``.
-
-        """
-        inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
-        stacked = typing_extensions.deprecated("use `pep702_target`")(inner)
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            result = stacked(3)
-
-        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
-        assert future_warnings, "expected at least one FutureWarning from pyDeprecate"
-        assert any("pep702_target" in str(w.message) for w in future_warnings)
-        assert result == 6
-
-
-class TestTemplateMgsValidation:
-    """A malformed ``template_mgs`` is detected at decoration time, not at first call (B6)."""
-
-    def test_unknown_placeholder_raises_at_decoration(self) -> None:
-        """An unknown ``%(...)s`` key raises ``ValueError`` when ``@deprecated`` is applied — before any call."""
-        with pytest.raises(ValueError, match="Invalid template_mgs"):
-            deprecated(
-                target=base_sum_kwargs, deprecated_in="0.8", remove_in="1.0", template_mgs="bad %(unknown_key)s"
-            )(base_sum_kwargs)
-
-    def test_valid_template_accepted_at_decoration(self) -> None:
-        """A template using only documented placeholders is accepted at decoration time."""
-        # Must not raise — covers happy path of the probe.
-        wrapper = deprecated(
-            target=base_sum_kwargs,
-            deprecated_in="0.8",
-            remove_in="1.0",
-            template_mgs="`%(source_name)s` -> `%(target_name)s` since v%(deprecated_in)s",
-        )(base_sum_kwargs)
-        assert callable(wrapper)
 
 
 class TestStackedCallableTargetGuard:
@@ -1115,7 +465,7 @@ class TestStackingGuards:
         )
         with pytest.warns(UserWarning, match="callable target stacked over.*ARGS_REMAP") as record:
             deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test_deprecation.py")
+        assert record[0].filename.endswith("test__dispatch.py")
 
     def test_args_remap_over_callable_warns(self) -> None:
         """ARGS_REMAP outer stacked over callable-target inner emits ``UserWarning``."""
@@ -1124,14 +474,14 @@ class TestStackingGuards:
             deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"x": "y"})(
                 inner
             )
-        assert record[0].filename.endswith("test_deprecation.py")
+        assert record[0].filename.endswith("test__dispatch.py")
 
     def test_notify_over_notify_warns(self) -> None:
         """Duplicate NOTIFY layers emit ``UserWarning`` at decoration time."""
         inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
         with pytest.warns(UserWarning, match="duplicate.*NOTIFY") as record:
             deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test_deprecation.py")
+        assert record[0].filename.endswith("test__dispatch.py")
 
     def test_notify_over_args_remap_warns_with_order_hint(self) -> None:
         """NOTIFY outer + ARGS_REMAP inner (wrong order) emits ``UserWarning`` with order hint."""
@@ -1140,14 +490,14 @@ class TestStackingGuards:
         )
         with pytest.warns(UserWarning, match="Reverse the decorator order") as record:
             deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test_deprecation.py")
+        assert record[0].filename.endswith("test__dispatch.py")
 
     def test_callable_over_notify_warns(self) -> None:
         """Callable-target outer stacked over NOTIFY inner emits ``UserWarning``."""
         inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
         with pytest.warns(UserWarning, match="callable target stacked over.*NOTIFY") as record:
             deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test_deprecation.py")
+        assert record[0].filename.endswith("test__dispatch.py")
 
     def test_args_remap_over_args_remap_does_not_warn(self) -> None:
         """Supported ARGS_REMAP+ARGS_REMAP stacking must not emit any UserWarning."""
@@ -1870,97 +1220,6 @@ class TestBareDecoratorGuard:
         _reject_bare_decorator(real)  # no exception raised = a plain callable is accepted
 
 
-class TestRaiseWarnStacklevel:
-    """Stream called with ``stacklevel`` when accepted; internal TypeError propagates without double-call."""
-
-    def test_internal_typeerror_not_swallowed_no_double_call(self) -> None:
-        """An internal TypeError from a stacklevel-accepting stream propagates and the stream runs exactly once.
-
-        A ``TypeError`` raised *inside* a stacklevel-accepting stream must propagate and the stream must run
-        exactly once. A naive ``try/except TypeError`` would re-invoke the stream on any TypeError, producing
-        duplicate side effects (double log lines) for anyone whose custom stream raised internally.  The
-        message-based discrimination (``"stacklevel" in str(exc)``) prevents this.
-        """
-        calls: list[str] = []
-
-        def stream(msg: str, stacklevel: int = 1) -> None:
-            calls.append(msg)
-            raise TypeError("boom from inside the stream")
-
-        def old() -> None:
-            pass
-
-        with pytest.raises(TypeError, match="boom from inside the stream"):
-            _raise_warn(stream, old, "%(source_name)s", stacklevel=3)
-        assert len(calls) == 1
-
-    def test_varkw_stream_receives_stacklevel_exactly_once(self) -> None:
-        """A ``**kwargs``-accepting stream receives ``stacklevel`` and is called exactly once.
-
-        A custom stream declared as ``def my_stream(msg, **kwargs)`` accepts ``stacklevel`` via ``**kwargs``.
-        The caller must forward ``stacklevel`` in a single call — never via a fallback retry.
-        """
-        calls: list[tuple[str, dict[str, object]]] = []
-
-        def stream(msg: str, **kwargs: object) -> None:
-            calls.append((msg, kwargs))
-
-        def src() -> None:
-            pass
-
-        _raise_warn(stream, src, "%(source_name)s", stacklevel=3)
-        assert len(calls) == 1
-        assert "stacklevel" in calls[0][1]
-
-
-class TestTemplateBareConversion:
-    """Bare ``%``-conversions in ``template_mgs`` must be rejected at decoration time."""
-
-    def test_bare_s_rejected(self) -> None:
-        """``"%s"`` silently renders the whole substitution mapping at call time, so it must be rejected up front."""
-        with pytest.raises(ValueError, match="bare `%`-conversion"):
-            _validate_template_mgs("Deprecated: %s")
-
-    def test_escaped_percent_allowed(self) -> None:
-        """A literal ``%%`` alongside a valid mapping key is legitimate and must pass validation."""
-        _validate_template_mgs("100%% done: %(source_name)s")  # no exception raised = accepted
-
-    def test_bare_conversion_raises_on_decoration(self) -> None:
-        """The bare-conversion guard fires when the decorator is applied, not on first call."""
-        with pytest.raises(ValueError, match="bare `%`-conversion"):
-
-            @deprecated(deprecated_in="1.0", remove_in="2.0", template_mgs="gone %d")
-            def old() -> int:
-                return 1
-
-
-class TestArgsMappingDefensiveCopy:
-    """The frozen config must not alias the caller's mutable ``args_mapping`` dict."""
-
-    def test_post_decoration_mutation_ignored(self) -> None:
-        """Mutating the caller's ``args_mapping`` dict after decoration does not change forwarding behavior.
-
-        Mutating the ``args_mapping`` dict after decoration used to change forwarding behavior because the
-        frozen ``DeprecationConfig`` stored the caller's dict by reference. A defensive copy makes the wrapper
-        immune to later mutation of the caller-owned dict.
-        """
-
-        def new(**kwargs: int) -> dict[str, int]:
-            return kwargs
-
-        mapping: dict[str, Any] = {"old_a": "new_a"}
-
-        @deprecated(target=new, deprecated_in="1.0", remove_in="2.0", args_mapping=mapping)
-        def old(old_a: int = 1) -> dict[str, int]:
-            return {"old_a": old_a}
-
-        mapping["old_a"] = "hijacked"  # would redirect to a bogus name if the dict were aliased
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", FutureWarning)
-            result = old(old_a=5)
-        assert result == {"new_a": 5}
-
-
 class TestClassBodyQualnameWalk:
     """The cross-class guard locates the class body via a bounded frame walk, not a fixed depth."""
 
@@ -1999,3 +1258,377 @@ class TestClassBodyQualnameWalk:
                 @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
                 def old_classmethod(cls, x: int) -> int:
                     return void(x)
+
+
+def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -> _DeprecatedCallable:
+    """Return a minimal callable shaped like a ``@deprecated`` wrapper for unit testing.
+
+    The real wrapper carries mutable ``_state`` and frozen ``__deprecated__`` attributes that
+    :func:`_build_call_plan` reads via :class:`~deprecate._types._DeprecatedCallable`.  Wrapping the
+    bare ``source`` here suffices because the helper never invokes ``wrapper_fn`` itself — it only
+    reads ``wrapper_fn._state``.
+
+    """
+
+    def _stub(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401 - signature mirrors real wrappers
+        return source(*args, **kwargs)
+
+    _stub._state = _WrapperState()  # type: ignore[attr-defined]
+    _stub.__deprecated__ = dep_cfg  # type: ignore[attr-defined]
+    return _stub  # type: ignore[return-value]
+
+
+# ---------------------------------------------------------------------------
+# Callable-target dispatch — happy path
+# ---------------------------------------------------------------------------
+
+
+def test_callable_target_round_trip_returns_target_func() -> None:
+    """Callable target with matching kwargs returns ``short_circuit=False`` and the resolved ``target_func``."""
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=double_value)
+    wrapper = _make_wrapper_stub(double_value, cfg)
+    plan = _build_call_plan(
+        wrapper_fn=wrapper,
+        source=double_value,
+        target=double_value,
+        normalized_target=double_value,
+        args=(),
+        kwargs={"x": 3},
+        dep_cfg=cfg,
+        stream=None,  # suppress real warning emission
+        num_warns=1,
+        source_has_var_positional=False,
+        source_is_stacked=False,
+    )
+
+    assert plan.short_circuit is False
+    assert plan.target_func is double_value
+    assert plan.resolved_kwargs == {"x": 3}
+    assert plan.reason_argument == {}
+    # State must be bumped exactly once per call.
+    assert wrapper._state.called == 1  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# Short-circuit branch — caller using the new name with no extras
+# ---------------------------------------------------------------------------
+
+
+def test_args_remap_migrated_caller_short_circuits() -> None:
+    """When the caller passes only the new arg name and no extras are configured the plan short-circuits.
+
+    The short-circuit branch is the documented "migrated caller using the new arg name" fast path:
+    no warning fires, no remap runs, no target lookup happens.  The wrapper then invokes the source
+    directly with ``resolved_kwargs``.
+
+    """
+    cfg = DeprecationConfig(
+        deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}
+    )
+    wrapper = _make_wrapper_stub(identity_value, cfg)
+    plan = _build_call_plan(
+        wrapper_fn=wrapper,
+        source=identity_value,
+        target=TargetMode.ARGS_REMAP,
+        normalized_target=TargetMode.ARGS_REMAP,
+        args=(),
+        kwargs={"x": 7},  # caller already migrated — uses new name
+        dep_cfg=cfg,
+        stream=None,
+        num_warns=1,
+        source_has_var_positional=False,
+        source_is_stacked=False,
+    )
+
+    assert plan.short_circuit is True
+    assert plan.target_func is None
+    assert plan.reason_argument == {}
+    assert plan.resolved_kwargs == {"x": 7}
+
+
+# ---------------------------------------------------------------------------
+# NOTIFY mode — body runs in the wrapper; ``target_func`` is always None
+# ---------------------------------------------------------------------------
+
+
+def test_notify_mode_returns_none_target_func() -> None:
+    """:attr:`TargetMode.NOTIFY` never resolves a target; the wrapper must execute the source body."""
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.NOTIFY)
+    wrapper = _make_wrapper_stub(identity_value, cfg)
+    plan = _build_call_plan(
+        wrapper_fn=wrapper,
+        source=identity_value,
+        target=TargetMode.NOTIFY,
+        normalized_target=TargetMode.NOTIFY,
+        args=(),
+        kwargs={"x": 5},
+        dep_cfg=cfg,
+        stream=None,
+        num_warns=1,
+        source_has_var_positional=False,
+        source_is_stacked=False,
+    )
+
+    assert plan.short_circuit is False
+    assert plan.target_func is None
+    # NOTIFY always treats every call as a callable-deprecation reason — no per-arg reason fires.
+    assert plan.reason_argument == {}
+
+
+# ---------------------------------------------------------------------------
+# Misconfigured wrappers — ``warned_misconfigured`` is sticky after first emit
+# ---------------------------------------------------------------------------
+
+
+def test_misconfigured_warning_fires_exactly_once() -> None:
+    """A misconfigured wrapper emits its ``UserWarning`` only on the first call.
+
+    The misconfiguration ``UserWarning`` is gated by ``state.warned_misconfigured`` in
+    :func:`deprecate.deprecation._build_call_plan` (see lines around the
+    ``state.warned_misconfigured = True`` assignment).  The flag is **never** reset by
+    :mod:`tests.conftest` — it implements an intentional once-per-wrapper-lifetime contract
+    so noisy misconfig warnings do not flood test output.
+
+    This test exercises ``target_false_deprecation`` from
+    :mod:`tests.collection_misconfigured`, which sets ``misconfigured=True`` via the
+    legacy ``target=False`` sentinel.  We bypass the FutureWarning by filtering only the
+    ``UserWarning`` instances at the call site (and we explicitly reset
+    ``warned_misconfigured`` here so the test is independent of import order).
+
+    """
+    # Pre-reset the sticky flag so the test is order-independent: a prior import or test
+    # may have already exhausted the one-time slot.  ``conftest._reset_collection_deprecate_state``
+    # intentionally does not touch ``warned_misconfigured`` (see its docstring).
+    target_false_deprecation._state.warned_misconfigured = False  # type: ignore[attr-defined]
+    target_false_deprecation._state.warned_calls = 0  # type: ignore[attr-defined]
+
+    with warnings.catch_warnings(record=True) as call1:
+        warnings.simplefilter("always")
+        target_false_deprecation(x=1)
+
+    with warnings.catch_warnings(record=True) as call2:
+        warnings.simplefilter("always")
+        target_false_deprecation(x=2)
+
+    misconfig_call1 = [w for w in call1 if w.category is UserWarning and "invalid deprecation config" in str(w.message)]
+    misconfig_call2 = [w for w in call2 if w.category is UserWarning and "invalid deprecation config" in str(w.message)]
+    assert len(misconfig_call1) == 1, "Misconfigured UserWarning must fire on the first call"
+    assert misconfig_call2 == [], "Misconfigured UserWarning must NOT fire on subsequent calls (sticky flag)"
+
+
+# ---------------------------------------------------------------------------
+# ``args_extra`` injection — ARGS_REMAP path must merge extras into kwargs
+# ---------------------------------------------------------------------------
+
+
+def test_args_extra_injection_reaches_target() -> None:
+    """``args_extra`` configured on an ARGS_REMAP wrapper is injected into the call kwargs.
+
+    The fixture ``depr_target_mode_args_only_with_args_extra_injects_kwargs`` is configured
+    with ``args_mapping={"old_x": "x"}`` and ``args_extra={"y": 10}``.  The source body returns
+    ``add_values(x, y)``.  Calling with ``old_x=5`` (only) must:
+
+    * remap ``old_x`` → ``x=5``,
+    * inject ``y=10`` from ``args_extra``,
+    * and return ``add_values(5, 10) == 15``.
+
+    """
+    with warnings.catch_warnings(record=True) as warned:
+        warnings.simplefilter("always")
+        result = depr_target_mode_args_only_with_args_extra_injects_kwargs(old_x=5)
+    assert warned
+    assert result == 15, "args_extra must inject y=10 alongside the remapped old_x→x=5"
+
+
+# ---------------------------------------------------------------------------
+# ``num_warns`` exhaustion — second call must not re-fire after budget spent
+# ---------------------------------------------------------------------------
+
+
+def test_num_warns_one_exhausts_after_first_call() -> None:
+    """A wrapper with ``num_warns=1`` (default) fires its ``FutureWarning`` once.
+
+    The conftest autouse fixture resets ``warned_calls`` per test, so we can call the same
+    module-level wrapper twice inside a single test and observe exhaustion on the second call.
+    ``depr_pow_args`` uses the default ``num_warns=1`` (no override in its decorator config).
+
+    """
+    with warnings.catch_warnings(record=True) as call1:
+        warnings.simplefilter("always")
+        depr_pow_args(2.0, 3.0)
+
+    with warnings.catch_warnings(record=True) as call2:
+        warnings.simplefilter("always")
+        depr_pow_args(2.0, 3.0)
+
+    future_call1 = [w for w in call1 if w.category is FutureWarning]
+    future_call2 = [w for w in call2 if w.category is FutureWarning]
+    assert len(future_call1) == 1, "FutureWarning must fire on the first call when num_warns=1"
+    assert future_call2 == [], "FutureWarning must NOT fire on the second call after num_warns budget is exhausted"
+
+
+# ---------------------------------------------------------------------------
+# ``source_is_stacked=True`` — bypasses the migrated-caller short-circuit
+# ---------------------------------------------------------------------------
+
+
+def test_source_is_stacked_skips_positional_conversion() -> None:
+    """When ``source_is_stacked=True`` the helper must not short-circuit on a migrated caller.
+
+    The short-circuit gate (see ``_build_call_plan`` lines 728–739) compresses three conditions:
+    no callable/arg reason, no ``args_extra`` injection, and ``not source_is_stacked``.  When the
+    outer wrapper sits over an already-``@deprecated`` source — the canonical
+    ``ARGS_REMAP``-outer + ``NOTIFY``-inner stack from :func:`make_depr_compute_power_stacked` —
+    the inner layer still needs to run so its own ``FutureWarning`` fires.  Skipping that path
+    when ``source_is_stacked=True`` would silently drop the inner warning.
+
+    The companion test :func:`test_args_remap_migrated_caller_short_circuits` pins the inverse:
+    same migrated-caller kwargs with ``source_is_stacked=False`` *do* short-circuit.
+
+    Two assertions are checked in isolation here:
+
+    * direct call to ``_build_call_plan`` with ``source_is_stacked=True`` returns
+      ``short_circuit=False`` even when no reason fires (the bypass);
+    * end-to-end call to the real stacked wrapper from
+      :func:`make_depr_compute_power_stacked` with the migrated arg name emits the inner
+      ``NOTIFY`` ``FutureWarning`` and returns the correct value.
+
+    """
+    cfg = DeprecationConfig(
+        deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"factor": "scale"}
+    )
+    wrapper = _make_wrapper_stub(compute_power, cfg)
+    plan = _build_call_plan(
+        wrapper_fn=wrapper,
+        source=compute_power,
+        target=TargetMode.ARGS_REMAP,
+        normalized_target=TargetMode.ARGS_REMAP,
+        args=(),
+        kwargs={"base": 2.0, "scale": 3.0},  # caller already migrated — uses new name
+        dep_cfg=cfg,
+        stream=None,
+        num_warns=1,
+        source_has_var_positional=False,
+        source_is_stacked=True,  # source itself carries @deprecated meta
+    )
+
+    assert plan.short_circuit is False, "source_is_stacked=True must bypass the migrated-caller short-circuit"
+    assert plan.target_func is None, "ARGS_REMAP never resolves a callable target_func"
+
+    # End-to-end check: the real ARGS_REMAP-outer + NOTIFY-inner stack must still emit the
+    # inner NOTIFY warning and return the correct value when the caller migrates to ``scale=``.
+    fn = make_depr_compute_power_stacked()
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        result = fn(2.0, scale=3.0)
+    future_warnings = [w for w in record if w.category is FutureWarning]
+    assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
+    assert len(future_warnings) >= 1, "Inner NOTIFY layer must still fire its FutureWarning on a migrated caller"
+
+
+# ---------------------------------------------------------------------------
+# _split_positional_only_kwargs — slot-safe positional extraction
+# ---------------------------------------------------------------------------
+
+
+class TestSplitPositionalOnlyKwargs:
+    """Unit contract of :func:`deprecate.deprecation._split_positional_only_kwargs`.
+
+    The helper extracts positional-only values from a resolved kwargs dict in declaration
+    order.  Positional binding at the call site is by *slot*, not by name, so a value
+    supplied for a later positional-only parameter must never slide into the slot of an
+    earlier, absent one — that case must raise ``TypeError``.
+    """
+
+    def test_contiguous_prefix_extracted_in_order(self) -> None:
+        """All positional-only names present: values come back in declaration order."""
+        pos_args, kw_args = _split_positional_only_kwargs(
+            ("a", "b", "c"), {"a": 1, "b": 2, "c": 3}, frozenset({"a", "b"})
+        )
+        assert pos_args == [1, 2]
+        assert kw_args == {"c": 3}
+
+    def test_trailing_gap_is_safe(self) -> None:
+        """An absent positional-only name with no later value present stops extraction cleanly."""
+        pos_args, kw_args = _split_positional_only_kwargs(("a", "b", "c"), {"a": 1, "c": 3}, frozenset({"a", "b"}))
+        assert pos_args == [1]
+        assert kw_args == {"c": 3}
+
+    def test_gap_before_present_value_raises(self) -> None:
+        """A later positional-only value behind an absent earlier one raises instead of misbinding.
+
+        Binding ``b``'s value positionally while ``a`` is absent would assign it to ``a``'s
+        slot — silent wrong data at every call, which is strictly worse than the TypeError
+        this machinery exists to prevent.
+        """
+        with pytest.raises(TypeError, match=r"`a` was not supplied"):
+            _split_positional_only_kwargs(("a", "b", "c"), {"b": 2, "c": 3}, frozenset({"a", "b"}))
+
+    def test_consumed_offset_skips_caller_filled_slots(self) -> None:
+        """``consumed`` leading slots already filled by caller positionals are not treated as gaps.
+
+        The proxy call path passes ``consumed=len(args)`` so a caller mixing positional args
+        with a remapped kwarg (e.g. ``Alias(1, old_x=5)``) does not trip the gap guard on the
+        slots its positional args already cover.
+        """
+        pos_args, kw_args = _split_positional_only_kwargs(("w", "x"), {"x": 5}, frozenset({"w", "x"}), consumed=1)
+        assert pos_args == [5]
+        assert kw_args == {}
+
+    def test_leading_receiver_extracted_without_positional_only_flag(self) -> None:
+        """A leading ``self`` receiver is extracted positionally even when not flagged positional-only."""
+        instance = object()
+        pos_args, kw_args = _split_positional_only_kwargs(("self", "x"), {"self": instance, "x": 5}, frozenset({"x"}))
+        assert pos_args == [instance, 5]
+        assert kw_args == {}
+
+
+class TestWarnQuotaThreadSafety:
+    """The warn quota holds under concurrency.
+
+    ``_build_call_plan`` reads the warn counter, decides whether to emit, and increments — a check-then-act
+    sequence.  Without synchronisation, concurrent first calls all read ``warned_calls == 0``, all pass the
+    ``num_warns`` gate, and each emit a warning.  The state lock makes the check-and-increment atomic so exactly
+    ``num_warns`` emissions happen regardless of thread interleaving.
+    """
+
+    @pytest.fixture
+    def _aggressive_thread_switching(self) -> Iterator[None]:
+        """Force frequent GIL hand-offs so the check-then-act window is actually exercised, then restore it."""
+        previous = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        yield
+        sys.setswitchinterval(previous)
+
+    @pytest.mark.usefixtures("_aggressive_thread_switching")
+    def test_num_warns_one_emits_once_across_threads(self) -> None:
+        """16 threads released together into a ``num_warns=1`` wrapper produce exactly one warning emission.
+
+        A barrier releases all workers simultaneously so they contend on the quota at once; the counting stream
+        sleeps briefly to widen the check-then-act window.  Before the lock this asserted 2-16 emissions; with the
+        lock the count is a deterministic 1.
+        """
+        emissions: list[int] = []
+        emit_lock = threading.Lock()
+
+        def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+            """Record every emission; the tiny sleep is a yield point that exposes the race when unsynchronised."""
+            time.sleep(0.001)
+            with emit_lock:
+                emissions.append(1)
+
+        @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0", num_warns=1, stream=counting_stream)
+        def racy(x: int) -> int:
+            return void(x)
+
+        n_threads = 16
+        barrier = threading.Barrier(n_threads)
+
+        def worker(_ignored: int) -> None:
+            """Block until every thread has arrived, then hit the deprecated wrapper simultaneously."""
+            barrier.wait()
+            racy(1)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
+            list(pool.map(worker, range(n_threads)))
+        assert len(emissions) == 1
