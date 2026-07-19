@@ -96,9 +96,9 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
     validate_mapping_compatibility,
 )
-from deprecate.callables import deprecated, deprecated_callable
 from deprecate.module import deprecated_module
 from deprecate.proxy import deprecated_class, deprecated_instance
+from deprecate.routine import deprecated, deprecated_callable
 from deprecate.utils import (
     assert_no_warnings,
     no_warning_call,  # noqa: F401 # deprecated since 0.6, use assert_no_warnings

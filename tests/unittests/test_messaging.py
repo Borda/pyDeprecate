@@ -1,11 +1,11 @@
-"""Unit tests for warning templates and emitters (:mod:`deprecate.messages`)."""
+"""Unit tests for warning templates and emitters (:mod:`deprecate.messaging`)."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
 from deprecate import deprecated
-from deprecate.messages import _raise_warn, _raise_warn_arguments, _raise_warn_callable, _validate_template_mgs
+from deprecate.messaging import _raise_warn, _raise_warn_arguments, _raise_warn_callable, _validate_template_mgs
 from tests.collection_targets import base_sum_kwargs
 
 

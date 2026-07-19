@@ -1,14 +1,15 @@
-"""Callable deprecation engine — the canonical wrapper implementation.
+"""Function/method deprecation decorators.
 
-This module hosts :func:`deprecated_callable` (the strict callable-only decorator that carries the full
-call-forwarding, argument-mapping, and warning machinery) and :func:`deprecated` (the friendly front door
-that dispatches classes to :func:`~deprecate.proxy.deprecated_class` and routes callables to
-:func:`deprecated_callable`).  The legacy import path :mod:`deprecate.deprecation` re-exports everything here
-for backward compatibility.
+This module hosts :func:`deprecated_callable` (the strict callable-only decorator) and :func:`deprecated`
+(the friendly front door that dispatches classes to :func:`~deprecate.proxy.deprecated_class` and routes
+callables to :func:`deprecated_callable`), plus the decoration-time ``packing`` descriptors.  The target
+resolution and call-plan machinery lives in :mod:`deprecate._dispatch`; the warning templates and emitters
+in :mod:`deprecate.messaging`.  The legacy import path :mod:`deprecate.deprecation` re-exports the public
+decorators for backward compatibility.
 
 Key Components:
-    - :func:`~deprecate.callables.deprecated_callable`: Canonical strict decorator (rejects classes)
-    - :func:`~deprecate.callables.deprecated`: Front-door dispatcher over callables and classes
+    - :func:`~deprecate.routine.deprecated_callable`: Canonical strict decorator (rejects classes)
+    - :func:`~deprecate.routine.deprecated`: Front-door dispatcher over callables and classes
     - Warning templates for different deprecation scenarios
     - Internal helpers for argument mapping and warning management
 
@@ -44,7 +45,7 @@ from deprecate._types import (
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.messages import _validate_template_mgs, deprecation_warning
+from deprecate.messaging import _validate_template_mgs, deprecation_warning
 from deprecate.utils import _get_signature, _unwrap_descriptor_target
 
 

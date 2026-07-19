@@ -1,4 +1,4 @@
-"""Unit tests for the packing decorators (:mod:`deprecate.callables`)."""
+"""Unit tests for the packing decorators (:mod:`deprecate.routine`)."""
 
 import warnings
 from dataclasses import dataclass

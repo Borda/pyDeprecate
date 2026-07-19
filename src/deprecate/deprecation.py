@@ -2,8 +2,8 @@
 
 Every public and internal name is re-exported here so existing ``from deprecate.deprecation import ...`` imports and
 Sphinx/Griffe ``:func:`~deprecate.deprecation.X``` cross-references keep resolving unchanged. The real homes are now
-:mod:`deprecate.callables` (packing + public decorators), :mod:`deprecate._dispatch` (target resolution + call-plan
-engine), :mod:`deprecate.messages` (warning templates + emitters), :mod:`deprecate._properties` (property descriptors),
+:mod:`deprecate.routine` (packing + public decorators), :mod:`deprecate._dispatch` (target resolution + call-plan
+engine), :mod:`deprecate.messaging` (warning templates + emitters), :mod:`deprecate._properties` (property descriptors),
 and :mod:`deprecate.utils` (shared low-level helpers).
 
 New code should import from those modules (or the top-level :mod:`deprecate` package).
@@ -38,14 +38,7 @@ from deprecate._dispatch import (
     _warn_stacking_misconfiguration,
 )
 from deprecate._properties import _DeprecatedProperty, _StrictProperty
-from deprecate.callables import (
-    _packing_class_source,
-    _packing_descriptor,
-    _PackingClassArgs,
-    deprecated,
-    deprecated_callable,
-)
-from deprecate.messages import (
+from deprecate.messaging import (
     _DEFAULT_STACKLEVEL_TO_CALLER,
     _TEMPLATE_MGS_PROBE_ARGS,
     TEMPLATE_ARGUMENT_MAPPING,
@@ -59,6 +52,13 @@ from deprecate.messages import (
     _source_display_name,
     _validate_template_mgs,
     deprecation_warning,
+)
+from deprecate.routine import (
+    _packing_class_source,
+    _packing_descriptor,
+    _PackingClassArgs,
+    deprecated,
+    deprecated_callable,
 )
 from deprecate.utils import _unwrap_descriptor_target
 

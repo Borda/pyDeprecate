@@ -43,7 +43,7 @@ from deprecate._types import (
     _ProxyConfig,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.messages import (
+from deprecate.messaging import (
     TEMPLATE_ARGUMENT_MAPPING,
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,

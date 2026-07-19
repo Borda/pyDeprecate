@@ -2,7 +2,7 @@
 
 Decoration-time target normalization and guards (``_normalize_target``, cross-class checks, positional-only detection,
 stacking-misconfiguration warnings) plus the call-time dispatch core (``_build_call_plan`` and the sync/async invokers)
-that forwards a deprecated call to its replacement.  :mod:`deprecate.callables` builds its ``packing`` closures and the
+that forwards a deprecated call to its replacement.  :mod:`deprecate.routine` builds its ``packing`` closures and the
 public ``deprecated`` / ``deprecated_callable`` decorators on top of these helpers.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
@@ -24,7 +24,7 @@ from deprecate._types import (
     _DeprecatedCallable,
     _HasDeprecationMeta,
 )
-from deprecate.messages import (
+from deprecate.messaging import (
     _DEFAULT_STACKLEVEL_TO_CALLER,
     _consume_warn_budget,
     _raise_warn_arguments,

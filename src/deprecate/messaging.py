@@ -1,8 +1,8 @@
 """Deprecation warning templates and emission helpers.
 
-Shared warning machinery used by both :mod:`deprecate.callables` (function/method deprecation) and
-:mod:`deprecate.proxy` (class/instance proxies): the built-in ``%``-style message templates, the decoration-time
-``template_mgs`` validator, and the call-time warning emitters that honour the per-wrapper warn budget.
+Shared warning machinery used by both :mod:`deprecate.routine` (function/method deprecation) and :mod:`deprecate.proxy`
+(class/instance proxies): the built-in ``%``-style message templates, the decoration-time ``template_mgs`` validator,
+and the call-time warning emitters that honour the per-wrapper warn budget.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
