@@ -2,9 +2,9 @@
 
 Every public and internal name is re-exported here so existing ``from deprecate.deprecation import ...`` imports and
 Sphinx/Griffe ``:func:`~deprecate.deprecation.X``` cross-references keep resolving unchanged. The real homes are now
-:mod:`deprecate.callables` (packing + decorators + target/call-plan engine), :mod:`deprecate.messages` (warning
-templates + emitters), :mod:`deprecate._properties` (property descriptors), and :mod:`deprecate.utils` (shared low-level
-helpers).
+:mod:`deprecate.callables` (packing + public decorators), :mod:`deprecate._dispatch` (target resolution + call-plan
+engine), :mod:`deprecate.messages` (warning templates + emitters), :mod:`deprecate._properties` (property descriptors),
+and :mod:`deprecate.utils` (shared low-level helpers).
 
 New code should import from those modules (or the top-level :mod:`deprecate` package).
 
@@ -12,8 +12,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
-from deprecate._properties import _DeprecatedProperty, _StrictProperty
-from deprecate.callables import (
+from deprecate._dispatch import (
     _V1_BREAK_VERSION,
     POSITIONAL_ONLY,
     POSITIONAL_OR_KEYWORD,
@@ -26,9 +25,6 @@ from deprecate.callables import (
     _invoke_async,
     _invoke_sync,
     _normalize_target,
-    _packing_class_source,
-    _packing_descriptor,
-    _PackingClassArgs,
     _precompute_target_facts,
     _prepare_target_call,
     _reject_bare_decorator,
@@ -40,6 +36,12 @@ from deprecate.callables import (
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
     _warn_stacking_misconfiguration,
+)
+from deprecate._properties import _DeprecatedProperty, _StrictProperty
+from deprecate.callables import (
+    _packing_class_source,
+    _packing_descriptor,
+    _PackingClassArgs,
     deprecated,
     deprecated_callable,
 )

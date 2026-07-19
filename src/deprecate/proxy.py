@@ -36,12 +36,12 @@ from collections.abc import Iterator
 from dataclasses import replace
 from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
 
+from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
     _ProxyConfig,
 )
-from deprecate.callables import _split_positional_only_kwargs
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messages import (
     TEMPLATE_ARGUMENT_MAPPING,
