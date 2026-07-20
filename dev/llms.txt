@@ -262,6 +262,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 | Task | Use |
 |---|---|
 | Rename function | `@deprecated(target=new_func)` |
+| Rename function, reject classes strictly | `@deprecated_callable(target=new_func)` — same parameters as `@deprecated`; raises `TypeError` at decoration time if applied to a class |
 | Rename argument | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={...})` |
 | Drop deprecated argument | `args_mapping={"old": None}` |
 | No replacement | `@deprecated(target=TargetMode.NOTIFY)` or omit `target` |
