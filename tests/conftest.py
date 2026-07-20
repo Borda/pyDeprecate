@@ -59,8 +59,9 @@ reset.
 
 from __future__ import annotations
 
-import deprecate.deprecation as _deprecation
 import pytest
+
+import deprecate.deprecation as _deprecation
 
 
 def _iter_wrapper_states(module: object) -> list[object]:
