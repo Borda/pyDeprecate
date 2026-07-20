@@ -38,7 +38,7 @@ _V1_BREAK_VERSION = "v1.0"
 # ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
 # spawned from user code (e.g. asyncio.gather) see None and create independent sets — no sharing.
 # A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
-_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
+_unused_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
 
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
