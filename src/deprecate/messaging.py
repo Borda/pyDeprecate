@@ -295,7 +295,12 @@ def _consume_warn_budget(
         True when the caller should emit the warning (budget available and now consumed).
 
     """
-    if reason_argument:
+    # The budget must track the warning variant that will be emitted:
+    # - callable-level warnings consume warned_calls
+    # - argument-level warnings consume warned_args
+    if reason_callable:
+        nb_warned = state.warned_calls
+    elif reason_argument:
         nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
     else:
         nb_warned = state.warned_calls
@@ -305,5 +310,6 @@ def _consume_warn_budget(
         state.warned_calls += 1
     elif reason_argument:
         for arg in reason_argument:
-            state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+            if num_warns < 0 or state.warned_args.get(arg, 0) < num_warns:
+                state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
     return True
