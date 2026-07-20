@@ -59,6 +59,7 @@ reset.
 
 from __future__ import annotations
 
+import deprecate.deprecation as _deprecation
 import pytest
 
 
@@ -88,7 +89,6 @@ def _reset_collection_deprecate_state() -> None:
     ``src/`` imports from the installed package rather than from ``src/``.
 
     """
-    import deprecate.deprecation as _deprecation
     import tests.collection_deprecate as _collection_deprecate
 
     # Reset the one-time ``@deprecated``-on-class dispatch dedup set so per-qualname warnings are observable
