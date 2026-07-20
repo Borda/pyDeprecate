@@ -128,6 +128,8 @@ Some `TargetMode` + argument combinations are contradictory; pyDeprecate emits a
 | `TargetMode.NOTIFY` with `args_mapping`        | Switch to `TargetMode.ARGS_REMAP` if you want argument remapping, or remove `args_mapping`                |
 | `TargetMode.NOTIFY` with `args_extra`          | Use a callable `target=` if you need to inject extra kwargs into a forwarded call                         |
 
+> This table describes `@deprecated` / `deprecated_callable()` on functions and methods, which is unchanged. On `deprecated_class()` (and `@deprecated` on a class), `TargetMode.NOTIFY` with `args_mapping` or `attrs_mapping` is **not** a misconfiguration since v0.12 — see [Coming from v0.11](#coming-from-v011) below.
+
 ### `DeprecationWrapperInfo` field renames
 
 Two fields on `DeprecationWrapperInfo` were renamed in v0.8 to be consistent with the rest of the API. The old names still work but emit a `DeprecationWarning` on access — swapping them out is a one-line change:
@@ -144,6 +146,46 @@ info.empty_args_mapping
 info.identity_args_mapping
 dataclasses.replace(info, empty_args_mapping=True)
 ```
+
+______________________________________________________________________
+
+## Coming from v0.11
+
+Here is what changed in v0.12 that you might have missed:
+
+### `@deprecated` on a class is now first-class supported
+
+Before v0.12, applying `@deprecated` directly to a class emitted a warning threatening `TypeError: ... will become a TypeError in a future release`. That threat is retired — `@deprecated` on a class now dispatches to `deprecated_class()` and produces an identical `_DeprecatedProxy`. The warning is now a one-time informational notice, fired at most once per class name per process:
+
+```
+`@deprecated` on class `MyClass` now dispatches to `@deprecated_class`.
+```
+
+It is removed entirely in v0.13 and suppressed by `stream=None`. Prefer `deprecated_class()` directly — same result, no notice, and required to reach class-only options such as `attrs_mapping`. See [`@deprecated` on a class](classes.md#deprecated-on-a-class) for a runnable example.
+
+### `deprecated_class` default `target` changed from `None` to `TargetMode.NOTIFY`
+
+`deprecated_class()`'s factory default flipped from the legacy `None` sentinel to `TargetMode.NOTIFY`, matching `@deprecated`'s longstanding default. On its own this is not an observable behaviour change — `None` and `TargetMode.NOTIFY` already resolved to the same warn-only mode.
+
+### `TargetMode.NOTIFY` with a mapping now auto-resolves instead of warning
+
+This is the change to actually watch for. Before v0.12, passing `target=TargetMode.NOTIFY` explicitly together with `args_mapping` or `attrs_mapping` on `deprecated_class()` was flagged as a misconfiguration: a `UserWarning` fired and the mapping was silently ignored. Since `TargetMode.NOTIFY` is now the default, that guardrail would have silently broken every documented `deprecated_class(attrs_mapping=...)` / `deprecated_class(args_mapping=...)` call the moment the default flipped — so the semantics were redefined instead of just the default: presence of a mapping now always wins, exactly like the historical `target=None` sentinel already did.
+
+| Combination                                                            | Before v0.12                          | Since v0.12                                         |
+| ---------------------------------------------------------------------- | ------------------------------------- | --------------------------------------------------- |
+| `deprecated_class(target=TargetMode.NOTIFY, attrs_mapping={...}, ...)` | `UserWarning`, mapping ignored        | Auto-resolves to `TargetMode.ATTRS_REMAP` — applied |
+| `deprecated_class(target=TargetMode.NOTIFY, args_mapping={...}, ...)`  | `UserWarning`, mapping ignored        | Auto-resolves to `TargetMode.ARGS_REMAP` — applied  |
+| `deprecated_class(attrs_mapping={...})` (no `target=`)                 | Auto-resolved (`None` sentinel), same | Unchanged                                           |
+
+There is consequently no single-proxy way left to get a blanket "warn on every access" notice while a mapping is also configured on that same proxy. If you need both, stack two `deprecated_class()` layers — an inner mapping-only layer (`ARGS_REMAP` / `ATTRS_REMAP`) plus an outer no-mapping layer (`NOTIFY`); see [Nested proxy wrappers](classes.md#nested-proxy-wrappers).
+
+**Scope**: this auto-resolve applies to `deprecated_class()` and the `@deprecated`-on-class dispatch path only. The callable path (`@deprecated` / `deprecated_callable()` on functions and methods) is unchanged — `TargetMode.NOTIFY` with `args_mapping` on a function or method is still a misconfiguration and still emits a `UserWarning` (see the table above).
+
+### `deprecated()` gained `attrs_mapping`
+
+The front-door `deprecated()` dispatcher now accepts `attrs_mapping` directly, routed to `deprecated_class()` when the source is a class. Passing `attrs_mapping` with a callable source raises `TypeError` at decoration time, naming `deprecated_class` as the right tool.
+
+See the [Changelog](../changelog.md) for the complete v0.12 release notes.
 
 ______________________________________________________________________
 

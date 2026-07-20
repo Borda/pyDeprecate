@@ -1356,10 +1356,13 @@ def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
 
 
 def make_class_target_notify_with_args() -> type:
-    """Build a class with @deprecated(target=TargetMode.NOTIFY) + args (Fix 1 fixture).
+    """Build a class with @deprecated(target=TargetMode.NOTIFY) + args_mapping + args_extra (Fix 1 fixture).
 
-    Applying @deprecated to a class delegates to deprecated_class. With target=TargetMode.NOTIFY the
-    args_mapping/args_extra arguments must be stripped before delegating, and a misconfig UserWarning must be emitted.
+    Option C (Q5, 2026-07-20): applying @deprecated to a class with target=TargetMode.NOTIFY no longer
+    treats args_mapping/args_extra as a misconfiguration — the mapping is passed through unchanged so the
+    proxy auto-resolves NOTIFY+args_mapping to TargetMode.ARGS_REMAP, and args_extra is merged into the
+    forwarded call after remap (same as any other ARGS_REMAP proxy). ``injected`` is a real constructor
+    parameter here (not stripped away) so tests can exercise the full round trip.
 
     """
 
@@ -1369,13 +1372,14 @@ def make_class_target_notify_with_args() -> type:
         args_mapping={"old_key": "new_key"},
         args_extra={"injected": "x"},
     )
-    class NotifyMisconfiguredClass:
+    class NotifyAutoResolvedClass:
         """Source class — deprecated_class delegates to this body unchanged."""
 
-        def __init__(self, new_key: int = 0) -> None:
+        def __init__(self, new_key: int = 0, injected: str = "") -> None:
             self.new_key = new_key
+            self.injected = injected
 
-    return NotifyMisconfiguredClass
+    return NotifyAutoResolvedClass
 
 
 def make_class_target_args_remap() -> type:
@@ -2445,3 +2449,200 @@ def make_deprecated_callable_on_class() -> type:
         """Source class — never actually wrapped; decoration raises first."""
 
     return RejectedClass
+
+
+# ========== Phase 2 — ``deprecated()`` dispatcher: class-path first-class support ==========
+#
+# `@deprecated` on a class is no longer the "will become a TypeError" wart from v0.6.0 — it now
+# dispatches to `deprecated_class` and emits a one-time informational `UserWarning` instead
+# (removed in v0.13). Every factory below defers decoration to the call site so tests can control
+# when the informational warning is captured, mirroring `make_class_target_notify_with_args` above.
+
+
+def make_deprecated_on_fresh_class() -> type:
+    """Apply ``@deprecated`` to a brand-new plain class — one-time informational ``UserWarning`` fixture.
+
+    Every call executes the same ``class`` statement (same qualname, fresh object each time), so
+    calling this factory twice lets a test prove the informational warning fires on the first
+    application and is suppressed on the second — "one-time" per class, not a spam-per-loop guard.
+
+    """
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    class _DispatchedFreshClass:
+        """Plain class source deprecated via the ``@deprecated`` front door (class-path dispatch)."""
+
+        def __init__(self, value: int = 0) -> None:
+            """Initialize with an optional value."""
+            self.value = value
+
+    return _DispatchedFreshClass
+
+
+def make_deprecated_on_fresh_class_silent() -> type:
+    """Apply ``@deprecated(stream=None)`` to a fresh class — informational ``UserWarning`` suppressed."""
+
+    @deprecated(stream=None, deprecated_in="1.0", remove_in="2.0")
+    class _DispatchedFreshClassSilent:
+        """Plain class source deprecated via ``@deprecated`` with ``stream=None``."""
+
+    return _DispatchedFreshClassSilent
+
+
+def make_deprecated_on_fresh_enum_class() -> type:
+    """Apply ``@deprecated`` directly to an Enum class — class-path routing via the dispatcher."""
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0", stream=None)
+    class _DispatchedEnum(Enum):
+        """Enum source deprecated via the ``@deprecated`` dispatcher front door."""
+
+        ALPHA = "alpha"
+
+    return _DispatchedEnum
+
+
+def make_deprecated_on_fresh_dataclass() -> type:
+    """Apply ``@deprecated`` directly to a dataclass — class-path routing via the dispatcher."""
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0", stream=None)
+    @dataclass
+    class _DispatchedDataClass:
+        """Dataclass source deprecated via the ``@deprecated`` dispatcher front door."""
+
+        label: str = "x"
+
+    return _DispatchedDataClass
+
+
+def make_deprecated_with_attrs_mapping_on_class() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(attrs_mapping=...)`` to a class — the dispatcher forwards it to ``deprecated_class``.
+
+    ``attrs_mapping`` is new on the ``deprecated()`` front door in Phase 2 (class path only). ``Palette.color``
+    should redirect to ``colour`` exactly as it does through ``deprecated_class(attrs_mapping=...)`` directly (see
+    ``DeprecatedAttrsPaletteWithStream``) — this factory proves the dispatcher forwards the mapping unchanged.
+
+    """
+    with catch_warnings():
+        simplefilter("ignore", UserWarning)  # suppress the one-time informational class-dispatch notice
+        return deprecated(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)(Palette)
+
+
+def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(args_mapping=...)`` to a class with NO explicit ``target=``.
+
+    Option C (Q5, 2026-07-20): the dispatcher's own default is ``target=TargetMode.NOTIFY``; passing
+    ``args_mapping`` alongside an omitted target must auto-resolve NOTIFY to ``TargetMode.ARGS_REMAP`` —
+    the same self-deprecation auto-resolve ``deprecated_class(args_mapping=...)`` has always applied for
+    an omitted target — reached here through the friendly ``@deprecated`` front door instead.
+
+    """
+    with catch_warnings():
+        simplefilter("ignore", UserWarning)  # suppress the one-time informational class-dispatch notice
+        return deprecated(args_mapping={"old_c": "c"}, **_DEPRS_CASE_STD_ARGS)(NewCls)
+
+
+def make_deprecated_with_attrs_mapping_on_callable() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(attrs_mapping=...)`` to a function — raises ``TypeError`` naming ``deprecated_class``.
+
+    ``attrs_mapping`` is class-path-only; passing it to a callable source must fail loudly at decoration time
+    instead of silently having zero effect.
+
+    """
+
+    @deprecated(attrs_mapping={"old": "new"}, deprecated_in="1.0", remove_in="2.0")
+    def _rejected_attrs_mapping_fn(x: int) -> int:
+        """Source function — never actually wrapped; decoration raises first."""
+        return x
+
+    return _rejected_attrs_mapping_fn
+
+
+def make_deprecated_on_non_callable_source() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated`` to a plain object — raises ``TypeError`` naming ``deprecated_instance``."""
+    # Intentionally passing a non-callable source to prove the dispatcher's runtime TypeError guard fires.
+    return deprecated(deprecated_in="1.0", remove_in="2.0")(object())  # type: ignore[arg-type]
+
+
+class _CallableWithoutName:
+    """Callable object with no ``__name__`` attribute — the third dispatch bucket's crash case.
+
+    Used by ``make_deprecated_on_callable_without_name`` to prove the dispatcher detects this up front rather than
+    crashing deep inside the callable-path machinery at ``source.__name__``.
+    """
+
+    def __call__(self, x: int) -> int:
+        """Return *x* unchanged — body is never reached; decoration raises first."""
+        return x
+
+
+def make_deprecated_on_callable_without_name() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated`` to a ``__call__``-only instance lacking ``__name__`` — raises ``TypeError``.
+
+    The instance passes the initial ``callable(source)`` test but would crash at ``source.__name__`` deep inside
+    the callable-path machinery; the dispatcher must detect and reject it up front with the same
+    ``deprecated_instance``-naming ``TypeError`` used for non-callable sources.
+
+    """
+    return deprecated(deprecated_in="1.0", remove_in="2.0")(_CallableWithoutName())
+
+
+def make_deprecated_on_partial_of_function() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated`` to ``functools.partial(double_value)`` — raises ``TypeError`` (no ``__name__``).
+
+    ``functools.partial`` objects never carry ``__name__`` — this is the same guard as
+    ``make_deprecated_on_callable_without_name``, exercised via the stdlib ``partial`` kind called out explicitly
+    in the dispatcher's callable-kind matrix.
+
+    """
+    return deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(partial(double_value))
+
+
+def make_deprecated_on_partial_of_class() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated`` to ``functools.partial(NewCls)`` — documents partial-of-class routing.
+
+    ``functools.partial(NewCls)`` is NOT class-dispatched (``inspect.isclass`` is ``False`` on a ``partial``
+    object) — it falls into the callable bucket and is rejected there for lacking ``__name__``, the same
+    ``TypeError`` as any other nameless callable. This proves the dispatcher never silently treats a
+    partial-wrapped class as a class, which would lose proxy semantics (isinstance/pickling/etc).
+
+    """
+    return deprecated(deprecated_in="1.0", remove_in="2.0")(partial(NewCls))
+
+
+def make_deprecated_stacked_over_wrapped_callable() -> Any:  # noqa: ANN401
+    """Stack ``@deprecated`` (dispatcher) OUTSIDE an already-``@deprecated``-wrapped function.
+
+    Exercises the dispatcher's callable arm re-wrapping a source that already carries ``__deprecated__``
+    metadata — the existing stacking-misconfiguration guard must still fire, now reached through the
+    ``deprecated()`` front door on both layers rather than ``deprecated_callable()`` directly.
+
+    """
+
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.9", remove_in="1.5")
+    @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0")
+    def _dispatch_stacked_callable(x: int) -> int:
+        """Inner source — deprecated twice via the dispatcher front door."""
+        return x
+
+    return _dispatch_stacked_callable
+
+
+def make_deprecated_over_class_proxy() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated`` OUTSIDE an already-``deprecated_class``-wrapped proxy.
+
+    The proxy returned by ``deprecated_class`` is a ``_DeprecatedProxy`` INSTANCE (``inspect.isclass`` is
+    ``False`` on it), so the outer ``@deprecated`` routes through the CALLABLE arm rather than
+    class-dispatching a second time — ``__name__`` resolves via the proxy's ``__getattr__`` forwarding to the
+    wrapped class, so this does not trip the callable-without-``__name__`` guard.
+
+    """
+
+    class _DispatchOverProxyInner:
+        """Minimal class wrapped by ``deprecated_class`` — the inner layer of the proxy-stacking fixture."""
+
+        def __init__(self, value: int = 0) -> None:
+            """Initialize with an optional value."""
+            self.value = value
+
+    inner_proxy = deprecated_class(deprecated_in="0.5", remove_in="1.0", stream=None)(_DispatchOverProxyInner)
+    return deprecated(target=TargetMode.NOTIFY, deprecated_in="0.9", remove_in="1.5")(inner_proxy)

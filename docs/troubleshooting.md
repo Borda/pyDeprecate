@@ -39,24 +39,22 @@ from pydeprecate import deprecated  # wrong — no such module
 
 ## UserWarning when decorating a class
 
-**Q:** I applied `@deprecated` directly to a class and got `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.` Why, and how do I fix it?
+**Q:** I applied `@deprecated` directly to a class and got `` UserWarning: `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`. `` Is this a problem, and how do I stop it?
 
-**A:** Use `@deprecated_class()` for classes. The `@deprecated` decorator is designed for functions and methods only.
+**A:** No — since v0.12, `@deprecated` on a class is first-class supported. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class name per process, not on every decoration — telling you that the dispatch happened. It is removed entirely in v0.13.
 
-That warning is triggered specifically when `@deprecated` is applied directly to a class. This still works today because pyDeprecate delegates to `@deprecated_class()` under the hood, but that delegation path is itself deprecated and will become a `TypeError` in a future release. The warning is telling you to switch to the explicit class API now.
+You have two ways to quiet it, and one alternative pattern for a different use case:
 
-!!! danger "This delegation will become a TypeError in a future release"
-
-    The implicit fallback from `@deprecated` to `@deprecated_class()` is a temporary compatibility shim. Once it is removed, applying `@deprecated` to a class will raise `TypeError` immediately at decoration time. Migrate now to avoid a hard break on upgrade.
-
-There are two supported alternatives depending on what you need. Use `@deprecated_class()` when you want to deprecate the class name itself (including Enums and dataclasses). Use `@deprecated` on `__init__` when you want to emit a deprecation notice only at instantiation time while keeping the class name in place.
+- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach class-only knobs such as `attrs_mapping`.
+- **Pass `stream=None`** — suppresses the notice (and every other deprecation notice from that decoration) while keeping `@deprecated` on the class.
+- **Decorate `__init__` instead of the class** — use this when you want a notice only at instantiation time while keeping the class name and identity untouched (no proxy involved).
 
 ```python
 from deprecate import TargetMode, deprecated_class
 from enum import Enum
 
 
-# Correct: use @deprecated_class for classes
+# Preferred: use @deprecated_class directly for classes — identical result, no notice
 @deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
@@ -72,17 +70,17 @@ class MyEnum(Enum):
 from deprecate import TargetMode, deprecated
 
 
-class MyClass:
+class MyOtherClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, val: int) -> None:
-        self.val = val  # body still executes; warning fires on every new MyClass(...)
+        self.val = val  # body still executes; warning fires on every new MyOtherClass(...)
 
 
-print(MyClass(5).val)
+print(MyOtherClass(5).val)
 ```
 
 <details>
-  <summary>Output: <code>MyClass(5).val</code></summary>
+  <summary>Output: <code>MyOtherClass(5).val</code></summary>
 
 ```
 5
@@ -639,7 +637,7 @@ print(LegacyConfig(time_limit=30).timeout)  # old name — FutureWarning emitted
 
 </details>
 
-To emit a deprecation notice for every instantiation regardless of which argument name is used, configure `target=TargetMode.NOTIFY` explicitly. Combining `TargetMode.NOTIFY` with `args_mapping` is a misconfiguration — `args_mapping` is not applied under `NOTIFY` and supplying it emits a construction-time `UserWarning` today that becomes a `TypeError` in v1.0.
+**Since v0.12, `target=TargetMode.NOTIFY` no longer suppresses `args_mapping`.** `TargetMode.NOTIFY` is the proxy's default sentinel, and — same as omitting `target` entirely — presence of `args_mapping` always wins: the proxy auto-resolves to `TargetMode.ARGS_REMAP` regardless of whether `NOTIFY` was passed explicitly. There is no longer a single-proxy way to get a blanket per-instantiation warning while `args_mapping` is also active. If you need both — every instantiation warns *and* an old argument name is remapped — stack two `deprecated_class()` layers: an inner layer with `args_mapping` only (`ARGS_REMAP`) for the rename, and an outer layer with no mapping (`NOTIFY`) for the blanket notice. See [Nested proxy wrappers](guide/classes.md#nested-proxy-wrappers) for the pattern.
 
 ______________________________________________________________________
 

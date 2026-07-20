@@ -19,9 +19,22 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Union
 
+from deprecate._dispatch import _reject_bare_decorator
 from deprecate._types import TargetMode
 from deprecate.messaging import _validate_template_mgs, deprecation_warning
 from deprecate.routine import deprecated_callable
+
+# Descriptor source types the callable path handles via ``_packing_descriptor`` even though some are
+# neither ``callable`` nor carry ``__name__`` (``property``/``cached_property``). They must be exempt
+# from the dispatcher's "plain object" reject guard so class/instance-style misuse stays the only reject.
+_DESCRIPTOR_SOURCE_TYPES = (classmethod, staticmethod, property, cached_property)
+
+# Class qualnames that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
+# Keyed by ``__qualname__`` so a decoration loop warns once, not per iteration. Remove in 0.13.
+_CLASS_DISPATCH_NOTIFIED: set[str] = set()
+
+# Reject message for a non-callable / callable-without-``__name__`` source handed to ``@deprecated``.
+_PLAIN_OBJECT_REJECT = "cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`"
 
 
 @dataclass
@@ -34,6 +47,7 @@ class _PackingClassArgs:
     stream: Optional[Callable]
     args_mapping: Optional[dict[str, Optional[str]]]
     args_extra: Optional[dict[str, Any]]
+    attrs_mapping: Optional[dict[str, Optional[str]]]
     update_docstring: bool
     docstring_style: str
     _stacklevel: int
@@ -46,10 +60,10 @@ def _packing_class_source(
 ) -> Callable:
     """Delegate class-source deprecation to :func:`~deprecate.proxy.deprecated_class`.
 
-    Handles legacy ``target`` sentinel resolution, misconfig detection, and the
-    ``UserWarning`` emitted when ``@deprecated`` is applied directly to a class
-    (deprecated itself since v0.6.0). Extracted from the ``inspect.isclass(source)``
-    branch of ``packing``.
+    Class dispatch is first-class: this resolves legacy ``target`` sentinels, emits the one-time
+    informational ``UserWarning`` (class dispatch now routes to ``deprecated_class``), and forwards
+    every mapping through so the proxy auto-resolves ``NOTIFY + mapping`` (option C). Extracted from
+    the ``inspect.isclass(source)`` branch of ``packing``.
 
     Args:
         source: The class being decorated with ``@deprecated``.
@@ -67,49 +81,38 @@ def _packing_class_source(
     proxy_module = importlib.import_module("deprecate.proxy")
     deprecated_class_fn = proxy_module.deprecated_class
 
-    message = (
-        f"Direct use of `@deprecated` on class `{source.__name__}` is deprecated since `v0.6.0`."
-        " Use `@deprecated_class(...)` instead. This will become a `TypeError` in a future release."
-    )
-    if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
-        message += (
-            " Note: non-class `target` values are ignored when deprecating classes;"
-            " use `@deprecated_class(target=...)` instead."
-        )
-    if pack_args.stream is not None:
+    # One-time informational dispatch notice — class dispatch is now first-class, so the old v0.6.0
+    # "will become a TypeError" wart is retired. Emit at most once per class qualname per process so a
+    # decoration loop does not spam; suppressed when ``stream=None``. Remove in 0.13.
+    if pack_args.stream is not None and source.__qualname__ not in _CLASS_DISPATCH_NOTIFIED:
+        _CLASS_DISPATCH_NOTIFIED.add(source.__qualname__)
+        message = f"`@deprecated` on class `{source.__name__}` now dispatches to `@deprecated_class`."
+        if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
+            # The non-class-``target``-ignored hint stays — it is a real misconfig signal for the class path.
+            message += (
+                " Note: non-class `target` values are ignored when deprecating classes;"
+                " use `@deprecated_class(target=...)` instead."
+            )
         warnings.warn(message, UserWarning, stacklevel=pack_args._stacklevel)
 
-    # _DeprecatedProxy auto-promotes ``None+args_mapping`` to ARGS_REMAP and reads
-    # ``misconfigured`` from its own ``target is False`` check — by that point
-    # the original sentinel is already gone.
+    # Resolve legacy ``target`` sentinels (None/True/False) to a ``TargetMode`` so their migration
+    # ``FutureWarning`` fires at the user's decoration site; the raw ``target=False`` stays a genuine
+    # class misconfiguration signal forwarded via ``_misconfigured_override``.
     class_misconfigured = target is False
     if isinstance(target, TargetMode):
         forward_target: Any = target
     elif callable(target) and inspect.isclass(target):
         forward_target = target
     elif target is None or isinstance(target, bool):
-        # None/True/False on a class is a class-misconfiguration, not a callable
-        # deprecation sentinel — the class misconfig UserWarning is the relevant signal.
         forward_target = TargetMode._from_legacy(target, stacklevel=pack_args._stacklevel + 1)
     else:
         forward_target = TargetMode.NOTIFY
 
-    # Capture misconfig signals *before* nulling args_mapping/args_extra — NOTIFY + either
-    # field is a misconfig the proxy can no longer detect once we strip those fields.
-    notify_misconfig = forward_target is TargetMode.NOTIFY and bool(pack_args.args_mapping or pack_args.args_extra)
-    force_misconfigured = class_misconfigured or notify_misconfig
-
-    if forward_target is TargetMode.NOTIFY:
-        TargetMode._validate(
-            forward_target,
-            source.__name__,
-            args_mapping=pack_args.args_mapping,
-            args_extra=pack_args.args_extra,
-            stacklevel=pack_args._stacklevel + 1,
-        )
-        pack_args.args_mapping = None
-        pack_args.args_extra = None
-
+    # Option C: ``NOTIFY + mapping`` is no longer a misconfiguration — a mapping present is always applied.
+    # Pass ``args_mapping``/``args_extra``/``attrs_mapping`` through untouched so ``deprecated_class`` and its
+    # proxy auto-resolve ``NOTIFY + mapping`` to ARGS_REMAP / ATTRS_REMAP (identical to a direct
+    # ``deprecated_class(...)`` call). The proxy also owns misconfig validation (e.g. NOTIFY + bare
+    # ``args_extra``), so the dispatcher no longer pre-validates or strips anything here.
     return deprecated_class_fn(
         target=forward_target,
         deprecated_in=pack_args.deprecated_in,
@@ -118,9 +121,10 @@ def _packing_class_source(
         stream=pack_args.stream,
         args_mapping=pack_args.args_mapping,
         args_extra=pack_args.args_extra,
+        attrs_mapping=pack_args.attrs_mapping,
         update_docstring=pack_args.update_docstring,
         docstring_style=pack_args.docstring_style,
-        _misconfigured_override=force_misconfigured,
+        _misconfigured_override=class_misconfigured,
     )(source)
 
 
@@ -133,6 +137,7 @@ def deprecated(
     template_mgs: Optional[str] = None,
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
@@ -145,28 +150,67 @@ def deprecated(
     :func:`~deprecate.proxy.deprecated_class`, emitting a ``UserWarning`` (suppressed when ``stream=None``);
     prefer ``@deprecated_class()`` directly for classes.
 
-    Every parameter has the same meaning as in :func:`deprecated_callable`, which documents them in full.
-
     Args:
-        target: See :func:`deprecated_callable`.
-        deprecated_in: See :func:`deprecated_callable`.
-        remove_in: See :func:`deprecated_callable`.
-        stream: See :func:`deprecated_callable`.
-        num_warns: See :func:`deprecated_callable`.
-        template_mgs: See :func:`deprecated_callable`.
-        args_mapping: See :func:`deprecated_callable`.
-        args_extra: See :func:`deprecated_callable`.
-        skip_if: See :func:`deprecated_callable`.
-        update_docstring: See :func:`deprecated_callable`.
-        docstring_style: See :func:`deprecated_callable`.
+        target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
+            body executes unchanged for a callable, or every proxy access warns for a class). Pass an explicit
+            value to forward calls or remap arguments:
+
+            - ``Callable``: Forward all calls to this callable (function, method, or class). The decorated
+              source's body is **not executed** under normal forwarding — use ``pass`` or ``...`` as the body.
+              **Exception**: when ``skip_if`` evaluates ``True`` at call time, the source body executes as a
+              fallback, so keep a working implementation if you combine ``target=Callable`` with ``skip_if``.
+            - :attr:`~deprecate.TargetMode.ARGS_REMAP` (or legacy ``True``): Self-deprecation — deprecate argument
+              names only, remapping them within the same function body (callable source) or constructor
+              (class source).
+            - :attr:`~deprecate.TargetMode.ATTRS_REMAP`: Class-only — selective attribute deprecation driven by
+              ``attrs_mapping``. Raises :class:`TypeError` at decoration time on a callable source.
+            - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding. When
+              ``args_mapping`` or ``attrs_mapping`` is also present, the mode auto-resolves to
+              :attr:`~deprecate.TargetMode.ARGS_REMAP` / :attr:`~deprecate.TargetMode.ATTRS_REMAP` instead —
+              a mapping present is always applied.
+
+            Omitting ``target`` is the preferred way to express warn-only deprecation. Passing ``target=None``
+            is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a
+            :class:`FutureWarning` directing you to use the enum form.
+        deprecated_in: Version when the source was deprecated (e.g., "1.0.0"). Default is empty string.
+        remove_in: Version when the source will be removed (e.g., "2.0.0"). Default is empty string.
+        stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
+            :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely —
+            this also silences the one-time class-dispatch notice described under ``Warns`` below.
+        num_warns: Number of times to show the warning, per callable/attribute name or per proxy access:
+            - ``1`` (default): Show warning once
+            - ``-1``: Show warning on every call/access
+            - ``0``: Suppress deprecation warnings
+            - ``N > 1``: Show warning N times total
+        template_mgs: Custom warning message template with format specifiers (``source_name``, ``source_path``,
+            ``target_name``, ``target_path``, ``deprecated_in``, ``remove_in``, ``argument_map``); see
+            :func:`deprecated_callable` for the full specifier reference.
+        args_mapping: Map or skip arguments when forwarding — ``{"old_arg": "new_arg"}`` renames, ``{"old_arg":
+            None}`` drops. On a class source this remaps constructor keyword arguments and, when present without
+            an explicit callable ``target``, auto-resolves the mode to :attr:`~deprecate.TargetMode.ARGS_REMAP`.
+        args_extra: Additional keyword arguments merged into the forwarded call after ``args_mapping`` is applied.
+            Ignored under :attr:`~deprecate.TargetMode.NOTIFY`.
+        attrs_mapping: Class-only knob routed to :func:`~deprecate.proxy.deprecated_class` for attribute-name
+            remapping — ``{"old_attr": "new_attr"}`` renames, ``{"old_attr": None}`` warns without renaming. When
+            present without an explicit callable ``target``, auto-resolves the mode to
+            :attr:`~deprecate.TargetMode.ATTRS_REMAP`. Passing it with a **callable** source raises
+            :class:`TypeError` at decoration time — use ``args_mapping`` to rename callable arguments instead.
+        skip_if: Conditionally skip deprecation warning and forwarding — a ``bool``, or a zero-argument
+            ``Callable`` returning ``bool``. If the condition is ``True``, the source body executes without a
+            warning.
+        update_docstring: If ``True``, inject a deprecation notice into the docstring — function or class — at
+            decoration time.
+        docstring_style: Output style for the injected notice when ``update_docstring=True`` — ``"auto"``
+            (default, chosen from the active doc engine), ``"rst"``, or ``"mkdocs"`` / ``"markdown"``.
 
     Returns:
         Decorator that wraps the source callable, or the class proxy for a class source.
 
     Warns:
         UserWarning: If applied directly to a class. The decorator delegates to
-            :func:`~deprecate.proxy.deprecated_class` and emits this warning. Use ``@deprecated_class()`` directly
-            to suppress it. Suppressed when ``stream=None``.
+            :func:`~deprecate.proxy.deprecated_class` and emits this informational notice once per class
+            qualname per process. Use ``@deprecated_class()`` directly to skip it entirely. Suppressed when
+            ``stream=None``.
         UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, no ``template_mgs`` is set,
             and the decorated source is not a class. Fired at decoration time (not call time) to catch missing
             version metadata early. Suppressed by passing ``stream=None`` or ``template_mgs``.
@@ -220,11 +264,35 @@ def deprecated(
                     stream=stream,
                     args_mapping=args_mapping,
                     args_extra=args_extra,
+                    attrs_mapping=attrs_mapping,
                     update_docstring=update_docstring,
                     docstring_style=docstring_style,
                     _stacklevel=_stacklevel + 1,
                 ),
             )
+        # Non-class source from here. ``attrs_mapping`` is a class-only knob — reject it loudly on the
+        # callable path instead of silently ignoring it (enforcement fails loud).
+        if attrs_mapping is not None:
+            raise TypeError(
+                "`attrs_mapping` is only valid when deprecating a class — use "
+                "`@deprecated_class(attrs_mapping=...)` for attribute renaming, or `args_mapping=...` "
+                "to rename callable arguments."
+            )
+        # Third dispatch bucket: a non-callable object, or a callable instance lacking ``__name__`` (a
+        # ``__call__`` object or ``functools.partial``), would crash downstream at ``source.__name__``.
+        # Reject up front with actionable guidance. Descriptors are exempt — the callable path handles
+        # them via ``_packing_descriptor`` even though some are neither ``callable`` nor carry ``__name__``.
+        if not isinstance(source, _DESCRIPTOR_SOURCE_TYPES) and (
+            not callable(source) or not hasattr(source, "__name__")
+        ):
+            # Disambiguate two look-alike shapes. A bare ``@deprecated`` (no parens) binds the user's
+            # callable to ``target`` and this call arrives with the call ARGUMENT as ``source`` — a
+            # callable ``target`` that is not a ``TargetMode`` is that signal, so guide them to the missing
+            # parentheses. Otherwise (dispatcher default ``target`` is a ``TargetMode``) it is a genuine
+            # attempt to deprecate a plain object → point at ``deprecated_instance``.
+            if callable(target) and not isinstance(target, TargetMode):
+                _reject_bare_decorator(source)  # raises the missing-parentheses TypeError
+            raise TypeError(_PLAIN_OBJECT_REJECT)
         # ``_stacklevel``/``_is_static`` are internal parameters of ``deprecated_callable``'s ``packing``,
         # intentionally omitted from its public return annotation (hence the call-arg ignore).
         return _callable_pack(source, _stacklevel + 1, _is_static)  # type: ignore[call-arg, arg-type]

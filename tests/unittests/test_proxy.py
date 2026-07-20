@@ -1159,15 +1159,22 @@ class TestProxyArgsMappingBehavior:
             instance = proxy(new_key=6, old_key=5)
         assert instance.new_key == 6
 
-    def test_notify_with_args_mapping_emits_misconfig_warning(self) -> None:
-        """NOTIFY + args_mapping on proxy emits UserWarning at decoration time."""
-        with pytest.warns(UserWarning, match="args_mapping"):
+    def test_notify_with_args_mapping_auto_resolves_to_args_remap(self) -> None:
+        """NOTIFY + args_mapping on proxy auto-resolves to ARGS_REMAP — no misconfig warning (option C, 2026-07-20)."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
 
             @deprecated_class(
                 deprecated_in="1.2", remove_in="2.0", target=TargetMode.NOTIFY, args_mapping={"old_key": "new_key"}
             )
             class _ProxyNotifyWithArgsMapping:
                 pass
+
+        misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]
+        assert not misconfig_warns
+        meta = object.__getattribute__(_ProxyNotifyWithArgsMapping, "__deprecated__")
+        assert meta.target is TargetMode.ARGS_REMAP
+        assert meta.args_mapping == {"old_key": "new_key"}
 
     def test_args_remap_no_mapping_emits_misconfig_warning(self) -> None:
         """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
@@ -1870,12 +1877,13 @@ class TestAttrsMappingCombinations:
         assert meta.target is TargetMode.ATTRS_REMAP
 
     def test_legacy_true_with_attrs_mapping_does_not_raise_value_error(self) -> None:
-        """Legacy ``target=True`` validates ``attrs_mapping`` against the source class.
+        """Legacy ``target=True`` with ``attrs_mapping`` auto-resolves to ``ATTRS_REMAP`` (option C).
 
         A legacy caller can combine ``target=True`` with ``attrs_mapping`` while still defining the canonical
-        attribute on the deprecated class itself.  The decorator should fall through to the normal misconfiguration
-        path for the boolean sentinel, not validate redirect targets against ``bool`` and raise ``ValueError`` before
-        the proxy can be called.
+        attribute on the deprecated class itself.  ``target=True`` normalises to ``NOTIFY``, and under option C a
+        present mapping is always applied — the config auto-resolves to ``ATTRS_REMAP`` (no misconfiguration)
+        rather than validating redirect targets against ``bool`` and raising ``ValueError`` before the proxy can be
+        called.
 
         """
         instance = DeprecatedAttrsLegacyTrue()  # must not raise ValueError
@@ -1883,8 +1891,8 @@ class TestAttrsMappingCombinations:
         assert isinstance(instance, LegacyBoolAttrsSource)
         assert instance.ready is True
         meta = object.__getattribute__(DeprecatedAttrsLegacyTrue, "__deprecated__")
-        assert meta.target is TargetMode.NOTIFY
-        assert meta.misconfigured is True
+        assert meta.target is TargetMode.ATTRS_REMAP
+        assert meta.misconfigured is False
 
     def test_attrs_remap_stored_in_dep_config_target_via_auto_resolve(self) -> None:
         """Auto-resolution from ``attrs_mapping`` to ``ATTRS_REMAP`` is reflected in stored metadata.
@@ -1949,30 +1957,35 @@ class TestAttrsMappingCombinations:
     # Misconfiguration cases (decoration-time signals)
     # ------------------------------------------------------------------
 
-    def test_notify_plus_attrs_mapping_warns_at_decoration(self) -> None:
-        """``target=TargetMode.NOTIFY`` combined with ``attrs_mapping`` emits a UserWarning at decoration time.
+    def test_notify_plus_attrs_mapping_auto_resolves_to_attrs_remap(self) -> None:
+        """``target=TargetMode.NOTIFY`` combined with ``attrs_mapping`` auto-resolves to ``ATTRS_REMAP``.
 
-        ``TargetMode.NOTIFY`` means "warn on every access" — it cannot coexist with selective per-attribute warning
-        because the two policies contradict each other. The proxy must surface this misconfiguration as a
-        ``UserWarning`` when the class is decorated, not silently pick one policy over the other. The misconfig
-        also flips :attr:`~deprecate._types.DeprecationConfig.misconfigured` to ``True`` so audit tooling can flag
-        the wrapper.
+        Option C (2026-07-20) retires the NOTIFY+mapping misconfig guardrail: presence of ``attrs_mapping``
+        is now the activation signal for selective per-attribute warning, exactly like the long-standing
+        ``target=None``+``attrs_mapping`` auto-resolve — ``TargetMode.NOTIFY`` is treated the same way since
+        it is now the ``deprecated_class`` default. No misconfig warning fires and
+        :attr:`~deprecate._types.DeprecationConfig.misconfigured` stays ``False``.
 
         """
 
-        class _NotifyAttrsMisconfig:
+        class _NotifyAttrsAutoResolved:
             colour = "red"
 
-        with pytest.warns(UserWarning, match="NOTIFY.*ignores `attrs_mapping`"):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             proxy = deprecated_class(
                 target=TargetMode.NOTIFY,
                 attrs_mapping={"color": "colour"},
                 deprecated_in="1.0",
                 remove_in="2.0",
                 stream=None,
-            )(_NotifyAttrsMisconfig)
+            )(_NotifyAttrsAutoResolved)
+
+        misconfig_warns = [w for w in caught if "ignores `attrs_mapping`" in str(w.message)]
+        assert not misconfig_warns
         meta = object.__getattribute__(proxy, "__deprecated__")
-        assert meta.misconfigured is True
+        assert meta.misconfigured is False
+        assert meta.target is TargetMode.ATTRS_REMAP
 
     def test_attrs_remap_without_attrs_mapping_warns_at_decoration(self) -> None:
         """``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` emits a UserWarning at decoration time.
@@ -2083,6 +2096,10 @@ class TestAttrsMappingCombinations:
         frame.  A wrong stacklevel (e.g. 4 instead of 5) would make the warning appear to originate
         from inside the library, making it hard for users to locate their misconfigured class.
 
+        The trigger is ``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` — a misconfiguration
+        ``_validate_proxy`` still flags under option C (unlike ``NOTIFY + attrs_mapping``, which now
+        auto-resolves and no longer warns).
+
         """
 
         class _MisconfiguredForStacklevel:
@@ -2091,8 +2108,7 @@ class TestAttrsMappingCombinations:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             deprecated_class(
-                target=TargetMode.NOTIFY,
-                attrs_mapping={"color": "colour"},
+                target=TargetMode.ATTRS_REMAP,
                 deprecated_in="1.0",
                 remove_in="2.0",
                 stream=None,

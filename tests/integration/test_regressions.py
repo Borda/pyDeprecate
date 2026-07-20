@@ -20,7 +20,7 @@ from typing import Callable, cast
 
 import pytest
 
-from deprecate import TargetMode
+from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import _DeprecatedCallable
 from deprecate.audit import validate_deprecation_wrapper
 from tests.collection_depr_legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
@@ -98,36 +98,61 @@ class TestFix2ArgsExtraOnArgsRemap:
 
 
 class TestFix3aTargetNoneWithArgsMappingOnClass:
-    """Fix 3a — ``target=None`` + ``args_mapping`` on a class must not auto-promote to ARGS_REMAP."""
+    """Fix 3a / option C — legacy ``target=None`` + ``args_mapping`` on a class auto-promotes to ARGS_REMAP.
 
-    def test_construction_emits_user_warning(self) -> None:
-        """NOTIFY+args_mapping misconfig UserWarning must fire at decoration time."""
-        with pytest.warns(UserWarning, match="args_mapping"):
+    Option C (Q5, 2026-07-20) superseded the original Fix 3a behaviour: the legacy ``target=None`` sentinel
+    still normalises to ``TargetMode.NOTIFY`` (unchanged FutureWarning), but the class branch no longer
+    treats NOTIFY+``args_mapping`` as a misconfiguration to strip — it passes the mapping through so the
+    proxy auto-promotes to :class:`TargetMode.ARGS_REMAP`, exactly like ``target=None`` has always done.
+    """
+
+    def test_legacy_sentinel_future_warning_still_fires(self) -> None:
+        """The legacy ``target=None`` sentinel still emits its own FutureWarning at decoration time (unchanged)."""
+        with pytest.warns(FutureWarning, match="TargetMode.NOTIFY"):
             make_class_target_none_with_args_mapping()
 
-    def test_proxy_target_normalised_to_notify(self) -> None:
-        """Resulting proxy stores TargetMode.NOTIFY (not ARGS_REMAP) on __deprecated__."""
+    def test_construction_does_not_emit_misconfig_warning(self) -> None:
+        """NOTIFY+args_mapping no longer emits a misconfig UserWarning (option C, 2026-07-20)."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            make_class_target_none_with_args_mapping()
+
+        misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]
+        assert not misconfig_warns
+
+    def test_proxy_target_auto_promotes_to_args_remap(self) -> None:
+        """Resulting proxy stores TargetMode.ARGS_REMAP (not NOTIFY) on __deprecated__."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_none_with_args_mapping()
         dep = object.__getattribute__(cls, "__deprecated__")
-        assert dep.target is TargetMode.NOTIFY
+        assert dep.target is TargetMode.ARGS_REMAP
 
-    def test_args_mapping_stripped_from_proxy(self) -> None:
-        """args_mapping is stripped before delegation so the proxy carries no mapping."""
+    def test_args_mapping_preserved_on_proxy(self) -> None:
+        """args_mapping is preserved (not stripped) so the proxy carries the mapping."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_none_with_args_mapping()
         dep = object.__getattribute__(cls, "__deprecated__")
-        assert dep.args_mapping is None
+        assert dep.args_mapping == {"old": "new"}
 
-    def test_instantiation_emits_future_warning(self) -> None:
-        """NOTIFY proxy emits FutureWarning on every instantiation."""
+    def test_instantiation_with_old_arg_warns_and_remaps(self) -> None:
+        """ARGS_REMAP proxy emits FutureWarning and remaps ``old`` -> ``new`` when called with the old keyword."""
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
+            warnings.simplefilter("ignore")
             cls = make_class_target_none_with_args_mapping()
         with pytest.warns(FutureWarning):
-            cls(new=1)
+            instance = cls(old=1)
+        assert instance.new == 1
+
+    def test_instantiation_with_new_arg_is_silent(self) -> None:
+        """ARGS_REMAP proxy does not warn when called with the new keyword directly."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            cls = make_class_target_none_with_args_mapping()
+        with assert_no_warnings(FutureWarning):
+            instance = cls(new=1)
+        assert instance.new == 1
 
 
 class TestFix3bTargetFalseOnClass:

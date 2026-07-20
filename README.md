@@ -196,12 +196,13 @@ Not sure which API to reach for? Start here.
 | `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
 | `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                   |
 | `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                 |
+| `attrs_mapping`    | `None`                      | Class-only: `{"old": "new"}` rename · `{"old": None}` warn-only. `TypeError` on a callable source          |
 | `skip_if`          | `False`                     | `bool` or `Callable → bool`; skip deprecation when true                                                    |
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 | `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                              |
 
 > [!TIP]
-> `@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `attrs_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`.
+> `attrs_mapping` only has an effect when the decorated source is a class — `@deprecated` on a class dispatches to `@deprecated_class()`, which shares every parameter above plus `attrs_mapping` for attribute-name remapping.
 > `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
@@ -304,7 +305,7 @@ In particular the target values (cases):
 > `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
-> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)). If you want a strict callable-only form that refuses a class up front, use `@deprecated_callable()` — it shares every parameter with `@deprecated` but raises `TypeError` at decoration time when applied to a class.
+> `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` and emits a one-time informational `UserWarning` (removed in v0.13, suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes class-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` but raises `TypeError` at decoration time when applied to a class.
 
 ### ➡ Simple function forwarding
 
@@ -1016,7 +1017,7 @@ Each deprecated attribute name has its own independent warning counter — with 
 
 **Dataclass auto-expand** — when the wrapped class is a `@dataclass`, a single `deprecated_class(attrs_mapping={"old": "new"})` call automatically warns on both attribute access (`obj.old`) and constructor kwargs (`DC(old=5)`). No need to set `args_mapping` separately for a field rename. For non-`@dataclass` targets, `attrs_mapping` covers attribute access only — also set `args_mapping` to cover constructor kwargs.
 
-**Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Three misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.NOTIFY` + `attrs_mapping=...` (contradictory policies), `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only.
+**Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Two misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only. Since v0.12, `target=TargetMode.NOTIFY` + `attrs_mapping` is **not** a misconfiguration — `NOTIFY` is the proxy's default sentinel and a mapping present always wins, auto-resolving to `ATTRS_REMAP` the same as omitting `target`.
 
 To deprecate attributes at different library versions, stack two `@deprecated_class()` decorators — each layer carries its own version pair and `isinstance()`/`issubclass()` resolve correctly through the proxy chain.
 
@@ -1992,23 +1993,21 @@ print(predict_batch(1))
 
 ## 🔧 Troubleshooting
 
-### ⚠ UserWarning: `Direct use of @deprecated on class … is deprecated`
+### ⚠ UserWarning: `` `@deprecated` on class … now dispatches to `@deprecated_class` ``
 
-**Problem:** `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.`
+**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class name per process, telling you that the dispatch happened. It is removed entirely in v0.13.
 
-**Cause:** You applied `@deprecated` directly to a class. This still works (it delegates to `@deprecated_class()` under the hood) but the delegation path is itself deprecated and will become a `TypeError` in a future release — `@deprecated` is designed for functions and methods only. Use `deprecated_class` (public import: `from deprecate import deprecated_class`) instead.
+**To quiet it:** apply `@deprecated_class()` directly (same result, no notice, and required to reach class-only options such as `attrs_mapping`), or pass `stream=None`.
 
 <details>
 <summary>Solution</summary>
-
-Use `@deprecated_class()` for class-level deprecation:
 
 ```python
 from deprecate import TargetMode, deprecated, deprecated_class
 from enum import Enum
 
 
-# Correct: use @deprecated_class for classes
+# Preferred: use @deprecated_class directly for classes — identical result, no notice
 @deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
@@ -2024,19 +2023,19 @@ class MyEnum(Enum):
 from deprecate import deprecated
 
 
-class MyClass:
+class MyOtherClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, x: int) -> None:
-        self.x = x  # body still executes; warning fires on every new MyClass(...)
+        self.x = x  # body still executes; warning fires on every new MyOtherClass(...)
 
 
-print(MyClass(42).x)
+print(MyOtherClass(42).x)
 ```
 
 </details>
 
 <details>
-  <summary>Output: <code>MyClass(42).x</code></summary>
+  <summary>Output: <code>MyOtherClass(42).x</code></summary>
 
 ```
 42

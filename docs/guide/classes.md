@@ -7,6 +7,41 @@ description: Deprecating Python classes, Enums, dataclasses, module-level consta
 
 This page covers deprecation patterns for classes, Enums, dataclasses, and module-level constants: forwarding an old class name to a replacement, wrapping with a transparent proxy, deprecating only selected attributes, and stacking multiple deprecation layers for multi-version migrations. For function deprecation see [Functions](functions.md).
 
+## `@deprecated` on a class
+
+`@deprecated` also accepts a class directly — it dispatches to `deprecated_class()` (used throughout the rest of this page) and produces an identical proxy. It emits a one-time informational `UserWarning` per class name per process, removed in v0.13 and suppressed by `stream=None`:
+
+```python
+from deprecate import deprecated
+
+
+# NEW/FUTURE API
+class HttpService:
+    def call(self) -> str:
+        return "ok"
+
+
+# DEPRECATED API — @deprecated on a class source dispatches to @deprecated_class
+@deprecated(target=HttpService, deprecated_in="1.0", remove_in="2.0")  # warns: UserWarning (one-time dispatch notice)
+class LegacyService:
+    pass
+
+
+svc = LegacyService()  # warns: FutureWarning
+print(svc.call())
+```
+
+<details>
+  <summary>Output: <code>svc.call()</code></summary>
+
+```
+ok
+```
+
+</details>
+
+Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses — same result, no dispatch notice, and it is required to reach class-only options such as `attrs_mapping`. The rest of this page uses that explicit form.
+
 ## Class deprecation
 
 Two common patterns here. First, renaming a method within a class: apply `@deprecated(target=execute)` on the old method name and calls forward to the new method. Second, deprecating an entire class by decorating `__init__` to emit a notice at instantiation time and optionally forward construction to a successor class.
@@ -484,13 +519,14 @@ red
 
 </details>
 
-Three misconfiguration combinations are caught at decoration time and emit a `UserWarning` (planned to become `TypeError` in `v1.0`):
+Two misconfiguration combinations are caught at decoration time and emit a `UserWarning` (planned to become `TypeError` in `v1.0`):
 
-| Misconfiguration                                        | Why it is wrong                                                                                                                            |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `target=TargetMode.NOTIFY` + `attrs_mapping=...`        | `NOTIFY` means "warn on every access"; `attrs_mapping` switches to selective per-attribute warning. They contradict each other — drop one. |
-| `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` | `ATTRS_REMAP` requires the deprecated attribute names listed via `attrs_mapping`. Without it the proxy has zero selective effect.          |
-| `attrs_mapping={}` (empty dict)                         | An empty mapping has no effect. Remove it or add deprecated attribute names.                                                               |
+| Misconfiguration                                        | Why it is wrong                                                                                                                   |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` | `ATTRS_REMAP` requires the deprecated attribute names listed via `attrs_mapping`. Without it the proxy has zero selective effect. |
+| `attrs_mapping={}` (empty dict)                         | An empty mapping has no effect. Remove it or add deprecated attribute names.                                                      |
+
+> Since v0.12, `target=TargetMode.NOTIFY` + `attrs_mapping=...` is **no longer** a misconfiguration — `NOTIFY` is the proxy's default sentinel, and presence of `attrs_mapping` always wins: the proxy auto-resolves to `TargetMode.ATTRS_REMAP` whether `NOTIFY` was passed explicitly or `target` was omitted entirely. If you need a blanket per-access warning *and* selective attribute renaming at the same time, stack two `deprecated_class()` layers — see [Nested proxy wrappers](#nested-proxy-wrappers) below.
 
 `TargetMode.ATTRS_REMAP` is a **proxy-only** mode: applying it via `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function, method, or property raises `TypeError` at decoration time, with the error message pointing to `deprecated_class(attrs_mapping=...)` as the correct API.
 

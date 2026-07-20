@@ -7,6 +7,10 @@ description: Deprecating Python functions and methods — simple forwarding, arg
 
 This page covers all deprecation patterns for Python functions and methods: forwarding to a replacement, renaming arguments, emitting a notice with no replacement, remapping arguments within the same function, stacking multiple decorators, and conditional suppression. For class deprecation see [Classes](classes.md); for async functions see [Async](async.md).
 
+!!! note "`@deprecated` vs. `deprecated_callable`"
+
+    `@deprecated` is the friendly front door: applied to a function, method, or other callable/descriptor it behaves exactly as documented on this page. Applied to a class instead, it dispatches to [`deprecated_class`](classes.md) (with a one-time informational notice) rather than raising an error. If you want a strict, callable-only form that rejects a class up front at decoration time — for example at a call site meant to enforce "only functions here" — use `deprecated_callable()`: it shares every parameter with `@deprecated` but raises `TypeError` immediately when applied to a class.
+
 ## Simple function forwarding
 
 !!! danger "Body is dead code when `target=<callable>`"
