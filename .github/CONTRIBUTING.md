@@ -334,11 +334,11 @@ pyDeprecate/
 │   ├── _cli.py                 # CLI subcommands: check, expiry, chains, all, status
 │   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
-│   ├── routine.py              # Function/method decorators: deprecated_callable() (strict) + deprecated() front door + packing
+│   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
+│   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors
 │   ├── _dispatch.py            # Target resolution + call-plan engine (decoration-time guards, call-time forwarding)
 │   ├── messaging.py            # Warning message templates + emitters (shared with proxy.py)
 │   ├── _properties.py          # property descriptors: _DeprecatedProperty, _StrictProperty
-│   ├── deprecation.py          # Backward-compat shim re-exporting the modules above
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
 │   ├── module.py               # Module-level deprecation: deprecated_module()
 │   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()

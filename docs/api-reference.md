@@ -4,7 +4,7 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ## Decorator
 
-::: deprecate.routine.deprecated
+::: deprecate.deprecation.deprecated
 
 ::: deprecate.routine.deprecated_callable
 
