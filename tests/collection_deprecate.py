@@ -1770,7 +1770,7 @@ class InnerOrderDeprecatedPropCls(_InnerOrderPropTarget):
     """Inner-order ``@property @deprecated`` with chain-style setter and deleter (H2 fixture).
 
     Inner-order wrapping wraps ``fget`` only.  ``@value.setter`` and ``@value.deleter`` rebuild the
-    ``property`` from the inner ``property`` base class — not :class:`~deprecate.deprecation._DeprecatedProperty` —
+    ``property`` from the inner ``property`` base class — not :class:`~deprecate._properties._DeprecatedProperty` —
     so the freshly-added accessors are plain callables.  The regression tests assert that writes
     and deletes do NOT emit ``FutureWarning`` for this configuration.
 

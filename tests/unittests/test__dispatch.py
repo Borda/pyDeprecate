@@ -1384,7 +1384,7 @@ def test_misconfigured_warning_fires_exactly_once() -> None:
     """A misconfigured wrapper emits its ``UserWarning`` only on the first call.
 
     The misconfiguration ``UserWarning`` is gated by ``state.warned_misconfigured`` in
-    :func:`deprecate.deprecation._build_call_plan` (see lines around the
+    :func:`deprecate._dispatch._build_call_plan` (see lines around the
     ``state.warned_misconfigured = True`` assignment).  The flag is **never** reset by
     :mod:`tests.conftest` — it implements an intentional once-per-wrapper-lifetime contract
     so noisy misconfig warnings do not flood test output.
@@ -1532,7 +1532,7 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
 
 
 class TestSplitPositionalOnlyKwargs:
-    """Unit contract of :func:`deprecate.deprecation._split_positional_only_kwargs`.
+    """Unit contract of :func:`deprecate._dispatch._split_positional_only_kwargs`.
 
     The helper extracts positional-only values from a resolved kwargs dict in declaration
     order.  Positional binding at the call site is by *slot*, not by name, so a value

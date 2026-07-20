@@ -12,7 +12,6 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
-from contextvars import ContextVar
 from functools import cached_property
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
@@ -32,13 +31,7 @@ from deprecate.messaging import (
 )
 from deprecate.utils import _apply_args_mapping_collisions, _get_signature, get_func_arguments_types_defaults
 
-_V1_BREAK_VERSION = "v1.0"
-# ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
-# Each asyncio.Task inherits a snapshot of the parent context at creation time; because this
-# ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
-# spawned from user code (e.g. asyncio.gather) see None and create independent sets — no sharing.
-# A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
-_unused_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
+_MAJOR_BREAK_VERSION = "v1.0"
 
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
@@ -211,7 +204,7 @@ def _warn_stacking_misconfiguration(
             f"'{name}' has a callable target stacked over another callable-target @deprecated."
             " Stacking a callable target over another callable target is not supported."
             " This will raise `TypeError` at call time."
-            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
         )
@@ -220,7 +213,7 @@ def _warn_stacking_misconfiguration(
             f"'{name}' has a callable target stacked over @deprecated(ARGS_REMAP)."
             " The arg-rename warning will not fire at call time; the inner layer is bypassed."
             " Collapse to: @deprecated(target=<callable>, args_mapping={...})."
-            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
         )
@@ -230,7 +223,7 @@ def _warn_stacking_misconfiguration(
             " The inner function-deprecated warning will not fire at call time; the inner layer is bypassed"
             " while the callable target is still invoked."
             " Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY)."
-            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
         )
@@ -238,7 +231,7 @@ def _warn_stacking_misconfiguration(
         warnings.warn(
             f"'{name}' has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated."
             " Update the inner @deprecated(target=<callable>, args_mapping={...}) instead of stacking."
-            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
         )
@@ -246,7 +239,7 @@ def _warn_stacking_misconfiguration(
         warnings.warn(
             f"'{name}' has duplicate @deprecated(NOTIFY) layers."
             " Update the existing decorator's `deprecated_in`, `remove_in`, or `template_mgs` instead."
-            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
         )
@@ -255,7 +248,7 @@ def _warn_stacking_misconfiguration(
             f"'{name}' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP)."
             " Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)"
             " and @deprecated(NOTIFY, ...) below it."
-            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
         )
@@ -268,7 +261,7 @@ def _warn_stacking_misconfiguration(
     else:
         warnings.warn(
             f"'{name}' has an unsupported @deprecated stacking combination."
-            f" Will be `TypeError` in `{_V1_BREAK_VERSION}`.",
+            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
         )
@@ -431,7 +424,7 @@ def _prepare_target_call(
         ``target`` unchanged, after validating that it accepts ``kwargs``.
 
     Example:
-        >>> from deprecate.deprecation import _prepare_target_call
+        >>> from deprecate._dispatch import _prepare_target_call
         >>> def source(a: int, b: int) -> int:
         ...     return a + b
         >>> def target(a: int, b: int) -> int:
@@ -661,7 +654,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
     if dep_cfg.misconfigured and stream and not state.warned_misconfigured:
         warnings.warn(
             f"'{source.__name__}' has an invalid deprecation configuration;"
-            f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_V1_BREAK_VERSION}.",
+            f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_MAJOR_BREAK_VERSION}.",
             UserWarning,
             stacklevel=3,  # caller → wrapper_fn → _build_call_plan → warn
         )

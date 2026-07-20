@@ -307,7 +307,7 @@ class DeprecationWrapperInfo:
             ``def``).  In this order only ``fget`` warns; any setter or deleter added afterwards is built from the
             plain :class:`property` base and is silently unprotected.  The flag fires for every inner-order
             property, including the getter-only shape, because the canonical order is the outer
-            ``@deprecated(...) @property`` (which produces a :class:`~deprecate.deprecation._DeprecatedProperty`
+            ``@deprecated(...) @property`` (which produces a :class:`~deprecate._properties._DeprecatedProperty`
             that re-wraps every rebound accessor).  CI pipelines can filter on this field to reject the silent
             write/delete gap.  ``False`` for outer-order properties, non-property wrappers, and proxies.
 

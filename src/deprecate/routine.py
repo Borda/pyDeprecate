@@ -19,6 +19,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import inspect
 import warnings
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from typing import Any, Callable, Literal, Optional, Union, cast
@@ -26,7 +27,6 @@ from typing import Any, Callable, Literal, Optional, Union, cast
 from deprecate._dispatch import (
     _build_call_plan,
     _check_cross_class_method_target,
-    _cycle_detection,
     _detect_positional_only,
     _invoke_async,
     _invoke_sync,
@@ -47,6 +47,14 @@ from deprecate._types import (
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import _validate_template_mgs, deprecation_warning
 from deprecate.utils import _get_signature, _unwrap_descriptor_target
+
+# ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
+# Each asyncio.Task inherits a snapshot of the parent context at creation time; because this
+# ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
+# spawned from user code (e.g. asyncio.gather) see None and create independent sets — no sharing.
+# A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
+# Lives here (not in _dispatch) because only the ``wrapped_fn`` closures below read/write it.
+_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
 
 
 def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel validation + TypeError raises) are one coherent story; splitting further adds indirection without reducing real complexity
@@ -176,7 +184,7 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
 
 @dataclass
 class _PackingClassArgs:
-    """Grouped keyword arguments for :func:`~deprecate.deprecation._packing_class_source`."""
+    """Grouped keyword arguments for :func:`~deprecate.routine._packing_class_source`."""
 
     deprecated_in: str
     remove_in: str

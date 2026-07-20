@@ -1232,7 +1232,7 @@ def _expand_dc_attrs_to_args(
 def _detect_ctor_positional_only(dc_check: Any) -> tuple[frozenset[str], tuple[str, ...]]:  # noqa: ANN401
     """Inspect the active class constructor for POSITIONAL_ONLY parameters.
 
-    Proxy twin of :func:`~deprecate.deprecation._detect_positional_only`: pre-computes the split
+    Proxy twin of :func:`~deprecate._dispatch._detect_positional_only`: pre-computes the split
     data consumed by :func:`_proxy_call_with_positional_split` so remapped kwargs bound to
     positional-only constructor params can be forwarded positionally at call time.
 
