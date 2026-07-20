@@ -442,7 +442,7 @@ class DeprecationConfig:
             parameter.
         target_all_param_names: All parameter names of the forwarding target callable (including any
             ``*args`` / ``**kwargs`` names), pre-computed at decoration time so the call-time kwarg
-            validation in :func:`~deprecate.deprecation._prepare_target_call` does not re-inspect the
+            validation in :func:`~deprecate._dispatch._prepare_target_call` does not re-inspect the
             target on every forwarded call.  ``None`` when facts are not precomputed (manual
             ``DeprecationConfig`` construction or non-callable target); ``frozenset()`` for zero-arg
             callables.  Internal call-time cache — excluded from ``repr`` and equality so audit output
@@ -641,7 +641,7 @@ class _DeprecatedCallable(Protocol):
 
 @dataclass
 class _CallPlan:
-    """Resolved dispatch plan returned by :func:`deprecate.deprecation._build_call_plan`.
+    """Resolved dispatch plan returned by :func:`deprecate._dispatch._build_call_plan`.
 
     Captures the outcome of all decision-making shared between the sync and async wrappers in :func:`deprecated`: state
     mutation, kwargs assembly, warning emission, target resolution.  The wrapper consumes this struct to decide whether

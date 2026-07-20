@@ -16,6 +16,8 @@ Core Components:
 
 **Main Decorator** (:mod:`deprecate.deprecation`):
     - :func:`~deprecate.deprecation.deprecated`: Decorator for marking functions/methods as deprecated
+    - :func:`~deprecate.deprecation.deprecated_callable`: Strict callable-only form of ``deprecated`` that
+      raises :class:`TypeError` when applied to a class
     - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
 **Audit** (:mod:`deprecate.audit`):
@@ -72,6 +74,12 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
+
+# Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
+# in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
+from deprecate._properties import (
+    _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
+)
 from deprecate._types import TargetMode
 from deprecate.audit import (
     ChainType,
@@ -88,15 +96,10 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
     validate_mapping_compatibility,
 )
-
-# Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
-# in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
-from deprecate.deprecation import (
-    _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
-)
 from deprecate.deprecation import deprecated
 from deprecate.module import deprecated_module
 from deprecate.proxy import deprecated_class, deprecated_instance
+from deprecate.routine import deprecated_callable
 from deprecate.utils import (
     assert_no_warnings,
     no_warning_call,  # noqa: F401 # deprecated since 0.6, use assert_no_warnings
@@ -111,6 +114,7 @@ __all__ = [
     "TargetMode",
     "assert_no_warnings",
     "deprecated",
+    "deprecated_callable",
     "deprecated_class",
     "deprecated_instance",
     "deprecated_module",

@@ -36,21 +36,21 @@ from collections.abc import Iterator
 from dataclasses import replace
 from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
 
+from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
     _ProxyConfig,
 )
-from deprecate.deprecation import (
+from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
+from deprecate.messaging import (
     TEMPLATE_ARGUMENT_MAPPING,
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
-    _split_positional_only_kwargs,
     _validate_template_mgs,
     deprecation_warning,
 )
-from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
@@ -1232,7 +1232,7 @@ def _expand_dc_attrs_to_args(
 def _detect_ctor_positional_only(dc_check: Any) -> tuple[frozenset[str], tuple[str, ...]]:  # noqa: ANN401
     """Inspect the active class constructor for POSITIONAL_ONLY parameters.
 
-    Proxy twin of :func:`~deprecate.deprecation._detect_positional_only`: pre-computes the split
+    Proxy twin of :func:`~deprecate._dispatch._detect_positional_only`: pre-computes the split
     data consumed by :func:`_proxy_call_with_positional_split` so remapped kwargs bound to
     positional-only constructor params can be forwarded positionally at call time.
 

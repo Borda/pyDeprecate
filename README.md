@@ -304,7 +304,7 @@ In particular the target values (cases):
 > `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
-> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)).
+> `@deprecated` is designed for functions and methods. To deprecate a class, Enum, or dataclass, use `@deprecated_class()` instead (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)). If you want a strict callable-only form that refuses a class up front, use `@deprecated_callable()` — it shares every parameter with `@deprecated` but raises `TypeError` at decoration time when applied to a class.
 
 ### ➡ Simple function forwarding
 

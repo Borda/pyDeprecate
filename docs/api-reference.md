@@ -6,6 +6,8 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ::: deprecate.deprecation.deprecated
 
+::: deprecate.routine.deprecated_callable
+
 ## Proxy
 
 ::: deprecate.proxy.deprecated_class
