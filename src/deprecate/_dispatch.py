@@ -73,27 +73,6 @@ _DESCRIPTOR_SOURCE_TYPES = (classmethod, staticmethod, property, cached_property
 _PLAIN_OBJECT_REJECT = "cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`"
 
 
-def _reject_attrs_mapping_on_callable(attrs_mapping: Optional[dict[str, Any]]) -> None:
-    """Raise ``TypeError`` when ``attrs_mapping`` is passed for a callable (non-class) source.
-
-    ``attrs_mapping`` is a class-only knob — reject it loudly on the callable dispatch path instead of
-    silently ignoring it (enforcement fails loud rather than swallowing the argument).
-
-    Args:
-        attrs_mapping: The ``attrs_mapping`` argument as received by the ``deprecated()`` front door.
-
-    Raises:
-        TypeError: When ``attrs_mapping`` is not ``None``.
-
-    """
-    if attrs_mapping is not None:
-        raise TypeError(
-            "`attrs_mapping` is only valid when deprecating a class — use "
-            "`@deprecated_class(attrs_mapping=...)` for attribute renaming, or `args_mapping=...` "
-            "to rename callable arguments."
-        )
-
-
 def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN401
     """Raise ``TypeError`` for a non-callable, or callable-without-``__name__``, decoration source.
 

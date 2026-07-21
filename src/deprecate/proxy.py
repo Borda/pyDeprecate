@@ -310,6 +310,7 @@ class _DeprecatedProxy:
         num_warns: int = 1,
         stream: Optional[Callable[..., None]] = deprecation_warning,
         template_mgs: Optional[str] = None,
+        skip_if: Union[bool, Callable[[], bool]] = False,
         read_only: bool = False,
         docstring_style: str = "auto",
         _misconfigured_override: bool = False,
@@ -411,6 +412,7 @@ class _DeprecatedProxy:
             args_extra=args_extra,
             template_mgs=template_mgs,
             attrs_mapping=attrs_mapping,
+            skip_if=skip_if,
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
         # Static deprecation metadata stored as a dunder attribute — readable by audit tools via __deprecated__.
@@ -509,6 +511,22 @@ class _DeprecatedProxy:
             "argument_map": "",
         }
 
+    def _shall_skip(self) -> bool:
+        """Evaluate the ``skip_if`` condition — ``True`` means the deprecation machinery is inactive.
+
+        Mirrors the callable-decorator semantics: a ``bool`` is used as-is, a zero-argument callable is invoked
+        and must return a strict ``bool``.
+
+        Raises:
+            TypeError: If ``skip_if`` is a callable that does not return a ``bool``.
+
+        """
+        skip_if = self._cfg.skip_if
+        shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
+        if not isinstance(shall_skip, bool):
+            raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
+        return shall_skip
+
     def _warn(self, *, arg_name: Optional[str] = None, _extra_frames: int = 0) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted.
 
@@ -521,6 +539,8 @@ class _DeprecatedProxy:
             _extra_frames: Additional Python helper frames between the public accessor and ``_warn``.
 
         """
+        if self._shall_skip():
+            return
         cfg = self._cfg
         stream = cfg.stream
         if not stream:
@@ -581,7 +601,14 @@ class _DeprecatedProxy:
         return self._cfg.obj
 
     def _get_active(self) -> Any:  # noqa: ANN401
-        """Return the active object: *target* when set, otherwise *source*."""
+        """Return the active object: *target* when set, otherwise *source*.
+
+        When ``skip_if`` evaluates ``True`` the deprecation machinery is inactive, so the wrapped source is served
+        regardless of any configured target.
+
+        """
+        if self._shall_skip():
+            return self._cfg.obj
         target = self._dep.target
         if target is not None and not isinstance(target, TargetMode):
             return target
@@ -677,6 +704,10 @@ class _DeprecatedProxy:
             cfg = cast(_ProxyConfig, object.__getattribute__(self, "_DeprecatedProxy__config"))
         except AttributeError:
             raise AttributeError(name) from None
+        # skip_if active — deprecation machinery inactive: serve the wrapped source directly, with no
+        # warning, no attrs_mapping redirect, and no read-only mutator guard.
+        if self._shall_skip():
+            return getattr(cfg.obj, name)
         attrs_mapping = cfg.attrs_mapping
         if attrs_mapping is not None:
             if name in attrs_mapping:
@@ -716,6 +747,10 @@ class _DeprecatedProxy:
             AttributeError: If the proxy is in read-only mode.
 
         """
+        # skip_if active — write straight to the wrapped source; no warning, redirect, or read-only guard.
+        if self._shall_skip():
+            setattr(self._cfg.obj, name, value)
+            return
         self._check_read_only(f"Setting attribute '{name}'")
         attrs_mapping = self._cfg.attrs_mapping
         if attrs_mapping is not None and name in attrs_mapping:
@@ -743,6 +778,10 @@ class _DeprecatedProxy:
             AttributeError: If the proxy is in read-only mode.
 
         """
+        # skip_if active — delete straight on the wrapped source; no warning, redirect, or read-only guard.
+        if self._shall_skip():
+            delattr(self._cfg.obj, name)
+            return
         self._check_read_only(f"Deleting attribute '{name}'")
         attrs_mapping = self._cfg.attrs_mapping
         if attrs_mapping is not None and name in attrs_mapping:
@@ -831,6 +870,12 @@ class _DeprecatedProxy:
         """
         dep = object.__getattribute__(self, "__deprecated__")
         cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
+
+        # skip_if active — deprecation machinery inactive: call the wrapped source as-is, with no warning,
+        # no args_mapping/args_extra handling, and no target forwarding (parity with the callable decorator,
+        # where skip_if=True executes the source body unchanged).
+        if self._shall_skip():
+            return cfg.obj(*args, **kwargs)
 
         # ATTRS_REMAP stacked over a proxy: delegate the call to the inner proxy without firing the global
         # callable warning. ATTRS_REMAP governs attribute access only; the call itself is not a deprecated
@@ -1364,6 +1409,7 @@ def deprecated_class(
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     attrs_mapping: Optional[dict[str, Optional[str]]] = None,
+    skip_if: Union[bool, Callable[[], bool]] = False,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     _misconfigured_override: bool = False,
@@ -1445,6 +1491,13 @@ def deprecated_class(
             emits a :class:`UserWarning` at decoration time (will be :class:`TypeError` in v1.0). Passing
             ``attrs_mapping`` with no explicit *target* (or ``target=TargetMode.NOTIFY``, the default) auto-resolves
             to ``ATTRS_REMAP`` and applies the mapping.
+        skip_if: Conditionally deactivate the deprecation machinery — a ``bool``, or a zero-argument ``Callable``
+            returning ``bool``, evaluated at access time.  When it evaluates ``True``, the proxy transparently
+            serves the wrapped source class with no warning, no ``attrs_mapping`` redirect, no
+            ``args_mapping``/``args_extra`` handling, and no *target* forwarding — parity with
+            ``deprecated_callable(skip_if=...)``, where a skipped call executes the source body unchanged.
+            The condition may be consulted more than once per proxy operation, so keep the callable cheap and
+            stable; a callable that returns a non-``bool`` raises :class:`TypeError` at access time.
         update_docstring: If ``True``, inject a deprecation notice into the class docstring at decoration time (same
             behaviour as ``@deprecated(update_docstring=True)``).
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the
@@ -1537,6 +1590,7 @@ def deprecated_class(
             args_mapping=args_mapping,
             args_extra=args_extra,
             attrs_mapping=attrs_mapping,
+            skip_if=skip_if,
             docstring_style=docstring_style,
             _misconfigured_override=_misconfigured_override,
             _stacklevel_extra=_stacklevel_extra,
@@ -1561,6 +1615,7 @@ def deprecated_instance(
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
     template_mgs: Optional[str] = None,
+    skip_if: Union[bool, Callable[[], bool]] = False,
     read_only: bool = False,
     args_extra: Optional[dict[str, Any]] = None,
 ) -> "_DeprecatedProxy":
@@ -1582,6 +1637,12 @@ def deprecated_instance(
         template_mgs: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used.  See
             :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
+        skip_if: Conditionally deactivate the deprecation machinery — a ``bool``, or a zero-argument ``Callable``
+            returning ``bool``, evaluated at access time.  When it evaluates ``True``, the proxy transparently
+            serves *obj* with no warning and no ``read_only`` enforcement.  The condition may be consulted more
+            than once per proxy operation; a callable that returns a non-``bool`` raises :class:`TypeError` at
+            access time.  For picklable proxies, use a module-level callable or a plain ``bool`` (same constraint
+            as *stream*).
         read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
             Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
             ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
@@ -1631,6 +1692,7 @@ def deprecated_instance(
         num_warns=num_warns,
         stream=stream,
         template_mgs=template_mgs,
+        skip_if=skip_if,
         read_only=read_only,
         args_extra=args_extra,
     )

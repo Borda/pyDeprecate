@@ -119,11 +119,13 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 | `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
 | `template_mgs`     | `None`                | Custom deprecation message template (`%`-style placeholders)                                               |
 | `args_extra`       | `None`                | Fixed kwargs injected into the target call                                                                 |
-| `skip_if`          | `False`               | `bool` or `Callable → bool`; skip deprecation when true                                                    |
+| `skip_if`          | `False`               | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                |
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 | `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                  |
 
-`@deprecated_class()` shares `target`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_mapping`, `attrs_mapping`, `args_extra`, `template_mgs`, `update_docstring`, and `docstring_style`. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
+All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a class source is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`.
+
+`deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `template_mgs`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 ______________________________________________________________________
 

@@ -155,7 +155,7 @@ Here is what changed in v0.12 that you might have missed:
 
 ### `@deprecated` on a class is now first-class supported
 
-Before v0.12, applying `@deprecated` directly to a class emitted a warning threatening `TypeError: ... will become a TypeError in a future release`. That threat is retired — `@deprecated` on a class now dispatches to `deprecated_class()` and produces an identical `_DeprecatedProxy`. The warning is now a one-time informational notice, fired at most once per class name per process:
+Before v0.12, applying `@deprecated` directly to a class emitted a warning threatening `TypeError: ... will become a TypeError in a future release`. That threat is retired — `@deprecated` on a class now dispatches to `deprecated_class()` and produces an identical `_DeprecatedProxy`. The warning is now a one-time informational notice, fired at most once per class (keyed by module + qualified name, so same-named classes in different modules each warn) per process:
 
 ```
 `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`.
@@ -181,9 +181,15 @@ There is consequently no single-proxy way left to get a blanket "warn on every a
 
 **Scope**: this auto-resolve applies to `deprecated_class()` and the `@deprecated`-on-class dispatch path only. The callable path (`@deprecated` / `deprecated_callable()` on functions and methods) is unchanged — `TargetMode.NOTIFY` with `args_mapping` on a function or method is still a misconfiguration and still emits a `UserWarning` (see the table above).
 
-### `deprecated()` gained `attrs_mapping`
+### `deprecated()` slimmed to common arguments only
 
-The front-door `deprecated()` dispatcher now accepts `attrs_mapping` directly, routed to `deprecated_class()` when the source is a class. Passing `attrs_mapping` with a callable source raises `TypeError` at decoration time, naming `deprecated_class` as the right tool.
+The front-door `deprecated()` dispatcher now exposes only the arguments common to both dispatch shapes: `target`, `deprecated_in`, `remove_in`, `stream`, `num_warns`, `template_mgs`, `args_mapping`, `args_extra`, `skip_if`, `update_docstring`, and `docstring_style`. The one shape-specific option, class-only `attrs_mapping`, raises `TypeError` (unexpected keyword argument) on the front door — use `deprecated_class(attrs_mapping=...)` directly.
+
+As part of this alignment, `template_mgs` and `skip_if` passed through `@deprecated` on a class are now forwarded to the proxy (`template_mgs` used to be dropped silently on the class-dispatch path).
+
+### `skip_if` now available on proxies
+
+`deprecated_class()` and `deprecated_instance()` gained the `skip_if` option (previously callable-only). When the condition evaluates `True` at access time, the proxy transparently serves the wrapped source — no warning, no `attrs_mapping` redirect, no `args_mapping`/`args_extra` handling, no target forwarding, and no `read_only` enforcement — mirroring the callable form, where a skipped call executes the source body unchanged. The condition may be consulted more than once per proxy operation, so keep the callable cheap and stable.
 
 See the [Changelog](../changelog.md) for the complete v0.12 release notes.
 

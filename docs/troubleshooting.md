@@ -41,7 +41,7 @@ from pydeprecate import deprecated  # wrong — no such module
 
 **Q:** I applied `@deprecated` directly to a class and got `` UserWarning: `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`. `` Is this a problem, and how do I stop it?
 
-**A:** No — since v0.12, `@deprecated` on a class is first-class supported and permanent. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class name per process, not on every decoration — telling you that the dispatch happened. Only this notice — not the dispatch support itself — is removed entirely, in v1.0.
+**A:** No — since v0.12, `@deprecated` on a class is first-class supported and permanent. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class (keyed by module + qualified name, not bare name — same-named classes in different modules each warn), not on every decoration — telling you that the dispatch happened. Only this notice — not the dispatch support itself — is removed entirely, in v1.0.
 
 You have two ways to quiet it, and one alternative pattern for a different use case:
 
@@ -310,7 +310,7 @@ True
 
 **A:** The callable passed to `skip_if` must return a `bool`. If it returns any other type — including a truthy int or a string — pyDeprecate raises `TypeError("User function 'skip_if' shall return bool, but got: ...")`.
 
-pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to `skip_if` itself, not the name of your callback. Wrap any non-bool expression in an explicit `bool()` call, or use a `lambda` that returns a literal `True` or `False`.
+pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to `skip_if` itself, not the name of your callback. Wrap any non-bool expression in an explicit `bool()` call, or use a `lambda` that returns a literal `True` or `False`. The same strict-bool contract applies wherever `skip_if` is accepted: `@deprecated`, `deprecated_callable()`, `deprecated_class()`, and `deprecated_instance()`.
 
 ```python
 # Minimal replacement function for examples
@@ -320,7 +320,7 @@ def get_status() -> str:
 
 # ---------------------------
 
-from deprecate import deprecated
+from deprecate import deprecated_callable
 
 
 # Correct: function returns bool
@@ -328,13 +328,13 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
+@deprecated_callable(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
 def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
+@deprecated_callable(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
 def infer_v2():
     pass
 

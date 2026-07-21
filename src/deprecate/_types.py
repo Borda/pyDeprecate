@@ -558,6 +558,10 @@ class _ProxyConfig:
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
             ``None`` for warn-only).  When set, the proxy emits warnings only on access to listed names and forwards
             all other reads/writes/deletes silently.  See :func:`~deprecate.proxy.deprecated_class` for full semantics.
+        skip_if: ``bool`` or zero-argument callable returning ``bool``.  When it evaluates ``True`` at access time,
+            the deprecation machinery is inactive for that operation — no warning, no attribute redirect, no argument
+            remapping, no target forwarding; the proxy transparently serves the wrapped source object.  May be
+            consulted more than once per proxy operation, so keep the callable cheap and stable.
         warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
@@ -575,6 +579,7 @@ class _ProxyConfig:
     args_extra: Optional[dict[str, Any]] = None
     template_mgs: Optional[str] = None
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
+    skip_if: Union[bool, Callable[[], bool]] = False
     warned: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)

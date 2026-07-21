@@ -2,10 +2,11 @@
 
 ``@deprecated`` on a class no longer carries the v0.6.0 "will become a `TypeError`" threat; it now
 dispatches to :func:`~deprecate.proxy.deprecated_class` and emits a one-time informational
-``UserWarning`` instead (removed in v0.13). This module also covers the two new decoration-time
+``UserWarning`` instead (removed in v1.0). This module also covers the two decoration-time
 ``TypeError`` guards (non-callable/non-class source; callable instance lacking ``__name__``), the
-new ``attrs_mapping`` parameter on the dispatcher, and stacking the dispatcher over an
-already-wrapped callable or an existing class proxy.
+common-args-only contract of the front door (shape-specific ``attrs_mapping``/``skip_if`` rejected,
+common ``template_mgs`` forwarded), and stacking the dispatcher over an already-wrapped callable or
+an existing class proxy.
 
 """
 
@@ -18,6 +19,7 @@ from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
+    make_deprecated_front_door_skip_if_true_on_class,
     make_deprecated_notify_args_extra_alone_on_class,
     make_deprecated_on_callable_without_name,
     make_deprecated_on_fresh_class,
@@ -31,9 +33,8 @@ from tests.collection_deprecate import (
     make_deprecated_qualname_collision_pair,
     make_deprecated_stacked_over_wrapped_callable,
     make_deprecated_with_args_mapping_on_class_default_target,
-    make_deprecated_with_attrs_mapping_on_callable,
-    make_deprecated_with_attrs_mapping_on_class,
-    make_deprecated_with_explicit_target_and_attrs_mapping_on_class,
+    make_deprecated_with_attrs_mapping_kwarg,
+    make_deprecated_with_template_mgs_on_class,
 )
 
 
@@ -178,63 +179,49 @@ class TestEnumAndDataclassDispatch:
         assert instance.label == "y"
 
 
-class TestAttrsMappingOnDispatcher:
-    """``attrs_mapping`` on the ``deprecated()`` front door — class path only (new in Phase 2)."""
+class TestCommonArgsOnlyOnDispatcher:
+    """``deprecated()`` exposes only the arguments common to ``deprecated_callable`` and ``deprecated_class``."""
 
-    def test_attrs_mapping_on_class_redirects(self) -> None:
-        """``@deprecated(attrs_mapping=...)`` on a class forwards the mapping to ``deprecated_class`` correctly.
+    def test_attrs_mapping_kwarg_raises_type_error(self) -> None:
+        """``deprecated(attrs_mapping=...)`` raises ``TypeError`` — the knob is class-only, on ``deprecated_class``.
 
-        A team that only knows the friendly ``@deprecated`` decorator can now also deprecate a single
-        renamed attribute (``color`` -> ``colour``) without reaching for ``deprecated_class`` explicitly —
-        the dispatcher must forward ``attrs_mapping`` unchanged onto the class path.
-
-        """
-        proxy = make_deprecated_with_attrs_mapping_on_class()
-
-        with pytest.warns(FutureWarning, match="color"):
-            value = proxy.color  # type: ignore[attr-defined]
-        assert value == "red"
-
-    def test_attrs_mapping_on_class_auto_resolves_no_misconfig(self) -> None:
-        """``@deprecated(attrs_mapping=...)`` on a class auto-resolves to ``ATTRS_REMAP`` — no misconfig warning.
-
-        Option C (2026-07-20) means the dispatcher's own ``TargetMode.NOTIFY`` default no longer collides with
-        ``attrs_mapping``: the resulting proxy's ``__deprecated__.target`` must be ``ATTRS_REMAP``, and no
-        "NOTIFY ignores attrs_mapping" misconfig warning should have fired during construction.
+        A developer who learned ``attrs_mapping`` from the ``deprecated_class`` docs tries it on the friendly
+        front door: the call must fail loudly at the factory call itself (unexpected keyword argument) instead
+        of silently accepting a knob the callable path could never honour — the full class scope lives on
+        ``deprecated_class`` directly.
 
         """
-        proxy = make_deprecated_with_attrs_mapping_on_class()
+        with pytest.raises(TypeError, match="attrs_mapping"):
+            make_deprecated_with_attrs_mapping_kwarg()
 
-        dep = object.__getattribute__(proxy, "__deprecated__")
-        assert dep.target is TargetMode.ATTRS_REMAP
-        assert dep.misconfigured is False
+    def test_skip_if_forwards_on_class_path(self) -> None:
+        """``deprecated(target=..., skip_if=True)`` on a class deactivates the proxy machinery.
 
-    def test_attrs_mapping_on_callable_raises_type_error(self) -> None:
-        """``attrs_mapping`` on a callable source is class-path-only — raises ``TypeError`` at decoration time."""
-        with pytest.raises(TypeError):
-            make_deprecated_with_attrs_mapping_on_callable()
-
-    def test_attrs_mapping_on_callable_error_names_deprecated_class(self) -> None:
-        """The rejection message points the caller at ``deprecated_class`` for attribute-level deprecation."""
-        with pytest.raises(TypeError, match="deprecated_class"):
-            make_deprecated_with_attrs_mapping_on_callable()
-
-    def test_explicit_callable_target_with_attrs_mapping_forwards_both(self) -> None:
-        """``@deprecated(target=<class>, attrs_mapping=...)`` forwards BOTH a real target and the mapping.
-
-        Every other dispatcher ``attrs_mapping`` fixture omits an explicit non-``NOTIFY`` callable ``target``
-        (auto-resolve only) — this locks the remaining combination the review flagged as unverified.
+        ``skip_if`` is common to both dispatch shapes, so a maintainer gating a class deprecation on a runtime
+        condition through the front door must get the same behaviour as ``deprecated_class(skip_if=...)``:
+        with the condition ``True``, instantiation returns a wrapped-source instance with no ``FutureWarning``
+        and no forwarding to the target class.
 
         """
-        proxy = make_deprecated_with_explicit_target_and_attrs_mapping_on_class()
+        proxy = make_deprecated_front_door_skip_if_true_on_class()
 
-        dep = object.__getattribute__(proxy, "__deprecated__")
-        assert dep.target is not TargetMode.NOTIFY
-        assert dep.misconfigured is False
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            instance = proxy()
+        assert type(instance).__name__ == "PaletteOld"
 
-        with pytest.warns(FutureWarning, match="color"):
-            value = proxy.color  # type: ignore[attr-defined]
-        assert value == "blue"
+    def test_template_mgs_forwards_on_class_path(self) -> None:
+        """``deprecated(template_mgs=...)`` on a class renders the custom template on proxy access.
+
+        ``template_mgs`` is common to both dispatch shapes, so a maintainer setting a custom warning message
+        through the front door must see it honoured by the class proxy exactly as with a direct
+        ``deprecated_class(template_mgs=...)`` call — the dispatcher used to drop the template silently.
+
+        """
+        proxy = make_deprecated_with_template_mgs_on_class()
+
+        with pytest.warns(FutureWarning, match="Custom notice for `Palette`."):
+            proxy()
 
 
 class TestArgsMappingDefaultTargetAutoResolveOnDispatcher:

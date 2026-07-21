@@ -9,7 +9,7 @@ This page covers deprecation patterns for classes, Enums, dataclasses, and modul
 
 ## `@deprecated` on a class
 
-`@deprecated` also accepts a class directly — it dispatches to `deprecated_class()` (used throughout the rest of this page) and produces an identical proxy; this dispatch is permanent, not itself deprecated. `@deprecated` emits a one-time informational `UserWarning` per class name per process when it does this — only that notice is scheduled for removal (in v1.0) — suppressed by `stream=None`:
+`@deprecated` also accepts a class directly — it dispatches to `deprecated_class()` and produces an identical `_DeprecatedProxy`, so everything documented on the rest of this page applies to either form. The dispatch is permanent, not itself deprecated; it only adds a one-time informational `UserWarning` (suppressed by `stream=None`; the notice — not the dispatch — is removed in v1.0). See [Troubleshooting](../troubleshooting.md#userwarning-when-decorating-a-class) for the notice's per-class keying and suppression options.
 
 ```python
 from deprecate import deprecated
@@ -254,6 +254,48 @@ True
 ```
 
 </details>
+
+## Conditional skip
+
+`deprecated_class()` and `deprecated_instance()` accept `skip_if` — a `bool` or zero-argument callable returning `bool`, evaluated at access time. While it evaluates `True`, the deprecation machinery is inactive and the proxy transparently serves the wrapped source: no warning, no `attrs_mapping` redirect, no `args_mapping`/`args_extra` handling, no `target` forwarding, and no `read_only` enforcement. This mirrors `skip_if` on the callable decorators, where a skipped call executes the source body unchanged. The condition may be consulted more than once per proxy operation, so keep the callable cheap and stable; a callable returning a non-`bool` raises `TypeError` at access time.
+
+```python
+from deprecate import deprecated_class
+
+MIGRATION_ROLLOUT_DONE = False
+
+
+def rollout_pending() -> bool:
+    return not MIGRATION_ROLLOUT_DONE
+
+
+# NEW/FUTURE API — the replacement backend callers should migrate to
+class StorageBackend:
+    def save(self) -> str:
+        return "stored"
+
+
+# DEPRECATED API — deprecation stays dormant until the rollout flag flips
+@deprecated_class(target=StorageBackend, deprecated_in="1.0", remove_in="2.0", skip_if=rollout_pending)
+class LegacyStorage:
+    def save(self) -> str:
+        return "legacy-stored"
+
+
+store = LegacyStorage()  # silent — skip active, source class served, no target forwarding
+print(store.save())
+```
+
+<details>
+  <summary>Output: <code>store.save()</code></summary>
+
+```
+legacy-stored
+```
+
+</details>
+
+Once the condition flips to `False`, the very next access warns and forwards to the target as usual — no re-decoration required.
 
 ## Selective attribute deprecation
 

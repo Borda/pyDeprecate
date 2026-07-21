@@ -7,7 +7,9 @@ keeps resolving natively.
 
 The specialized decorators live in their target modules: :func:`~deprecate.routine.deprecated_callable`
 (functions/methods), :func:`~deprecate.proxy.deprecated_class` / :func:`~deprecate.proxy.deprecated_instance`
-(classes/objects), and :func:`~deprecate.module.deprecated_module` (modules).
+(classes/objects), and :func:`~deprecate.module.deprecated_module` (modules).  The front door exposes only the arguments
+common to both dispatch shapes; the class-only ``attrs_mapping`` lives on :func:`~deprecate.proxy.deprecated_class`
+alone.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -19,7 +21,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Union
 
-from deprecate._dispatch import _reject_attrs_mapping_on_callable, _reject_non_callable_source
+from deprecate._dispatch import _reject_non_callable_source
 from deprecate._types import TargetMode
 from deprecate.messaging import _validate_template_mgs, deprecation_warning
 from deprecate.routine import deprecated_callable
@@ -27,7 +29,7 @@ from deprecate.routine import deprecated_callable
 # Classes that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
 # Keyed by ``f"{__module__}.{__qualname__}"`` so a decoration loop warns once per class, not per
 # iteration, while distinct classes sharing a bare qualname across modules still warn independently.
-# Remove in 0.13.
+# Remove in 1.0.
 _CLASS_DISPATCH_NOTIFIED: set[str] = set()
 
 
@@ -39,9 +41,10 @@ class _PackingClassArgs:
     remove_in: str
     num_warns: int
     stream: Optional[Callable]
+    template_mgs: Optional[str]
     args_mapping: Optional[dict[str, Optional[str]]]
     args_extra: Optional[dict[str, Any]]
-    attrs_mapping: Optional[dict[str, Optional[str]]]
+    skip_if: Union[bool, Callable]
     update_docstring: bool
     docstring_style: str
     _stacklevel: int
@@ -56,7 +59,7 @@ def _packing_class_source(
 
     Class dispatch is first-class: this resolves legacy ``target`` sentinels, emits the one-time
     informational ``UserWarning`` (class dispatch now routes to ``deprecated_class``), and forwards
-    every mapping through so the proxy auto-resolves ``NOTIFY + mapping`` (auto-resolve). Extracted from
+    ``args_mapping`` through so the proxy auto-resolves ``NOTIFY + mapping``. Extracted from
     the ``inspect.isclass(source)`` branch of ``packing``.
 
     Args:
@@ -77,7 +80,7 @@ def _packing_class_source(
 
     # One-time informational dispatch notice — class dispatch is now first-class, so the old v0.6.0
     # "will become a TypeError" wart is retired. Emit at most once per class qualname per process so a
-    # decoration loop does not spam; suppressed when ``stream=None``. Remove in 0.13.
+    # decoration loop does not spam; suppressed when ``stream=None``. Remove in 1.0.
     dispatch_key = f"{source.__module__}.{source.__qualname__}"
     if pack_args.stream is not None and dispatch_key not in _CLASS_DISPATCH_NOTIFIED:
         _CLASS_DISPATCH_NOTIFIED.add(dispatch_key)
@@ -103,20 +106,24 @@ def _packing_class_source(
     else:
         forward_target = TargetMode.NOTIFY
 
-    # Option C: ``NOTIFY + mapping`` is no longer a misconfiguration — a mapping present is always applied.
-    # Pass ``args_mapping``/``args_extra``/``attrs_mapping`` through untouched so ``deprecated_class`` and its
-    # proxy auto-resolve ``NOTIFY + mapping`` to ARGS_REMAP / ATTRS_REMAP (identical to a direct
+    # ``NOTIFY + mapping`` is no longer a misconfiguration — a mapping present is always applied.
+    # Pass ``args_mapping``/``args_extra`` through untouched so ``deprecated_class`` and its
+    # proxy auto-resolve ``NOTIFY + mapping`` to ARGS_REMAP (identical to a direct
     # ``deprecated_class(...)`` call). The proxy also owns misconfig validation (e.g. NOTIFY + bare
     # ``args_extra``), so the dispatcher no longer pre-validates or strips anything here.
+    # Class-only knobs such as ``attrs_mapping`` are deliberately absent from the front door —
+    # ``deprecated()`` exposes only the arguments common to ``deprecated_callable`` and
+    # ``deprecated_class``; reach for those directly for the full per-shape scope.
     return deprecated_class_fn(
         target=forward_target,
         deprecated_in=pack_args.deprecated_in,
         remove_in=pack_args.remove_in,
         num_warns=pack_args.num_warns,
         stream=pack_args.stream,
+        template_mgs=pack_args.template_mgs,
         args_mapping=pack_args.args_mapping,
         args_extra=pack_args.args_extra,
-        attrs_mapping=pack_args.attrs_mapping,
+        skip_if=pack_args.skip_if,
         update_docstring=pack_args.update_docstring,
         docstring_style=pack_args.docstring_style,
         _misconfigured_override=class_misconfigured,
@@ -137,7 +144,6 @@ def deprecated(
     template_mgs: Optional[str] = None,
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
-    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
@@ -150,6 +156,10 @@ def deprecated(
     :func:`~deprecate.proxy.deprecated_class`, emitting a ``UserWarning`` (suppressed when ``stream=None``);
     prefer ``@deprecated_class()`` directly for classes.
 
+    ``deprecated()`` deliberately exposes only the arguments **common** to both shapes.  The one
+    shape-specific option, ``attrs_mapping`` (selective attribute deprecation, class-only), lives on
+    :func:`~deprecate.proxy.deprecated_class` — reach for it directly when you need the full class scope.
+
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
             body executes unchanged for a callable, or every proxy access warns for a class). Pass an explicit
@@ -157,19 +167,14 @@ def deprecated(
 
             - ``Callable``: Forward all calls to this callable (function, method, or class). The decorated
               source's body is **not executed** under normal forwarding — use ``pass`` or ``...`` as the body.
-              **Exception**: when ``skip_if`` evaluates ``True`` at call time, the source body executes as a
-              fallback, so keep a working implementation if you combine ``target=Callable`` with ``skip_if``.
             - :attr:`~deprecate.TargetMode.ARGS_REMAP` (or legacy ``True``): Self-deprecation — deprecate argument
               names only, remapping them within the same function body (callable source) or constructor
               (class source).
-            - :attr:`~deprecate.TargetMode.ATTRS_REMAP`: Class-only — selective attribute deprecation driven by
-              ``attrs_mapping``. Raises :class:`TypeError` at decoration time on a callable source.
             - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding. **On a class
-              source**, when ``args_mapping`` or ``attrs_mapping`` is also present, the mode auto-resolves to
-              :attr:`~deprecate.TargetMode.ARGS_REMAP` / :attr:`~deprecate.TargetMode.ATTRS_REMAP` instead —
-              a mapping present is always applied. **On a callable source**, NOTIFY + ``args_mapping`` remains
-              a misconfiguration (``args_mapping`` is not applied, and a :class:`UserWarning` fires) —
-              auto-resolve is class-path-only.
+              source**, when ``args_mapping`` is also present, the mode auto-resolves to
+              :attr:`~deprecate.TargetMode.ARGS_REMAP` instead — a mapping present is always applied. **On a
+              callable source**, NOTIFY + ``args_mapping`` remains a misconfiguration (``args_mapping`` is not
+              applied, and a :class:`UserWarning` fires) — auto-resolve is class-path-only.
 
             Omitting ``target`` is the preferred way to express warn-only deprecation. Passing ``target=None``
             is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a
@@ -192,14 +197,10 @@ def deprecated(
             an explicit callable ``target``, auto-resolves the mode to :attr:`~deprecate.TargetMode.ARGS_REMAP`.
         args_extra: Additional keyword arguments merged into the forwarded call after ``args_mapping`` is applied.
             Ignored under :attr:`~deprecate.TargetMode.NOTIFY`.
-        attrs_mapping: Class-only knob routed to :func:`~deprecate.proxy.deprecated_class` for attribute-name
-            remapping — ``{"old_attr": "new_attr"}`` renames, ``{"old_attr": None}`` warns without renaming. When
-            present without an explicit callable ``target``, auto-resolves the mode to
-            :attr:`~deprecate.TargetMode.ATTRS_REMAP`. Passing it with a **callable** source raises
-            :class:`TypeError` at decoration time — use ``args_mapping`` to rename callable arguments instead.
-        skip_if: Conditionally skip deprecation warning and forwarding — a ``bool``, or a zero-argument
-            ``Callable`` returning ``bool``. If the condition is ``True``, the source body executes without a
-            warning.
+        skip_if: Conditionally deactivate the deprecation machinery — a ``bool``, or a zero-argument ``Callable``
+            returning ``bool``. When it evaluates ``True``, a callable source executes its body with no warning
+            and no forwarding; a class source is served as-is by the proxy with no warning, no mapping, and no
+            target forwarding.
         update_docstring: If ``True``, inject a deprecation notice into the docstring — function or class — at
             decoration time.
         docstring_style: Output style for the injected notice when ``update_docstring=True`` — ``"auto"``
@@ -264,17 +265,17 @@ def deprecated(
                     remove_in=remove_in,
                     num_warns=num_warns,
                     stream=stream,
+                    template_mgs=template_mgs,
                     args_mapping=args_mapping,
                     args_extra=args_extra,
-                    attrs_mapping=attrs_mapping,
+                    skip_if=skip_if,
                     update_docstring=update_docstring,
                     docstring_style=docstring_style,
                     _stacklevel=_stacklevel + 1,
                 ),
             )
-        # Non-class source from here — both decoration-time guards live in ``_dispatch.py``
+        # Non-class source from here — the decoration-time guard lives in ``_dispatch.py``
         # alongside ``_reject_bare_decorator``, the sibling guard this dispatcher also uses.
-        _reject_attrs_mapping_on_callable(attrs_mapping)
         _reject_non_callable_source(source, target)
         # ``_stacklevel``/``_is_static`` are internal parameters of ``deprecated_callable``'s ``packing``,
         # intentionally omitted from its public return annotation (hence the call-arg ignore).

@@ -48,6 +48,11 @@ from tests.collection_deprecate import (
     ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
     depr_read_only_attrs_list,
+    make_deprecated_class_attrs_skip_if_true,
+    make_deprecated_class_skip_if_flag,
+    make_deprecated_class_skip_if_non_bool,
+    make_deprecated_class_skip_if_true,
+    make_deprecated_instance_skip_if_true_read_only,
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
@@ -3131,3 +3136,101 @@ class TestProxySubclassCheckTypeError:
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
         with pytest.raises(TypeError, match="arg 2 must be a class"):
             issubclass(int, cast(Any, proxy))
+
+
+class TestProxySkipIf:
+    """``skip_if`` on proxies — an active skip condition deactivates the whole deprecation machinery."""
+
+    def test_true_serves_source_without_warning(self) -> None:
+        """With ``skip_if=True`` attribute reads resolve on the wrapped source, silently.
+
+        A library gates a class deprecation on an environment condition (e.g. a dependency version): while the
+        condition holds, callers must see the original class untouched — source attribute values, no
+        ``FutureWarning``, no forwarding to the configured target.
+
+        """
+        proxy = make_deprecated_class_skip_if_true()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            value = proxy.colour
+
+        assert value == "source_colour"
+
+    def test_true_call_returns_source_instance(self) -> None:
+        """With ``skip_if=True`` instantiation runs the wrapped source class, not the target.
+
+        Parity with ``deprecated_callable(skip_if=True)``, where a skipped call executes the source body: a
+        skipped proxy call must construct the source class silently instead of forwarding to the target.
+
+        """
+        proxy = make_deprecated_class_skip_if_true()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            instance = proxy()
+
+        assert type(instance).__name__ == "PaletteOld"
+
+    def test_flag_flip_reactivates_machinery(self) -> None:
+        """A callable ``skip_if`` is re-evaluated per access — flipping the flag re-arms warning and forwarding.
+
+        The canonical use case is a runtime feature flag: while it is set the deprecation is dormant; once it
+        flips, the very next access must warn and forward to the target with no re-decoration required.
+
+        """
+        proxy, flag = make_deprecated_class_skip_if_flag()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            skipped = proxy.colour
+        flag["skip"] = False
+        with pytest.warns(FutureWarning):
+            active = proxy.colour
+
+        assert skipped == "source_colour"
+        assert active == "red"
+
+    def test_true_disables_attrs_redirect(self) -> None:
+        """With ``skip_if=True`` a deprecated attribute alias reads the source attribute, no redirect.
+
+        ``attrs_mapping={"color": "colour"}`` normally rewrites ``proxy.color`` to the canonical name; under an
+        active skip the alias must behave as plain attribute access on the wrapped source — no rename, no
+        warning.
+
+        """
+        proxy = make_deprecated_class_attrs_skip_if_true()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            value = proxy.color
+
+        assert value == "source_red"
+
+    def test_non_bool_return_raises_type_error(self) -> None:
+        """A ``skip_if`` callable returning a non-bool raises ``TypeError`` at access time.
+
+        Same strict contract as the callable decorator: a developer accidentally returning ``42`` from the
+        condition must get an immediate error naming ``skip_if``, not a silently-truthy skip.
+
+        """
+        proxy = make_deprecated_class_skip_if_non_bool()
+
+        with pytest.raises(TypeError, match="User function 'skip_if' shall return bool"):
+            proxy()
+
+    def test_instance_skip_bypasses_read_only_guard(self) -> None:
+        """``deprecated_instance(skip_if=True, read_only=True)`` serves the object with no mutator guard.
+
+        A read-only deprecated constant whose deprecation window is gated by a flag: while skipped, the proxy
+        is fully transparent — standard collection mutators succeed silently instead of raising the read-only
+        ``AttributeError``.
+
+        """
+        proxy = make_deprecated_instance_skip_if_true_read_only()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            proxy.append(3)
+
+        assert list(proxy) == [1, 2, 3]

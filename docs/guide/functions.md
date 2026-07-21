@@ -9,7 +9,7 @@ This page covers all deprecation patterns for Python functions and methods: forw
 
 !!! note "`@deprecated` vs. `deprecated_callable`"
 
-    `@deprecated` is the friendly front door: applied to a function, method, or other callable/descriptor it behaves exactly as documented on this page. Applied to a class instead, it dispatches to [`deprecated_class`](classes.md) (with a one-time informational notice) rather than raising an error. If you want a strict, callable-only form that rejects a class up front at decoration time — for example at a call site meant to enforce "only functions here" — use `deprecated_callable()`: it shares every parameter with `@deprecated` but raises `TypeError` immediately when applied to a class.
+    `@deprecated` is the friendly front door: applied to a function, method, or other callable/descriptor it behaves exactly as documented on this page. Applied to a class instead, it dispatches to [`deprecated_class`](classes.md) (with a one-time informational notice) rather than raising an error. If you want a strict, callable-only form that rejects a class up front at decoration time — for example at a call site meant to enforce "only functions here" — use `deprecated_callable()`: it shares every parameter with `@deprecated` and raises `TypeError` immediately when applied to a class.
 
 ## Simple function forwarding
 
@@ -460,10 +460,10 @@ Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in 
 
 ## Conditional skip
 
-`skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency.
+`skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency. `skip_if` is available on `@deprecated` and `deprecated_callable()` alike (and on the class/instance proxies — see [Classes](classes.md)):
 
 ```python
-from deprecate import TargetMode, deprecated
+from deprecate import TargetMode, deprecated_callable
 
 FAKE_VERSION = 1
 
@@ -472,7 +472,7 @@ def version_greater_1():
     return FAKE_VERSION > 1
 
 
-@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
+@deprecated_callable(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
 def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 

@@ -764,8 +764,10 @@ def make_async_stacked_notify() -> Callable:
     return deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
 
 
-@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
-@deprecated(
+@deprecated_callable(
+    TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
+)
+@deprecated_callable(
     TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False
 )
 def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> float:
@@ -779,10 +781,12 @@ def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> f
     return base ** (c1 - nc1)
 
 
-@deprecated(
+@deprecated_callable(
     TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False
 )
-@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True)
+@deprecated_callable(
+    TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
+)
 def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Conditional skip: inner decorator skipped, outer fires.
 
@@ -799,7 +803,7 @@ def original_pow_skip(base: float, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 
 
-_deprecation_pow_skip_if_true = deprecated(
+_deprecation_pow_skip_if_true = deprecated_callable(
     TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
 )
 
@@ -819,7 +823,7 @@ def decorated_pow_skip_if_true(base: float, c1: float = 1, nc1: float = 1) -> fl
 wrapped_pow_skip_if_true = _deprecation_pow_skip_if_true(original_pow_skip)
 
 
-_deprecation_pow_skip_if_func = deprecated(
+_deprecation_pow_skip_if_func = deprecated_callable(
     TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True
 )
 
@@ -839,7 +843,7 @@ def decorated_pow_skip_if_func(base: float, c1: float = 1, nc1: float = 1) -> fl
 wrapped_pow_skip_if_func = _deprecation_pow_skip_if_func(original_pow_skip)
 
 
-@deprecated(
+@deprecated_callable(
     TargetMode.ARGS_REMAP, "0.1", "0.3", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42
 )
 def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> float:
@@ -2456,7 +2460,7 @@ def make_deprecated_callable_on_class() -> type:
 #
 # `@deprecated` on a class is no longer the "will become a TypeError" wart from v0.6.0 — it now
 # dispatches to `deprecated_class` and emits a one-time informational `UserWarning` instead
-# (removed in v0.13). Every factory below defers decoration to the call site so tests can control
+# (removed in v1.0). Every factory below defers decoration to the call site so tests can control
 # when the informational warning is captured, mirroring `make_class_target_notify_with_args` above.
 
 
@@ -2532,41 +2536,95 @@ def make_deprecated_on_fresh_dataclass() -> type:
     return _DispatchedDataClass
 
 
-def make_deprecated_with_attrs_mapping_on_class() -> Any:  # noqa: ANN401
-    """Apply ``@deprecated(attrs_mapping=...)`` to a class — the dispatcher forwards it to ``deprecated_class``.
+def make_deprecated_with_attrs_mapping_kwarg() -> Any:  # noqa: ANN401
+    """Call ``deprecated(attrs_mapping=...)`` — the front door no longer accepts class-only knobs.
 
-    ``attrs_mapping`` is new on the ``deprecated()`` front door in Phase 2 (class path only). ``Palette.color``
-    should redirect to ``colour`` exactly as it does through ``deprecated_class(attrs_mapping=...)`` directly (see
-    ``DeprecatedAttrsPaletteWithStream``) — this factory proves the dispatcher forwards the mapping unchanged.
+    ``deprecated()`` exposes only the arguments common to ``deprecated_callable`` and ``deprecated_class``;
+    ``attrs_mapping`` is class-only and lives on ``deprecated_class`` alone, so the factory call itself must
+    raise ``TypeError`` (unexpected keyword argument) before any source is decorated.
+
+    """
+    # Intentionally invalid kwarg — the runtime TypeError is the behaviour under test.
+    return deprecated(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)  # type: ignore[call-arg]
+
+
+def make_deprecated_front_door_skip_if_true_on_class() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(target=..., skip_if=True)`` to a class — skip_if forwards onto the proxy path.
+
+    ``skip_if`` is common to both dispatch shapes, so the front door must forward it to ``deprecated_class``:
+    with the condition ``True`` the proxy serves the wrapped source class silently — instantiation returns a
+    source instance with no warning and no target forwarding.
 
     """
     with catch_warnings():
         simplefilter("ignore", UserWarning)  # suppress the one-time informational class-dispatch notice
-        return deprecated(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)(Palette)
+        return deprecated(target=Palette, skip_if=True, **_DEPRS_CASE_STD_ARGS)(PaletteOld)
 
 
-def make_deprecated_with_explicit_target_and_attrs_mapping_on_class() -> Any:  # noqa: ANN401
-    """Apply ``@deprecated(target=<class>, attrs_mapping=...)`` — explicit callable target through the dispatcher.
+def make_deprecated_class_skip_if_true() -> Any:  # noqa: ANN401
+    """Wrap ``PaletteOld`` with ``deprecated_class(target=Palette, skip_if=True)`` — machinery inactive.
 
-    Every other dispatcher ``attrs_mapping`` fixture omits an explicit non-``NOTIFY`` callable ``target``
-    (auto-resolve only); this proves the dispatcher forwards BOTH a real callable target and ``attrs_mapping``
-    onto ``deprecated_class`` unchanged, exactly like ``deprecated_class(target=..., attrs_mapping=...)`` would.
+    With the skip condition statically ``True`` the proxy transparently serves the wrapped source class:
+    attribute reads resolve on ``PaletteOld`` (not the ``Palette`` target) and emit no warning.
 
     """
+    return deprecated_class(target=Palette, skip_if=True, **_DEPRS_CASE_STD_ARGS)(PaletteOld)
 
-    class _DispatchExplicitTargetNew:
-        """Target class with the canonical attribute name."""
 
-        colour = "blue"
+def make_deprecated_class_skip_if_flag() -> tuple[Any, dict[str, bool]]:
+    """Wrap ``PaletteOld`` with a flag-driven ``skip_if`` callable so tests can flip the condition at runtime.
 
+    Returns the proxy together with the mutable flag dict (``{"skip": True}``) the ``skip_if`` lambda reads —
+    tests flip ``flag["skip"]`` to verify the proxy re-evaluates the condition per access.
+
+    """
+    flag = {"skip": True}
+    proxy = deprecated_class(target=Palette, skip_if=lambda: flag["skip"], **_DEPRS_CASE_STD_ARGS)(PaletteOld)
+    return proxy, flag
+
+
+def make_deprecated_class_attrs_skip_if_true() -> Any:  # noqa: ANN401
+    """Wrap ``PaletteOld`` with ``attrs_mapping`` plus ``skip_if=True`` — the redirect is inactive under skip.
+
+    Under an active skip condition the deprecated alias ``color`` must read the source attribute directly
+    (no redirect to ``colour``, no warning) — the proxy behaves as if the class were undecorated.
+
+    """
+    return deprecated_class(attrs_mapping={"color": "colour"}, skip_if=True, **_DEPRS_CASE_STD_ARGS)(PaletteOld)
+
+
+def make_deprecated_class_skip_if_non_bool() -> Any:  # noqa: ANN401
+    """Wrap ``Palette`` with a ``skip_if`` callable returning a non-bool — access must raise ``TypeError``.
+
+    Mirrors the callable-decorator contract: the skip condition must return a strict ``bool``; a truthy int
+    is rejected at access time with ``TypeError("User function 'skip_if' shall return bool, ...")``.
+
+    """
+    # Intentionally wrong return type — the runtime TypeError is the behaviour under test.
+    return deprecated_class(skip_if=lambda: 42, **_DEPRS_CASE_STD_ARGS)(Palette)  # type: ignore[arg-type,return-value]
+
+
+def make_deprecated_instance_skip_if_true_read_only() -> Any:  # noqa: ANN401
+    """Wrap a list with ``deprecated_instance(skip_if=True, read_only=True)`` — skip bypasses the guard.
+
+    With the skip condition ``True`` the proxy serves the wrapped list directly: standard mutators such as
+    ``append`` must succeed without warning even though ``read_only=True`` would normally block them.
+
+    """
+    return deprecated_instance([1, 2], name="legacy_list", skip_if=True, read_only=True, **_DEPRS_CASE_STD_ARGS)
+
+
+def make_deprecated_with_template_mgs_on_class() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(template_mgs=...)`` to a class — the dispatcher forwards the template to the proxy.
+
+    ``template_mgs`` is common to both dispatch shapes, so the front door must forward it onto
+    ``deprecated_class`` — proxy access warnings must render the custom template exactly as a direct
+    ``deprecated_class(template_mgs=...)`` call would (the dispatcher used to drop it silently).
+
+    """
     with catch_warnings():
         simplefilter("ignore", UserWarning)  # suppress the one-time informational class-dispatch notice
-
-        @deprecated(target=_DispatchExplicitTargetNew, attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)
-        class _DispatchExplicitTargetOld:
-            """Source class deprecated via the dispatcher with an explicit callable target."""
-
-    return _DispatchExplicitTargetOld
+        return deprecated(template_mgs="Custom notice for `%(source_name)s`.", **_DEPRS_CASE_STD_ARGS)(Palette)
 
 
 def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa: ANN401
@@ -2581,22 +2639,6 @@ def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa:
     with catch_warnings():
         simplefilter("ignore", UserWarning)  # suppress the one-time informational class-dispatch notice
         return deprecated(args_mapping={"old_c": "c"}, **_DEPRS_CASE_STD_ARGS)(NewCls)
-
-
-def make_deprecated_with_attrs_mapping_on_callable() -> Any:  # noqa: ANN401
-    """Apply ``@deprecated(attrs_mapping=...)`` to a function — raises ``TypeError`` naming ``deprecated_class``.
-
-    ``attrs_mapping`` is class-path-only; passing it to a callable source must fail loudly at decoration time
-    instead of silently having zero effect.
-
-    """
-
-    @deprecated(attrs_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)
-    def _rejected_attrs_mapping_fn(x: int) -> int:
-        """Source function — never actually wrapped; decoration raises first."""
-        return x
-
-    return _rejected_attrs_mapping_fn
 
 
 def make_deprecated_on_non_callable_source() -> Any:  # noqa: ANN401

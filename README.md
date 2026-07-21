@@ -196,14 +196,13 @@ Not sure which API to reach for? Start here.
 | `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
 | `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                   |
 | `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                 |
-| `attrs_mapping`    | `None`                      | Class-only: `{"old": "new"}` rename · `{"old": None}` warn-only. `TypeError` on a callable source          |
-| `skip_if`          | `False`                     | `bool` or `Callable → bool`; skip deprecation when true                                                    |
+| `skip_if`          | `False`                     | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                |
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
 | `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                              |
 
 > [!TIP]
-> `attrs_mapping` only has an effect when the decorated source is a class — `@deprecated` on a class dispatches to `@deprecated_class()`, which shares every parameter above plus `attrs_mapping` for attribute-name remapping.
-> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, and `template_mgs`; it requires `obj` and adds `name` (display name) and `read_only`.
+> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`.
+> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `template_mgs`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 
@@ -305,7 +304,7 @@ In particular the target values (cases):
 > `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
-> `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` (a permanent, supported path) and emits a one-time informational `UserWarning` (only this notice is removed, in v1.0; suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes class-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` but raises `TypeError` at decoration time when applied to a class.
+> `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` (a permanent, supported path) and emits a one-time informational `UserWarning` (only this notice is removed, in v1.0; suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes class-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` and raises `TypeError` at decoration time when applied to a class.
 
 ### ➡ Simple function forwarding
 
@@ -645,13 +644,13 @@ print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
 
 ### ⚙ Conditional skip
 
-Use `skip_if` when the deprecation notice should depend on runtime state such as an installed package version:
+Use `skip_if` when the deprecation notice should depend on runtime state such as an installed package version. It is available on `@deprecated`, `deprecated_callable()`, `deprecated_class()`, and `deprecated_instance()`; on a class or instance proxy an active skip serves the wrapped source silently — no warning, no mapping, no target forwarding:
 
 <details>
 <summary>Example: <code>skip_if</code> based on a runtime condition</summary>
 
 ```python
-from deprecate import TargetMode, deprecated
+from deprecate import TargetMode, deprecated_callable
 
 FAKE_VERSION = 1
 
@@ -660,7 +659,7 @@ def version_greater_1():
     return FAKE_VERSION > 1
 
 
-@deprecated(
+@deprecated_callable(
     target=TargetMode.ARGS_REMAP,
     deprecated_in="0.3",
     remove_in="0.6",
@@ -1995,7 +1994,7 @@ print(predict_batch(1))
 
 ### ⚠ UserWarning: `` `@deprecated` on class … now dispatches to `@deprecated_class` ``
 
-**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class name per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0.
+**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class (keyed by module + qualified name — same-named classes in different modules each warn) per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0.
 
 **To quiet it:** apply `@deprecated_class()` directly (same result, no notice, and required to reach class-only options such as `attrs_mapping`), or pass `stream=None`.
 
@@ -2124,7 +2123,7 @@ def get_status() -> str:
 
 # ---------------------------
 
-from deprecate import deprecated
+from deprecate import deprecated_callable
 
 
 # Correct: function returns bool
@@ -2132,13 +2131,13 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
+@deprecated_callable(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
 def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
+@deprecated_callable(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
 def infer_v2():
     pass
 
