@@ -61,8 +61,6 @@ from __future__ import annotations
 
 import pytest
 
-import deprecate.deprecation as _deprecation
-
 
 def _iter_wrapper_states(module: object) -> list[object]:
     """Return every module-level attribute of *module* that carries a ``_state`` attribute.
@@ -90,6 +88,7 @@ def _reset_collection_deprecate_state() -> None:
     ``src/`` imports from the installed package rather than from ``src/``.
 
     """
+    import deprecate.deprecation as _deprecation  # lazy: avoid poisoning sys.modules before src collection
     import tests.collection_deprecate as _collection_deprecate
 
     # Reset the one-time ``@deprecated``-on-class dispatch dedup set so per-qualname warnings are observable
