@@ -64,6 +64,65 @@ def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
         )
 
 
+# Descriptor source types the callable path handles via ``_packing_descriptor`` even though some are
+# neither ``callable`` nor carry ``__name__`` (``property``/``cached_property``). They must be exempt
+# from the dispatcher's "plain object" reject guard so class/instance-style misuse stays the only reject.
+_DESCRIPTOR_SOURCE_TYPES = (classmethod, staticmethod, property, cached_property)
+
+# Reject message for a non-callable / callable-without-``__name__`` source handed to ``@deprecated``.
+_PLAIN_OBJECT_REJECT = "cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`"
+
+
+def _reject_attrs_mapping_on_callable(attrs_mapping: Optional[dict[str, Any]]) -> None:
+    """Raise ``TypeError`` when ``attrs_mapping`` is passed for a callable (non-class) source.
+
+    ``attrs_mapping`` is a class-only knob — reject it loudly on the callable dispatch path instead of
+    silently ignoring it (enforcement fails loud rather than swallowing the argument).
+
+    Args:
+        attrs_mapping: The ``attrs_mapping`` argument as received by the ``deprecated()`` front door.
+
+    Raises:
+        TypeError: When ``attrs_mapping`` is not ``None``.
+
+    """
+    if attrs_mapping is not None:
+        raise TypeError(
+            "`attrs_mapping` is only valid when deprecating a class — use "
+            "`@deprecated_class(attrs_mapping=...)` for attribute renaming, or `args_mapping=...` "
+            "to rename callable arguments."
+        )
+
+
+def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN401
+    """Raise ``TypeError`` for a non-callable, or callable-without-``__name__``, decoration source.
+
+    Third dispatch bucket: a non-callable object, or a callable instance lacking ``__name__`` (a
+    ``__call__`` object or ``functools.partial``), would crash downstream at ``source.__name__``. Reject
+    up front with actionable guidance. Descriptors are exempt — the callable path handles them via
+    ``_packing_descriptor`` even though some are neither ``callable`` nor carry ``__name__``.
+
+    Disambiguates two look-alike shapes: a bare ``@deprecated`` (no parens) binds the user's callable to
+    ``target`` and this call arrives with the call ARGUMENT as ``source`` — a callable ``target`` that is
+    not a ``TargetMode`` is that signal, so it delegates to :func:`_reject_bare_decorator`. Otherwise
+    (dispatcher default ``target`` is a ``TargetMode``) it is a genuine attempt to deprecate a plain
+    object → point at ``deprecated_instance``.
+
+    Args:
+        source: The object ``packing`` received as its decoration target.
+        target: The raw ``target`` argument given to ``@deprecated``, used only to disambiguate the
+            bare-decorator misuse case.
+
+    Raises:
+        TypeError: When ``source`` is neither a descriptor, nor a named callable.
+
+    """
+    if not isinstance(source, _DESCRIPTOR_SOURCE_TYPES) and (not callable(source) or not hasattr(source, "__name__")):
+        if callable(target) and not isinstance(target, TargetMode):
+            _reject_bare_decorator(source)  # raises the missing-parentheses TypeError
+        raise TypeError(_PLAIN_OBJECT_REJECT)
+
+
 def _find_class_body_qualname(max_depth: int = 10) -> str:
     """Return the ``__qualname__`` of the nearest enclosing class body on the call stack.
 

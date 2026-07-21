@@ -19,24 +19,16 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Union
 
-from deprecate._dispatch import _reject_bare_decorator
+from deprecate._dispatch import _reject_attrs_mapping_on_callable, _reject_non_callable_source
 from deprecate._types import TargetMode
 from deprecate.messaging import _validate_template_mgs, deprecation_warning
 from deprecate.routine import deprecated_callable
-
-# Descriptor source types the callable path handles via ``_packing_descriptor`` even though some are
-# neither ``callable`` nor carry ``__name__`` (``property``/``cached_property``). They must be exempt
-# from the dispatcher's "plain object" reject guard so class/instance-style misuse stays the only reject.
-_DESCRIPTOR_SOURCE_TYPES = (classmethod, staticmethod, property, cached_property)
 
 # Classes that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
 # Keyed by ``f"{__module__}.{__qualname__}"`` so a decoration loop warns once per class, not per
 # iteration, while distinct classes sharing a bare qualname across modules still warn independently.
 # Remove in 0.13.
 _CLASS_DISPATCH_NOTIFIED: set[str] = set()
-
-# Reject message for a non-callable / callable-without-``__name__`` source handed to ``@deprecated``.
-_PLAIN_OBJECT_REJECT = "cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`"
 
 
 @dataclass
@@ -280,29 +272,10 @@ def deprecated(
                     _stacklevel=_stacklevel + 1,
                 ),
             )
-        # Non-class source from here. ``attrs_mapping`` is a class-only knob — reject it loudly on the
-        # callable path instead of silently ignoring it (enforcement fails loud).
-        if attrs_mapping is not None:
-            raise TypeError(
-                "`attrs_mapping` is only valid when deprecating a class — use "
-                "`@deprecated_class(attrs_mapping=...)` for attribute renaming, or `args_mapping=...` "
-                "to rename callable arguments."
-            )
-        # Third dispatch bucket: a non-callable object, or a callable instance lacking ``__name__`` (a
-        # ``__call__`` object or ``functools.partial``), would crash downstream at ``source.__name__``.
-        # Reject up front with actionable guidance. Descriptors are exempt — the callable path handles
-        # them via ``_packing_descriptor`` even though some are neither ``callable`` nor carry ``__name__``.
-        if not isinstance(source, _DESCRIPTOR_SOURCE_TYPES) and (
-            not callable(source) or not hasattr(source, "__name__")
-        ):
-            # Disambiguate two look-alike shapes. A bare ``@deprecated`` (no parens) binds the user's
-            # callable to ``target`` and this call arrives with the call ARGUMENT as ``source`` — a
-            # callable ``target`` that is not a ``TargetMode`` is that signal, so guide them to the missing
-            # parentheses. Otherwise (dispatcher default ``target`` is a ``TargetMode``) it is a genuine
-            # attempt to deprecate a plain object → point at ``deprecated_instance``.
-            if callable(target) and not isinstance(target, TargetMode):
-                _reject_bare_decorator(source)  # raises the missing-parentheses TypeError
-            raise TypeError(_PLAIN_OBJECT_REJECT)
+        # Non-class source from here — both decoration-time guards live in ``_dispatch.py``
+        # alongside ``_reject_bare_decorator``, the sibling guard this dispatcher also uses.
+        _reject_attrs_mapping_on_callable(attrs_mapping)
+        _reject_non_callable_source(source, target)
         # ``_stacklevel``/``_is_static`` are internal parameters of ``deprecated_callable``'s ``packing``,
         # intentionally omitted from its public return annotation (hence the call-arg ignore).
         return _callable_pack(source, _stacklevel + 1, _is_static)  # type: ignore[call-arg, arg-type]
