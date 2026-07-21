@@ -9,7 +9,7 @@ This page covers deprecation patterns for classes, Enums, dataclasses, and modul
 
 ## `@deprecated` on a class
 
-`@deprecated` also accepts a class directly — it dispatches to `deprecated_class()` (used throughout the rest of this page) and produces an identical proxy; this dispatch is permanent, not itself deprecated. It emits a one-time informational `UserWarning` per class name per process — only this notice is scheduled for removal (in v1.0) — suppressed by `stream=None`:
+`@deprecated` also accepts a class directly — it dispatches to `deprecated_class()` (used throughout the rest of this page) and produces an identical proxy; this dispatch is permanent, not itself deprecated. `@deprecated` emits a one-time informational `UserWarning` per class name per process when it does this — only that notice is scheduled for removal (in v1.0) — suppressed by `stream=None`:
 
 ```python
 from deprecate import deprecated
