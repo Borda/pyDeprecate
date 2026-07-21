@@ -146,7 +146,7 @@
           "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Since v0.12, applying @deprecated directly to a class is first-class supported: it dispatches to @deprecated_class and produces an identical _DeprecatedProxy. The UserWarning is a one-time informational notice per class name per process, not a deprecation of the pattern itself; it is removed in v0.13. Pass stream=None to suppress it, or apply @deprecated_class directly to skip the notice entirely and reach class-only options such as attrs_mapping without an extra hop."
+            "text": "Since v0.12, applying @deprecated directly to a class is first-class supported and permanent: it dispatches to @deprecated_class and produces an identical _DeprecatedProxy. The UserWarning is a one-time informational notice per class name per process, not a deprecation of the pattern itself; only this notice is removed, in v1.0. Pass stream=None to suppress it, or apply @deprecated_class directly to skip the notice entirely and reach class-only options such as attrs_mapping without an extra hop."
           }
         },
         {

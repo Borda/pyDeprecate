@@ -27,7 +27,7 @@ from deprecate.routine import deprecated_callable
 # Classes that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
 # Keyed by ``f"{__module__}.{__qualname__}"`` so a decoration loop warns once per class, not per
 # iteration, while distinct classes sharing a bare qualname across modules still warn independently.
-# Remove in 0.13.
+# The dispatch itself is permanent; only this transitional notice is removed in 1.0.
 _CLASS_DISPATCH_NOTIFIED: set[str] = set()
 
 
@@ -75,9 +75,9 @@ def _packing_class_source(
     proxy_module = importlib.import_module("deprecate.proxy")
     deprecated_class_fn = proxy_module.deprecated_class
 
-    # One-time informational dispatch notice — class dispatch is now first-class, so the old v0.6.0
-    # "will become a TypeError" wart is retired. Emit at most once per class qualname per process so a
-    # decoration loop does not spam; suppressed when ``stream=None``. Remove in 0.13.
+    # One-time informational dispatch notice — class dispatch is now first-class (permanent), so the old
+    # v0.6.0 "will become a TypeError" wart is retired. Emit at most once per class qualname per process
+    # so a decoration loop does not spam; suppressed when ``stream=None``. Notice itself removed in 1.0.
     dispatch_key = f"{source.__module__}.{source.__qualname__}"
     if pack_args.stream is not None and dispatch_key not in _CLASS_DISPATCH_NOTIFIED:
         _CLASS_DISPATCH_NOTIFIED.add(dispatch_key)

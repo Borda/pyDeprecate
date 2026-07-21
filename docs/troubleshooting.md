@@ -41,7 +41,7 @@ from pydeprecate import deprecated  # wrong — no such module
 
 **Q:** I applied `@deprecated` directly to a class and got `` UserWarning: `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`. `` Is this a problem, and how do I stop it?
 
-**A:** No — since v0.12, `@deprecated` on a class is first-class supported. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class name per process, not on every decoration — telling you that the dispatch happened. It is removed entirely in v0.13.
+**A:** No — since v0.12, `@deprecated` on a class is first-class supported and permanent. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class name per process, not on every decoration — telling you that the dispatch happened. Only this notice — not the dispatch support itself — is removed entirely, in v1.0.
 
 You have two ways to quiet it, and one alternative pattern for a different use case:
 

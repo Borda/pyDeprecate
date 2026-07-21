@@ -305,7 +305,7 @@ In particular the target values (cases):
 > `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
-> `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` and emits a one-time informational `UserWarning` (removed in v0.13, suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes class-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` but raises `TypeError` at decoration time when applied to a class.
+> `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` (a permanent, supported path) and emits a one-time informational `UserWarning` (only this notice is removed, in v1.0; suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes class-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` but raises `TypeError` at decoration time when applied to a class.
 
 ### ➡ Simple function forwarding
 
@@ -1995,7 +1995,7 @@ print(predict_batch(1))
 
 ### ⚠ UserWarning: `` `@deprecated` on class … now dispatches to `@deprecated_class` ``
 
-**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class name per process, telling you that the dispatch happened. It is removed entirely in v0.13.
+**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class name per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0.
 
 **To quiet it:** apply `@deprecated_class()` directly (same result, no notice, and required to reach class-only options such as `attrs_mapping`), or pass `stream=None`.
 

@@ -161,7 +161,7 @@ Before v0.12, applying `@deprecated` directly to a class emitted a warning threa
 `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`.
 ```
 
-It is removed entirely in v0.13 and suppressed by `stream=None`. Prefer `deprecated_class()` directly — same result, no notice, and required to reach class-only options such as `attrs_mapping`. See [`@deprecated` on a class](classes.md#deprecated-on-a-class) for a runnable example.
+The dispatch is permanent; only this notice is removed entirely, in v1.0, and suppressed by `stream=None`. Prefer `deprecated_class()` directly — same result, no notice, and required to reach class-only options such as `attrs_mapping`. See [`@deprecated` on a class](classes.md#deprecated-on-a-class) for a runnable example.
 
 ### `deprecated_class` default `target` changed from `None` to `TargetMode.NOTIFY`
 
