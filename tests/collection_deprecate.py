@@ -1358,11 +1358,12 @@ def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
 def make_class_target_notify_with_args() -> type:
     """Build a class with @deprecated(target=TargetMode.NOTIFY) + args_mapping + args_extra (Fix 1 fixture).
 
-    Option C (Q5, 2026-07-20): applying @deprecated to a class with target=TargetMode.NOTIFY no longer
-    treats args_mapping/args_extra as a misconfiguration — the mapping is passed through unchanged so the
-    proxy auto-resolves NOTIFY+args_mapping to TargetMode.ARGS_REMAP, and args_extra is merged into the
-    forwarded call after remap (same as any other ARGS_REMAP proxy). ``injected`` is a real constructor
-    parameter here (not stripped away) so tests can exercise the full round trip.
+    The NOTIFY+mapping auto-resolve behavior (2026-07-20): applying @deprecated to a class with
+    target=TargetMode.NOTIFY and a non-empty args_mapping no longer treats it as a misconfiguration — the
+    mapping is passed through unchanged so the proxy auto-resolves NOTIFY+args_mapping to
+    TargetMode.ARGS_REMAP, and args_extra is merged into the forwarded call after remap (same as any other
+    ARGS_REMAP proxy). ``injected`` is a real constructor parameter here (not stripped away) so tests can
+    exercise the full round trip.
 
     """
 
@@ -2571,7 +2572,7 @@ def make_deprecated_with_explicit_target_and_attrs_mapping_on_class() -> Any:  #
 def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa: ANN401
     """Apply ``@deprecated(args_mapping=...)`` to a class with NO explicit ``target=``.
 
-    Option C (Q5, 2026-07-20): the dispatcher's own default is ``target=TargetMode.NOTIFY``; passing
+    The dispatcher's own default is ``target=TargetMode.NOTIFY``; passing
     ``args_mapping`` alongside an omitted target must auto-resolve NOTIFY to ``TargetMode.ARGS_REMAP`` —
     the same self-deprecation auto-resolve ``deprecated_class(args_mapping=...)`` has always applied for
     an omitted target — reached here through the friendly ``@deprecated`` front door instead.

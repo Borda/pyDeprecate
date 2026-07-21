@@ -98,10 +98,11 @@ class TestFix2ArgsExtraOnArgsRemap:
 
 
 class TestFix3aTargetNoneWithArgsMappingOnClass:
-    """Fix 3a / option C — legacy ``target=None`` + ``args_mapping`` on a class auto-promotes to ARGS_REMAP.
+    """Fix 3a — legacy ``target=None`` + ``args_mapping`` on a class auto-promotes to ARGS_REMAP.
 
-    Option C (Q5, 2026-07-20) superseded the original Fix 3a behaviour: the legacy ``target=None`` sentinel
-    still normalises to ``TargetMode.NOTIFY`` (unchanged FutureWarning), but the class branch no longer
+    The NOTIFY+mapping auto-resolve behavior (2026-07-20) superseded the original Fix 3a behaviour: the
+    legacy ``target=None`` sentinel still normalises to ``TargetMode.NOTIFY`` (unchanged FutureWarning), but
+    the class branch no longer
     treats NOTIFY+``args_mapping`` as a misconfiguration to strip — it passes the mapping through so the
     proxy auto-promotes to :class:`TargetMode.ARGS_REMAP`, exactly like ``target=None`` has always done.
     """
@@ -112,7 +113,7 @@ class TestFix3aTargetNoneWithArgsMappingOnClass:
             make_class_target_none_with_args_mapping()
 
     def test_construction_does_not_emit_misconfig_warning(self) -> None:
-        """NOTIFY+args_mapping no longer emits a misconfig UserWarning (option C, 2026-07-20)."""
+        """NOTIFY+args_mapping no longer emits a misconfig UserWarning (since 2026-07-20)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             make_class_target_none_with_args_mapping()

@@ -15,7 +15,7 @@ This page covers deprecation patterns for classes, Enums, dataclasses, and modul
 from deprecate import deprecated
 
 
-# NEW/FUTURE API
+# NEW/FUTURE API — the replacement class callers should migrate to
 class HttpService:
     def call(self) -> str:
         return "ok"

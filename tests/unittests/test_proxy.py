@@ -1178,7 +1178,7 @@ class TestProxyArgsMappingBehavior:
         assert instance.new_key == 6
 
     def test_notify_with_args_mapping_auto_resolves_to_args_remap(self) -> None:
-        """NOTIFY + args_mapping on proxy auto-resolves to ARGS_REMAP — no misconfig warning (option C, 2026-07-20)."""
+        """NOTIFY + args_mapping on proxy auto-resolves to ARGS_REMAP — no misconfig warning (since 2026-07-20)."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -1895,11 +1895,11 @@ class TestAttrsMappingCombinations:
         assert meta.target is TargetMode.ATTRS_REMAP
 
     def test_legacy_true_with_attrs_mapping_does_not_raise_value_error(self) -> None:
-        """Legacy ``target=True`` with ``attrs_mapping`` auto-resolves to ``ATTRS_REMAP`` (option C).
+        """Legacy ``target=True`` with ``attrs_mapping`` auto-resolves to ``ATTRS_REMAP``.
 
         A legacy caller can combine ``target=True`` with ``attrs_mapping`` while still defining the canonical
-        attribute on the deprecated class itself.  ``target=True`` normalises to ``NOTIFY``, and under option C a
-        present mapping is always applied — the config auto-resolves to ``ATTRS_REMAP`` (no misconfiguration)
+        attribute on the deprecated class itself.  ``target=True`` normalises to ``NOTIFY``, and a present
+        mapping is always applied — the config auto-resolves to ``ATTRS_REMAP`` (no misconfiguration)
         rather than validating redirect targets against ``bool`` and raising ``ValueError`` before the proxy can be
         called.
 
@@ -2115,8 +2115,8 @@ class TestAttrsMappingCombinations:
         from inside the library, making it hard for users to locate their misconfigured class.
 
         The trigger is ``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` — a misconfiguration
-        ``_validate_proxy`` still flags under option C (unlike ``NOTIFY + attrs_mapping``, which now
-        auto-resolves and no longer warns).
+        ``_validate_proxy`` still flags (unlike ``NOTIFY + attrs_mapping``, which now auto-resolves and no
+        longer warns).
 
         """
 

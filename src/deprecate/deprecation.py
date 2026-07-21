@@ -64,7 +64,7 @@ def _packing_class_source(
 
     Class dispatch is first-class: this resolves legacy ``target`` sentinels, emits the one-time
     informational ``UserWarning`` (class dispatch now routes to ``deprecated_class``), and forwards
-    every mapping through so the proxy auto-resolves ``NOTIFY + mapping`` (option C). Extracted from
+    every mapping through so the proxy auto-resolves ``NOTIFY + mapping`` (auto-resolve). Extracted from
     the ``inspect.isclass(source)`` branch of ``packing``.
 
     Args:
@@ -172,10 +172,12 @@ def deprecated(
               (class source).
             - :attr:`~deprecate.TargetMode.ATTRS_REMAP`: Class-only — selective attribute deprecation driven by
               ``attrs_mapping``. Raises :class:`TypeError` at decoration time on a callable source.
-            - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding. When
-              ``args_mapping`` or ``attrs_mapping`` is also present, the mode auto-resolves to
+            - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding. **On a class
+              source**, when ``args_mapping`` or ``attrs_mapping`` is also present, the mode auto-resolves to
               :attr:`~deprecate.TargetMode.ARGS_REMAP` / :attr:`~deprecate.TargetMode.ATTRS_REMAP` instead —
-              a mapping present is always applied.
+              a mapping present is always applied. **On a callable source**, NOTIFY + ``args_mapping`` remains
+              a misconfiguration (``args_mapping`` is not applied, and a :class:`UserWarning` fires) —
+              auto-resolve is class-path-only.
 
             Omitting ``target`` is the preferred way to express warn-only deprecation. Passing ``target=None``
             is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a

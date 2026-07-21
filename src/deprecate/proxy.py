@@ -359,7 +359,7 @@ class _DeprecatedProxy:
         args_mapping, _auto_expanded = _expand_dc_attrs_to_args(_dc_check, attrs_mapping, args_mapping)
         # When auto-expand produced a non-empty args_mapping and the user provided no explicit
         # target, set target = obj so the callable-target + both-mappings path activates both surfaces.
-        # ``NOTIFY`` counts as "no explicit target" too (option C): it is the unified factory default and
+        # ``NOTIFY`` counts as "no explicit target" too: it is the unified factory default and
         # behaves like the historical ``None`` sentinel whenever a mapping is present.
         if _auto_expanded and (target is None or target is TargetMode.NOTIFY):
             target = obj
@@ -370,9 +370,9 @@ class _DeprecatedProxy:
         # historical pop-and-setattr fallback, which failed for required params, immutable
         # instances, and constructor-derived state.
         _ctor_positional_only, _ctor_positional_only_order = _detect_ctor_positional_only(_dc_check)
-        # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP. Under option C the
-        # unified default ``TargetMode.NOTIFY`` is treated as "no explicit target" here, so NOTIFY + a
-        # mapping auto-promotes instead of being flagged as a misconfiguration.
+        # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP. The unified default
+        # ``TargetMode.NOTIFY`` is treated as "no explicit target" here, so NOTIFY + a mapping
+        # auto-promotes instead of being flagged as a misconfiguration.
         if (target is None or target is TargetMode.NOTIFY) and args_mapping:
             target = TargetMode.ARGS_REMAP
         # Auto-resolve: no explicit target but attrs_mapping provided → ATTRS_REMAP

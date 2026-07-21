@@ -293,7 +293,7 @@ class TargetMode(Enum):
 
         Examples:
             >>> # NOTIFY + attrs_mapping is not flagged here — the proxy auto-resolves it to ATTRS_REMAP
-            >>> # (option C) before this validator ever runs; see ``_DeprecatedProxy.__init__``.
+            >>> # before this validator ever runs; see ``_DeprecatedProxy.__init__``.
             >>> TargetMode._validate_proxy(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
             False
             >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None, stacklevel=None)
@@ -321,8 +321,8 @@ class TargetMode(Enum):
         """
         messages = []
         # NOTIFY + attrs_mapping is not validated here: ``_DeprecatedProxy.__init__`` auto-resolves it to
-        # ATTRS_REMAP (option C) before this classmethod is ever reached in production, so a check here
-        # would be dead code — unreachable except via a direct call bypassing that auto-resolve.
+        # ATTRS_REMAP before this classmethod is ever reached in production, so a check here would be
+        # dead code — unreachable except via a direct call bypassing that auto-resolve.
         if mode is cls.ARGS_REMAP and args_mapping and attrs_mapping:
             messages.append(
                 f"`deprecated_class` on `{source_name}` has both `args_mapping` and `attrs_mapping` "

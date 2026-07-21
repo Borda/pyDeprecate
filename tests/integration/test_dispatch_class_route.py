@@ -136,7 +136,7 @@ class TestClassDispatchInformationalWarning:
         """The NOTIFY + bare ``args_extra`` misconfig ``UserWarning`` reports the decoration site, not internals.
 
         A maintainer decorates a class with a stray ``args_extra`` and no ``args_mapping`` — this does not
-        auto-resolve to a forwarding mode (option C only auto-resolves when a mapping is present), so the proxy
+        auto-resolve to a forwarding mode (auto-resolve only applies when a mapping is present), so the proxy
         still flags it as a misconfiguration. The dispatcher inserts two extra frames (``packing`` and
         ``_packing_class_source``) versus a direct ``deprecated_class(...)`` call; without the matching
         stacklevel offset the reported location would point into `deprecation.py`/`proxy.py` instead of here.
@@ -238,15 +238,15 @@ class TestAttrsMappingOnDispatcher:
 
 
 class TestArgsMappingDefaultTargetAutoResolveOnDispatcher:
-    """``@deprecated(args_mapping=...)`` on a class with NO explicit ``target=`` auto-resolves (option C)."""
+    """``@deprecated(args_mapping=...)`` on a class with NO explicit ``target=`` auto-resolves."""
 
     def test_default_target_auto_resolves_no_misconfig(self) -> None:
         """Omitting ``target=`` while passing ``args_mapping`` to a class auto-resolves to ``ARGS_REMAP``.
 
-        The dispatcher's own default is ``target=TargetMode.NOTIFY``; before option C this combination was
-        flagged as a misconfiguration and the mapping was dropped. It must now behave exactly like
-        ``deprecated_class(args_mapping=...)`` with an omitted target always has: auto-promote to
-        ``ARGS_REMAP``, no misconfig warning.
+        The dispatcher's own default is ``target=TargetMode.NOTIFY``; before this auto-resolve behavior was
+        added, this combination was flagged as a misconfiguration and the mapping was dropped. It must now
+        behave exactly like ``deprecated_class(args_mapping=...)`` with an omitted target always has:
+        auto-promote to ``ARGS_REMAP``, no misconfig warning.
 
         """
         wrapped = make_deprecated_with_args_mapping_on_class_default_target()

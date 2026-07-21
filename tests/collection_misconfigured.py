@@ -205,10 +205,11 @@ def make_class_target_none_with_args_mapping() -> type:
     """Build a class deprecation with legacy ``target=None`` + ``args_mapping``.
 
     Fix 3a (original): the class branch must normalise ``None`` to :class:`TargetMode.NOTIFY`, emitting the
-    legacy-sentinel ``FutureWarning`` unchanged. Option C (Q5, 2026-07-20) changed what happens next: rather
-    than flagging NOTIFY+args_mapping as a misconfiguration and stripping the mapping, the class branch now
-    passes ``args_mapping`` through unchanged so the proxy auto-promotes ``NOTIFY+args_mapping`` to
-    :class:`TargetMode.ARGS_REMAP` — the same auto-resolve the proxy has always applied for ``target=None``.
+    legacy-sentinel ``FutureWarning`` unchanged. The NOTIFY+mapping auto-resolve behavior (2026-07-20) changed
+    what happens next: rather than flagging NOTIFY+args_mapping as a misconfiguration and stripping the
+    mapping, the class branch now passes ``args_mapping`` through unchanged so the proxy auto-promotes
+    ``NOTIFY+args_mapping`` to :class:`TargetMode.ARGS_REMAP` — the same auto-resolve the proxy has always
+    applied for ``target=None``.
 
     """
 
