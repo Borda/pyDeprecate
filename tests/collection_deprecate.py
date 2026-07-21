@@ -2544,6 +2544,30 @@ def make_deprecated_with_attrs_mapping_on_class() -> Any:  # noqa: ANN401
         return deprecated(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)(Palette)
 
 
+def make_deprecated_with_explicit_target_and_attrs_mapping_on_class() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(target=<class>, attrs_mapping=...)`` — explicit callable target through the dispatcher.
+
+    Every other dispatcher ``attrs_mapping`` fixture omits an explicit non-``NOTIFY`` callable ``target``
+    (auto-resolve only); this proves the dispatcher forwards BOTH a real callable target and ``attrs_mapping``
+    onto ``deprecated_class`` unchanged, exactly like ``deprecated_class(target=..., attrs_mapping=...)`` would.
+
+    """
+
+    class _DispatchExplicitTargetNew:
+        """Target class with the canonical attribute name."""
+
+        colour = "blue"
+
+    with catch_warnings():
+        simplefilter("ignore", UserWarning)  # suppress the one-time informational class-dispatch notice
+
+        @deprecated(target=_DispatchExplicitTargetNew, attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)
+        class _DispatchExplicitTargetOld:
+            """Source class deprecated via the dispatcher with an explicit callable target."""
+
+    return _DispatchExplicitTargetOld
+
+
 def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa: ANN401
     """Apply ``@deprecated(args_mapping=...)`` to a class with NO explicit ``target=``.
 
@@ -2566,7 +2590,7 @@ def make_deprecated_with_attrs_mapping_on_callable() -> Any:  # noqa: ANN401
 
     """
 
-    @deprecated(attrs_mapping={"old": "new"}, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(attrs_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)
     def _rejected_attrs_mapping_fn(x: int) -> int:
         """Source function — never actually wrapped; decoration raises first."""
         return x
@@ -2577,7 +2601,7 @@ def make_deprecated_with_attrs_mapping_on_callable() -> Any:  # noqa: ANN401
 def make_deprecated_on_non_callable_source() -> Any:  # noqa: ANN401
     """Apply ``@deprecated`` to a plain object — raises ``TypeError`` naming ``deprecated_instance``."""
     # Intentionally passing a non-callable source to prove the dispatcher's runtime TypeError guard fires.
-    return deprecated(deprecated_in="1.0", remove_in="2.0")(object())  # type: ignore[arg-type]
+    return deprecated(**_DEPRS_CASE_STD_ARGS)(object())  # type: ignore[arg-type]
 
 
 class _CallableWithoutName:
@@ -2600,7 +2624,7 @@ def make_deprecated_on_callable_without_name() -> Any:  # noqa: ANN401
     ``deprecated_instance``-naming ``TypeError`` used for non-callable sources.
 
     """
-    return deprecated(deprecated_in="1.0", remove_in="2.0")(_CallableWithoutName())
+    return deprecated(**_DEPRS_CASE_STD_ARGS)(_CallableWithoutName())
 
 
 def make_deprecated_on_partial_of_function() -> Any:  # noqa: ANN401
@@ -2611,7 +2635,7 @@ def make_deprecated_on_partial_of_function() -> Any:  # noqa: ANN401
     in the dispatcher's callable-kind matrix.
 
     """
-    return deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(partial(double_value))
+    return deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(partial(double_value))
 
 
 def make_deprecated_on_partial_of_class() -> Any:  # noqa: ANN401
@@ -2623,7 +2647,7 @@ def make_deprecated_on_partial_of_class() -> Any:  # noqa: ANN401
     partial-wrapped class as a class, which would lose proxy semantics (isinstance/pickling/etc).
 
     """
-    return deprecated(deprecated_in="1.0", remove_in="2.0")(partial(NewCls))
+    return deprecated(**_DEPRS_CASE_STD_ARGS)(partial(NewCls))
 
 
 def make_deprecated_qualname_collision_pair() -> tuple[type, type]:

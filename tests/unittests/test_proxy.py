@@ -581,6 +581,24 @@ class TestDecoratorFactory:
             warnings.simplefilter("ignore")
             assert DeprecatedColorEnum.RED is ColorEnum.RED
 
+    def test_bare_call_default_target_is_notify_not_misconfigured(self) -> None:
+        """``deprecated_class()`` called fresh with no explicit ``target=`` defaults to ``TargetMode.NOTIFY``.
+
+        Existing coverage of the ``None`` -> ``TargetMode.NOTIFY`` default flip (this PR) goes through
+        pre-decorated module-level fixtures; this locks the bare, zero-kwargs-beyond-versions path directly.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated_class(deprecated_in="1.0", remove_in="2.0")
+            class BareDefaultTargetClass:
+                """Plain class deprecated with no explicit target — proves the factory default."""
+
+        dep = object.__getattribute__(BareDefaultTargetClass, "__deprecated__")
+        assert dep.target is TargetMode.NOTIFY
+        assert dep.misconfigured is False
+
     @pytest.mark.parametrize(
         ("raw_target", "warning_category", "warning_message"),
         [

@@ -33,6 +33,7 @@ from tests.collection_deprecate import (
     make_deprecated_with_args_mapping_on_class_default_target,
     make_deprecated_with_attrs_mapping_on_callable,
     make_deprecated_with_attrs_mapping_on_class,
+    make_deprecated_with_explicit_target_and_attrs_mapping_on_class,
 )
 
 
@@ -217,6 +218,23 @@ class TestAttrsMappingOnDispatcher:
         """The rejection message points the caller at ``deprecated_class`` for attribute-level deprecation."""
         with pytest.raises(TypeError, match="deprecated_class"):
             make_deprecated_with_attrs_mapping_on_callable()
+
+    def test_explicit_callable_target_with_attrs_mapping_forwards_both(self) -> None:
+        """``@deprecated(target=<class>, attrs_mapping=...)`` forwards BOTH a real target and the mapping.
+
+        Every other dispatcher ``attrs_mapping`` fixture omits an explicit non-``NOTIFY`` callable ``target``
+        (auto-resolve only) — this locks the remaining combination the review flagged as unverified.
+
+        """
+        proxy = make_deprecated_with_explicit_target_and_attrs_mapping_on_class()
+
+        dep = object.__getattribute__(proxy, "__deprecated__")
+        assert dep.target is not TargetMode.NOTIFY
+        assert dep.misconfigured is False
+
+        with pytest.warns(FutureWarning, match="color"):
+            value = proxy.color  # type: ignore[attr-defined]
+        assert value == "blue"
 
 
 class TestArgsMappingDefaultTargetAutoResolveOnDispatcher:
