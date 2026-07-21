@@ -313,6 +313,7 @@ class _DeprecatedProxy:
         read_only: bool = False,
         docstring_style: str = "auto",
         _misconfigured_override: bool = False,
+        _stacklevel_extra: int = 0,
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
 
@@ -384,18 +385,21 @@ class _DeprecatedProxy:
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all four signals.
         if isinstance(target, TargetMode):
             misconfigured |= TargetMode._validate(
-                target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4
+                target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4 + _stacklevel_extra
             )
         # Proxy-specific validation: attrs_mapping combinations not covered by _validate().
         # stacklevel=4: caller → decorator(cls) → __init__ → _validate_proxy → warn
         # deprecated_class() itself is already off the stack when decorator(cls) runs.
+        # ``_stacklevel_extra`` accounts for extra frames inserted when reached via the ``@deprecated``
+        # front door (packing → _packing_class_source → decorator(cls)), keeping the reported warning
+        # location at the user's actual decoration site instead of pointing into library internals.
         misconfigured |= TargetMode._validate_proxy(
             target,
             name,
             attrs_mapping=attrs_mapping,
             args_mapping=args_mapping,
             args_extra=args_extra,
-            stacklevel=4,
+            stacklevel=4 + _stacklevel_extra,
         )
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object, extras to merge
         # after args_mapping at call time, optional custom warning template.
@@ -1363,6 +1367,7 @@ def deprecated_class(
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     _misconfigured_override: bool = False,
+    _stacklevel_extra: int = 0,
 ) -> Callable[[Union[type, "_DeprecatedProxy"]], "_DeprecatedProxy"]:
     r"""Decorator factory for deprecating class definitions with optional target redirection.
 
@@ -1517,7 +1522,7 @@ def deprecated_class(
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=2 + _stacklevel_extra,
             )
         proxy = _DeprecatedProxy(
             obj=cls,
@@ -1534,6 +1539,7 @@ def deprecated_class(
             attrs_mapping=attrs_mapping,
             docstring_style=docstring_style,
             _misconfigured_override=_misconfigured_override,
+            _stacklevel_extra=_stacklevel_extra,
         )
         if update_docstring:
             # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set __doc__ normally; then store

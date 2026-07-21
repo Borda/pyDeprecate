@@ -18,6 +18,7 @@ from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
+    make_deprecated_notify_args_extra_alone_on_class,
     make_deprecated_on_callable_without_name,
     make_deprecated_on_fresh_class,
     make_deprecated_on_fresh_class_silent,
@@ -27,6 +28,7 @@ from tests.collection_deprecate import (
     make_deprecated_on_partial_of_class,
     make_deprecated_on_partial_of_function,
     make_deprecated_over_class_proxy,
+    make_deprecated_qualname_collision_pair,
     make_deprecated_stacked_over_wrapped_callable,
     make_deprecated_with_args_mapping_on_class_default_target,
     make_deprecated_with_attrs_mapping_on_callable,
@@ -76,6 +78,21 @@ class TestClassDispatchInformationalWarning:
         with assert_no_warnings(UserWarning):
             make_deprecated_on_fresh_class()  # second application of the same class — must stay silent
 
+    def test_qualname_collision_across_modules_both_warn(self) -> None:
+        """Two distinct classes sharing a ``__qualname__`` in different modules each get their own notice.
+
+        A maintainer decorates two unrelated classes that happen to share a name (e.g. two packages
+        both define a top-level ``Config`` or nested ``Outer.Inner``) — the one-time dispatch notice
+        must not silently drop the second class's warning just because the dedup set only tracked the
+        bare ``__qualname__`` string, blind to which module the class actually lives in.
+
+        """
+        with pytest.warns(UserWarning, match="_QualnameCollision") as caught:
+            make_deprecated_qualname_collision_pair()
+
+        user_warns = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(user_warns) == 2
+
     def test_silent_when_stream_none(self) -> None:
         """``@deprecated(stream=None)`` on a class suppresses the informational ``UserWarning`` entirely."""
         with assert_no_warnings():
@@ -113,6 +130,24 @@ class TestClassDispatchInformationalWarning:
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert future_warns
         assert future_warns[0].filename.endswith("test_dispatch_class_route.py")
+
+    def test_notify_args_extra_alone_misconfig_warning_points_to_decoration_site(self) -> None:
+        """The NOTIFY + bare ``args_extra`` misconfig ``UserWarning`` reports the decoration site, not internals.
+
+        A maintainer decorates a class with a stray ``args_extra`` and no ``args_mapping`` — this does not
+        auto-resolve to a forwarding mode (option C only auto-resolves when a mapping is present), so the proxy
+        still flags it as a misconfiguration. The dispatcher inserts two extra frames (``packing`` and
+        ``_packing_class_source``) versus a direct ``deprecated_class(...)`` call; without the matching
+        stacklevel offset the reported location would point into `deprecation.py`/`proxy.py` instead of here.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            make_deprecated_notify_args_extra_alone_on_class()
+
+        misconfig_warns = [w for w in caught if issubclass(w.category, UserWarning) and "args_extra" in str(w.message)]
+        assert len(misconfig_warns) == 1
+        assert misconfig_warns[0].filename.endswith("collection_deprecate.py")
 
 
 class TestEnumAndDataclassDispatch:

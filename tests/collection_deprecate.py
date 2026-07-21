@@ -2489,6 +2489,23 @@ def make_deprecated_on_fresh_class_silent() -> type:
     return _DispatchedFreshClassSilent
 
 
+def make_deprecated_notify_args_extra_alone_on_class() -> type:
+    """Apply ``@deprecated`` with bare ``args_extra`` (no ``args_mapping``) to a fresh class.
+
+    ``NOTIFY + args_extra`` alone does not auto-resolve to a forwarding mode — the proxy still flags it
+    as a misconfiguration via ``TargetMode._validate``. Used to prove the misconfig warning's reported
+    location follows the dispatcher's stacklevel adjustment to this decoration site rather than pointing
+    into ``deprecation.py``/``proxy.py`` internals.
+
+    """
+
+    @deprecated(deprecated_in="1.0", remove_in="2.0", args_extra={"z": 1})
+    class _DispatchedNotifyArgsExtraAlone:
+        """Plain class source with NOTIFY + bare ``args_extra`` — misconfiguration fixture."""
+
+    return _DispatchedNotifyArgsExtraAlone
+
+
 def make_deprecated_on_fresh_enum_class() -> type:
     """Apply ``@deprecated`` directly to an Enum class — class-path routing via the dispatcher."""
 
@@ -2607,6 +2624,23 @@ def make_deprecated_on_partial_of_class() -> Any:  # noqa: ANN401
 
     """
     return deprecated(deprecated_in="1.0", remove_in="2.0")(partial(NewCls))
+
+
+def make_deprecated_qualname_collision_pair() -> tuple[type, type]:
+    """Apply ``@deprecated`` to two distinct classes sharing a ``__qualname__`` across different modules.
+
+    ``_CLASS_DISPATCH_NOTIFIED`` dedups the one-time informational notice by ``__qualname__``; two
+    unrelated classes named identically in different modules must not collide — each must still get
+    its own notice. Both classes are built via ``type()`` with an explicit ``__module__`` override so
+    the ``__qualname__`` string is identical while the fully-qualified identity differs.
+
+    """
+    first = type("_QualnameCollision", (), {"__module__": "tests.fake_module_one"})
+    second = type("_QualnameCollision", (), {"__module__": "tests.fake_module_two"})
+
+    wrapped_first = deprecated(deprecated_in="1.0", remove_in="2.0")(first)
+    wrapped_second = deprecated(deprecated_in="1.0", remove_in="2.0")(second)
+    return wrapped_first, wrapped_second
 
 
 def make_deprecated_stacked_over_wrapped_callable() -> Any:  # noqa: ANN401

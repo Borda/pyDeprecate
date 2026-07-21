@@ -23,8 +23,11 @@ class TargetMode(Enum):
 
     Attributes:
         NOTIFY: Notify-only deprecation -- warn on every call; original body executes unchanged. Replaces
-            ``target=None``. Passing ``args_mapping`` or ``args_extra`` with this mode emits a :class:`UserWarning`
-            today; :class:`TypeError` is planned in ``v1.0``.
+            ``target=None``. Passing ``args_extra`` with this mode always emits a :class:`UserWarning` today
+            (:class:`TypeError` is planned in ``v1.0``). Passing ``args_mapping`` also emits that warning on
+            the callable path (functions/methods); on the class path (:func:`~deprecate.proxy.deprecated_class`
+            / ``@deprecated`` on a class) it instead auto-resolves to :attr:`ARGS_REMAP` and applies the
+            mapping -- ``attrs_mapping`` auto-resolves to :attr:`ATTRS_REMAP` the same way.
         ARGS_REMAP: Deprecate argument names only -- warn only when deprecated argument names are passed; remaps
             kwargs via ``args_mapping`` before calling the original body. Replaces ``target=True``. This mode is
             strongly recommended with ``args_mapping``; omitting it emits a :class:`UserWarning` today, and
@@ -289,8 +292,10 @@ class TargetMode(Enum):
             ``True`` if any misconfiguration was detected, ``False`` otherwise.
 
         Examples:
+            >>> # NOTIFY + attrs_mapping is not flagged here — the proxy auto-resolves it to ATTRS_REMAP
+            >>> # (option C) before this validator ever runs; see ``_DeprecatedProxy.__init__``.
             >>> TargetMode._validate_proxy(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
-            True
+            False
             >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None, stacklevel=None)
             True
             >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={}, stacklevel=None)
@@ -315,13 +320,9 @@ class TargetMode(Enum):
 
         """
         messages = []
-        if mode is cls.NOTIFY and attrs_mapping:
-            messages.append(
-                f"`deprecated_class(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
-                "`attrs_mapping`. Drop one of them: `attrs_mapping` switches to selective per-attribute "
-                "warning, which contradicts NOTIFY's warn-on-every-access semantics. "
-                "This will be `TypeError` in `v1.0`."
-            )
+        # NOTIFY + attrs_mapping is not validated here: ``_DeprecatedProxy.__init__`` auto-resolves it to
+        # ATTRS_REMAP (option C) before this classmethod is ever reached in production, so a check here
+        # would be dead code — unreachable except via a direct call bypassing that auto-resolve.
         if mode is cls.ARGS_REMAP and args_mapping and attrs_mapping:
             messages.append(
                 f"`deprecated_class` on `{source_name}` has both `args_mapping` and `attrs_mapping` "

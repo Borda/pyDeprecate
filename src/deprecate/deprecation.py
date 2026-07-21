@@ -29,8 +29,10 @@ from deprecate.routine import deprecated_callable
 # from the dispatcher's "plain object" reject guard so class/instance-style misuse stays the only reject.
 _DESCRIPTOR_SOURCE_TYPES = (classmethod, staticmethod, property, cached_property)
 
-# Class qualnames that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
-# Keyed by ``__qualname__`` so a decoration loop warns once, not per iteration. Remove in 0.13.
+# Classes that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
+# Keyed by ``f"{__module__}.{__qualname__}"`` so a decoration loop warns once per class, not per
+# iteration, while distinct classes sharing a bare qualname across modules still warn independently.
+# Remove in 0.13.
 _CLASS_DISPATCH_NOTIFIED: set[str] = set()
 
 # Reject message for a non-callable / callable-without-``__name__`` source handed to ``@deprecated``.
@@ -84,8 +86,9 @@ def _packing_class_source(
     # One-time informational dispatch notice — class dispatch is now first-class, so the old v0.6.0
     # "will become a TypeError" wart is retired. Emit at most once per class qualname per process so a
     # decoration loop does not spam; suppressed when ``stream=None``. Remove in 0.13.
-    if pack_args.stream is not None and source.__qualname__ not in _CLASS_DISPATCH_NOTIFIED:
-        _CLASS_DISPATCH_NOTIFIED.add(source.__qualname__)
+    dispatch_key = f"{source.__module__}.{source.__qualname__}"
+    if pack_args.stream is not None and dispatch_key not in _CLASS_DISPATCH_NOTIFIED:
+        _CLASS_DISPATCH_NOTIFIED.add(dispatch_key)
         message = f"`@deprecated` on class `{source.__name__}` now dispatches to `@deprecated_class`."
         if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
             # The non-class-``target``-ignored hint stays — it is a real misconfig signal for the class path.
@@ -125,6 +128,11 @@ def _packing_class_source(
         update_docstring=pack_args.update_docstring,
         docstring_style=pack_args.docstring_style,
         _misconfigured_override=class_misconfigured,
+        # The dispatcher inserts two frames beyond a direct ``deprecated_class(...)`` call
+        # (``packing`` and this function) before reaching ``decorator(cls)`` — without this offset
+        # proxy misconfig warnings would point into library internals instead of the user's
+        # `@deprecated`-on-class decoration site.
+        _stacklevel_extra=2,
     )(source)
 
 
