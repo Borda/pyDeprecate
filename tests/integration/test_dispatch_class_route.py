@@ -1,9 +1,8 @@
 """Tests for the Phase 2 ``deprecated()`` dispatcher — class-path first-class support.
 
 ``@deprecated`` on a class no longer carries the v0.6.0 "will become a `TypeError`" threat; it now
-dispatches (permanently) to :func:`~deprecate.proxy.deprecated_class` and emits a one-time
-informational ``UserWarning`` instead (notice only — removed in v1.0). This module also covers
-the two new decoration-time
+dispatches to :func:`~deprecate.proxy.deprecated_class` and emits a one-time informational
+``UserWarning`` instead (removed in v0.13). This module also covers the two new decoration-time
 ``TypeError`` guards (non-callable/non-class source; callable instance lacking ``__name__``), the
 new ``attrs_mapping`` parameter on the dispatcher, and stacking the dispatcher over an
 already-wrapped callable or an existing class proxy.

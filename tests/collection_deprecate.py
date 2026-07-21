@@ -2455,10 +2455,9 @@ def make_deprecated_callable_on_class() -> type:
 # ========== Phase 2 — ``deprecated()`` dispatcher: class-path first-class support ==========
 #
 # `@deprecated` on a class is no longer the "will become a TypeError" wart from v0.6.0 — it now
-# dispatches to `deprecated_class` (permanently) and emits a one-time informational `UserWarning`
-# instead (notice only — removed in v1.0). Every factory below defers decoration to the call site
-# so tests can control when the informational warning is captured, mirroring
-# `make_class_target_notify_with_args` above.
+# dispatches to `deprecated_class` and emits a one-time informational `UserWarning` instead
+# (removed in v0.13). Every factory below defers decoration to the call site so tests can control
+# when the informational warning is captured, mirroring `make_class_target_notify_with_args` above.
 
 
 def make_deprecated_on_fresh_class() -> type:
