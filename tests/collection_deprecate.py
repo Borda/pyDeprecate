@@ -2651,7 +2651,7 @@ def make_deprecated_on_partial_of_class() -> Any:  # noqa: ANN401
     return deprecated(**_DEPRS_CASE_STD_ARGS)(partial(NewCls))
 
 
-def make_deprecated_qualname_collision_pair() -> tuple[type, type]:
+def make_deprecated_qualname_collision_pair() -> tuple[Any, Any]:
     """Apply ``@deprecated`` to two distinct classes sharing a ``__qualname__`` across different modules.
 
     ``_CLASS_DISPATCH_NOTIFIED`` dedups the one-time informational notice by ``__qualname__``; two
