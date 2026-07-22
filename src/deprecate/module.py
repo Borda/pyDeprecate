@@ -26,6 +26,7 @@ import warnings
 from typing import Any, Callable, Optional
 
 from deprecate._types import DeprecationConfig, TargetMode
+from deprecate.messaging import _validate_message_template
 
 #: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
 #: ``target``. Guards against cyclic redirects (e.g. ``A`` redirects to ``B`` and ``B`` back to ``A``):
@@ -320,15 +321,19 @@ def deprecated_module(
             de-duplicated per call site by Python's ``__warningregistry__``, but a custom ``stream`` (e.g.
             ``logging.warning``) is invoked on every access; cap or throttle it on your side if a hot loop reads a
             deprecated-module attribute repeatedly.
-        message_template: Optional custom warning message that overrides the built-in module notice.  Plain text
-            is used verbatim; ``%``-style placeholders ``%(source_name)s`` (the module name), ``%(deprecated_in)s``,
-            ``%(remove_in)s``, and ``%(target_name)s`` (empty when no ``target``) are substituted.  ``None``
-            (default) keeps the built-in notice.  Matches the ``message_template`` argument on the other factories.
+        message_template: Optional custom warning message.  When supplied it *replaces* the built-in
+            redirect/version notice entirely — it is not appended to it.  Plain text without any ``%`` renders
+            verbatim; a literal ``%`` must be escaped as ``%%``.  The ``%``-style placeholders ``%(source_name)s``
+            (the module name), ``%(deprecated_in)s``, ``%(remove_in)s``, and ``%(target_name)s`` (empty when no
+            ``target``) are substituted.  A malformed conversion or an unknown placeholder raises
+            :class:`ValueError` at decoration time, matching the other four factories exactly (this call goes
+            through the same ``_validate_message_template`` validator).  ``None`` (default) keeps the built-in notice.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
-            and the caller frame's ``__name__`` cannot be determined; or if ``target`` points at the module being
-            deprecated itself (a self-redirect would recurse indefinitely on every missing-attribute lookup).
+            and the caller frame's ``__name__`` cannot be determined; if ``target`` points at the module being
+            deprecated itself (a self-redirect would recurse indefinitely on every missing-attribute lookup); or if
+            ``message_template`` contains a bare ``%``-conversion or an unknown ``%(name)s`` placeholder.
         TypeError: If ``name`` is omitted and the call is made from inside a function or class body
             rather than at module top level (auto-detection would otherwise deprecate the enclosing module);
             pass ``name`` explicitly to call from a non-module scope.  Also raised if the module's type
@@ -373,6 +378,11 @@ def deprecated_module(
     # attribute lookup recurse through _resolve_missing_attr -> getattr(target, name) forever.
     if target is mod:
         raise ValueError(f"`deprecated_module()` called with `target` pointing at {module_name!r} itself.")
+
+    # Validate the raw template at decoration time (module deprecation runs once at import), matching the
+    # other factories: a bare `%`-conversion or unknown `%(name)s` key raises a clear ValueError here
+    # instead of a cryptic TypeError/KeyError (or silent dict-dump corruption) on the first warn emit.
+    _validate_message_template(message_template)
 
     warn_msg = _build_module_warn_msg(module_name, deprecated_in, remove_in, target, message_template)
 

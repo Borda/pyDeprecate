@@ -84,7 +84,9 @@ def _resolve_message_template_alias(
     if template_mgs is None:
         return message_template
     if message_template is not None:
-        raise TypeError("Pass only `message_template`; `template_mgs` is its deprecated alias and both were supplied.")
+        raise TypeError(
+            "Both `message_template` and `template_mgs` were supplied; pass only one (`template_mgs` deprecated)."
+        )
     warn(
         "`template_mgs` is deprecated since `v0.12` (renamed to `message_template`);"
         " use `message_template` instead. Will be removed in `v1.0`.",

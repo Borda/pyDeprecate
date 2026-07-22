@@ -49,7 +49,7 @@ class TestResolveMessageTemplateAlias:
         arbitrarily.
 
         """
-        with pytest.raises(TypeError, match="only `message_template`"):
+        with pytest.raises(TypeError, match="pass only one"):
             _resolve_message_template_alias("a", "b")
 
 

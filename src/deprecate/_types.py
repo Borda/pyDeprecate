@@ -412,6 +412,9 @@ class DeprecationConfig:
             built-in templates at warn time. ``None`` (default) keeps the built-in template selected for the active
             scenario. Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated`
             for the available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
+            Note: for :func:`~deprecate.module.deprecated_module` specifically this field stores the fully-rendered
+            warning text (the template already substituted at decoration time), not the raw caller-supplied template
+            that the callable and proxy factories store here verbatim.
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
             ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when
             selective per-attribute deprecation is enabled.  Non-``None`` redirect targets must be existing attribute
