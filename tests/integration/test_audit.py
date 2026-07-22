@@ -241,12 +241,17 @@ class TestValidateDeprecatedWrapperCallableProxy:
         assert result.no_effect is False
 
     def test_deprecated_class_warn_only(self) -> None:
-        """deprecated_class with no target is still effective — it emits warnings."""
+        """deprecated_class with no target is still effective — it emits warnings.
+
+        The omitted-target, no-mapping proxy stores ``None`` as its target: ``TargetMode.NOTIFY`` is
+        reserved for an explicit caller choice, and the ``@deprecated`` front door's ``TargetMode.AUTO``
+        default resolves before the proxy is built, so it never appears in audit metadata.
+        """
         result = validate_deprecation_wrapper(proxy_module.WarnOnlyColorEnum)
         assert result.function == "WarnOnlyColorEnum"
         assert result.deprecated_info.target is None
         assert result.empty_args_mapping is True
-        assert result.no_effect is False  # target=None still warns
+        assert result.no_effect is False  # NOTIFY still warns
 
     def test_deprecated_instance_uses_type_name(self) -> None:
         """deprecated_instance with no explicit name defaults function to the wrapped type name."""
@@ -275,6 +280,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
             # deprecated_class — no args_mapping
             (proxy_module.DeprecatedColorEnum, "DeprecatedColorEnum", True, False, []),
             (proxy_module.DeprecatedColorDataClass, "DeprecatedColorDataClass", True, False, []),
+            # has_target=False: an omitted target stays None — NOTIFY is recorded only when explicit
             (proxy_module.WarnOnlyColorEnum, "WarnOnlyColorEnum", False, False, []),
             # deprecated_class — with args_mapping: signature check is skipped for proxies → invalid_args == []
             (proxy_module.MappedColorEnum, "MappedColorEnum", True, True, []),
@@ -389,7 +395,11 @@ class TestFindDeprecatedWrappers:
         assert by_name["MappedDataClass"].deprecated_info.args_mapping == {"name": "label", "count": "total"}
 
     def test_discovers_proxy_without_target_and_drop_mapping(self) -> None:
-        """Proxy deprecations without targets and with dropped args are discoverable."""
+        """Proxy deprecations without targets and with dropped args are discoverable.
+
+        An omitted, no-mapping ``target`` stays ``None`` in audit metadata — ``TargetMode.NOTIFY`` is
+        recorded only when explicitly chosen; see ``test_deprecated_class_warn_only`` for the same note.
+        """
         by_name = {r.function: r for r in find_deprecation_wrappers(proxy_module, recursive=False)}
         assert by_name["WarnOnlyColorEnum"].deprecated_info.target is None
         assert by_name["WarnOnlyColorEnum"].deprecated_info.remove_in == "2.0"

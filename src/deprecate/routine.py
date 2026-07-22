@@ -213,7 +213,9 @@ def deprecated_callable(  # noqa: C901
 
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
-            body executes unchanged). Pass an explicit value to forward calls or remap arguments:
+            body executes unchanged) — the strict form always uses an explicit mode and rejects
+            :attr:`~deprecate.TargetMode.AUTO` (front-door-only inference) with :class:`TypeError`. Pass an
+            explicit value to forward calls or remap arguments:
 
             - ``Callable``: Forward all calls to this callable (function, method, or class target). The
               decorated function's body is **not executed** under normal forwarding — use ``pass`` or ``...``
@@ -223,11 +225,12 @@ def deprecated_callable(  # noqa: C901
             - :attr:`~deprecate.TargetMode.ARGS_REMAP` (or legacy ``True``): Self-deprecation — deprecate argument
               names only, remapping them within the same function body
             - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding, source body executes
-              normally
+              normally. Combining it with ``args_mapping`` is contradictory: the mapping is ignored and a
+              :class:`UserWarning` fires (:class:`TypeError` in ``v1.0``).
 
-            Omitting ``target`` is the preferred way to express warn-only deprecation.  Passing ``target=None``
-            is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a
-            :class:`FutureWarning` directing you to use the enum form.
+            Passing ``target=None`` is a legacy synonym that also resolves to
+            :attr:`~deprecate.TargetMode.NOTIFY` but emits a :class:`FutureWarning` directing you to use the
+            enum form.
 
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0"). Default is empty string.
         remove_in: Version when the function will be removed (e.g., "2.0.0"). Default is empty string.
@@ -324,6 +327,14 @@ def deprecated_callable(  # noqa: C901
         TypeError: `@deprecated_callable` cannot decorate class `OldClass` ...
 
     """
+    # ``TargetMode.AUTO`` is the ``@deprecated`` front-door default only — the strict form requires an
+    # explicit mode so the decoration site documents its own intent.
+    if target is TargetMode.AUTO:
+        raise TypeError(
+            "`TargetMode.AUTO` is only valid on the `@deprecated` front door, which infers the mode from "
+            "the configuration. With `deprecated_callable` pass an explicit `target` — "
+            "`TargetMode.ARGS_REMAP` with `args_mapping`, `TargetMode.NOTIFY` for warn-only, or a callable."
+        )
     normalized_docstring_style = normalize_docstring_style(docstring_style)
 
     def packing(  # noqa: C901

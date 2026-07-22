@@ -48,6 +48,11 @@ from tests.collection_deprecate import (
     ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
     depr_read_only_attrs_list,
+    make_deprecated_class_attrs_skip_if_true,
+    make_deprecated_class_skip_if_flag,
+    make_deprecated_class_skip_if_non_bool,
+    make_deprecated_class_skip_if_true,
+    make_deprecated_instance_skip_if_true_read_only,
     pep702_proxy_stacked,
 )
 from tests.collection_targets import (
@@ -581,6 +586,25 @@ class TestDecoratorFactory:
             warnings.simplefilter("ignore")
             assert DeprecatedColorEnum.RED is ColorEnum.RED
 
+    def test_bare_call_default_target_is_none_not_misconfigured(self) -> None:
+        """``deprecated_class()`` called fresh with no explicit ``target=`` records ``None`` as its target.
+
+        ``None`` is the proxy's unset value: ``TargetMode.NOTIFY`` appears in audit metadata only when the
+        caller explicitly chose it, so tools can distinguish "warn-only by default" from "warn-only on
+        purpose"; the warn-on-access behaviour is identical either way.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+
+            @deprecated_class(deprecated_in="1.0", remove_in="2.0")
+            class BareDefaultTargetClass:
+                """Plain class deprecated with no explicit target — proves the factory default."""
+
+        dep = object.__getattribute__(BareDefaultTargetClass, "__deprecated__")
+        assert dep.target is None
+        assert dep.misconfigured is False
+
     @pytest.mark.parametrize(
         ("raw_target", "warning_category", "warning_message"),
         [
@@ -612,7 +636,7 @@ class TestDecoratorFactory:
         assert str(caught[0].message) == warning_message
 
         dep = object.__getattribute__(OldClass, "__deprecated__")
-        assert dep.target is TargetMode.NOTIFY
+        assert dep.target is None
 
         obj = OldClass()
         assert obj.method() == "ok"
@@ -1159,15 +1183,47 @@ class TestProxyArgsMappingBehavior:
             instance = proxy(new_key=6, old_key=5)
         assert instance.new_key == 6
 
-    def test_notify_with_args_mapping_emits_misconfig_warning(self) -> None:
-        """NOTIFY + args_mapping on proxy emits UserWarning at decoration time."""
-        with pytest.warns(UserWarning, match="args_mapping"):
+    def test_explicit_notify_with_args_mapping_warns_and_keeps_mode(self) -> None:
+        """Explicit ``target=TargetMode.NOTIFY`` + ``args_mapping`` is contradictory — flagged, never overridden.
+
+        Only the omitted default auto-resolves a mapping. When the caller explicitly picked ``NOTIFY``,
+        pyDeprecate cannot tell whether the target or the mapping is the mistake, so it must not silently
+        rewrite the user's configuration: the mode stays ``NOTIFY``, the mapping is inert, a
+        ``UserWarning`` fires at decoration time, and audit metadata records ``misconfigured=True``.
+
+        """
+        with pytest.warns(UserWarning, match="ignores `args_mapping`"):
 
             @deprecated_class(
                 deprecated_in="1.2", remove_in="2.0", target=TargetMode.NOTIFY, args_mapping={"old_key": "new_key"}
             )
             class _ProxyNotifyWithArgsMapping:
                 pass
+
+        meta = object.__getattribute__(_ProxyNotifyWithArgsMapping, "__deprecated__")
+        assert meta.target is TargetMode.NOTIFY
+        assert meta.misconfigured is True
+
+    def test_omitted_target_with_args_mapping_auto_resolves_to_args_remap(self) -> None:
+        """Omitting ``target`` while passing ``args_mapping`` auto-resolves to ``ARGS_REMAP`` — no warning.
+
+        The factory default means "no explicit target", so the presence of the mapping is the activation
+        signal: the proxy resolves to per-argument deprecation exactly as if ``TargetMode.ARGS_REMAP`` had
+        been spelled out, with no misconfig warning and clean audit metadata.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated_class(deprecated_in="1.2", remove_in="2.0", args_mapping={"old_key": "new_key"})
+            class _ProxyOmittedWithArgsMapping:
+                pass
+
+        misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]
+        assert not misconfig_warns
+        meta = object.__getattribute__(_ProxyOmittedWithArgsMapping, "__deprecated__")
+        assert meta.target is TargetMode.ARGS_REMAP
+        assert meta.args_mapping == {"old_key": "new_key"}
 
     def test_args_remap_no_mapping_emits_misconfig_warning(self) -> None:
         """ARGS_REMAP without args_mapping on proxy emits UserWarning at decoration time."""
@@ -1870,12 +1926,13 @@ class TestAttrsMappingCombinations:
         assert meta.target is TargetMode.ATTRS_REMAP
 
     def test_legacy_true_with_attrs_mapping_does_not_raise_value_error(self) -> None:
-        """Legacy ``target=True`` validates ``attrs_mapping`` against the source class.
+        """Legacy ``target=True`` with ``attrs_mapping`` auto-resolves to ``ATTRS_REMAP``.
 
         A legacy caller can combine ``target=True`` with ``attrs_mapping`` while still defining the canonical
-        attribute on the deprecated class itself.  The decorator should fall through to the normal misconfiguration
-        path for the boolean sentinel, not validate redirect targets against ``bool`` and raise ``ValueError`` before
-        the proxy can be called.
+        attribute on the deprecated class itself.  ``target=True`` normalises to ``NOTIFY``, and a present
+        mapping is always applied — the config auto-resolves to ``ATTRS_REMAP`` (no misconfiguration)
+        rather than validating redirect targets against ``bool`` and raising ``ValueError`` before the proxy can be
+        called.
 
         """
         instance = DeprecatedAttrsLegacyTrue()  # must not raise ValueError
@@ -1883,8 +1940,8 @@ class TestAttrsMappingCombinations:
         assert isinstance(instance, LegacyBoolAttrsSource)
         assert instance.ready is True
         meta = object.__getattribute__(DeprecatedAttrsLegacyTrue, "__deprecated__")
-        assert meta.target is TargetMode.NOTIFY
-        assert meta.misconfigured is True
+        assert meta.target is TargetMode.ATTRS_REMAP
+        assert meta.misconfigured is False
 
     def test_attrs_remap_stored_in_dep_config_target_via_auto_resolve(self) -> None:
         """Auto-resolution from ``attrs_mapping`` to ``ATTRS_REMAP`` is reflected in stored metadata.
@@ -1949,30 +2006,37 @@ class TestAttrsMappingCombinations:
     # Misconfiguration cases (decoration-time signals)
     # ------------------------------------------------------------------
 
-    def test_notify_plus_attrs_mapping_warns_at_decoration(self) -> None:
-        """``target=TargetMode.NOTIFY`` combined with ``attrs_mapping`` emits a UserWarning at decoration time.
+    def test_explicit_notify_plus_attrs_mapping_warns_and_ignores_mapping(self) -> None:
+        """Explicit ``target=TargetMode.NOTIFY`` + ``attrs_mapping`` is contradictory — flagged, mapping inert.
 
-        ``TargetMode.NOTIFY`` means "warn on every access" — it cannot coexist with selective per-attribute warning
-        because the two policies contradict each other. The proxy must surface this misconfiguration as a
-        ``UserWarning`` when the class is decorated, not silently pick one policy over the other. The misconfig
-        also flips :attr:`~deprecate._types.DeprecationConfig.misconfigured` to ``True`` so audit tooling can flag
-        the wrapper.
+        ``NOTIFY`` means "warn on every access"; ``attrs_mapping`` means "warn only on the listed aliases".
+        When the caller spelled out ``NOTIFY``, pyDeprecate cannot judge whether the target or the mapping
+        is the mistake, so the explicit choice wins: the proxy stays in whole-class warn mode, the mapping
+        performs no redirects at runtime, a ``UserWarning`` fires at decoration time, and audit metadata
+        records ``misconfigured=True`` while preserving the configured ``attrs_mapping`` for inspection.
+        Omit ``target`` (the factory default) to auto-resolve the mapping to ``ATTRS_REMAP`` instead.
 
         """
 
-        class _NotifyAttrsMisconfig:
+        class _NotifyAttrsContradiction:
             colour = "red"
 
-        with pytest.warns(UserWarning, match="NOTIFY.*ignores `attrs_mapping`"):
+        with pytest.warns(UserWarning, match="ignores `attrs_mapping`"):
             proxy = deprecated_class(
                 target=TargetMode.NOTIFY,
                 attrs_mapping={"color": "colour"},
                 deprecated_in="1.0",
                 remove_in="2.0",
                 stream=None,
-            )(_NotifyAttrsMisconfig)
+            )(_NotifyAttrsContradiction)
+
         meta = object.__getattribute__(proxy, "__deprecated__")
+        assert meta.target is TargetMode.NOTIFY
         assert meta.misconfigured is True
+        assert meta.attrs_mapping == {"color": "colour"}
+        # Runtime ignores the mapping entirely: the alias is not redirected to ``colour``.
+        with pytest.raises(AttributeError):
+            _ = proxy.color
 
     def test_attrs_remap_without_attrs_mapping_warns_at_decoration(self) -> None:
         """``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` emits a UserWarning at decoration time.
@@ -2083,6 +2147,10 @@ class TestAttrsMappingCombinations:
         frame.  A wrong stacklevel (e.g. 4 instead of 5) would make the warning appear to originate
         from inside the library, making it hard for users to locate their misconfigured class.
 
+        The trigger is ``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` — a misconfiguration
+        ``_validate_proxy`` still flags (unlike ``NOTIFY + attrs_mapping``, which now auto-resolves and no
+        longer warns).
+
         """
 
         class _MisconfiguredForStacklevel:
@@ -2091,8 +2159,7 @@ class TestAttrsMappingCombinations:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             deprecated_class(
-                target=TargetMode.NOTIFY,
-                attrs_mapping={"color": "colour"},
+                target=TargetMode.ATTRS_REMAP,
                 deprecated_in="1.0",
                 remove_in="2.0",
                 stream=None,
@@ -3097,3 +3164,101 @@ class TestProxySubclassCheckTypeError:
         proxy = _DeprecatedProxy(obj={"key": "val"}, name="old_cfg", deprecated_in="1.0", remove_in="2.0")
         with pytest.raises(TypeError, match="arg 2 must be a class"):
             issubclass(int, cast(Any, proxy))
+
+
+class TestProxySkipIf:
+    """``skip_if`` on proxies — an active skip condition deactivates the whole deprecation machinery."""
+
+    def test_true_serves_source_without_warning(self) -> None:
+        """With ``skip_if=True`` attribute reads resolve on the wrapped source, silently.
+
+        A library gates a class deprecation on an environment condition (e.g. a dependency version): while the
+        condition holds, callers must see the original class untouched — source attribute values, no
+        ``FutureWarning``, no forwarding to the configured target.
+
+        """
+        proxy = make_deprecated_class_skip_if_true()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            value = proxy.colour
+
+        assert value == "source_colour"
+
+    def test_true_call_returns_source_instance(self) -> None:
+        """With ``skip_if=True`` instantiation runs the wrapped source class, not the target.
+
+        Parity with ``deprecated_callable(skip_if=True)``, where a skipped call executes the source body: a
+        skipped proxy call must construct the source class silently instead of forwarding to the target.
+
+        """
+        proxy = make_deprecated_class_skip_if_true()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            instance = proxy()
+
+        assert type(instance).__name__ == "PaletteOld"
+
+    def test_flag_flip_reactivates_machinery(self) -> None:
+        """A callable ``skip_if`` is re-evaluated per access — flipping the flag re-arms warning and forwarding.
+
+        The canonical use case is a runtime feature flag: while it is set the deprecation is dormant; once it
+        flips, the very next access must warn and forward to the target with no re-decoration required.
+
+        """
+        proxy, flag = make_deprecated_class_skip_if_flag()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            skipped = proxy.colour
+        flag["skip"] = False
+        with pytest.warns(FutureWarning):
+            active = proxy.colour
+
+        assert skipped == "source_colour"
+        assert active == "red"
+
+    def test_true_disables_attrs_redirect(self) -> None:
+        """With ``skip_if=True`` a deprecated attribute alias reads the source attribute, no redirect.
+
+        ``attrs_mapping={"color": "colour"}`` normally rewrites ``proxy.color`` to the canonical name; under an
+        active skip the alias must behave as plain attribute access on the wrapped source — no rename, no
+        warning.
+
+        """
+        proxy = make_deprecated_class_attrs_skip_if_true()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            value = proxy.color
+
+        assert value == "source_red"
+
+    def test_non_bool_return_raises_type_error(self) -> None:
+        """A ``skip_if`` callable returning a non-bool raises ``TypeError`` at access time.
+
+        Same strict contract as the callable decorator: a developer accidentally returning ``42`` from the
+        condition must get an immediate error naming ``skip_if``, not a silently-truthy skip.
+
+        """
+        proxy = make_deprecated_class_skip_if_non_bool()
+
+        with pytest.raises(TypeError, match="User function 'skip_if' shall return bool"):
+            proxy()
+
+    def test_instance_skip_bypasses_read_only_guard(self) -> None:
+        """``deprecated_instance(skip_if=True, read_only=True)`` serves the object with no mutator guard.
+
+        A read-only deprecated constant whose deprecation window is gated by a flag: while skipped, the proxy
+        is fully transparent — standard collection mutators succeed silently instead of raising the read-only
+        ``AttributeError``.
+
+        """
+        proxy = make_deprecated_instance_skip_if_true_read_only()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            proxy.append(3)
+
+        assert list(proxy) == [1, 2, 3]

@@ -1018,3 +1018,23 @@ class TestModuleLevelCallGuard:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
         assert type(sys.modules[mod_name]).__name__ == "_DeprecatedModuleWrapper"
+
+
+class TestMissingVersion:
+    """``deprecated_module()`` treats the version strings as optional but flags a missing ``deprecated_in``."""
+
+    def test_missing_deprecated_in_warns(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """Omitting ``deprecated_in`` installs the wrapper but fires a ``UserWarning`` about the missing version.
+
+        A maintainer deprecating a whole module but forgetting the ``deprecated_in`` version gets a vaguer
+        notice and cannot gate the module with expiry audits. ``deprecated_module`` now defaults both version
+        strings to ``""`` (consistent with ``@deprecated`` and the other factories, which do not require them
+        either) and surfaces the omission immediately with a ``UserWarning`` instead of silently accepting a
+        version-less deprecation.
+
+        """
+        mod_name = "_test_missing_deprecated_in_tmp"
+        make_tmp_module(mod_name)
+        with pytest.warns(UserWarning, match="no `deprecated_in`"):
+            deprecated_module(mod_name, remove_in="2.0")
+        assert type(sys.modules[mod_name]).__name__ == "_DeprecatedModuleWrapper"
