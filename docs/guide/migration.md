@@ -128,7 +128,7 @@ Some `TargetMode` + argument combinations are contradictory; pyDeprecate emits a
 | `TargetMode.NOTIFY` with `args_mapping`        | Omit `target` (`@deprecated` auto-resolves to `ARGS_REMAP`), pass `TargetMode.ARGS_REMAP` explicitly, or remove `args_mapping` |
 | `TargetMode.NOTIFY` with `args_extra`          | Use a callable `target=` if you need to inject extra kwargs into a forwarded call                                              |
 
-> The same applies on `deprecated_class()` (and `@deprecated` on a class): explicit `TargetMode.NOTIFY` with `args_mapping` or `attrs_mapping` warns and the mapping stays inert. In every case the flag fires only for an *explicitly passed* `NOTIFY` — omitting `target` auto-resolves a present mapping instead; see [Coming from v0.11](#coming-from-v011) below.
+> The same applies on `deprecated_class()` (and `@deprecated` on a class): explicit `TargetMode.NOTIFY` with `args_mapping` or `attrs_mapping` warns and the mapping stays inert. In every case the flag fires only for an *explicitly passed* `NOTIFY` — omitting `target` auto-resolves a present mapping instead; see the [v0.12 changes](#pick-your-upgrade-path) below.
 
 ### `DeprecationWrapperInfo` field renames
 
@@ -151,264 +151,135 @@ ______________________________________________________________________
 
 ## Pick Your Upgrade Path
 
-Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12). Only breaking and behaviour changes are listed; a release that was purely additive says so and needs no action. Where a change was itself superseded by a later one, the earlier section points to the final state, so a path gives the net result rather than each intermediate step. Releases with no breaking or behaviour change are skipped in these paths and marked *nothing to migrate* in their own section below — a gap means there is genuinely nothing to do, not that a step was dropped.
+Pick the tab matching the version you are upgrading *from* — each tab lists, in order, every breaking and behaviour change between that version and the current release (v0.12), inline. Only breaking and behaviour changes are shown; purely additive releases carry nothing to migrate and are skipped. Where a change was later superseded, the tab shows the net final state rather than each intermediate step. See the [Changelog](../changelog.md) for the complete per-release notes.
 
-=== "From v0.11"
+=== "v0.11"
 
-    1. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.12.md"
 
-=== "From v0.10"
+=== "v0.10"
 
-    1. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    2. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.11.md"
 
-=== "From v0.9"
+    --8<-- "guide/_deltas/v0.12.md"
 
-    1. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    2. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    3. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+=== "v0.9"
 
-=== "From v0.8"
+    --8<-- "guide/_deltas/v0.10.md"
 
-    1. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    2. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    3. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    4. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.11.md"
 
-=== "From v0.7"
+    --8<-- "guide/_deltas/v0.12.md"
 
-    1. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    2. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    3. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    4. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    5. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+=== "v0.8"
 
-=== "From v0.6"
+    --8<-- "guide/_deltas/v0.9.md"
 
-    1. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    2. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    3. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    4. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    5. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.10.md"
 
-=== "From v0.5"
+    --8<-- "guide/_deltas/v0.11.md"
 
-    1. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    2. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    3. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    4. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    5. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    6. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.12.md"
 
-=== "From v0.4"
+=== "v0.7"
 
-    1. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    2. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    3. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    4. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    5. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    6. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.8.md"
 
-=== "From v0.3"
+    --8<-- "guide/_deltas/v0.9.md"
 
-    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
-    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    3. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    4. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    5. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    6. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    7. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.10.md"
 
-=== "From v0.2"
+    --8<-- "guide/_deltas/v0.11.md"
 
-    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
-    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    3. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    4. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    5. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    6. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    7. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.12.md"
 
-=== "From v0.1"
+=== "v0.6"
 
-    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
-    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    3. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    4. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    5. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    6. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    7. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    --8<-- "guide/_deltas/v0.8.md"
 
-______________________________________________________________________
+    --8<-- "guide/_deltas/v0.9.md"
 
-## Coming from v0.11
+    --8<-- "guide/_deltas/v0.10.md"
 
-Here is what changed in v0.12 that you might have missed:
+    --8<-- "guide/_deltas/v0.11.md"
 
-### `@deprecated` on a class is now first-class supported
+    --8<-- "guide/_deltas/v0.12.md"
 
-Before v0.12, applying `@deprecated` directly to a class emitted a warning threatening `TypeError: ... will become a TypeError in a future release`. That threat is retired — `@deprecated` on a class now dispatches to `deprecated_class()` and produces an identical `_DeprecatedProxy`. The warning is now a one-time informational notice, fired at most once per class (keyed by module + qualified name, so same-named classes in different modules each warn) per process:
+=== "v0.5"
 
-```
-`@deprecated` on class `MyClass` now dispatches to `@deprecated_class`.
-```
+    --8<-- "guide/_deltas/v0.6.md"
 
-The dispatch is permanent; only this notice is removed entirely, in v1.0, and suppressed by `stream=None`. Prefer `deprecated_class()` directly — same result, no notice, and required to reach class-only options such as `attrs_mapping`. See [`@deprecated` on a class](classes.md#deprecated-on-a-class) for a runnable example.
+    --8<-- "guide/_deltas/v0.8.md"
 
-### `TargetMode.AUTO` — how an omitted `target` is resolved
+    --8<-- "guide/_deltas/v0.9.md"
 
-> **Prefer an explicit `target`.** `AUTO` exists only to give an *omitted* `target` a sensible default. Passing an explicit mode — `target=TargetMode.NOTIFY`, `target=TargetMode.ARGS_REMAP`, or a callable — keeps intent visible at the call site and is the recommended style everywhere in these docs. You never write `target=TargetMode.AUTO` yourself; the strict factories reject it.
+    --8<-- "guide/_deltas/v0.10.md"
 
-`TargetMode` gained a fourth member, `AUTO`, which is the default value of `target` on the `@deprecated` front door (previously `TargetMode.NOTIFY`). It is a decoration-time fallback, not a runtime mode: when `target` is omitted, `AUTO` resolves to the mode implied by the rest of the configuration before the wrapper or proxy is built, and the resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`:
+    --8<-- "guide/_deltas/v0.11.md"
 
-| Front-door call                                 | Resolves to                                          |
-| ----------------------------------------------- | ---------------------------------------------------- |
-| `@deprecated(args_mapping={...})` on a function | `TargetMode.ARGS_REMAP`                              |
-| `@deprecated()` on a function (no mapping)      | `TargetMode.NOTIFY`                                  |
-| `@deprecated(args_mapping={...})` on a class    | proxy auto-resolve → `TargetMode.ARGS_REMAP`         |
-| `@deprecated()` on a class (no mapping)         | warn-only proxy (`DeprecationConfig.target is None`) |
+    --8<-- "guide/_deltas/v0.12.md"
 
-The practical win on the callable path: `@deprecated(args_mapping={"old": "new"})` previously fell into the default `TargetMode.NOTIFY` and was flagged as a misconfiguration — now the omitted target infers `ARGS_REMAP` and the mapping is applied. Even so, spelling out `target=TargetMode.ARGS_REMAP` alongside `args_mapping` is clearer and is what the examples show.
+=== "v0.4"
 
-`AUTO` is front-door-only. The strict forms keep explicit defaults — `deprecated_callable()` defaults to `TargetMode.NOTIFY`, `deprecated_class()` leaves `target` unset — and both raise `TypeError` when handed `target=TargetMode.AUTO`. Legacy proxy sentinels (`target=True` without a mapping, `target=False`) now also resolve to an unset target, so they follow the same auto-resolve as an omitted `target` (audit metadata records `None` for warn-only proxies).
+    --8<-- "guide/_deltas/v0.6.md"
 
-### Explicit `TargetMode.NOTIFY` with a mapping is never silently overridden
+    --8<-- "guide/_deltas/v0.8.md"
 
-Passing `target=TargetMode.NOTIFY` explicitly together with a mapping remains a misconfiguration on every path — your explicit configuration is never rewritten behind your back. A `UserWarning` fires at decoration time (`TypeError` in v1.0), the mode stays `NOTIFY`, and the mapping is inert at runtime; audit metadata keeps the mapping and flags the wrapper `misconfigured`. Omit `target` when you want the mapping applied — auto-resolve only ever fills in an *unset* target.
+    --8<-- "guide/_deltas/v0.9.md"
 
-There is consequently no single-proxy way to get a blanket "warn on every access" notice while a mapping is also active on that same proxy. If you need both, stack two `deprecated_class()` layers — an inner mapping-only layer (`ARGS_REMAP` / `ATTRS_REMAP`) plus an outer no-mapping layer (`NOTIFY`); see [Nested proxy wrappers](classes.md#nested-proxy-wrappers).
+    --8<-- "guide/_deltas/v0.10.md"
 
-### `deprecated()` slimmed to common arguments only
+    --8<-- "guide/_deltas/v0.11.md"
 
-The front-door `deprecated()` dispatcher now exposes only the arguments common to both dispatch shapes: `target`, `deprecated_in`, `remove_in`, `stream`, `num_warns`, `message_template`, `args_mapping`, `args_extra`, `skip_if`, `update_docstring`, and `docstring_style`. The one shape-specific option, class-only `attrs_mapping`, raises `TypeError` (unexpected keyword argument) on the front door — use `deprecated_class(attrs_mapping=...)` directly.
+    --8<-- "guide/_deltas/v0.12.md"
 
-As part of this alignment, `message_template` and `skip_if` passed through `@deprecated` on a class are now forwarded to the proxy (`message_template` used to be dropped silently on the class-dispatch path).
+=== "v0.3"
 
-### `template_mgs` → `message_template`
+    --8<-- "guide/_deltas/v0.4.md"
 
-The custom-notice parameter was a typo (`mgs` for `msg`). It is now `message_template` on `@deprecated`, `deprecated_callable`, `deprecated_class`, and `deprecated_instance`. The old name keeps working as a deprecated alias until v1.0:
+    --8<-- "guide/_deltas/v0.6.md"
 
-```python
-# phmdoctest:skip — illustrative rename, not a runnable block
-# Before — still works, but emits a FutureWarning
-@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0", template_mgs="v%(deprecated_in)s: gone")
-def old_fn(): ...
+    --8<-- "guide/_deltas/v0.8.md"
 
+    --8<-- "guide/_deltas/v0.9.md"
 
-# After — the canonical name
-@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0", message_template="v%(deprecated_in)s: gone")
-def old_fn(): ...
-```
+    --8<-- "guide/_deltas/v0.10.md"
 
-Passing both `message_template` and `template_mgs` raises `TypeError`. Audit code reading `__deprecated__.template_mgs` keeps working through a read-only alias, but the stored field is now `message_template`.
+    --8<-- "guide/_deltas/v0.11.md"
 
-`deprecated_module()` is a separate, harder rename with no deprecation window: its `message` argument (append semantics) is renamed to `message_template` (replace semantics), and passing `message=` now raises `TypeError` — `deprecated_module` was unreleased, so no alias was needed.
+    --8<-- "guide/_deltas/v0.12.md"
 
-See the [Changelog](../changelog.md) for the complete v0.12 release notes.
+=== "v0.2"
 
-______________________________________________________________________
+    --8<-- "guide/_deltas/v0.4.md"
 
-## Coming from v0.10
+    --8<-- "guide/_deltas/v0.6.md"
 
-Here is what changed in v0.11 that you might have missed:
+    --8<-- "guide/_deltas/v0.8.md"
 
-- **In-place operators on a proxy rebind the name to the unwrapped result.** After `x += 1` on a `deprecated_instance` proxy, `x` is now a plain value (e.g. an `int`), not a re-wrapped proxy — so every later use of `x` is silent even if the deprecation window is still open. Assign to a fresh name, or avoid in-place operators, when you need the warning to keep firing.
+    --8<-- "guide/_deltas/v0.9.md"
 
-See the [Changelog](../changelog.md) for the complete v0.11 release notes.
+    --8<-- "guide/_deltas/v0.10.md"
 
-______________________________________________________________________
+    --8<-- "guide/_deltas/v0.11.md"
 
-## Coming from v0.9
+    --8<-- "guide/_deltas/v0.12.md"
 
-Here is what changed in v0.10 that you might have missed. The first item is a behaviour change:
+=== "v0.1"
 
-- **`@deprecated @property` (outer order) now wraps `fset` and `fdel`.** Writing to or deleting a deprecated property now fires `FutureWarning`; before v0.10 only reads warned. Under `filterwarnings=error::FutureWarning`, a write or delete that used to pass silently now raises. Keep the silent setter/deleter by using inner order (`@property @deprecated`) or by decorating only `fget`.
-- **`args_mapping` precedence fixed — explicit new name always wins.** When a caller passes both the old and new argument names (`fn(val=5, new_val=6)`), the explicit new-name value now wins; previously the remapped old-name value could clobber it, regardless of call-site order.
-- **Circular callable-target chains raise `RuntimeError`.** An A → B → A target cycle previously ran into `RecursionError`; a re-entrancy guard now raises a clear `RuntimeError` naming the cycle.
+    --8<-- "guide/_deltas/v0.4.md"
 
-See the [Changelog](../changelog.md) for the complete v0.10 release notes.
+    --8<-- "guide/_deltas/v0.6.md"
 
-______________________________________________________________________
+    --8<-- "guide/_deltas/v0.8.md"
 
-## Coming from v0.8
+    --8<-- "guide/_deltas/v0.9.md"
 
-Here is what changed in v0.9 that you might have missed. The CLI rename is breaking:
+    --8<-- "guide/_deltas/v0.10.md"
 
-- **CLI flag renamed: `--skip_errors` → `--exit-zero`.** The old flag is no longer accepted on any subcommand (`check`, `expiry`, `chains`, `all`) — update existing scripts. The canonical spelling is `--exit-zero` (dash); `--exit_zero` (underscore) is accepted as an alias. The new name matches the linter convention and describes the behaviour: exit-code override only, no exception suppression.
-- **Misconfigured `@deprecated` stacking now warns at decoration time.** Six previously-undefined stacking shapes (e.g. callable-over-callable) emit `UserWarning` naming the shape (→ `TypeError` in v1.0). The supported lifecycle shape is `ARGS_REMAP` (outer) + `NOTIFY` (inner): rename arguments first, deprecate the whole function later.
-- **Audit reclassification:** an `ARGS_REMAP + NOTIFY` chain is now reported as `ChainType.STACKED`, not `TARGET`.
+    --8<-- "guide/_deltas/v0.11.md"
 
-See the [Changelog](../changelog.md) for the complete v0.9 release notes.
-
-______________________________________________________________________
-
-## Coming from v0.7
-
-Here is what changed in v0.8 that you might have missed:
-
-- `TargetMode.NOTIFY` — replaces `target=None`; warn-only mode where the function body runs unchanged.
-- `TargetMode.ARGS_REMAP` — replaces `target=True`; argument-rename mode where kwargs are remapped and the body runs.
-- Construction-time `UserWarning` for all misconfigured `TargetMode` combinations.
-- `target` parameter of `@deprecated` now defaults to `TargetMode.NOTIFY`, so `@deprecated(deprecated_in="1.0", remove_in="2.0")` is the canonical warn-only form. (Since v0.12 the front-door default is `TargetMode.AUTO`, which resolves to `NOTIFY` when no mapping is given — the canonical warn-only form is unchanged.)
-- `DeprecationWrapperInfo` field renames: `empty_mapping` → `empty_args_mapping`, `identity_mapping` → `identity_args_mapping`.
-
-See the [Changelog](../changelog.md) for the complete v0.8 release notes.
-
-______________________________________________________________________
-
-## Coming from v0.6
-
-No breaking or behaviour changes in v0.7 — nothing to migrate.
-
-See the [Changelog](../changelog.md) for the complete v0.7 release notes.
-
-______________________________________________________________________
-
-## Coming from v0.5
-
-Here is what changed in v0.6 that you might have missed. This is the biggest pre-v0.8 jump — two items need action:
-
-- **`@deprecated` on a class stopped raising and started delegating.** v0.6.0 first made `@deprecated` directly on a class raise `TypeError` at decoration time; v0.6.0.post0 softened that to a `UserWarning` plus automatic delegation to `deprecated_class()`. Existing class-decoration code keeps working with a warning — switch to `deprecated_class()` for a clean result (since v0.12 `@deprecated` dispatches there automatically).
-- **Cross-class method forwarding now raises at decoration time.** Passing a class as `target` on a non-`__init__` method used to silently forward a `self` of the wrong type — always a bug. It now raises `TypeError` at decoration time; fix the target if you relied on it.
-
-Deprecated (old names kept as shims until v1.0): the audit API was renamed for consistency — `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecationWrapperInfo`, and the test helper `no_warning_call` → `assert_no_warnings`. Swap them out at your convenience.
-
-See the [Changelog](../changelog.md) for the complete v0.6 release notes.
-
-______________________________________________________________________
-
-## Coming from v0.4
-
-No breaking or behaviour changes in v0.5 — nothing to migrate.
-
-See the [Changelog](../changelog.md) for the complete v0.5 release notes.
-
-______________________________________________________________________
-
-## Coming from v0.3
-
-Here is what changed in v0.4 that you might have missed. One behaviour change needs attention:
-
-- **Deprecation warnings switched from `DeprecationWarning` to `FutureWarning`.** `DeprecationWarning` is hidden by Python's default filters outside test runs, so callers rarely saw it; `FutureWarning` is shown by default. If you filter or assert on the warning category, update it to `FutureWarning`.
-- **Minimum Python raised to 3.9** (3.8 reached end-of-life), and the **license changed from MIT to Apache-2.0**.
-
-See the [Changelog](../changelog.md) for the complete v0.4 release notes.
-
-______________________________________________________________________
-
-## Coming from v0.2
-
-No breaking or behaviour changes in v0.3 — nothing to migrate.
-
-See the [Changelog](../changelog.md) for the complete v0.3 release notes.
-
-______________________________________________________________________
-
-## Coming from v0.1
-
-No breaking or behaviour changes in v0.2 — nothing to migrate.
-
-See the [Changelog](../changelog.md) for the complete v0.2 release notes.
+    --8<-- "guide/_deltas/v0.12.md"
 
 ______________________________________________________________________
 
