@@ -200,6 +200,58 @@ See the [Changelog](../changelog.md) for the complete v0.12 release notes.
 
 ______________________________________________________________________
 
+## Coming from v0.10
+
+Here is what changed in v0.11 that you might have missed. Watch this one first:
+
+- **In-place operators on a proxy rebind the name to the unwrapped result.** After `x += 1` on a `deprecated_instance` proxy, `x` is now a plain value (e.g. an `int`), not a re-wrapped proxy — so every later use of `x` is silent even if the deprecation window is still open. Assign to a fresh name, or avoid in-place operators, when you need the warning to keep firing.
+
+Everything else is additive:
+
+- **Proxies forward operator and protocol dunders.** Arithmetic (`proxy + 1`), comparison/ordering, context managers (`with proxy:`), iteration, numeric conversion (`int`/`float`/`round`/`abs`), `os.fspath`, `format`, and the async protocols now delegate to the wrapped object instead of raising `TypeError`. Data-use operations warn within the `num_warns` budget; cheap structural probes stay silent.
+- **Subclassing a deprecated class alias works (PEP 560).** `class Child(OldAlias)` previously raised a metaclass-arity `TypeError`; it now resolves to the active class and emits the deprecation warning (silent for `ATTRS_REMAP`- and `ARGS_REMAP`-only proxies).
+- Proxy identity fixes, and call forwarding is ~2.4× faster — no code change required.
+
+See the [Changelog](../changelog.md) for the complete v0.11 release notes.
+
+______________________________________________________________________
+
+## Coming from v0.9
+
+Here is what changed in v0.10 that you might have missed. The first item is a behaviour change:
+
+- **`@deprecated @property` (outer order) now wraps `fset` and `fdel`.** Writing to or deleting a deprecated property now fires `FutureWarning`; before v0.10 only reads warned. Under `filterwarnings=error::FutureWarning`, a write or delete that used to pass silently now raises. Keep the silent setter/deleter by using inner order (`@property @deprecated`) or by decorating only `fget`.
+- **`args_mapping` precedence fixed — explicit new name always wins.** When a caller passes both the old and new argument names (`fn(val=5, new_val=6)`), the explicit new-name value now wins; previously the remapped old-name value could clobber it, regardless of call-site order.
+- **Circular callable-target chains raise `RuntimeError`.** An A → B → A target cycle previously ran into `RecursionError`; a re-entrancy guard now raises a clear `RuntimeError` naming the cycle.
+
+New capabilities you can adopt:
+
+- **`deprecated_class(attrs_mapping={...})` + `TargetMode.ATTRS_REMAP`** for selective per-attribute deprecation, with per-attribute warning budgets and `None` for warn-only. On a `@dataclass`, auto-expand covers constructor kwargs too from a single call.
+- **`target=` accepts raw `staticmethod` / `classmethod` descriptors** inside a class body — drop the old `.__func__` suffix.
+- `deprecated_class` stacking; opt-in strict `property` (`from deprecate import property`); the `DeprecationWrapperInfo.inner_order_property` audit flag; and `validate_mapping_compatibility()` for POSITIONAL_ONLY-remap detection in CI.
+
+See the [Changelog](../changelog.md) for the complete v0.10 release notes.
+
+______________________________________________________________________
+
+## Coming from v0.8
+
+Here is what changed in v0.9 that you might have missed. The CLI rename is breaking:
+
+- **CLI flag renamed: `--skip_errors` → `--exit-zero`.** The old flag is no longer accepted on any subcommand (`check`, `expiry`, `chains`, `all`) — update existing scripts. The canonical spelling is `--exit-zero` (dash); `--exit_zero` (underscore) is accepted as an alias. The new name matches the linter convention and describes the behaviour: exit-code override only, no exception suppression.
+- **Misconfigured `@deprecated` stacking now warns at decoration time.** Six previously-undefined stacking shapes (e.g. callable-over-callable) emit `UserWarning` naming the shape (→ `TypeError` in v1.0). The supported lifecycle shape is `ARGS_REMAP` (outer) + `NOTIFY` (inner): rename arguments first, deprecate the whole function later.
+- **Audit reclassification:** an `ARGS_REMAP + NOTIFY` chain is now reported as `ChainType.STACKED`, not `TARGET`.
+
+New capabilities you can adopt:
+
+- **Generator, `async def`, and async-generator support for `@deprecated`** — all three `TargetMode` shapes work; see [Async & generators](async.md) for the exact warning-timing rules.
+- **Order-agnostic `@classmethod` / `@staticmethod`** — either decorator order produces the same deprecated descriptor.
+- **Markdown audit tables** via `generate_deprecation_table()` and the `pydeprecate status` CLI subcommand; `DeprecationStatus`, `TableStyle`, and `ChainType` are now public.
+
+See the [Changelog](../changelog.md) for the complete v0.9 release notes.
+
+______________________________________________________________________
+
 ## Coming from v0.7
 
 Here is what changed in v0.8 that you might have missed:
@@ -212,6 +264,19 @@ Here is what changed in v0.8 that you might have missed:
 - New `DeprecationWrapperInfo.empty_deprecated_in` field for CI detection of wrappers with no version annotation.
 
 See the [Changelog](../changelog.md) for the complete v0.8 release notes.
+
+______________________________________________________________________
+
+## Coming from v0.6 and earlier
+
+Releases before v0.7 were mostly additive — new features you can adopt but nothing you must change. Two upgrades did require action:
+
+- **v0.6 — audit API renamed for consistency.** `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecationWrapperInfo`, and the test helper `no_warning_call` → `assert_no_warnings`. The old names stay as deprecated shims (emitting a warning on use) until v1.0 — swap them out at your convenience.
+- **v0.4 — deprecation warnings switched from `DeprecationWarning` to `FutureWarning`.** `DeprecationWarning` is hidden by Python's default filters outside test runs, so callers rarely saw it; `FutureWarning` is shown by default. If you filter or assert on the warning category, update it to `FutureWarning`. The same release raised the minimum Python to 3.9 and changed the license from MIT to Apache-2.0.
+
+Everything else in v0.1–v0.6 (the `deprecated_class` / `deprecated_instance` proxies, the `audit` module, `skip_if`, `void()`, `target=True` self-deprecation, `num_warns=-1`) was additive — adopt it when useful; existing code keeps working unchanged.
+
+See the [Changelog](../changelog.md) for the complete pre-v0.7 release notes.
 
 ______________________________________________________________________
 

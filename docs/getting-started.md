@@ -129,6 +129,32 @@ All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class(
 
 `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `template_mgs`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
 
+### Parameter matrix across the API
+
+Every parameter each factory accepts, with its default. 🚫 marks a parameter the factory does **not** accept — passing it raises `TypeError`. **required** marks a parameter with no default.
+
+| Parameter          | `@deprecated`         | `deprecated_callable` | `deprecated_class`    | `deprecated_instance` | `deprecated_module` |
+| ------------------ | --------------------- | --------------------- | --------------------- | --------------------- | ------------------- |
+| `obj`              | 🚫                    | 🚫                    | 🚫                    | **required**          | 🚫                  |
+| `module_name`      | 🚫                    | 🚫                    | 🚫                    | 🚫                    | `None`              |
+| `target`           | `TargetMode.AUTO`     | `TargetMode.NOTIFY`   | `None`                | 🚫                    | `None`              |
+| `args_mapping`     | `None`                | `None`                | `None`                | 🚫                    | 🚫                  |
+| `attrs_mapping`    | 🚫                    | 🚫                    | `None`                | 🚫                    | `None`              |
+| `args_extra`       | `None`                | `None`                | `None`                | `None`                | 🚫                  |
+| `deprecated_in`    | `""`                  | `""`                  | `""`                  | `""`                  | **required**        |
+| `remove_in`        | `""`                  | `""`                  | `""`                  | `""`                  | **required**        |
+| `num_warns`        | `1`                   | `1`                   | `1`                   | `1`                   | 🚫                  |
+| `stream`           | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `None`              |
+| `template_mgs`     | `None`                | `None`                | `None`                | `None`                | 🚫                  |
+| `message`          | 🚫                    | 🚫                    | 🚫                    | 🚫                    | `""`                |
+| `skip_if`          | `False`               | `False`               | `False`               | `False`               | 🚫                  |
+| `read_only`        | 🚫                    | 🚫                    | 🚫                    | `False`               | 🚫                  |
+| `name`             | 🚫                    | 🚫                    | 🚫                    | `""`                  | 🚫                  |
+| `update_docstring` | `False`               | `False`               | `False`               | 🚫                    | 🚫                  |
+| `docstring_style`  | `"auto"`              | `"auto"`              | `"auto"`              | 🚫                    | 🚫                  |
+
+Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `deprecated_module`'s `module_name` is auto-detected from the caller's `__name__` when omitted. The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the class-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` directly.
+
 ______________________________________________________________________
 
 Next: [Use Cases](guide/use-cases.md) — overview of all deprecation patterns with links to each topic. See also: [Customization](guide/customization.md) · [Audit Tools](guide/audit.md) · [Troubleshooting](troubleshooting.md)
