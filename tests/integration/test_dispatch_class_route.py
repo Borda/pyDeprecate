@@ -20,6 +20,7 @@ from deprecate import TargetMode, assert_no_warnings, deprecated_callable, depre
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
+    make_deprecated_attrs_remap_target_on_class,
     make_deprecated_auto_args_mapping_on_function,
     make_deprecated_explicit_auto_on_function,
     make_deprecated_front_door_skip_if_true_on_class,
@@ -252,6 +253,19 @@ class TestCommonArgsOnlyOnDispatcher:
         """
         with pytest.raises(TypeError, match="attrs_mapping"):
             make_deprecated_with_attrs_mapping_kwarg()
+
+    def test_attrs_remap_target_on_class_raises_type_error(self) -> None:
+        """``deprecated(target=TargetMode.ATTRS_REMAP)`` on a class raises ``TypeError`` — mode unreachable here.
+
+        ``ATTRS_REMAP`` only renames the attribute names listed in ``attrs_mapping``, but the front door does
+        not expose ``attrs_mapping``, so the mode can never do anything through ``@deprecated``. A maintainer
+        who selects it on a class source must fail loudly at decoration time — with the error pointing to
+        ``deprecated_class(attrs_mapping=...)`` — rather than receive a silently built proxy that redirects
+        nothing. This mirrors the callable path, where the same mode already raises as proxy-only.
+
+        """
+        with pytest.raises(TypeError, match="ATTRS_REMAP"):
+            make_deprecated_attrs_remap_target_on_class()
 
     def test_skip_if_forwards_on_class_path(self) -> None:
         """``deprecated(target=..., skip_if=True)`` on a class deactivates the proxy machinery.

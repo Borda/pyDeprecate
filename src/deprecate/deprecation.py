@@ -271,6 +271,17 @@ def deprecated(
         # to the strict ``deprecated_callable`` arm.  Delegating adds one frame between the user's decoration
         # site and ``deprecated_callable``'s ``packing``, so the callable path bumps ``_stacklevel`` by one.
         if inspect.isclass(source):
+            # ``ATTRS_REMAP`` needs ``attrs_mapping`` to have any effect, but the front door does not expose
+            # that class-only knob (it raises ``TypeError`` as an unexpected kwarg). The mode is therefore
+            # unreachable here for any source — reject it loudly instead of building a no-op proxy. The
+            # callable path already rejects it via the proxy-only guard in ``deprecated_callable``.
+            if target is TargetMode.ATTRS_REMAP:
+                raise TypeError(
+                    f"`target=TargetMode.ATTRS_REMAP` is not valid for `@deprecated` on class `{source.__name__}`. "
+                    "`ATTRS_REMAP` requires `attrs_mapping`, which the `@deprecated` front door does not expose. "
+                    "Use `deprecated_class(attrs_mapping=...)` directly — a bare mapping auto-resolves the mode, "
+                    "or pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping` there."
+                )
             # Preserve decoration-time template validation for the class path (was eager in the old flow).
             _validate_template_mgs(template_mgs)
             return _packing_class_source(

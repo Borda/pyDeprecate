@@ -571,7 +571,7 @@ Three misconfiguration combinations are caught at decoration time and emit a `Us
 
 > Explicit configuration is never silently rewritten: auto-resolve fills in only an *omitted* `target`. If you need a blanket per-access warning *and* selective attribute renaming at the same time, stack two `deprecated_class()` layers — see [Nested proxy wrappers](#nested-proxy-wrappers) below.
 
-`TargetMode.ATTRS_REMAP` is a **proxy-only** mode: applying it via `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function, method, or property raises `TypeError` at decoration time, with the error message pointing to `deprecated_class(attrs_mapping=...)` as the correct API.
+`TargetMode.ATTRS_REMAP` is a **proxy-only** mode, and `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for **every** source — function, method, property, **or class**. The front door does not expose `attrs_mapping` (it is class-only), so the mode could never redirect anything there; the error points to `deprecated_class(attrs_mapping=...)` as the correct API.
 
 ### Callable target with attribute redirection
 

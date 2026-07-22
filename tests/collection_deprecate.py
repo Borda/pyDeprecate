@@ -2572,6 +2572,18 @@ def make_deprecated_with_attrs_mapping_kwarg() -> Any:  # noqa: ANN401
     return deprecated(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)  # type: ignore[call-arg]
 
 
+def make_deprecated_attrs_remap_target_on_class() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(target=TargetMode.ATTRS_REMAP)`` to a class — infeasible on the front door.
+
+    ``ATTRS_REMAP`` renames only the attribute names listed in ``attrs_mapping``, but the ``@deprecated``
+    front door does not expose ``attrs_mapping`` (it is class-only, on ``deprecated_class``). A developer who
+    reaches for the mode on the friendly front door must get a loud ``TypeError`` at decoration time pointing
+    to ``deprecated_class(attrs_mapping=...)`` — not a silently built proxy that can never redirect anything.
+
+    """
+    return deprecated(target=TargetMode.ATTRS_REMAP, **_DEPRS_CASE_STD_ARGS)(PaletteOld)
+
+
 def make_deprecated_front_door_skip_if_true_on_class() -> Any:  # noqa: ANN401
     """Apply ``@deprecated(target=..., skip_if=True)`` to a class — skip_if forwards onto the proxy path.
 
