@@ -20,7 +20,7 @@
 | Argument rename/drop mode | `TargetMode.ARGS_REMAP` |
 | Selective per-attribute deprecation on a class | `TargetMode.ATTRS_REMAP` + `attrs_mapping` |
 | Warning-only mode | `TargetMode.NOTIFY` |
-| Infer mode from config (`@deprecated` default) | `TargetMode.AUTO` — omit `target`; `args_mapping` present resolves `ARGS_REMAP`, else warn-only; rejected (`TypeError`) by `deprecated_callable`/`deprecated_class` |
+| Default for an omitted `target` (prefer passing an explicit mode) | `TargetMode.AUTO` — front-door fallback that resolves an omitted `target` (`args_mapping` present → `ARGS_REMAP`, else warn-only); never write it yourself; rejected (`TypeError`) by `deprecated_callable`/`deprecated_class` |
 | Validate expired deprecations | `validate_deprecation_expiry` |
 | Validate wrapper chains | `validate_deprecation_chains` |
 | Detect POSITIONAL_ONLY-remap incompatibilities | `validate_mapping_compatibility` |

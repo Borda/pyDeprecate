@@ -163,9 +163,11 @@ Before v0.12, applying `@deprecated` directly to a class emitted a warning threa
 
 The dispatch is permanent; only this notice is removed entirely, in v1.0, and suppressed by `stream=None`. Prefer `deprecated_class()` directly — same result, no notice, and required to reach class-only options such as `attrs_mapping`. See [`@deprecated` on a class](classes.md#deprecated-on-a-class) for a runnable example.
 
-### `TargetMode.AUTO` — the `@deprecated` front door now infers the mode
+### `TargetMode.AUTO` — how an omitted `target` is resolved
 
-`TargetMode` gained a fourth member, `AUTO`, and it is the new default for `target` on the `@deprecated` front door (previously `TargetMode.NOTIFY`). `AUTO` is a decoration-time instruction, not a runtime mode: before the wrapper or proxy is built, it resolves to the mode implied by the rest of the configuration, and the resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`:
+> **Prefer an explicit `target`.** `AUTO` exists only to give an *omitted* `target` a sensible default. Passing an explicit mode — `target=TargetMode.NOTIFY`, `target=TargetMode.ARGS_REMAP`, or a callable — keeps intent visible at the call site and is the recommended style everywhere in these docs. You never write `target=TargetMode.AUTO` yourself; the strict factories reject it.
+
+`TargetMode` gained a fourth member, `AUTO`, which is the default value of `target` on the `@deprecated` front door (previously `TargetMode.NOTIFY`). It is a decoration-time fallback, not a runtime mode: when `target` is omitted, `AUTO` resolves to the mode implied by the rest of the configuration before the wrapper or proxy is built, and the resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`:
 
 | Front-door call                                 | Resolves to                                          |
 | ----------------------------------------------- | ---------------------------------------------------- |
@@ -174,7 +176,7 @@ The dispatch is permanent; only this notice is removed entirely, in v1.0, and su
 | `@deprecated(args_mapping={...})` on a class    | proxy auto-resolve → `TargetMode.ARGS_REMAP`         |
 | `@deprecated()` on a class (no mapping)         | warn-only proxy (`DeprecationConfig.target is None`) |
 
-The practical win on the callable path: `@deprecated(args_mapping={"old": "new"})` previously fell into the default `TargetMode.NOTIFY` and was flagged as a misconfiguration — now the omitted target infers `ARGS_REMAP` and the mapping is applied.
+The practical win on the callable path: `@deprecated(args_mapping={"old": "new"})` previously fell into the default `TargetMode.NOTIFY` and was flagged as a misconfiguration — now the omitted target infers `ARGS_REMAP` and the mapping is applied. Even so, spelling out `target=TargetMode.ARGS_REMAP` alongside `args_mapping` is clearer and is what the examples show.
 
 `AUTO` is front-door-only. The strict forms keep explicit defaults — `deprecated_callable()` defaults to `TargetMode.NOTIFY`, `deprecated_class()` leaves `target` unset — and both raise `TypeError` when handed `target=TargetMode.AUTO`. Legacy proxy sentinels (`target=True` without a mapping, `target=False`) now also resolve to an unset target, so they follow the same auto-resolve as an omitted `target` (audit metadata records `None` for warn-only proxies).
 

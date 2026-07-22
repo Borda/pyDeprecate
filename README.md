@@ -294,15 +294,17 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 
 In particular the target values (cases):
 
-| `target` value              | Use case                                         | `args_mapping`                                            | Warning trigger                    |
-| --------------------------- | ------------------------------------------------ | --------------------------------------------------------- | ---------------------------------- |
-| `TargetMode.AUTO` (default) | Omit `target` — mode inferred at decoration time | Presence resolves `ARGS_REMAP`; absence resolves `NOTIFY` | Follows the resolved mode          |
-| `TargetMode.NOTIFY`         | Whole callable going away; no replacement yet    | Ignored (warns; TypeError in v1.0)                        | Every call                         |
-| `TargetMode.ARGS_REMAP`     | Callable stays; argument names are renamed       | Required                                                  | Only when old arg names are passed |
-| `<callable>`                | Callable replaced by another; calls forwarded    | Optional                                                  | Every call                         |
+| `target` value              | Use case                                                                | `args_mapping`                                            | Warning trigger                    |
+| --------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------- |
+| `target` value              | Use case                                                                | `args_mapping`                                            | Warning trigger                    |
+| --------------------------- | ------------------------------------------------                        | --------------------------------------------------------- | ---------------------------------- |
+| `TargetMode.NOTIFY`         | Whole callable going away; no replacement yet                           | Ignored (warns; TypeError in v1.0)                        | Every call                         |
+| `TargetMode.ARGS_REMAP`     | Callable stays; argument names are renamed                              | Required                                                  | Only when old arg names are passed |
+| `<callable>`                | Callable replaced by another; calls forwarded                           | Optional                                                  | Every call                         |
+| `TargetMode.AUTO` (default) | Fallback for an **omitted** `target` — mode inferred at decoration time | Presence resolves `ARGS_REMAP`; absence resolves `NOTIFY` | Follows the resolved mode          |
 
 > [!TIP]
-> `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
+> **Prefer passing an explicit `target`** — one of the first three rows — so the intent is visible at the call site. `TargetMode.AUTO` is only the default that resolves an omitted `target`; you never write `target=TargetMode.AUTO` yourself, and the strict `deprecated_callable()` / `deprecated_class()` forms reject it. `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel; the old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
 > `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` (a permanent, supported path) and emits a one-time informational `UserWarning` (only this notice is removed, in v1.0; suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes class-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` and raises `TypeError` at decoration time when applied to a class.

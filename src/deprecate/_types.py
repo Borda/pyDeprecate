@@ -22,8 +22,11 @@ class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
 
     Attributes:
-        AUTO: Decoration-time default of the :func:`~deprecate.deprecated` front door only -- "infer the mode
-            from the configuration". Resolves before the wrapper/proxy is built: a mapping present selects
+        AUTO: Decoration-time fallback that resolves the mode when ``target`` is omitted on the
+            :func:`~deprecate.deprecated` front door -- "infer the mode from the configuration". It exists only
+            to give an omitted ``target`` a sensible default; **prefer passing an explicit mode**
+            (:attr:`NOTIFY`, :attr:`ARGS_REMAP`, :attr:`ATTRS_REMAP`) or a callable target so the intent is
+            visible at the call site. Resolves before the wrapper/proxy is built: a mapping present selects
             :attr:`ARGS_REMAP` (``args_mapping``) or :attr:`ATTRS_REMAP` (``attrs_mapping``, class path); no
             mapping selects :attr:`NOTIFY` (callable path) or the proxy's unset target (class path). Passing
             ``AUTO`` explicitly to ``@deprecated`` is identical to omitting ``target``; the strict factories
