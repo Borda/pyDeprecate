@@ -19,7 +19,7 @@
 
 ### Deprecated
 
-- **`template_mgs` renamed to `message_template`.** The custom-notice parameter on `@deprecated`, `deprecated_callable`, `deprecated_class`, and `deprecated_instance` was a typo (`mgs` for `msg`); it is now `message_template`. `template_mgs` stays as a deprecated keyword alias that emits a `FutureWarning` and forwards its value (passing both raises `TypeError`); it will be removed in `v1.0`. Audit code reading `DeprecationConfig.template_mgs` keeps working through a read-only property alias — the stored field is now `message_template`. ([#222](https://github.com/Borda/pyDeprecate/pull/222))
+- **`template_mgs` renamed to `message_template`.** The custom-notice parameter on `@deprecated`, `deprecated_callable`, `deprecated_class`, and `deprecated_instance` was a typo (`mgs` for `msg`); it is now `message_template`. `template_mgs` stays as a deprecated keyword alias that emits a `FutureWarning` and forwards its value (passing both raises `TypeError`); it will be removed in `v1.0`. Audit code reading `DeprecationConfig.template_mgs` keeps working through a read-only property alias — the stored field is now `message_template`. ([#223](https://github.com/Borda/pyDeprecate/pull/223))
 
 ### Removed
 

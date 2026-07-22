@@ -35,10 +35,10 @@ def multiply(a: float, b: float) -> float:
 
 # Mark this module deprecated — call once at the bottom.
 # name is optional; when omitted it is auto-detected from the caller's __name__.
-# Without message=, the warning reads:
+# Without message_template, the warning reads:
 #   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0.
-# With message= (as below), it appends your text:
-#   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0. Use `new_calculator` instead.
+# With message_template (as below), it replaces the built-in notice entirely:
+#   FutureWarning: Use `new_calculator` instead.
 deprecated_module(
     deprecated_in="2.0",
     remove_in="3.0",

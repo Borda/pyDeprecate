@@ -286,7 +286,7 @@ As part of this alignment, `message_template` and `skip_if` passed through `@dep
 
 ### `template_mgs` → `message_template`
 
-The custom-notice parameter was a typo (`mgs` for `msg`). It is now `message_template` on every factory (`@deprecated`, `deprecated_callable`, `deprecated_class`, `deprecated_instance`, and `deprecated_module`). The old name keeps working as a deprecated alias until v1.0:
+The custom-notice parameter was a typo (`mgs` for `msg`). It is now `message_template` on `@deprecated`, `deprecated_callable`, `deprecated_class`, and `deprecated_instance`. The old name keeps working as a deprecated alias until v1.0:
 
 ```python
 # phmdoctest:skip — illustrative rename, not a runnable block
@@ -301,6 +301,8 @@ def old_fn(): ...
 ```
 
 Passing both `message_template` and `template_mgs` raises `TypeError`. Audit code reading `__deprecated__.template_mgs` keeps working through a read-only alias, but the stored field is now `message_template`.
+
+`deprecated_module()` is a separate, harder rename with no deprecation window: its `message` argument (append semantics) is renamed to `message_template` (replace semantics), and passing `message=` now raises `TypeError` — `deprecated_module` was unreleased, so no alias was needed.
 
 See the [Changelog](../changelog.md) for the complete v0.12 release notes.
 
