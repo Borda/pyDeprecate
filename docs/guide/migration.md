@@ -151,7 +151,7 @@ ______________________________________________________________________
 
 ## Pick Your Upgrade Path
 
-Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12).
+Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12). Where an intermediate release introduced a name that a later release renamed, the earlier section already gives the **final** name (e.g. an audit helper renamed in v0.6 is shown under its v0.12 name), so following a path never makes you adopt an intermediate spelling and then migrate it again — you get the net `A → C`, not `A → B → C`.
 
 === "From v0.11"
 
@@ -420,7 +420,7 @@ ______________________________________________________________________
 
 Here is what changed in v0.5 that you might have missed. All additive — nothing to change:
 
-- **The `deprecate.audit` module** arrived for deprecation-lifecycle management in CI: `find_deprecated_callables()` / `validate_deprecated_callable()` (zero-impact wrapper detection), `validate_deprecation_expiry()` (removal-deadline enforcement), and `validate_deprecation_chains()` with the `ChainType` enum. Requires the optional `[audit]` extra (`pip install pyDeprecate[audit]`).
+- **The `deprecate.audit` module** arrived for deprecation-lifecycle management in CI: zero-impact wrapper detection, removal-deadline enforcement (`validate_deprecation_expiry()`), and forwarding-chain detection (`validate_deprecation_chains()` with the `ChainType` enum). Requires the optional `[audit]` extra (`pip install pyDeprecate[audit]`). Jumping straight to v0.12, adopt the current detection names — `find_deprecation_wrappers()` / `validate_deprecation_wrapper()` returning `DeprecationWrapperInfo`; these shipped in v0.5 as `find_deprecated_callables()` / `validate_deprecated_callable()` / `DeprecatedCallableInfo` and were renamed in v0.6 (see [Coming from v0.5](#coming-from-v05)), so skip the old spellings entirely.
 
 See the [Changelog](../changelog.md) for the complete v0.5 release notes.
 
@@ -453,7 +453,7 @@ ______________________________________________________________________
 
 Here is what changed in v0.2 that you might have missed. All additive — nothing to change:
 
-- **`target=True` self-deprecation** (remap arguments within the same function via `args_mapping`, no separate target), the **`void()`** helper, the **`no_warning_call()`** test context manager (renamed to `assert_no_warnings()` in v0.6), and **stacked `@deprecated`** decorators for multi-hop argument migrations across versions.
+- **`target=True` self-deprecation** (remap arguments within the same function via `args_mapping`, no separate target — today spelled `TargetMode.ARGS_REMAP`; see [Align with the Current API](#align-with-the-current-api)), the **`void()`** helper, the **`assert_no_warnings()`** test context manager (shipped in v0.2 as `no_warning_call()`, renamed in v0.6 — adopt the current name directly), and **stacked `@deprecated`** decorators for multi-hop argument migrations across versions.
 
 See the [Changelog](../changelog.md) for the complete v0.2 release notes.
 
