@@ -4,9 +4,10 @@
 dispatches to :func:`~deprecate.proxy.deprecated_class` and emits a one-time informational
 ``UserWarning`` instead (removed in v1.0). This module also covers the two decoration-time
 ``TypeError`` guards (non-callable/non-class source; callable instance lacking ``__name__``), the
-common-args-only contract of the front door (shape-specific ``attrs_mapping``/``skip_if`` rejected,
-common ``template_mgs`` forwarded), and stacking the dispatcher over an already-wrapped callable or
-an existing class proxy.
+``TargetMode.AUTO`` front-door inference contract (mapping selects the remap mode; strict factories
+reject AUTO), the common-args-only contract of the front door (class-only ``attrs_mapping`` rejected,
+common ``template_mgs``/``skip_if`` forwarded), and stacking the dispatcher over an already-wrapped
+callable or an existing class proxy.
 
 """
 
@@ -15,10 +16,12 @@ from typing import cast
 
 import pytest
 
-from deprecate import TargetMode, assert_no_warnings
+from deprecate import TargetMode, assert_no_warnings, deprecated_callable, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
+    make_deprecated_auto_args_mapping_on_function,
+    make_deprecated_explicit_auto_on_function,
     make_deprecated_front_door_skip_if_true_on_class,
     make_deprecated_notify_args_extra_alone_on_class,
     make_deprecated_on_callable_without_name,
@@ -26,6 +29,7 @@ from tests.collection_deprecate import (
     make_deprecated_on_fresh_class_silent,
     make_deprecated_on_fresh_dataclass,
     make_deprecated_on_fresh_enum_class,
+    make_deprecated_on_fresh_function_warn_only,
     make_deprecated_on_non_callable_source,
     make_deprecated_on_partial_of_class,
     make_deprecated_on_partial_of_function,
@@ -177,6 +181,61 @@ class TestEnumAndDataclassDispatch:
             warnings.simplefilter("ignore")
             instance = dc_cls(label="y")  # type: ignore[operator]
         assert instance.label == "y"
+
+
+class TestAutoTargetOnFrontDoor:
+    """``TargetMode.AUTO`` — the ``@deprecated``-only inference default."""
+
+    def test_bare_args_mapping_on_function_infers_args_remap(self) -> None:
+        """``@deprecated(args_mapping=...)`` with no ``target`` self-remaps the argument — no misconfig.
+
+        A maintainer renaming a keyword argument reaches for the front door with just the mapping: AUTO must
+        infer ``ARGS_REMAP`` so the old name warns and renames, instead of the pre-AUTO behaviour where the
+        default ``NOTIFY`` flagged the mapping as ignored.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn = make_deprecated_auto_args_mapping_on_function()
+
+        assert not [w for w in caught if "ignores `args_mapping`" in str(w.message)]
+        assert fn.__deprecated__.target is TargetMode.ARGS_REMAP
+        with pytest.warns(FutureWarning, match="old_c"):
+            assert fn(old_c=3.0) == 6.0
+
+    def test_explicit_auto_equals_omitted_target(self) -> None:
+        """Passing ``target=TargetMode.AUTO`` explicitly behaves exactly like omitting ``target``."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn = make_deprecated_explicit_auto_on_function()
+
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+        assert fn.__deprecated__.target is TargetMode.ARGS_REMAP
+
+    def test_auto_never_stored_in_metadata_for_warn_only(self) -> None:
+        """A warn-only ``@deprecated`` function resolves AUTO to ``NOTIFY`` in its stored metadata.
+
+        ``TargetMode.AUTO`` is a decoration-time inference value only — audit metadata must always record
+        the resolved mode so downstream tooling never has to understand the sentinel.
+
+        """
+        fn = make_deprecated_on_fresh_function_warn_only()
+        assert fn.__deprecated__.target is TargetMode.NOTIFY
+
+    def test_strict_callable_form_rejects_auto(self) -> None:
+        """``deprecated_callable(target=TargetMode.AUTO)`` raises ``TypeError`` naming the front door.
+
+        The strict forms require the decoration site to document its own intent with an explicit mode;
+        inference is the front door's job.
+
+        """
+        with pytest.raises(TypeError, match="only valid on the `@deprecated` front door"):
+            deprecated_callable(target=TargetMode.AUTO, deprecated_in="1.0", remove_in="2.0")
+
+    def test_strict_class_form_rejects_auto(self) -> None:
+        """``deprecated_class(target=TargetMode.AUTO)`` raises ``TypeError`` naming the front door."""
+        with pytest.raises(TypeError, match="only valid on the `@deprecated` front door"):
+            deprecated_class(target=TargetMode.AUTO, deprecated_in="1.0", remove_in="2.0")
 
 
 class TestCommonArgsOnlyOnDispatcher:

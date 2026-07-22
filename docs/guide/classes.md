@@ -561,14 +561,15 @@ red
 
 </details>
 
-Two misconfiguration combinations are caught at decoration time and emit a `UserWarning` (planned to become `TypeError` in `v1.0`):
+Three misconfiguration combinations are caught at decoration time and emit a `UserWarning` (planned to become `TypeError` in `v1.0`):
 
-| Misconfiguration                                        | Why it is wrong                                                                                                                   |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` | `ATTRS_REMAP` requires the deprecated attribute names listed via `attrs_mapping`. Without it the proxy has zero selective effect. |
-| `attrs_mapping={}` (empty dict)                         | An empty mapping has no effect. Remove it or add deprecated attribute names.                                                      |
+| Misconfiguration                                        | Why it is wrong                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` | `ATTRS_REMAP` requires the deprecated attribute names listed via `attrs_mapping`. Without it the proxy has zero selective effect.                                                                                                            |
+| `attrs_mapping={}` (empty dict)                         | An empty mapping has no effect. Remove it or add deprecated attribute names.                                                                                                                                                                 |
+| `target=TargetMode.NOTIFY` with `attrs_mapping`         | They contradict — `NOTIFY` means warn-only with no redirect. The proxy keeps `NOTIFY` and the mapping stays inert at runtime (preserved in audit metadata, flagged `misconfigured`). Omit `target` to auto-resolve to `ATTRS_REMAP` instead. |
 
-> Since v0.12, `target=TargetMode.NOTIFY` + `attrs_mapping=...` is **no longer** a misconfiguration — `NOTIFY` is the proxy's default sentinel, and presence of `attrs_mapping` always wins: the proxy auto-resolves to `TargetMode.ATTRS_REMAP` whether `NOTIFY` was passed explicitly or `target` was omitted entirely. If you need a blanket per-access warning *and* selective attribute renaming at the same time, stack two `deprecated_class()` layers — see [Nested proxy wrappers](#nested-proxy-wrappers) below.
+> Explicit configuration is never silently rewritten: auto-resolve fills in only an *omitted* `target`. If you need a blanket per-access warning *and* selective attribute renaming at the same time, stack two `deprecated_class()` layers — see [Nested proxy wrappers](#nested-proxy-wrappers) below.
 
 `TargetMode.ATTRS_REMAP` is a **proxy-only** mode: applying it via `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function, method, or property raises `TypeError` at decoration time, with the error message pointing to `deprecated_class(attrs_mapping=...)` as the correct API.
 

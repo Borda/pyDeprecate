@@ -586,11 +586,12 @@ class TestDecoratorFactory:
             warnings.simplefilter("ignore")
             assert DeprecatedColorEnum.RED is ColorEnum.RED
 
-    def test_bare_call_default_target_is_notify_not_misconfigured(self) -> None:
-        """``deprecated_class()`` called fresh with no explicit ``target=`` defaults to ``TargetMode.NOTIFY``.
+    def test_bare_call_default_target_is_none_not_misconfigured(self) -> None:
+        """``deprecated_class()`` called fresh with no explicit ``target=`` records ``None`` as its target.
 
-        Existing coverage of the ``None`` -> ``TargetMode.NOTIFY`` default flip (this PR) goes through
-        pre-decorated module-level fixtures; this locks the bare, zero-kwargs-beyond-versions path directly.
+        ``None`` is the proxy's unset value: ``TargetMode.NOTIFY`` appears in audit metadata only when the
+        caller explicitly chose it, so tools can distinguish "warn-only by default" from "warn-only on
+        purpose"; the warn-on-access behaviour is identical either way.
 
         """
         with warnings.catch_warnings():
@@ -601,7 +602,7 @@ class TestDecoratorFactory:
                 """Plain class deprecated with no explicit target — proves the factory default."""
 
         dep = object.__getattribute__(BareDefaultTargetClass, "__deprecated__")
-        assert dep.target is TargetMode.NOTIFY
+        assert dep.target is None
         assert dep.misconfigured is False
 
     @pytest.mark.parametrize(
@@ -635,7 +636,7 @@ class TestDecoratorFactory:
         assert str(caught[0].message) == warning_message
 
         dep = object.__getattribute__(OldClass, "__deprecated__")
-        assert dep.target is TargetMode.NOTIFY
+        assert dep.target is None
 
         obj = OldClass()
         assert obj.method() == "ok"
@@ -1182,10 +1183,16 @@ class TestProxyArgsMappingBehavior:
             instance = proxy(new_key=6, old_key=5)
         assert instance.new_key == 6
 
-    def test_notify_with_args_mapping_auto_resolves_to_args_remap(self) -> None:
-        """NOTIFY + args_mapping on proxy auto-resolves to ARGS_REMAP — no misconfig warning (since 2026-07-20)."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+    def test_explicit_notify_with_args_mapping_warns_and_keeps_mode(self) -> None:
+        """Explicit ``target=TargetMode.NOTIFY`` + ``args_mapping`` is contradictory — flagged, never overridden.
+
+        Only the omitted default auto-resolves a mapping. When the caller explicitly picked ``NOTIFY``,
+        pyDeprecate cannot tell whether the target or the mapping is the mistake, so it must not silently
+        rewrite the user's configuration: the mode stays ``NOTIFY``, the mapping is inert, a
+        ``UserWarning`` fires at decoration time, and audit metadata records ``misconfigured=True``.
+
+        """
+        with pytest.warns(UserWarning, match="ignores `args_mapping`"):
 
             @deprecated_class(
                 deprecated_in="1.2", remove_in="2.0", target=TargetMode.NOTIFY, args_mapping={"old_key": "new_key"}
@@ -1193,9 +1200,28 @@ class TestProxyArgsMappingBehavior:
             class _ProxyNotifyWithArgsMapping:
                 pass
 
+        meta = object.__getattribute__(_ProxyNotifyWithArgsMapping, "__deprecated__")
+        assert meta.target is TargetMode.NOTIFY
+        assert meta.misconfigured is True
+
+    def test_omitted_target_with_args_mapping_auto_resolves_to_args_remap(self) -> None:
+        """Omitting ``target`` while passing ``args_mapping`` auto-resolves to ``ARGS_REMAP`` — no warning.
+
+        The factory default means "no explicit target", so the presence of the mapping is the activation
+        signal: the proxy resolves to per-argument deprecation exactly as if ``TargetMode.ARGS_REMAP`` had
+        been spelled out, with no misconfig warning and clean audit metadata.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @deprecated_class(deprecated_in="1.2", remove_in="2.0", args_mapping={"old_key": "new_key"})
+            class _ProxyOmittedWithArgsMapping:
+                pass
+
         misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]
         assert not misconfig_warns
-        meta = object.__getattribute__(_ProxyNotifyWithArgsMapping, "__deprecated__")
+        meta = object.__getattribute__(_ProxyOmittedWithArgsMapping, "__deprecated__")
         assert meta.target is TargetMode.ARGS_REMAP
         assert meta.args_mapping == {"old_key": "new_key"}
 
@@ -1980,35 +2006,37 @@ class TestAttrsMappingCombinations:
     # Misconfiguration cases (decoration-time signals)
     # ------------------------------------------------------------------
 
-    def test_notify_plus_attrs_mapping_auto_resolves_to_attrs_remap(self) -> None:
-        """``target=TargetMode.NOTIFY`` combined with ``attrs_mapping`` auto-resolves to ``ATTRS_REMAP``.
+    def test_explicit_notify_plus_attrs_mapping_warns_and_ignores_mapping(self) -> None:
+        """Explicit ``target=TargetMode.NOTIFY`` + ``attrs_mapping`` is contradictory — flagged, mapping inert.
 
-        Option C (2026-07-20) retires the NOTIFY+mapping misconfig guardrail: presence of ``attrs_mapping``
-        is now the activation signal for selective per-attribute warning, exactly like the long-standing
-        ``target=None``+``attrs_mapping`` auto-resolve — ``TargetMode.NOTIFY`` is treated the same way since
-        it is now the ``deprecated_class`` default. No misconfig warning fires and
-        :attr:`~deprecate._types.DeprecationConfig.misconfigured` stays ``False``.
+        ``NOTIFY`` means "warn on every access"; ``attrs_mapping`` means "warn only on the listed aliases".
+        When the caller spelled out ``NOTIFY``, pyDeprecate cannot judge whether the target or the mapping
+        is the mistake, so the explicit choice wins: the proxy stays in whole-class warn mode, the mapping
+        performs no redirects at runtime, a ``UserWarning`` fires at decoration time, and audit metadata
+        records ``misconfigured=True`` while preserving the configured ``attrs_mapping`` for inspection.
+        Omit ``target`` (the factory default) to auto-resolve the mapping to ``ATTRS_REMAP`` instead.
 
         """
 
-        class _NotifyAttrsAutoResolved:
+        class _NotifyAttrsContradiction:
             colour = "red"
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="ignores `attrs_mapping`"):
             proxy = deprecated_class(
                 target=TargetMode.NOTIFY,
                 attrs_mapping={"color": "colour"},
                 deprecated_in="1.0",
                 remove_in="2.0",
                 stream=None,
-            )(_NotifyAttrsAutoResolved)
+            )(_NotifyAttrsContradiction)
 
-        misconfig_warns = [w for w in caught if "ignores `attrs_mapping`" in str(w.message)]
-        assert not misconfig_warns
         meta = object.__getattribute__(proxy, "__deprecated__")
-        assert meta.misconfigured is False
-        assert meta.target is TargetMode.ATTRS_REMAP
+        assert meta.target is TargetMode.NOTIFY
+        assert meta.misconfigured is True
+        assert meta.attrs_mapping == {"color": "colour"}
+        # Runtime ignores the mapping entirely: the alias is not redirected to ``colour``.
+        with pytest.raises(AttributeError):
+            _ = proxy.color
 
     def test_attrs_remap_without_attrs_mapping_warns_at_decoration(self) -> None:
         """``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` emits a UserWarning at decoration time.

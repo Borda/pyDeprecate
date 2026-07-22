@@ -172,7 +172,7 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
 
-Since `target` defaults to `TargetMode.NOTIFY`, you can omit it entirely:
+Since `target` defaults to `TargetMode.AUTO` — which resolves to `TargetMode.NOTIFY` when no `args_mapping` is given — you can omit it entirely:
 
 ```python
 from deprecate import deprecated
@@ -200,7 +200,7 @@ print(my_sum(1, 2))
 
 ## Rename arguments within one function
 
-Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.
+Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function. On `@deprecated` you can also omit `target` entirely — a bare `args_mapping` auto-resolves to `TargetMode.ARGS_REMAP` (the default `TargetMode.AUTO` infers the mode); the strict `deprecated_callable()` form requires the explicit `target`.
 
 ```python
 from deprecate import TargetMode, deprecated
@@ -274,6 +274,8 @@ These modes differ in whether the function body runs, whether a warning fires, a
 !!! tip
 
     `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
+
+    On `@deprecated`, `target` defaults to `TargetMode.AUTO`, which picks between the first two automatically at decoration time: `args_mapping` present resolves to `ARGS_REMAP`, otherwise `NOTIFY`. The resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`. The strict `deprecated_callable()` defaults to `TargetMode.NOTIFY` and raises `TypeError` when handed `TargetMode.AUTO` explicitly.
 
 ### Behaviour comparison
 

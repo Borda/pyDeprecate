@@ -22,25 +22,35 @@ class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
 
     Attributes:
+        AUTO: Decoration-time default of the :func:`~deprecate.deprecated` front door only -- "infer the mode
+            from the configuration". Resolves before the wrapper/proxy is built: a mapping present selects
+            :attr:`ARGS_REMAP` (``args_mapping``) or :attr:`ATTRS_REMAP` (``attrs_mapping``, class path); no
+            mapping selects :attr:`NOTIFY` (callable path) or the proxy's unset target (class path). Passing
+            ``AUTO`` explicitly to ``@deprecated`` is identical to omitting ``target``; the strict factories
+            (:func:`~deprecate.routine.deprecated_callable`, :func:`~deprecate.proxy.deprecated_class`) reject
+            it with :class:`TypeError` -- they require an explicit mode. ``AUTO`` is never stored in
+            :class:`~deprecate._types.DeprecationConfig` -- audit metadata always records the resolved mode.
         NOTIFY: Notify-only deprecation -- warn on every call; original body executes unchanged. Replaces
-            ``target=None``. Passing ``args_extra`` with this mode always emits a :class:`UserWarning` today
-            (:class:`TypeError` is planned in ``v1.0``). Passing ``args_mapping`` also emits that warning on
-            the callable path (functions/methods); on the class path (:func:`~deprecate.proxy.deprecated_class`
-            / ``@deprecated`` on a class) it instead auto-resolves to :attr:`ARGS_REMAP` and applies the
-            mapping -- ``attrs_mapping`` auto-resolves to :attr:`ATTRS_REMAP` the same way.
+            ``target=None``. Combining an explicit ``NOTIFY`` with ``args_mapping``, ``attrs_mapping``, or
+            ``args_extra`` is contradictory and emits a :class:`UserWarning` (the mapping/extras are ignored;
+            :class:`TypeError` is planned in ``v1.0``) -- with ``@deprecated``, omit ``target`` instead to let
+            :attr:`AUTO` pick the matching remap mode.
         ARGS_REMAP: Deprecate argument names only -- warn only when deprecated argument names are passed; remaps
-            kwargs via ``args_mapping`` before calling the original body. Replaces ``target=True``. This mode is
-            strongly recommended with ``args_mapping``; omitting it emits a :class:`UserWarning` today, and
-            :class:`TypeError` is planned in ``v1.0``.
+            kwargs via ``args_mapping`` before calling the original body. Replaces ``target=True``. Selected
+            automatically by :attr:`AUTO` when ``args_mapping`` is provided to ``@deprecated`` without an
+            explicit ``target``; using this mode without ``args_mapping`` emits a :class:`UserWarning` today,
+            and :class:`TypeError` is planned in ``v1.0``.
         ATTRS_REMAP: Selective per-attribute deprecation -- warn only when a deprecated attribute alias listed in
             ``attrs_mapping`` is accessed; all other attribute access is forwarded silently. Proxy-specific mode:
             only valid for :func:`~deprecate.proxy.deprecated_class`; raises :class:`TypeError` on
             :func:`~deprecate.deprecated` decorated functions/methods. Analogous to :attr:`ARGS_REMAP` but for
-            attribute access instead of call arguments. This mode is selected automatically when ``attrs_mapping``
-            is non-empty and no explicit ``target`` is provided.
+            attribute access instead of call arguments. Selected automatically by :attr:`AUTO` when
+            ``attrs_mapping`` is non-empty and no explicit ``target`` is provided.
 
     Examples:
         >>> from deprecate import TargetMode
+        >>> TargetMode.AUTO.value
+        'auto'
         >>> TargetMode.NOTIFY.value
         'notify'
         >>> TargetMode.ARGS_REMAP.value
@@ -50,6 +60,7 @@ class TargetMode(Enum):
 
     """
 
+    AUTO = "auto"
     NOTIFY = "notify"
     ARGS_REMAP = "args_remap"
     ATTRS_REMAP = "attrs_remap"
@@ -129,11 +140,10 @@ class TargetMode(Enum):
     ) -> "Union[Callable[..., Any], TargetMode, None]":
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
 
-        ``True`` and ``False`` are invalid for the proxy context and normalise to
-        :attr:`~deprecate._types.TargetMode.NOTIFY`
-        (or :attr:`~deprecate._types.TargetMode.ARGS_REMAP` when ``args_mapping`` is non-empty)
-        after emitting a warning.
-        All other values pass through unchanged.  Pass ``stacklevel=None`` to suppress warnings.
+        ``True`` and ``False`` are invalid for the proxy context and normalise to ``None`` — the proxy's
+        unset-target value (or :attr:`~deprecate._types.TargetMode.ARGS_REMAP` when ``args_mapping`` is
+        non-empty) after emitting a warning, so any configured mapping still auto-resolves like an omitted
+        target. All other values pass through unchanged.  Pass ``stacklevel=None`` to suppress warnings.
 
         Args:
             target: Raw ``target`` value from the caller.  Only ``True`` and ``False`` trigger normalisation;
@@ -147,16 +157,16 @@ class TargetMode(Enum):
 
         Returns:
             :attr:`~deprecate._types.TargetMode.ARGS_REMAP` when ``target=True`` and ``args_mapping`` is non-empty;
-            :attr:`~deprecate._types.TargetMode.NOTIFY` when ``target`` was ``True`` (without ``args_mapping``) or
+            ``None`` (the proxy's unset-target value) when ``target`` was ``True`` (without ``args_mapping``) or
             ``False``; otherwise ``target`` unchanged.
 
         Examples:
-            >>> TargetMode._from_legacy_proxy(True, stacklevel=None)
-            <TargetMode.NOTIFY: 'notify'>
+            >>> TargetMode._from_legacy_proxy(True, stacklevel=None) is None
+            True
             >>> TargetMode._from_legacy_proxy(True, args_mapping={"old": "new"}, stacklevel=None)
             <TargetMode.ARGS_REMAP: 'args_remap'>
-            >>> TargetMode._from_legacy_proxy(False, stacklevel=None)
-            <TargetMode.NOTIFY: 'notify'>
+            >>> TargetMode._from_legacy_proxy(False, stacklevel=None) is None
+            True
             >>> TargetMode._from_legacy_proxy(None) is None
             True
             >>> TargetMode._from_legacy_proxy(TargetMode.NOTIFY)
@@ -180,7 +190,10 @@ class TargetMode(Enum):
                     FutureWarning,
                     stacklevel=stacklevel,
                 )
-            return cls.NOTIFY
+            # ``None`` (the proxy's unset value), not NOTIFY: legacy sentinels behave like an omitted
+            # target, so a configured ``attrs_mapping`` still auto-resolves instead of being flagged as an
+            # explicit-NOTIFY conflict.
+            return None
         if target is False:
             if stacklevel is not None:
                 warnings.warn(
@@ -188,7 +201,7 @@ class TargetMode(Enum):
                     UserWarning,
                     stacklevel=stacklevel,
                 )
-            return cls.NOTIFY
+            return None
         return target
 
     @classmethod
@@ -243,8 +256,9 @@ class TargetMode(Enum):
         if mode is cls.NOTIFY and args_mapping:
             messages.append(
                 f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
-                "`args_mapping`. Use `TargetMode.ARGS_REMAP` to rename arguments, or pass a "
-                "callable target to forward the call. This will be `TypeError` in `v1.0`."
+                "`args_mapping`. Omit `target` to auto-resolve to `TargetMode.ARGS_REMAP`, pass "
+                "`TargetMode.ARGS_REMAP` explicitly, or pass a callable target to forward the call. "
+                "This will be `TypeError` in `v1.0`."
             )
         if mode is cls.NOTIFY and args_extra:
             messages.append(
@@ -292,10 +306,10 @@ class TargetMode(Enum):
             ``True`` if any misconfiguration was detected, ``False`` otherwise.
 
         Examples:
-            >>> # NOTIFY + attrs_mapping is not flagged here — the proxy auto-resolves it to ATTRS_REMAP
-            >>> # before this validator ever runs; see ``_DeprecatedProxy.__init__``.
+            >>> # Explicit NOTIFY + attrs_mapping is contradictory — only TargetMode.AUTO (the factory
+            >>> # default, i.e. an omitted ``target``) auto-resolves a mapping to ATTRS_REMAP.
             >>> TargetMode._validate_proxy(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
-            False
+            True
             >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None, stacklevel=None)
             True
             >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={}, stacklevel=None)
@@ -320,9 +334,15 @@ class TargetMode(Enum):
 
         """
         messages = []
-        # NOTIFY + attrs_mapping is not validated here: ``_DeprecatedProxy.__init__`` auto-resolves it to
-        # ATTRS_REMAP before this classmethod is ever reached in production, so a check here would be
-        # dead code — unreachable except via a direct call bypassing that auto-resolve.
+        # Explicit NOTIFY + attrs_mapping is contradictory: only TargetMode.AUTO (the factory default)
+        # auto-resolves a mapping — an explicitly chosen NOTIFY must not be silently overridden, and the
+        # mapping is ignored at runtime instead.
+        if mode is cls.NOTIFY and attrs_mapping:
+            messages.append(
+                f"`deprecated_class(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
+                "`attrs_mapping`. Omit `target` to auto-resolve to `TargetMode.ATTRS_REMAP`, or pass "
+                "`TargetMode.ATTRS_REMAP` explicitly. This will be `TypeError` in `v1.0`."
+            )
         if mode is cls.ARGS_REMAP and args_mapping and attrs_mapping:
             messages.append(
                 f"`deprecated_class` on `{source_name}` has both `args_mapping` and `attrs_mapping` "

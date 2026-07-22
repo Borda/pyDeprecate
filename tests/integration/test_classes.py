@@ -30,6 +30,7 @@ from tests.collection_deprecate import (
     WrappedEnum,
     depr_class_args_only_mode_warns_on_deprecated_arg,
     depr_class_whole_mode_warns_on_call,
+    make_class_omitted_target_with_args,
     make_class_target_args_remap,
     make_class_target_notify_with_args,
 )
@@ -420,11 +421,13 @@ class TestDataclassFormEquivalence(_ClassFormBase):
 class TestDeprecatedClassWithTargetMode:
     """@deprecated applied to a class source with TargetMode values."""
 
-    def test_notify_on_class_source_does_not_warn_misconfig_for_args_mapping(self) -> None:
-        """@deprecated(target=TargetMode.NOTIFY, args_mapping=...) on a class no longer emits a misconfig UserWarning.
+    def test_explicit_notify_with_args_mapping_warns_misconfig(self) -> None:
+        """@deprecated(target=TargetMode.NOTIFY, args_mapping=...) on a class emits the misconfig UserWarning.
 
-        Option C (2026-07-20) retires the NOTIFY+args_mapping misconfig guardrail for the class path: the
-        mapping is passed through and the proxy auto-resolves NOTIFY to ARGS_REMAP instead of flagging it.
+        The front door's default is ``TargetMode.AUTO`` (infer the mode), so a ``NOTIFY`` seen here was
+        deliberately typed by the caller. Combining it with ``args_mapping`` is contradictory and pyDeprecate
+        cannot judge whether the target or the mapping is the mistake — the explicit choice is flagged, never
+        silently rewritten.
 
         """
         with warnings.catch_warnings(record=True) as caught:
@@ -432,13 +435,13 @@ class TestDeprecatedClassWithTargetMode:
             make_class_target_notify_with_args()
 
         misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]
-        assert not misconfig_warns
+        assert misconfig_warns
 
-    def test_notify_on_class_source_does_not_warn_misconfig_for_args_extra(self) -> None:
-        """@deprecated(target=TargetMode.NOTIFY, args_extra=...) on a class no longer emits a misconfig UserWarning.
+    def test_explicit_notify_with_args_extra_warns_misconfig(self) -> None:
+        """@deprecated(target=TargetMode.NOTIFY, args_extra=...) on a class emits the misconfig UserWarning.
 
-        Once ``args_mapping`` auto-resolves NOTIFY to ARGS_REMAP, ``args_extra`` is a valid combination for
-        that mode (extra kwargs merged in after remap) — no longer flagged as ignored.
+        With the explicit ``NOTIFY`` kept (no auto-resolve), ``args_extra`` has no forwarded call to merge
+        into — it is a dead knob and must be flagged at decoration time alongside the ignored mapping.
 
         """
         with warnings.catch_warnings(record=True) as caught:
@@ -446,29 +449,50 @@ class TestDeprecatedClassWithTargetMode:
             make_class_target_notify_with_args()
 
         misconfig_warns = [w for w in caught if "ignores `args_extra`" in str(w.message)]
-        assert not misconfig_warns
+        assert misconfig_warns
 
-    def test_notify_on_class_source_auto_promotes_to_args_remap(self) -> None:
-        """NOTIFY + args_mapping on a class auto-promotes to ARGS_REMAP; the mapping is preserved, not stripped."""
+    def test_explicit_notify_with_args_mapping_keeps_mode_and_flags(self) -> None:
+        """Explicit NOTIFY + args_mapping keeps ``target=NOTIFY`` and records ``misconfigured=True``.
+
+        The user's explicit configuration is preserved in audit metadata — mode untouched, mapping stored for
+        inspection — so CI tooling can surface exactly what the caller wrote instead of a silently promoted
+        substitute.
+
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             cls = make_class_target_notify_with_args()
         dep = object.__getattribute__(cls, "__deprecated__")
+        assert dep.target is TargetMode.NOTIFY
+        assert dep.misconfigured is True
+
+    def test_omitted_target_auto_promotes_to_args_remap(self) -> None:
+        """Omitting ``target`` with args_mapping auto-resolves to ARGS_REMAP; the mapping is preserved.
+
+        The ``TargetMode.AUTO`` front-door default infers per-argument deprecation from the mapping presence —
+        the handy zero-ceremony form: no explicit mode to spell out, no misconfig warning, clean metadata.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            cls = make_class_omitted_target_with_args()
+        dep = object.__getattribute__(cls, "__deprecated__")
         assert dep.target is TargetMode.ARGS_REMAP
         assert dep.args_mapping == {"old_key": "new_key"}
+        assert dep.misconfigured is False
 
-    def test_notify_on_class_source_remap_and_extra_fire_on_old_arg(self) -> None:
+    def test_omitted_target_remap_and_extra_fire_on_old_arg(self) -> None:
         """Calling with the deprecated ``old_key`` name warns, remaps to ``new_key``, and merges ``args_extra``.
 
         A caller still using the old constructor keyword after a class migrates to
-        ``@deprecated(target=TargetMode.NOTIFY, args_mapping=..., args_extra=...)`` must see the auto-resolved
+        ``@deprecated(args_mapping=..., args_extra=...)`` (target omitted) must see the auto-resolved
         ARGS_REMAP behaviour end to end: the old keyword is renamed AND the extra injected keyword reaches the
         constructor, exactly as it would for an explicit ``target=TargetMode.ARGS_REMAP`` proxy.
 
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            cls = make_class_target_notify_with_args()
+            cls = make_class_omitted_target_with_args()
             instance = cls(old_key=5)
 
         assert instance.new_key == 5
@@ -476,11 +500,11 @@ class TestDeprecatedClassWithTargetMode:
         dep_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert dep_warns
 
-    def test_notify_on_class_source_silent_on_new_arg(self) -> None:
+    def test_omitted_target_silent_on_new_arg(self) -> None:
         """Calling with the new ``new_key`` name directly is silent — ARGS_REMAP only warns on the old name."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            cls = make_class_target_notify_with_args()
+            cls = make_class_omitted_target_with_args()
 
         with assert_no_warnings(FutureWarning):
             instance = cls(new_key=7)

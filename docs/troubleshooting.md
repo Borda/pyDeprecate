@@ -605,7 +605,7 @@ ______________________________________________________________________
 
 **Q:** I set up `deprecated_class(args_mapping={"old_arg": "new_arg"}, ...)` on my class but no warning fires when I call it with `new_arg=...`. Did I configure it incorrectly?
 
-**A:** No — this is the intended behaviour. When `args_mapping` is provided without an explicit callable `target`, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
+**A:** No — this is the intended behaviour. When `args_mapping` is provided with `target` omitted, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
 
 ```python
 from deprecate import deprecated_class
@@ -637,7 +637,7 @@ print(LegacyConfig(time_limit=30).timeout)  # old name — FutureWarning emitted
 
 </details>
 
-**Since v0.12, `target=TargetMode.NOTIFY` no longer suppresses `args_mapping`.** `TargetMode.NOTIFY` is the proxy's default sentinel, and — same as omitting `target` entirely — presence of `args_mapping` always wins: the proxy auto-resolves to `TargetMode.ARGS_REMAP` regardless of whether `NOTIFY` was passed explicitly. There is no longer a single-proxy way to get a blanket per-instantiation warning while `args_mapping` is also active. If you need both — every instantiation warns *and* an old argument name is remapped — stack two `deprecated_class()` layers: an inner layer with `args_mapping` only (`ARGS_REMAP`) for the rename, and an outer layer with no mapping (`NOTIFY`) for the blanket notice. See [Nested proxy wrappers](guide/classes.md#nested-proxy-wrappers) for the pattern.
+**Auto-resolve applies only when `target` is omitted.** Passing `target=TargetMode.NOTIFY` explicitly together with `args_mapping` is a misconfiguration: a `UserWarning` fires at decoration time (`TypeError` in v1.0), the mode stays `NOTIFY`, and the mapping is inert at runtime (preserved in audit metadata, flagged `misconfigured`) — explicit configuration is never silently rewritten. With `target` omitted, the proxy auto-resolves a present `args_mapping` to `TargetMode.ARGS_REMAP` (on the `@deprecated` front door this is the `TargetMode.AUTO` default doing the inference). There is no single-proxy way to get a blanket per-instantiation warning while `args_mapping` is also active. If you need both — every instantiation warns *and* an old argument name is remapped — stack two `deprecated_class()` layers: an inner layer with `args_mapping` only (`ARGS_REMAP`) for the rename, and an outer layer with no mapping (`NOTIFY`) for the blanket notice. See [Nested proxy wrappers](guide/classes.md#nested-proxy-wrappers) for the pattern.
 
 ______________________________________________________________________
 

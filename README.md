@@ -185,23 +185,23 @@ Not sure which API to reach for? Start here.
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
 
-| Param              | Default                     | Purpose                                                                                                    |
-| ------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `target`           | `TargetMode.NOTIFY`         | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
-| `deprecated_in`    | `""`                        | Version when deprecated (e.g. `"1.0"`)                                                                     |
-| `remove_in`        | `""`                        | Version when removed (e.g. `"2.0"`)                                                                        |
-|                    | **Advanced: ~10% of cases** |                                                                                                            |
-| `stream`           | `deprecation_warning`       | Warning sink callable (set `None` to silence warnings)                                                     |
-| `num_warns`        | `1`                         | `0` never · `1` once · `-1` always · `N` exactly N times                                                   |
-| `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
-| `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                   |
-| `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                 |
-| `skip_if`          | `False`                     | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                |
-| `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                        |
-| `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                              |
+| Param              | Default                     | Purpose                                                                                                                                                                 |
+| ------------------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target`           | `TargetMode.AUTO`           | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` warn-only · `TargetMode.AUTO` (default) infers the mode from the other arguments |
+| `deprecated_in`    | `""`                        | Version when deprecated (e.g. `"1.0"`)                                                                                                                                  |
+| `remove_in`        | `""`                        | Version when removed (e.g. `"2.0"`)                                                                                                                                     |
+|                    | **Advanced: ~10% of cases** |                                                                                                                                                                         |
+| `stream`           | `deprecation_warning`       | Warning sink callable (set `None` to silence warnings)                                                                                                                  |
+| `num_warns`        | `1`                         | `0` never · `1` once · `-1` always · `N` exactly N times                                                                                                                |
+| `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                                                                                          |
+| `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                                                                                |
+| `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                                                                              |
+| `skip_if`          | `False`                     | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                                                                             |
+| `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
+| `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                                                                                           |
 
 > [!TIP]
-> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`.
+> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
 > `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `template_mgs`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
@@ -294,11 +294,12 @@ The functionality is kept simple and all defaults should be reasonable, but you 
 
 In particular the target values (cases):
 
-| `target` value          | Use case                                      | `args_mapping`                     | Warning trigger                    |
-| ----------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------- |
-| `TargetMode.NOTIFY`     | Whole callable going away; no replacement yet | Ignored (warns; TypeError in v1.0) | Every call                         |
-| `TargetMode.ARGS_REMAP` | Callable stays; argument names are renamed    | Required                           | Only when old arg names are passed |
-| `<callable>`            | Callable replaced by another; calls forwarded | Optional                           | Every call                         |
+| `target` value              | Use case                                         | `args_mapping`                                            | Warning trigger                    |
+| --------------------------- | ------------------------------------------------ | --------------------------------------------------------- | ---------------------------------- |
+| `TargetMode.AUTO` (default) | Omit `target` — mode inferred at decoration time | Presence resolves `ARGS_REMAP`; absence resolves `NOTIFY` | Follows the resolved mode          |
+| `TargetMode.NOTIFY`         | Whole callable going away; no replacement yet    | Ignored (warns; TypeError in v1.0)                        | Every call                         |
+| `TargetMode.ARGS_REMAP`     | Callable stays; argument names are renamed       | Required                                                  | Only when old arg names are passed |
+| `<callable>`                | Callable replaced by another; calls forwarded    | Optional                                                  | Every call                         |
 
 > [!TIP]
 > `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
@@ -1016,7 +1017,7 @@ Each deprecated attribute name has its own independent warning counter — with 
 
 **Dataclass auto-expand** — when the wrapped class is a `@dataclass`, a single `deprecated_class(attrs_mapping={"old": "new"})` call automatically warns on both attribute access (`obj.old`) and constructor kwargs (`DC(old=5)`). No need to set `args_mapping` separately for a field rename. For non-`@dataclass` targets, `attrs_mapping` covers attribute access only — also set `args_mapping` to cover constructor kwargs.
 
-**Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Two misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), and `attrs_mapping={}` (empty dict). Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only. Since v0.12, `target=TargetMode.NOTIFY` + `attrs_mapping` is **not** a misconfiguration — `NOTIFY` is the proxy's default sentinel and a mapping present always wins, auto-resolving to `ATTRS_REMAP` the same as omitting `target`.
+**Explicit `TargetMode.ATTRS_REMAP` form** — passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. The equivalent self-documenting form is to pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`; both forms are behaviourally identical. Three misconfigurations emit `UserWarning` at decoration time (planned `TypeError` in v1.0): `target=TargetMode.ATTRS_REMAP` without `attrs_mapping` (no selective effect), `attrs_mapping={}` (empty dict), and explicit `target=TargetMode.NOTIFY` together with `attrs_mapping` — they contradict, so the proxy keeps `NOTIFY`, leaves the mapping inert at runtime, and records it in audit metadata with `misconfigured=True`; explicit configuration is never silently rewritten. Auto-resolve applies only when `target` is omitted. Using `@deprecated(target=TargetMode.ATTRS_REMAP)` on a function or property raises `TypeError` — the mode is proxy-only.
 
 To deprecate attributes at different library versions, stack two `@deprecated_class()` decorators — each layer carries its own version pair and `isinstance()`/`issubclass()` resolve correctly through the proxy chain.
 

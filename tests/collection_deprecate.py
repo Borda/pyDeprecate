@@ -1360,14 +1360,13 @@ def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
 
 
 def make_class_target_notify_with_args() -> type:
-    """Build a class with @deprecated(target=TargetMode.NOTIFY) + args_mapping + args_extra (Fix 1 fixture).
+    """Build a class with an explicit @deprecated(target=TargetMode.NOTIFY) + args_mapping + args_extra.
 
-    The NOTIFY+mapping auto-resolve behavior (2026-07-20): applying @deprecated to a class with
-    target=TargetMode.NOTIFY and a non-empty args_mapping no longer treats it as a misconfiguration — the
-    mapping is passed through unchanged so the proxy auto-resolves NOTIFY+args_mapping to
-    TargetMode.ARGS_REMAP, and args_extra is merged into the forwarded call after remap (same as any other
-    ARGS_REMAP proxy). ``injected`` is a real constructor parameter here (not stripped away) so tests can
-    exercise the full round trip.
+    Explicit ``NOTIFY`` combined with a mapping is contradictory — ``NOTIFY`` means "warn on every access"
+    while the mapping selects per-argument deprecation, and pyDeprecate cannot judge which side the caller
+    misconfigured. The explicit choice is therefore never overridden: the proxy stays in ``NOTIFY`` mode,
+    the mapping and extras are inert at call time, and decoration emits the "ignores `args_mapping`" /
+    "ignores `args_extra`" ``UserWarning`` pair with ``misconfigured=True`` in audit metadata.
 
     """
 
@@ -1377,14 +1376,39 @@ def make_class_target_notify_with_args() -> type:
         args_mapping={"old_key": "new_key"},
         args_extra={"injected": "x"},
     )
-    class NotifyAutoResolvedClass:
+    class NotifyExplicitContradictionClass:
         """Source class — deprecated_class delegates to this body unchanged."""
 
         def __init__(self, new_key: int = 0, injected: str = "") -> None:
             self.new_key = new_key
             self.injected = injected
 
-    return NotifyAutoResolvedClass
+    return NotifyExplicitContradictionClass
+
+
+def make_class_omitted_target_with_args() -> type:
+    """Build a class with @deprecated + args_mapping + args_extra and NO explicit ``target=``.
+
+    The front door's ``TargetMode.AUTO`` default means "infer the mode": the mapping present auto-resolves
+    to ``TargetMode.ARGS_REMAP``, so the old constructor keyword warns and renames, and ``args_extra`` is
+    merged into the forwarded call after remap — the handy zero-ceremony form of per-argument deprecation.
+    ``injected`` is a real constructor parameter so tests can exercise the full round trip.
+
+    """
+
+    @deprecated(
+        **_DEPRS_CASE_TGT_MODE_INF_ARGS,
+        args_mapping={"old_key": "new_key"},
+        args_extra={"injected": "x"},
+    )
+    class OmittedTargetAutoResolvedClass:
+        """Source class — deprecated_class delegates to this body unchanged."""
+
+        def __init__(self, new_key: int = 0, injected: str = "") -> None:
+            self.new_key = new_key
+            self.injected = injected
+
+    return OmittedTargetAutoResolvedClass
 
 
 def make_class_target_args_remap() -> type:
@@ -2504,7 +2528,7 @@ def make_deprecated_notify_args_extra_alone_on_class() -> type:
 
     """
 
-    @deprecated(deprecated_in="1.0", remove_in="2.0", args_extra={"z": 1})
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", args_extra={"z": 1})
     class _DispatchedNotifyArgsExtraAlone:
         """Plain class source with NOTIFY + bare ``args_extra`` — misconfiguration fixture."""
 
@@ -2612,6 +2636,55 @@ def make_deprecated_instance_skip_if_true_read_only() -> Any:  # noqa: ANN401
 
     """
     return deprecated_instance([1, 2], name="legacy_list", skip_if=True, read_only=True, **_DEPRS_CASE_STD_ARGS)
+
+
+def make_deprecated_on_fresh_function_warn_only() -> Any:  # noqa: ANN401
+    """Apply bare ``@deprecated`` (no target, no mapping) to a function — AUTO resolves to ``NOTIFY``.
+
+    The stored ``__deprecated__.target`` must record the resolved mode, never the ``TargetMode.AUTO``
+    decoration-time sentinel.
+
+    """
+
+    @deprecated(**_DEPRS_CASE_STD_ARGS)
+    def _warn_only_fn(x: int = 0) -> int:
+        """Source function — warn-only, body executes unchanged."""
+        return x
+
+    return _warn_only_fn
+
+
+def make_deprecated_auto_args_mapping_on_function() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(args_mapping=...)`` with NO ``target`` to a function — AUTO infers ``ARGS_REMAP``.
+
+    The front door's ``TargetMode.AUTO`` default infers the mode from the configuration: a mapping present
+    selects per-argument deprecation without the caller spelling out ``TargetMode.ARGS_REMAP`` — the handy
+    zero-ceremony form. No misconfig warning may fire and the old keyword must warn-and-remap at call time.
+
+    """
+
+    @deprecated(**_DEPRS_CASE_STD_ARGS, args_mapping={"old_c": "c"})
+    def _auto_remap_fn(c: float = 1.0) -> float:
+        """Source function — body runs with remapped kwargs (self-deprecation)."""
+        return c * 2
+
+    return _auto_remap_fn
+
+
+def make_deprecated_explicit_auto_on_function() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(target=TargetMode.AUTO, args_mapping=...)`` — explicit AUTO equals omitted.
+
+    Passing ``TargetMode.AUTO`` explicitly to the front door is documented as identical to omitting
+    ``target``: the mapping still selects ``ARGS_REMAP`` and no misconfig warning fires.
+
+    """
+
+    @deprecated(target=TargetMode.AUTO, **_DEPRS_CASE_STD_ARGS, args_mapping={"old_c": "c"})
+    def _explicit_auto_fn(c: float = 1.0) -> float:
+        """Source function — body runs with remapped kwargs (self-deprecation)."""
+        return c * 2
+
+    return _explicit_auto_fn
 
 
 def make_deprecated_with_template_mgs_on_class() -> Any:  # noqa: ANN401

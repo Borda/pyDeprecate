@@ -97,18 +97,28 @@ def _packing_class_source(
     # ``FutureWarning`` fires at the user's decoration site; the raw ``target=False`` stays a genuine
     # class misconfiguration signal forwarded via ``_misconfigured_override``.
     class_misconfigured = target is False
-    if isinstance(target, TargetMode):
-        forward_target: Any = target
-    elif callable(target) and inspect.isclass(target):
+    if target is TargetMode.AUTO:
+        # The AUTO front-door default means "no explicit target" — forward the proxy's own unset value
+        # (``None``) so a configured mapping auto-resolves exactly like a direct ``deprecated_class(...)``
+        # call with ``target`` omitted. ``TargetMode.AUTO`` itself never reaches the strict factories.
+        forward_target: Any = None
+    elif isinstance(target, TargetMode) or callable(target) and inspect.isclass(target):
         forward_target = target
     elif target is None or isinstance(target, bool):
         forward_target = TargetMode._from_legacy(target, stacklevel=pack_args._stacklevel + 1)
+        # Legacy ``None`` meant "no target", and invalid ``False`` is treated the same after its warning —
+        # forward the unset value so a mapping still auto-resolves; an explicitly typed
+        # ``TargetMode.NOTIFY`` is the only value validated against a mapping.
+        if target is None or target is False:
+            forward_target = None
     else:
-        forward_target = TargetMode.NOTIFY
+        # Non-class ``target`` values are ignored on the class path (hint emitted above) — forward the
+        # unset value so a configured mapping is not falsely reported as contradicting an explicit NOTIFY.
+        forward_target = None
 
-    # ``NOTIFY + mapping`` is no longer a misconfiguration — a mapping present is always applied.
+    # An omitted target + mapping auto-resolves; an explicit ``NOTIFY + mapping`` is a misconfiguration.
     # Pass ``args_mapping``/``args_extra`` through untouched so ``deprecated_class`` and its
-    # proxy auto-resolve ``NOTIFY + mapping`` to ARGS_REMAP (identical to a direct
+    # proxy auto-resolve the unset target to ARGS_REMAP (identical to a direct
     # ``deprecated_class(...)`` call). The proxy also owns misconfig validation (e.g. NOTIFY + bare
     # ``args_extra``), so the dispatcher no longer pre-validates or strips anything here.
     # Class-only knobs such as ``attrs_mapping`` are deliberately absent from the front door —
@@ -136,7 +146,7 @@ def _packing_class_source(
 
 
 def deprecated(
-    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod] = TargetMode.NOTIFY,
+    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod] = TargetMode.AUTO,
     deprecated_in: str = "",
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
@@ -232,8 +242,14 @@ def deprecated(
         ...     return x
 
     """
+    # Resolve the AUTO front-door default for the callable arm: a mapping present selects ARGS_REMAP,
+    # otherwise warn-only NOTIFY. Only AUTO resolves — an explicit ``TargetMode.NOTIFY`` is a deliberate
+    # choice and is validated against the mapping by ``deprecated_callable`` instead.
+    _callable_target = (
+        (TargetMode.ARGS_REMAP if args_mapping else TargetMode.NOTIFY) if target is TargetMode.AUTO else target
+    )
     _callable_pack = deprecated_callable(
-        target=target,
+        target=_callable_target,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         stream=stream,

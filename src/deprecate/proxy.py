@@ -355,15 +355,11 @@ class _DeprecatedProxy:
         # aliasing the caller's dict would let post-decoration mutation introduce the exact cycle validation rejected.
         if attrs_mapping is not None:
             attrs_mapping = dict(attrs_mapping)
-        # Dataclass dual-surface auto-expand: copy attrs_mapping entries that name a dataclass field
-        # into args_mapping so both attribute access and constructor kwarg paths emit a FutureWarning.
-        args_mapping, _auto_expanded = _expand_dc_attrs_to_args(_dc_check, attrs_mapping, args_mapping)
-        # When auto-expand produced a non-empty args_mapping and the user provided no explicit
-        # target, set target = obj so the callable-target + both-mappings path activates both surfaces.
-        # ``NOTIFY`` counts as "no explicit target" too: it is the unified factory default and
-        # behaves like the historical ``None`` sentinel whenever a mapping is present.
-        if _auto_expanded and (target is None or target is TargetMode.NOTIFY):
-            target = obj
+        # Resolve the unset/legacy target against the configured mappings; detects the explicit-NOTIFY
+        # contradiction (mapping ignored at runtime, flagged by the validators below).
+        target, args_mapping, _auto_expanded, _explicit_notify_attrs = _resolve_proxy_target(
+            obj, target, args_mapping, attrs_mapping, _dc_check
+        )
         # Kwargs-compatibility guard: detect args_mapping keys that remap to POSITIONAL_ONLY params.
         _incompatible = _detect_proxy_positional_only(_dc_check, name, args_mapping)
         # Constructor POSITIONAL_ONLY split data: the call path forwards remapped values
@@ -371,19 +367,9 @@ class _DeprecatedProxy:
         # historical pop-and-setattr fallback, which failed for required params, immutable
         # instances, and constructor-derived state.
         _ctor_positional_only, _ctor_positional_only_order = _detect_ctor_positional_only(_dc_check)
-        # Auto-resolve: no explicit target but args_mapping provided → ARGS_REMAP. The unified default
-        # ``TargetMode.NOTIFY`` is treated as "no explicit target" here, so NOTIFY + a mapping
-        # auto-promotes instead of being flagged as a misconfiguration.
-        if (target is None or target is TargetMode.NOTIFY) and args_mapping:
-            target = TargetMode.ARGS_REMAP
-        # Auto-resolve: no explicit target but attrs_mapping provided → ATTRS_REMAP
-        # Mirrors the args_mapping auto-resolve above: presence of the dict is the activation
-        # signal; explicit TargetMode.ATTRS_REMAP is the equivalent self-documenting form.
-        if (target is None or target is TargetMode.NOTIFY) and attrs_mapping:
-            target = TargetMode.ATTRS_REMAP
-        # Validate misconfig (NOTIFY+args_mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
+        # Validate misconfig (NOTIFY+mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
-        # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all four signals.
+        # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all signals.
         if isinstance(target, TargetMode):
             misconfigured |= TargetMode._validate(
                 target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4 + _stacklevel_extra
@@ -411,7 +397,9 @@ class _DeprecatedProxy:
             read_only=read_only,
             args_extra=args_extra,
             template_mgs=template_mgs,
-            attrs_mapping=attrs_mapping,
+            # Explicit-NOTIFY conflict: the mapping is ignored at runtime (no redirects), while the frozen
+            # ``DeprecationConfig`` below keeps it so audit can still show what the caller configured.
+            attrs_mapping=None if _explicit_notify_attrs else attrs_mapping,
             skip_if=skip_if,
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
@@ -1282,6 +1270,45 @@ def _expand_dc_attrs_to_args(
     return args_mapping, auto_expanded
 
 
+def _resolve_proxy_target(
+    obj: Any,  # noqa: ANN401
+    target: Any,  # noqa: ANN401
+    args_mapping: Optional[dict[str, Optional[str]]],
+    attrs_mapping: Optional[dict[str, Optional[str]]],
+    dc_check: Any,  # noqa: ANN401
+) -> "tuple[Any, Optional[dict[str, Optional[str]]], list[str], bool]":
+    """Resolve the unset factory default (``None``) against the configured mappings.
+
+    Only ``None`` — the ``deprecated_class`` default, meaning "no explicit target" — auto-resolves: a mapping present
+    selects :attr:`~deprecate._types.TargetMode.ARGS_REMAP` / :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` (or the
+    wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn-on-access
+    proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden — with
+    ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
+    returned tuple tells the proxy to ignore the mapping at runtime (the validators emit the misconfig ``UserWarning``).
+
+    Returns ``(resolved_target, args_mapping, auto_expanded_keys, explicit_notify_attrs)``.
+
+    """
+    explicit_notify_attrs = target is TargetMode.NOTIFY and bool(attrs_mapping)
+    # Dataclass dual-surface auto-expand: copy attrs_mapping entries that name a dataclass field
+    # into args_mapping so both attribute access and constructor kwarg paths emit a FutureWarning.
+    # Skipped under an explicit-NOTIFY conflict — the ignored mapping must not grow ``args_mapping``.
+    auto_expanded: list[str] = []
+    if not explicit_notify_attrs:
+        args_mapping, auto_expanded = _expand_dc_attrs_to_args(dc_check, attrs_mapping, args_mapping)
+    # When auto-expand produced a non-empty args_mapping and the user provided no explicit target,
+    # set target = obj so the callable-target + both-mappings path activates both surfaces.
+    if auto_expanded and target is None:
+        target = obj
+    # Auto-resolve: no explicit target (``None``, the factory default) but a mapping provided → the
+    # matching remap mode. An explicit ``TargetMode.NOTIFY`` never auto-resolves — it is flagged instead.
+    if target is None and args_mapping:
+        target = TargetMode.ARGS_REMAP
+    if target is None and attrs_mapping:
+        target = TargetMode.ATTRS_REMAP
+    return target, args_mapping, auto_expanded, explicit_notify_attrs
+
+
 def _detect_ctor_positional_only(dc_check: Any) -> tuple[frozenset[str], tuple[str, ...]]:  # noqa: ANN401
     """Inspect the active class constructor for POSITIONAL_ONLY parameters.
 
@@ -1399,7 +1426,7 @@ def _build_proxy_warn_msg(
 
 
 def deprecated_class(
-    target: Any = TargetMode.NOTIFY,  # noqa: ANN401
+    target: Any = None,  # noqa: ANN401
     *,
     deprecated_in: str = "",
     remove_in: str = "",
@@ -1446,11 +1473,12 @@ def deprecated_class(
             without an explicit callable *target*, the mode auto-resolves to
             :attr:`~deprecate._types.TargetMode.ARGS_REMAP`: the proxy warns **only when an old argument name is
             actually used** in the call, matching the per-argument warning behaviour of
-            ``@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)``.  Because ``deprecated_class`` defaults to
-            ``target=TargetMode.NOTIFY``, passing ``args_mapping`` with no explicit *target* (or an explicit
-            ``target=TargetMode.NOTIFY``) auto-resolves to ``ARGS_REMAP`` all the same — a mapping present is always
-            applied.  ``target=TargetMode.ARGS_REMAP`` without ``args_mapping`` still emits a :class:`UserWarning` at
-            decoration time (will be :class:`TypeError` in v1.0).
+            ``@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)``.  Passing ``args_mapping`` with no
+            explicit *target* (the default) auto-resolves to ``ARGS_REMAP``; an **explicit**
+            ``target=TargetMode.NOTIFY`` combined with ``args_mapping`` is contradictory — the mapping is
+            ignored and a :class:`UserWarning` fires (:class:`TypeError` in v1.0).  ``target=TargetMode.ARGS_REMAP``
+            without ``args_mapping`` still emits a :class:`UserWarning` at decoration time (will be
+            :class:`TypeError` in v1.0).
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call after ``args_mapping`` has
             been applied.  ``args_extra`` values win over any caller-supplied value with the same key (i.e.
             ``args_extra`` > explicit new-name kwarg > remapped old-name value > source defaults).  Ignored when
@@ -1489,7 +1517,7 @@ def deprecated_class(
             the explicit form is self-documenting and enables validation at decoration time. Passing
             ``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping``, or passing an empty ``attrs_mapping={}``,
             emits a :class:`UserWarning` at decoration time (will be :class:`TypeError` in v1.0). Passing
-            ``attrs_mapping`` with no explicit *target* (or ``target=TargetMode.NOTIFY``, the default) auto-resolves
+            ``attrs_mapping`` with no explicit *target* (the default) auto-resolves
             to ``ATTRS_REMAP`` and applies the mapping.
         skip_if: Conditionally deactivate the deprecation machinery — a ``bool``, or a zero-argument ``Callable``
             returning ``bool``, evaluated at access time.  When it evaluates ``True``, the proxy transparently
@@ -1562,6 +1590,14 @@ def deprecated_class(
         'red'
 
     """
+    # ``TargetMode.AUTO`` is the ``@deprecated`` front-door default only — the strict form requires an
+    # explicit choice (or the omitted default) so the decoration site documents its own intent.
+    if target is TargetMode.AUTO:
+        raise TypeError(
+            "`TargetMode.AUTO` is only valid on the `@deprecated` front door, which infers the mode from "
+            "the configuration. With `deprecated_class` omit `target` (a mapping auto-resolves the mode), "
+            "or pass an explicit mode / replacement class."
+        )
 
     def decorator(cls: Union[type, "_DeprecatedProxy"]) -> "_DeprecatedProxy":
         # When cls is a _DeprecatedProxy (stacking case), cls.__name__ triggers __getattr__

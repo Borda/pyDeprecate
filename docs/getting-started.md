@@ -109,21 +109,21 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 **All `@deprecated` parameters:**
 
-| Param              | Default               | Purpose                                                                                                    |
-| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `target`           | `TargetMode.NOTIFY`   | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` (default) warn-only |
-| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                                                     |
-| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                                                        |
-| `stream`           | `deprecation_warning` | Output sink callable (set `None` to silence deprecation messages)                                          |
-| `num_warns`        | `1`                   | `1` once · `-1` always · `N` exactly N times                                                               |
-| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                                             |
-| `template_mgs`     | `None`                | Custom deprecation message template (`%`-style placeholders)                                               |
-| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                                                 |
-| `skip_if`          | `False`               | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                |
-| `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                        |
-| `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                  |
+| Param              | Default               | Purpose                                                                                                                                                                 |
+| ------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target`           | `TargetMode.AUTO`     | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` warn-only · `TargetMode.AUTO` (default) infers the mode from the other arguments |
+| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                                                                                                                  |
+| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                                                                                                                     |
+| `stream`           | `deprecation_warning` | Output sink callable (set `None` to silence deprecation messages)                                                                                                       |
+| `num_warns`        | `1`                   | `1` once · `-1` always · `N` exactly N times                                                                                                                            |
+| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                                                                                                          |
+| `template_mgs`     | `None`                | Custom deprecation message template (`%`-style placeholders)                                                                                                            |
+| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                                                                                                              |
+| `skip_if`          | `False`               | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                                                                             |
+| `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
+| `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                                                                               |
 
-All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a class source is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`.
+All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a class source is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
 
 `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `template_mgs`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
 
