@@ -151,7 +151,7 @@ ______________________________________________________________________
 
 ## Pick Your Upgrade Path
 
-Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12). Only breaking and behaviour changes are listed; a release that was purely additive says so and needs no action. Where a change was itself superseded by a later one, the earlier section points to the final state, so a path gives the net result rather than each intermediate step.
+Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12). Only breaking and behaviour changes are listed; a release that was purely additive says so and needs no action. Where a change was itself superseded by a later one, the earlier section points to the final state, so a path gives the net result rather than each intermediate step. Releases with no breaking or behaviour change are skipped in these paths and marked *nothing to migrate* in their own section below — a gap means there is genuinely nothing to do, not that a step was dropped.
 
 === "From v0.11"
 
@@ -185,72 +185,59 @@ Each adjacent-release delta is documented once, in the per-version section below
 
 === "From v0.6"
 
-    1. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
+    1. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    2. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    3. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    4. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    5. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.5"
+
+    1. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
     2. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
     3. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
     4. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
     5. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
     6. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
 
-=== "From v0.5"
+=== "From v0.4"
 
     1. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    2. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
+    2. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    3. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    4. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    5. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    6. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.3"
+
+    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
+    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
     3. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
     4. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
     5. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
     6. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
     7. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
 
-=== "From v0.4"
-
-    1. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
-    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    3. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
-    4. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    5. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    6. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    7. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    8. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
-
-=== "From v0.3"
-
-    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
-    2. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
-    3. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    4. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
-    5. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    6. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    7. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    8. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    9. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
-
 === "From v0.2"
 
-    1. [Coming from v0.2](#coming-from-v02) — changes in v0.3.
-    2. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
-    3. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
-    4. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    5. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
-    6. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    7. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    8. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    9. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    10. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
+    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
+    3. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    4. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    5. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    6. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    7. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
 
 === "From v0.1"
 
-    1. [Coming from v0.1](#coming-from-v01) — changes in v0.2.
-    2. [Coming from v0.2](#coming-from-v02) — changes in v0.3.
-    3. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
-    4. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
-    5. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
-    6. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
-    7. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
-    8. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
-    9. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
-    10. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
-    11. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
+    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
+    3. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    4. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    5. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    6. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    7. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
 
 ______________________________________________________________________
 

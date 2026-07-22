@@ -146,7 +146,6 @@ Every parameter each factory accepts, with its default. 🚫 marks a parameter t
 | `num_warns`        | `1`                   | `1`                   | `1`                   | `1`                   | 🚫                  |
 | `stream`           | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `None`              |
 | `message_template` | `None`                | `None`                | `None`                | `None`                | `None`              |
-| `template_mgs`     | `None` (deprecated)   | `None` (deprecated)   | `None` (deprecated)   | `None` (deprecated)   | 🚫                  |
 | `skip_if`          | `False`               | `False`               | `False`               | `False`               | 🚫                  |
 | `read_only`        | 🚫                    | 🚫                    | 🚫                    | `False`               | 🚫                  |
 | `update_docstring` | `False`               | `False`               | `False`               | 🚫                    | 🚫                  |
