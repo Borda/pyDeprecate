@@ -183,14 +183,74 @@ Each adjacent-release delta is documented once, in the per-version section below
     4. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
     5. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
 
-=== "From v0.6 or earlier"
+=== "From v0.6"
 
-    1. [Coming from v0.6 and earlier](#coming-from-v06-and-earlier) — changes in v0.7.
+    1. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
     2. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
     3. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
     4. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
     5. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
     6. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.5"
+
+    1. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
+    2. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
+    3. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    4. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    5. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    6. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    7. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.4"
+
+    1. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
+    2. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
+    3. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
+    4. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    5. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    6. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    7. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    8. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.3"
+
+    1. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
+    2. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
+    3. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
+    4. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
+    5. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    6. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    7. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    8. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    9. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.2"
+
+    1. [Coming from v0.2](#coming-from-v02) — changes in v0.3.
+    2. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
+    3. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
+    4. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
+    5. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
+    6. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    7. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    8. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    9. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    10. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.1"
+
+    1. [Coming from v0.1](#coming-from-v01) — changes in v0.2.
+    2. [Coming from v0.2](#coming-from-v02) — changes in v0.3.
+    3. [Coming from v0.3](#coming-from-v03) — changes in v0.4.
+    4. [Coming from v0.4](#coming-from-v04) — changes in v0.5.
+    5. [Coming from v0.5](#coming-from-v05) — changes in v0.6.
+    6. [Coming from v0.6](#coming-from-v06) — changes in v0.7.
+    7. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    8. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    9. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    10. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    11. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
 
 ______________________________________________________________________
 
@@ -330,16 +390,72 @@ See the [Changelog](../changelog.md) for the complete v0.8 release notes.
 
 ______________________________________________________________________
 
-## Coming from v0.6 and earlier
+## Coming from v0.6
 
-Releases before v0.7 were mostly additive — new features you can adopt but nothing you must change. Two upgrades did require action:
+Here is what changed in v0.7 that you might have missed. Everything was additive — nothing to change:
 
-- **v0.6 — audit API renamed for consistency.** `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecationWrapperInfo`, and the test helper `no_warning_call` → `assert_no_warnings`. The old names stay as deprecated shims (emitting a warning on use) until v1.0 — swap them out at your convenience.
-- **v0.4 — deprecation warnings switched from `DeprecationWarning` to `FutureWarning`.** `DeprecationWarning` is hidden by Python's default filters outside test runs, so callers rarely saw it; `FutureWarning` is shown by default. If you filter or assert on the warning category, update it to `FutureWarning`. The same release raised the minimum Python to 3.9 and changed the license from MIT to Apache-2.0.
+- **Docstring injection expanded.** `update_docstring=True` gained `docstring_style="mkdocs"` (alias `"markdown"`) for `!!! warning` admonitions and `"auto"` to detect the style from existing content; the notice is now inserted *before* the first `Args:`/`Returns:` section rather than appended, and each `args_mapping` entry is annotated inline in the `Args:` section.
+- **Griffe (mkdocstrings) and Sphinx autodoc extensions** (`deprecate.docstring.griffe_ext`, `deprecate.docstring.sphinx_ext`, beta) render deprecation notices in generated API docs.
 
-Everything else in v0.1–v0.6 (the `deprecated_class` / `deprecated_instance` proxies, the `audit` module, `skip_if`, `void()`, `target=True` self-deprecation, `num_warns=-1`) was additive — adopt it when useful; existing code keeps working unchanged.
+See the [Changelog](../changelog.md) for the complete v0.7 release notes.
 
-See the [Changelog](../changelog.md) for the complete pre-v0.7 release notes.
+______________________________________________________________________
+
+## Coming from v0.5
+
+Here is what changed in v0.6 that you might have missed. This is the biggest pre-v0.8 jump — two items need action:
+
+- **`@deprecated` on a class stopped raising and started delegating.** v0.6.0 first made `@deprecated` directly on a class raise `TypeError` at decoration time; v0.6.0.post0 softened that to a `UserWarning` plus automatic delegation to `deprecated_class()`. Existing class-decoration code keeps working with a warning — switch to `deprecated_class()` for a clean result (since v0.12 `@deprecated` dispatches there automatically).
+- **Cross-class method forwarding now raises at decoration time.** Passing a class as `target` on a non-`__init__` method used to silently forward a `self` of the wrong type — always a bug. It now raises `TypeError` at decoration time; fix the target if you relied on it.
+
+Deprecated (old names kept as shims until v1.0): the audit API was renamed for consistency — `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecationWrapperInfo`, and the test helper `no_warning_call` → `assert_no_warnings`. Swap them out at your convenience.
+
+New capabilities you can adopt: `deprecated_class()` and `deprecated_instance()` transparent proxies for Enum, dataclass, and built-in types, with correct `isinstance()` / `issubclass()` semantics that do not consume the warning budget.
+
+See the [Changelog](../changelog.md) for the complete v0.6 release notes.
+
+______________________________________________________________________
+
+## Coming from v0.4
+
+Here is what changed in v0.5 that you might have missed. All additive — nothing to change:
+
+- **The `deprecate.audit` module** arrived for deprecation-lifecycle management in CI: `find_deprecated_callables()` / `validate_deprecated_callable()` (zero-impact wrapper detection), `validate_deprecation_expiry()` (removal-deadline enforcement), and `validate_deprecation_chains()` with the `ChainType` enum. Requires the optional `[audit]` extra (`pip install pyDeprecate[audit]`).
+
+See the [Changelog](../changelog.md) for the complete v0.5 release notes.
+
+______________________________________________________________________
+
+## Coming from v0.3
+
+Here is what changed in v0.4 that you might have missed. One behaviour change needs attention:
+
+- **Deprecation warnings switched from `DeprecationWarning` to `FutureWarning`.** `DeprecationWarning` is hidden by Python's default filters outside test runs, so callers rarely saw it; `FutureWarning` is shown by default. If you filter or assert on the warning category, update it to `FutureWarning`.
+- **Minimum Python raised to 3.9** (3.8 reached end-of-life), and the **license changed from MIT to Apache-2.0**.
+
+New capabilities you can adopt: `update_docstring=True` for automatic Sphinx `.. deprecated::` notices, and error messages that now name the originating class or function.
+
+See the [Changelog](../changelog.md) for the complete v0.4 release notes.
+
+______________________________________________________________________
+
+## Coming from v0.2
+
+Here is what changed in v0.3 that you might have missed. All additive — nothing to change:
+
+- **`skip_if`** — pass a `bool` or a zero-argument callable to skip the warning and forwarding when a runtime condition is true (version checks, feature flags). The `void()` return-type annotation was also corrected to satisfy mypy.
+
+See the [Changelog](../changelog.md) for the complete v0.3 release notes.
+
+______________________________________________________________________
+
+## Coming from v0.1
+
+Here is what changed in v0.2 that you might have missed. All additive — nothing to change:
+
+- **`target=True` self-deprecation** (remap arguments within the same function via `args_mapping`, no separate target), the **`void()`** helper, the **`no_warning_call()`** test context manager (renamed to `assert_no_warnings()` in v0.6), and **stacked `@deprecated`** decorators for multi-hop argument migrations across versions.
+
+See the [Changelog](../changelog.md) for the complete v0.2 release notes.
 
 ______________________________________________________________________
 
