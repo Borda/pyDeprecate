@@ -408,10 +408,10 @@ class DeprecationConfig:
             Audit tools surface this via
             :attr:`~deprecate.audit.DeprecationWrapperInfo.misconfigured_target`.
         docstring_style: Docstring notice output style when ``update_docstring=True``.
-        template_mgs: Optional custom warning-message template (``%``-style placeholders) that overrides the built-in
-            templates at warn time. ``None`` (default) keeps the built-in template selected for the active scenario.
-            Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated` for the
-            available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
+        message_template: Optional custom warning-message template (``%``-style placeholders) that overrides the
+            built-in templates at warn time. ``None`` (default) keeps the built-in template selected for the active
+            scenario. Audit tools may surface this for introspection. See :func:`~deprecate.deprecation.deprecated`
+            for the available placeholders (e.g. ``%(source_name)s``, ``%(target_path)s``, ``%(deprecated_in)s``).
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
             ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when
             selective per-attribute deprecation is enabled.  Non-``None`` redirect targets must be existing attribute
@@ -493,7 +493,7 @@ class DeprecationConfig:
     args_extra: Optional[dict[str, Any]] = None
     misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
-    template_mgs: Optional[str] = None
+    message_template: Optional[str] = None
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
@@ -505,6 +505,16 @@ class DeprecationConfig:
     target_all_param_names: Optional[frozenset[str]] = field(default=None, repr=False, compare=False)
     target_accepts_var_positional: bool = field(default=False, repr=False, compare=False)
     target_accepts_var_keyword: bool = field(default=False, repr=False, compare=False)
+
+    @property
+    def template_mgs(self) -> Optional[str]:
+        """Deprecated read alias for :attr:`message_template` (renamed in ``v0.12``; removed in ``v1.0``).
+
+        The stored field is :attr:`message_template`; audit code that still reads ``__deprecated__.template_mgs`` keeps
+        working through this alias.  The old name was a typo (``mgs`` for ``msg``).
+
+        """
+        return self.message_template
 
 
 @runtime_checkable
@@ -575,8 +585,8 @@ class _ProxyConfig:
         read_only: When ``True``, write operations through the proxy raise :class:`AttributeError`.
         args_extra: Optional dict of extra keyword arguments merged into forwarded calls after ``args_mapping`` has
             been applied. Ignored when the proxy is in :attr:`~deprecate._types.TargetMode.NOTIFY` mode.
-        template_mgs: Optional custom warning-message template (``%``-style placeholders) that overrides the built-in
-            templates at warn time. ``None`` (default) keeps the built-in templates. See
+        message_template: Optional custom warning-message template (``%``-style placeholders) that overrides the
+            built-in templates at warn time. ``None`` (default) keeps the built-in templates. See
             :func:`~deprecate.proxy.deprecated_class` for the placeholder catalogue.
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
             ``None`` for warn-only).  When set, the proxy emits warnings only on access to listed names and forwards
@@ -600,7 +610,7 @@ class _ProxyConfig:
     num_warns: int
     read_only: bool
     args_extra: Optional[dict[str, Any]] = None
-    template_mgs: Optional[str] = None
+    message_template: Optional[str] = None
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     skip_if: Union[bool, Callable[[], bool]] = False
     warned: int = 0

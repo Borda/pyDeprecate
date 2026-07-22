@@ -41,7 +41,7 @@ All modern — no legacy sentinels.
 | `{decorated/wrapped}_sum_no_stream`                                | `base_sum_kwargs`            | Silent (`stream=None`)                                       |
 | `{decorated/wrapped}_sum_calls_2`                                  | `base_sum_kwargs`            | `num_warns=2`                                                |
 | `{decorated/wrapped}_sum_calls_inf`                                | `base_sum_kwargs`            | `num_warns=-1`                                               |
-| `{decorated/wrapped}_sum_msg`                                      | `base_sum_kwargs`            | Custom `template_mgs`                                        |
+| `{decorated/wrapped}_sum_msg`                                      | `base_sum_kwargs`            | Custom `message_template`                                    |
 | `depr_pow_args` / `depr_pow_mix` / `depr_pow_wrong`                | `base_pow_args`              | Positional args; mismatch case                               |
 | `depr_accuracy_skip` / `depr_accuracy_map` / `depr_accuracy_extra` | `accuracy_score`             | Drop, rename, inject args                                    |
 | `PastCls.__init__` / `PastClsMapped.__init__`                      | `NewCls`                     | Class `__init__` forwarding                                  |

@@ -23,7 +23,7 @@ from typing import Any, Callable, Literal, Optional, Union
 
 from deprecate._dispatch import _reject_non_callable_source
 from deprecate._types import TargetMode
-from deprecate.messaging import _validate_template_mgs, deprecation_warning
+from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
 from deprecate.routine import deprecated_callable
 
 # Classes that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
@@ -41,7 +41,7 @@ class _PackingClassArgs:
     remove_in: str
     num_warns: int
     stream: Optional[Callable]
-    template_mgs: Optional[str]
+    message_template: Optional[str]
     args_mapping: Optional[dict[str, Optional[str]]]
     args_extra: Optional[dict[str, Any]]
     skip_if: Union[bool, Callable]
@@ -130,7 +130,7 @@ def _packing_class_source(
         remove_in=pack_args.remove_in,
         num_warns=pack_args.num_warns,
         stream=pack_args.stream,
-        template_mgs=pack_args.template_mgs,
+        message_template=pack_args.message_template,
         args_mapping=pack_args.args_mapping,
         args_extra=pack_args.args_extra,
         skip_if=pack_args.skip_if,
@@ -151,12 +151,13 @@ def deprecated(
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
-    template_mgs: Optional[str] = None,
+    message_template: Optional[str] = None,
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Deprecate a function, method, or class — the friendly front door.
 
@@ -199,7 +200,7 @@ def deprecated(
             - ``-1``: Show warning on every call/access
             - ``0``: Suppress deprecation warnings
             - ``N > 1``: Show warning N times total
-        template_mgs: Custom warning message template with format specifiers (``source_name``, ``source_path``,
+        message_template: Custom warning message template with format specifiers (``source_name``, ``source_path``,
             ``target_name``, ``target_path``, ``deprecated_in``, ``remove_in``, ``argument_map``); see
             :func:`deprecated_callable` for the full specifier reference.
         args_mapping: Map or skip arguments when forwarding — ``{"old_arg": "new_arg"}`` renames, ``{"old_arg":
@@ -215,6 +216,9 @@ def deprecated(
             decoration time.
         docstring_style: Output style for the injected notice when ``update_docstring=True`` — ``"auto"``
             (default, chosen from the active doc engine), ``"rst"``, or ``"mkdocs"`` / ``"markdown"``.
+        template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
+            typo). Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
+            supplying both raises :class:`TypeError`. Removed in ``v1.0``.
 
     Returns:
         Decorator that wraps the source callable, or the class proxy for a class source.
@@ -224,9 +228,9 @@ def deprecated(
             :func:`~deprecate.proxy.deprecated_class` and emits this informational notice once per class
             qualname per process. Use ``@deprecated_class()`` directly to skip it entirely. Suppressed when
             ``stream=None``.
-        UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, no ``template_mgs`` is set,
+        UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, no ``message_template`` is set,
             and the decorated source is not a class. Fired at decoration time (not call time) to catch missing
-            version metadata early. Suppressed by passing ``stream=None`` or ``template_mgs``.
+            version metadata early. Suppressed by passing ``stream=None`` or ``message_template``.
 
     Example:
         >>> # Basic forwarding
@@ -242,6 +246,9 @@ def deprecated(
         ...     return x
 
     """
+    # Fold the deprecated ``template_mgs`` alias into ``message_template`` here at the front door so both
+    # dispatch arms receive only the canonical name and the deprecation notice fires at most once.
+    message_template = _resolve_message_template_alias(message_template, template_mgs)
     # Resolve the AUTO front-door default for the callable arm: a mapping present selects ARGS_REMAP,
     # otherwise warn-only NOTIFY. Only AUTO resolves — an explicit ``TargetMode.NOTIFY`` is a deliberate
     # choice and is validated against the mapping by ``deprecated_callable`` instead.
@@ -254,7 +261,7 @@ def deprecated(
         remove_in=remove_in,
         stream=stream,
         num_warns=num_warns,
-        template_mgs=template_mgs,
+        message_template=message_template,
         args_mapping=args_mapping,
         args_extra=args_extra,
         skip_if=skip_if,
@@ -283,7 +290,7 @@ def deprecated(
                     "or pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping` there."
                 )
             # Preserve decoration-time template validation for the class path (was eager in the old flow).
-            _validate_template_mgs(template_mgs)
+            _validate_message_template(message_template)
             return _packing_class_source(
                 source,
                 target,
@@ -292,7 +299,7 @@ def deprecated(
                     remove_in=remove_in,
                     num_warns=num_warns,
                     stream=stream,
-                    template_mgs=template_mgs,
+                    message_template=message_template,
                     args_mapping=args_mapping,
                     args_extra=args_extra,
                     skip_if=skip_if,

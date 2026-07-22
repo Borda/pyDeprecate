@@ -114,7 +114,7 @@ def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0,
 # Legacy sentinel coverage: parallels ``depr_pow_self_double`` using ``target=True`` directly.
 @deprecated(
     target=True,
-    template_mgs="The `%(source_name)s` uses depr. args: %(argument_map)s.",
+    message_template="The `%(source_name)s` uses depr. args: %(argument_map)s.",
     args_mapping={"c1": "nc1", "c2": "nc2"},
 )
 def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float = 1, nc2: float = 2) -> float:

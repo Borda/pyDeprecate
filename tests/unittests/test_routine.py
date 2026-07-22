@@ -233,7 +233,7 @@ class TestEmptyVersionGuardSymmetry:
         assert len(user_warnings) == 1
 
     def test_guard_silent_when_template_msg_provided(self) -> None:
-        """@deprecated with template_mgs and no deprecated_in does not emit the empty-version UserWarning."""
+        """@deprecated with message_template and no deprecated_in does not emit the empty-version UserWarning."""
 
         def new_fn() -> None:
             pass
@@ -241,12 +241,14 @@ class TestEmptyVersionGuardSymmetry:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
-            @deprecated(target=new_fn, template_mgs="%(source_name)s is gone, use new_fn.")
+            @deprecated(target=new_fn, message_template="%(source_name)s is gone, use new_fn.")
             def old_fn_notify() -> None:
                 pass
 
             @deprecated(
-                target=TargetMode.ARGS_REMAP, args_mapping={"a": "b"}, template_mgs="%(source_name)s arg 'a' renamed."
+                target=TargetMode.ARGS_REMAP,
+                args_mapping={"a": "b"},
+                message_template="%(source_name)s arg 'a' renamed.",
             )
             def old_fn_remap(a: int = 0, b: int = 0) -> int:
                 return b

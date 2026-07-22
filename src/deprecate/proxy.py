@@ -48,7 +48,8 @@ from deprecate.messaging import (
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
-    _validate_template_mgs,
+    _resolve_message_template_alias,
+    _validate_message_template,
     deprecation_warning,
 )
 from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
@@ -88,7 +89,7 @@ class _DeprecatedProxy:
             stacklevel budget assumes *stream* is :func:`warnings.warn` itself or a C-level
             :func:`functools.partial` of it; a Python-defined wrapper interposes an extra frame and
             the warning will appear to originate inside :mod:`deprecate.proxy` rather than the caller.
-        template_mgs: Optional custom warning message template that overrides the built-in templates.  When ``None``
+        message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
         read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
@@ -309,7 +310,7 @@ class _DeprecatedProxy:
         remove_in: str = "",
         num_warns: int = 1,
         stream: Optional[Callable[..., None]] = deprecation_warning,
-        template_mgs: Optional[str] = None,
+        message_template: Optional[str] = None,
         skip_if: Union[bool, Callable[[], bool]] = False,
         read_only: bool = False,
         docstring_style: str = "auto",
@@ -333,9 +334,9 @@ class _DeprecatedProxy:
         in one place.
 
         """
-        # Probe ``template_mgs`` against every documented placeholder so typos and malformed conversion specifiers
+        # Probe ``message_template`` against every documented placeholder so typos and malformed conversion specifiers
         # fail at decoration time instead of on the first proxy access.
-        _validate_template_mgs(template_mgs)
+        _validate_message_template(message_template)
         # Reject true cycles in ``attrs_mapping`` at decoration time. Non-cyclic chains are allowed at runtime
         # and surfaced by audit as mapping chains.
         if attrs_mapping is not None:
@@ -396,7 +397,7 @@ class _DeprecatedProxy:
             num_warns=num_warns,
             read_only=read_only,
             args_extra=args_extra,
-            template_mgs=template_mgs,
+            message_template=message_template,
             # Explicit-NOTIFY conflict: the mapping is ignored at runtime (no redirects), while the frozen
             # ``DeprecationConfig`` below keeps it so audit can still show what the caller configured.
             attrs_mapping=None if _explicit_notify_attrs else attrs_mapping,
@@ -413,7 +414,7 @@ class _DeprecatedProxy:
             args_extra=args_extra,
             misconfigured=misconfigured,
             docstring_style=normalize_docstring_style(docstring_style),
-            template_mgs=template_mgs,
+            message_template=message_template,
             attrs_mapping=attrs_mapping,
             args_mapping_auto_expanded=tuple(_auto_expanded),
             args_mapping_positional_only=_incompatible,
@@ -1383,7 +1384,7 @@ def _build_proxy_warn_msg(
     """
     target: Any = dep.target
     args_mapping = dep.args_mapping
-    custom_template = cfg.template_mgs
+    custom_template = cfg.message_template
 
     if arg_name is not None and args_mapping and arg_name in args_mapping:
         new_arg = args_mapping[arg_name]
@@ -1432,13 +1433,14 @@ def deprecated_class(
     remove_in: str = "",
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
-    template_mgs: Optional[str] = None,
+    message_template: Optional[str] = None,
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     skip_if: Union[bool, Callable[[], bool]] = False,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
 ) -> Callable[[Union[type, "_DeprecatedProxy"]], "_DeprecatedProxy"]:
@@ -1455,7 +1457,7 @@ def deprecated_class(
         num_warns: Maximum number of warnings to emit per proxy instance. ``1`` warns once; ``-1`` warns on every
             access.
         stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`.
-        template_mgs: Optional custom warning message template that overrides the built-in templates.  When ``None``
+        message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument for ``args_mapping``).  Available ``%``-style placeholders:
 
@@ -1531,6 +1533,9 @@ def deprecated_class(
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the
             doc engine at decoration time; ``"rst"`` emits a ``.. deprecated::`` directive; ``"mkdocs"`` /
             ``"markdown"`` emit a ``!!! warning`` admonition.
+        template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
+            typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
+            supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`.
@@ -1590,6 +1595,7 @@ def deprecated_class(
         'red'
 
     """
+    message_template = _resolve_message_template_alias(message_template, template_mgs)
     # ``TargetMode.AUTO`` is the ``@deprecated`` front-door default only — the strict form requires an
     # explicit choice (or the omitted default) so the decoration site documents its own intent.
     if target is TargetMode.AUTO:
@@ -1605,7 +1611,7 @@ def deprecated_class(
         cls_name = (
             object.__getattribute__(cls, "__deprecated__").name if isinstance(cls, _DeprecatedProxy) else cls.__name__
         )
-        if stream is not None and not deprecated_in and not template_mgs:
+        if stream is not None and not deprecated_in and not message_template:
             warnings.warn(
                 f"`@deprecated_class` on `{cls_name}` has no `deprecated_in` set."
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
@@ -1620,7 +1626,7 @@ def deprecated_class(
             remove_in=remove_in,
             num_warns=num_warns,
             stream=stream,
-            template_mgs=template_mgs,
+            message_template=message_template,
             read_only=False,
             target=target,
             args_mapping=args_mapping,
@@ -1650,10 +1656,11 @@ def deprecated_instance(
     remove_in: str = "",
     num_warns: int = 1,
     stream: Optional[Callable[..., None]] = deprecation_warning,
-    template_mgs: Optional[str] = None,
+    message_template: Optional[str] = None,
     skip_if: Union[bool, Callable[[], bool]] = False,
     read_only: bool = False,
     args_extra: Optional[dict[str, Any]] = None,
+    template_mgs: Optional[str] = None,
 ) -> "_DeprecatedProxy":
     """Wrap any Python object with deprecation warnings.
 
@@ -1670,7 +1677,7 @@ def deprecated_instance(
         num_warns: Maximum number of warnings to emit. ``1`` (default) warns once; ``-1`` warns on every access.
         stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`
             (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.
-        template_mgs: Optional custom warning message template that overrides the built-in templates.  When ``None``
+        message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used.  See
             :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
         skip_if: Conditionally deactivate the deprecation machinery — a ``bool``, or a zero-argument ``Callable``
@@ -1685,6 +1692,9 @@ def deprecated_instance(
             Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
             ``args_extra`` values win over any caller-supplied value with the same key.
+        template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
+            typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
+            supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*.
@@ -1711,8 +1721,9 @@ def deprecated_instance(
         True
 
     """
+    message_template = _resolve_message_template_alias(message_template, template_mgs)
     resolved_name = name or type(obj).__name__
-    if stream is not None and not deprecated_in and not template_mgs:
+    if stream is not None and not deprecated_in and not message_template:
         warnings.warn(
             f"`deprecated_instance()` on `{resolved_name}` has no `deprecated_in` set."
             " Deprecation notices and generated documentation will omit the `deprecated_in` version."
@@ -1727,7 +1738,7 @@ def deprecated_instance(
         remove_in=remove_in,
         num_warns=num_warns,
         stream=stream,
-        template_mgs=template_mgs,
+        message_template=message_template,
         skip_if=skip_if,
         read_only=read_only,
         args_extra=args_extra,

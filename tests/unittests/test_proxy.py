@@ -202,7 +202,7 @@ class TestProxyWarnBehavior:
 
 
 class TestProxyTemplateMgs:
-    """``template_mgs`` overrides the built-in warning-message templates on proxies.
+    """``message_template`` overrides the built-in warning-message templates on proxies.
 
     Mirrors the parity that ``@deprecated`` already offers, so that switching from ``@deprecated`` to
     ``deprecated_class``/``deprecated_instance`` does not cause the loss of custom warning-message control.
@@ -210,13 +210,13 @@ class TestProxyTemplateMgs:
     """
 
     def test_custom_template_used_in_warning_message_no_target(self) -> None:
-        """``template_mgs`` overrides the no-target template when no target is set."""
+        """``message_template`` overrides the no-target template when no target is set."""
         proxy = _DeprecatedProxy(
             obj={},
             name="legacy_obj",
             deprecated_in="1.0",
             remove_in="2.0",
-            template_mgs="CUSTOM %(source_name)s deprecated_in=%(deprecated_in)s",
+            message_template="CUSTOM %(source_name)s deprecated_in=%(deprecated_in)s",
         )
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -225,7 +225,7 @@ class TestProxyTemplateMgs:
         assert msg == "CUSTOM legacy_obj deprecated_in=1.0"
 
     def test_custom_template_used_in_warning_message_callable_target(self) -> None:
-        """``template_mgs`` overrides the callable-target template, exposing target placeholders."""
+        """``message_template`` overrides the callable-target template, exposing target placeholders."""
 
         def replacement() -> None:
             """Replacement target used to confirm ``target_path`` substitution."""
@@ -236,7 +236,7 @@ class TestProxyTemplateMgs:
             deprecated_in="1.0",
             remove_in="2.0",
             target=replacement,
-            template_mgs="OVERRIDE %(source_name)s -> %(target_name)s",
+            message_template="OVERRIDE %(source_name)s -> %(target_name)s",
         )
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -247,14 +247,14 @@ class TestProxyTemplateMgs:
         assert "replacement" in msg
 
     def test_custom_template_used_in_per_argument_warning(self) -> None:
-        """``template_mgs`` overrides ``TEMPLATE_WARNING_ARGUMENTS`` for per-argument warnings."""
+        """``message_template`` overrides ``TEMPLATE_WARNING_ARGUMENTS`` for per-argument warnings."""
         proxy = _DeprecatedProxy(
             obj=lambda **_: None,
             name="LegacyConfig",
             deprecated_in="1.0",
             remove_in="2.0",
             args_mapping={"old_key": "new_key"},
-            template_mgs="ARGS-OVERRIDE %(source_name)s :: %(argument_map)s",
+            message_template="ARGS-OVERRIDE %(source_name)s :: %(argument_map)s",
         )
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -263,8 +263,8 @@ class TestProxyTemplateMgs:
         assert msg.startswith("ARGS-OVERRIDE LegacyConfig :: ")
         assert "`old_key` -> `new_key`" in msg
 
-    def test_default_template_used_when_template_mgs_is_none(self) -> None:
-        """Without ``template_mgs`` the built-in default template is rendered verbatim."""
+    def test_default_template_used_when_message_template_is_none(self) -> None:
+        """Without ``message_template`` the built-in default template is rendered verbatim."""
         proxy = _DeprecatedProxy(obj={}, name="legacy_obj", deprecated_in="1.0", remove_in="2.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -274,16 +274,16 @@ class TestProxyTemplateMgs:
         assert "The `legacy_obj` was deprecated since v1.0" in msg
         assert "It will be removed in v2.0" in msg
 
-    def test_template_mgs_stored_on_deprecation_config(self) -> None:
-        """``template_mgs`` is recorded on ``DeprecationConfig`` for audit/introspection."""
+    def test_message_template_stored_on_deprecation_config(self) -> None:
+        """``message_template`` is recorded on ``DeprecationConfig`` for audit/introspection."""
         proxy = _DeprecatedProxy(
-            obj={}, name="legacy_obj", deprecated_in="1.0", remove_in="2.0", template_mgs="CUSTOM %(source_name)s"
+            obj={}, name="legacy_obj", deprecated_in="1.0", remove_in="2.0", message_template="CUSTOM %(source_name)s"
         )
         dep = object.__getattribute__(proxy, "__deprecated__")
-        assert dep.template_mgs == "CUSTOM %(source_name)s"
+        assert dep.message_template == "CUSTOM %(source_name)s"
 
     def test_deprecated_class_custom_template_applied(self) -> None:
-        """``deprecated_class(template_mgs=...)`` propagates the override to ``_warn``."""
+        """``deprecated_class(message_template=...)`` propagates the override to ``_warn``."""
 
         class NewCfg:
             """Replacement class used as forwarding target."""
@@ -292,7 +292,7 @@ class TestProxyTemplateMgs:
             target=NewCfg,
             deprecated_in="1.0",
             remove_in="2.0",
-            template_mgs="OVERRIDE %(source_name)s -> %(target_name)s",
+            message_template="OVERRIDE %(source_name)s -> %(target_name)s",
         )
         class OldCfg:
             """Source class wrapped by the proxy."""
@@ -306,17 +306,21 @@ class TestProxyTemplateMgs:
         assert "NewCfg" in msg
 
     def test_deprecated_instance_custom_template_applied(self) -> None:
-        """``deprecated_instance(template_mgs=...)`` propagates the override to ``_warn``."""
+        """``deprecated_instance(message_template=...)`` propagates the override to ``_warn``."""
         proxy = deprecated_instance(
-            {"k": 1}, name="legacy_cfg", deprecated_in="1.0", remove_in="2.0", template_mgs="OVERRIDE %(source_name)s"
+            {"k": 1},
+            name="legacy_cfg",
+            deprecated_in="1.0",
+            remove_in="2.0",
+            message_template="OVERRIDE %(source_name)s",
         )
         with pytest.warns(FutureWarning) as caught:
             _ = proxy["k"]
         msg = str(caught[0].message)
         assert msg == "OVERRIDE legacy_cfg"
 
-    def test_deprecated_class_default_template_when_template_mgs_omitted(self) -> None:
-        """Without ``template_mgs`` ``deprecated_class`` keeps the built-in template."""
+    def test_deprecated_class_default_template_when_message_template_omitted(self) -> None:
+        """Without ``message_template`` ``deprecated_class`` keeps the built-in template."""
 
         class NewCfg2:
             """Replacement class used as forwarding target."""

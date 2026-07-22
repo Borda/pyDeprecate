@@ -14,4 +14,4 @@ def cube(x: int) -> int:
     return x * x * x
 
 
-deprecate.deprecated_module(deprecated_in="1.0", remove_in="2.0", message="Use new_math instead.")
+deprecate.deprecated_module(deprecated_in="1.0", remove_in="2.0", message_template="Use new_math instead.")

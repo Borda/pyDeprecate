@@ -6,7 +6,7 @@ dispatches to :func:`~deprecate.proxy.deprecated_class` and emits a one-time inf
 ``TypeError`` guards (non-callable/non-class source; callable instance lacking ``__name__``), the
 ``TargetMode.AUTO`` front-door inference contract (mapping selects the remap mode; strict factories
 reject AUTO), the common-args-only contract of the front door (class-only ``attrs_mapping`` rejected,
-common ``template_mgs``/``skip_if`` forwarded), and stacking the dispatcher over an already-wrapped
+common ``message_template``/``skip_if`` forwarded), and stacking the dispatcher over an already-wrapped
 callable or an existing class proxy.
 
 """
@@ -39,7 +39,7 @@ from tests.collection_deprecate import (
     make_deprecated_stacked_over_wrapped_callable,
     make_deprecated_with_args_mapping_on_class_default_target,
     make_deprecated_with_attrs_mapping_kwarg,
-    make_deprecated_with_template_mgs_on_class,
+    make_deprecated_with_message_template_on_class,
 )
 
 
@@ -283,15 +283,15 @@ class TestCommonArgsOnlyOnDispatcher:
             instance = proxy()
         assert type(instance).__name__ == "PaletteOld"
 
-    def test_template_mgs_forwards_on_class_path(self) -> None:
-        """``deprecated(template_mgs=...)`` on a class renders the custom template on proxy access.
+    def test_message_template_forwards_on_class_path(self) -> None:
+        """``deprecated(message_template=...)`` on a class renders the custom template on proxy access.
 
-        ``template_mgs`` is common to both dispatch shapes, so a maintainer setting a custom warning message
+        ``message_template`` is common to both dispatch shapes, so a maintainer setting a custom warning message
         through the front door must see it honoured by the class proxy exactly as with a direct
-        ``deprecated_class(template_mgs=...)`` call — the dispatcher used to drop the template silently.
+        ``deprecated_class(message_template=...)`` call — the dispatcher used to drop the template silently.
 
         """
-        proxy = make_deprecated_with_template_mgs_on_class()
+        proxy = make_deprecated_with_message_template_on_class()
 
         with pytest.warns(FutureWarning, match="Custom notice for `Palette`."):
             proxy()

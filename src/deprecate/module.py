@@ -53,23 +53,23 @@ def _build_module_warn_msg(
     deprecated_in: str,
     remove_in: str,
     target: Optional[types.ModuleType],
-    message: str,
+    message_template: Optional[str],
 ) -> str:
     target_name = getattr(target, "__name__", None) if target is not None else None
+    # A caller-supplied ``message_template`` replaces the built-in notice (consistent with the other
+    # factories); plain text renders verbatim, while ``%``-placeholders are substituted. Otherwise pick the
+    # redirect or no-target built-in template.
+    args = {
+        "source_name": module_name,
+        "deprecated_in": deprecated_in,
+        "remove_in": remove_in,
+        "target_name": target_name or "",
+    }
+    if message_template:
+        return message_template % args
     if target is not None and target_name:
-        template = _TEMPLATE_MODULE_REDIRECT % {
-            "source_name": module_name,
-            "deprecated_in": deprecated_in,
-            "remove_in": remove_in,
-            "target_name": target_name,
-        }
-    else:
-        template = _TEMPLATE_MODULE_NO_TARGET % {
-            "source_name": module_name,
-            "deprecated_in": deprecated_in,
-            "remove_in": remove_in,
-        }
-    return f"{template} {message}" if message else template
+        return _TEMPLATE_MODULE_REDIRECT % args
+    return _TEMPLATE_MODULE_NO_TARGET % args
 
 
 def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
@@ -80,7 +80,7 @@ def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
     that must be reported rather than silently dropped).  Only fields a caller controls are
     compared: the redirect ``target`` (or the :attr:`~deprecate._types.TargetMode.NOTIFY` sentinel),
     both version strings, the per-attribute mapping, and the fully-rendered warning message (which
-    already folds in the caller's ``message`` argument).  The runtime ``stream`` callable is
+    already folds in the caller's ``message_template`` argument).  The runtime ``stream`` callable is
     intentionally excluded — a differing ``stream`` alone does not constitute a configuration
     difference.
 
@@ -97,12 +97,12 @@ def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
     # An empty dict normalizes to None (truthiness check, not `is not None`): an empty mapping is
     # semantically identical to no mapping, so `{}` and `None` must not read as a config difference.
     frozen_mapping = frozenset(attrs_mapping.items()) if attrs_mapping else None
-    return (config.target, config.deprecated_in, config.remove_in, frozen_mapping, config.template_mgs)
+    return (config.target, config.deprecated_in, config.remove_in, frozen_mapping, config.message_template)
 
 
 def _emit_module_warning(config: DeprecationConfig, stream: Optional[Callable[..., Any]]) -> None:
     """Emit the module deprecation warning via ``stream`` or :func:`warnings.warn`."""
-    warn_msg: str = config.template_mgs or ""
+    warn_msg: str = config.message_template or ""
     if stream is not None:
         try:
             stream(warn_msg, stacklevel=3)
@@ -277,7 +277,7 @@ def deprecated_module(
     deprecated_in: str = "",
     remove_in: str = "",
     stream: Optional[Callable[..., Any]] = None,
-    message: str = "",
+    message_template: Optional[str] = None,
 ) -> None:
     """Mark a module as deprecated by intercepting all public attribute accesses.
 
@@ -320,7 +320,10 @@ def deprecated_module(
             de-duplicated per call site by Python's ``__warningregistry__``, but a custom ``stream`` (e.g.
             ``logging.warning``) is invoked on every access; cap or throttle it on your side if a hot loop reads a
             deprecated-module attribute repeatedly.
-        message: Optional extra text appended to the generated warning message.
+        message_template: Optional custom warning message that overrides the built-in module notice.  Plain text
+            is used verbatim; ``%``-style placeholders ``%(source_name)s`` (the module name), ``%(deprecated_in)s``,
+            ``%(remove_in)s``, and ``%(target_name)s`` (empty when no ``target``) are substituted.  ``None``
+            (default) keeps the built-in notice.  Matches the ``message_template`` argument on the other factories.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
@@ -371,7 +374,7 @@ def deprecated_module(
     if target is mod:
         raise ValueError(f"`deprecated_module()` called with `target` pointing at {module_name!r} itself.")
 
-    warn_msg = _build_module_warn_msg(module_name, deprecated_in, remove_in, target, message)
+    warn_msg = _build_module_warn_msg(module_name, deprecated_in, remove_in, target, message_template)
 
     # Build the incoming config first so the idempotency guard can compare it against any config a
     # prior call already installed.
@@ -380,14 +383,14 @@ def deprecated_module(
         remove_in=remove_in,
         name=module_name,
         target=target if target is not None else TargetMode.NOTIFY,
-        template_mgs=warn_msg,
+        message_template=warn_msg,
         attrs_mapping=attrs_mapping,
     )
 
     # Idempotency guard: a module already deprecated must not be silently re-wrapped (handles
     # importlib.reload and accidental double-calls). A repeat call with the *same* user-facing
     # configuration is a safe no-op; a repeat call with a *different* configuration (e.g. switching
-    # from in-place warn to a redirect target, or changing versions/message/attrs_mapping) is a
+    # from in-place warn to a redirect target, or changing versions/message_template/attrs_mapping) is a
     # reconfiguration that would otherwise vanish without trace — emit a UserWarning and keep the
     # original config rather than silently dropping the second call. The `stream` callable is
     # excluded from the comparison (see _config_identity).
