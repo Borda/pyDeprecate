@@ -151,7 +151,7 @@ ______________________________________________________________________
 
 ## Pick Your Upgrade Path
 
-Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12). Where an intermediate release introduced a name that a later release renamed, the earlier section already gives the **final** name (e.g. an audit helper renamed in v0.6 is shown under its v0.12 name), so following a path never makes you adopt an intermediate spelling and then migrate it again — you get the net `A → C`, not `A → B → C`.
+Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12). Only breaking and behaviour changes are listed; a release that was purely additive says so and needs no action. Where a change was itself superseded by a later one, the earlier section points to the final state, so a path gives the net result rather than each intermediate step.
 
 === "From v0.11"
 
@@ -297,10 +297,6 @@ The front-door `deprecated()` dispatcher now exposes only the arguments common t
 
 As part of this alignment, `message_template` and `skip_if` passed through `@deprecated` on a class are now forwarded to the proxy (`message_template` used to be dropped silently on the class-dispatch path).
 
-### `skip_if` now available on proxies
-
-`deprecated_class()` and `deprecated_instance()` gained the `skip_if` option (previously callable-only). When the condition evaluates `True` at access time, the proxy transparently serves the wrapped source — no warning, no `attrs_mapping` redirect, no `args_mapping`/`args_extra` handling, no target forwarding, and no `read_only` enforcement — mirroring the callable form, where a skipped call executes the source body unchanged. The condition may be consulted more than once per proxy operation, so keep the callable cheap and stable.
-
 ### `template_mgs` → `message_template`
 
 The custom-notice parameter was a typo (`mgs` for `msg`). It is now `message_template` on every factory (`@deprecated`, `deprecated_callable`, `deprecated_class`, `deprecated_instance`, and `deprecated_module`). The old name keeps working as a deprecated alias until v1.0:
@@ -325,15 +321,9 @@ ______________________________________________________________________
 
 ## Coming from v0.10
 
-Here is what changed in v0.11 that you might have missed. Watch this one first:
+Here is what changed in v0.11 that you might have missed:
 
 - **In-place operators on a proxy rebind the name to the unwrapped result.** After `x += 1` on a `deprecated_instance` proxy, `x` is now a plain value (e.g. an `int`), not a re-wrapped proxy — so every later use of `x` is silent even if the deprecation window is still open. Assign to a fresh name, or avoid in-place operators, when you need the warning to keep firing.
-
-Everything else is additive:
-
-- **Proxies forward operator and protocol dunders.** Arithmetic (`proxy + 1`), comparison/ordering, context managers (`with proxy:`), iteration, numeric conversion (`int`/`float`/`round`/`abs`), `os.fspath`, `format`, and the async protocols now delegate to the wrapped object instead of raising `TypeError`. Data-use operations warn within the `num_warns` budget; cheap structural probes stay silent.
-- **Subclassing a deprecated class alias works (PEP 560).** `class Child(OldAlias)` previously raised a metaclass-arity `TypeError`; it now resolves to the active class and emits the deprecation warning (silent for `ATTRS_REMAP`- and `ARGS_REMAP`-only proxies).
-- Proxy identity fixes, and call forwarding is ~2.4× faster — no code change required.
 
 See the [Changelog](../changelog.md) for the complete v0.11 release notes.
 
@@ -347,12 +337,6 @@ Here is what changed in v0.10 that you might have missed. The first item is a be
 - **`args_mapping` precedence fixed — explicit new name always wins.** When a caller passes both the old and new argument names (`fn(val=5, new_val=6)`), the explicit new-name value now wins; previously the remapped old-name value could clobber it, regardless of call-site order.
 - **Circular callable-target chains raise `RuntimeError`.** An A → B → A target cycle previously ran into `RecursionError`; a re-entrancy guard now raises a clear `RuntimeError` naming the cycle.
 
-New capabilities you can adopt:
-
-- **`deprecated_class(attrs_mapping={...})` + `TargetMode.ATTRS_REMAP`** for selective per-attribute deprecation, with per-attribute warning budgets and `None` for warn-only. On a `@dataclass`, auto-expand covers constructor kwargs too from a single call.
-- **`target=` accepts raw `staticmethod` / `classmethod` descriptors** inside a class body — drop the old `.__func__` suffix.
-- `deprecated_class` stacking; opt-in strict `property` (`from deprecate import property`); the `DeprecationWrapperInfo.inner_order_property` audit flag; and `validate_mapping_compatibility()` for POSITIONAL_ONLY-remap detection in CI.
-
 See the [Changelog](../changelog.md) for the complete v0.10 release notes.
 
 ______________________________________________________________________
@@ -364,12 +348,6 @@ Here is what changed in v0.9 that you might have missed. The CLI rename is break
 - **CLI flag renamed: `--skip_errors` → `--exit-zero`.** The old flag is no longer accepted on any subcommand (`check`, `expiry`, `chains`, `all`) — update existing scripts. The canonical spelling is `--exit-zero` (dash); `--exit_zero` (underscore) is accepted as an alias. The new name matches the linter convention and describes the behaviour: exit-code override only, no exception suppression.
 - **Misconfigured `@deprecated` stacking now warns at decoration time.** Six previously-undefined stacking shapes (e.g. callable-over-callable) emit `UserWarning` naming the shape (→ `TypeError` in v1.0). The supported lifecycle shape is `ARGS_REMAP` (outer) + `NOTIFY` (inner): rename arguments first, deprecate the whole function later.
 - **Audit reclassification:** an `ARGS_REMAP + NOTIFY` chain is now reported as `ChainType.STACKED`, not `TARGET`.
-
-New capabilities you can adopt:
-
-- **Generator, `async def`, and async-generator support for `@deprecated`** — all three `TargetMode` shapes work; see [Async & generators](async.md) for the exact warning-timing rules.
-- **Order-agnostic `@classmethod` / `@staticmethod`** — either decorator order produces the same deprecated descriptor.
-- **Markdown audit tables** via `generate_deprecation_table()` and the `pydeprecate status` CLI subcommand; `DeprecationStatus`, `TableStyle`, and `ChainType` are now public.
 
 See the [Changelog](../changelog.md) for the complete v0.9 release notes.
 
@@ -384,7 +362,6 @@ Here is what changed in v0.8 that you might have missed:
 - Construction-time `UserWarning` for all misconfigured `TargetMode` combinations.
 - `target` parameter of `@deprecated` now defaults to `TargetMode.NOTIFY`, so `@deprecated(deprecated_in="1.0", remove_in="2.0")` is the canonical warn-only form. (Since v0.12 the front-door default is `TargetMode.AUTO`, which resolves to `NOTIFY` when no mapping is given — the canonical warn-only form is unchanged.)
 - `DeprecationWrapperInfo` field renames: `empty_mapping` → `empty_args_mapping`, `identity_mapping` → `identity_args_mapping`.
-- New `DeprecationWrapperInfo.empty_deprecated_in` field for CI detection of wrappers with no version annotation.
 
 See the [Changelog](../changelog.md) for the complete v0.8 release notes.
 
@@ -392,10 +369,7 @@ ______________________________________________________________________
 
 ## Coming from v0.6
 
-Here is what changed in v0.7 that you might have missed. Everything was additive — nothing to change:
-
-- **Docstring injection expanded.** `update_docstring=True` gained `docstring_style="mkdocs"` (alias `"markdown"`) for `!!! warning` admonitions and `"auto"` to detect the style from existing content; the notice is now inserted *before* the first `Args:`/`Returns:` section rather than appended, and each `args_mapping` entry is annotated inline in the `Args:` section.
-- **Griffe (mkdocstrings) and Sphinx autodoc extensions** (`deprecate.docstring.griffe_ext`, `deprecate.docstring.sphinx_ext`, beta) render deprecation notices in generated API docs.
+No breaking or behaviour changes in v0.7 — nothing to migrate.
 
 See the [Changelog](../changelog.md) for the complete v0.7 release notes.
 
@@ -410,17 +384,13 @@ Here is what changed in v0.6 that you might have missed. This is the biggest pre
 
 Deprecated (old names kept as shims until v1.0): the audit API was renamed for consistency — `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecationWrapperInfo`, and the test helper `no_warning_call` → `assert_no_warnings`. Swap them out at your convenience.
 
-New capabilities you can adopt: `deprecated_class()` and `deprecated_instance()` transparent proxies for Enum, dataclass, and built-in types, with correct `isinstance()` / `issubclass()` semantics that do not consume the warning budget.
-
 See the [Changelog](../changelog.md) for the complete v0.6 release notes.
 
 ______________________________________________________________________
 
 ## Coming from v0.4
 
-Here is what changed in v0.5 that you might have missed. All additive — nothing to change:
-
-- **The `deprecate.audit` module** arrived for deprecation-lifecycle management in CI: zero-impact wrapper detection, removal-deadline enforcement (`validate_deprecation_expiry()`), and forwarding-chain detection (`validate_deprecation_chains()` with the `ChainType` enum). Requires the optional `[audit]` extra (`pip install pyDeprecate[audit]`). Jumping straight to v0.12, adopt the current detection names — `find_deprecation_wrappers()` / `validate_deprecation_wrapper()` returning `DeprecationWrapperInfo`; these shipped in v0.5 as `find_deprecated_callables()` / `validate_deprecated_callable()` / `DeprecatedCallableInfo` and were renamed in v0.6 (see [Coming from v0.5](#coming-from-v05)), so skip the old spellings entirely.
+No breaking or behaviour changes in v0.5 — nothing to migrate.
 
 See the [Changelog](../changelog.md) for the complete v0.5 release notes.
 
@@ -433,17 +403,13 @@ Here is what changed in v0.4 that you might have missed. One behaviour change ne
 - **Deprecation warnings switched from `DeprecationWarning` to `FutureWarning`.** `DeprecationWarning` is hidden by Python's default filters outside test runs, so callers rarely saw it; `FutureWarning` is shown by default. If you filter or assert on the warning category, update it to `FutureWarning`.
 - **Minimum Python raised to 3.9** (3.8 reached end-of-life), and the **license changed from MIT to Apache-2.0**.
 
-New capabilities you can adopt: `update_docstring=True` for automatic Sphinx `.. deprecated::` notices, and error messages that now name the originating class or function.
-
 See the [Changelog](../changelog.md) for the complete v0.4 release notes.
 
 ______________________________________________________________________
 
 ## Coming from v0.2
 
-Here is what changed in v0.3 that you might have missed. All additive — nothing to change:
-
-- **`skip_if`** — pass a `bool` or a zero-argument callable to skip the warning and forwarding when a runtime condition is true (version checks, feature flags). The `void()` return-type annotation was also corrected to satisfy mypy.
+No breaking or behaviour changes in v0.3 — nothing to migrate.
 
 See the [Changelog](../changelog.md) for the complete v0.3 release notes.
 
@@ -451,9 +417,7 @@ ______________________________________________________________________
 
 ## Coming from v0.1
 
-Here is what changed in v0.2 that you might have missed. All additive — nothing to change:
-
-- **`target=True` self-deprecation** (remap arguments within the same function via `args_mapping`, no separate target — today spelled `TargetMode.ARGS_REMAP`; see [Align with the Current API](#align-with-the-current-api)), the **`void()`** helper, the **`assert_no_warnings()`** test context manager (shipped in v0.2 as `no_warning_call()`, renamed in v0.6 — adopt the current name directly), and **stacked `@deprecated`** decorators for multi-hop argument migrations across versions.
+No breaking or behaviour changes in v0.2 — nothing to migrate.
 
 See the [Changelog](../changelog.md) for the complete v0.2 release notes.
 
